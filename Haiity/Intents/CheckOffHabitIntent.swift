@@ -20,9 +20,16 @@ struct HabitEntity: AppEntity {
     }
 
     init(habit: Habit) {
-        self.id = habit.id
-        self.name = habit.name
-        self.emoji = habit.emoji
+        self.init(id: habit.id, name: habit.name, emoji: habit.emoji)
+    }
+
+    /// Aus rohen Feldern — das Steuerungselement im Kontrollzentrum hält nur
+    /// diese drei und hat den Habit nicht zur Hand. Ein eigener Init ist
+    /// nötig, weil der bezeichnete oben den memberwise-Init verdeckt.
+    init(id: UUID, name: String, emoji: String) {
+        self.id = id
+        self.name = name
+        self.emoji = emoji
     }
 }
 
@@ -57,6 +64,14 @@ struct CheckOffHabitIntent: AppIntent {
 
     init(habit: Habit) {
         self.habit = HabitEntity(habit: habit)
+    }
+
+    /// Für den Widget-Knopf und das Steuerungselement, die nur die Kennung
+    /// haben. Eine unbekannte Kennung ist KEIN Fehler — `CheckOffLogic` macht
+    /// daraus einen No-op, damit ein Knopf auf einem gelöschten Habit nichts
+    /// kaputt macht und nichts erfindet.
+    init(entity: HabitEntity) {
+        self.habit = entity
     }
 
     func perform() async throws -> some IntentResult {

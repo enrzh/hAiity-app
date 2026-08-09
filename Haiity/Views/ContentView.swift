@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AppIntents
 import WidgetKit
 
@@ -1039,45 +1040,167 @@ struct ContentView: View {
         }
     }
 
-    /// Nur Debug: rendert die Widget-Oberfläche in beiden Größen über die
-    /// vier kritischen Datenlagen (keine Habits, leeres Log, Mengen-Habit,
-    /// 365 Tage Historie) in den App-Group-Container. WidgetKit lässt sich
-    /// nicht fernsteuern; so ist der Zustand trotzdem reproduzierbar prüfbar.
+    /// Nur Debug: rendert JEDE Widget-Oberfläche in ihren echten Maßen in den
+    /// App-Group-Container. WidgetKit lässt sich nicht fernsteuern — weder
+    /// die Galerie noch das Kontrollzentrum; so ist jede Familie trotzdem
+    /// reproduzierbar prüfbar.
+    ///
+    /// Drei Dinge, die diese Prüfung ernst nehmen muss:
+    ///  * **Beide Schemata.** Dynamische Systemfarben lösen im ImageRenderer
+    ///    nicht nach der SwiftUI-Umgebung auf, sondern nach
+    ///    `UITraitCollection.current` — deshalb läuft jeder Durchgang IN
+    ///    einer passenden Trait-Collection und setzt zusätzlich
+    ///    `\.colorScheme`.
+    ///  * **Beide Datenlagen.** Der echte (geseedete) Store zeigt, wie es
+    ///    aussieht; die vier Grenzfälle zeigen, dass nichts bricht.
+    ///  * **Alle Rendermodi.** Sperrbildschirm-Widgets werden nie in Farbe
+    ///    gezeichnet. `\.widgetRenderingMode` ist — anders als
+    ///    `\.widgetFamily` — von außen SETZBAR, der Modus lässt sich also
+    ///    echt durchspielen statt geraten.
     @MainActor
     private func dumpWidgets() {
+        let dir = SharedStorage.dataURL().deletingLastPathComponent()
+        let live = HaiityEntry(date: .now, habits: store.activeHabits, palettes: store.palettes)
+        let entry = live.habits.isEmpty ? HaiityEntry.demo : live
+
+        for scheme in [ColorScheme.light, .dark] {
+            let suffix = scheme == .dark ? "dark" : "light"
+            let trait = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
+            trait.performAsCurrent {
+                // Homescreen-Familien: echte Maße, echte Innenränder (16 pt).
+                for (name, family, size) in Self.homeCanvases {
+                    // Das Haupt-Widget gibt es nur klein und mittel — groß
+                    // ist der Graph, dort wäre es dieselbe Karte mit Luft.
+                    if family != .systemLarge {
+                        write(HaiityWidgetView(entry: entry).content(family: family, dark: scheme == .dark),
+                              named: "w-main-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
+                    }
+                    write(GraphWidgetView(entry: entry).content(family: family, dark: scheme == .dark),
+                          named: "w-graph-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
+                    if family != .systemSmall {
+                        write(RosterWidgetView(entry: entry).content(family: family, dark: scheme == .dark),
+                              named: "w-roster-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
+                    }
+                }
+
+                // Die Auswahl selbst: dasselbe Widget, zweiter Habit — der
+                // sichtbare Beleg, dass die Instanz ihre eigene Einstellung
+                // hat und nicht mehr am ersten Habit klebt.
+                if entry.habits.count > 1 {
+                    let picked = HaiityEntry(date: .now, habits: entry.habits,
+                                             palettes: entry.palettes,
+                                             selected: entry.habits[1].id)
+                    write(HaiityWidgetView(entry: picked).content(family: .systemMedium, dark: scheme == .dark),
+                          named: "w-main-selected-medium-\(suffix)",
+                          size: CGSize(width: 364, height: 170), scheme: scheme, to: dir)
+                }
+
+                // Sperrbildschirm: jede Familie in JEDEM Rendermodus.
+                for (modeName, mode) in Self.renderingModes {
+                    write(RingAccessoryView(entry: entry).content(mode: mode),
+                          named: "w-acc-circular-\(modeName)-\(suffix)",
+                          size: CGSize(width: 76, height: 76), scheme: scheme, to: dir,
+                          padding: 0, background: .accessory)
+                    write(StreakAccessoryView(entry: entry).content(mode: mode, dark: scheme == .dark),
+                          named: "w-acc-rectangular-\(modeName)-\(suffix)",
+                          size: CGSize(width: 172, height: 76), scheme: scheme, to: dir,
+                          padding: 0, background: .accessory)
+                    write(InlineAccessoryView(entry: entry).content(mode: mode),
+                          named: "w-acc-inline-\(modeName)-\(suffix)",
+                          size: CGSize(width: 200, height: 26), scheme: scheme, to: dir,
+                          padding: 0, background: .accessory)
+                }
+
+                // Kontrollzentrum: der Inhalt des Steuerungselements.
+                if let habit = entry.habit {
+                    write(HabitControlLabel(name: habit.name,
+                                            emoji: habit.emoji,
+                                            done: GoalEngine.dayCounts(habit: habit, day: DayKey.today()))
+                            .labelStyle(.titleAndIcon)
+                            .font(.subheadline.weight(.medium))
+                            .padding(12),
+                          named: "w-control-\(suffix)",
+                          size: CGSize(width: 160, height: 76), scheme: scheme, to: dir,
+                          padding: 0, background: .control)
+                }
+
+                // Grenzfälle, die früher gebrochen sind — nur die Hauptgröße.
+                for (name, habits) in Self.edgeCases {
+                    let edge = HaiityEntry(date: .now, habits: habits, palettes: store.palettes)
+                    write(HaiityWidgetView(entry: edge).content(family: .systemSmall, dark: scheme == .dark),
+                          named: "w-edge-\(name)-\(suffix)",
+                          size: CGSize(width: 170, height: 170), scheme: scheme, to: dir)
+                }
+            }
+        }
+    }
+
+    private static let homeCanvases: [(String, WidgetFamily, CGSize)] = [
+        ("small", .systemSmall, CGSize(width: 170, height: 170)),
+        ("medium", .systemMedium, CGSize(width: 364, height: 170)),
+        ("large", .systemLarge, CGSize(width: 364, height: 382)),
+    ]
+
+    private static let renderingModes: [(String, WidgetRenderingMode)] = [
+        ("fullcolor", .fullColor), ("accented", .accented), ("vibrant", .vibrant),
+    ]
+
+    private static var edgeCases: [(String, [Habit])] {
         var quantity = Habit(name: "Wasser", emoji: "💧", recurrence: Recurrence(target: 3))
         var long = Habit(name: "Lesen", emoji: "📚")
+        var resting = Habit(name: "Sport", emoji: "🏃", recurrence: .weekdays([2, 4, 6]))
         for i in 0..<365 {
             guard let k = DayKey.shifted(DayKey.today(), by: -i) else { continue }
             if i % 4 != 0 { long.log[k] = 1 }
             quantity.log[k] = (i % 3) + 1
+            if i % 7 == 2 { resting.log[k] = 1 }
         }
-        let scenarios: [(String, [Habit])] = [
-            ("nohabits", []),
-            ("emptylog", [Habit(name: "Neu", emoji: "🌱")]),
-            ("quantity", [quantity]),
-            ("year", [long]),
-        ]
-        let sizes: [(String, WidgetFamily, CGSize)] = [
-            ("small", .systemSmall, CGSize(width: 170, height: 170)),
-            ("medium", .systemMedium, CGSize(width: 364, height: 170)),
-        ]
-        let dir = SharedStorage.dataURL().deletingLastPathComponent()
-        for (name, habits) in scenarios {
-            for (sizeName, family, size) in sizes {
-                let view = HaiityWidgetView(entry: HaiityEntry(date: .now,
-                                                               habits: habits,
-                                                               palettes: store.palettes))
-                    .content(family: family)
-                    .padding(12)
-                    .frame(width: size.width, height: size.height)
-                    .background(Color(.systemBackground))
-                let renderer = ImageRenderer(content: view)
-                renderer.scale = 3
-                guard let png = renderer.uiImage?.pngData() else { continue }
-                try? png.write(to: dir.appendingPathComponent("widget-\(sizeName)-\(name).png"))
+        return [("nohabits", []),
+                ("emptylog", [Habit(name: "Neu", emoji: "🌱")]),
+                ("quantity", [quantity]),
+                ("year", [long]),
+                ("notdue", [resting])]
+    }
+
+    /// Womit die Fläche hinterlegt wird. Der Sperrbildschirm hat kein
+    /// Widget-Hintergrund — dort steht ein Wallpaper, und genau davor muss
+    /// der Inhalt bestehen.
+    private enum DumpBackground { case widget, accessory, control }
+
+    @MainActor
+    private func write<V: View>(_ view: V,
+                                named name: String,
+                                size: CGSize,
+                                scheme: ColorScheme,
+                                to dir: URL,
+                                padding: CGFloat = 16,
+                                background: DumpBackground = .widget) {
+        let canvas = ZStack {
+            switch background {
+            case .widget:
+                Color(.systemBackground)
+            case .accessory:
+                // Ein Verlauf als Ersatz-Wallpaper: eine einfarbige Fläche
+                // würde jeden Kontrastfehler verstecken.
+                LinearGradient(colors: [Color(red: 0.09, green: 0.11, blue: 0.20),
+                                        Color(red: 0.30, green: 0.17, blue: 0.34)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .control:
+                // Die Kachel des Kontrollzentrums zeichnet das System; hier
+                // steht nur eine Fläche, die dem Schema folgt — sonst läge
+                // schwarze Schrift auf schwarzem Grund.
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+                    .padding(4)
             }
+            view.padding(padding)
         }
+        .frame(width: size.width, height: size.height)
+        .environment(\.colorScheme, scheme)
+        let renderer = ImageRenderer(content: canvas)
+        renderer.scale = 3
+        guard let png = renderer.uiImage?.pngData() else { return }
+        try? png.write(to: dir.appendingPathComponent("\(name).png"))
     }
 
     /// Nur Debug: rendert die Teilen-Karte in BEIDEN Schemata in den

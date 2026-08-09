@@ -20,10 +20,16 @@ targets:
           - PrivacyInfo.xcprivacy
       - path: Haiity/PrivacyInfo.xcprivacy
         buildPhase: resources
-      # Die Widget-OBERFLÄCHE liegt auch im App-Target, damit die
-      # Rendering-Prüfung (klein/mittel × Datenlagen) ohne Widget-Prozess
-      # läuft. Bundle/Provider bleiben Extension-only.
+      # Die Widget-OBERFLÄCHEN und ihre reine Logik liegen auch im App-Target,
+      # damit die Rendering-Prüfung (jede Familie × Datenlage × Rendermodus)
+      # ohne Widget-Prozess läuft und die Unit-Tests die Rechnungen sehen.
+      # Bundle, Provider und das Steuerungselement bleiben Extension-only.
+      - path: HaiityWidget/WidgetLogic.swift
+      - path: HaiityWidget/WidgetGridViews.swift
       - path: HaiityWidget/HaiityWidgetView.swift
+      - path: HaiityWidget/GraphWidgetView.swift
+      - path: HaiityWidget/RosterWidgetView.swift
+      - path: HaiityWidget/AccessoryWidgetViews.swift
     dependencies:
       - target: HaiityWidget
     info:
@@ -91,6 +97,9 @@ targets:
       - path: Haiity/Models/GoalEngine.swift
       - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/HabitStore.swift
+      # Die Regel als Satz: das Widget sagt „Frei bis Mo", wenn heute kein
+      # Termin ist — dafür braucht es die Wochentagsnamen der App.
+      - path: Haiity/Models/RecurrenceText.swift
       # Interaction.swift stand hier einmal, weil HabitData die
       # Wischgesten-Einstellung trug. Die Gesten sind weg, HabitData braucht
       # den Typ nicht mehr — und der Rest der Datei (Rückgängig-Toast) ist
@@ -104,6 +113,9 @@ targets:
       # Extension-Prozess und schreibt über den geteilten Store.
       # (HaiityShortcuts.swift bleibt bewusst App-only.)
       - path: Haiity/Intents/CheckOffHabitIntent.swift
+      # Die Widget-Konfiguration (welcher Habit steht in DIESER Instanz) —
+      # greift auf dieselbe HabitEntity und dieselbe Query zurück.
+      - path: Haiity/Intents/SelectHabitIntent.swift
       - path: Haiity/Theme.swift
       # Ohne den Katalog IM Extension-Bundle fallen alle Widget-Strings auf
       # Deutsch zurück: in einer Extension ist Bundle.main die .appex, nicht
