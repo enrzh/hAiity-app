@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  hAiity sammelt nichts und trackt nicht. Alle Daten liegen in der
+	  App-Group-Datei data.json auf dem Gerät; die optionale GitHub-Sync
+	  schreibt ausschliesslich in ein Repo des Nutzers, nicht an uns.
+
+	  Diese Datei landet in BEIDEN Bundles (App und Widget-Extension) —
+	  Apple prueft jedes Bundle einzeln (ITMS-91053).
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- GitHubSync merkt sich den verbundenen Login in UserDefaults. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!--
+			  HabitStore.mtime() liest die modificationDate von data.json im
+			  App-Group-Container, um nach einem Widget-Schreibvorgang neu zu
+			  laden. Nur der eigene Container, kein fremder Pfad.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
