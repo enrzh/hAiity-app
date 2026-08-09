@@ -15,7 +15,7 @@ your actual contribution graph.
 - Home-screen widget (small + medium)
 - Offline-first; GitHub sync is a mirror with union-merge (a check-in
   anywhere counts, conflicts can never delete a day)
-- `web/` contains a static web prototype of the same concept
+- `docs/` (live: https://enrzh.github.io/hAiity/) contains a static web prototype of the same concept
 
 Build: `xcodegen generate && open Haiity.xcodeproj` (XcodeGen, no other
 dependencies). Part of the [aiity](https://aiity.de) family.
