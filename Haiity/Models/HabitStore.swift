@@ -28,10 +28,6 @@ struct HabitData: Codable {
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
-    /// Wischgeste von links nach rechts (Standard: erledigt).
-    var leadingSwipe: SwipeAction
-    /// Wischgeste von rechts nach links (Standard: archivieren).
-    var trailingSwipe: SwipeAction
 
     /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
@@ -43,9 +39,7 @@ struct HabitData: Codable {
          appearance: AppearanceSetting = .default,
          palette: PaletteRef = .default,
          customPalettes: [CustomPalette] = [],
-         matchAppIcon: Bool = true,
-         leadingSwipe: SwipeAction = .defaultLeading,
-         trailingSwipe: SwipeAction = .defaultTrailing) {
+         matchAppIcon: Bool = true) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
@@ -54,17 +48,22 @@ struct HabitData: Codable {
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
-        self.leadingSwipe = leadingSwipe
-        self.trailingSwipe = trailingSwipe
     }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
 }
 
 extension HabitData {
+    /// `leadingSwipe`/`trailingSwipe` stehen hier ABSICHTLICH nicht mehr:
+    /// die Wischgesten sind weg (siehe Interaction.swift). Eine Datei aus
+    /// einem älteren Build trägt die beiden Schlüssel weiterhin — für
+    /// Codable ist ein unbekannter Schlüssel kein Fehler, er wird beim Lesen
+    /// schlicht ÜBERGANGEN. Die Datei bleibt also vollständig lesbar; nur
+    /// die Einstellung, die es nicht mehr gibt, fällt beim nächsten
+    /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
-        case leadingSwipe, trailingSwipe, customPalettes
+        case customPalettes
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -93,12 +92,6 @@ extension HabitData {
         // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
         customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
-        // Gleiche Regel wie bei Palette und Erscheinungsbild: unbekannt oder
-        // fehlend -> Standard, nie ein Fehler.
-        leadingSwipe = SwipeAction.tolerant(
-            try c.decodeIfPresent(String.self, forKey: .leadingSwipe), fallback: .defaultLeading)
-        trailingSwipe = SwipeAction.tolerant(
-            try c.decodeIfPresent(String.self, forKey: .trailingSwipe), fallback: .defaultTrailing)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -113,8 +106,6 @@ extension HabitData {
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
-        if leadingSwipe != .defaultLeading { try c.encode(leadingSwipe.rawValue, forKey: .leadingSwipe) }
-        if trailingSwipe != .defaultTrailing { try c.encode(trailingSwipe.rawValue, forKey: .trailingSwipe) }
     }
 }
 
@@ -183,16 +174,6 @@ final class HabitStore {
     var matchAppIcon: Bool {
         get { data.matchAppIcon }
         set { data.matchAppIcon = newValue; persist() }
-    }
-
-    var leadingSwipe: SwipeAction {
-        get { data.leadingSwipe }
-        set { data.leadingSwipe = newValue; persist() }
-    }
-
-    var trailingSwipe: SwipeAction {
-        get { data.trailingSwipe }
-        set { data.trailingSwipe = newValue; persist() }
     }
 
     static func read(_ url: URL) -> HabitData? {
@@ -418,8 +399,6 @@ final class HabitStore {
             data.appearance = remote.appearance
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
-            data.leadingSwipe = remote.leadingSwipe
-            data.trailingSwipe = remote.trailingSwipe
         }
         // Eigene Paletten sind additive Daten wie Habits, nicht wie eine
         // Einstellung: VEREINIGT nach Kennung, damit eine auf dem anderen

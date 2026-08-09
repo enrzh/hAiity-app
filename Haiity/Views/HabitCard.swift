@@ -32,6 +32,9 @@ struct HabitCard: View {
     let onToggleDay: (String) -> Void
     let onIncrement: () -> Void
     let onClear: () -> Void
+    /// Abhaken bzw. hochzählen — hakt nur AN, nie ab (die Umkehrung heißt
+    /// „Rückgängig" und ist `onClear`).
+    let onMarkDone: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
 
@@ -70,6 +73,17 @@ struct HabitCard: View {
         // Insets springen beim Umschalten, ein Padding wird animiert.
         .padding(.top, 4)
         .padding(.bottom, outerGap)
+        // LANGER DRUCK auf die ganze Zeile — nicht nur auf die Rasterfläche.
+        // Er ersetzt die Wischgesten an beiden Kanten: statt einer
+        // unsichtbaren Belegung, die man sich merken muss, kommt eine
+        // VORSCHAU mit dem vergrößerten Raster und darunter die Aktionen,
+        // beschriftet. Das System liefert dafür die Standardanimation
+        // (Herausschälen aus der Zeile) und die Haptik.
+        .contextMenu {
+            habitActions
+        } preview: {
+            habitPreview
+        }
         // `.contain` ist hier Pflicht, nicht Deko: ein Identifier auf einem
         // Container ohne diese Angabe faltet den Teilbaum zu EINEM Element
         // zusammen — "check-today" und "edit-habit" verschwinden dann aus
@@ -81,9 +95,7 @@ struct HabitCard: View {
 
     // MARK: – Raster in der Fläche
 
-    /// Das Einzige, was noch Karte ist. Das Kontextmenü hängt hier und nicht
-    /// am ganzen Block: nur diese Fläche hat eine Form, aus der iOS eine
-    /// saubere Vorschau schneiden kann.
+    /// Das Einzige, was noch Karte ist.
     private var grid: some View {
         ContributionGrid(habit: habit, onToggle: onToggleDay)
             .padding(Theme.Metrics.cardPadding)
@@ -91,18 +103,92 @@ struct HabitCard: View {
             .background(Color(.secondarySystemGroupedBackground),
                         in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                              style: .continuous))
-            .contextMenu {
-                ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
-                          preview: SharePreview(habit.name)) {
-                    Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
-                }
-                Button(action: onEdit) {
-                    Label(String(localized: "Bearbeiten"), systemImage: "pencil")
-                }
-                Button(action: onArchive) {
-                    Label(String(localized: "Archivieren"), systemImage: "archivebox")
+    }
+
+    // MARK: – Langer Druck: Vorschau + Aktionen
+    //
+    // Die Vorschau zeigt DASSELBE Bauteil wie die Zeile (ContributionGrid),
+    // nur an einem größeren Maß: 20-pt-Zellen statt der ~11 pt, die in eine
+    // Listenzeile passen. Ein nachgebautes „Vorschau-Raster" würde beim
+    // nächsten Anfassen des echten auseinanderlaufen — hier kann es das
+    // nicht. Weniger Wochen, dafür lesbare Quadrate: die Vorschau ist zum
+    // ANSEHEN da, nicht zum Blättern (`interactive: false`).
+
+    private static let previewCell: CGFloat = 20
+    private static let previewGap: CGFloat = 4
+    private static let previewWeeks = 26
+
+    private var habitPreview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if !habit.emoji.isEmpty { Text(habit.emoji).font(.title3) }
+                Text(habit.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if habit.streak() > 0 {
+                    (Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak())"))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
+            ContributionGrid(habit: habit,
+                             weeks: Self.previewWeeks,
+                             cellSize: Self.previewCell,
+                             gap: Self.previewGap,
+                             interactive: false)
+        }
+        .padding(Theme.Metrics.gutter)
+        .frame(width: 320)
+        .background(Color(.secondarySystemGroupedBackground))
+        // Der einzige verlässliche Aufhänger dafür, dass die Vorschau WIRKLICH
+        // aufgegangen ist — das System sagt es sonst nicht. Dieselbe kurze
+        // Rückmeldung wie beim Abhaken.
+        .onAppear { Theme.Haptics.check() }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("habit-preview")
+    }
+
+    /// Die Aktionen UNTER der Vorschau. Sie tragen dieselben Kennungen wie
+    /// die Knöpfe auf der Karte (`check-today`, `edit-habit`) — was über den
+    /// langen Druck erreichbar ist, muss unter demselben Namen erreichbar
+    /// sein wie direkt auf der Zeile.
+    @ViewBuilder
+    private var habitActions: some View {
+        if doneToday, habit.recurrence.target == nil {
+            Button(action: onClear) {
+                Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
+            }
+            .accessibilityIdentifier("check-today")
+        } else {
+            Button(action: onMarkDone) {
+                Label(String(localized: "Erledigt"), systemImage: "checkmark")
+            }
+            .accessibilityIdentifier("check-today")
+            // Mengenziele zählen hoch; das Zurücksetzen des Tages steht
+            // deshalb zusätzlich daneben, sobald es etwas zurückzusetzen gibt.
+            if habit.recurrence.target != nil, (habit.log[today] ?? 0) > 0 {
+                Button(action: onClear) {
+                    Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
+                }
+                .accessibilityIdentifier("revert-today")
+            }
+        }
+        Button(action: onEdit) {
+            Label(String(localized: "Bearbeiten"), systemImage: "pencil")
+        }
+        .accessibilityIdentifier("edit-habit")
+        Button(action: onArchive) {
+            Label(String(localized: "Archivieren"), systemImage: "archivebox")
+        }
+        .accessibilityIdentifier("archive-habit")
+        ShareLink(item: HabitShareImage(habit: habit,
+                                        dark: scheme == .dark,
+                                        palette: palettes.style(for: habit)),
+                  preview: SharePreview(habit.name)) {
+            Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
+        }
+        .accessibilityIdentifier("share-habit")
     }
 
     // MARK: – Kopf auf nacktem Grund
@@ -284,11 +370,10 @@ struct HabitCard: View {
                 pill("\(value)/\(target)", monospaced: true)
             }
             .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive, action: onClear) {
-                    Label(String(localized: "Zurücksetzen"), systemImage: "arrow.counterclockwise")
-                }
-            }
+            // KEIN eigenes Kontextmenü mehr: der lange Druck gehört der
+            // ganzen Zeile. Zwei verschachtelte Menüs auf derselben Karte
+            // hießen, dass ein langer Druck je nach getroffenem Pixel etwas
+            // anderes tut. „Rückgängig" steht im Zeilenmenü.
             .accessibilityLabel(String(localized: "Heute: \(value) von \(target)"))
             .accessibilityIdentifier("check-today")
         } else {

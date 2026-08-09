@@ -1,20 +1,31 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Unterseiten des Mehr-Bereichs — wertbasiert, damit Deep-Links
-/// (haiity://stats, haiity://archive) direkt hinspringen können.
-enum MoreRoute: Hashable {
+/// Bildschirmartige Unterziele des Mehr-Bereichs — wertbasiert, damit
+/// Deep-Links (haiity://stats, haiity://archive) direkt hinspringen können.
+/// `Identifiable`, weil sie als `.sheet(item:)` präsentiert werden: in der
+/// Tafel über der Leiste ist für eine eigene Seite kein Platz.
+enum MoreRoute: Hashable, Identifiable {
     case stats, archive, about
+
+    var id: Self { self }
 }
 
-/// "Mehr": iCloud-Status, Abend-Zusammenfassung, Statistik, Archiv,
-/// Export/Import und Über/Datenschutz. Läuft im selben NavigationStack wie
-/// die Habit-Liste — die Bottom-Bar bleibt sichtbar.
+/// "Mehr": iCloud-Status, Darstellung, Graph-Farbe, Abend-Zusammenfassung,
+/// Statistik, Archiv, Export/Import und Über/Datenschutz.
+///
+/// Wohnt in der TAFEL, die aus der Leiste wächst (siehe ContentView) — nicht
+/// mehr auf einer eigenen Seite. Zwei Folgen davon stehen unten im Code:
+/// die Liste zeichnet keinen eigenen Hintergrund (das Glas der Tafel ist der
+/// Hintergrund), und die drei seitenartigen Ziele sind Knöpfe, die ein Blatt
+/// öffnen, statt `NavigationLink` in einen Stapel, den es hier nicht gibt.
 struct MoreView: View {
     let store: HabitStore
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
     /// die Zeile sagt, warum nicht.
     let cloudStatus: CloudSyncStatus
+    /// Ein seitenartiges Ziel öffnen (Statistik, Archiv, Über).
+    let onOpen: (MoreRoute) -> Void
 
     @State private var showImporter = false
     @State private var importMessage: String?
@@ -31,6 +42,14 @@ struct MoreView: View {
 
     var body: some View {
         List {
+            // Die Tafel bringt ihr Glas mit. Eine Liste, die darauf ihre
+            // eigenen weißen Kacheln malt, macht daraus wieder eine Seite —
+            // deshalb sind ALLE Zeilenhintergründe durchsichtig. Der
+            // `Group` ist der einzige Weg, das an einer Stelle zu sagen:
+            // `.listRowBackground` auf der `List` selbst greift nicht (die
+            // Liste ist keine Zeile), auf dem `Group` reicht es an jeden
+            // Abschnitt darin durch.
+            Group {
             Section {
                 iCloudRow
             } footer: {
@@ -39,7 +58,6 @@ struct MoreView: View {
 
             appearanceSection
             paletteSection
-            swipeSection
 
             Section {
                 Toggle(isOn: summaryEnabled) {
@@ -61,22 +79,11 @@ struct MoreView: View {
             }
 
             Section {
-                NavigationLink(value: MoreRoute.stats) {
-                    Label(String(localized: "Statistik"), systemImage: "chart.bar")
-                }
-                .accessibilityIdentifier("open-stats")
-                NavigationLink(value: MoreRoute.archive) {
-                    HStack {
-                        Label(String(localized: "Archiv"), systemImage: "archivebox")
-                        Spacer()
-                        if archivedCount > 0 {
-                            Text("\(archivedCount)")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .accessibilityIdentifier("open-archive")
+                pageRow(.stats, title: String(localized: "Statistik"),
+                        symbol: "chart.bar", identifier: "open-stats")
+                pageRow(.archive, title: String(localized: "Archiv"),
+                        symbol: "archivebox", identifier: "open-archive",
+                        badge: archivedCount > 0 ? "\(archivedCount)" : nil)
             }
 
             Section {
@@ -105,12 +112,16 @@ struct MoreView: View {
             }
 
             Section {
-                NavigationLink(value: MoreRoute.about) {
-                    Label(String(localized: "Über & Datenschutz"), systemImage: "lock.shield")
-                }
-                .accessibilityIdentifier("open-about")
+                pageRow(.about, title: String(localized: "Über & Datenschutz"),
+                        symbol: "lock.shield", identifier: "open-about")
             }
+            }
+            .listRowBackground(Color.clear)
         }
+        .scrollContentBackground(.hidden)
+        // Oben schließt der Griff der Tafel an, unten die Leiste — die Liste
+        // braucht an beiden Enden keinen eigenen Rand.
+        .contentMargins(.top, 0, for: .scrollContent)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -282,48 +293,42 @@ struct MoreView: View {
         store.palette = ref
     }
 
-    // MARK: – Wischgesten
+    // MARK: – Seitenartige Ziele
     //
-    // Die Richtungen sind BENANNT, nicht „links"/„rechts": ein Wisch heißt
-    // hier nach der BEWEGUNG des Fingers, weil genau das die Rückmeldung war
-    // („von links nach rechts = erledigt"). In RTL dreht das System die
-    // Kanten selbst — die Beschriftung folgt dem System, nicht der Kante.
+    // Statistik, Archiv und Über sind SEITEN und werden als Blatt geöffnet.
+    // Sie sehen aus wie ein `NavigationLink` (Chevron rechts), weil sie sich
+    // genauso anfühlen sollen — nur dass sie nicht in einen Stapel schieben,
+    // den die Tafel gar nicht hat.
+    //
+    // Hier stand einmal der Abschnitt „Wischgesten" mit zwei Pickern. Die
+    // Gesten selbst sind weg (lange drücken statt wischen, siehe HabitCard),
+    // und damit auch die Einstellung: eine sichtbare Aktionsliste muss
+    // niemand einstellen.
 
-    private var swipeSection: some View {
-        Section {
-            swipePicker(String(localized: "Von links nach rechts"),
-                        symbol: "arrow.right",
-                        selection: swipeBinding(\.leadingSwipe),
-                        identifier: "swipe-leading-picker")
-            swipePicker(String(localized: "Von rechts nach links"),
-                        symbol: "arrow.left",
-                        selection: swipeBinding(\.trailingSwipe),
-                        identifier: "swipe-trailing-picker")
-        } header: {
-            Text(String(localized: "Wischgesten"))
-        } footer: {
-            Text(String(localized: "Ist ein Habit heute schon erledigt, bietet die Geste von rechts nach links zusätzlich „Rückgängig“ an. Voll durchziehen löst nur „Erledigt“ und „Rückgängig“ aus — Archivieren nie."))
-        }
-    }
-
-    private func swipePicker(_ title: String,
-                             symbol: String,
-                             selection: Binding<SwipeAction>,
-                             identifier: String) -> some View {
-        Picker(selection: selection) {
-            ForEach(SwipeAction.allCases) { action in
-                Text(action.title).tag(action)
-            }
+    private func pageRow(_ route: MoreRoute,
+                         title: String,
+                         symbol: String,
+                         identifier: String,
+                         badge: String? = nil) -> some View {
+        Button {
+            onOpen(route)
         } label: {
-            Label(title, systemImage: symbol)
+            HStack {
+                Label(title, systemImage: symbol)
+                Spacer()
+                if let badge {
+                    Text(badge)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
         }
-        .pickerStyle(.menu)
+        .foregroundStyle(.primary)
         .accessibilityIdentifier(identifier)
-    }
-
-    private func swipeBinding(_ keyPath: ReferenceWritableKeyPath<HabitStore, SwipeAction>) -> Binding<SwipeAction> {
-        Binding(get: { store[keyPath: keyPath] },
-                set: { store[keyPath: keyPath] = $0 })
     }
 
     private var appearanceBinding: Binding<AppearanceSetting> {

@@ -91,9 +91,10 @@ targets:
       - path: Haiity/Models/GoalEngine.swift
       - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/HabitStore.swift
-      # HabitData trägt die Wischgesten-Einstellung, also braucht auch die
-      # Extension den Typ — sonst kompiliert der geteilte Store nicht.
-      - path: Haiity/Models/Interaction.swift
+      # Interaction.swift stand hier einmal, weil HabitData die
+      # Wischgesten-Einstellung trug. Die Gesten sind weg, HabitData braucht
+      # den Typ nicht mehr — und der Rest der Datei (Rückgängig-Toast) ist
+      # reine Oberfläche, die es in der Extension nicht gibt.
       # Farben: die eingebauten Familien, die eigenen Paletten des Nutzers und
       # der Generator, der aus einer Grundfarbe die Rampe rechnet. Das Widget
       # zeichnet dieselben Zellen und braucht deshalb dieselbe Rechnung.

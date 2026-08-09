@@ -2,9 +2,18 @@ import SwiftUI
 import AppIntents
 import WidgetKit
 
-/// Haupt-Einstieg. Zwei Bereiche (Habits / Mehr), jeder in eigenem
-/// NavigationStack, umgeschaltet von einem EIGENEN Umschalter unten LINKS —
-/// nicht von einer TabView.
+/// Haupt-Einstieg. EIN Bereich (die Habit-Liste in ihrem NavigationStack)
+/// plus „Mehr" als Tafel, die AUS der Leiste unten wächst — umgeschaltet von
+/// einem EIGENEN Umschalter unten LINKS, nicht von einer TabView.
+///
+/// „Mehr" war einmal ein zweiter Bildschirm im Umschalter. Das war die
+/// falsche Form: Einstellungen sind kein Ort, an dem man sich aufhält, und
+/// der Wechsel riss die Liste weg, obwohl man nur kurz eine Farbe umstellen
+/// wollte. Jetzt klappt die Tafel über der Leiste auf, die Leiste bleibt
+/// stehen und die Liste liegt sichtbar dahinter. Bildschirmartige Ziele
+/// (Statistik, Archiv, Über) sind BLÄTTER — sie haben eine eigene
+/// Navigationsleiste und einen eigenen Titel und hätten in einer Tafel, die
+/// an der Unterkante klebt, keinen Platz.
 ///
 /// Warum keine `TabView` mehr: die native Leiste zentriert sich, ab iOS 26
 /// als schwebende Glas-Pille in der Mitte. Ein linksbündiger Platz ist dafür
@@ -29,13 +38,33 @@ struct ContentView: View {
     @State private var editing: Habit?
     @State private var showAdd = false
     @State private var syncStatus = ""
+    /// `.more` heißt jetzt: die Tafel über der Leiste ist offen. Es ist kein
+    /// zweiter Bildschirm mehr, aber weiterhin der Zustand der Auswahl-Lasur
+    /// im Umschalter — genau eine Wahrheit für beides.
     @State private var screen: Screen = .habits
+    /// Bildschirmartige Unterziele des Mehr-Bereichs, als Blatt.
+    @State private var moreSheet: MoreRoute?
+    /// Rahmen der beiden Umschalter-Segmente im Umschalter-Koordinatenraum.
+    /// Grundlage des Treffertests beim Ziehen (siehe ChromeLayout.segment).
+    @State private var segmentFrames: [Screen: CGRect] = [:]
+    /// Segment unter dem gedrückten Finger. Solange gezogen wird, zeigt die
+    /// Lasur HIERHIN und nicht auf `screen` — die Auswahl gilt erst beim
+    /// Loslassen.
+    @State private var dragSegment: Screen?
+    @State private var draggingSwitcher = false
+    /// Mitgezogene Tafel (Wisch nach unten am Griff).
+    @State private var panelDrag: CGFloat = 0
+    /// Wann zuletzt ein ZUG entschieden hat. Der Knopf, auf dem der Finger
+    /// aufgesetzt hat, feuert danach trotzdem noch — siehe `select`.
+    @State private var lastDragSwitch = Date.distantPast
+    /// Fährt der Anlegen-Knopf gerade? Solange ja, KEINE gemeinsame
+    /// Glas-Vereinigung (siehe `chromeUnion`).
+    @State private var chromeTravelling = false
     @State private var search = ""
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
     @FocusState private var searchFieldFocused: Bool
-    @State private var morePath = NavigationPath()
     /// Sortiermodus. Früher ein `EditButton` in der Toolbar (zu breit), jetzt
     /// ein Punkt im Menü — der Modus muss deshalb selbst gehalten werden.
     @State private var editMode: EditMode = .inactive
@@ -59,17 +88,45 @@ struct ContentView: View {
     /// und zieht alle Köpfe zusammen, ohne dass jemand gescrollt hätte.
     private var collapsed: Bool { chrome.collapsed && screen == .habits && !searching }
 
-    private static let listSpace = "habit-list"
+    /// Ist die Mehr-Tafel offen?
+    private var moreOpen: Bool { screen == .more }
 
-    /// Vereinigungs-Kennung der Glasteile unten. Zusammengezogen tragen
-    /// Umschalter UND Anlegen-Knopf DIESELBE — iOS rechnet ihr Glas dann als
-    /// eine einzige Form, der Knopf wird also aufgenommen statt daneben zu
-    /// kleben. Ausgeklappt bekommt jeder seine eigene, damit die beiden
-    /// getrennte Scheiben an den beiden Rändern bleiben.
-    private func chromeUnion(_ solo: String) -> String { collapsed ? "chrome-blob" : solo }
+    /// Auf welches Segment zeigt die Lasur GERADE? Beim Ziehen folgt sie dem
+    /// Finger, sonst der getroffenen Wahl.
+    private var highlighted: Screen { dragSegment ?? screen }
+
+    private static let listSpace = "habit-list"
+    private static let switcherSpace = "screen-switcher"
+
+    /// Vereinigungs-Kennung der Glasteile unten. Teilen zwei Teile dieselbe,
+    /// rechnet iOS ihr Glas als EINE Form: zusammengezogen werden Umschalter
+    /// und Anlegen-Knopf zu einem Blob, sonst bleibt jeder eine eigene
+    /// Scheibe an seinem Rand.
+    ///
+    /// **Erst am Ziel vereinigen.** `chromeTravelling` ist kein Feinschliff:
+    /// iOS rechnet die Vereinigung aus den RUHENDEN Plätzen der Mitglieder.
+    /// Trägt der Knopf die gemeinsame Kennung schon während der Fahrt, wird
+    /// er auf die Blob-Form geschnitten und ist unterwegs schlicht nicht da
+    /// — er verschwindet rechts und erscheint links. Genau die Blende, die
+    /// wegsollte (nachgemessen an der Aufnahme). Während der Fahrt bleibt er
+    /// deshalb eine eigene Scheibe, die sichtbar wandert; erst wenn sie
+    /// steht, fließen beide zu einer Kapsel zusammen.
+    ///
+    /// Die Mehr-Tafel steht bewusst gar nicht in dieser Vereinigung.
+    /// Ausprobiert und wieder ausgebaut: verschmilzt die Tafel mit der
+    /// Kapsel, gewinnt die große Fläche — die Leiste verliert ihre eigene
+    /// Form, und der Anlegen-Knopf steht blass auf dem Tafelglas. Der
+    /// Eindruck „wächst aus der Leiste" trägt die Animation (Skalierung mit
+    /// Anker auf dem Mehr-Segment), nicht ein gemeinsamer Glaskörper.
+    private func chromeUnion(_ solo: String) -> String {
+        collapsed && !chromeTravelling ? "chrome-blob" : solo
+    }
 
     var body: some View {
         screens
+            // Der Vorhang liegt ÜBER der Liste und UNTER dem Chrom: die
+            // Leiste bleibt bedienbar, während die Tafel offen ist.
+            .overlay { moreScrim }
             // Chrom liegt ÜBER den Bereichen, nicht in ihnen: so bleibt es
             // beim Umschalten stehen und die Listen scrollen darunter durch.
             .overlay(alignment: .bottom) { bottomChrome }
@@ -99,6 +156,21 @@ struct ContentView: View {
                     .themed(store)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            // Statistik, Archiv und Über sind SEITEN: eigener Titel, eigene
+            // Navigationsleiste, beliebig lang. In der Tafel über der Leiste
+            // hätten sie keinen Platz — als Blatt behalten sie ihre Form.
+            .sheet(item: $moreSheet) { route in
+                NavigationStack {
+                    moreDestination(route)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button(String(localized: "Fertig")) { moreSheet = nil }
+                                    .accessibilityIdentifier("close-more-sheet")
+                            }
+                        }
+                }
+                .themed(store)
             }
             .task {
                 await boot()
@@ -140,20 +212,15 @@ struct ContentView: View {
 
     // MARK: – Bereiche
 
-    /// Beide Stapel bleiben am Leben (Opacity statt `if`), damit Scroll- und
-    /// Navigationszustand das Umschalten überleben — genau das, was die
-    /// TabView vorher umsonst mitgebracht hat.
+    /// Nur noch EIN Stapel. „Mehr" ist keine zweite Seite mehr, sondern die
+    /// Tafel unten — die Liste bleibt sichtbar dahinter stehen.
     private var screens: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
             habitsStack
-                .opacity(screen == .habits ? 1 : 0)
-                .allowsHitTesting(screen == .habits)
-                .accessibilityHidden(screen != .habits)
-            moreStack
-                .opacity(screen == .more ? 1 : 0)
-                .allowsHitTesting(screen == .more)
-                .accessibilityHidden(screen != .more)
+                // Offene Tafel = modal: der Vorhang nimmt die Tipper, und
+                // VoiceOver soll nicht durch ihn hindurchgreifen.
+                .accessibilityHidden(moreOpen)
         }
     }
 
@@ -163,21 +230,13 @@ struct ContentView: View {
         }
     }
 
-    private var moreStack: some View {
-        NavigationStack(path: $morePath) {
-            MoreView(store: store, cloudStatus: cloudStatus)
-                .navigationTitle(String(localized: "Mehr"))
-                .navigationDestination(for: MoreRoute.self) { route in
-                    switch route {
-                    case .stats: StatsView(store: store)
-                    case .archive: ArchiveView(store: store)
-                    case .about: AboutView()
-                    }
-                }
+    @ViewBuilder
+    private func moreDestination(_ route: MoreRoute) -> some View {
+        switch route {
+        case .stats: StatsView(store: store)
+        case .archive: ArchiveView(store: store)
+        case .about: AboutView()
         }
-        // Der Umschalter schwebt auch hier über der Liste — ohne Marge endet
-        // die letzte Zeile darunter.
-        .contentMargins(.bottom, chromeFootprint, for: .scrollContent)
     }
 
     // MARK: – Habits-Bereich
@@ -257,6 +316,7 @@ struct ContentView: View {
             onToggleDay: { toggleDay(habit, day: $0) },
             onIncrement: { increment(habit) },
             onClear: { revert(habit) },
+            onMarkDone: { markDone(habit) },
             onEdit: { editing = habit },
             onArchive: { store.archive(habit.id) }
         )
@@ -270,51 +330,11 @@ struct ContentView: View {
                                   leading: Theme.Metrics.gutter,
                                   bottom: 0,
                                   trailing: Theme.Metrics.gutter))
-        // Beide Kanten sind belegbar (Mehr → Wischgesten). Voll durchziehen
-        // löst nur an der FÜHRENDEN Kante aus und nur für umkehrbare
-        // Aktionen — hinten wäre das im Zweifel ein versehentlich
-        // archiviertes Habit.
-        .swipeActions(edge: .leading, allowsFullSwipe: store.leadingSwipe.allowsFullSwipe) {
-            swipeButton(store.leadingSwipe, for: habit)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            swipeButton(store.trailingSwipe, for: habit)
-            // Ist heute schon abgehakt, kommt „Rückgängig" an der hinteren
-            // Kante ZUSÄTZLICH dazu — das Zurücknehmen soll dort liegen, wo
-            // man ohnehin hinwischt, ohne dafür das Archivieren zu opfern.
-            if store.trailingSwipe != .revert,
-               GoalEngine.dayCounts(habit: habit, day: DayKey.today()) {
-                swipeButton(.revert, for: habit)
-            }
-        }
-    }
-
-    /// EIN Wisch-Knopf. `.none` liefert nichts — die Kante bleibt dann
-    /// stumm, statt einen Knopf ohne Wirkung anzubieten.
-    @ViewBuilder
-    private func swipeButton(_ action: SwipeAction, for habit: Habit) -> some View {
-        switch action {
-        case .none:
-            EmptyView()
-        case .done:
-            swipeLabelButton(action, tint: Theme.accentFill(store.paletteStyle)) { markDone(habit) }
-        case .revert:
-            swipeLabelButton(action, tint: .gray) { revert(habit) }
-        case .archive:
-            swipeLabelButton(action, tint: .orange) { store.archive(habit.id) }
-        case .edit:
-            swipeLabelButton(action, tint: .blue) { editing = habit }
-        }
-    }
-
-    private func swipeLabelButton(_ action: SwipeAction,
-                                  tint: Color,
-                                  perform: @escaping () -> Void) -> some View {
-        Button(action: perform) {
-            Label(action.title, systemImage: action.symbol ?? "circle")
-        }
-        .tint(tint)
-        .accessibilityIdentifier("swipe-\(action.rawValue)")
+        // KEINE Wischgesten mehr — weder hier noch als Einstellung. Alle
+        // Aktionen einer Zeile hängen am langen Druck (HabitCard): die
+        // Vorschau zeigt das vergrößerte Raster, die Aktionen stehen
+        // darunter und sind beschriftet. Ein Wisch war unsichtbar, an beiden
+        // Kanten verschieden belegt und musste in „Mehr" erklärt werden.
     }
 
     // MARK: – Check-in mit Rückgängig
@@ -395,6 +415,15 @@ struct ContentView: View {
             chrome.collapsed = want
         } else {
             withAnimation(.snappy(duration: 0.26)) { chrome.collapsed = want }
+            // Für die Dauer der Fahrt bleibt der Anlegen-Knopf ein eigenes
+            // Glasstück (siehe chromeUnion). Etwas länger als die Animation,
+            // damit die Vereinigung erst greift, wenn wirklich nichts mehr
+            // wandert.
+            chromeTravelling = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(320))
+                chromeTravelling = false
+            }
         }
         chrome.settle()
     }
@@ -466,14 +495,12 @@ struct ContentView: View {
                 .disabled(!search.isEmpty)
                 Divider()
                 Button {
-                    screen = .more
-                    morePath = NavigationPath([MoreRoute.stats])
+                    moreSheet = .stats
                 } label: {
                     Label(String(localized: "Statistik"), systemImage: "chart.bar")
                 }
                 Button {
-                    screen = .more
-                    morePath = NavigationPath([MoreRoute.archive])
+                    moreSheet = .archive
                 } label: {
                     Label(String(localized: "Archiv"), systemImage: "archivebox")
                 }
@@ -498,11 +525,15 @@ struct ContentView: View {
         // Bei offener Suche steht das Chrom sonst auf der Tastatur. Der
         // Toast hängt bewusst MIT drin: er soll über dem Glas-Blob schweben,
         // nicht darauf — und auf der Tastatur hätte er nichts verloren.
+        //
+        // Die Mehr-Tafel hängt ebenfalls hier, im SELBEN Glas-Behälter wie
+        // die Leiste: sie ist kein Blatt über der App, sondern dasselbe
+        // Glasstück, das nach oben wächst.
         if !searching {
             VStack(spacing: Theme.Metrics.gap) {
                 undoToast
                 syncBadge
-                chromeRow
+                chromeGlass
             }
             // Gleicher Seitenrand links wie rechts — der Umschalter steht
             // exakt so weit von der Kante wie der Anlegen-Knopf.
@@ -512,17 +543,23 @@ struct ContentView: View {
     }
 
     /// EIN Behälter für alle Glasteile unten. Ohne ihn rechnet jedes Stück
-    /// sein Glas für sich und sie bleiben zwei Scheiben nebeneinander; erst
-    /// im Container fließen zwei Formen, die näher beieinanderstehen als
+    /// sein Glas für sich und sie bleiben getrennte Scheiben; erst im
+    /// Container fließen zwei Formen, die näher beieinanderstehen als
     /// `spacing`, zu EINER Fläche zusammen. Genau das ist „zu einem kleinen
-    /// Blob zusammenziehen": der + behält beim Einklappen seine Identität
-    /// (`glassEffectID`), wandert aus der Ecke an die Kapsel und verschmilzt
-    /// mit ihr — ein echter Glas-Morph, kein Aus- und Einblenden.
+    /// Blob zusammenziehen" (der + wandert in die Kapsel) UND „aus der
+    /// Leiste wachsen" (die Tafel hängt an der Kapsel).
     @ViewBuilder
-    private var chromeRow: some View {
+    private var chromeGlass: some View {
         if #available(iOS 26, *) {
-            GlassEffectContainer(spacing: 20) { chromeStack }
+            GlassEffectContainer(spacing: 20) { chromeColumn }
         } else {
+            chromeColumn
+        }
+    }
+
+    private var chromeColumn: some View {
+        VStack(spacing: Theme.Metrics.gap) {
+            morePanel
             chromeStack
         }
     }
@@ -531,19 +568,119 @@ struct ContentView: View {
     /// Ober- UND Unterkante von Umschalter und Anlegen-Knopf auf demselben
     /// Strich — unabhängig davon, ob der Knopf gerade rechts in der Ecke oder
     /// links am Blob klebt.
+    ///
+    /// **Warum der Knopf im Overlay liegt und nicht im HStack.** Vorher stand
+    /// er in ZWEI Zweigen (`if collapsed` … `if !collapsed`). Für SwiftUI
+    /// sind das zwei verschiedene Views: der eine wird entfernt, der andere
+    /// eingesetzt — also eine Blende, egal wie viel Glas-Kennung daran
+    /// hängt. Jetzt gibt es genau EINEN Knopf mit EINER Identität, dessen
+    /// x-Versatz zwischen beiden Zielen INTERPOLIERT (siehe ChromeLayout).
+    /// Er fährt damit sichtbar in den Blob, statt an der einen Stelle
+    /// auszublenden und an der anderen aufzublitzen.
     private var chromeStack: some View {
-        HStack(alignment: .center, spacing: 0) {
-            switcher
-            if collapsed {
-                // Kein Abstand und dieselbe Vereinigungs-Kennung wie die
-                // Kapsel: der Knopf wird von ihr AUFGENOMMEN, statt als
-                // eigene Scheibe daneben stehen zu bleiben.
-                addButton.padding(.leading, -Theme.Metrics.gap)
+        GeometryReader { geo in
+            HStack(alignment: .center, spacing: 0) {
+                switcher
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
-            if !collapsed { addButton }
+            .frame(height: Theme.Metrics.control)
+            .overlay(alignment: .leading) {
+                addButton
+                    .offset(x: ChromeLayout.addButtonX(collapsed: collapsed,
+                                                       rowWidth: geo.size.width))
+            }
         }
         .frame(height: Theme.Metrics.control)
+    }
+
+    // MARK: – „Mehr" als Tafel über der Leiste
+
+    /// Die Tafel. Sie wächst aus dem Mehr-Segment heraus (Skalierung mit
+    /// Anker auf der Leiste, nicht aus der Mitte), trägt dieselbe
+    /// Vereinigungs-Kennung wie der Umschalter und sitzt nur `gap` darüber —
+    /// beides zusammen ergibt EIN Glasstück, das sich streckt.
+    @ViewBuilder
+    private var morePanel: some View {
+        if moreOpen {
+            VStack(spacing: 0) {
+                panelHandle
+                MoreView(store: store,
+                         cloudStatus: cloudStatus,
+                         onOpen: { moreSheet = $0 })
+            }
+            // Feste Höhe statt „so hoch wie der Inhalt": die Liste ist immer
+            // länger als der Platz, und eine gerechnete Höhe hält die
+            // Aufklapp-Animation ruhig. Der Deckel ist wichtig — die Tafel
+            // soll ein Stück der Habit-Liste stehen lassen, sonst ist sie
+            // eine Seite mit anderen Mitteln.
+            .containerRelativeFrame(.vertical) { height, _ in min(height * 0.58, 520) }
+            .frame(maxWidth: .infinity)
+            .modifier(PanelGlass(namespace: glassNamespace))
+            .offset(y: panelDrag)
+            .transition(panelTransition)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("more-panel")
+        }
+    }
+
+    /// Griff und Titel. Der Wisch nach unten hängt HIER und nicht an der
+    /// ganzen Tafel: eine Ziehgeste über der Liste würde mit deren Scrollen
+    /// streiten, und der Griff ist ohnehin die Stelle, an die man greift.
+    private var panelHandle: some View {
+        VStack(spacing: 6) {
+            Capsule()
+                .fill(.tertiary)
+                .frame(width: 36, height: 5)
+            Text(String(localized: "Mehr"))
+                .font(.headline)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .contentShape(Rectangle())
+        .gesture(panelDismissDrag)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var panelDismissDrag: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                guard !reduceMotion else { return }
+                // Nur nach unten mitziehen; nach oben gibt es nichts zu holen.
+                panelDrag = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                let far = value.translation.height > 90
+                    || value.predictedEndTranslation.height > 180
+                panelDrag = 0
+                if far { select(.habits) }
+            }
+    }
+
+    private var panelTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        // Anker auf dem Mehr-Segment, Unterkante. Der Wert ist nachgemessen,
+        // nicht geschätzt: das Segment sitzt auf einem 440-pt-Gerät bei rund
+        // 162 pt, die Zeile beginnt bei 16 und ist 408 breit —
+        // (162 − 16) / 408 ≈ 0,36. Die Tafel wächst damit genau dort heraus,
+        // wo getippt wurde, statt aus der Mitte.
+        return .scale(scale: 0.06, anchor: UnitPoint(x: 0.36, y: 1))
+            .combined(with: .opacity)
+    }
+
+    @ViewBuilder
+    private var moreScrim: some View {
+        if moreOpen {
+            Rectangle()
+                .fill(Color.black.opacity(0.18))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { select(.habits) }
+                .transition(.opacity)
+                .accessibilityLabel(String(localized: "Mehr schließen"))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("more-scrim")
+        }
     }
 
     /// Linksbündige Glas-Kapsel mit beiden Bereichen. Zusammengezogen fallen
@@ -574,16 +711,119 @@ struct ContentView: View {
         }
         // RUNDUM derselbe Rand — links wie rechts wie oben wie unten.
         .padding(Self.chromeInset)
+        // Die Lasur liegt als EIN Stück HINTER beiden Zielen und wird über
+        // gemessene Segmentrahmen positioniert. Vorher zeichnete jedes Ziel
+        // seine eigene: dann kann sie nicht wandern, sie kann nur blinken.
+        .background(alignment: .topLeading) { selectionLasur }
+        .coordinateSpace(.named(Self.switcherSpace))
         .modifier(ChromeGlass(id: "chrome-nav", namespace: glassNamespace, kind: .capsule,
                               union: chromeUnion("chrome-nav-solo")))
+        .onPreferenceChange(SegmentFrameKey.self) { segmentFrames = $0 }
+        // `simultaneousGesture`, nicht `gesture`: die beiden Knöpfe darin
+        // bleiben Knöpfe (Tippen, VoiceOver, XCUITest), und der Zug läuft
+        // parallel dazu.
+        .simultaneousGesture(segmentDrag)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen-switcher")
+    }
+
+    /// Die Auswahl-Lasur — EIN Stück Farbe, das über die Segmente FÄHRT.
+    ///
+    /// Ihre Lage kommt aus den gemessenen Segmentrahmen, nicht aus dem
+    /// Layout: nur so lässt sie sich zwischen zwei Segmenten interpolieren,
+    /// und nur so kann sie einem gedrückten Finger folgen, ohne dass sich
+    /// darunter irgendetwas bewegt. Beim Ziehen wird sie eine Spur kräftiger
+    /// — die Rückmeldung des Glases (`interactive()`) besorgt den Rest.
+    @ViewBuilder
+    private var selectionLasur: some View {
+        if let frame = segmentFrames[highlighted], frame.width > 0 {
+            Capsule()
+                // Kein beliebiger Alpha-Wert, sondern die eine Auswahl-Lasur
+                // der App: die Markenfarbe so weit heruntergezogen, dass sie
+                // hinter Glas noch als Fläche liest, ohne den Text zu
+                // schlucken.
+                .fill(Theme.accent(store.paletteStyle)
+                        .opacity(draggingSwitcher ? 0.26 : 0.18))
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+                // Bewegung reduzieren: kein Mitlaufen, nur der Endzustand.
+                .animation(reduceMotion ? nil : .interactiveSpring(response: 0.24,
+                                                                   dampingFraction: 0.86),
+                           value: frame)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: draggingSwitcher)
+        }
+    }
+
+    /// Drücken und ziehen wie bei der System-Tableiste: die Lasur folgt dem
+    /// Finger über die Segmente und bleibt beim Loslassen stehen.
+    ///
+    /// Kein Schieberegler: die Lasur setzt sich immer auf ein GANZES Segment
+    /// (Treffertest auf den gemessenen Rahmen, siehe ChromeLayout.segment),
+    /// sie steht nie dazwischen. Losgelassen wird die Wahl übernommen;
+    /// ausserhalb losgelassen heißt Abbruch, und sie schnappt zurück.
+    private var segmentDrag: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.switcherSpace))
+            .onChanged { value in
+                // Bei „Bewegung reduzieren" gibt es kein Mitlaufen — dort
+                // zählt nur der Endzustand.
+                guard !reduceMotion else { return }
+                if !draggingSwitcher { draggingSwitcher = true }
+                guard let hit = ChromeLayout.segment(at: value.location, frames: segmentFrames),
+                      hit != dragSegment else { return }
+                dragSegment = hit
+                // Dieselbe kurze Rückmeldung wie beim Abhaken, sobald die
+                // Lasur ein anderes Ziel erreicht.
+                if hit != screen { Theme.Haptics.check() }
+            }
+            .onEnded { value in
+                draggingSwitcher = false
+                dragSegment = nil
+                // Ein reiner TIPP gehört dem Knopf — sonst entscheiden beide
+                // über dasselbe Ereignis. Erst ein echter Zug wird hier
+                // übernommen.
+                let moved = abs(value.translation.width) > 4 || abs(value.translation.height) > 4
+                guard moved,
+                      let hit = ChromeLayout.segment(at: value.location, frames: segmentFrames)
+                else { return }
+                select(hit, from: .drag)
+            }
     }
 
     /// Der eine Rand, aus dem beide Radien folgen: (52 − 44)/2 = 4. Er ist
     /// auch der Abstand ZWISCHEN den beiden Lasuren, damit der Spalt überall
     /// im Blob derselbe ist.
-    private static let chromeInset: CGFloat = (Theme.Metrics.control - Theme.Metrics.hit) / 2
+    private static let chromeInset: CGFloat = ChromeLayout.inset
+
+    /// Woher die Wahl kommt. Nicht kosmetisch: die beiden Wege schließen
+    /// einander aus, und ohne diese Unterscheidung heben sie sich auf.
+    private enum SwitchSource { case tap, drag }
+
+    /// Bereich wählen. „Mehr" ist ein UMSCHALTER: noch einmal darauf klappt
+    /// die Tafel wieder zu.
+    ///
+    /// **Der Zug gewinnt.** Knopf und Ziehgeste laufen simultan. Zieht man
+    /// von „Habits" nach „Mehr" und lässt dort los, entscheidet die Geste
+    /// richtig — und danach feuert der Knopf, auf dem der Finger AUFGESETZT
+    /// hat, trotzdem noch seine eigene Aktion und nimmt die Wahl sofort
+    /// wieder zurück. Nachgemessen: die Tafel ging auf und im selben Bild
+    /// wieder zu. Deshalb sperrt eine frische Zug-Entscheidung den Knopf
+    /// für einen Wimpernschlag.
+    private func select(_ target: Screen, from source: SwitchSource = .tap) {
+        let now = Date()
+        switch source {
+        case .drag:
+            lastDragSwitch = now
+        case .tap:
+            guard now.timeIntervalSince(lastDragSwitch) > 0.35 else { return }
+        }
+        let next: Screen = (target == .more && moreOpen) ? .habits : target
+        guard next != screen else { return }
+        if reduceMotion {
+            screen = next
+        } else {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) { screen = next }
+        }
+    }
 
     /// Ein Symbol im Chrom. Gleiches Kästchen für alle drei, damit die
     /// Mittelpunkte auf EINER Linie sitzen — die Punktgrößen sind dagegen
@@ -605,7 +845,7 @@ struct ContentView: View {
 
     private func tabButton(_ target: Screen, symbol: String, title: String, id: String) -> some View {
         Button {
-            screen = target
+            select(target)
         } label: {
             HStack(spacing: 4) {
                 glyph(symbol)
@@ -624,20 +864,15 @@ struct ContentView: View {
             // also exakt (26 − 4) — konzentrisch zur Glaskapsel, in beiden
             // Zuständen (siehe `switcher`).
             .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-            .background {
-                if screen == target {
-                    // Kein beliebiger Alpha-Wert, sondern die eine
-                    // Auswahl-Lasur der App: die Markenfarbe so weit
-                    // heruntergezogen, dass sie hinter Glas noch als Fläche
-                    // liest, ohne den Text zu schlucken.
-                    Capsule().fill(Theme.accent(store.paletteStyle).opacity(0.18))
-                }
-            }
+            // Statt einer eigenen Lasur nur noch der Messfühler: er meldet,
+            // WO dieses Segment liegt. Gezeichnet wird die eine gemeinsame
+            // Lasur eine Ebene höher (`selectionLasur`).
+            .background { segmentProbe(target) }
             .contentShape(Capsule())
             // `.primary` statt `.secondary`: über einem dicht gefüllten
             // Raster ist Sekundärgrau hinter Glas nicht mehr lesbar. Die
             // Hierarchie trägt die Auswahl-Lasur, nicht die Textfarbe.
-            .foregroundStyle(screen == target
+            .foregroundStyle(highlighted == target
                              ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
                              : AnyShapeStyle(HierarchicalShapeStyle.primary))
         }
@@ -645,6 +880,15 @@ struct ContentView: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(screen == target ? [.isSelected] : [])
         .accessibilityIdentifier(id)
+    }
+
+    /// Meldet den Rahmen EINES Segments im Umschalter-Koordinatenraum.
+    private func segmentProbe(_ target: Screen) -> some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: SegmentFrameKey.self,
+                value: [target: geo.frame(in: .named(Self.switcherSpace))])
+        }
     }
 
     /// Der Anlegen-Knopf. EIN Knopf, EINE Größe (`Metrics.control`, dasselbe
@@ -664,6 +908,13 @@ struct ContentView: View {
                 .foregroundStyle(collapsed
                                  ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
                                  : AnyShapeStyle(.white))
+                // Die Farbe springt, sie fährt NICHT mit. Nachgemessen: der
+                // grüne Glas-Tint verschwindet beim Einklappen sofort,
+                // während eine interpolierte Schriftfarbe noch ein paar
+                // Bilder lang fast weiß ist — genau dann steht ein weißes
+                // Plus auf hellem Glas und der Knopf sieht für einen
+                // Wimpernschlag verschwunden aus.
+                .animation(nil, value: collapsed)
                 .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
                 .contentShape(Rectangle())
         }
@@ -747,21 +998,18 @@ struct ContentView: View {
         switch url.host ?? url.lastPathComponent {
         case "habits":
             screen = .habits
-            morePath = NavigationPath()
+            moreSheet = nil
         case "more", "sync":
-            // "sync" landet im Mehr-Bereich; das Blatt öffnet MoreView
-            // selbst (Debug-Argument bzw. Tippen auf die Zeile).
+            // "sync" landet ebenfalls in der Tafel — die iCloud-Zeile steht
+            // dort ganz oben.
             screen = .more
-            morePath = NavigationPath()
         case "stats":
-            screen = .more
-            morePath = NavigationPath([MoreRoute.stats])
+            moreSheet = .stats
         case "archive":
-            screen = .more
-            morePath = NavigationPath([MoreRoute.archive])
+            moreSheet = .archive
         case "search":
             screen = .habits
-            morePath = NavigationPath()
+            moreSheet = nil
             searching = true
             searchFieldFocused = true
         case "new":
@@ -929,6 +1177,18 @@ private struct RowOffsetKey: PreferenceKey {
     }
 }
 
+/// Rahmen der Umschalter-Segmente im Umschalter-Koordinatenraum. Grundlage
+/// für die wandernde Lasur UND für den Treffertest beim Ziehen — beide
+/// müssen dieselben Zahlen sehen, sonst springt die Auswahl woanders hin,
+/// als die Lasur steht.
+private struct SegmentFrameKey: PreferenceKey {
+    static var defaultValue: [ContentView.Screen: CGRect] = [:]
+    static func reduce(value: inout [ContentView.Screen: CGRect],
+                       nextValue: () -> [ContentView.Screen: CGRect]) {
+        value.merge(nextValue()) { _, next in next }
+    }
+}
+
 /// Der selbstgebaute Ersatz für `.tabBarMinimizeBehavior(.onScrollDown)`.
 ///
 /// Gerechnet wird ausschließlich mit Zeilenpositionen, weil das die einzige
@@ -1075,6 +1335,36 @@ private struct ChromeGlass: ViewModifier {
                 .background(accent.map { Theme.accentFill($0) } ?? Color.clear, in: Circle())
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
+        }
+    }
+}
+
+/// Die Mehr-Tafel. Ab iOS 26 echtes Liquid Glass im SELBEN
+/// `GlassEffectContainer` wie die Leiste (damit beide dieselbe Rechnung und
+/// dieselbe Lichtstimmung bekommen), aber mit EIGENER Form — die
+/// Vereinigung mit der Kapsel war zu viel des Guten, siehe `chromeUnion`.
+/// Darunter dieselbe Material-Attrappe wie beim Chrom.
+///
+/// Der Eckradius ist bewusst groß (32): die Tafel muss sich mit einer
+/// 26-pt-Kapsel vertragen, ohne dass die Ecke daneben eckig wirkt.
+private struct PanelGlass: ViewModifier {
+    let namespace: Namespace.ID
+
+    private static let radius: CGFloat = 32
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(.regular.tint(Color(.systemBackground).opacity(0.6)),
+                             in: .rect(cornerRadius: Self.radius, style: .continuous))
+                .glassEffectID("more-panel", in: namespace)
+        } else {
+            content
+                .background(.ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                    .strokeBorder(.quaternary))
+                .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
         }
     }
 }

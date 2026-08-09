@@ -1,64 +1,19 @@
 import Foundation
 
-// MARK: – Wischgesten
-
-/// Was eine Wischgeste an einer Habit-Zeile auslöst. Belegbar, weil „von
-/// links nach rechts = erledigt" für die einen selbstverständlich und für
-/// die anderen genau falsch herum ist — und weil Archivieren an der Kante,
-/// an der jemand sonst abhakt, teuer ist.
-///
-/// Bewusst OHNE SwiftUI: Titel und Symbol gehören zur Bedeutung der Aktion
-/// (Einstellungsliste UND Wisch-Knopf zeigen dieselben), die Farbe gehört
-/// in die Ansicht.
-enum SwipeAction: String, CaseIterable, Codable, Sendable, Identifiable {
-    /// Abhaken bzw. hochzählen — hakt nur AN, nie ab.
-    case done
-    /// Den heutigen Eintrag zurücknehmen.
-    case revert
-    case archive
-    case edit
-    /// Diese Kante macht nichts.
-    case none
-
-    var id: String { rawValue }
-
-    static let defaultLeading = SwipeAction.done
-    static let defaultTrailing = SwipeAction.archive
-
-    /// Unbekannte Werte (Datei aus einer neueren Version) lesen als der
-    /// jeweilige Standard — nie als Fehler, sonst verliert ein älterer
-    /// Build beim nächsten Speichern die ganze Datei.
-    static func tolerant(_ raw: String?, fallback: SwipeAction) -> SwipeAction {
-        raw.flatMap(SwipeAction.init(rawValue:)) ?? fallback
-    }
-
-    var title: String {
-        switch self {
-        case .done:    return String(localized: "Erledigt")
-        case .revert:  return String(localized: "Rückgängig")
-        case .archive: return String(localized: "Archivieren")
-        case .edit:    return String(localized: "Bearbeiten")
-        case .none:    return String(localized: "Nichts")
-        }
-    }
-
-    /// nil = kein Knopf (bei `.none`).
-    var symbol: String? {
-        switch self {
-        case .done:    return "checkmark"
-        case .revert:  return "arrow.uturn.backward"
-        case .archive: return "archivebox"
-        case .edit:    return "pencil"
-        case .none:    return nil
-        }
-    }
-
-    /// Darf ein VOLLER Wisch (durchziehen ohne Loslassen) das auslösen?
-    /// Nur für umkehrbare Aktionen. Archivieren ausdrücklich nicht: ein zu
-    /// beherzter Wisch räumt sonst ein Habit aus der Liste, und die
-    /// Rücknahme liegt zwei Bildschirme weiter im Archiv.
-    var allowsFullSwipe: Bool { self == .done || self == .revert }
-}
+// MARK: – Aktionen an einer Habit-Zeile
+//
+// FRÜHER standen hier belegbare Wischgesten (`SwipeAction`, plus zwei Picker
+// in „Mehr"). Beides ist ersatzlos weg: eine Zeile hat jetzt EINEN Weg zu
+// ihren Aktionen — langes Drücken öffnet die Karte als Vorschau mit dem
+// vergrößerten Raster und den Aktionen darunter (HabitCard). Das ist
+// sichtbar statt versteckt, zeigt VORHER, welches Habit gemeint ist, und
+// braucht keine Einstellung, die erklärt, was ein Wisch tut.
+//
+// Alte data.json-Dateien tragen weiterhin `leadingSwipe`/`trailingSwipe`.
+// Die Schlüssel werden beim Lesen IGNORIERT (siehe HabitData.CodingKeys) —
+// unbekannte Schlüssel sind für Codable kein Fehler, die Datei bleibt also
+// lesbar und verliert nichts ausser einer Einstellung, die es nicht mehr
+// gibt.
 
 // MARK: – Rückgängig-Toast
 

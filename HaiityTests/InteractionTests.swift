@@ -227,55 +227,38 @@ final class UndoToastStateTests: XCTestCase {
     }
 }
 
-/// Wischgesten: Belegung, Persistenz, tolerantes Lesen.
-final class SwipeActionTests: XCTestCase {
+/// Die Wischgesten sind weg (lange drücken statt wischen). Was bleibt, ist
+/// die Pflicht, Dateien aus der Zeit davor NICHT kaputtzumachen: sie tragen
+/// `leadingSwipe`/`trailingSwipe` weiterhin, und ein Build, der daran
+/// scheitert, verlöre beim nächsten Speichern die ganzen Check-ins.
+final class LegacySwipeKeyTests: XCTestCase {
     private var url: URL!
 
     override func setUp() {
         url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("haiity-swipe-\(UUID().uuidString).json")
+            .appendingPathComponent("haiity-legacy-\(UUID().uuidString).json")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: url)
     }
 
-    func testDefaultsAreDoneAndArchive() {
-        let store = HabitStore(url: url)
-        XCTAssertEqual(store.leadingSwipe, .done)
-        XCTAssertEqual(store.trailingSwipe, .archive)
+    func testOldFilesWithSwipeKeysStillDecode() throws {
+        let raw = Data(#"""
+        {"version":2,"updatedAt":1,
+         "habits":[{"id":"3F2504E0-4F89-11D3-9A0C-0305E82C3301","name":"Lesen",
+                    "emoji":"📚","createdAt":"2026-01-05","log":{"2026-08-01":1}}],
+         "leadingSwipe":"teleport","trailingSwipe":"revert"}
+        """#.utf8)
+        let data = try JSONDecoder().decode(HabitData.self, from: raw)
+        // Die Schlüssel sind unbekannt geworden und werden übergangen —
+        // alles andere kommt vollständig an.
+        XCTAssertEqual(data.habits.count, 1)
+        XCTAssertEqual(data.habits.first?.name, "Lesen")
+        XCTAssertEqual(data.habits.first?.log["2026-08-01"], 1)
     }
 
-    func testOnlyReversibleActionsAllowFullSwipe() {
-        XCTAssertTrue(SwipeAction.done.allowsFullSwipe)
-        XCTAssertTrue(SwipeAction.revert.allowsFullSwipe)
-        // Archivieren ausdrücklich nicht — ein zu beherzter Wisch soll kein
-        // Habit aus der Liste räumen.
-        XCTAssertFalse(SwipeAction.archive.allowsFullSwipe)
-        XCTAssertFalse(SwipeAction.edit.allowsFullSwipe)
-        XCTAssertFalse(SwipeAction.none.allowsFullSwipe)
-    }
-
-    func testNoneHasNoSymbolEveryOtherActionDoes() {
-        XCTAssertNil(SwipeAction.none.symbol)
-        for action in SwipeAction.allCases where action != .none {
-            XCTAssertNotNil(action.symbol, "\(action) braucht ein Symbol")
-            XCTAssertFalse(action.title.isEmpty)
-        }
-    }
-
-    func testPersistsAcrossStores() {
-        let store = HabitStore(url: url)
-        store.leadingSwipe = .edit
-        store.trailingSwipe = .revert
-        let reopened = HabitStore(url: url)
-        XCTAssertEqual(reopened.leadingSwipe, .edit)
-        XCTAssertEqual(reopened.trailingSwipe, .revert)
-    }
-
-    func testDefaultsStayImplicitInTheFile() throws {
-        // Eine unveränderte Installation schreibt exakt dieselbe Datei wie
-        // vor den Wischgesten.
+    func testSwipeKeysAreNoLongerWritten() throws {
         let store = HabitStore(url: url)
         store.add(Habit(name: "Lesen"))
         let json = String(data: try XCTUnwrap(store.exportJSON()), encoding: .utf8) ?? ""
@@ -283,59 +266,27 @@ final class SwipeActionTests: XCTestCase {
         XCTAssertFalse(json.contains("trailingSwipe"))
     }
 
-    func testNonDefaultsAreWritten() throws {
+    func testDroppingTheKeysIsNoVersionBump() throws {
+        // Konvention des Projekts: der v2-Build von gestern muss die Datei
+        // weiter lesen können. Ein Sprung auf 3 würde ihn aussperren.
         let store = HabitStore(url: url)
-        store.leadingSwipe = .none
-        let json = String(data: try XCTUnwrap(store.exportJSON()), encoding: .utf8) ?? ""
-        XCTAssertTrue(json.contains("\"leadingSwipe\" : \"none\""))
-    }
-
-    func testTolerantDecodeOfUnknownValues() throws {
-        // Datei aus einer neueren Version: unbekannte Geste -> Standard,
-        // NIE ein Fehler (der ganze Datensatz stünde sonst auf dem Spiel).
-        let raw = Data(#"""
-        {"version":2,"updatedAt":1,"habits":[],
-         "leadingSwipe":"teleport","trailingSwipe":"revert"}
-        """#.utf8)
-        let data = try JSONDecoder().decode(HabitData.self, from: raw)
-        XCTAssertEqual(data.leadingSwipe, .done)
-        XCTAssertEqual(data.trailingSwipe, .revert)
-    }
-
-    func testMissingKeysFallBackToDefaults() throws {
-        let raw = Data(#"{"version":2,"updatedAt":1,"habits":[]}"#.utf8)
-        let data = try JSONDecoder().decode(HabitData.self, from: raw)
-        XCTAssertEqual(data.leadingSwipe, .defaultLeading)
-        XCTAssertEqual(data.trailingSwipe, .defaultTrailing)
-    }
-
-    func testSwipeConfigIsNoVersionBump() {
-        // Die Konvention des Projekts: additive Felder, KEIN Sprung auf 3 —
-        // sonst sperrt die Datei den v2-Build von gestern aus.
-        let store = HabitStore(url: url)
-        store.trailingSwipe = .edit
+        store.add(Habit(name: "Lesen"))
         XCTAssertEqual(store.data.version, 2)
         XCTAssertEqual(HabitData.currentVersion, 2)
     }
 
-    func testMergeTakesSwipeConfigFromNewerRemote() {
+    func testLegacyFileSurvivesARoundTrip() throws {
+        // Der teure Fall: alte Datei lesen, etwas ändern, zurückschreiben.
+        // Verloren gehen darf dabei NUR die Einstellung, die es nicht mehr
+        // gibt.
+        try Data(#"""
+        {"version":2,"updatedAt":1,"habits":[],"palette":"violet",
+         "leadingSwipe":"edit","trailingSwipe":"none"}
+        """#.utf8).write(to: url)
         let store = HabitStore(url: url)
-        var remote = HabitData.empty
-        remote.updatedAt = Date().timeIntervalSince1970 + 1000
-        remote.leadingSwipe = .archive
-        remote.trailingSwipe = .none
-        store.merge(remote: remote)
-        XCTAssertEqual(store.leadingSwipe, .archive)
-        XCTAssertEqual(store.trailingSwipe, .none)
-    }
-
-    func testMergeKeepsLocalSwipeConfigWhenRemoteIsOlder() {
-        let store = HabitStore(url: url)
-        store.leadingSwipe = .edit
-        var remote = HabitData.empty
-        remote.updatedAt = 1
-        remote.leadingSwipe = .archive
-        store.merge(remote: remote)
-        XCTAssertEqual(store.leadingSwipe, .edit)
+        store.add(Habit(name: "Sport"))
+        let reopened = HabitStore(url: url)
+        XCTAssertEqual(reopened.palette, .builtin(.violet))
+        XCTAssertEqual(reopened.habits.map(\.name), ["Sport"])
     }
 }
