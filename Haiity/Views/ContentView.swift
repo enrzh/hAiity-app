@@ -76,18 +76,24 @@ struct ContentView: View {
             // System-Steuerelemente mit. Alle drei hängen am Store, damit ein
             // Umstellen in „Mehr" sofort durchschlägt.
             .preferredColorScheme(store.appearance.colorScheme)
-            .environment(\.graphPalette, store.palette)
+            .environment(\.palettes, store.palettes)
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
-            .tint(Theme.accentText(store.palette))
+            .tint(Theme.accentText(store.paletteStyle))
             .onOpenURL { handleDeepLink($0) }
+            // Blätter sind eine EIGENE Präsentation: Farbe und Tint von oben
+            // kommen dort nicht an (nachgemessen — die Farbwahl im Blatt zeigte
+            // sonst Grün, während die App längst in einer eigenen Farbe lief).
+            // Deshalb beides hier noch einmal, an EINER Stelle je Blatt.
             .sheet(isPresented: $showAdd) {
                 EditHabitSheet(store: store)
+                    .themed(store)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
+                    .themed(store)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -283,7 +289,7 @@ struct ContentView: View {
         case .none:
             EmptyView()
         case .done:
-            swipeLabelButton(action, tint: Theme.accentFill(store.palette)) { markDone(habit) }
+            swipeLabelButton(action, tint: Theme.accentFill(store.paletteStyle)) { markDone(habit) }
         case .revert:
             swipeLabelButton(action, tint: .gray) { revert(habit) }
         case .archive:
@@ -387,7 +393,7 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            DemoGrid(palette: store.palette)
+            DemoGrid(palette: store.paletteStyle)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
             Text(String(localized: "Leg einen an und fang an, Quadrate zu füllen — jeder Tag, an dem du dranbleibst, färbt eine Zelle."))
@@ -402,7 +408,7 @@ struct ContentView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Theme.accentFill(store.palette), in: Capsule())
+                    .background(Theme.accentFill(store.paletteStyle), in: Capsule())
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -473,7 +479,7 @@ struct ContentView: View {
             .accessibilityLabel(String(localized: "Weitere Aktionen"))
             .accessibilityIdentifier("list-menu")
         }
-        .foregroundStyle(Theme.accentText(store.palette))
+        .foregroundStyle(Theme.accentText(store.paletteStyle))
         .modifier(ToolbarBlob())
     }
 
@@ -616,7 +622,7 @@ struct ContentView: View {
                     // Auswahl-Lasur der App: die Markenfarbe so weit
                     // heruntergezogen, dass sie hinter Glas noch als Fläche
                     // liest, ohne den Text zu schlucken.
-                    Capsule().fill(Theme.accent(store.palette).opacity(0.18))
+                    Capsule().fill(Theme.accent(store.paletteStyle).opacity(0.18))
                 }
             }
             .contentShape(Capsule())
@@ -624,7 +630,7 @@ struct ContentView: View {
             // Raster ist Sekundärgrau hinter Glas nicht mehr lesbar. Die
             // Hierarchie trägt die Auswahl-Lasur, nicht die Textfarbe.
             .foregroundStyle(screen == target
-                             ? AnyShapeStyle(Theme.accentText(store.palette))
+                             ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
                              : AnyShapeStyle(HierarchicalShapeStyle.primary))
         }
         .buttonStyle(.plain)
@@ -648,7 +654,7 @@ struct ContentView: View {
                 // Scheibe mehr, auf der Weiß stünde — dort trägt das Zeichen
                 // selbst die Markenfarbe.
                 .foregroundStyle(collapsed
-                                 ? AnyShapeStyle(Theme.accentText(store.palette))
+                                 ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
                                  : AnyShapeStyle(.white))
                 .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
                 .contentShape(Rectangle())
@@ -656,7 +662,7 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .modifier(ChromeGlass(id: "chrome-add", namespace: glassNamespace,
                               kind: .circle,
-                              accent: collapsed ? nil : store.palette,
+                              accent: collapsed ? nil : store.paletteStyle,
                               union: chromeUnion("chrome-add-solo")))
         .accessibilityLabel(String(localized: "Habit hinzufügen"))
         .accessibilityIdentifier("add-habit")
@@ -688,7 +694,7 @@ struct ContentView: View {
                 } label: {
                     Text(String(localized: "Rückgängig"))
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(store.palette))
+                        .foregroundStyle(Theme.accentText(store.paletteStyle))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -805,7 +811,7 @@ struct ContentView: View {
             for (sizeName, family, size) in sizes {
                 let view = HaiityWidgetView(entry: HaiityEntry(date: .now,
                                                                habits: habits,
-                                                               palette: store.palette))
+                                                               palettes: store.palettes))
                     .content(family: family)
                     .padding(12)
                     .frame(width: size.width, height: size.height)
@@ -826,7 +832,7 @@ struct ContentView: View {
         guard let habit = store.activeHabits.first else { return }
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for scheme in [ColorScheme.light, .dark] {
-            guard let png = ShareCard.render(habit: habit, scheme: scheme, globalPalette: store.palette)?.pngData() else { continue }
+            guard let png = ShareCard.render(habit: habit, scheme: scheme, palette: store.palettes.style(for: habit))?.pngData() else { continue }
             let name = scheme == .dark ? "sharecard-dark.png" : "sharecard-light.png"
             try? png.write(to: dir.appendingPathComponent(name))
         }
@@ -982,7 +988,7 @@ private struct ChromeGlass: ViewModifier {
     let namespace: Namespace.ID
     let kind: Kind
     /// nil = neutrales Glas (Umschalter); gesetzt = eingefärbt (Anlegen).
-    var accent: GraphPalette?
+    var accent: PaletteStyle?
     /// Teilen zwei Teile dieselbe Vereinigungs-Kennung, rechnet iOS ihr Glas
     /// als EINE Form — kein Steg, keine Taille, kein „halb drin, halb
     /// draußen". Verschiedene Kennungen = zwei getrennte Scheiben.
@@ -1131,7 +1137,7 @@ private extension View {
 
 /// Deko fürs Empty-State: ein kleines zufälliges Contribution-Muster.
 private struct DemoGrid: View {
-    let palette: GraphPalette
+    let palette: PaletteStyle
     @Environment(\.colorScheme) private var scheme
     private let pattern: [Int] = (0..<48).map { _ in
         Bool.random() && Bool.random() ? Int.random(in: 1...4) : 0

@@ -10,7 +10,7 @@ import UIKit
 struct SyncSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @Environment(\.graphPalette) private var palette
+    @Environment(\.palettes) private var palettes
     let store: HabitStore
     let sync: GitHubSync
     @Binding var connectedLogin: String?
@@ -153,7 +153,7 @@ struct SyncSheet: View {
                 Text(code.userCode)
                     .font(.system(size: 34, weight: .semibold, design: .monospaced))
                     .kerning(3)
-                    .foregroundStyle(Theme.accentText(palette))
+                    .foregroundStyle(Theme.accentText(palettes.style))
                     .frame(maxWidth: .infinity, alignment: .center)
                     .textSelection(.enabled)
                 Label(copied ? String(localized: "Kopiert") : String(localized: "Zum Kopieren tippen"),

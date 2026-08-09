@@ -155,19 +155,21 @@ final class PaletteResolutionTests: XCTestCase {
     func testHabitOverrideBeatsGlobal() {
         var h = Habit(name: "Lesen")
         h.palette = .violet
-        XCTAssertEqual(GraphPalette.resolve(habit: h, global: .blue), .violet)
+        XCTAssertEqual(PaletteStyle.resolve(habit: h, global: .blue), GraphPalette.violet.style)
     }
 
     func testHabitWithoutOverrideFollowsGlobal() {
         let h = Habit(name: "Lesen")
         XCTAssertNil(h.palette)
-        XCTAssertEqual(GraphPalette.resolve(habit: h, global: .blue), .blue)
+        XCTAssertEqual(PaletteStyle.resolve(habit: h, global: .blue), GraphPalette.blue.style)
     }
 
     func testFallsBackToGreenWithoutAnything() {
-        XCTAssertEqual(GraphPalette.resolve(habit: nil, global: nil), .green)
-        XCTAssertEqual(GraphPalette.resolve(habit: Habit(name: "x"), global: nil), .green)
+        XCTAssertEqual(PaletteStyle.resolve(habit: nil, global: nil), GraphPalette.green.style)
+        XCTAssertEqual(PaletteStyle.resolve(habit: Habit(name: "x"), global: nil),
+                       GraphPalette.green.style)
         XCTAssertEqual(GraphPalette.default, .green)
+        XCTAssertEqual(PaletteRef.default, .builtin(.green))
     }
 
     /// Zwei Habits nebeneinander: das eine übersteuert, das andere nicht.
@@ -177,8 +179,8 @@ final class PaletteResolutionTests: XCTestCase {
         var special = Habit(name: "Meditation")
         special.palette = .rose
         let normal = Habit(name: "Lesen")
-        XCTAssertEqual(GraphPalette.resolve(habit: special, global: .green), .rose)
-        XCTAssertEqual(GraphPalette.resolve(habit: normal, global: .green), .green)
+        XCTAssertEqual(PaletteStyle.resolve(habit: special, global: .green), GraphPalette.rose.style)
+        XCTAssertEqual(PaletteStyle.resolve(habit: normal, global: .green), GraphPalette.green.style)
     }
 }
 
@@ -295,8 +297,8 @@ final class ThemePersistenceTests: XCTestCase {
         XCTAssertEqual(reloaded.palette, .blue)
         XCTAssertFalse(reloaded.matchAppIcon)
         XCTAssertEqual(reloaded.habits[0].palette, .violet)
-        XCTAssertEqual(GraphPalette.resolve(habit: reloaded.habits[0],
-                                            global: reloaded.palette), .violet)
+        XCTAssertEqual(reloaded.palettes.style(for: reloaded.habits[0]),
+                       GraphPalette.violet.style)
     }
 
     /// Sync: das neuere Gerät gibt die Darstellung vor, das ältere nicht.

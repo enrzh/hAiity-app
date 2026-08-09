@@ -7,7 +7,7 @@ import SwiftUI
 struct EditHabitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.graphPalette) private var palette
+    @Environment(\.palettes) private var palettes
     let store: HabitStore
     var existing: Habit?
 
@@ -30,7 +30,7 @@ struct EditHabitSheet: View {
     @State private var quantityOn = false
     @State private var target = 3
     /// nil = „Wie App" (kein Override) — der Normalfall.
-    @State private var habitPalette: GraphPalette?
+    @State private var habitPalette: PaletteRef?
 
     var body: some View {
         NavigationStack {
@@ -46,7 +46,7 @@ struct EditHabitSheet: View {
                 reminderSection
                 if let habit = existing {
                     Section {
-                        ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, globalPalette: palette),
+                        ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
                                   preview: SharePreview(habit.name)) {
                             Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
                         }
@@ -138,7 +138,7 @@ struct EditHabitSheet: View {
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 7)
-                            .background(on ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
+                            .background(on ? Theme.accentFill(palettes.style) : Color(.tertiarySystemFill), in: Capsule())
                             .foregroundStyle(on ? .white : .primary)
                     }
                     .buttonStyle(.plain)
@@ -162,7 +162,7 @@ struct EditHabitSheet: View {
         Section {
             PalettePicker(selection: $habitPalette,
                           allowsGlobal: true,
-                          globalPalette: palette)
+                          palettes: palettes)
         } header: {
             Text(String(localized: "Farbe"))
         } footer: {
@@ -186,7 +186,7 @@ struct EditHabitSheet: View {
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 7)
-                            .background(on ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
+                            .background(on ? Theme.accentFill(palettes.style) : Color(.tertiarySystemFill), in: Capsule())
                             .foregroundStyle(on ? .white : .primary)
                     }
                     .buttonStyle(.plain)

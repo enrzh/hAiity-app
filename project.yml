@@ -91,6 +91,11 @@ targets:
       # HabitData trägt die Wischgesten-Einstellung, also braucht auch die
       # Extension den Typ — sonst kompiliert der geteilte Store nicht.
       - path: Haiity/Models/Interaction.swift
+      # Farben: die eingebauten Familien, die eigenen Paletten des Nutzers und
+      # der Generator, der aus einer Grundfarbe die Rampe rechnet. Das Widget
+      # zeichnet dieselben Zellen und braucht deshalb dieselbe Rechnung.
+      - path: Haiity/Models/Palette.swift
+      - path: Haiity/Models/PaletteGenerator.swift
       # Widget-Button braucht den Intent-TYP; perform() läuft im
       # Extension-Prozess und schreibt über den geteilten Store.
       # (HaiityShortcuts.swift bleibt bewusst App-only.)

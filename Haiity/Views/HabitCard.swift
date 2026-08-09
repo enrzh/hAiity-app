@@ -36,7 +36,7 @@ struct HabitCard: View {
     let onArchive: () -> Void
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.graphPalette) private var palette
+    @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
@@ -92,7 +92,7 @@ struct HabitCard: View {
                         in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                              style: .continuous))
             .contextMenu {
-                ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, globalPalette: palette),
+                ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
                           preview: SharePreview(habit.name)) {
                     Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
                 }
@@ -196,14 +196,14 @@ struct HabitCard: View {
             Text(verbatim: "\(value)/\(target)")
                 .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(doneToday
-                                 ? AnyShapeStyle(Theme.accentText(palette))
+                                 ? AnyShapeStyle(Theme.accentText(palettes.style))
                                  : AnyShapeStyle(HierarchicalShapeStyle.secondary))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         } else {
             Image(systemName: doneToday ? "checkmark.circle.fill" : "circle")
                 .font(.footnote)
                 .foregroundStyle(doneToday
-                                 ? AnyShapeStyle(Theme.accentText(palette))
+                                 ? AnyShapeStyle(Theme.accentText(palettes.style))
                                  : AnyShapeStyle(HierarchicalShapeStyle.tertiary))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         }
@@ -291,7 +291,7 @@ struct HabitCard: View {
             .font(monospaced ? base.monospacedDigit() : base)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(doneToday ? Theme.accentFill(palette) : Color(.tertiarySystemFill),
+            .background(doneToday ? Theme.accentFill(palettes.style) : Color(.tertiarySystemFill),
                         in: Capsule())
             .foregroundStyle(doneToday ? .white : .primary)
             .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)

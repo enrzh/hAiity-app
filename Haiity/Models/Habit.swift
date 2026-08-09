@@ -21,8 +21,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Eigene Rasterfarbe; nil = die App-Palette (Standardfall). Bewusst
     /// eine SEPARATE Einstellung von der globalen Palette: wer alles blau
     /// will, stellt es einmal um; wer EIN Habit hervorheben will, färbt nur
-    /// dieses.
-    var palette: GraphPalette?
+    /// dieses. Zeigt entweder auf eine eingebaute Familie oder auf eine
+    /// eigene Farbe des Nutzers.
+    var palette: PaletteRef?
 
     init(name: String, emoji: String = "", reminderMinutes: Int? = nil, goal: Goal = .daily) {
         self.id = UUID()
@@ -170,7 +171,7 @@ extension Habit {
         // "keine Übersteuerung" — nie als Fehler, sonst verliert ein
         // älterer Build beim nächsten Speichern das ganze Habit.
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
-            .flatMap(GraphPalette.init(rawValue:))
+            .flatMap(PaletteRef.init(rawValue:))
     }
 
     func encode(to encoder: Encoder) throws {

@@ -23,14 +23,15 @@ struct HaiityProvider: TimelineProvider {
         completion(Timeline(entries: [entry], policy: .after(midnight)))
     }
 
-    /// EIN Lesevorgang für Habits UND Palette — zwei getrennte Lesungen
+    /// EIN Lesevorgang für Habits UND Paletten — zwei getrennte Lesungen
     /// könnten einen Schreibvorgang dazwischen erwischen und ein Raster in
     /// der alten Farbe zeichnen.
     private func entry() -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
         return HaiityEntry(date: .now,
                            habits: data?.habits.filter { $0.archivedAt == nil } ?? [],
-                           palette: data?.palette ?? .default)
+                           palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
+                               ?? PaletteBook())
     }
 
     private func demoHabit() -> Habit {

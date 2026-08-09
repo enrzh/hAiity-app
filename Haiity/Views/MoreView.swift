@@ -19,7 +19,13 @@ struct MoreView: View {
     @State private var showImporter = false
     @State private var importMessage: String?
     @State private var summaryDenied = false
-    @Environment(\.graphPalette) private var palette
+    // Eigene Farben: anlegen, bearbeiten, umbenennen, löschen.
+    @State private var creatingPalette = false
+    @State private var editingPalette: CustomPalette?
+    @State private var renamingPalette: CustomPalette?
+    @State private var renameText = ""
+    @State private var deletingPalette: CustomPalette?
+    @Environment(\.palettes) private var palettes
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
@@ -40,6 +46,7 @@ struct MoreView: View {
             }
 
             appearanceSection
+            paletteSection
             swipeSection
 
             Section {
@@ -112,11 +119,53 @@ struct MoreView: View {
                 .accessibilityIdentifier("open-about")
             }
         }
+        // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
+        // und erbt die Umgebung des Bildschirms darunter nicht (siehe
+        // ContentView).
         .sheet(isPresented: $showSync) {
             SyncSheet(store: store, sync: sync, connectedLogin: $connectedLogin)
+                .themed(store)
+        }
+        .sheet(isPresented: $creatingPalette) {
+            CustomPaletteSheet(store: store).themed(store)
+        }
+        .sheet(item: $editingPalette) { palette in
+            CustomPaletteSheet(store: store, existing: palette).themed(store)
+        }
+        .alert(String(localized: "Farbe umbenennen"),
+               isPresented: Binding(get: { renamingPalette != nil },
+                                    set: { if !$0 { renamingPalette = nil } })) {
+            TextField(String(localized: "Name"), text: $renameText)
+                .accessibilityIdentifier("palette-rename-field")
+            Button(String(localized: "Abbrechen"), role: .cancel) { renamingPalette = nil }
+            Button(String(localized: "Sichern")) { commitRename() }
+                .accessibilityIdentifier("palette-rename-save")
+        }
+        // Rückfrage NUR, wenn die Farbe wirklich benutzt wird — sonst wäre
+        // sie eine Gebühr auf jeden Aufräumvorgang. Der Text sagt konkret,
+        // was danach passiert, statt „Wirklich löschen?".
+        .confirmationDialog(deleteQuestion,
+                            isPresented: Binding(get: { deletingPalette != nil },
+                                                 set: { if !$0 { deletingPalette = nil } }),
+                            titleVisibility: .visible) {
+            Button(String(localized: "Löschen"), role: .destructive) {
+                if let id = deletingPalette?.id { store.removeCustomPalette(id) }
+                deletingPalette = nil
+            }
+            .accessibilityIdentifier("palette-delete-confirm")
+            Button(String(localized: "Abbrechen"), role: .cancel) { deletingPalette = nil }
+        } message: {
+            Text(String(localized: "Alles, was diese Farbe benutzt, fällt auf die Standardfarbe zurück."))
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)
+        }
+        // Das App-Icon folgt der GLOBALEN Farbe — egal ob sie umgestellt oder
+        // die aktive eigene Farbe umgefärbt wurde. Eine Stelle statt einer
+        // Wiederholung an jedem Schreibvorgang.
+        .onChange(of: store.palettes) { _, book in
+            guard store.matchAppIcon else { return }
+            Task { await AppIcons.apply(book) }
         }
         .task {
             #if DEBUG
@@ -150,12 +199,6 @@ struct MoreView: View {
             .pickerStyle(.menu)
             .accessibilityIdentifier("appearance-picker")
 
-            VStack(alignment: .leading, spacing: 6) {
-                Label(String(localized: "Graph-Farbe"), systemImage: "square.grid.3x3.fill")
-                PalettePicker(selection: paletteBinding)
-            }
-            .padding(.vertical, 2)
-
             Toggle(isOn: matchIconBinding) {
                 Label(String(localized: "App-Icon anpassen"), systemImage: "app.badge")
             }
@@ -163,8 +206,103 @@ struct MoreView: View {
         } header: {
             Text(String(localized: "Darstellung"))
         } footer: {
-            Text(String(localized: "Die Graph-Farbe gilt für alle Habits. Einzelne Habits können beim Bearbeiten eine eigene Farbe bekommen. Beim Anpassen des App-Icons fragt iOS einmal kurz nach."))
+            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. Für eigene Farben nimmt das Icon die nächstliegende der sechs eingebauten."))
         }
+    }
+
+    // MARK: – Graph-Farbe
+    //
+    // Die Auswahl IST das Raster: jede Zeile zeigt ihre fünf Stufen als
+    // dieselben Quadrate, die später im Jahresraster stehen (`GridCell`),
+    // nicht als Farbpunkte. Eine eigene Farbe steht gleichberechtigt zwischen
+    // den eingebauten — sie kann nur zusätzlich umbenannt, umgefärbt und
+    // gelöscht werden.
+
+    private var paletteSection: some View {
+        Section {
+            ForEach(GraphPalette.allCases) { palette in
+                PaletteRow(style: palette.style,
+                           title: palette.displayName,
+                           selected: store.palette == .builtin(palette)) {
+                    select(.builtin(palette))
+                }
+                .accessibilityIdentifier("palette-row-\(palette.rawValue)")
+            }
+            ForEach(store.customPalettes) { custom in
+                PaletteRow(style: custom.style,
+                           title: custom.displayName,
+                           selected: store.palette == .custom(custom.id)) {
+                    select(.custom(custom.id))
+                }
+                .accessibilityIdentifier("palette-row-custom-\(custom.id.uuidString)")
+                .swipeActions(edge: .trailing) {
+                    // Rot EXPLIZIT: der App-Tint (die eigene Farbe!) würde die
+                    // zerstörende Rolle sonst übermalen — eine Löschen-Taste in
+                    // Petrol sieht aus wie eine harmlose Aktion.
+                    Button(role: .destructive) { requestDelete(custom) } label: {
+                        Label(String(localized: "Löschen"), systemImage: "trash")
+                    }
+                    .tint(.red)
+                    Button { editingPalette = custom } label: {
+                        Label(String(localized: "Bearbeiten"), systemImage: "paintpalette")
+                    }
+                    .tint(.blue)
+                }
+                .contextMenu {
+                    Button {
+                        renameText = custom.name
+                        renamingPalette = custom
+                    } label: {
+                        Label(String(localized: "Umbenennen"), systemImage: "pencil")
+                    }
+                    Button { editingPalette = custom } label: {
+                        Label(String(localized: "Bearbeiten"), systemImage: "paintpalette")
+                    }
+                    Button(role: .destructive) { requestDelete(custom) } label: {
+                        Label(String(localized: "Löschen"), systemImage: "trash")
+                    }
+                }
+            }
+            Button {
+                creatingPalette = true
+            } label: {
+                Label(String(localized: "Eigene Farbe …"), systemImage: "plus.circle")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("palette-add-custom")
+        } header: {
+            Text(String(localized: "Graph-Farbe"))
+        } footer: {
+            Text(String(localized: "Gilt für alle Habits; einzelne Habits können beim Bearbeiten eine eigene Farbe bekommen. Bei eigenen Farben wählst du eine Grundfarbe — die fünf Stufen rechnet hAiity daraus. Streichen oder lange drücken: umbenennen, bearbeiten, löschen."))
+        }
+    }
+
+    /// Frage im Löschen-Dialog. Sie NENNT, was betroffen ist — eine Farbe,
+    /// die gerade nichts einfärbt, wird ohne Rückfrage gelöscht.
+    private var deleteQuestion: String {
+        guard let palette = deletingPalette else { return "" }
+        return String(localized: "„\(palette.displayName)“ wird noch benutzt. Löschen?")
+    }
+
+    private func requestDelete(_ palette: CustomPalette) {
+        if store.isCustomPaletteInUse(palette.id) {
+            deletingPalette = palette
+        } else {
+            store.removeCustomPalette(palette.id)
+        }
+    }
+
+    private func commitRename() {
+        guard var palette = renamingPalette else { return }
+        palette.name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.updateCustomPalette(palette)
+        renamingPalette = nil
+    }
+
+    /// Global gibt es kein „Wie App": eine Farbe ist immer gesetzt.
+    private func select(_ ref: PaletteRef) {
+        guard ref != store.palette else { return }
+        store.palette = ref
     }
 
     // MARK: – Wischgesten
@@ -215,19 +353,6 @@ struct MoreView: View {
         Binding(get: { store.appearance }, set: { store.appearance = $0 })
     }
 
-    /// Global gibt es kein „Wie App" — deshalb wird nil hier nie gesetzt und
-    /// ein nil-Set (das der Picker in dieser Rolle gar nicht auslöst)
-    /// ignoriert, statt die Palette zurückzusetzen.
-    private var paletteBinding: Binding<GraphPalette?> {
-        Binding(
-            get: { store.palette },
-            set: { new in
-                guard let new, new != store.palette else { return }
-                store.palette = new
-                if store.matchAppIcon { Task { await AppIcons.apply(new) } }
-            })
-    }
-
     private var matchIconBinding: Binding<Bool> {
         Binding(
             get: { store.matchAppIcon },
@@ -236,7 +361,8 @@ struct MoreView: View {
                 // Einschalten holt das Icon sofort nach, Ausschalten stellt
                 // das Standard-Icon wieder her — sonst bliebe ein oranges
                 // Icon kleben, obwohl die Kopplung aus ist.
-                Task { await AppIcons.apply(on ? store.palette : .default) }
+                let book = on ? store.palettes : PaletteBook()
+                Task { await AppIcons.apply(book) }
             })
     }
 
@@ -252,12 +378,12 @@ struct MoreView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Theme.accentFill(palette),
+                .background(Theme.accentFill(palettes.style),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Mit GitHub verbinden"))
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palette))
+                    .foregroundStyle(Theme.accentText(palettes.style))
                 Text(String(localized: "Code bestätigen — kein Token nötig"))
                     .font(.caption)
                     .foregroundStyle(.secondary)

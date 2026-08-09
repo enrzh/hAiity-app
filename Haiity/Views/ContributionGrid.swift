@@ -26,8 +26,9 @@ struct ContributionGrid: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// GLOBALE Palette; die Habit-eigene Farbe legt sich darüber.
-    @Environment(\.graphPalette) private var globalPalette
+    /// GLOBALE Farbe + eigene Paletten; die Habit-eigene Farbe legt sich
+    /// darüber (aufgelöst in `PaletteStyle.resolve`).
+    @Environment(\.palettes) private var palettes
     /// Gemessene Breite des Rasters; 0 bis zur ersten Layout-Runde.
     @State private var available: CGFloat = 0
     /// Referenzmaß 100, skaliert mit Dynamic Type: `labelScale / 100` ist
@@ -43,12 +44,12 @@ struct ContributionGrid: View {
     private static let referencePitch: CGFloat = 14
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
-        if let cellSize { return (cellSize, gap ?? 3) }
+        if let cellSize { return (cellSize, gap ?? GridCell.gap) }
         let pitch = available > 0
             ? available / Self.referenceColumns
             : Self.referencePitch
-        return (min(12, max(8, pitch * 11 / Self.referencePitch)),
-                min(3, max(2, pitch * 3 / Self.referencePitch)))
+        return (min(GridCell.size, max(8, pitch * 11 / Self.referencePitch)),
+                min(GridCell.gap, max(2, pitch * 3 / Self.referencePitch)))
     }
 
     var body: some View {
@@ -135,16 +136,15 @@ struct ContributionGrid: View {
     @ViewBuilder
     private func cell(key: String?, level: Int, today: String, size: CGFloat) -> some View {
         let tappable = GridCalendar.isTappable(key: key, interactive: interactive, today: today)
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(Theme.level(level,
-                              dark: scheme == .dark,
-                              palette: GraphPalette.resolve(habit: habit, global: globalPalette)))
+        GridCell(color: Theme.level(level,
+                                    dark: scheme == .dark,
+                                    palette: palettes.style(for: habit)),
+                 size: size)
             // Zukunft: gedimmt und ohne Tap-Handler (siehe isTappable).
             .opacity(key == nil ? 0.35 : 1)
-            .frame(width: size, height: size)
             .overlay {
                 if key == today {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    RoundedRectangle(cornerRadius: GridCell.radius, style: .continuous)
                         .strokeBorder(.primary, lineWidth: 1.2)
                 }
             }
@@ -180,6 +180,50 @@ struct ContributionGrid: View {
 
     private func summary(filled: Int) -> String {
         String(localized: "\(habit.name): \(filled) Tage im letzten Jahr, aktuelle Serie \(habit.streak()).")
+    }
+}
+
+// MARK: – Die Zelle
+
+/// EINE Rasterzelle. Eigenes Bauteil, weil sie nicht nur im Jahresraster
+/// vorkommt: die Farbwahl in „Mehr" und im Bearbeiten-Blatt zeigt dieselben
+/// Quadrate — gleiche Kantenlänge, gleicher Eckradius, gleicher Abstand. Eine
+/// nachgebaute Vorschau würde beim nächsten Anfassen des Rasters auseinander
+/// laufen; hier kann sie das nicht.
+struct GridCell: View {
+    let color: Color
+    var size: CGFloat = GridCell.size
+
+    /// Eckradius jeder Zelle.
+    static let radius: CGFloat = 2
+    /// Kantenlänge im ausgewachsenen Raster (die adaptive Skala läuft von 8
+    /// bis hierher) — und damit das Maß, das die Vorschauen nehmen.
+    static let size: CGFloat = 12
+    /// Abstand zwischen zwei Zellen im ausgewachsenen Raster.
+    static let gap: CGFloat = 3
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+            .fill(color)
+            .frame(width: size, height: size)
+    }
+}
+
+/// Die Palette als das, was sie später IST: fünf Rasterzellen l0…l4 in
+/// Rastermaßen und Rasterreihenfolge. Das ist die Farbwahl der App — keine
+/// Farbtupfer, keine Kreise, keine Annäherung.
+struct RampSwatch: View {
+    let style: PaletteStyle
+    let dark: Bool
+    var size: CGFloat = GridCell.size
+
+    var body: some View {
+        HStack(spacing: GridCell.gap) {
+            ForEach(0..<5, id: \.self) { level in
+                GridCell(color: Theme.level(level, dark: dark, palette: style), size: size)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

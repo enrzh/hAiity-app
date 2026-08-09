@@ -6,10 +6,11 @@ import AppIntents
 struct HaiityEntry: TimelineEntry {
     let date: Date
     let habits: [Habit]
-    /// Globale Palette aus derselben data.json. Das Widget hat keine
-    /// Umgebung von der App — die Farbe muss im Eintrag stehen, sonst bliebe
-    /// der Homescreen grün, während die App längst blau ist.
-    var palette: GraphPalette = .default
+    /// Globale Farbe UND eigene Paletten aus derselben data.json. Das Widget
+    /// hat keine Umgebung von der App — die Farbe muss im Eintrag stehen,
+    /// sonst bliebe der Homescreen grün, während die App längst blau ist. Die
+    /// eigenen Paletten reisen mit, weil ein Habit auf eine davon zeigen kann.
+    var palettes: PaletteBook = PaletteBook()
 }
 
 /// Die Widget-Oberfläche. Klein: heutiger Status + Serie + Abhak-Button.
@@ -26,7 +27,7 @@ struct HaiityWidgetView: View {
     @Environment(\.colorScheme) private var scheme
     let entry: HaiityEntry
 
-    private var palette: GraphPalette { entry.palette }
+    private var palette: PaletteStyle { entry.palettes.style }
 
     var body: some View {
         content(family: family)
@@ -119,7 +120,7 @@ struct HaiityWidgetView: View {
     private func miniGrid(_ habit: Habit, weeks: Int, cell: CGFloat) -> some View {
         let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
         // Habit-eigene Farbe schlägt die globale — dieselbe Regel wie in der App.
-        let cellPalette = GraphPalette.resolve(habit: habit, global: entry.palette)
+        let cellPalette = entry.palettes.style(for: habit)
         return HStack(alignment: .top, spacing: 2) {
             ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
                 VStack(spacing: 2) {

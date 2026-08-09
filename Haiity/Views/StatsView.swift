@@ -93,14 +93,14 @@ private struct StatsRow: View {
 /// stärksten Monat — bewusst ohne Beschriftung, ein Mini-Sparkline.
 private struct MonthBars: View {
     let counts: [Int]
-    @Environment(\.graphPalette) private var palette
+    @Environment(\.palettes) private var palettes
 
     var body: some View {
         let peak = max(counts.max() ?? 0, 1)
         HStack(alignment: .bottom, spacing: 5) {
             ForEach(Array(counts.enumerated()), id: \.offset) { _, count in
                 Capsule()
-                    .fill(count > 0 ? Theme.accent(palette) : Color(.tertiarySystemFill))
+                    .fill(count > 0 ? Theme.accent(palettes.style) : Color(.tertiarySystemFill))
                     .frame(width: 5, height: max(4, 34 * CGFloat(count) / CGFloat(peak)))
             }
         }

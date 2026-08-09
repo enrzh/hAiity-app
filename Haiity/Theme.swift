@@ -25,133 +25,27 @@ enum AppearanceSetting: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// Die Farbrampe des Contribution-Graphen. Sechs Familien, jede mit fünf
-/// Stufen für hell UND dunkel, gebaut nach denselben drei Regeln wie
-/// GitHubs Original:
-///
-///  1. **Monoton in der wahrgenommenen Helligkeit.** Hell läuft l0…l4 von
-///     hell nach dunkel, dunkel von dunkel nach hell. Zwischen zwei Stufen
-///     liegen mindestens 1,15:1 Kontrast — darunter verschmelzen die Stufen
-///     im Raster zu einer Fläche.
-///  2. **l0 ist sichtbar, aber leise.** Die leere Zelle muss sich von der
-///     Karte abheben (mind. 1,10:1), darf sie aber nicht überstimmen
-///     (höchstens 1,85:1). Der Wert ist je Palette EIGEN gerechnet, nicht
-///     kopiert: die dunkle Karte ist #1C1C1E, und ein Blau-l0 mit derselben
-///     Helligkeit wie das Grün-l0 würde gegen sein eigenes l1 verschwinden.
-///  3. **Der Farbton trägt bis in die leere Zelle.** l0 ist nicht neutral
-///     grau, sondern minimal in Richtung der Palette gekippt — dadurch liest
-///     sich das Raster als eine Familie und nicht als bunte Zellen auf grauem
-///     Grund. Grau/Monochrom ist die Ausnahme und bleibt neutral.
-///
-/// Die Zahlen sind in `PaletteRampTests` festgenagelt; wer hier eine Stufe
-/// ändert, bekommt sofort gesagt, ob die Rampe noch trägt.
-enum GraphPalette: String, CaseIterable, Codable, Identifiable, Sendable {
-    case green, blue, violet, amber, rose, gray
-
-    static let `default` = GraphPalette.green
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .green: return String(localized: "Grün")
-        case .blue: return String(localized: "Blau")
-        case .violet: return String(localized: "Violett")
-        case .amber: return String(localized: "Bernstein")
-        case .rose: return String(localized: "Rosé")
-        case .gray: return String(localized: "Monochrom")
-        }
-    }
-
-    /// l0…l4 als sRGB-Hex. Roh (nicht als `Color`), damit Tests die
-    /// Helligkeiten nachrechnen können, ohne UIColor auseinanderzunehmen.
-    func ramp(dark: Bool) -> [UInt32] { dark ? darkRamp : lightRamp }
-
-    private var lightRamp: [UInt32] {
-        switch self {
-        case .green:  return [0xEFF2F5, 0x9BE9A8, 0x40C463, 0x30A14E, 0x216E39]
-        case .blue:   return [0xEDF1F7, 0xBBDDFF, 0x6CB6FF, 0x1F6FEB, 0x0A3069]
-        case .violet: return [0xF1F0F7, 0xDCC6FF, 0xB87FFF, 0x8250DF, 0x4C2889]
-        case .amber:  return [0xF6F2EC, 0xFFD79C, 0xFCA33C, 0xD1690C, 0x7A3C00]
-        case .rose:   return [0xF7F0F2, 0xFFD6E0, 0xFB7699, 0xD1245C, 0x7D0D35]
-        case .gray:   return [0xEEF0F2, 0xC9CED6, 0x99A1AD, 0x656C76, 0x32383F]
-        }
-    }
-
-    private var darkRamp: [UInt32] {
-        switch self {
-        case .green:  return [0x262C36, 0x0E4429, 0x006D32, 0x26A641, 0x39D353]
-        case .blue:   return [0x242B38, 0x0D419D, 0x1F6FEB, 0x58A6FF, 0xA5D6FF]
-        case .violet: return [0x2A2739, 0x512A97, 0x7C3AED, 0xA371F7, 0xD2A8FF]
-        case .amber:  return [0x312A1F, 0x613A00, 0x9E5F00, 0xD08A1E, 0xF0BE4B]
-        case .rose:   return [0x33262C, 0x7A0F38, 0xBF2E63, 0xEF5F8B, 0xFFA8C5]
-        case .gray:   return [0x272B31, 0x3D444D, 0x656C76, 0x9198A1, 0xC9D1D9]
-        }
-    }
-
-    // MARK: – Akzent-Rollen (siehe Theme)
-
-    /// Markenfarbe für FLÄCHEN ohne Text.
-    var accentHex: UInt32 {
-        switch self {
-        case .green:  return 0x2EA043
-        case .blue:   return 0x1F6FEB
-        case .violet: return 0x8250DF
-        case .amber:  return 0xD08A1E
-        case .rose:   return 0xD1245C
-        case .gray:   return 0x656C76
-        }
-    }
-
-    /// Gefüllte Pillen MIT weißer Schrift — überall ≥ 4,5:1 gegen Weiß.
-    var accentFillHex: (light: UInt32, dark: UInt32) {
-        switch self {
-        case .green:  return (0x1F883D, 0x238636)
-        case .blue:   return (0x0969DA, 0x1F6FEB)
-        case .violet: return (0x7C3AED, 0x8250DF)
-        case .amber:  return (0xA85C00, 0xA96400)
-        case .rose:   return (0xC21E56, 0xCF2E63)
-        case .gray:   return (0x4B535D, 0x57606A)
-        }
-    }
-
-    /// Akzent als SCHRIFT/Symbol — ≥ 4,5:1 gegen Weiß bzw. gegen #1C1C1E.
-    var accentTextHex: (light: UInt32, dark: UInt32) {
-        switch self {
-        case .green:  return (0x1A7F37, 0x3FB950)
-        case .blue:   return (0x0757BA, 0x58A6FF)
-        case .violet: return (0x6B34D6, 0xB78CFF)
-        case .amber:  return (0x8E4C00, 0xF0BE4B)
-        case .rose:   return (0xB31E52, 0xFF8FB4)
-        case .gray:   return (0x4B535D, 0xC9D1D9)
-        }
-    }
-}
-
-/// Auflösung der Palette für EIN Habit: die Habit-Einstellung schlägt die
-/// globale, die globale schlägt den Standard (Grün). Eine Funktion, damit
-/// App, Widget und Teilen-Karte garantiert dieselbe Regel benutzen.
-extension GraphPalette {
-    static func resolve(habit: Habit?, global: GraphPalette?) -> GraphPalette {
-        habit?.palette ?? global ?? .default
-    }
-}
-
 /// Farb-Quelle für App und Widget.
+///
+/// Alles hier nimmt eine `PaletteStyle` — die AUFGELÖSTE Farbtafel. Ob sie aus
+/// einer der sechs eingebauten Familien kommt oder aus einer eigenen Farbe des
+/// Nutzers gerechnet wurde, weiß ab hier niemand mehr; das entscheidet
+/// `PaletteStyle.resolve` genau einmal.
 enum Theme {
     // MARK: – Contribution-Level
 
     /// Die Farbe einer Rasterzelle. `palette` kommt aus der Umgebung
-    /// (`\.graphPalette`) bzw. beim Widget aus dem Timeline-Eintrag; die
-    /// Habit-Übersteuerung wird VORHER über `GraphPalette.resolve` aufgelöst.
-    static func level(_ n: Int, dark: Bool, palette: GraphPalette = .default) -> Color {
+    /// (`\.palettes`) bzw. beim Widget aus dem Timeline-Eintrag; die
+    /// Habit-Übersteuerung wird VORHER über `PaletteStyle.resolve` aufgelöst.
+    static func level(_ n: Int, dark: Bool, palette: PaletteStyle = .default) -> Color {
         color(palette.ramp(dark: dark)[max(0, min(4, n))])
     }
 
     /// Kartenfarbe (`secondarySystemGroupedBackground`) als Hex — die Fläche,
     /// gegen die l0 bestehen muss. Als Konstante, damit die Kontrast-Tests
-    /// nicht von einer Trait-Collection abhängen.
-    static func cardHex(dark: Bool) -> UInt32 { dark ? 0x1C1C1E : 0xFFFFFF }
+    /// nicht von einer Trait-Collection abhängen. EINE Quelle, die auch der
+    /// Generator benutzt.
+    static func cardHex(dark: Bool) -> UInt32 { PaletteGenerator.cardHex(dark: dark) }
 
     // MARK: – Akzent
     //
@@ -163,21 +57,43 @@ enum Theme {
     //   accentText  – Akzent als SCHRIFT/Symbol auf Systemhintergrund;
     //                 hell im Dark Mode, dunkel im Light Mode.
 
-    static func accent(_ palette: GraphPalette = .default) -> Color {
+    static func accent(_ palette: PaletteStyle = .default) -> Color {
         color(palette.accentHex)
     }
 
-    static func accentFill(_ palette: GraphPalette = .default) -> Color {
+    static func accentFill(_ palette: PaletteStyle = .default) -> Color {
         let hex = palette.accentFillHex
         return dynamic(light: hex.light, dark: hex.dark)
     }
 
-    static func accentText(_ palette: GraphPalette = .default) -> Color {
+    static func accentText(_ palette: PaletteStyle = .default) -> Color {
         let hex = palette.accentTextHex
         return dynamic(light: hex.light, dark: hex.dark)
     }
 
+    // Bequemlichkeits-Überladungen für die eingebauten Familien: Aufrufer, die
+    // eine feste Palette meinen (Vorschauen, Tests), müssen nicht erst
+    // `.style` schreiben. Ohne Standardwert, damit ein Aufruf ohne Argument
+    // eindeutig die `PaletteStyle`-Variante trifft.
+    static func level(_ n: Int, dark: Bool, palette: GraphPalette) -> Color {
+        level(n, dark: dark, palette: palette.style)
+    }
+    static func accent(_ palette: GraphPalette) -> Color { accent(palette.style) }
+    static func accentFill(_ palette: GraphPalette) -> Color { accentFill(palette.style) }
+    static func accentText(_ palette: GraphPalette) -> Color { accentText(palette.style) }
+
     static func color(_ hex: UInt32) -> Color { Color(uiColor(hex)) }
+
+    /// sRGB-Hex aus einer gewählten `Color`. Der ColorPicker liefert je nach
+    /// Gerät Display-P3 oder erweiterte Werte; hier wird EINMAL nach sRGB
+    /// gerechnet und geklemmt, damit alles dahinter mit 0xRRGGBB arbeitet.
+    static func hex(from color: Color) -> UInt32 {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        let ui = UIColor(color)
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return 0x2EA043 }
+        func channel(_ v: CGFloat) -> UInt32 { UInt32((min(1, max(0, v)) * 255).rounded()) }
+        return (channel(r) << 16) | (channel(g) << 8) | channel(b)
+    }
 
     private static func dynamic(light: UInt32, dark: UInt32) -> Color {
         let l = uiColor(light), d = uiColor(dark)
@@ -228,16 +144,32 @@ enum Theme {
 
 // MARK: – Umgebung
 
-private struct GraphPaletteKey: EnvironmentKey {
-    static let defaultValue = GraphPalette.default
+private struct PaletteBookKey: EnvironmentKey {
+    static let defaultValue = PaletteBook()
+}
+
+extension View {
+    /// Farbe und Tint aus dem Store an DIESEN Teilbaum hängen.
+    ///
+    /// Gebraucht wird das für Blätter: `.sheet` ist eine eigene Präsentation
+    /// und erbt die Umgebung des Bildschirms darunter NICHT — die Farbwahl im
+    /// Bearbeiten-Blatt zeigte deshalb Grün, während die App in einer eigenen
+    /// Farbe lief, und die eigenen Paletten fehlten dort ganz. Eine Zeile je
+    /// Blatt, statt in jedem Blatt einzeln daran zu denken.
+    func themed(_ store: HabitStore) -> some View {
+        environment(\.palettes, store.palettes)
+            .tint(Theme.accentText(store.paletteStyle))
+    }
 }
 
 extension EnvironmentValues {
-    /// Die GLOBALE Palette. Habit-eigene Farben werden am Ort des Rasters
-    /// darübergelegt, nicht hier — sonst würde eine violette Karte auch die
-    /// Knöpfe der App violett färben.
-    var graphPalette: GraphPalette {
-        get { self[GraphPaletteKey.self] }
-        set { self[GraphPaletteKey.self] = newValue }
+    /// Die GLOBALE Farbe PLUS die eigenen Paletten. Habit-eigene Farben werden
+    /// am Ort des Rasters darübergelegt, nicht hier — sonst würde eine
+    /// violette Karte auch die Knöpfe der App violett färben. Die eigenen
+    /// Paletten reisen mit, weil eine Habit-Übersteuerung auf eine EIGENE
+    /// Farbe zeigen kann und das Raster sie sonst nicht nachschlagen könnte.
+    var palettes: PaletteBook {
+        get { self[PaletteBookKey.self] }
+        set { self[PaletteBookKey.self] = newValue }
     }
 }

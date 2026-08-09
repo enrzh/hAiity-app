@@ -6,7 +6,7 @@ struct ArchiveView: View {
     let store: HabitStore
     @State private var pendingDelete: Habit?
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.graphPalette) private var palette
+    @Environment(\.palettes) private var palettes
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
 
@@ -97,8 +97,8 @@ struct ArchiveView: View {
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Theme.accentText(palette).opacity(0.15), in: Capsule())
-                .foregroundStyle(Theme.accentText(palette))
+                .background(Theme.accentText(palettes.style).opacity(0.15), in: Capsule())
+                .foregroundStyle(Theme.accentText(palettes.style))
         }
         .buttonStyle(.borderless)
         .accessibilityIdentifier("unarchive-habit")

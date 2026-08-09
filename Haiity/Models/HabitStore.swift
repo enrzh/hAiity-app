@@ -20,7 +20,11 @@ struct HabitData: Codable {
     /// GitHub-Sync) — ein neues Gerät sieht sofort dieselbe App.
     var appearance: AppearanceSetting
     /// Globale Rasterfarbe.
-    var palette: GraphPalette
+    var palette: PaletteRef
+    /// Eigene Paletten des Nutzers. Gespeichert wird je Palette NUR die
+    /// Basisfarbe — die Rampe rechnet der Generator beim Lesen (siehe
+    /// `CustomPalette`).
+    var customPalettes: [CustomPalette]
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
@@ -37,7 +41,8 @@ struct HabitData: Codable {
          summaryMinutes: Int?,
          habits: [Habit],
          appearance: AppearanceSetting = .default,
-         palette: GraphPalette = .default,
+         palette: PaletteRef = .default,
+         customPalettes: [CustomPalette] = [],
          matchAppIcon: Bool = true,
          leadingSwipe: SwipeAction = .defaultLeading,
          trailingSwipe: SwipeAction = .defaultTrailing) {
@@ -47,6 +52,7 @@ struct HabitData: Codable {
         self.habits = habits
         self.appearance = appearance
         self.palette = palette
+        self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
         self.leadingSwipe = leadingSwipe
         self.trailingSwipe = trailingSwipe
@@ -58,7 +64,7 @@ struct HabitData: Codable {
 extension HabitData {
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
-        case leadingSwipe, trailingSwipe
+        case leadingSwipe, trailingSwipe, customPalettes
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -81,7 +87,11 @@ extension HabitData {
         appearance = (try c.decodeIfPresent(String.self, forKey: .appearance))
             .flatMap(AppearanceSetting.init(rawValue:)) ?? .default
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
-            .flatMap(GraphPalette.init(rawValue:)) ?? .default
+            .flatMap(PaletteRef.init(rawValue:)) ?? .default
+        // Fehlt der Schlüssel (jede Datei vor den eigenen Farben) oder ist ein
+        // Eintrag kaputt: leere Liste statt Fehler. Ein Verweis auf eine
+        // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
+        customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
         // Gleiche Regel wie bei Palette und Erscheinungsbild: unbekannt oder
         // fehlend -> Standard, nie ein Fehler.
@@ -101,6 +111,7 @@ extension HabitData {
         // schreibt exakt dieselbe Datei wie vor dem Theming.
         if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
+        if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
         if leadingSwipe != .defaultLeading { try c.encode(leadingSwipe.rawValue, forKey: .leadingSwipe) }
         if trailingSwipe != .defaultTrailing { try c.encode(trailingSwipe.rawValue, forKey: .trailingSwipe) }
@@ -152,10 +163,22 @@ final class HabitStore {
         set { data.appearance = newValue; persist() }
     }
 
-    var palette: GraphPalette {
+    /// Die GLOBALE Einstellung (was gespeichert wird).
+    var palette: PaletteRef {
         get { data.palette }
         set { data.palette = newValue; persist() }
     }
+
+    var customPalettes: [CustomPalette] { data.customPalettes }
+
+    /// Globale Farbe + eigene Paletten als EIN Paket — das, was die Umgebung
+    /// und der Widget-Eintrag tragen.
+    var palettes: PaletteBook {
+        PaletteBook(global: data.palette, customs: data.customPalettes)
+    }
+
+    /// Die aufgelöste globale Farbtafel — für Akzente, Tint und Chrom.
+    var paletteStyle: PaletteStyle { palettes.style }
 
     var matchAppIcon: Bool {
         get { data.matchAppIcon }
@@ -300,6 +323,52 @@ final class HabitStore {
         activeHabits.filter { !$0.isDone(today) }
     }
 
+    // MARK: – Eigene Paletten
+    //
+    // Anlegen, Umbenennen, Ändern, Löschen. Gespeichert wird immer nur die
+    // Basisfarbe; die Rampe entsteht beim Lesen neu.
+
+    @discardableResult
+    func addCustomPalette(name: String, base: UInt32) -> CustomPalette {
+        let palette = CustomPalette(name: name, base: base)
+        data.customPalettes.append(palette)
+        persist()
+        return palette
+    }
+
+    /// Umbenennen UND Umfärben in einem — die Oberfläche hat für beides
+    /// dasselbe Blatt, und beides ist derselbe Schreibvorgang.
+    func updateCustomPalette(_ palette: CustomPalette) {
+        guard let i = data.customPalettes.firstIndex(where: { $0.id == palette.id }) else { return }
+        data.customPalettes[i] = palette
+        persist()
+    }
+
+    /// Wer benutzt diese Palette gerade? Grundlage für die Rückfrage vor dem
+    /// Löschen — ohne sie würde eine Farbe klaglos unter mehreren Habits
+    /// weggezogen.
+    func paletteUsage(_ id: UUID) -> (global: Bool, habits: [Habit]) {
+        (data.palette == .custom(id), data.habits.filter { $0.palette == .custom(id) })
+    }
+
+    func isCustomPaletteInUse(_ id: UUID) -> Bool {
+        let usage = paletteUsage(id)
+        return usage.global || !usage.habits.isEmpty
+    }
+
+    /// Löschen räumt AUF: die globale Einstellung fällt auf den Standard
+    /// zurück, Habit-Übersteuerungen auf „Wie App". Der Verweis überlebt das
+    /// Löschen also nirgends — die Auflösung fängt eine verwaiste Kennung zwar
+    /// ohnehin ab, aber ein aufgeräumter Zustand ist kein Zufallsergebnis.
+    func removeCustomPalette(_ id: UUID) {
+        data.customPalettes.removeAll { $0.id == id }
+        if data.palette == .custom(id) { data.palette = .default }
+        for i in data.habits.indices where data.habits[i].palette == .custom(id) {
+            data.habits[i].palette = nil
+        }
+        persist()
+    }
+
     // MARK: – Merge (Union: ein Check-in irgendwo zählt)
 
     /// Vereinigt Remote-Daten mit lokalen: Habits per id, Logs als Union
@@ -345,6 +414,18 @@ final class HabitStore {
             data.leadingSwipe = remote.leadingSwipe
             data.trailingSwipe = remote.trailingSwipe
         }
+        // Eigene Paletten sind additive Daten wie Habits, nicht wie eine
+        // Einstellung: VEREINIGT nach Kennung, damit eine auf dem anderen
+        // Gerät angelegte Farbe nicht verschwindet. Nur bei gleicher Kennung
+        // entscheidet der neuere Stand über Name und Farbe.
+        var paletteById = Dictionary(uniqueKeysWithValues: data.customPalettes.map { ($0.id, $0) })
+        for rp in remote.customPalettes {
+            if paletteById[rp.id] == nil || remoteNewer { paletteById[rp.id] = rp }
+        }
+        var mergedPalettes = data.customPalettes.compactMap { paletteById[$0.id] }
+        let localPaletteIds = Set(data.customPalettes.map(\.id))
+        mergedPalettes.append(contentsOf: remote.customPalettes.filter { !localPaletteIds.contains($0.id) })
+        data.customPalettes = mergedPalettes
         persist()
     }
 
