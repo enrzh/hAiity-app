@@ -42,6 +42,29 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(open.map(\.name), ["B"])
     }
 
+    // MARK: – reloadFromDisk (externe Schreiber: Widget-Intent)
+
+    func testReloadFromDiskPicksUpExternalWrite() {
+        let h = Habit(name: "Lesen")
+        store.add(h)
+        // Externer Schreiber (Widget-Extension-Prozess simuliert):
+        // zweiter Store auf derselben Datei.
+        let external = HabitStore(url: url)
+        external.toggle(h.id, day: "2026-08-09")
+        XCTAssertFalse(store.habits[0].isDone("2026-08-09")) // noch alter Stand
+        store.reloadFromDisk()
+        XCTAssertTrue(store.habits[0].isDone("2026-08-09"))
+    }
+
+    func testReloadFromDiskWithoutExternalChangeIsNoop() {
+        store.add(Habit(name: "Lesen"))
+        var fired = false
+        store.onChange = { fired = true }
+        store.reloadFromDisk()
+        XCTAssertFalse(fired) // unveränderte mtime -> kein Re-Read, kein onChange
+        XCTAssertEqual(store.habits.count, 1)
+    }
+
     // MARK: – Merge-Semantik (Union: ein Check-in irgendwo zählt)
 
     func testMergeUnionsLogs() {
@@ -124,6 +147,157 @@ final class StoreAndMergeTests: XCTestCase {
         try Data("kaputt".utf8).write(to: url)
         let s = HabitStore(url: url)
         XCTAssertTrue(s.habits.isEmpty)
+    }
+}
+
+/// v2-Store-Semantik: Zähler (increment/clear), Max-Merge, Archiv, Version.
+final class StoreV2Tests: XCTestCase {
+    private var url: URL!
+    private var store: HabitStore!
+
+    override func setUp() {
+        url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-test-\(UUID().uuidString).json")
+        store = HabitStore(url: url)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: – increment / clear
+
+    func testIncrementCountsUpWithoutWrap() {
+        let h = Habit(name: "Wasser", goal: Goal(target: 3))
+        store.add(h)
+        store.increment(h.id, day: "2026-08-09")
+        store.increment(h.id, day: "2026-08-09")
+        store.increment(h.id, day: "2026-08-09")
+        store.increment(h.id, day: "2026-08-09")
+        XCTAssertEqual(store.habits[0].log["2026-08-09"], 4) // kein Wrap am Ziel
+    }
+
+    func testClearRemovesDayEntry() {
+        let h = Habit(name: "Wasser", goal: Goal(target: 3))
+        store.add(h)
+        store.increment(h.id, day: "2026-08-09")
+        store.increment(h.id, day: "2026-08-09")
+        store.clear(h.id, day: "2026-08-09")
+        XCTAssertNil(store.habits[0].log["2026-08-09"])
+        XCTAssertFalse(store.habits[0].isDone("2026-08-09"))
+    }
+
+    func testClearWithoutEntryDoesNotPersist() {
+        let h = Habit(name: "Wasser")
+        store.add(h)
+        let stamp = store.data.updatedAt
+        store.clear(h.id, day: "2026-08-09")
+        XCTAssertEqual(store.data.updatedAt, stamp) // No-op schreibt nicht
+        XCTAssertTrue(store.habits[0].log.isEmpty)
+    }
+
+    // MARK: – Max-Merge der Zähler
+
+    func testMergeLogsByMax() {
+        var local = Habit(name: "Wasser", goal: Goal(target: 5))
+        local.log["2026-08-01"] = 2
+        local.log["2026-08-02"] = 4
+        store.add(local)
+
+        var remoteHabit = local
+        remoteHabit.log = ["2026-08-01": 5, "2026-08-02": 1, "2026-08-03": 3]
+        let remote = HabitData(version: 2, updatedAt: 0, summaryMinutes: nil, habits: [remoteHabit])
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.habits[0].log["2026-08-01"], 5) // remote höher gewinnt
+        XCTAssertEqual(store.habits[0].log["2026-08-02"], 4) // lokal höher bleibt
+        XCTAssertEqual(store.habits[0].log["2026-08-03"], 3) // neuer Tag kommt dazu
+    }
+
+    func testMergeKeepsLocalCountWhenRemoteMissing() {
+        var local = Habit(name: "Wasser")
+        local.log["2026-08-01"] = 3
+        store.add(local)
+
+        var remoteHabit = local
+        remoteHabit.log = [:]
+        let remote = HabitData(version: 2, updatedAt: Date().timeIntervalSince1970 + 999,
+                               summaryMinutes: nil, habits: [remoteHabit])
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.habits[0].log["2026-08-01"], 3) // nie einen Tag löschen
+    }
+
+    // MARK: – Merge von Ziel und Archiv
+
+    func testMergeGoalAndArchiveFollowNewerUpdatedAt() {
+        let h = Habit(name: "Sport")
+        store.add(h)
+        var remoteHabit = h
+        remoteHabit.goal = .weekly(times: 3)
+        remoteHabit.archivedAt = "2026-08-05"
+        let remote = HabitData(version: 2, updatedAt: Date().timeIntervalSince1970 + 999,
+                               summaryMinutes: nil, habits: [remoteHabit])
+        store.merge(remote: remote)
+        XCTAssertEqual(store.habits[0].goal.cadence, Goal.Cadence.weekly(times: 3))
+        XCTAssertEqual(store.habits[0].archivedAt, "2026-08-05")
+    }
+
+    func testMergeGoalTieKeepsLocal() {
+        let h = Habit(name: "Sport", goal: Goal(target: 2))
+        store.add(h)
+        var remoteHabit = h
+        remoteHabit.goal = .weekly(times: 3)
+        remoteHabit.archivedAt = "2026-08-05"
+        // updatedAt exakt gleich -> lokal gewinnt
+        let remote = HabitData(version: 2, updatedAt: store.data.updatedAt,
+                               summaryMinutes: nil, habits: [remoteHabit])
+        store.merge(remote: remote)
+        XCTAssertEqual(store.habits[0].goal, Goal(target: 2))
+        XCTAssertNil(store.habits[0].archivedAt)
+    }
+
+    // MARK: – Archiv
+
+    func testArchivedHabitExcludedFromOpenToday() {
+        let a = Habit(name: "Aktiv"), b = Habit(name: "Ruht")
+        store.add(a); store.add(b)
+        store.archive(b.id)
+        XCTAssertEqual(store.openToday().map(\.name), ["Aktiv"])
+    }
+
+    func testActiveHabitsFiltersArchivedButHabitsKeepsAll() {
+        let a = Habit(name: "Aktiv"), b = Habit(name: "Ruht")
+        store.add(a); store.add(b)
+        store.archive(b.id, day: "2026-08-09")
+        XCTAssertEqual(store.activeHabits.map(\.name), ["Aktiv"])
+        XCTAssertEqual(store.habits.count, 2) // Historie bleibt vollständig
+        XCTAssertEqual(store.habits[1].archivedAt, "2026-08-09")
+        store.unarchive(b.id)
+        XCTAssertEqual(store.activeHabits.count, 2)
+        XCTAssertNil(store.habits[1].archivedAt)
+    }
+
+    // MARK: – Version 2 auf der Platte
+
+    func testPersistWritesVersionTwo() throws {
+        store.add(Habit(name: "X"))
+        let raw = try Data(contentsOf: url)
+        let obj = try XCTUnwrap(try JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        XCTAssertEqual(obj["version"] as? Int, 2)
+    }
+
+    func testReadAcceptsVersionOneFile() throws {
+        try Data(ModelV2CodableTests.v1JSON.utf8).write(to: url)
+        let s = HabitStore(url: url)
+        XCTAssertEqual(s.habits.count, 1)
+        XCTAssertEqual(s.habits[0].goal, .daily) // v1 lädt unverändert
+        XCTAssertEqual(s.summaryMinutes, 1140)
+    }
+
+    func testImportRejectsFutureVersion() {
+        let raw = Data(#"{"version":9,"updatedAt":0,"habits":[]}"#.utf8)
+        XCTAssertThrowsError(try store.importJSON(raw))
     }
 }
 

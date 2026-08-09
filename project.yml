@@ -68,7 +68,12 @@ targets:
     sources:
       - path: HaiityWidget
       - path: Haiity/Models/Habit.swift
+      - path: Haiity/Models/GoalEngine.swift
       - path: Haiity/Models/HabitStore.swift
+      # Widget-Button braucht den Intent-TYP; perform() läuft im
+      # Extension-Prozess und schreibt über den geteilten Store.
+      # (HaiityShortcuts.swift bleibt bewusst App-only.)
+      - path: Haiity/Intents/CheckOffHabitIntent.swift
       - path: Haiity/Theme.swift
     info:
       path: HaiityWidget/Info.plist
@@ -99,6 +104,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aiity.haiity.tests
         SWIFT_VERSION: "5.9"
+        # Test-Bundle ohne eigenes Info.plist — Xcode generiert eins.
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   Haiity:
     build:

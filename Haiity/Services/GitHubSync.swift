@@ -62,16 +62,35 @@ actor GitHubSync {
         return r
     }
 
-    /// Verbindet: validiert das Token, stellt das private Repo sicher,
-    /// speichert das Token im Schlüsselbund. Gibt den Login zurück.
+    /// Übernimmt ein Token — egal woher es kommt (eingefügtes PAT oder
+    /// Device Flow): validiert es, stellt das private Repo sicher,
+    /// speichert es im Schlüsselbund. Gibt den Login zurück.
     func connect(token: String) async throws -> String {
+        let login = try await resolveLogin(token: token)
+        try await ensureDataRepo(login: login, token: token)
+
+        vault.set(token)
+        self.token = token
+        UserDefaults.standard.set(login, forKey: "github-login")
+        self.login = login
+        return login
+    }
+
+    /// Wer bin ich? Validiert das Token gleich mit.
+    func resolveLogin(token: String) async throws -> String {
         let (userData, userRes) = try await sendCatching(request("/user", token: token))
         guard userRes.statusCode == 200,
               let user = try? JSONDecoder().decode(GHUser.self, from: userData) else {
             throw SyncError.badToken(userRes.statusCode)
         }
+        return user.login
+    }
 
-        let (_, repoRes) = try await sendCatching(request("/repos/\(user.login)/\(Self.repoName)", token: token))
+    /// Stellt sicher, dass das private Repo `haiity-data` existiert — legt
+    /// es sonst an. Eigener Schritt, damit BEIDE Anmeldewege (Token-Einfügen
+    /// und Device Flow) dieselbe Logik benutzen statt sie zu doppeln.
+    func ensureDataRepo(login: String, token: String) async throws {
+        let (_, repoRes) = try await sendCatching(request("/repos/\(login)/\(Self.repoName)", token: token))
         if repoRes.statusCode == 404 {
             let body = try JSONSerialization.data(withJSONObject: [
                 "name": Self.repoName,
@@ -86,12 +105,6 @@ actor GitHubSync {
         } else if repoRes.statusCode != 200 {
             throw SyncError.repoUnavailable(repoRes.statusCode)
         }
-
-        vault.set(token)
-        self.token = token
-        UserDefaults.standard.set(user.login, forKey: "github-login")
-        login = user.login
-        return user.login
     }
 
     func restore() {

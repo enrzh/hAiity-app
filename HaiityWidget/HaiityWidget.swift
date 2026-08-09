@@ -1,8 +1,11 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 /// Widget liest dieselbe data.json aus dem App-Group-Container.
-/// Klein: heutiger Status + Serie. Mittel: Mini-Grid der letzten Wochen.
+/// Klein: heutiger Status + Serie + Abhak-Button. Mittel: Mini-Grid der
+/// letzten Wochen + Abhak-Button. Der Button feuert CheckOffHabitIntent
+/// im Extension-Prozess; der schreibt über den geteilten Store.
 struct HaiityEntry: TimelineEntry {
     let date: Date
     let habits: [Habit]
@@ -25,8 +28,9 @@ struct HaiityProvider: TimelineProvider {
         completion(Timeline(entries: [entry], policy: .after(midnight)))
     }
 
+    /// Nur AKTIVE Habits — archivierte verschwinden auch aus dem Widget.
     private func load() -> [Habit] {
-        HabitStore.read(SharedStorage.dataURL())?.habits ?? []
+        HabitStore.read(SharedStorage.dataURL())?.habits.filter { $0.archivedAt == nil } ?? []
     }
 
     private func demoHabit() -> Habit {
@@ -62,17 +66,20 @@ struct HaiityWidgetView: View {
     }
 
     private func small(_ habit: Habit) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let done = GoalEngine.dayCounts(habit: habit, day: DayKey.today())
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 if !habit.emoji.isEmpty { Text(habit.emoji) }
                 Text(habit.name).font(.caption.bold()).lineLimit(1)
+                Spacer(minLength: 4)
+                checkButton(habit)
             }
             Spacer()
-            Text(habit.isDone(DayKey.today())
+            Text(done
                  ? String(localized: "✓ Heute erledigt")
                  : String(localized: "Heute noch offen"))
                 .font(.caption2)
-                .foregroundStyle(habit.isDone(DayKey.today()) ? Theme.accent : .secondary)
+                .foregroundStyle(done ? Theme.accentText : .secondary)
             Text("🔥 \(habit.streak())")
                 .font(.title3.bold().monospacedDigit())
             miniGrid(habit, weeks: 8, cell: 8)
@@ -82,15 +89,42 @@ struct HaiityWidgetView: View {
 
     private func medium(_ habit: Habit) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
                 if !habit.emoji.isEmpty { Text(habit.emoji) }
                 Text(habit.name).font(.subheadline.bold()).lineLimit(1)
                 Spacer()
                 Text("🔥 \(habit.streak())").font(.subheadline.monospacedDigit())
+                checkButton(habit)
             }
             miniGrid(habit, weeks: 16, cell: 9)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Abhak-Button: Checkbox-Habits zeigen ✓ (gefüllt, wenn der Tag
+    /// zählt) und sind nur offen tippbar — der Intent ent-hakt nie.
+    /// Mengen-Habits zeigen n/Ziel und zählen bei jedem Tipp weiter,
+    /// auch über das Ziel hinaus.
+    private func checkButton(_ habit: Habit) -> some View {
+        let today = DayKey.today()
+        let done = GoalEngine.dayCounts(habit: habit, day: today)
+        return Button(intent: CheckOffHabitIntent(habit: habit)) {
+            if let target = habit.goal.target {
+                Text("\(habit.log[today] ?? 0)/\(target)")
+                    .font(.caption2.bold().monospacedDigit())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(done ? Theme.accentFill : Color.secondary.opacity(0.25), in: Capsule())
+                    .foregroundStyle(done ? .white : .primary)
+            } else {
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(done ? Theme.accentText : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(habit.goal.target == nil && done)
+        .accessibilityLabel(String(localized: "Habit abhaken"))
     }
 
     private func miniGrid(_ habit: Habit, weeks: Int, cell: CGFloat) -> some View {

@@ -3,20 +3,44 @@ import XCTest
 
 /// Stub-Transport: bildet die GitHub-API deterministisch nach, kein Netz.
 final class StubTransport: HTTPTransport, @unchecked Sendable {
-    struct Call { let method: String; let path: String; let body: [String: Any]? }
+    struct Call {
+        let method: String
+        let path: String
+        let body: [String: Any]?
+        /// Voller URL — der Device Flow spricht github.com, nicht api.github.com.
+        let url: URL
+    }
     private(set) var calls: [Call] = []
     var responses: [(Int, Any)] = []
     private let lock = NSLock()
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         lock.lock(); defer { lock.unlock() }
-        let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        calls.append(Call(method: request.httpMethod ?? "GET", path: request.url!.path, body: body))
+        let body = request.httpBody.flatMap(Self.decodeBody)
+        calls.append(Call(method: request.httpMethod ?? "GET",
+                          path: request.url!.path,
+                          body: body,
+                          url: request.url!))
         guard !responses.isEmpty else { throw URLError(.badServerResponse) }
         let (status, payload) = responses.removeFirst()
         let data = try JSONSerialization.data(withJSONObject: payload)
         let res = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
         return (data, res)
+    }
+
+    /// JSON (Contents-API) ODER form-encoded (Device Flow) — beides landet
+    /// als Dictionary in `calls`, damit Tests Felder prüfen können.
+    private static func decodeBody(_ data: Data) -> [String: Any]? {
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] { return obj }
+        guard let raw = String(data: data, encoding: .utf8), raw.contains("=") else { return nil }
+        var out: [String: Any] = [:]
+        for pair in raw.split(separator: "&") {
+            let kv = pair.split(separator: "=", maxSplits: 1)
+            guard kv.count == 2 else { continue }
+            let key = String(kv[0]).removingPercentEncoding ?? String(kv[0])
+            out[key] = String(kv[1]).removingPercentEncoding ?? String(kv[1])
+        }
+        return out.isEmpty ? nil : out
     }
 }
 
