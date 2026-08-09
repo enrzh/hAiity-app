@@ -25,7 +25,7 @@ struct ArchiveView: View {
                             Text(habit.name)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
-                            Text(String(localized: "Archiviert am \(habit.archivedAt ?? "–") · \(habit.log.count) Check-ins"))
+                            Text(String(localized: "Archiviert am \(habit.archivedAt ?? "–") · \(habit.checkInCount()) Check-ins"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -66,7 +66,7 @@ struct ArchiveView: View {
             }
             Button(String(localized: "Abbrechen"), role: .cancel) {}
         } message: { habit in
-            Text(String(localized: "„\(habit.name)“ und die komplette Historie (\(habit.log.count) Check-ins) werden gelöscht. Das lässt sich nicht rückgängig machen."))
+            Text(String(localized: "„\(habit.name)“ und die komplette Historie (\(habit.checkInCount()) Check-ins) werden gelöscht. Das lässt sich nicht rückgängig machen."))
         }
     }
 }

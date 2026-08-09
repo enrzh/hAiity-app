@@ -66,7 +66,7 @@ private struct StatsRow: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(String(localized: "Best: \(habit.bestStreak())"))
-                    Text(String(localized: "Gesamt: \(habit.log.count)"))
+                    Text(String(localized: "Gesamt: \(habit.checkInCount())"))
                 }
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)

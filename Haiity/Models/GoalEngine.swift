@@ -13,7 +13,12 @@ enum GoalEngine {
     /// und Quoten-Logik "frei" (brechen nichts, zählen nichts).
     static func dayCounts(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {
         let value = habit.log[day] ?? 0
-        guard value >= 1 else { return false }
+        // `components` ist ein reiner String-Check (kein Kalender) — billig
+        // genug für den heißen Pfad und wirft offensichtlichen Müll raus.
+        // Die volle Plausibilität (echtes Datum, nicht Zukunft, nicht 1900)
+        // prüft `Habit.validDays` an allen Stellen, die über Log-Schlüssel
+        // iterieren.
+        guard value >= 1, DayKey.components(day) != nil else { return false }
         if let target = habit.goal.target { return value >= target }
         return true
     }
@@ -44,8 +49,13 @@ enum GoalEngine {
     private static func dailyStreak(habit: Habit, today: String, calendar: Calendar) -> Int {
         // Untere Grenze hält die Schleife endlich — auch wenn alle sieben
         // Wochentage Ruhetage sind, endet der Rückwärtslauf am Anfang der
-        // Historie.
-        let lower = min(habit.createdAt, habit.log.keys.min() ?? habit.createdAt)
+        // Historie. Nur PLAUSIBLE Tage zählen als Grenze: ein importiertes
+        // "1900-01-01" (oder ein createdAt aus 1900) würde sonst 46.000
+        // Kalenderschritte pro Aufruf kosten.
+        let oldestLogged = habit.validDays(today: today, calendar: calendar).min()
+        let created = DayKey.isPlausible(habit.createdAt, today: today, calendar: calendar)
+            ? habit.createdAt : today
+        let lower = min(created, oldestLogged ?? created)
         var day = today
         var n = 0
         while day >= lower {
@@ -73,7 +83,7 @@ enum GoalEngine {
     private static func weeklyStreak(habit: Habit, times: Int, today: String, calendar: Calendar) -> Int {
         guard let todayDate = DayKey.date(from: today, calendar: calendar),
               let currentWeek = calendar.dateInterval(of: .weekOfYear, for: todayDate) else { return 0 }
-        let counts = weeklyCounts(habit: habit, calendar: calendar)
+        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
         var streak = 0
         let currentCount = counts[currentWeek.start] ?? 0
         if currentCount >= times {
@@ -102,9 +112,11 @@ enum GoalEngine {
     }
 
     /// Zählende Tage pro Kalenderwoche, gebuckelt nach Wochen-Startdatum.
-    private static func weeklyCounts(habit: Habit, calendar: Calendar) -> [Date: Int] {
+    /// Nur plausible Tage — Müll und Zukunft dürfen keine Woche erfüllen.
+    private static func weeklyCounts(habit: Habit, today: String, calendar: Calendar) -> [Date: Int] {
         var counts: [Date: Int] = [:]
-        for day in habit.log.keys where dayCounts(habit: habit, day: day, calendar: calendar) {
+        for day in habit.validDays(today: today, calendar: calendar)
+        where dayCounts(habit: habit, day: day, calendar: calendar) {
             guard let date = DayKey.date(from: day, calendar: calendar),
                   let week = calendar.dateInterval(of: .weekOfYear, for: date) else { continue }
             counts[week.start, default: 0] += 1
@@ -139,7 +151,7 @@ enum GoalEngine {
                   let currentWeek = calendar.dateInterval(of: .weekOfYear, for: todayDate),
                   let windowStartKey = DayKey.shifted(today, by: -(lastNDays - 1), calendar: calendar),
                   let windowStart = DayKey.date(from: windowStartKey, calendar: calendar) else { return 0 }
-            let counts = weeklyCounts(habit: habit, calendar: calendar)
+            let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
             var met = 0, denom = 0
             var weekStart = calendar.dateInterval(of: .weekOfYear, for: windowStart)?.start
             while let ws = weekStart, ws <= currentWeek.start {

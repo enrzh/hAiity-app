@@ -14,7 +14,7 @@ enum StatsMath {
                               calendar: Calendar = .current) -> [Int] {
         guard months > 0, let anchor = yearMonth(today) else { return [] }
         var counts = Array(repeating: 0, count: months)
-        for key in habit.log.keys {
+        for key in habit.validDays(today: today, calendar: calendar) {
             guard let ym = yearMonth(key),
                   GoalEngine.dayCounts(habit: habit, day: key, calendar: calendar) else { continue }
             // 0 = aktueller Monat, 1 = Vormonat, …; negativ = Zukunft.
@@ -25,19 +25,17 @@ enum StatsMath {
         return counts
     }
 
-    /// Summe aller zählenden Tage über die übergebenen Habits.
-    static func totalCheckIns(_ habits: [Habit], calendar: Calendar = .current) -> Int {
-        habits.reduce(0) { sum, habit in
-            sum + habit.log.keys.filter {
-                GoalEngine.dayCounts(habit: habit, day: $0, calendar: calendar)
-            }.count
-        }
+    /// Summe aller zählenden Tage über die übergebenen Habits — Müll,
+    /// Zukunft und Uralt-Schlüssel bleiben draußen.
+    static func totalCheckIns(_ habits: [Habit],
+                              today: String = DayKey.today(),
+                              calendar: Calendar = .current) -> Int {
+        habits.reduce(0) { $0 + $1.checkInCount(today: today, calendar: calendar) }
     }
 
     /// "2026-08-09" -> (2026, 8); nil bei allem, was kein Tagesschlüssel ist.
     static func yearMonth(_ key: String) -> (year: Int, month: Int)? {
-        let parts = key.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, (1...12).contains(parts[1]) else { return nil }
-        return (parts[0], parts[1])
+        guard let c = DayKey.components(key), (1...12).contains(c.month) else { return nil }
+        return (c.year, c.month)
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppIntents
+import WidgetKit
 
 /// Haupt-Einstieg: ECHTE TabView mit zwei Bereichen (Habits / Mehr), jeder
 /// in eigenem NavigationStack. Ab iOS 26 rendert das System seine
@@ -334,6 +335,10 @@ struct ContentView: View {
     private func handleLaunchScreenArgument() {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-dump-sharecard") { dumpShareCards() }
+        if args.contains("-dump-widgets") { dumpWidgets() }
+        // Nur Debug: nach extern eingespielter data.json die Widget-Timeline
+        // neu ziehen — sonst zeigt das Widget bis Mitternacht den alten Stand.
+        if args.contains("-reload-widgets") { WidgetCenter.shared.reloadAllTimelines() }
         guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count,
               let url = URL(string: "haiity://\(args[i + 1])") else { return }
         // Kurz warten: `searchable(isPresented:)` schluckt ein `true`, das
@@ -341,6 +346,45 @@ struct ContentView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(700))
             handleDeepLink(url)
+        }
+    }
+
+    /// Nur Debug: rendert die Widget-Oberfläche in beiden Größen über die
+    /// vier kritischen Datenlagen (keine Habits, leeres Log, Mengen-Habit,
+    /// 365 Tage Historie) in den App-Group-Container. WidgetKit lässt sich
+    /// nicht fernsteuern; so ist der Zustand trotzdem reproduzierbar prüfbar.
+    @MainActor
+    private func dumpWidgets() {
+        var quantity = Habit(name: "Wasser", emoji: "💧", goal: Goal(target: 3))
+        var long = Habit(name: "Lesen", emoji: "📚")
+        for i in 0..<365 {
+            guard let k = DayKey.shifted(DayKey.today(), by: -i) else { continue }
+            if i % 4 != 0 { long.log[k] = 1 }
+            quantity.log[k] = (i % 3) + 1
+        }
+        let scenarios: [(String, [Habit])] = [
+            ("nohabits", []),
+            ("emptylog", [Habit(name: "Neu", emoji: "🌱")]),
+            ("quantity", [quantity]),
+            ("year", [long]),
+        ]
+        let sizes: [(String, WidgetFamily, CGSize)] = [
+            ("small", .systemSmall, CGSize(width: 170, height: 170)),
+            ("medium", .systemMedium, CGSize(width: 364, height: 170)),
+        ]
+        let dir = SharedStorage.dataURL().deletingLastPathComponent()
+        for (name, habits) in scenarios {
+            for (sizeName, family, size) in sizes {
+                let view = HaiityWidgetView(entry: HaiityEntry(date: .now, habits: habits))
+                    .content(family: family)
+                    .padding(12)
+                    .frame(width: size.width, height: size.height)
+                    .background(Color(.systemBackground))
+                let renderer = ImageRenderer(content: view)
+                renderer.scale = 3
+                guard let png = renderer.uiImage?.pngData() else { continue }
+                try? png.write(to: dir.appendingPathComponent("widget-\(sizeName)-\(name).png"))
+            }
         }
     }
 

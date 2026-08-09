@@ -27,7 +27,7 @@ struct ShareCardView: View {
             }
             grid
             HStack {
-                Text(String(localized: "\(habit.log.count) Tage insgesamt"))
+                Text(String(localized: "\(habit.checkInCount()) Tage insgesamt"))
                     .font(.caption)
                 Spacer()
                 Text("hAiity")
@@ -51,20 +51,14 @@ struct ShareCardView: View {
     private var secondaryColor: Color { scheme == .dark ? Color(white: 0.65) : Color(white: 0.45) }
 
     private var grid: some View {
-        let cal = Calendar.current
-        let now = Date()
-        let dow = cal.component(.weekday, from: now) - 1 // 0 = So
-        let lastSat = cal.date(byAdding: .day, value: 6 - dow, to: now) ?? now
+        let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
         return HStack(alignment: .top, spacing: gap) {
-            ForEach(0..<weeks, id: \.self) { w in
+            ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
                 VStack(spacing: gap) {
-                    ForEach(0..<7, id: \.self) { r in
-                        let offset = -(weeks * 7 - 1) + w * 7 + r
-                        let date = cal.date(byAdding: .day, value: offset, to: lastSat)
-                        let key: String? = (date != nil && date! <= now) ? DayKey.key(for: date!) : nil
+                    ForEach(0..<GridCalendar.rows, id: \.self) { r in
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Theme.level(key.map { habit.intensity($0) } ?? 0, dark: scheme == .dark))
-                            .opacity(key == nil ? 0.35 : 1)
+                            .fill(Theme.level(snapshot.levels[wi][r], dark: scheme == .dark))
+                            .opacity(column[r] == nil ? 0.35 : 1)
                             .frame(width: cell, height: cell)
                     }
                 }

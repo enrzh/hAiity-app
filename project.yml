@@ -14,6 +14,10 @@ targets:
     platform: iOS
     sources:
       - path: Haiity
+      # Die Widget-OBERFLÄCHE liegt auch im App-Target, damit die
+      # Rendering-Prüfung (klein/mittel × Datenlagen) ohne Widget-Prozess
+      # läuft. Bundle/Provider bleiben Extension-only.
+      - path: HaiityWidget/HaiityWidgetView.swift
     dependencies:
       - target: HaiityWidget
     info:
@@ -69,6 +73,7 @@ targets:
       - path: HaiityWidget
       - path: Haiity/Models/Habit.swift
       - path: Haiity/Models/GoalEngine.swift
+      - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/HabitStore.swift
       # Widget-Button braucht den Intent-TYP; perform() läuft im
       # Extension-Prozess und schreibt über den geteilten Store.
