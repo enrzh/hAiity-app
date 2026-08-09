@@ -5,6 +5,7 @@ import SwiftUI
 struct ArchiveView: View {
     let store: HabitStore
     @State private var pendingDelete: Habit?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
 
@@ -19,39 +20,15 @@ struct ArchiveView: View {
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(archived) { habit in
-                    HStack(spacing: 10) {
-                        if !habit.emoji.isEmpty { Text(habit.emoji) }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(habit.name)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                            Text(String(localized: "Archiviert am \(habit.archivedAt ?? "–") · \(habit.checkInCount()) Check-ins"))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                    row(for: habit)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                pendingDelete = habit
+                            } label: {
+                                Label(String(localized: "Löschen"), systemImage: "trash")
+                            }
                         }
-                        Spacer()
-                        Button {
-                            store.unarchive(habit.id)
-                            Theme.Haptics.success()
-                        } label: {
-                            Text(String(localized: "Wiederherstellen"))
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Theme.accentText.opacity(0.15), in: Capsule())
-                                .foregroundStyle(Theme.accentText)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("unarchive-habit")
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            pendingDelete = habit
-                        } label: {
-                            Label(String(localized: "Löschen"), systemImage: "trash")
-                        }
-                    }
-                    .accessibilityIdentifier("archived-habit")
+                        .accessibilityIdentifier("archived-habit")
                 }
             }
         }
@@ -68,5 +45,57 @@ struct ArchiveView: View {
         } message: { habit in
             Text(String(localized: "„\(habit.name)“ und die komplette Historie (\(habit.checkInCount()) Check-ins) werden gelöscht. Das lässt sich nicht rückgängig machen."))
         }
+    }
+
+    /// Archiv-Zeile. Ab den Accessibility-Größen bricht sie um — sonst
+    /// drängt die Chip-Breite von "Wiederherstellen" den Namen auf ein paar
+    /// Pixel zusammen und der Titel läuft hinter den Knopf. Gestapelt
+    /// bekommt der Text die volle Breite und darf mehrzeilig werden, genau
+    /// wie die Kopfzeile der Habit-Karte.
+    @ViewBuilder
+    private func row(for habit: Habit) -> some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                titleBlock(for: habit)
+                restoreButton(for: habit)
+            }
+        } else {
+            HStack(spacing: 10) {
+                titleBlock(for: habit)
+                Spacer(minLength: 8)
+                restoreButton(for: habit)
+            }
+        }
+    }
+
+    private func titleBlock(for habit: Habit) -> some View {
+        HStack(spacing: 10) {
+            if !habit.emoji.isEmpty { Text(habit.emoji) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(habit.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                Text(String(localized: "Archiviert am \(habit.archivedAt ?? "–") · \(habit.checkInCount()) Check-ins"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func restoreButton(for habit: Habit) -> some View {
+        Button {
+            store.unarchive(habit.id)
+            Theme.Haptics.success()
+        } label: {
+            Text(String(localized: "Wiederherstellen"))
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Theme.accentText.opacity(0.15), in: Capsule())
+                .foregroundStyle(Theme.accentText)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("unarchive-habit")
     }
 }

@@ -42,6 +42,12 @@ struct HabitCard: View {
                 Label(String(localized: "Archivieren"), systemImage: "archivebox")
             }
         }
+        // `.contain` ist hier Pflicht, nicht Deko: ein Identifier auf einem
+        // Container ohne diese Angabe faltet den Teilbaum zu EINEM Element
+        // zusammen — "check-today" und "edit-habit" verschwinden dann aus
+        // dem Baum und sind in XCUITest nicht mehr adressierbar. Als
+        // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
     }
 

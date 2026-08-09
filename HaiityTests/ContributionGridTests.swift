@@ -243,15 +243,17 @@ final class GridWindowTests: GridTestCase {
 
     func testQuantityHabitShadesByRatio() {
         // 1/3 muss sichtbar heller sein als 3/3 — sonst ist die Mengen-
-        // Semantik im Raster unsichtbar.
+        // Semantik im Raster unsichtbar. Der erste Zähler landet auf der
+        // NIEDRIGSTEN Stufe; früher sprang 1/3 direkt auf Stufe 2 und die
+        // hellste Schattierung kam bei kleinen Zielen nie vor.
         let h = habit(["2026-08-07": 1, "2026-08-08": 2, "2026-08-09": 3],
                       goal: Goal(target: 3), createdAt: "2026-08-01")
         let snap = GridCalendar.snapshot(habit: h, weeks: 53, today: "2026-08-09", calendar: cal)
         let levels = Dictionary(uniqueKeysWithValues:
             zip(snap.keys.flatMap { $0 }, snap.levels.flatMap { $0 })
                 .compactMap { key, level in key.map { ($0, level) } })
-        XCTAssertEqual(levels["2026-08-07"], 2)
-        XCTAssertEqual(levels["2026-08-08"], 3)
+        XCTAssertEqual(levels["2026-08-07"], 1)
+        XCTAssertEqual(levels["2026-08-08"], 2)
         XCTAssertEqual(levels["2026-08-09"], 4)
         XCTAssertLessThan(levels["2026-08-07"] ?? 0, levels["2026-08-09"] ?? 0)
         // Nur der volle Tag zählt als erledigt.

@@ -171,11 +171,29 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        // Der schwebende + liegt ÜBER der Liste. Ohne diese Boden-Marge
+        // endet der scrollbare Inhalt genau unter ihm — auf schmalen
+        // Geräten und in den Accessibility-Größen verdeckt der Knopf dann
+        // dauerhaft das Raster der letzten Karte, und zwar in RTL genauso
+        // (dort spiegelt er auf die Führungskante). Die Marge ist der
+        // komplette Fußabdruck des Knopfes, damit die letzte Karte immer
+        // frei scrollen kann.
+        .contentMargins(.bottom, addButtonFootprint, for: .scrollContent)
         // Karten sind weiß/#1C1C1E, die Seite muss also die gruppierte
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+    }
+
+    /// Höhe, die der + unten belegt: Knopfhöhe + sein Abstand zur Unterkante
+    /// (beides je nach iOS-Variante) + etwas Luft. Der Knopf selbst wächst
+    /// NICHT mit der Textgröße, die Marge ist deshalb konstant. Der
+    /// Tab-Bar-Streifen steckt schon im Safe-Area-Inset der Liste und darf
+    /// hier nicht doppelt gerechnet werden.
+    private var addButtonFootprint: CGFloat {
+        if #available(iOS 26, *) { return 56 + 10 + 12 }
+        return 50 + 10 + 12
     }
 
     private func row(for habit: Habit) -> some View {

@@ -111,6 +111,67 @@ enum GoalEngine {
         return streak
     }
 
+    /// Längste Serie der GESAMTEN Historie — mit derselben Ziel-Semantik wie
+    /// `streak`. Ein Mengen-Habit zählt nur Tage ab `target`, Ruhetage
+    /// überbrücken (sie brechen nichts und zählen nichts), und bei
+    /// Wochen-Kadenz sind es aufeinanderfolgende erfüllte WOCHEN — dieselbe
+    /// Bucketierung wie in `streak`. Ohne das wäre "Best" eine andere
+    /// Einheit als die Serie darüber.
+    static func bestStreak(habit: Habit, today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
+        switch habit.goal.cadence {
+        case .daily:
+            return dailyBestStreak(habit: habit, today: today, calendar: calendar)
+        case .weekly(let times):
+            return weeklyBestStreak(habit: habit, times: times, today: today, calendar: calendar)
+        }
+    }
+
+    /// Vorwärtslauf über die plausible Historie. Grenzen sind der älteste und
+    /// der jüngste plausible Log-Tag: davor und danach kann kein Lauf liegen,
+    /// und ein Habit mit `createdAt` aus 1900 kostet so trotzdem nur so viele
+    /// Schritte, wie er echte Daten hat.
+    private static func dailyBestStreak(habit: Habit, today: String, calendar: Calendar) -> Int {
+        let days = habit.validDays(today: today, calendar: calendar)
+        guard let oldest = days.min(), let newest = days.max() else { return 0 }
+        var day = oldest
+        var best = 0, run = 0
+        // Schlüssel sind nullgepolstertes JJJJ-MM-TT — String-Vergleich ist
+        // hier dieselbe Ordnung wie der Datumsvergleich.
+        while day <= newest {
+            if dayCounts(habit: habit, day: day, calendar: calendar) {
+                run += 1
+                best = max(best, run)
+            } else if isRestDay(habit: habit, day: day, calendar: calendar) {
+                // frei — überbrückt den Lauf, ohne ihn zu verlängern
+            } else {
+                run = 0
+            }
+            guard let n = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+            day = n
+        }
+        return best
+    }
+
+    /// Längste Kette aufeinanderfolgender erfüllter Kalenderwochen. Iteriert
+    /// nur über Wochen MIT zählenden Tagen; die Lücke erkennt der
+    /// Datumsvergleich (nächste Wochenstart-Grenze), nicht die Wochennummer —
+    /// sonst risse jede Kette am Jahreswechsel (KW 52 -> KW 1).
+    private static func weeklyBestStreak(habit: Habit, times: Int, today: String, calendar: Calendar) -> Int {
+        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
+        var best = 0, run = 0
+        var lastMet: Date?
+        for week in counts.keys.sorted() where (counts[week] ?? 0) >= times {
+            let follows = lastMet.flatMap {
+                calendar.date(byAdding: .weekOfYear, value: 1, to: $0)
+                    .flatMap { calendar.dateInterval(of: .weekOfYear, for: $0)?.start }
+            } == week
+            run = follows ? run + 1 : 1
+            lastMet = week
+            best = max(best, run)
+        }
+        return best
+    }
+
     /// Zählende Tage pro Kalenderwoche, gebuckelt nach Wochen-Startdatum.
     /// Nur plausible Tage — Müll und Zukunft dürfen keine Woche erfüllen.
     private static func weeklyCounts(habit: Habit, today: String, calendar: Calendar) -> [Date: Int] {
@@ -170,15 +231,22 @@ enum GoalEngine {
 
     // MARK: – Zellintensität
 
-    /// 1…4. Mengen-Habits schattieren nach Zielerreichung
-    /// (ceil(4 · Wert / target), geklemmt auf 1…4 — auch Teilfortschritt
-    /// leuchtet). Checkbox-Habits behalten die v1-Lauflängen-Semantik:
-    /// längere zusammenhängende Läufe leuchten heller.
+    /// 1…4. Mengen-Habits schattieren nach Zielerreichung: der ERSTE Zähler
+    /// ist immer Stufe 1, das erreichte Ziel immer Stufe 4, dazwischen wird
+    /// linear verteilt (`1 + 3·(Wert−1)/(target−1)`, ganzzahlig). Die alte
+    /// Formel `ceil(4 · Wert / target)` sprang bei kleinen Zielen sofort auf
+    /// Stufe 2 — bei target 3 war `ceil(4/3) = 2`, Stufe 1 also unerreichbar.
+    /// Ein Ziel von 1 kennt nur den erfüllten Tag und ist damit Stufe 4.
+    /// Checkbox-Habits behalten die v1-Lauflängen-Semantik: längere
+    /// zusammenhängende Läufe leuchten heller.
     static func intensity(habit: Habit, key: String, calendar: Calendar = .current) -> Int {
         let value = habit.log[key] ?? 0
         guard value >= 1 else { return 0 }
         if let target = habit.goal.target {
-            return min(4, max(1, Int(ceil(4 * Double(value) / Double(target)))))
+            guard target > 1 else { return 4 }
+            // Bewusst Ganzzahl-Arithmetik: `3 · 3 / 9` muss exakt 1 sein,
+            // in Double wäre es 0,9999… und fiele eine Stufe zu tief.
+            return min(4, max(1, 1 + (3 * (value - 1)) / (target - 1)))
         }
         var run = 1
         var day = key

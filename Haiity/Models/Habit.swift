@@ -242,20 +242,12 @@ extension Habit {
         GoalEngine.streak(habit: self, today: today, calendar: calendar)
     }
 
-    /// Längste Serie über die gesamte Historie (rohe Log-Tage; Ziel-Semantik
-    /// folgt in einer späteren Phase). Müll-Schlüssel fliegen vorher raus —
-    /// sonst zählte "quatsch" als eigener Ein-Tages-Lauf.
+    /// Längste Serie über die gesamte Historie — dünner Durchgriff auf die
+    /// GoalEngine, exakt wie `streak`. Die Ziel-Semantik (Mengenziel,
+    /// Ruhetage, Wochen-Kadenz) liegt dort, damit "Best" dieselbe Einheit
+    /// misst wie die laufende Serie.
     func bestStreak(today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
-        let keys = validDays(today: today, calendar: calendar).sorted()
-        var best = 0, run = 0
-        var prev: String?
-        for k in keys {
-            if let p = prev, DayKey.shifted(p, by: 1, calendar: calendar) == k { run += 1 }
-            else { run = 1 }
-            prev = k
-            best = max(best, run)
-        }
-        return best
+        GoalEngine.bestStreak(habit: self, today: today, calendar: calendar)
     }
 
     /// Zellintensität 1…4 — dünner Durchgriff auf die GoalEngine.

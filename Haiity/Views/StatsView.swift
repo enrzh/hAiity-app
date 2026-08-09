@@ -65,7 +65,7 @@ private struct StatsRow: View {
                 completionCell(days: 365)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(String(localized: "Best: \(habit.bestStreak())"))
+                    Text(String(localized: "Best: \(GoalEngine.bestStreak(habit: habit))"))
                     Text(String(localized: "Gesamt: \(habit.checkInCount())"))
                 }
                 .font(.caption.monospacedDigit())

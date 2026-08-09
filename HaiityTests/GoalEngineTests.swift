@@ -223,6 +223,60 @@ final class GoalEngineTests: XCTestCase {
                        1.0, accuracy: 0.0001)
     }
 
+    // MARK: – Beste Serie (Ziel-Semantik)
+
+    func testBestStreakEmptyLogIsZero() {
+        XCTAssertEqual(GoalEngine.bestStreak(habit: habit([:]), today: "2026-08-09", calendar: monday), 0)
+        XCTAssertEqual(GoalEngine.bestStreak(habit: habit([:], goal: .weekly(times: 3)),
+                                             today: "2026-08-09", calendar: monday), 0)
+    }
+
+    /// Ein Mengen-Habit zählt NUR Tage ab `target`. Vier zusammenhängende
+    /// Log-Tage, von denen einer unter dem Ziel liegt, sind zwei Serien à 2
+    /// und 1 — nicht ein Lauf von 4 (das war die rohe Log-Tage-Zählung).
+    func testBestStreakQuantityIgnoresDaysBelowTarget() {
+        let h = habit(["2026-08-03": 3, "2026-08-04": 3, "2026-08-05": 1, "2026-08-06": 3],
+                      goal: Goal(target: 3), createdAt: "2026-08-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: h, today: "2026-08-09", calendar: monday), 2)
+    }
+
+    func testBestStreakQuantityCountsDaysAtOrAboveTarget() {
+        let h = habit(["2026-08-03": 3, "2026-08-04": 4, "2026-08-05": 3],
+                      goal: Goal(target: 3), createdAt: "2026-08-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: h, today: "2026-08-09", calendar: monday), 3)
+    }
+
+    /// Ruhetage überbrücken: zwei volle Arbeitswochen mit Wochenend-Ruhetagen
+    /// sind EINE Serie von 10, nicht zwei von 5.
+    func testBestStreakRestDaysBridgeInsteadOfBreaking() {
+        let days = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31",
+                    "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"]
+        let resting = checked(days, goal: Goal(restDays: weekend), createdAt: "2026-07-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: resting, today: "2026-08-09", calendar: monday), 10)
+        // Gegenprobe ohne Ruhetage: das Wochenende bricht, längster Lauf 5.
+        let plain = checked(days, createdAt: "2026-07-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: plain, today: "2026-08-09", calendar: monday), 5)
+    }
+
+    /// Wochen-Kadenz misst WOCHEN: fünf Check-ins in derselben Kalenderwoche
+    /// sind eine erfüllte Woche.
+    func testBestStreakWeeklyCountsWeeksNotDays() {
+        let h = checked(["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"],
+                        goal: .weekly(times: 2), createdAt: "2026-07-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: h, today: "2026-08-09", calendar: monday), 1)
+    }
+
+    /// Drei erfüllte Wochen über den Jahreswechsel (KW 52 -> KW 1) müssen
+    /// EINE Kette sein. Über Wochennummern gerechnet risse sie hier.
+    func testBestStreakWeeklyAcrossYearBoundary() {
+        let h = checked(["2026-12-21", "2026-12-22",   // Woche ab Mo 21.12.
+                         "2026-12-28", "2026-12-29",   // Woche ab Mo 28.12.
+                         "2027-01-04", "2027-01-05",   // Woche ab Mo 04.01.
+                         "2027-01-18", "2027-01-19"],  // nach einer Lücke
+                        goal: .weekly(times: 2), createdAt: "2026-12-01")
+        XCTAssertEqual(GoalEngine.bestStreak(habit: h, today: "2027-02-01", calendar: monday), 3)
+    }
+
     // MARK: – Intensität
 
     func testIntensityQuantityScalesWithTarget() {
@@ -239,11 +293,38 @@ final class GoalEngineTests: XCTestCase {
         XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-09", calendar: monday), 4)
     }
 
-    func testIntensityQuantityPartialRoundsUp() {
-        // ceil: 1/3 des Ziels -> Stufe 2, 2/3 -> Stufe 3.
+    /// Der erste Zähler MUSS Stufe 1 sein — auch bei kleinen Zielen. Die
+    /// alte ceil-Formel sprang bei target 3 sofort auf Stufe 2
+    /// (`ceil(4/3) = 2`), Stufe 1 war unerreichbar.
+    func testIntensityQuantitySmallTargetStartsAtLevelOne() {
         let h = habit(["2026-08-08": 1, "2026-08-09": 2], goal: Goal(target: 3))
-        XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-08", calendar: monday), 2)
-        XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-09", calendar: monday), 3)
+        XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-08", calendar: monday), 1)
+        XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-09", calendar: monday), 2)
+    }
+
+    /// Die Rampe über die kritischen Zielgrößen: erster Zähler immer 1,
+    /// erreichtes Ziel immer 4, dazwischen monoton steigend.
+    func testIntensityQuantityRampAcrossTargets() {
+        let expected: [Int: [Int]] = [
+            1: [4],                                     // 1/1
+            2: [1, 4],                                  // 1/2, 2/2
+            3: [1, 2, 4],                               // 1/3 … 3/3
+            4: [1, 2, 3, 4],                            // alle vier Stufen
+            10: [1, 1, 1, 2, 2, 2, 3, 3, 3, 4],         // 1/10 … 10/10
+        ]
+        for (target, levels) in expected {
+            for (i, level) in levels.enumerated() {
+                let value = i + 1
+                let h = habit(["2026-08-09": value], goal: Goal(target: target))
+                XCTAssertEqual(GoalEngine.intensity(habit: h, key: "2026-08-09", calendar: monday),
+                               level,
+                               "target \(target), Wert \(value)")
+            }
+            // Erster Zähler ist Stufe 1 (außer bei target 1, wo er das Ziel
+            // schon erfüllt), erreichtes Ziel ist Stufe 4.
+            XCTAssertEqual(levels.first, target == 1 ? 4 : 1, "target \(target): erster Zähler")
+            XCTAssertEqual(levels.last, 4, "target \(target): erfülltes Ziel")
+        }
     }
 
     func testIntensityQuantityZeroWhenEmpty() {
