@@ -107,7 +107,7 @@ struct HaiityGraphWidget: Widget {
             GraphWidgetView(entry: entry)
         }
         .configurationDisplayName(String(localized: "Graph"))
-        .description(String(localized: "Nur das Raster. Groß zeigt das ganze Jahr."))
+        .description(String(localized: "Nur das Raster — sieben Zeilen, randlos."))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

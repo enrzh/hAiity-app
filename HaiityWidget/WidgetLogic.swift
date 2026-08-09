@@ -15,11 +15,11 @@ struct HaiityEntry: TimelineEntry {
     /// eigenen Paletten reisen mit, weil ein Habit auf eine davon zeigen kann.
     var palettes: PaletteBook = PaletteBook()
     /// Der in DIESER Widget-Instanz gewählte Habit; nil = „automatisch"
-    /// (der erste aktive). Kommt aus dem `WidgetConfigurationIntent`.
+    /// (der empfohlene). Kommt aus dem `WidgetConfigurationIntent`.
     var selected: UUID?
 
-    /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Automatik,
-    /// Automatik ist der erste aktive Habit.
+    /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Empfehlung,
+    /// Empfehlung ist die längste laufende Serie.
     var habit: Habit? { WidgetLogic.resolve(habits: habits, selected: selected) }
 
     /// Platzhalter für Galerie und Vorschau: genug Historie, damit das
@@ -62,14 +62,42 @@ enum WidgetLogic {
 
     // MARK: – Welcher Habit?
 
-    /// Auswahl schlägt Automatik: die eingestellte Kennung, wenn es sie noch
-    /// gibt, sonst der erste aktive Habit. Ein gelöschter oder archivierter
-    /// Habit lässt das Widget also nicht leer stehen — es fällt auf den
-    /// ersten zurück, statt „Noch keine Habits" zu behaupten.
-    static func resolve(habits: [Habit], selected: UUID?) -> Habit? {
+    /// Auswahl schlägt Empfehlung: die eingestellte Kennung, wenn es sie noch
+    /// gibt, sonst der empfohlene Habit. Ein gelöschter oder archivierter
+    /// Habit lässt das Widget also nicht leer stehen — es fällt zurück,
+    /// statt „Noch keine Habits" zu behaupten.
+    static func resolve(habits: [Habit],
+                        selected: UUID?,
+                        today: String = DayKey.today(),
+                        calendar: Calendar = .current) -> Habit? {
         let active = habits.filter { $0.archivedAt == nil }
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
-        return active.first
+        return recommended(habits: active, today: today, calendar: calendar)
+    }
+
+    /// Der Habit, den ein NICHT eingestelltes Widget zeigt: der mit der
+    /// LÄNGSTEN laufenden Serie.
+    ///
+    /// Vorher war es blind der erste der Liste. Das ist die falsche Antwort
+    /// auf „zeig mir was" — die Liste ist nach Anlagedatum sortiert, und der
+    /// zuerst angelegte Habit ist oft genau der, der längst eingeschlafen
+    /// ist. Ein Graph ohne Zellen ist kein Graph. Die laufende Serie ist die
+    /// einzige Zahl, die ohne weitere Annahmen sagt „hier passiert gerade
+    /// etwas", und sie ist genau die Zahl, die der Nutzer nicht abreißen
+    /// lassen will.
+    ///
+    /// Bei Gleichstand — und der ist der Normalfall, etwa in einem frischen
+    /// Store, in dem jede Serie 0 ist — gewinnt der ERSTE: die Empfehlung
+    /// darf nicht bei jedem Zeitstrahl-Aufbau eine andere sein.
+    static func recommended(habits: [Habit],
+                            today: String = DayKey.today(),
+                            calendar: Calendar = .current) -> Habit? {
+        var best: (habit: Habit, streak: Int)?
+        for habit in habits where habit.archivedAt == nil {
+            let streak = habit.streak(today: today, calendar: calendar)
+            if best == nil || streak > best!.streak { best = (habit, streak) }
+        }
+        return best?.habit
     }
 
     // MARK: – Heute
@@ -170,41 +198,41 @@ enum WidgetLogic {
 
 // MARK: – Rastergeometrie
 
-/// Wie viele Wochen passen in eine Fläche, und wie groß werden die Zellen?
+/// Wie groß werden die Zellen, und wie viele Wochen passen dann nebeneinander?
 ///
-/// Reine Rechnung, damit sich beide Fälle prüfen lassen:
-///  * `trailing` — die LETZTEN Wochen: so viele, wie bei noch lesbarer Zelle
-///    hineinpassen.
-///  * `year` — das GANZE Jahr, egal wie klein die Zellen dafür werden.
+/// EIN Band, immer: sieben Zeilen (So…Sa) von links nach rechts, heute in der
+/// letzten Spalte. Genau so sieht GitHubs eigenes Widget aus — und das ist
+/// nicht bloß Geschmack, sondern das, was ein Contribution-Graph IST. Ein
+/// gewickeltes Jahr sieht aus wie ein QR-Code: die Zeilen bedeuten dann nicht
+/// mehr „Montag", die Spalten nicht mehr „eine Woche", und der Sprung von
+/// Bandende zu Bandanfang ist ein Zeitsprung, den niemand liest.
 ///
-/// Beide dürfen WICKELN, und beide müssen es können: sieben Zeilen mal
-/// 53 Wochen sind 7,6-mal so breit wie hoch, es gibt also keine Widget-Fläche,
-/// die ein Jahresband ausfüllt. In einer großen Fläche wäre es ein
-/// 40-pt-Streifen in 350 pt Leere, in einer kleinen quadratischen zeigt ein
-/// Band überhaupt nur sieben Wochen. Gewickelt läuft die Chronologie wie ein
-/// Text: links→rechts, Band für Band nach unten, und endet unten rechts heute.
+/// Die Rechnung hat deshalb nur EINE Richtung:
+///
+///  1. **Die Höhe bestimmt die Zelle.** Sieben Zeilen plus sechs Lücken füllen
+///     die Fläche vollständig — daraus fällt die Kantenlänge.
+///  2. **Die Breite bestimmt die Wochenzahl.** So viele Spalten, wie bei
+///     DIESER Kantenlänge nebeneinander stehen; danach wird die Teilung noch
+///     einmal minimal gestaucht, damit die letzte Spalte genau an der rechten
+///     Kante endet statt einen leeren Streifen zu lassen.
+///
+/// Nie umgekehrt: die Zelle wird nicht kleiner gerechnet, um eine Wunsch-
+/// Wochenzahl unterzubringen. Ein halbes Jahr aus 4-pt-Punkten ist keine
+/// Information mehr, sondern Textur.
 enum GraphLayout {
     static let rows = GridCalendar.rows
 
     struct Layout: Equatable {
-        /// Insgesamt gezeigte Wochen.
+        /// Gezeigte Wochen — Spalten im Band.
         let weeks: Int
-        /// Übereinanderliegende Bänder.
-        let bands: Int
-        /// Spalten je Band.
-        let perBand: Int
         let cell: CGFloat
         let gap: CGFloat
 
         var pitch: CGFloat { cell + gap }
-        /// Leere Spalten VOR der ältesten Woche — die Bänder sind rechteckig,
-        /// 53 Wochen sind es selten. Die Lücke gehört an den Anfang, damit
-        /// „heute" unten rechts sitzt.
-        var pad: Int { max(0, bands * perBand - weeks) }
-        var contentWidth: CGFloat { CGFloat(perBand) * pitch - gap }
-        var contentHeight: CGFloat {
-            CGFloat(bands * rows) * pitch - gap + CGFloat(max(0, bands - 1)) * pitch
-        }
+        var contentWidth: CGFloat { CGFloat(weeks) * pitch - gap }
+        var contentHeight: CGFloat { CGFloat(rows) * pitch - gap }
+        /// Eckradius im Verhältnis zur Zelle — GitHubs 2 px auf 10 px.
+        var radius: CGFloat { max(0.5, cell * 0.2) }
     }
 
     private static let gapRatio: CGFloat = 0.17
@@ -213,70 +241,33 @@ enum GraphLayout {
         max(0.5, (pitch * gapRatio).rounded())
     }
 
-    /// Die LETZTEN Wochen: so viele, wie bei noch lesbarer Zelle in die
-    /// Fläche passen.
+    /// Die LETZTEN `weeks` Wochen als EIN Band, das die Fläche ausfüllt.
     ///
-    /// `maxBands` ist der Unterschied zwischen einem Streifen und einem
-    /// Block. Ein Streifen (`1`, der Standard) ist das, was neben Text steht
-    /// — im Haupt-Widget, in einer Übersichtszeile, auf dem Sperrbildschirm.
-    /// Der reine Graph darf wickeln: auf einer fast quadratischen kleinen
-    /// Fläche zeigt EIN Band nur sieben Wochen mit riesigen Quadraten, zwei
-    /// Bänder zeigen dreißig — dieselbe Fläche, viermal so viel Geschichte.
-    ///
-    /// Ausgewählt wird nach MEHR WOCHEN, aber nie unter `minCell`: ein
-    /// halbes Jahr aus 4-pt-Punkten ist keine Information mehr, sondern
-    /// Textur. Bei gleicher Wochenzahl gewinnt die größere Zelle.
+    /// `minCell` ist kein Auswahlkriterium mehr (es gibt nichts auszuwählen),
+    /// sondern der Boden für entartete Flächen: eine Zelle unter einem halben
+    /// Punkt zeichnet nichts, und ein Layout mit 0 pt Kantenlänge würde
+    /// SwiftUI eine Division durch null unterschieben.
     static func trailing(width: CGFloat,
                          height: CGFloat,
                          maxWeeks: Int = 53,
-                         maxBands: Int = 1,
-                         minCell: CGFloat = 6) -> Layout {
-        guard width > 0, height > 0 else {
-            return Layout(weeks: 1, bands: 1, perBand: 1, cell: max(1, minCell), gap: 1)
+                         minCell: CGFloat = 1) -> Layout {
+        guard width > 0, height > 0, maxWeeks > 0 else {
+            return Layout(weeks: 1, cell: max(minCell, 1), gap: 1)
         }
-        var best: Layout?
-        for bands in 1...max(1, maxBands) {
-            let slots = CGFloat(rows * bands + (bands - 1))
-            let byHeight = height / slots
-            guard byHeight > 0 else { continue }
-            let fitting = Int((width / byHeight).rounded(.down))
-            guard fitting >= 1 else { continue }
-            let weeks = min(maxWeeks, bands * fitting)
-            let perBand = Int((Double(weeks) / Double(bands)).rounded(.up))
-            let pitch = min(byHeight, width / CGFloat(perBand))
-            let g = gap(for: pitch)
-            let candidate = Layout(weeks: weeks, bands: bands, perBand: perBand,
-                                   cell: max(0.5, pitch - g), gap: g)
-            guard let current = best else { best = candidate; continue }
-            // Eine unlesbare Zelle verdrängt nie eine lesbare.
-            guard candidate.cell >= minCell else { continue }
-            let richer = candidate.weeks > current.weeks
-                || (candidate.weeks == current.weeks && candidate.cell > current.cell)
-            if current.cell < minCell || richer { best = candidate }
-        }
-        return best ?? Layout(weeks: 1, bands: 1, perBand: 1, cell: max(1, minCell), gap: 1)
-    }
-
-    /// Das ganze Jahr, gewickelt. Zwischen zwei Bändern bleibt genau eine
-    /// Zellhöhe Luft — sonst laufen sie zu einer Fläche zusammen.
-    static func year(width: CGFloat,
-                     height: CGFloat,
-                     weeks: Int = 53,
-                     maxBands: Int = 6,
-                     minCell: CGFloat = 3) -> Layout {
-        guard width > 0, height > 0, weeks > 0 else {
-            return Layout(weeks: max(1, weeks), bands: 1, perBand: max(1, weeks), cell: minCell, gap: 1)
-        }
-        var best = (pitch: CGFloat(0), bands: 1, perBand: weeks)
-        for bands in 1...max(1, maxBands) {
-            let perBand = Int((Double(weeks) / Double(bands)).rounded(.up))
-            // Höhe: bands × 7 Zeilen plus (bands − 1) Leerzeilen dazwischen.
-            let slots = CGFloat(rows * bands + (bands - 1))
-            let pitch = min(width / CGFloat(perBand), height / slots)
-            if pitch > best.pitch { best = (pitch, bands, perBand) }
-        }
-        let g = gap(for: best.pitch)
-        return Layout(weeks: weeks, bands: best.bands, perBand: best.perBand,
-                      cell: max(minCell, best.pitch - g), gap: g)
+        // 1. Aus der HÖHE: sieben Zeilen und sechs Lücken füllen sie ganz.
+        //    Die Lücke hängt an der Teilung, die Teilung an der Lücke —
+        //    deshalb erst schätzen, dann exakt nachziehen.
+        let g = gap(for: height / CGFloat(rows))
+        let byHeight = (height + g) / CGFloat(rows)
+        // 2. Aus der BREITE: so viele Spalten wie bei diesem Maß hineinpassen.
+        //    Gerundet, nicht abgeschnitten — bei 16,6 Spalten ist ein um 2 %
+        //    gestauchtes 17er-Band randlos, ein 16er ließe eine ganze Zelle
+        //    Rand stehen.
+        let fitting = Int(((width + g) / byHeight).rounded())
+        let weeks = max(1, min(maxWeeks, fitting))
+        // 3. Genau in die Breite legen — aber nie über das Höhenmaß hinaus,
+        //    sonst liefe das Band unten aus der Fläche.
+        let pitch = min(byHeight, (width + g) / CGFloat(weeks))
+        return Layout(weeks: weeks, cell: max(minCell, pitch - g), gap: g)
     }
 }

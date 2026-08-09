@@ -10,10 +10,12 @@ import WidgetKit
 /// Query zurück, die Siri und Shortcuts schon benutzen — eine Liste, eine
 /// Quelle, keine zweite Definition, die auseinanderlaufen kann.
 ///
-/// Der Parameter ist bewusst OPTIONAL: „nicht gesetzt" heißt automatisch der
-/// erste aktive Habit (siehe `WidgetLogic.resolve`). Damit zeigt ein frisch
-/// abgelegtes Widget sofort etwas, statt leer auf eine Konfiguration zu
-/// warten — und ein gelöschter Habit lässt es nicht kaputt zurück.
+/// Der Parameter ist bewusst OPTIONAL: „nicht gesetzt" heißt der EMPFOHLENE
+/// Habit — der mit der längsten laufenden Serie (siehe
+/// `WidgetLogic.recommended`), nicht blind der erste der Liste. Damit zeigt
+/// ein frisch abgelegtes Widget sofort etwas, das auch etwas zu zeigen HAT,
+/// statt leer auf eine Konfiguration zu warten — und ein gelöschter Habit
+/// lässt es nicht kaputt zurück.
 struct SelectHabitIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Habit auswählen"
     static var description = IntentDescription("Welcher Habit in diesem Widget steht.")

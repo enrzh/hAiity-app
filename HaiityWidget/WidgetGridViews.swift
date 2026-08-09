@@ -9,14 +9,9 @@ import SwiftUI
 /// Sperrbildschirm gibt es keine Farbe, dort zeichnet dasselbe Bauteil
 /// Deckkraftstufen (siehe `WidgetInk`).
 
-/// EIN Band: `count` Spalten × 7 Zeilen, älteste links.
+/// EIN Band: `snapshot.weeks` Spalten × 7 Zeilen, älteste links, heute rechts.
 struct GridBand: View {
     let snapshot: GridCalendar.Snapshot
-    /// Erste Spalte dieses Bands in der GEPOLSTERTEN Folge.
-    let start: Int
-    let count: Int
-    /// Leerspalten vor der ältesten Woche (nur beim gewickelten Jahr > 0).
-    let pad: Int
     let cell: CGFloat
     let gap: CGFloat
     var radius: CGFloat = 1.5
@@ -24,10 +19,10 @@ struct GridBand: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: gap) {
-            ForEach(Array(start..<(start + max(0, count))), id: \.self) { column in
+            ForEach(0..<snapshot.keys.count, id: \.self) { column in
                 VStack(spacing: gap) {
                     ForEach(0..<GridCalendar.rows, id: \.self) { row in
-                        square(column: column - pad, row: row)
+                        square(column: column, row: row)
                     }
                 }
             }
@@ -38,7 +33,7 @@ struct GridBand: View {
     /// Zeichnen abstürzt, zeigt dem Nutzer nur noch ein graues Rechteck.
     @ViewBuilder
     private func square(column: Int, row: Int) -> some View {
-        if column >= 0, column < snapshot.keys.count, row < GridCalendar.rows {
+        if column >= 0, column < snapshot.keys.count, row < snapshot.keys[column].count {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(level(snapshot.levels[column][row]))
                 // Zukunft gedimmt — wie im Raster der App.
@@ -50,78 +45,40 @@ struct GridBand: View {
     }
 }
 
-/// Die LETZTEN Wochen, so viele wie lesbar in die Fläche passen.
+/// Die LETZTEN Wochen als EIN Band, das die Fläche ausfüllt.
 ///
-/// `maxBands` = 1 (Standard) ist der Streifen neben Text; mehr erlaubt dem
-/// reinen Graphen, auf einer hohen Fläche zu wickeln.
+/// Kein Wickeln: sieben Zeilen, links→rechts, heute in der letzten Spalte —
+/// die Form, in der ein Contribution-Graph überhaupt lesbar ist (siehe
+/// `GraphLayout`). Die Zelle kommt aus der HÖHE, die Wochenzahl aus der
+/// Breite; der Streifen neben Text und der reine Graph rechnen also identisch
+/// und unterscheiden sich nur durch die Fläche, die sie bekommen.
+///
+/// `radius = nil` heißt „aus der Zellgröße" — für den reinen Graphen, dessen
+/// Zellen je nach Familie zwischen 17 und 40 pt liegen; ein fester 2-pt-Radius
+/// wären dort scharfe Quadrate.
 struct TrailingGrid: View {
     let habit: Habit
     var maxWeeks: Int = 53
-    var maxBands: Int = 1
     var today: String = DayKey.today()
-    var radius: CGFloat = 1.5
+    var radius: CGFloat? = 1.5
+    /// Wohin das Band fällt, wenn nach der Rechnung ein Rest bleibt.
+    var alignment: Alignment = .topLeading
     let level: (Int) -> Color
 
     var body: some View {
         GeometryReader { geo in
             let layout = GraphLayout.trailing(width: geo.size.width,
                                               height: geo.size.height,
-                                              maxWeeks: maxWeeks,
-                                              maxBands: maxBands)
-            BandedGrid(habit: habit, layout: layout, today: today,
-                       radius: radius, level: level)
+                                              maxWeeks: maxWeeks)
+            GridBand(snapshot: GridCalendar.snapshot(habit: habit,
+                                                     weeks: layout.weeks,
+                                                     today: today),
+                     cell: layout.cell, gap: layout.gap,
+                     radius: radius ?? layout.radius, level: level)
                 .frame(width: geo.size.width, height: geo.size.height,
-                       alignment: layout.bands > 1 ? .center : .topLeading)
+                       alignment: alignment)
         }
         // Chronologie nie spiegeln — wie im Contribution-Grid der App.
-        .environment(\.layoutDirection, .leftToRight)
-    }
-}
-
-/// Ein fertiges Layout zeichnen: ein Band oder mehrere untereinander.
-/// Liest sich wie ein Text — links→rechts, Band für Band nach unten; unten
-/// rechts steht heute.
-struct BandedGrid: View {
-    let habit: Habit
-    let layout: GraphLayout.Layout
-    var today: String = DayKey.today()
-    var radius: CGFloat = 1.5
-    let level: (Int) -> Color
-
-    var body: some View {
-        let snapshot = GridCalendar.snapshot(habit: habit, weeks: layout.weeks, today: today)
-        // Genau eine Zellhöhe Luft zwischen den Bändern — weniger, und sie
-        // laufen zu einer Fläche zusammen.
-        return VStack(spacing: layout.pitch) {
-            ForEach(0..<max(1, layout.bands), id: \.self) { band in
-                GridBand(snapshot: snapshot,
-                         start: band * layout.perBand,
-                         count: layout.perBand,
-                         pad: layout.pad,
-                         cell: layout.cell, gap: layout.gap,
-                         radius: radius, level: level)
-            }
-        }
-    }
-}
-
-/// Das GANZE Jahr, in Bänder gewickelt, mittig in der Fläche.
-struct YearGrid: View {
-    let habit: Habit
-    var weeks: Int = 53
-    var today: String = DayKey.today()
-    var radius: CGFloat = 1.5
-    let level: (Int) -> Color
-
-    var body: some View {
-        GeometryReader { geo in
-            BandedGrid(habit: habit,
-                       layout: GraphLayout.year(width: geo.size.width,
-                                                height: geo.size.height,
-                                                weeks: weeks),
-                       today: today, radius: radius, level: level)
-                .frame(width: geo.size.width, height: geo.size.height)
-        }
         .environment(\.layoutDirection, .leftToRight)
     }
 }
@@ -203,21 +160,20 @@ struct HabitControlLabel: View {
 
 /// „Noch keine Habits" — EIN Bauteil für alle Größen, damit ein leerer Store
 /// überall gleich aussieht und nie ein kaputtes Layout zeigt.
+///
+/// Nicht für den reinen Graphen: der zeigt NIE Schrift, auch nicht im
+/// Leerfall, sondern ein leeres Raster (siehe `GraphWidgetView`).
 struct WidgetEmptyState: View {
-    var compact: Bool = false
-
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "square.grid.3x3")
-                .font(compact ? .body : .title3)
+                .font(.title3)
                 .foregroundStyle(.tertiary)
-            Text(verbatim: "hAiity").font(compact ? .caption2.bold() : .caption.bold())
-            if !compact {
-                Text(String(localized: "Noch keine Habits"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            Text(verbatim: "hAiity").font(.caption.bold())
+            Text(String(localized: "Noch keine Habits"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

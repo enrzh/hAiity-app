@@ -56,6 +56,69 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertNil(WidgetLogic.resolve(habits: [], selected: nil))
     }
 
+    // MARK: – Die Empfehlung: wer steht drin, wenn nichts eingestellt ist?
+
+    /// Nicht der erste der Liste, sondern der mit der LÄNGSTEN laufenden
+    /// Serie. Die Liste ist nach Anlagedatum sortiert — der zuerst angelegte
+    /// Habit ist oft genau der, der längst eingeschlafen ist.
+    func testRecommendedPicksTheLongestCurrentStreak() {
+        let stale = named("Alt", log: run(days: 40, endingAt: "2026-01-10"))
+        let live = named("Aktiv", log: run(days: 12, endingAt: today))
+        let recommended = WidgetLogic.recommended(habits: [stale, live],
+                                                  today: today, calendar: cal)
+        XCTAssertEqual(recommended?.id, live.id)
+    }
+
+    /// Eine abgerissene Serie zählt nicht: 40 Tage, die gestern endeten,
+    /// verlieren gegen 3, die heute noch laufen.
+    func testRecommendedIgnoresBrokenStreaksHoweverLong() {
+        let broken = named("Lang", log: run(days: 40, endingAt: "2026-08-07"))
+        let short = named("Kurz", log: run(days: 3, endingAt: today))
+        XCTAssertEqual(WidgetLogic.recommended(habits: [broken, short],
+                                               today: today, calendar: cal)?.id,
+                       short.id)
+    }
+
+    /// Gleichstand — der Normalfall in einem frischen Store, in dem jede
+    /// Serie 0 ist — muss STABIL sein: sonst zeigt dasselbe Widget bei jedem
+    /// Timeline-Aufbau einen anderen Habit.
+    func testRecommendedIsStableOnATie() {
+        let a = named("A"), b = named("B")
+        XCTAssertEqual(WidgetLogic.recommended(habits: [a, b], today: today, calendar: cal)?.id, a.id)
+        XCTAssertEqual(WidgetLogic.recommended(habits: [a, b], today: today, calendar: cal)?.id, a.id)
+        let sameRun = run(days: 5, endingAt: today)
+        let c = named("C", log: sameRun), d = named("D", log: sameRun)
+        XCTAssertEqual(WidgetLogic.recommended(habits: [c, d], today: today, calendar: cal)?.id, c.id)
+    }
+
+    /// Ein archivierter Habit mit Rekordserie darf nicht empfohlen werden.
+    func testRecommendedSkipsArchivedEvenWithTheLongestStreak() {
+        let archived = named("Archiv", log: run(days: 90, endingAt: today), archived: today)
+        let active = named("Aktiv", log: run(days: 2, endingAt: today))
+        XCTAssertEqual(WidgetLogic.recommended(habits: [archived, active],
+                                               today: today, calendar: cal)?.id,
+                       active.id)
+    }
+
+    func testRecommendedWithoutHabitsIsNil() {
+        XCTAssertNil(WidgetLogic.recommended(habits: [], today: today, calendar: cal))
+        let archived = named("Archiv", archived: today)
+        XCTAssertNil(WidgetLogic.recommended(habits: [archived], today: today, calendar: cal))
+    }
+
+    /// Und das Widget benutzt sie auch: ohne Einstellung steht der empfohlene
+    /// Habit drin, mit Einstellung schlägt die Auswahl sie.
+    func testResolveFallsBackToTheRecommendation() {
+        let stale = named("Alt", log: run(days: 40, endingAt: "2026-01-10"))
+        let live = named("Aktiv", log: run(days: 12, endingAt: today))
+        XCTAssertEqual(WidgetLogic.resolve(habits: [stale, live], selected: nil,
+                                           today: today, calendar: cal)?.id,
+                       live.id)
+        XCTAssertEqual(WidgetLogic.resolve(habits: [stale, live], selected: stale.id,
+                                           today: today, calendar: cal)?.id,
+                       stale.id)
+    }
+
     // MARK: – Heute: fällig, erledigt oder frei?
 
     func testStatusOpenWhenScheduledAndUnchecked() {
@@ -210,10 +273,17 @@ final class WidgetLogicTests: GridTestCase {
 
     // MARK: – Rastergeometrie
 
+    /// Die drei echten Homescreen-Flächen ABZÜGLICH der Innenränder (16 pt),
+    /// so wie WidgetKit sie einem Widget übergibt.
+    private static let canvases: [(name: String, size: CGSize)] = [
+        ("klein", CGSize(width: 138, height: 138)),
+        ("mittel", CGSize(width: 332, height: 138)),
+        ("groß", CGSize(width: 332, height: 350)),
+    ]
+
     /// Klein: die Zellen füllen die HÖHE, die Wochenzahl fällt aus der Breite.
     func testTrailingFillsTheCanvasWithoutOverflowing() {
         let layout = GraphLayout.trailing(width: 138, height: 60)
-        XCTAssertEqual(layout.bands, 1)
         XCTAssertGreaterThan(layout.weeks, 8)
         XCTAssertLessThanOrEqual(layout.contentWidth, 138.5)
         XCTAssertLessThanOrEqual(layout.contentHeight, 60.5)
@@ -233,67 +303,84 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertLessThanOrEqual(layout.contentWidth, 4000)
     }
 
-    /// Der Kern der Graph-Geometrie: auf einer quadratischen Fläche zeigt EIN
-    /// Band fast nichts. Wickeln darf die Zelle kleiner machen — aber nie
-    /// unter die Lesbarkeitsgrenze.
-    func testTrailingWrapsToShowMoreWeeksOnASquareCanvas() {
-        let strip = GraphLayout.trailing(width: 138, height: 138)
-        let block = GraphLayout.trailing(width: 138, height: 138, maxBands: 4)
-        XCTAssertEqual(strip.bands, 1)
-        XCTAssertGreaterThan(block.bands, 1)
-        XCTAssertGreaterThan(block.weeks, strip.weeks * 3)
-        XCTAssertGreaterThanOrEqual(block.cell, 6, "Gewickelt darf nicht unlesbar werden")
-        XCTAssertLessThanOrEqual(block.contentWidth, 138.5)
-        XCTAssertLessThanOrEqual(block.contentHeight, 138.5)
+    /// Der Kern des GitHub-Aussehens: das Band füllt die BREITE randlos aus.
+    /// Ein Rest von einer ganzen Zelle wäre ein sichtbarer Streifen Leere und
+    /// genau das, was dieses Widget nicht mehr tun soll.
+    func testTrailingLeavesNoEmptyStripOnTheRealCanvases() {
+        for (name, size) in Self.canvases {
+            let layout = GraphLayout.trailing(width: size.width, height: size.height)
+            XCTAssertLessThanOrEqual(layout.contentWidth, size.width + 0.5, name)
+            XCTAssertGreaterThan(layout.contentWidth, size.width - layout.pitch,
+                                 "\(name): rechts bleibt eine ganze Spalte leer")
+        }
     }
 
-    /// Ein sehr flacher Streifen kann nicht wickeln — dann bleibt es bei
-    /// einem Band, statt in unlesbare Punkte zu zerfallen.
-    func testTrailingRefusesToWrapWhenItWouldBeIllegible() {
-        let layout = GraphLayout.trailing(width: 300, height: 26, maxBands: 4)
-        XCTAssertEqual(layout.bands, 1)
+    /// Und die HÖHE: sieben Zeilen, kein Streifen oben oder unten. Ein Rest
+    /// von mehr als einer halben Zelle hieße, die Zelle ist zu klein
+    /// gerechnet.
+    func testTrailingCellComesFromTheHeight() {
+        for (name, size) in Self.canvases {
+            let layout = GraphLayout.trailing(width: size.width, height: size.height)
+            XCTAssertLessThanOrEqual(layout.contentHeight, size.height + 0.5, name)
+            XCTAssertGreaterThan(layout.contentHeight, size.height - layout.pitch / 2,
+                                 "\(name): das Band füllt die Höhe nicht")
+            // Höhe ÷ 7, minus Lücke — die Zelle hängt an der HÖHE, nicht an
+            // der Wochenzahl. Die letzte Stauchung auf die Breite darf sie
+            // nur noch um wenige Prozent verkleinern, nie mehr.
+            XCTAssertEqual(layout.cell, size.height / 7 - layout.gap,
+                           accuracy: layout.pitch * 0.1, name)
+        }
+    }
+
+    /// Eine hohe Fläche bekommt GRÖSSERE Zellen, nicht mehr Wochen — genau
+    /// der Handel, den das gewickelte Layout vorher andersherum gemacht hat.
+    func testTallerCanvasMeansBiggerCellsNotMoreWeeks() {
+        let medium = GraphLayout.trailing(width: 332, height: 138)
+        let large = GraphLayout.trailing(width: 332, height: 350)
+        XCTAssertGreaterThan(large.cell, medium.cell * 2)
+        XCTAssertLessThan(large.weeks, medium.weeks)
+    }
+
+    /// Immer genau sieben Zeilen — es gibt keine zweite Reihe Bänder mehr,
+    /// in der die Chronologie springen könnte.
+    func testTrailingIsAlwaysExactlySevenRows() {
+        for (name, size) in Self.canvases {
+            let layout = GraphLayout.trailing(width: size.width, height: size.height)
+            XCTAssertEqual(layout.contentHeight,
+                           CGFloat(GraphLayout.rows) * layout.pitch - layout.gap,
+                           accuracy: 0.001, name)
+        }
+    }
+
+    /// Lesbarkeitsboden: die Lücke bleibt sichtbar UND kleiner als die Zelle.
+    /// Fällt eines von beidem, verläuft das Raster zu einer Fläche.
+    func testTrailingCellsStayDistinctAtEverySize() {
+        for height in stride(from: 20.0, through: 360.0, by: 10.0) {
+            for width in [76.0, 138.0, 172.0, 332.0] {
+                let layout = GraphLayout.trailing(width: width, height: height)
+                XCTAssertGreaterThanOrEqual(layout.gap, 0.5, "\(width)×\(height)")
+                XCTAssertGreaterThan(layout.cell, layout.gap, "\(width)×\(height)")
+                XCTAssertGreaterThanOrEqual(layout.weeks, 1, "\(width)×\(height)")
+                XCTAssertLessThanOrEqual(layout.contentWidth, width + 0.5, "\(width)×\(height)")
+                XCTAssertLessThanOrEqual(layout.contentHeight, height + 0.5, "\(width)×\(height)")
+            }
+        }
+    }
+
+    /// Der Eckradius wächst mit der Zelle — ein fester 2-pt-Radius wäre auf
+    /// einer 40-pt-Zelle ein scharfes Quadrat.
+    func testRadiusScalesWithTheCell() {
+        let small = GraphLayout.trailing(width: 138, height: 138)
+        let large = GraphLayout.trailing(width: 332, height: 350)
+        XCTAssertGreaterThan(large.radius, small.radius)
+        XCTAssertLessThan(large.radius, large.cell / 2, "Aus dem Quadrat darf kein Kreis werden")
     }
 
     func testTrailingSurvivesAZeroSizedCanvas() {
         let layout = GraphLayout.trailing(width: 0, height: 0)
         XCTAssertEqual(layout.weeks, 1)
-        XCTAssertEqual(layout.bands, 1)
-    }
-
-    /// Groß: das GANZE Jahr, gewickelt — und zwar so, dass die Zellen
-    /// deutlich größer werden als in einem einzelnen 53-Wochen-Band.
-    func testYearWrapsIntoBandsOnATallCanvas() {
-        let layout = GraphLayout.year(width: 332, height: 350)
-        XCTAssertEqual(layout.weeks, 53)
-        XCTAssertGreaterThan(layout.bands, 1)
-        XCTAssertGreaterThanOrEqual(layout.bands * layout.perBand, 53)
-        XCTAssertLessThanOrEqual(layout.contentWidth, 332.5)
-        XCTAssertLessThanOrEqual(layout.contentHeight, 350.5)
-        let single = GraphLayout.year(width: 332, height: 350, maxBands: 1)
-        XCTAssertGreaterThan(layout.cell, single.cell * 2,
-                             "Wickeln muss die Zellen wirklich größer machen")
-    }
-
-    /// Auf einer breiten, flachen Fläche ist EIN Band das Beste — dann sieht
-    /// das Jahr aus wie bei GitHub.
-    func testYearStaysOneBandOnAWideCanvas() {
-        let layout = GraphLayout.year(width: 700, height: 100)
-        XCTAssertEqual(layout.bands, 1)
-        XCTAssertEqual(layout.perBand, 53)
-        XCTAssertEqual(layout.pad, 0)
-    }
-
-    /// Die Lücke gehört an den ANFANG: heute muss unten rechts stehen.
-    func testYearPadsTheOldestEnd() {
-        let layout = GraphLayout.year(width: 332, height: 350)
-        XCTAssertEqual(layout.pad, layout.bands * layout.perBand - 53)
-        XCTAssertGreaterThanOrEqual(layout.pad, 0)
-    }
-
-    func testYearSurvivesAZeroSizedCanvas() {
-        let layout = GraphLayout.year(width: 0, height: 0)
-        XCTAssertEqual(layout.bands, 1)
         XCTAssertGreaterThan(layout.cell, 0)
+        XCTAssertGreaterThan(layout.gap, 0)
     }
 
     // MARK: – Sperrbildschirm ohne Farbe

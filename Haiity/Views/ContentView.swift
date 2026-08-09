@@ -1170,6 +1170,15 @@ struct ContentView: View {
                           padding: 0, background: .control)
                 }
 
+                // Der reine Graph OHNE Habit. Eigener Abzug, weil er als
+                // einziges Widget auch im Leerfall keine Schrift zeigen darf
+                // — ein Raster aus l0-Zellen statt „Noch keine Habits".
+                write(GraphWidgetView(entry: HaiityEntry(date: .now, habits: [],
+                                                         palettes: store.palettes))
+                        .content(family: .systemMedium, dark: scheme == .dark),
+                      named: "w-graph-empty-\(suffix)",
+                      size: CGSize(width: 364, height: 170), scheme: scheme, to: dir)
+
                 // Grenzfälle, die früher gebrochen sind — nur die Hauptgröße.
                 for (name, habits) in Self.edgeCases {
                     let edge = HaiityEntry(date: .now, habits: habits, palettes: store.palettes)
