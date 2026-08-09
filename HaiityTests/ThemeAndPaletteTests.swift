@@ -225,7 +225,7 @@ final class ThemePersistenceTests: XCTestCase {
         XCTAssertTrue(data.habits[0].isDone("2026-01-02"))
     }
 
-    func testV2FileWithGoalButNoThemeLoadsUnchanged() throws {
+    func testV2FileWithLegacyGoalButNoThemeLoadsUnchanged() throws {
         let data = try decode("""
         {"version":2,"updatedAt":2,"summaryMinutes":1200,"habits":[
           {"id":"3F2504E0-4F89-11D3-9A0C-0305E82C3301","name":"Wasser",
@@ -234,7 +234,7 @@ final class ThemePersistenceTests: XCTestCase {
         """)
         XCTAssertEqual(data.palette, .green)
         XCTAssertEqual(data.summaryMinutes, 1200)
-        XCTAssertEqual(data.habits[0].goal.cadence, .weekly(times: 3))
+        XCTAssertEqual(data.habits[0].recurrence, .times(3, per: .weekly))
         XCTAssertNil(data.habits[0].palette)
     }
 

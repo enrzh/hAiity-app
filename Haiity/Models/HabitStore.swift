@@ -319,8 +319,15 @@ final class HabitStore {
     }
 
     /// Offene AKTIVE Habits für heute (für die Abend-Zusammenfassung).
+    /// „Offen" heißt HEUTE FÄLLIG und noch nicht abgehakt: ein Habit, das
+    /// nach seiner Regel heute gar keinen Termin hat, ist nicht offen — es
+    /// wäre die unangenehmste Sorte Erinnerung, an etwas gemahnt zu werden,
+    /// das gar nicht dran ist. (Flexible Ziele wie „3× pro Woche" sind an
+    /// jedem Tag ihrer Periode fällig, für sie ändert sich nichts.)
     func openToday(_ today: String = DayKey.today()) -> [Habit] {
-        activeHabits.filter { !$0.isDone(today) }
+        activeHabits.filter {
+            GoalEngine.isScheduled(habit: $0, day: today) && !$0.isDone(today)
+        }
     }
 
     // MARK: – Eigene Paletten
@@ -374,7 +381,7 @@ final class HabitStore {
     /// Vereinigt Remote-Daten mit lokalen: Habits per id, Logs als Union
     /// mit MAX pro Tag (ein höherer Zähler irgendwo gewinnt) — nie wird
     /// ein Tag gelöscht. Bei Metadaten-Konflikt (Name/Emoji/Erinnerung/
-    /// Ziel/Archiv) gewinnt der neuere `updatedAt`-Stand.
+    /// Regel/Archiv) gewinnt der neuere `updatedAt`-Stand.
     /// Exakter Gleichstand: LOKAL gewinnt — nie beidseitig löschen.
     func merge(remote: HabitData) {
         var byId = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
@@ -389,7 +396,7 @@ final class HabitStore {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.reminderMinutes = rh.reminderMinutes
-                    lh.goal = rh.goal
+                    lh.recurrence = rh.recurrence
                     lh.archivedAt = rh.archivedAt
                     lh.palette = rh.palette
                 }

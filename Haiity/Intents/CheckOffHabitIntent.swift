@@ -81,7 +81,7 @@ enum CheckOffLogic {
     static func apply(to store: HabitStore, habitId: UUID, day: String = DayKey.today()) -> Bool {
         guard let habit = store.habits.first(where: { $0.id == habitId }),
               habit.archivedAt == nil else { return false }
-        if habit.goal.target != nil {
+        if habit.recurrence.target != nil {
             store.increment(habitId, day: day)
             return true
         }

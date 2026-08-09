@@ -62,8 +62,8 @@ final class StatsMathTests: XCTestCase {
         return c
     }
 
-    private func habit(_ days: [String: Int], goal: Goal = .daily, createdAt: String = "2025-01-01") -> Habit {
-        var h = Habit(name: "Test", goal: goal)
+    private func habit(_ days: [String: Int], recurrence: Recurrence = .daily, createdAt: String = "2025-01-01") -> Habit {
+        var h = Habit(name: "Test", recurrence: recurrence)
         h.createdAt = createdAt
         for (d, v) in days { h.log[d] = v }
         return h
@@ -110,7 +110,7 @@ final class StatsMathTests: XCTestCase {
 
     func testMonthlyCountsRespectsQuantityTarget() {
         let h = habit(["2026-08-01": 2, "2026-08-02": 3, "2026-08-03": 5],
-                      goal: Goal(target: 3))
+                      recurrence: Recurrence(target: 3))
         let counts = StatsMath.monthlyCounts(habit: h, months: 12, today: "2026-08-09", calendar: berlin)
         XCTAssertEqual(counts[11], 2) // nur Tage >= target zählen
     }
@@ -130,7 +130,7 @@ final class StatsMathTests: XCTestCase {
 
     func testTotalCheckInsSumsCountingDays() {
         let a = habit(["2026-08-01": 1, "2026-08-02": 1])
-        let b = habit(["2026-08-01": 2, "2026-08-02": 5], goal: Goal(target: 3))
+        let b = habit(["2026-08-01": 2, "2026-08-02": 5], recurrence: Recurrence(target: 3))
         // b: nur der 02. erreicht das Ziel.
         XCTAssertEqual(StatsMath.totalCheckIns([a, b], calendar: berlin), 3)
     }

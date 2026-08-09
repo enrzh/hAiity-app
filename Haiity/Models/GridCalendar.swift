@@ -170,7 +170,7 @@ enum GridCalendar {
                          calendar: Calendar = .current) -> Snapshot {
         let key = CacheKey(habit: habit.id,
                            logHash: habit.log.hashValue,
-                           target: habit.goal.target,
+                           target: habit.recurrence.target,
                            weeks: weeks,
                            today: today,
                            firstWeekday: calendar.firstWeekday)

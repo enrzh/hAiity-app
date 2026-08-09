@@ -150,7 +150,7 @@ struct HabitCard: View {
     private var nameRun: some View {
         Button {
             Theme.Haptics.check()
-            if habit.goal.target != nil { onIncrement() } else { onToggleDay(today) }
+            if habit.recurrence.target != nil { onIncrement() } else { onToggleDay(today) }
         } label: {
             nameContent
         }
@@ -191,7 +191,7 @@ struct HabitCard: View {
     /// hier neu aufzublitzen.
     @ViewBuilder
     private var mergedDone: some View {
-        if let target = habit.goal.target {
+        if let target = habit.recurrence.target {
             let value = habit.log[today] ?? 0
             Text(verbatim: "\(value)/\(target)")
                 .font(.caption.weight(.semibold).monospacedDigit())
@@ -210,19 +210,25 @@ struct HabitCard: View {
     }
 
     private var collapsedActionLabel: String {
-        if let target = habit.goal.target {
+        if let target = habit.recurrence.target {
             return String(localized: "Heute: \(habit.log[today] ?? 0) von \(target)")
         }
         return doneToday ? String(localized: "✓ Erledigt") : String(localized: "Heute")
     }
 
-    /// Erinnerung und Serie. Beide nur, wenn sie etwas zu sagen haben: eine
-    /// Serie von 0 ist keine Serie, und ohne Erinnerung fehlt die Glocke
-    /// ersatzlos — nichts rutscht dadurch.
+    /// Erinnerung, Serie und — wenn heute gar kein Termin ist — der nächste.
+    /// Alle drei nur, wenn sie etwas zu sagen haben: eine Serie von 0 ist
+    /// keine Serie, ohne Erinnerung fehlt die Glocke ersatzlos, und bei
+    /// einem Habit, das heute ohnehin dran ist, steht kein Kalender.
+    ///
+    /// Das ist die EINZIGE Stelle, an der die Liste zwischen „heute fällig"
+    /// und „heute frei" unterscheidet. Die Heute-Kontrolle bleibt bewusst
+    /// bedienbar: wer an einem freien Tag trotzdem läuft, darf das abhaken
+    /// (es zählt auch — siehe GoalEngine).
     @ViewBuilder
     private var meta: some View {
         let streak = habit.streak()
-        if habit.reminderMinutes != nil || streak > 0 {
+        if habit.reminderMinutes != nil || streak > 0 || nextDueLabel != nil {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
                 if let time = reminderText {
                     metaItem("bell", time,
@@ -232,10 +238,27 @@ struct HabitCard: View {
                     metaItem("flame.fill", "\(streak)",
                              label: String(localized: "Serie: \(streak) Tage"))
                 }
+                if let next = nextDueLabel {
+                    metaItem("calendar", next.short,
+                             label: String(localized: "Heute frei, nächster Termin: \(next.long)"))
+                }
             }
             .padding(.leading, 2)
             .transition(.opacity)
         }
+    }
+
+    /// „Heute ist nichts fällig, als Nächstes am Montag." nil, sobald heute
+    /// ein Termin ist — dann sagt die Heute-Kontrolle schon alles.
+    private var nextDueLabel: (short: String, long: String)? {
+        guard !GoalEngine.isScheduled(habit: habit, day: today) else { return nil }
+        guard let next = habit.recurrence.nextOccurrence(after: today),
+              let date = DayKey.date(from: next) else {
+            return (String(localized: "frei"), String(localized: "keiner mehr"))
+        }
+        let weekday = Calendar.current.component(.weekday, from: date)
+        return (RecurrenceText.shortWeekdayName(weekday),
+                RecurrenceText.weekdayName(weekday))
     }
 
     /// Symbol und Zahl als EIN Textlauf — so sitzt das Glyph automatisch auf
@@ -252,7 +275,7 @@ struct HabitCard: View {
     /// dann im Namen aufgegangen (siehe `mergedDone`).
     @ViewBuilder
     private var todayButton: some View {
-        if let target = habit.goal.target {
+        if let target = habit.recurrence.target {
             let value = habit.log[today] ?? 0
             Button {
                 Theme.Haptics.check()

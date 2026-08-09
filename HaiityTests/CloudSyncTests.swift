@@ -104,7 +104,7 @@ final class CloudPayloadTests: XCTestCase {
     /// Was in iCloud landet, ist EXAKT die Datei, die auch auf der Platte
     /// liegt — hin und zurück ohne Verlust.
     func testPayloadRoundTripsThroughRecord() throws {
-        var habit = Habit(name: "Lesen", emoji: "📖", goal: Goal(target: 3))
+        var habit = Habit(name: "Lesen", emoji: "📖", recurrence: Recurrence(target: 3))
         habit.log["2026-08-01"] = 2
         habit.log["2026-08-02"] = 3
         let original = HabitData(version: HabitData.currentVersion,
@@ -120,7 +120,7 @@ final class CloudPayloadTests: XCTestCase {
         XCTAssertEqual(decoded.habits.count, 1)
         XCTAssertEqual(decoded.habits[0].name, "Lesen")
         XCTAssertEqual(decoded.habits[0].emoji, "📖")
-        XCTAssertEqual(decoded.habits[0].goal.target, 3)
+        XCTAssertEqual(decoded.habits[0].recurrence.target, 3)
         XCTAssertEqual(decoded.habits[0].log["2026-08-02"], 3)
         XCTAssertEqual(decoded.summaryMinutes, 20 * 60)
         XCTAssertEqual(decoded.appearance, .dark)

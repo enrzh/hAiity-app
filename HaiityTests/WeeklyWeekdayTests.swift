@@ -1,86 +1,152 @@
 import XCTest
 @testable import Haiity
 
-/// „Einmal pro Woche, am Dienstag um 19:00" — Modell, Erfüllungsregel und
-/// die Wahl des Benachrichtigungs-Triggers.
+/// „Einmal pro Woche, am Dienstag um 19:00" — die Alt-Form, die die
+/// Migration erhalten muss: Modell, Erfüllungsregel und die Wahl des
+/// Benachrichtigungs-Triggers.
 final class WeeklyWeekdayGoalTests: XCTestCase {
 
-    // MARK: – Normalisierung
+    // MARK: – Normalisierung des Alt-Ziels
 
     func testFixedWeekdayForcesTimesToOne() {
         // „3× pro Woche, jeden Dienstag" ist keine sinnvolle Kombination —
         // der feste Tag gewinnt und zieht die Zahl auf 1.
-        let goal = Goal(cadence: .weekly(times: 3), weekday: 3)
-        XCTAssertEqual(goal.cadence, Goal.Cadence.weekly(times: 1))
+        let goal = LegacyGoal(cadence: .weekly(times: 3), weekday: 3)
+        XCTAssertEqual(goal.cadence, LegacyGoal.Cadence.weekly(times: 1))
         XCTAssertEqual(goal.weekday, 3)
-        XCTAssertEqual(goal.weeklyTimes, 1)
     }
 
     func testWeeklyWithoutWeekdayKeepsTimes() {
-        let goal = Goal.weekly(times: 4)
-        XCTAssertEqual(goal.cadence, Goal.Cadence.weekly(times: 4))
+        let goal = LegacyGoal.weekly(times: 4)
+        XCTAssertEqual(goal.cadence, LegacyGoal.Cadence.weekly(times: 4))
         XCTAssertNil(goal.weekday)
     }
 
     func testWeekdayOutOfRangeIsDropped() {
-        XCTAssertNil(Goal(cadence: .weekly(times: 2), weekday: 0).weekday)
-        XCTAssertNil(Goal(cadence: .weekly(times: 2), weekday: 8).weekday)
-        XCTAssertNil(Goal(cadence: .weekly(times: 2), weekday: -3).weekday)
+        XCTAssertNil(LegacyGoal(cadence: .weekly(times: 2), weekday: 0).weekday)
+        XCTAssertNil(LegacyGoal(cadence: .weekly(times: 2), weekday: 8).weekday)
+        XCTAssertNil(LegacyGoal(cadence: .weekly(times: 2), weekday: -3).weekday)
         // Und weil der Tag wegfällt, bleibt times unangetastet.
-        XCTAssertEqual(Goal(cadence: .weekly(times: 2), weekday: 99).cadence,
-                       Goal.Cadence.weekly(times: 2))
+        XCTAssertEqual(LegacyGoal(cadence: .weekly(times: 2), weekday: 99).cadence,
+                       LegacyGoal.Cadence.weekly(times: 2))
     }
 
     func testWeekdayIsMeaninglessForDailyCadence() {
-        let goal = Goal(cadence: .daily, restDays: [1], weekday: 4)
+        let goal = LegacyGoal(cadence: .daily, restDays: [1], weekday: 4)
         XCTAssertNil(goal.weekday)
-        XCTAssertNil(goal.weeklyTimes)
     }
 
-    func testFactoryTakesWeekday() {
-        let goal = Goal.weekly(times: 7, weekday: 6)
-        XCTAssertEqual(goal.weekday, 6)
-        XCTAssertEqual(goal.weeklyTimes, 1)
+    // MARK: – Migration in die Wiederholungsregel
+
+    /// Der feste Tag wird zur VERABREDUNG: flexibles Ziel 1× pro Woche, der
+    /// Dienstag steht daneben (Erinnerung, Beschriftung) — genau die alte
+    /// Bedeutung.
+    func testFixedWeekdayMigratesToFlexibleWeekWithAnAgreedDay() {
+        let r = Recurrence.from(legacy: .weekly(times: 1, weekday: 3))
+        XCTAssertEqual(r.frequency, .weekly)
+        XCTAssertEqual(r.interval, 1)
+        XCTAssertEqual(r.timesPerPeriod, 1)
+        XCTAssertEqual(r.weekdays, [3])
+        XCTAssertNil(r.start)
+        XCTAssertEqual(r.end, .never)
+    }
+
+    func testTimesPerWeekMigratesToFlexibleWeekWithoutDays() {
+        let r = Recurrence.from(legacy: .weekly(times: 3))
+        XCTAssertEqual(r.timesPerPeriod, 3)
+        XCTAssertTrue(r.weekdays.isEmpty)
+    }
+
+    func testRestDaysMigrateToTheComplementaryWeekdaySet() {
+        let r = Recurrence.from(legacy: LegacyGoal(restDays: [1, 7]))   // Sa/So frei
+        XCTAssertEqual(r.frequency, .weekly)
+        XCTAssertEqual(r.weekdays, [2, 3, 4, 5, 6])
+        XCTAssertNil(r.timesPerPeriod)      // feste Termine, kein Zählziel
+    }
+
+    /// Alle sieben Tage Ruhetag hieß: nie ist etwas fällig. Als Regel ist
+    /// das die LEERE Tagesmenge — nicht „jeden Tag".
+    func testAllRestDaysMigrateToNoOccurrencesAtAll() {
+        let r = Recurrence.from(legacy: LegacyGoal(restDays: [1, 2, 3, 4, 5, 6, 7]))
+        XCTAssertTrue(r.weekdays.isEmpty)
+        XCTAssertFalse(r.isScheduled(on: "2026-08-05"))
+    }
+
+    func testPlainDailyMigratesToDaily() {
+        XCTAssertEqual(Recurrence.from(legacy: .daily), .daily)
+        XCTAssertEqual(Recurrence.from(legacy: LegacyGoal(target: 5)), Recurrence(target: 5))
+    }
+
+    /// Ruhetage NEBEN einer Wochen-Kadenz haben nie etwas bewirkt
+    /// (`isRestDay` galt nur für `.daily`) — sie fallen weg, ohne dass sich
+    /// eine Antwort ändert.
+    func testRestDaysOnWeeklyCadenceAreDroppedBecauseTheyNeverDidAnything() {
+        let r = Recurrence.from(legacy: LegacyGoal(cadence: .weekly(times: 2), restDays: [1, 7]))
+        XCTAssertEqual(r.timesPerPeriod, 2)
+        XCTAssertTrue(r.weekdays.isEmpty)
     }
 
     // MARK: – Codable (tolerant, ohne Versionssprung)
 
     func testRoundTripKeepsWeekday() throws {
-        let goal = Goal(cadence: .weekly(times: 1), target: 2, weekday: 5)
-        let raw = try JSONEncoder().encode(goal)
-        XCTAssertEqual(try JSONDecoder().decode(Goal.self, from: raw), goal)
+        let r = Recurrence.from(legacy: LegacyGoal(cadence: .weekly(times: 1), target: 2, weekday: 5))
+        let raw = try JSONEncoder().encode(r)
+        XCTAssertEqual(try JSONDecoder().decode(Recurrence.self, from: raw), r)
     }
 
     func testExistingWeeklyFileDecodesUnchanged() throws {
-        // v2-Datei OHNE weekday: exakt wie vorher, times bleibt 3.
-        let goal = try JSONDecoder().decode(
-            Goal.self, from: Data(#"{"cadence":"weekly","times":3}"#.utf8))
-        XCTAssertEqual(goal.cadence, Goal.Cadence.weekly(times: 3))
-        XCTAssertNil(goal.weekday)
+        // Ausgelieferte Datei OHNE weekday: exakt wie vorher, times bleibt 3.
+        let r = try JSONDecoder().decode(
+            Recurrence.self, from: Data(#"{"cadence":"weekly","times":3}"#.utf8))
+        XCTAssertEqual(r.timesPerPeriod, 3)
+        XCTAssertTrue(r.weekdays.isEmpty)
     }
 
     func testDecodeNormalizesTimesWhenWeekdayIsPresent() throws {
-        let goal = try JSONDecoder().decode(
-            Goal.self, from: Data(#"{"cadence":"weekly","times":5,"weekday":3}"#.utf8))
-        XCTAssertEqual(goal.cadence, Goal.Cadence.weekly(times: 1))
-        XCTAssertEqual(goal.weekday, 3)
+        let r = try JSONDecoder().decode(
+            Recurrence.self, from: Data(#"{"cadence":"weekly","times":5,"weekday":3}"#.utf8))
+        XCTAssertEqual(r.timesPerPeriod, 1)
+        XCTAssertEqual(r.weekdays, [3])
     }
 
     func testDecodeDropsGarbageWeekday() throws {
-        let goal = try JSONDecoder().decode(
-            Goal.self, from: Data(#"{"cadence":"weekly","times":2,"weekday":13}"#.utf8))
-        XCTAssertNil(goal.weekday)
-        XCTAssertEqual(goal.cadence, Goal.Cadence.weekly(times: 2))
+        let r = try JSONDecoder().decode(
+            Recurrence.self, from: Data(#"{"cadence":"weekly","times":2,"weekday":13}"#.utf8))
+        XCTAssertTrue(r.weekdays.isEmpty)
+        XCTAssertEqual(r.timesPerPeriod, 2)
+    }
+
+    /// Der Alt-Spiegel: was sich im alten Format ausdrücken lässt, steht auch
+    /// dort — sonst liest ein ausgelieferter Build seine eigene Datei nicht
+    /// mehr richtig.
+    func testMirroredShapesKeepTheOldKeysInJSON() throws {
+        func json(_ r: Recurrence) throws -> [String: Any] {
+            let raw = try JSONEncoder().encode(r)
+            return try XCTUnwrap(try JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        }
+        let weekly = try json(.times(1, per: .weekly, weekdays: [7]))
+        XCTAssertEqual(weekly["cadence"] as? String, "weekly")
+        XCTAssertEqual(weekly["times"] as? Int, 1)
+        XCTAssertEqual(weekly["weekday"] as? Int, 7)
+
+        let workdays = try json(.weekdays([2, 3, 4, 5, 6]))
+        XCTAssertEqual(workdays["cadence"] as? String, "daily")
+        XCTAssertEqual(workdays["restDays"] as? [Int], [1, 7])
+
+        // Was sich NICHT spiegeln lässt, spiegelt auch nichts vor.
+        let monthly = try json(.monthly(.lastDayOfMonth))
+        XCTAssertNil(monthly["cadence"])
+        XCTAssertEqual(monthly["freq"] as? String, "monthly")
     }
 
     func testDailyGoalNeverWritesWeekday() throws {
-        let raw = try JSONEncoder().encode(Goal(cadence: .daily, restDays: [1]))
-        XCTAssertFalse((String(data: raw, encoding: .utf8) ?? "").contains("weekday"))
+        let raw = try JSONEncoder().encode(Recurrence.from(legacy: LegacyGoal(restDays: [1])))
+        XCTAssertFalse((String(data: raw, encoding: .utf8) ?? "").contains("\"weekday\""))
     }
 
     func testWeeklyWithoutWeekdayNeverWritesTheKey() throws {
-        let raw = try JSONEncoder().encode(Goal.weekly(times: 2))
-        XCTAssertFalse((String(data: raw, encoding: .utf8) ?? "").contains("weekday"))
+        let raw = try JSONEncoder().encode(Recurrence.times(2, per: .weekly))
+        XCTAssertFalse((String(data: raw, encoding: .utf8) ?? "").contains("\"weekday\""))
     }
 
     func testGoalWithWeekdaySurvivesTheHabitFile() throws {
@@ -88,8 +154,8 @@ final class WeeklyWeekdayGoalTests: XCTestCase {
             .appendingPathComponent("haiity-weekday-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         let store = HabitStore(url: url)
-        store.add(Habit(name: "Waschen", goal: Goal.weekly(times: 1, weekday: 7)))
-        XCTAssertEqual(HabitStore(url: url).habits[0].goal.weekday, 7)
+        store.add(Habit(name: "Waschen", legacy: LegacyGoal.weekly(times: 1, weekday: 7)))
+        XCTAssertEqual(HabitStore(url: url).habits[0].recurrence.weekdays, [7])
     }
 }
 
@@ -110,7 +176,7 @@ final class WeeklyWeekdaySatisfactionTests: XCTestCase {
     /// KW 2026-08-03 (Mo) … 2026-08-09 (So). 2026-08-04 ist ein Dienstag.
     private func habit(_ days: [String], weekday: Int?) -> Habit {
         var h = Habit(name: "Waschen",
-                      goal: Goal(cadence: .weekly(times: 1), weekday: weekday))
+                      legacy: LegacyGoal(cadence: .weekly(times: 1), weekday: weekday))
         h.createdAt = "2026-07-01"
         for d in days { h.log[d] = 1 }
         return h
@@ -118,52 +184,61 @@ final class WeeklyWeekdaySatisfactionTests: XCTestCase {
 
     func testCheckInOnTheChosenWeekdaySatisfiesTheWeek() {
         let h = habit(["2026-08-04"], weekday: 3) // Dienstag
-        XCTAssertTrue(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                               today: "2026-08-09", calendar: calendar))
+        XCTAssertTrue(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                 today: "2026-08-09", calendar: calendar))
     }
 
     func testCheckInOnAnotherDayStillSatisfiesTheSameWeek() {
         // DIE Regel: kein Malus für zu früh oder zu spät. Der Dienstag war
         // verabredet, abgehakt wurde am Donnerstag — die Woche steht.
         let h = habit(["2026-08-06"], weekday: 3)
-        XCTAssertTrue(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                               today: "2026-08-09", calendar: calendar))
-        XCTAssertTrue(GoalEngine.weekSatisfied(habit: h, day: "2026-08-06",
-                                               today: "2026-08-09", calendar: calendar))
+        XCTAssertTrue(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                 today: "2026-08-09", calendar: calendar))
+        XCTAssertTrue(GoalEngine.periodSatisfied(habit: h, day: "2026-08-06",
+                                                 today: "2026-08-09", calendar: calendar))
+    }
+
+    /// Und deshalb ist bei einem flexiblen Ziel JEDER Tag der Woche ein
+    /// möglicher Termin — nicht nur der verabredete.
+    func testEveryDayOfTheWeekCountsAsScheduledForFlexibleGoals() {
+        let h = habit([], weekday: 3)
+        for day in ["2026-08-03", "2026-08-04", "2026-08-08", "2026-08-09"] {
+            XCTAssertTrue(GoalEngine.isScheduled(habit: h, day: day, calendar: calendar), day)
+        }
     }
 
     func testEmptyWeekIsNotSatisfied() {
         let h = habit([], weekday: 3)
-        XCTAssertFalse(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                                today: "2026-08-09", calendar: calendar))
+        XCTAssertFalse(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                  today: "2026-08-09", calendar: calendar))
     }
 
     func testCheckInInAnotherWeekDoesNotSatisfyThisOne() {
         let h = habit(["2026-07-28"], weekday: 3) // Vorwoche
-        XCTAssertFalse(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                                today: "2026-08-09", calendar: calendar))
+        XCTAssertFalse(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                  today: "2026-08-09", calendar: calendar))
     }
 
     func testQuantityTargetStillHasToBeMet() {
         // Ein Mengenziel bleibt ein Mengenziel: ein einzelner Zähler
         // erfüllt die Woche nicht, wenn das Tagesziel 3 ist.
         var h = habit([], weekday: 3)
-        h.goal = Goal(cadence: .weekly(times: 1), target: 3, weekday: 3)
+        h.recurrence = .from(legacy: LegacyGoal(cadence: .weekly(times: 1), target: 3, weekday: 3))
         h.log["2026-08-04"] = 2
-        XCTAssertFalse(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                                today: "2026-08-09", calendar: calendar))
+        XCTAssertFalse(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                  today: "2026-08-09", calendar: calendar))
         h.log["2026-08-04"] = 3
-        XCTAssertTrue(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                               today: "2026-08-09", calendar: calendar))
+        XCTAssertTrue(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                 today: "2026-08-09", calendar: calendar))
     }
 
-    func testWeekSatisfiedFallsBackToTheDayForDailyGoals() {
+    func testPeriodSatisfiedFallsBackToTheDayForFixedGoals() {
         var h = Habit(name: "Lesen")
         h.log["2026-08-04"] = 1
-        XCTAssertTrue(GoalEngine.weekSatisfied(habit: h, day: "2026-08-04",
-                                               today: "2026-08-09", calendar: calendar))
-        XCTAssertFalse(GoalEngine.weekSatisfied(habit: h, day: "2026-08-05",
-                                                today: "2026-08-09", calendar: calendar))
+        XCTAssertTrue(GoalEngine.periodSatisfied(habit: h, day: "2026-08-04",
+                                                 today: "2026-08-09", calendar: calendar))
+        XCTAssertFalse(GoalEngine.periodSatisfied(habit: h, day: "2026-08-05",
+                                                  today: "2026-08-09", calendar: calendar))
     }
 
     // MARK: – Serien über Wochen
@@ -208,8 +283,26 @@ final class WeeklyWeekdaySatisfactionTests: XCTestCase {
 /// Auswahl des Benachrichtigungs-Triggers — als reine Datenrechnung
 /// prüfbar, ohne UNUserNotificationCenter.
 final class ReminderPlanTests: XCTestCase {
+    private var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.firstWeekday = 2
+        c.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return c
+    }()
+
+    /// So, 09.08.2026, 12:00 Ortszeit.
+    private var now: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 8, day: 9, hour: 12))!
+    }
+
+    private func plans(_ recurrence: Recurrence, minutes: Int = 9 * 60) -> [ReminderPlan] {
+        Reminders.plans(for: Habit(name: "Test", reminderMinutes: minutes, recurrence: recurrence),
+                        now: now, calendar: calendar)
+    }
+
     func testNoReminderNoPlan() {
         XCTAssertNil(Reminders.plan(for: Habit(name: "Lesen")))
+        XCTAssertTrue(Reminders.plans(for: Habit(name: "Lesen")).isEmpty)
     }
 
     func testDailyHabitGetsATriggerWithoutWeekday() {
@@ -224,7 +317,7 @@ final class ReminderPlanTests: XCTestCase {
 
     func testWeeklyWithFixedWeekdayGetsTheWeeklyTrigger() {
         let h = Habit(name: "Waschen", reminderMinutes: 9 * 60 + 5,
-                      goal: Goal.weekly(times: 1, weekday: 7))
+                      legacy: LegacyGoal.weekly(times: 1, weekday: 7))
         let plan = Reminders.plan(for: h)
         XCTAssertEqual(plan?.dateMatching.weekday, 7)
         XCTAssertEqual(plan?.dateMatching.hour, 9)
@@ -236,8 +329,102 @@ final class ReminderPlanTests: XCTestCase {
     func testWeeklyWithoutFixedWeekdayStaysDaily() {
         // „3× pro Woche" soll an allen Tagen erinnern — welche drei es
         // werden, entscheidet der Nutzer.
-        let h = Habit(name: "Sport", reminderMinutes: 8 * 60, goal: .weekly(times: 3))
+        let h = Habit(name: "Sport", reminderMinutes: 8 * 60,
+                      legacy: LegacyGoal.weekly(times: 3))
         XCTAssertEqual(Reminders.plan(for: h)?.isWeekly, false)
+        XCTAssertEqual(Reminders.plans(for: h).count, 1)
+    }
+
+    /// EIN Trigger je Wochentag: `UNCalendarNotificationTrigger` gleicht nur
+    /// einen `weekday` ab.
+    func testWeekdaySetGetsOneTriggerPerWeekday() {
+        let list = plans(.weekdays([2, 4, 6]))
+        XCTAssertEqual(list.count, 3)
+        XCTAssertEqual(list.compactMap { $0.dateMatching.weekday }, [2, 4, 6])
+        XCTAssertTrue(list.allSatisfy { $0.repeats && $0.dateMatching.hour == 9 })
+        // Eigene Kennungen, aber alle unter dem gemeinsamen Präfix, das
+        // `reschedule` aufräumt.
+        XCTAssertEqual(Set(list.map(\.identifier)).count, 3)
+        XCTAssertTrue(list.allSatisfy { $0.identifier.hasPrefix("habit-") })
+    }
+
+    func testMonthlyOnAFixedDayRepeatsMonthly() {
+        let plan = plans(.monthly(.dayOfMonth(15))).first
+        XCTAssertEqual(plan?.dateMatching.day, 15)
+        XCTAssertNil(plan?.dateMatching.month)
+        XCTAssertEqual(plan?.repeats, true)
+        XCTAssertEqual(plan?.isMonthly, true)
+    }
+
+    func testYearlyOnAFixedDayRepeatsYearly() {
+        let plan = plans(.yearly(month: 3, .dayOfMonth(15))).first
+        XCTAssertEqual(plan?.dateMatching.month, 3)
+        XCTAssertEqual(plan?.dateMatching.day, 15)
+        XCTAssertEqual(plan?.repeats, true)
+    }
+
+    /// „Am letzten Freitag" ist als Datumsmuster nicht ausdrückbar — dann
+    /// wird der NÄCHSTE Termin einmalig gestellt und beim nächsten
+    /// `reschedule` neu gesetzt.
+    func testLastFridayFallsBackToASingleShotAtTheNextOccurrence() {
+        let plan = plans(.monthly(.nthWeekday(nth: Recurrence.DayRule.last, weekday: 6))).first
+        XCTAssertEqual(plan?.repeats, false)
+        XCTAssertEqual(plan?.isOneShot, true)
+        // Letzter Freitag im August 2026: der 28.
+        XCTAssertEqual(plan?.dateMatching.year, 2026)
+        XCTAssertEqual(plan?.dateMatching.month, 8)
+        XCTAssertEqual(plan?.dateMatching.day, 28)
+        XCTAssertEqual(plan?.dateMatching.hour, 9)
+    }
+
+    func testNthWeekdayFallsBackToASingleShot() {
+        // 3. Dienstag im August 2026 = der 18. (Dienstage: 4, 11, 18, 25).
+        let plan = plans(.monthly(.nthWeekday(nth: 3, weekday: 3))).first
+        XCTAssertEqual(plan?.repeats, false)
+        XCTAssertEqual(plan?.dateMatching.day, 18)
+    }
+
+    /// Ein Intervall hat eine Phase, ein Datumsmuster nicht — „alle 2
+    /// Wochen" kann kein Kalender-Trigger.
+    func testIntervalGreaterThanOneFallsBackToASingleShot() {
+        let plan = plans(.weekdays([2], interval: 2, start: "2026-08-03")).first
+        XCTAssertEqual(plan?.repeats, false)
+        XCTAssertEqual(plan?.dateMatching.day, 17)   // Mo 03.08. + 2 Wochen
+        XCTAssertEqual(plan?.dateMatching.month, 8)
+    }
+
+    /// Heute ist Termin, die Uhrzeit aber schon vorbei -> der Wecker steht
+    /// auf dem nächsten Termin, nicht auf einer vergangenen Sekunde.
+    func testSingleShotSkipsTodayWhenTheTimeHasPassed() {
+        let recurrence = Recurrence.weekdays([1], interval: 2, start: "2026-08-09") // So
+        let past = plans(recurrence, minutes: 8 * 60).first          // 08:00, jetzt ist 12:00
+        XCTAssertEqual(past?.dateMatching.day, 23)                    // zwei Wochen später
+        let upcoming = plans(recurrence, minutes: 20 * 60).first      // 20:00 kommt noch
+        XCTAssertEqual(upcoming?.dateMatching.day, 9)
+    }
+
+    /// Vor dem Start klingelt nichts: ein Muster kennt keinen Anfang, also
+    /// wird bis dahin der erste Termin einzeln gestellt.
+    func testFutureStartDoesNotRingBeforeItBegins() {
+        let plan = plans(.weekdays([2], start: "2026-09-07")).first
+        XCTAssertEqual(plan?.repeats, false)
+        XCTAssertEqual(plan?.dateMatching.month, 9)
+        XCTAssertEqual(plan?.dateMatching.day, 7)
+    }
+
+    func testFinishedRecurrenceDoesNotRingAnymore() {
+        XCTAssertTrue(plans(Recurrence(frequency: .daily, start: "2026-07-01",
+                                       end: .on("2026-07-31"))).isEmpty)
+    }
+
+    /// Mit Ende wird nicht ewig wiederholt — sonst klingelt der Wecker über
+    /// das Ende hinaus weiter.
+    func testRecurrenceWithAnEndUsesSingleShots() {
+        let plan = plans(Recurrence(frequency: .daily, start: "2026-08-01",
+                                    end: .after(30))).first
+        XCTAssertEqual(plan?.repeats, false)
+        // 09:00 ist heute (12:00) schon vorbei -> morgen.
+        XCTAssertEqual(plan?.dateMatching.day, 10)
     }
 
     func testArchivedHabitsDoNotRing() {

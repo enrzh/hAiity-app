@@ -36,7 +36,7 @@ final class CheckOffLogicTests: XCTestCase {
     }
 
     func testQuantityIncrementsEvenPastTarget() {
-        let h = Habit(name: "Wasser", goal: Goal(target: 2))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 2))
         store.add(h)
         store.increment(h.id, day: "2026-08-09")
         store.increment(h.id, day: "2026-08-09") // Ziel erreicht (2/2)

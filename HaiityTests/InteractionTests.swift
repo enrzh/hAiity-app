@@ -20,7 +20,7 @@ final class UndoExactnessTests: XCTestCase {
     // MARK: – setValue: der exakte Gegenspieler
 
     func testSetValueWritesExactCount() {
-        let h = Habit(name: "Wasser", goal: Goal(target: 5))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 5))
         store.add(h)
         store.setValue(h.id, day: "2026-08-09", value: 4)
         XCTAssertEqual(store.habits[0].log["2026-08-09"], 4)
@@ -91,7 +91,7 @@ final class UndoExactnessTests: XCTestCase {
     func testUndoRestoresQuantityToPreviousCountAboveOne() {
         // DER Fall, an dem ein blindes Umschalten scheitern würde: 3 -> 4
         // muss wieder auf 3 landen, nicht auf 0 und nicht auf 1.
-        let h = Habit(name: "Wasser", goal: Goal(target: 6))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 6))
         store.add(h)
         for _ in 0..<3 { store.increment(h.id, day: "2026-08-09") }
         let before = store.value(h.id, day: "2026-08-09")
@@ -105,7 +105,7 @@ final class UndoExactnessTests: XCTestCase {
     }
 
     func testUndoOfFirstIncrementRemovesTheDay() {
-        let h = Habit(name: "Wasser", goal: Goal(target: 3))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
         store.add(h)
         let before = store.value(h.id, day: "2026-08-09")
         store.increment(h.id, day: "2026-08-09")
@@ -116,7 +116,7 @@ final class UndoExactnessTests: XCTestCase {
     func testUndoOfClearRestoresFullQuantity() {
         // „Rückgängig" auf ein Zurücksetzen: der ganze Zählstand kommt
         // zurück, nicht nur eine 1.
-        let h = Habit(name: "Wasser", goal: Goal(target: 8))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 8))
         store.add(h)
         store.setValue(h.id, day: "2026-08-09", value: 7)
         let before = store.value(h.id, day: "2026-08-09")

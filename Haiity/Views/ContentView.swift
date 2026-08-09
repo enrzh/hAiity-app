@@ -331,7 +331,7 @@ struct ContentView: View {
         let after = store.value(habit.id, day: day) ?? 0
         let message = CheckInUndo.message(habitName: habit.name,
                                           value: after,
-                                          target: habit.goal.target)
+                                          target: habit.recurrence.target)
         withToastAnimation {
             undo.present(habitId: habit.id, day: day, previousValue: before, message: message)
         }
@@ -351,9 +351,9 @@ struct ContentView: View {
     /// zurückzunehmen hätte) — zum Abhaken gibt es „Rückgängig".
     private func markDone(_ habit: Habit) {
         let today = DayKey.today()
-        if habit.goal.target == nil, habit.isDone(today) { return }
+        if habit.recurrence.target == nil, habit.isDone(today) { return }
         mutate(habit, day: today) {
-            if habit.goal.target != nil { store.increment(habit.id) }
+            if habit.recurrence.target != nil { store.increment(habit.id) }
             else { store.toggle(habit.id, day: today) }
         }
     }
@@ -797,7 +797,7 @@ struct ContentView: View {
     /// nicht fernsteuern; so ist der Zustand trotzdem reproduzierbar prüfbar.
     @MainActor
     private func dumpWidgets() {
-        var quantity = Habit(name: "Wasser", emoji: "💧", goal: Goal(target: 3))
+        var quantity = Habit(name: "Wasser", emoji: "💧", recurrence: Recurrence(target: 3))
         var long = Habit(name: "Lesen", emoji: "📚")
         for i in 0..<365 {
             guard let k = DayKey.shifted(DayKey.today(), by: -i) else { continue }

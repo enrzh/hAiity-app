@@ -95,7 +95,7 @@ struct HaiityWidgetView: View {
         let today = DayKey.today()
         let done = GoalEngine.dayCounts(habit: habit, day: today)
         return Button(intent: CheckOffHabitIntent(habit: habit)) {
-            if let target = habit.goal.target {
+            if let target = habit.recurrence.target {
                 Text("\(habit.log[today] ?? 0)/\(target)")
                     .font(.caption2.bold().monospacedDigit())
                     .padding(.horizontal, 7)
@@ -109,7 +109,7 @@ struct HaiityWidgetView: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(habit.goal.target == nil && done)
+        .disabled(habit.recurrence.target == nil && done)
         .accessibilityLabel(String(localized: "Habit abhaken"))
     }
 

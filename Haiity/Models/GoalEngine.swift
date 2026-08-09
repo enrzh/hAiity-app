@@ -1,16 +1,23 @@
 import Foundation
 
-/// Reine Ziel-Logik: Serien, Abschlussquoten und Zellintensität für alle
-/// Zielarten (täglich, Ruhetage, n×/Woche, Mengenziele). Keine
-/// Store-Abhängigkeit; jede Funktion nimmt wie DayKey einen Calendar —
-/// Wochen respektieren damit `firstWeekday` des Nutzers.
+/// Reine Ziel-Logik: Serien, Abschlussquoten und Zellintensität — jetzt über
+/// TERMINE statt über „jeder Tag zählt". Keine Store-Abhängigkeit; jede
+/// Funktion nimmt wie DayKey einen Calendar, Wochen respektieren also
+/// `firstWeekday` des Nutzers.
+///
+/// **Die eine Regel, aus der alles folgt:** ein Tag ohne Termin ist
+/// DURCHSICHTIG. Er bricht keine Serie und zählt nicht in den Nenner. Wer an
+/// so einem Tag trotzdem abhakt, bekommt ihn geschenkt (er zählt in der
+/// Serie mit) — Mehrleistung darf nie bestraft werden. Das ist exakt die
+/// alte Ruhetag-Regel, nur verallgemeinert: Ruhetage sind jetzt schlicht die
+/// Tage, an denen die Wochentagsmenge keinen Termin vorsieht.
 enum GoalEngine {
 
     // MARK: – Tages-Semantik
 
     /// Zählt der Tag? Checkbox: Wert >= 1. Mengen-Habit: Wert >= target.
-    /// Ruhetage werden hier bewusst NICHT behandelt — sie sind in Serien-
-    /// und Quoten-Logik "frei" (brechen nichts, zählen nichts).
+    /// Termine werden hier bewusst NICHT geprüft — ein Check-in zählt auch
+    /// an einem terminfreien Tag (siehe oben).
     static func dayCounts(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {
         let value = habit.log[day] ?? 0
         // `components` ist ein reiner String-Check (kein Kalender) — billig
@@ -19,63 +26,61 @@ enum GoalEngine {
         // prüft `Habit.validDays` an allen Stellen, die über Log-Schlüssel
         // iterieren.
         guard value >= 1, DayKey.components(day) != nil else { return false }
-        if let target = habit.goal.target { return value >= target }
+        if let target = habit.recurrence.target { return value >= target }
         return true
     }
 
-    /// Ist die KALENDERWOCHE, in der `day` liegt, erfüllt?
-    ///
-    /// Bei täglicher Kadenz ist das schlicht der Tag selbst. Bei
-    /// Wochen-Kadenz zählt die Anzahl zählender Tage in dieser Woche gegen
-    /// `times`.
-    ///
-    /// **Fester Wochentag (`goal.weekday`):** `times` ist dann per
-    /// Normalisierung 1 — die Woche ist also erfüllt, sobald IRGENDEIN Tag
-    /// dieser Woche zählt. Der Check-in am festgelegten Tag erfüllt sie,
-    /// einer am Tag davor oder danach aber genauso. Der feste Tag ist eine
-    /// Verabredung für die Erinnerung, keine Prüfung: früh oder spät
-    /// abzuhaken darf keine Serie kosten. (Gegenentwurf wäre „nur der
-    /// Dienstag zählt" — das würde ausgerechnet die bestrafen, die die
-    /// Woche trotzdem geschafft haben.)
-    static func weekSatisfied(habit: Habit,
-                              day: String,
-                              today: String = DayKey.today(),
-                              calendar: Calendar = .current) -> Bool {
-        guard case .weekly(let times) = habit.goal.cadence else {
-            return dayCounts(habit: habit, day: day, calendar: calendar)
-        }
-        guard let date = DayKey.date(from: day, calendar: calendar),
-              let week = calendar.dateInterval(of: .weekOfYear, for: date) else { return false }
-        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
-        return (counts[week.start] ?? 0) >= times
+    /// Ist an diesem Tag ein Termin fällig?
+    static func isScheduled(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {
+        habit.recurrence.schedule(calendar: calendar).isScheduled(day)
     }
 
-    /// Ruhetag? Nur für .daily bedeutsam; Wochentage nach Calendar-Nummern
-    /// (1 = Sonntag … 7 = Samstag).
-    static func isRestDay(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {
-        guard case .daily = habit.goal.cadence,
-              !habit.goal.restDays.isEmpty,
-              let date = DayKey.date(from: day, calendar: calendar) else { return false }
-        return habit.goal.restDays.contains(calendar.component(.weekday, from: date))
+    /// Ist die PERIODE, in der `day` liegt, erfüllt?
+    ///
+    /// Bei festen Terminen ist das schlicht der Tag selbst. Bei einem
+    /// flexiblen Ziel („3× pro Woche", „5× pro Monat") zählt die Anzahl
+    /// zählender Tage in der Periode gegen `timesPerPeriod`.
+    ///
+    /// **Die Regel, die bleibt:** eine Wochentagsmenge NEBEN einem flexiblen
+    /// Ziel ist eine Verabredung, keine Prüfung. „Einmal pro Woche, gedacht
+    /// am Dienstag" ist erfüllt, sobald IRGENDEIN Tag dieser Woche zählt —
+    /// der Dienstag steuert nur die Erinnerung und die Beschriftung. Wer zu
+    /// früh oder zu spät dran ist, soll seine Serie nicht verlieren; alles
+    /// andere bestraft genau die Leute, die trotzdem drangeblieben sind.
+    static func periodSatisfied(habit: Habit,
+                                day: String,
+                                today: String = DayKey.today(),
+                                calendar: Calendar = .current) -> Bool {
+        guard let times = habit.recurrence.timesPerPeriod else {
+            return dayCounts(habit: habit, day: day, calendar: calendar)
+        }
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        guard let period = schedule.periodStart(forDay: day) else { return false }
+        let counts = periodCounts(habit: habit, schedule: schedule, today: today, calendar: calendar)
+        return (counts[period] ?? 0) >= times
     }
 
     // MARK: – Serien
 
     static func streak(habit: Habit, today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
-        switch habit.goal.cadence {
-        case .daily:
-            return dailyStreak(habit: habit, today: today, calendar: calendar)
-        case .weekly(let times):
-            return weeklyStreak(habit: habit, times: times, today: today, calendar: calendar)
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        if let times = habit.recurrence.timesPerPeriod {
+            return periodStreak(habit: habit, times: times, schedule: schedule,
+                                today: today, calendar: calendar)
         }
+        return dayStreak(habit: habit, schedule: schedule, today: today, calendar: calendar)
     }
 
-    /// Tägliche Serie: zusammenhängende zählende Tage bis heute. Ruhetage
-    /// brechen nie und zählen nie mit; ein Check-in AN einem Ruhetag zählt
-    /// trotzdem. Heute darf noch offen sein (Serie lebt bis gestern).
-    private static func dailyStreak(habit: Habit, today: String, calendar: Calendar) -> Int {
-        // Untere Grenze hält die Schleife endlich — auch wenn alle sieben
-        // Wochentage Ruhetage sind, endet der Rückwärtslauf am Anfang der
+    /// Serie über TERMINE: zusammenhängende erfüllte Termine bis heute.
+    /// Terminfreie Tage sind durchsichtig (sie brechen nichts und zählen
+    /// nichts); ein Check-in an so einem Tag zählt trotzdem. Heute darf noch
+    /// offen sein (die Serie lebt bis gestern).
+    private static func dayStreak(habit: Habit,
+                                  schedule: Recurrence.Schedule,
+                                  today: String,
+                                  calendar: Calendar) -> Int {
+        // Untere Grenze hält die Schleife endlich — auch wenn die Regel gar
+        // keine Termine mehr vorsieht, endet der Rückwärtslauf am Anfang der
         // Historie. Nur PLAUSIBLE Tage zählen als Grenze: ein importiertes
         // "1900-01-01" (oder ein createdAt aus 1900) würde sonst 46.000
         // Kalenderschritte pro Aufruf kosten.
@@ -88,76 +93,95 @@ enum GoalEngine {
         while day >= lower {
             if dayCounts(habit: habit, day: day, calendar: calendar) {
                 n += 1
-            } else if isRestDay(habit: habit, day: day, calendar: calendar) {
-                // frei — weder Bruch noch Zählung
+            } else if !schedule.isScheduled(day) {
+                // kein Termin — weder Bruch noch Zählung
             } else if day == today {
                 // heute noch offen — Serie bis gestern zählt weiter
             } else {
                 break
             }
-            guard let p = DayKey.shifted(day, by: -1, calendar: calendar) else { break }
-            day = p
+            guard let previous = DayKey.shifted(day, by: -1, calendar: calendar) else { break }
+            day = previous
         }
         return n
     }
 
-    /// Wochen-Serie: aufeinanderfolgende Kalenderwochen (nach `firstWeekday`
-    /// des Kalenders) mit mindestens `times` zählenden Tagen. Die laufende
-    /// Woche zählt mit, sobald sie erfüllt ist; solange sie noch erreichbar
-    /// ist, bricht sie die Serie nicht (kein Mitte-der-Woche-Malus). Erst
-    /// wenn das Ziel in dieser Woche nicht mehr erreichbar ist, ist die
-    /// Serie 0.
-    private static func weeklyStreak(habit: Habit, times: Int, today: String, calendar: Calendar) -> Int {
+    /// Serie über PERIODEN (flexibles Ziel): aufeinanderfolgende AKTIVE
+    /// Perioden mit mindestens `times` zählenden Tagen. Die laufende Periode
+    /// zählt mit, sobald sie erfüllt ist; solange sie noch erreichbar ist,
+    /// bricht sie die Serie nicht (kein Mitte-der-Woche-Malus). Erst wenn das
+    /// Ziel dort nicht mehr erreichbar ist, ist die Serie 0. Perioden, die
+    /// das Intervall auslässt („alle 2 Wochen"), sind durchsichtig.
+    private static func periodStreak(habit: Habit,
+                                     times: Int,
+                                     schedule: Recurrence.Schedule,
+                                     today: String,
+                                     calendar: Calendar) -> Int {
         guard let todayDate = DayKey.date(from: today, calendar: calendar),
-              let currentWeek = calendar.dateInterval(of: .weekOfYear, for: todayDate) else { return 0 }
-        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
+              let current = schedule.periodStart(for: todayDate) else { return 0 }
+        let counts = periodCounts(habit: habit, schedule: schedule, today: today, calendar: calendar)
         var streak = 0
-        let currentCount = counts[currentWeek.start] ?? 0
-        if currentCount >= times {
-            streak += 1
-        } else {
-            // Noch erreichbar? Erfüllte Tage + verbleibende offene Tage
-            // (heute eingeschlossen) müssen das Ziel noch schaffen können.
-            var openDays = 0
-            var dayKey = today
-            while let date = DayKey.date(from: dayKey, calendar: calendar), date < currentWeek.end {
-                if !dayCounts(habit: habit, day: dayKey, calendar: calendar) { openDays += 1 }
-                guard let next = DayKey.shifted(dayKey, by: 1, calendar: calendar) else { break }
-                dayKey = next
+        if schedule.isActivePeriod(current) {
+            if (counts[current] ?? 0) >= times {
+                streak += 1
+            } else if (counts[current] ?? 0) + openDays(habit: habit, schedule: schedule,
+                                                        from: today, in: current,
+                                                        calendar: calendar) < times {
+                return 0   // in dieser Periode nicht mehr zu schaffen
             }
-            if currentCount + openDays < times { return 0 }
         }
-        // Rückwärts über abgeschlossene Vorwochen.
-        var cursor = currentWeek.start
-        while let prev = calendar.date(byAdding: .weekOfYear, value: -1, to: cursor),
-              let prevStart = calendar.dateInterval(of: .weekOfYear, for: prev)?.start,
-              (counts[prevStart] ?? 0) >= times {
+        var cursor = current
+        while let previous = schedule.previousActivePeriod(before: cursor),
+              (counts[previous] ?? 0) >= times {
             streak += 1
-            cursor = prevStart
+            cursor = previous
         }
         return streak
     }
 
-    /// Längste Serie der GESAMTEN Historie — mit derselben Ziel-Semantik wie
-    /// `streak`. Ein Mengen-Habit zählt nur Tage ab `target`, Ruhetage
-    /// überbrücken (sie brechen nichts und zählen nichts), und bei
-    /// Wochen-Kadenz sind es aufeinanderfolgende erfüllte WOCHEN — dieselbe
-    /// Bucketierung wie in `streak`. Ohne das wäre "Best" eine andere
-    /// Einheit als die Serie darüber.
-    static func bestStreak(habit: Habit, today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
-        switch habit.goal.cadence {
-        case .daily:
-            return dailyBestStreak(habit: habit, today: today, calendar: calendar)
-        case .weekly(let times):
-            return weeklyBestStreak(habit: habit, times: times, today: today, calendar: calendar)
+    /// Noch offene (nicht zählende) Tage von `from` bis zum Ende der Periode
+    /// — das, was in dieser Periode überhaupt noch erreichbar ist.
+    private static func openDays(habit: Habit,
+                                 schedule: Recurrence.Schedule,
+                                 from day: String,
+                                 in period: Date,
+                                 calendar: Calendar) -> Int {
+        var open = 0
+        var cursor = day
+        // Obergrenze: die längste Periode ist ein Jahr.
+        for _ in 0..<366 {
+            guard let date = DayKey.date(from: cursor, calendar: calendar),
+                  schedule.periodStart(for: date) == period else { break }
+            if !dayCounts(habit: habit, day: cursor, calendar: calendar) { open += 1 }
+            guard let next = DayKey.shifted(cursor, by: 1, calendar: calendar) else { break }
+            cursor = next
         }
+        return open
+    }
+
+    /// Längste Serie der GESAMTEN Historie — mit derselben Semantik wie
+    /// `streak`. Ein Mengen-Habit zählt nur Tage ab `target`, terminfreie
+    /// Tage überbrücken, und bei einem flexiblen Ziel sind es
+    /// aufeinanderfolgende erfüllte PERIODEN — dieselbe Bucketierung wie in
+    /// `streak`. Ohne das wäre „Best" eine andere Einheit als die Serie
+    /// darüber.
+    static func bestStreak(habit: Habit, today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        if let times = habit.recurrence.timesPerPeriod {
+            return periodBestStreak(habit: habit, times: times, schedule: schedule,
+                                    today: today, calendar: calendar)
+        }
+        return dayBestStreak(habit: habit, schedule: schedule, today: today, calendar: calendar)
     }
 
     /// Vorwärtslauf über die plausible Historie. Grenzen sind der älteste und
     /// der jüngste plausible Log-Tag: davor und danach kann kein Lauf liegen,
     /// und ein Habit mit `createdAt` aus 1900 kostet so trotzdem nur so viele
     /// Schritte, wie er echte Daten hat.
-    private static func dailyBestStreak(habit: Habit, today: String, calendar: Calendar) -> Int {
+    private static func dayBestStreak(habit: Habit,
+                                      schedule: Recurrence.Schedule,
+                                      today: String,
+                                      calendar: Calendar) -> Int {
         let days = habit.validDays(today: today, calendar: calendar)
         guard let oldest = days.min(), let newest = days.max() else { return 0 }
         var day = oldest
@@ -168,46 +192,51 @@ enum GoalEngine {
             if dayCounts(habit: habit, day: day, calendar: calendar) {
                 run += 1
                 best = max(best, run)
-            } else if isRestDay(habit: habit, day: day, calendar: calendar) {
-                // frei — überbrückt den Lauf, ohne ihn zu verlängern
+            } else if !schedule.isScheduled(day) {
+                // kein Termin — überbrückt den Lauf, ohne ihn zu verlängern
             } else {
                 run = 0
             }
-            guard let n = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
-            day = n
+            guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+            day = next
         }
         return best
     }
 
-    /// Längste Kette aufeinanderfolgender erfüllter Kalenderwochen. Iteriert
-    /// nur über Wochen MIT zählenden Tagen; die Lücke erkennt der
-    /// Datumsvergleich (nächste Wochenstart-Grenze), nicht die Wochennummer —
-    /// sonst risse jede Kette am Jahreswechsel (KW 52 -> KW 1).
-    private static func weeklyBestStreak(habit: Habit, times: Int, today: String, calendar: Calendar) -> Int {
-        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
+    /// Längste Kette aufeinanderfolgender erfüllter Perioden. Iteriert nur
+    /// über Perioden MIT zählenden Tagen; die Lücke erkennt der
+    /// Datumsvergleich (nächste aktive Periodengrenze), nicht die
+    /// Wochennummer — sonst risse jede Kette am Jahreswechsel (KW 52 -> KW 1).
+    private static func periodBestStreak(habit: Habit,
+                                         times: Int,
+                                         schedule: Recurrence.Schedule,
+                                         today: String,
+                                         calendar: Calendar) -> Int {
+        let counts = periodCounts(habit: habit, schedule: schedule, today: today, calendar: calendar)
         var best = 0, run = 0
         var lastMet: Date?
-        for week in counts.keys.sorted() where (counts[week] ?? 0) >= times {
-            let follows = lastMet.flatMap {
-                calendar.date(byAdding: .weekOfYear, value: 1, to: $0)
-                    .flatMap { calendar.dateInterval(of: .weekOfYear, for: $0)?.start }
-            } == week
+        for period in counts.keys.sorted()
+        where (counts[period] ?? 0) >= times && schedule.isActivePeriod(period) {
+            let follows = lastMet.flatMap { schedule.nextActivePeriod(after: $0) } == period
             run = follows ? run + 1 : 1
-            lastMet = week
+            lastMet = period
             best = max(best, run)
         }
         return best
     }
 
-    /// Zählende Tage pro Kalenderwoche, gebuckelt nach Wochen-Startdatum.
-    /// Nur plausible Tage — Müll und Zukunft dürfen keine Woche erfüllen.
-    private static func weeklyCounts(habit: Habit, today: String, calendar: Calendar) -> [Date: Int] {
+    /// Zählende Tage pro Periode, gebuckelt nach Periodenanfang. Nur
+    /// plausible Tage — Müll und Zukunft dürfen keine Periode erfüllen.
+    private static func periodCounts(habit: Habit,
+                                     schedule: Recurrence.Schedule,
+                                     today: String,
+                                     calendar: Calendar) -> [Date: Int] {
         var counts: [Date: Int] = [:]
         for day in habit.validDays(today: today, calendar: calendar)
         where dayCounts(habit: habit, day: day, calendar: calendar) {
             guard let date = DayKey.date(from: day, calendar: calendar),
-                  let week = calendar.dateInterval(of: .weekOfYear, for: date) else { continue }
-            counts[week.start, default: 0] += 1
+                  let period = schedule.periodStart(for: date) else { continue }
+            counts[period, default: 0] += 1
         }
         return counts
     }
@@ -215,45 +244,48 @@ enum GoalEngine {
     // MARK: – Abschlussquote
 
     /// Anteil erfüllter Einheiten in den letzten N Tagen, als Bruch 0…1.
-    /// .daily: Zähler und Nenner sind die Nicht-Ruhetage im Fenster
-    /// (Ruhetage bleiben komplett außen vor). .weekly: gemessen in den
-    /// Kalenderwochen, die das Fenster berührt; die laufende Woche zählt
-    /// nur mit, wenn sie schon erfüllt ist. Leerer Nenner -> 0.
-    static func completion(habit: Habit, lastNDays: Int, today: String = DayKey.today(), calendar: Calendar = .current) -> Double {
+    ///
+    /// Feste Termine: erfüllte ÷ FÄLLIGE Tage im Fenster (terminfreie Tage
+    /// stehen in keinem der beiden). Flexibles Ziel: gemessen in den aktiven
+    /// Perioden, die das Fenster berührt; die laufende Periode zählt nur mit,
+    /// wenn sie schon erfüllt ist. Leerer Nenner -> 0.
+    static func completion(habit: Habit,
+                           lastNDays: Int,
+                           today: String = DayKey.today(),
+                           calendar: Calendar = .current) -> Double {
         guard lastNDays > 0 else { return 0 }
-        switch habit.goal.cadence {
-        case .daily:
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        guard let times = habit.recurrence.timesPerPeriod else {
             var done = 0, denom = 0
             var day = today
             for _ in 0..<lastNDays {
-                if !isRestDay(habit: habit, day: day, calendar: calendar) {
+                if schedule.isScheduled(day) {
                     denom += 1
                     if dayCounts(habit: habit, day: day, calendar: calendar) { done += 1 }
                 }
-                guard let p = DayKey.shifted(day, by: -1, calendar: calendar) else { break }
-                day = p
+                guard let previous = DayKey.shifted(day, by: -1, calendar: calendar) else { break }
+                day = previous
             }
             return denom > 0 ? Double(done) / Double(denom) : 0
-        case .weekly(let times):
-            guard let todayDate = DayKey.date(from: today, calendar: calendar),
-                  let currentWeek = calendar.dateInterval(of: .weekOfYear, for: todayDate),
-                  let windowStartKey = DayKey.shifted(today, by: -(lastNDays - 1), calendar: calendar),
-                  let windowStart = DayKey.date(from: windowStartKey, calendar: calendar) else { return 0 }
-            let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
-            var met = 0, denom = 0
-            var weekStart = calendar.dateInterval(of: .weekOfYear, for: windowStart)?.start
-            while let ws = weekStart, ws <= currentWeek.start {
-                let ok = (counts[ws] ?? 0) >= times
-                let isCurrent = ws == currentWeek.start
-                if !isCurrent || ok { // laufende Woche nur zählen, wenn erfüllt
+        }
+        guard let todayDate = DayKey.date(from: today, calendar: calendar),
+              let current = schedule.periodStart(for: todayDate),
+              let windowStartKey = DayKey.shifted(today, by: -(lastNDays - 1), calendar: calendar),
+              var cursor = schedule.periodStart(forDay: windowStartKey) else { return 0 }
+        let counts = periodCounts(habit: habit, schedule: schedule, today: today, calendar: calendar)
+        var met = 0, denom = 0
+        while cursor <= current {
+            if schedule.isActivePeriod(cursor) {
+                let ok = (counts[cursor] ?? 0) >= times
+                if cursor != current || ok {   // laufende Periode nur zählen, wenn erfüllt
                     denom += 1
                     if ok { met += 1 }
                 }
-                weekStart = calendar.date(byAdding: .weekOfYear, value: 1, to: ws)
-                    .flatMap { calendar.dateInterval(of: .weekOfYear, for: $0)?.start }
             }
-            return denom > 0 ? Double(met) / Double(denom) : 0
+            guard let next = schedule.shiftPeriod(cursor, by: 1) else { break }
+            cursor = next
         }
+        return denom > 0 ? Double(met) / Double(denom) : 0
     }
 
     // MARK: – Zellintensität
@@ -266,10 +298,16 @@ enum GoalEngine {
     /// Ein Ziel von 1 kennt nur den erfüllten Tag und ist damit Stufe 4.
     /// Checkbox-Habits behalten die v1-Lauflängen-Semantik: längere
     /// zusammenhängende Läufe leuchten heller.
+    ///
+    /// Termine ändern hier bewusst NICHTS: eine leere Zelle ist eine leere
+    /// Zelle, ob der Tag fällig war oder nicht. Das Raster ist die Historie,
+    /// keine zweite Darstellung der Regel — ein eigener Grauton für „war
+    /// nicht fällig" hätte 365 Zellen pro Habit eine dritte Bedeutung
+    /// gegeben, die niemand ohne Legende liest.
     static func intensity(habit: Habit, key: String, calendar: Calendar = .current) -> Int {
         let value = habit.log[key] ?? 0
         guard value >= 1 else { return 0 }
-        if let target = habit.goal.target {
+        if let target = habit.recurrence.target {
             guard target > 1 else { return 4 }
             // Bewusst Ganzzahl-Arithmetik: `3 · 3 / 9` muss exakt 1 sein,
             // in Double wäre es 0,9999… und fiele eine Stufe zu tief.
@@ -278,10 +316,10 @@ enum GoalEngine {
         var run = 1
         var day = key
         while run < 8,
-              let p = DayKey.shifted(day, by: -1, calendar: calendar),
-              (habit.log[p] ?? 0) >= 1 {
+              let previous = DayKey.shifted(day, by: -1, calendar: calendar),
+              (habit.log[previous] ?? 0) >= 1 {
             run += 1
-            day = p
+            day = previous
         }
         return min(4, max(1, Int(ceil(Double(run) / 2))))
     }

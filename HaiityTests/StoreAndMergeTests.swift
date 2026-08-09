@@ -168,7 +168,7 @@ final class StoreV2Tests: XCTestCase {
     // MARK: – increment / clear
 
     func testIncrementCountsUpWithoutWrap() {
-        let h = Habit(name: "Wasser", goal: Goal(target: 3))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
         store.add(h)
         store.increment(h.id, day: "2026-08-09")
         store.increment(h.id, day: "2026-08-09")
@@ -178,7 +178,7 @@ final class StoreV2Tests: XCTestCase {
     }
 
     func testClearRemovesDayEntry() {
-        let h = Habit(name: "Wasser", goal: Goal(target: 3))
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
         store.add(h)
         store.increment(h.id, day: "2026-08-09")
         store.increment(h.id, day: "2026-08-09")
@@ -199,7 +199,7 @@ final class StoreV2Tests: XCTestCase {
     // MARK: – Max-Merge der Zähler
 
     func testMergeLogsByMax() {
-        var local = Habit(name: "Wasser", goal: Goal(target: 5))
+        var local = Habit(name: "Wasser", recurrence: Recurrence(target: 5))
         local.log["2026-08-01"] = 2
         local.log["2026-08-02"] = 4
         store.add(local)
@@ -230,30 +230,30 @@ final class StoreV2Tests: XCTestCase {
 
     // MARK: – Merge von Ziel und Archiv
 
-    func testMergeGoalAndArchiveFollowNewerUpdatedAt() {
+    func testMergeRecurrenceAndArchiveFollowNewerUpdatedAt() {
         let h = Habit(name: "Sport")
         store.add(h)
         var remoteHabit = h
-        remoteHabit.goal = .weekly(times: 3)
+        remoteHabit.recurrence = .times(3, per: .weekly)
         remoteHabit.archivedAt = "2026-08-05"
         let remote = HabitData(version: 2, updatedAt: Date().timeIntervalSince1970 + 999,
                                summaryMinutes: nil, habits: [remoteHabit])
         store.merge(remote: remote)
-        XCTAssertEqual(store.habits[0].goal.cadence, Goal.Cadence.weekly(times: 3))
+        XCTAssertEqual(store.habits[0].recurrence, .times(3, per: .weekly))
         XCTAssertEqual(store.habits[0].archivedAt, "2026-08-05")
     }
 
-    func testMergeGoalTieKeepsLocal() {
-        let h = Habit(name: "Sport", goal: Goal(target: 2))
+    func testMergeRecurrenceTieKeepsLocal() {
+        let h = Habit(name: "Sport", recurrence: Recurrence(target: 2))
         store.add(h)
         var remoteHabit = h
-        remoteHabit.goal = .weekly(times: 3)
+        remoteHabit.recurrence = .times(3, per: .weekly)
         remoteHabit.archivedAt = "2026-08-05"
         // updatedAt exakt gleich -> lokal gewinnt
         let remote = HabitData(version: 2, updatedAt: store.data.updatedAt,
                                summaryMinutes: nil, habits: [remoteHabit])
         store.merge(remote: remote)
-        XCTAssertEqual(store.habits[0].goal, Goal(target: 2))
+        XCTAssertEqual(store.habits[0].recurrence, Recurrence(target: 2))
         XCTAssertNil(store.habits[0].archivedAt)
     }
 
@@ -291,7 +291,7 @@ final class StoreV2Tests: XCTestCase {
         try Data(ModelV2CodableTests.v1JSON.utf8).write(to: url)
         let s = HabitStore(url: url)
         XCTAssertEqual(s.habits.count, 1)
-        XCTAssertEqual(s.habits[0].goal, .daily) // v1 lädt unverändert
+        XCTAssertEqual(s.habits[0].recurrence, .daily) // v1 lädt unverändert
         XCTAssertEqual(s.summaryMinutes, 1140)
     }
 

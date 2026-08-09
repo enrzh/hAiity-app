@@ -14,9 +14,9 @@ class GridTestCase: XCTestCase {
     }()
 
     func habit(_ log: [String: Int] = [:],
-               goal: Goal = .daily,
+               recurrence: Recurrence = .daily,
                createdAt: String = "2025-01-01") -> Habit {
-        var h = Habit(name: "Test", goal: goal)
+        var h = Habit(name: "Test", recurrence: recurrence)
         h.createdAt = createdAt
         h.log = log
         return h
@@ -247,7 +247,7 @@ final class GridWindowTests: GridTestCase {
         // NIEDRIGSTEN Stufe; früher sprang 1/3 direkt auf Stufe 2 und die
         // hellste Schattierung kam bei kleinen Zielen nie vor.
         let h = habit(["2026-08-07": 1, "2026-08-08": 2, "2026-08-09": 3],
-                      goal: Goal(target: 3), createdAt: "2026-08-01")
+                      recurrence: Recurrence(target: 3), createdAt: "2026-08-01")
         let snap = GridCalendar.snapshot(habit: h, weeks: 53, today: "2026-08-09", calendar: cal)
         let levels = Dictionary(uniqueKeysWithValues:
             zip(snap.keys.flatMap { $0 }, snap.levels.flatMap { $0 })
@@ -333,13 +333,13 @@ final class HostileDataTests: GridTestCase {
         XCTAssertEqual(h.bestStreak(today: "2026-08-09", calendar: cal), 1)
     }
 
-    func testWeeklyGoalCannotBeMetWithGarbage() {
+    func testWeeklyTargetCannotBeMetWithGarbage() {
         // Fünf Müllschlüssel in derselben "Woche" dürfen ein 3×/Woche-Ziel
         // nicht erfüllen.
         var log = ["quatsch": 1, "2026-13-01": 1, "2026-13-02": 1,
                    "2026-02-30": 1, "2099-08-05": 1]
         log["2026-08-05"] = 1
-        let h = habit(log, goal: .weekly(times: 3), createdAt: "2026-08-01")
+        let h = habit(log, recurrence: .times(3, per: .weekly), createdAt: "2026-08-01")
         XCTAssertEqual(GoalEngine.streak(habit: h, today: "2026-08-09", calendar: cal), 0)
     }
 
@@ -379,7 +379,7 @@ final class HostileDataTests: GridTestCase {
         // Alle sieben Wochentage sind Ruhetage: die Serienschleife hat kein
         // natürliches Abbruchkriterium außer der unteren Grenze. Mit einem
         // createdAt aus 1900 wären das ~46.000 Kalenderschritte.
-        var h = habit([:], goal: Goal(restDays: [1, 2, 3, 4, 5, 6, 7]), createdAt: "1900-01-01")
+        var h = habit([:], recurrence: .from(legacy: LegacyGoal(restDays: [1, 2, 3, 4, 5, 6, 7])), createdAt: "1900-01-01")
         h.log["1900-01-02"] = 1
         let start = Date()
         _ = GoalEngine.streak(habit: h, today: "2026-08-09", calendar: cal)

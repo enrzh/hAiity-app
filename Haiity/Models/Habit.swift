@@ -3,21 +3,23 @@ import Foundation
 /// Ein Habit ist ein Jahr aus Quadraten. `log` hält Check-ins als lokale
 /// Tagesschlüssel ("2026-08-09") — nie UTC, sonst rutscht ein
 /// Abend-Check-in auf morgen. Log-Werte sind Zähler: 1 für Checkbox-Habits,
-/// beliebige Zählstände für Mengen-Habits (ein Tag zählt ab `goal.target`).
+/// beliebige Zählstände für Mengen-Habits (ein Tag zählt ab
+/// `recurrence.target`).
 struct Habit: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
     var emoji: String
     var createdAt: String
-    /// Minuten seit Mitternacht für die tägliche Erinnerung; nil = aus.
+    /// Minuten seit Mitternacht für die Erinnerung; nil = aus.
     var reminderMinutes: Int?
     var log: [String: Int]
     /// Tagesschlüssel der Archivierung; nil = aktiv. Archivierte Habits
     /// behalten ihre Historie, verschwinden aber aus Liste und Summary.
     var archivedAt: String?
-    /// Ziel-Definition; fehlt das Feld im JSON, lädt es als .daily ohne
-    /// Ruhetage — v1-Dateien bleiben unverändert lesbar.
-    var goal: Goal
+    /// Wiederholungsregel samt Mengenziel. Fehlt das Feld im JSON, lädt es
+    /// als „täglich" — v1-Dateien bleiben unverändert lesbar; ein Alt-Ziel
+    /// (`{"cadence":…}`) wird beim Lesen migriert (siehe `Recurrence`).
+    var recurrence: Recurrence
     /// Eigene Rasterfarbe; nil = die App-Palette (Standardfall). Bewusst
     /// eine SEPARATE Einstellung von der globalen Palette: wer alles blau
     /// will, stellt es einmal um; wer EIN Habit hervorheben will, färbt nur
@@ -25,7 +27,10 @@ struct Habit: Codable, Identifiable, Equatable {
     /// eigene Farbe des Nutzers.
     var palette: PaletteRef?
 
-    init(name: String, emoji: String = "", reminderMinutes: Int? = nil, goal: Goal = .daily) {
+    init(name: String,
+         emoji: String = "",
+         reminderMinutes: Int? = nil,
+         recurrence: Recurrence = .daily) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -33,114 +38,15 @@ struct Habit: Codable, Identifiable, Equatable {
         self.reminderMinutes = reminderMinutes
         self.log = [:]
         self.archivedAt = nil
-        self.goal = goal
+        self.recurrence = recurrence
         self.palette = nil
     }
-}
 
-/// Ziel eines Habits. Flaches Codable-Format, tolerant dekodiert:
-/// `{"cadence":"weekly","times":3,"restDays":[1,7],"target":5,"weekday":3}` —
-/// fehlende Felder fallen auf .daily / keine Ruhetage / Checkbox / kein
-/// fester Tag zurück, unbekannte `cadence`-Werte ebenfalls
-/// (Vorwärts-Kompatibilität).
-struct Goal: Equatable {
-    enum Cadence: Equatable {
-        case daily
-        /// 1…7 Check-ins pro Kalenderwoche (Woche des Nutzer-Kalenders).
-        case weekly(times: Int)
-    }
-
-    var cadence: Cadence
-    /// Ruhetage als Calendar-Wochentagsnummern (1 = Sonntag … 7 = Samstag).
-    /// Nur für .daily bedeutsam: Ruhetage brechen keine Serie und zählen
-    /// nicht mit.
-    var restDays: Set<Int>
-    /// Mengen-Habits: ein Tag zählt, wenn der Log-Wert >= target ist.
-    /// nil = einfache Checkbox.
-    var target: Int?
-    /// FESTER Wochentag der Wochen-Kadenz (1 = Sonntag … 7 = Samstag);
-    /// nil = der Tag ist frei wählbar (der Normalfall).
-    ///
-    /// Bewusst ein SEPARATES optionales Feld und keine neue zugeordnete
-    /// Größe an `.weekly` — bestehende Dateien UND bestehender Code, die
-    /// `.weekly(times:)` schreiben und lesen, bleiben damit unverändert
-    /// gültig.
-    ///
-    /// **Die Regel, die daran hängt:** Ein fester Tag heißt „einmal pro
-    /// Woche, gedacht am Dienstag" — er steuert die ERINNERUNG und die
-    /// Beschriftung, er ist keine Prüfung. Ein Check-in am Montag oder am
-    /// Donnerstag erfüllt dieselbe Woche genauso (siehe
-    /// `GoalEngine.weekSatisfied`). Wer zu früh oder zu spät dran ist, soll
-    /// seine Serie nicht verlieren; alles andere bestraft genau die Leute,
-    /// die trotzdem drangeblieben sind.
-    var weekday: Int?
-
-    /// Normalisiert an EINER Stelle: ein fester Tag zieht `times` auf 1
-    /// herunter („3× pro Woche, jeden Dienstag" ist keine sinnvolle
-    /// Kombination), ein Tag außerhalb 1…7 fällt weg, und bei täglicher
-    /// Kadenz gibt es überhaupt keinen festen Wochentag.
-    init(cadence: Cadence = .daily, restDays: Set<Int> = [], target: Int? = nil, weekday: Int? = nil) {
-        let day = weekday.flatMap { (1...7).contains($0) ? $0 : nil }
-        if case .weekly(let times) = cadence {
-            self.cadence = .weekly(times: day != nil ? 1 : Self.clampTimes(times))
-            self.weekday = day
-        } else {
-            self.cadence = .daily
-            self.weekday = nil
-        }
-        self.restDays = restDays
-        self.target = target
-    }
-
-    static let daily = Goal()
-    static func weekly(times: Int, weekday: Int? = nil) -> Goal {
-        Goal(cadence: .weekly(times: times), weekday: weekday)
-    }
-    static func clampTimes(_ n: Int) -> Int { min(7, max(1, n)) }
-
-    /// Wie viele zählende Tage die Woche erfüllen. Bei festem Tag immer 1.
-    var weeklyTimes: Int? {
-        if case .weekly(let times) = cadence { return times }
-        return nil
-    }
-}
-
-extension Goal: Codable {
-    private enum CodingKeys: String, CodingKey { case cadence, times, restDays, target, weekday }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try c.decodeIfPresent(String.self, forKey: .cadence) ?? "daily"
-        let raw: Cadence
-        if kind == "weekly" {
-            raw = .weekly(times: try c.decodeIfPresent(Int.self, forKey: .times) ?? 1)
-        } else {
-            raw = .daily // unbekannte Werte tolerant als Standard lesen
-        }
-        let days = try c.decodeIfPresent([Int].self, forKey: .restDays) ?? []
-        let t = try c.decodeIfPresent(Int.self, forKey: .target)
-        // Über den bezeichneten Init, damit die Normalisierung (Tag 1…7,
-        // times = 1 bei festem Tag) für Dateien GENAUSO gilt wie für die UI.
-        self = Goal(cadence: raw,
-                    restDays: Set(days.filter { (1...7).contains($0) }),
-                    target: t.flatMap { $0 > 0 ? $0 : nil },
-                    weekday: try c.decodeIfPresent(Int.self, forKey: .weekday))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        switch cadence {
-        case .daily:
-            try c.encode("daily", forKey: .cadence)
-        case .weekly(let times):
-            try c.encode("weekly", forKey: .cadence)
-            try c.encode(times, forKey: .times)
-            // Nur wenn gesetzt — eine Wochen-Kadenz ohne festen Tag sieht
-            // auf der Platte aus wie vorher.
-            try c.encodeIfPresent(weekday, forKey: .weekday)
-        }
-        if !restDays.isEmpty { try c.encode(restDays.sorted(), forKey: .restDays) }
-        if let target { try c.encode(target, forKey: .target) }
+    /// Bequemer Weg für Alt-Ziele: legt das Habit mit der MIGRIERTEN Regel
+    /// an — genau der Pfad, den auch eine ausgelieferte Datei nimmt.
+    init(name: String, emoji: String = "", reminderMinutes: Int? = nil, legacy: LegacyGoal) {
+        self.init(name: name, emoji: emoji, reminderMinutes: reminderMinutes,
+                  recurrence: .from(legacy: legacy))
     }
 }
 
@@ -166,7 +72,10 @@ extension Habit {
         let rawLog = try c.decodeIfPresent([String: Int].self, forKey: .log) ?? [:]
         log = rawLog.filter { $0.value >= 1 && DayKey.isValid($0.key) }
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
-        goal = try c.decodeIfPresent(Goal.self, forKey: .goal) ?? .daily
+        // EIN Schlüssel für beide Formate: `Recurrence` erkennt am fehlenden
+        // `freq`, dass dort ein Alt-Ziel steht, und migriert es. Ein kaputtes
+        // Ziel darf das Habit nicht kosten — dann eben täglich.
+        recurrence = ((try? c.decodeIfPresent(Recurrence.self, forKey: .goal)) ?? nil) ?? .daily
         // Unbekannte Paletten (Datei aus einer neueren Version) lesen als
         // "keine Übersteuerung" — nie als Fehler, sonst verliert ein
         // älterer Build beim nächsten Speichern das ganze Habit.
@@ -183,9 +92,12 @@ extension Habit {
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encode(log, forKey: .log)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
-        // Der Standard bleibt implizit — v2-Dateien sehen für einfache
-        // Habits exakt aus wie v1 (plus Versionsnummer).
-        if goal != .daily { try c.encode(goal, forKey: .goal) }
+        // Der Standard bleibt implizit — Dateien sehen für einfache Habits
+        // exakt aus wie v1 (plus Versionsnummer). Alles andere schreibt die
+        // neue Regel UND, wo möglich, ihren Alt-Spiegel unter denselben
+        // Schlüssel `goal` — ein ausgelieferter Build liest die Datei damit
+        // unverändert weiter (kein Versionssprung, der ihn aussperrt).
+        if recurrence != .daily { try c.encode(recurrence, forKey: .goal) }
         try c.encodeIfPresent(palette?.rawValue, forKey: .palette)
     }
 }
@@ -300,7 +212,7 @@ extension Habit {
 
     /// Längste Serie über die gesamte Historie — dünner Durchgriff auf die
     /// GoalEngine, exakt wie `streak`. Die Ziel-Semantik (Mengenziel,
-    /// Ruhetage, Wochen-Kadenz) liegt dort, damit "Best" dieselbe Einheit
+    /// Termine, flexible Perioden) liegt dort, damit "Best" dieselbe Einheit
     /// misst wie die laufende Serie.
     func bestStreak(today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
         GoalEngine.bestStreak(habit: self, today: today, calendar: calendar)
