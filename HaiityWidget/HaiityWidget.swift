@@ -108,7 +108,12 @@ struct HaiityGraphWidget: Widget {
         }
         .configurationDisplayName(String(localized: "Graph"))
         .description(String(localized: "Nur das Raster — sieben Zeilen, randlos."))
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // Kein systemLarge: Die Zellgröße kommt aus der Höhe, und auf der
+        // fast quadratischen großen Fläche ergibt das ein 7x7-Brett aus
+        // 40-pt-Quadraten — weniger Historie als die mittlere Größe und
+        // optisch ein Schachbrett statt eines Contribution-Graphen. Wer die
+        // große Fläche will, nimmt Übersicht oder das Haupt-Widget.
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
