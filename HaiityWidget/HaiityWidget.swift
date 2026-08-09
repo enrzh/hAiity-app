@@ -12,20 +12,25 @@ struct HaiityProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HaiityEntry) -> Void) {
-        completion(HaiityEntry(date: .now, habits: load()))
+        completion(entry())
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HaiityEntry>) -> Void) {
-        let entry = HaiityEntry(date: .now, habits: load())
+        let entry = entry()
         // Nächster Refresh: Mitternacht (der "heute"-Rahmen wandert).
         let cal = Calendar.current
         let midnight = cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: .now) ?? .now)
         completion(Timeline(entries: [entry], policy: .after(midnight)))
     }
 
-    /// Nur AKTIVE Habits — archivierte verschwinden auch aus dem Widget.
-    private func load() -> [Habit] {
-        HabitStore.read(SharedStorage.dataURL())?.habits.filter { $0.archivedAt == nil } ?? []
+    /// EIN Lesevorgang für Habits UND Palette — zwei getrennte Lesungen
+    /// könnten einen Schreibvorgang dazwischen erwischen und ein Raster in
+    /// der alten Farbe zeichnen.
+    private func entry() -> HaiityEntry {
+        let data = HabitStore.read(SharedStorage.dataURL())
+        return HaiityEntry(date: .now,
+                           habits: data?.habits.filter { $0.archivedAt == nil } ?? [],
+                           palette: data?.palette ?? .default)
     }
 
     private func demoHabit() -> Habit {

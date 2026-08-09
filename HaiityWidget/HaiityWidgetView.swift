@@ -6,6 +6,10 @@ import AppIntents
 struct HaiityEntry: TimelineEntry {
     let date: Date
     let habits: [Habit]
+    /// Globale Palette aus derselben data.json. Das Widget hat keine
+    /// Umgebung von der App — die Farbe muss im Eintrag stehen, sonst bliebe
+    /// der Homescreen grün, während die App längst blau ist.
+    var palette: GraphPalette = .default
 }
 
 /// Die Widget-Oberfläche. Klein: heutiger Status + Serie + Abhak-Button.
@@ -21,6 +25,8 @@ struct HaiityWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
     let entry: HaiityEntry
+
+    private var palette: GraphPalette { entry.palette }
 
     var body: some View {
         content(family: family)
@@ -58,7 +64,7 @@ struct HaiityWidgetView: View {
                  ? String(localized: "✓ Heute erledigt")
                  : String(localized: "Heute noch offen"))
                 .font(.caption2)
-                .foregroundStyle(done ? Theme.accentText : .secondary)
+                .foregroundStyle(done ? Theme.accentText(palette) : .secondary)
             Text("🔥 \(habit.streak())")
                 .font(.title3.bold().monospacedDigit())
             miniGrid(habit, weeks: 8, cell: 8)
@@ -93,12 +99,12 @@ struct HaiityWidgetView: View {
                     .font(.caption2.bold().monospacedDigit())
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
-                    .background(done ? Theme.accentFill : Color.secondary.opacity(0.25), in: Capsule())
+                    .background(done ? Theme.accentFill(palette) : Color.secondary.opacity(0.25), in: Capsule())
                     .foregroundStyle(done ? .white : .primary)
             } else {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(done ? Theme.accentText : .secondary)
+                    .foregroundStyle(done ? Theme.accentText(palette) : .secondary)
             }
         }
         .buttonStyle(.plain)
@@ -112,12 +118,16 @@ struct HaiityWidgetView: View {
     /// dem Nutzer nur noch ein graues Rechteck.
     private func miniGrid(_ habit: Habit, weeks: Int, cell: CGFloat) -> some View {
         let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
+        // Habit-eigene Farbe schlägt die globale — dieselbe Regel wie in der App.
+        let cellPalette = GraphPalette.resolve(habit: habit, global: entry.palette)
         return HStack(alignment: .top, spacing: 2) {
             ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
                 VStack(spacing: 2) {
                     ForEach(0..<GridCalendar.rows, id: \.self) { r in
                         RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                            .fill(Theme.level(snapshot.levels[wi][r], dark: scheme == .dark))
+                            .fill(Theme.level(snapshot.levels[wi][r],
+                                              dark: scheme == .dark,
+                                              palette: cellPalette))
                             .opacity(column[r] == nil ? 0.35 : 1)
                             .frame(width: cell, height: cell)
                     }

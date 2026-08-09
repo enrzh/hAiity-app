@@ -18,6 +18,11 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Ziel-Definition; fehlt das Feld im JSON, lädt es als .daily ohne
     /// Ruhetage — v1-Dateien bleiben unverändert lesbar.
     var goal: Goal
+    /// Eigene Rasterfarbe; nil = die App-Palette (Standardfall). Bewusst
+    /// eine SEPARATE Einstellung von der globalen Palette: wer alles blau
+    /// will, stellt es einmal um; wer EIN Habit hervorheben will, färbt nur
+    /// dieses.
+    var palette: GraphPalette?
 
     init(name: String, emoji: String = "", reminderMinutes: Int? = nil, goal: Goal = .daily) {
         self.id = UUID()
@@ -28,6 +33,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.log = [:]
         self.archivedAt = nil
         self.goal = goal
+        self.palette = nil
     }
 }
 
@@ -96,7 +102,7 @@ extension Goal: Codable {
 
 extension Habit {
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, createdAt, reminderMinutes, log, archivedAt, goal
+        case id, name, emoji, createdAt, reminderMinutes, log, archivedAt, goal, palette
     }
 
     /// Tolerantes Dekodieren: v1-Dateien (ohne goal/archivedAt) laden
@@ -117,6 +123,11 @@ extension Habit {
         log = rawLog.filter { $0.value >= 1 && DayKey.isValid($0.key) }
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
         goal = try c.decodeIfPresent(Goal.self, forKey: .goal) ?? .daily
+        // Unbekannte Paletten (Datei aus einer neueren Version) lesen als
+        // "keine Übersteuerung" — nie als Fehler, sonst verliert ein
+        // älterer Build beim nächsten Speichern das ganze Habit.
+        palette = (try c.decodeIfPresent(String.self, forKey: .palette))
+            .flatMap(GraphPalette.init(rawValue:))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -131,6 +142,7 @@ extension Habit {
         // Der Standard bleibt implizit — v2-Dateien sehen für einfache
         // Habits exakt aus wie v1 (plus Versionsnummer).
         if goal != .daily { try c.encode(goal, forKey: .goal) }
+        try c.encodeIfPresent(palette?.rawValue, forKey: .palette)
     }
 }
 

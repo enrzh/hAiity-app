@@ -4,11 +4,9 @@ import SwiftUI
 struct HaiityApp: App {
     var body: some Scene {
         WindowGroup {
+            // Schema, Palette und Tint setzt ContentView selbst — dort liegt
+            // der Store, der sie hält.
             ContentView()
-                // accentText statt accent: die Markenfarbe #2ea043 hat auf
-                // hellem Grund nur 3,37:1 — als Schrift/Symbolfarbe (Buttons,
-                // Tab-Auswahl, Links) ist das zu wenig.
-                .tint(Theme.accentText)
         }
     }
 }

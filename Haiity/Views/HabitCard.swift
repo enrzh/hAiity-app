@@ -12,6 +12,7 @@ struct HabitCard: View {
     let onArchive: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.graphPalette) private var palette
     @Environment(\.dynamicTypeSize) private var typeSize
 
     private var today: String { DayKey.today() }
@@ -31,7 +32,7 @@ struct HabitCard: View {
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contextMenu {
-            ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark),
+            ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, globalPalette: palette),
                       preview: SharePreview(habit.name)) {
                 Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
             }
@@ -121,7 +122,7 @@ struct HabitCard: View {
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(doneToday ? Theme.accentFill : Color(.tertiarySystemFill), in: Capsule())
+                    .background(doneToday ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
                     .foregroundStyle(doneToday ? .white : .primary)
             }
             .buttonStyle(.plain)
@@ -141,7 +142,7 @@ struct HabitCard: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(doneToday ? Theme.accentFill : Color(.tertiarySystemFill), in: Capsule())
+                    .background(doneToday ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
                     .foregroundStyle(doneToday ? .white : .primary)
             }
             .buttonStyle(.plain)

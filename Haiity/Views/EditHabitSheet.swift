@@ -7,6 +7,7 @@ import SwiftUI
 struct EditHabitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.graphPalette) private var palette
     let store: HabitStore
     var existing: Habit?
 
@@ -22,6 +23,8 @@ struct EditHabitSheet: View {
     @State private var restDays: Set<Int> = []
     @State private var quantityOn = false
     @State private var target = 3
+    /// nil = „Wie App" (kein Override) — der Normalfall.
+    @State private var habitPalette: GraphPalette?
 
     var body: some View {
         NavigationStack {
@@ -33,10 +36,11 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("habit-emoji")
                 }
                 goalSection
+                colorSection
                 reminderSection
                 if let habit = existing {
                     Section {
-                        ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark),
+                        ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, globalPalette: palette),
                                   preview: SharePreview(habit.name)) {
                             Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
                         }
@@ -98,6 +102,24 @@ struct EditHabitSheet: View {
         }
     }
 
+    // MARK: – Farbe
+    //
+    // Bewusst NUR das Raster dieses Habits: die Knöpfe, der Tint und alles
+    // andere folgen weiter der App-Palette. Eine Habit-Farbe soll EIN Habit
+    // hervorheben, nicht die halbe App umlackieren.
+
+    private var colorSection: some View {
+        Section {
+            PalettePicker(selection: $habitPalette,
+                          allowsGlobal: true,
+                          globalPalette: palette)
+        } header: {
+            Text(String(localized: "Farbe"))
+        } footer: {
+            Text(String(localized: "„Wie App“ nimmt die Farbe aus den Einstellungen. Eine eigene Farbe gilt nur für das Raster dieses Habits."))
+        }
+    }
+
     /// Wochentags-Chips in der Reihenfolge des Nutzerkalenders; Auswahl =
     /// Ruhetag (bricht keine Serie, zählt nicht mit).
     private var restDayPicker: some View {
@@ -114,7 +136,7 @@ struct EditHabitSheet: View {
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 7)
-                            .background(on ? Theme.accentFill : Color(.tertiarySystemFill), in: Capsule())
+                            .background(on ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
                             .foregroundStyle(on ? .white : .primary)
                     }
                     .buttonStyle(.plain)
@@ -173,6 +195,7 @@ struct EditHabitSheet: View {
             weeklyTimes = times
         }
         restDays = h.goal.restDays
+        habitPalette = h.palette
         if let t = h.goal.target {
             quantityOn = true
             target = t
@@ -204,6 +227,7 @@ struct EditHabitSheet: View {
                 h.emoji = emoji.trimmingCharacters(in: .whitespaces)
                 h.reminderMinutes = minutes
                 h.goal = goal
+                h.palette = habitPalette
                 if existing == nil { store.add(h) } else { store.update(h) }
                 Theme.Haptics.success()
                 dismiss()

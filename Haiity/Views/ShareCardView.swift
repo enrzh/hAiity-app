@@ -9,6 +9,10 @@ import UniformTypeIdentifiers
 struct ShareCardView: View {
     let habit: Habit
     let scheme: ColorScheme
+    /// GLOBALE Palette — explizit übergeben statt aus der Umgebung gelesen:
+    /// ImageRenderer zeichnet außerhalb des View-Baums, die Umgebung des
+    /// aufrufenden Bildschirms kommt hier nicht an.
+    var globalPalette: GraphPalette = .default
     var weeks: Int = 26
 
     private let cell: CGFloat = 12
@@ -52,12 +56,15 @@ struct ShareCardView: View {
 
     private var grid: some View {
         let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
+        let palette = GraphPalette.resolve(habit: habit, global: globalPalette)
         return HStack(alignment: .top, spacing: gap) {
             ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
                 VStack(spacing: gap) {
                     ForEach(0..<GridCalendar.rows, id: \.self) { r in
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Theme.level(snapshot.levels[wi][r], dark: scheme == .dark))
+                            .fill(Theme.level(snapshot.levels[wi][r],
+                                              dark: scheme == .dark,
+                                              palette: palette))
                             .opacity(column[r] == nil ? 0.35 : 1)
                             .frame(width: cell, height: cell)
                     }
@@ -73,8 +80,12 @@ enum ShareCard {
     /// Rendert die Karte mit 3-facher Skalierung — scharf genug für
     /// Messenger und Social. Muss auf dem Main-Thread laufen (ImageRenderer).
     @MainActor
-    static func render(habit: Habit, scheme: ColorScheme) -> UIImage? {
-        let renderer = ImageRenderer(content: ShareCardView(habit: habit, scheme: scheme))
+    static func render(habit: Habit,
+                       scheme: ColorScheme,
+                       globalPalette: GraphPalette = .default) -> UIImage? {
+        let renderer = ImageRenderer(content: ShareCardView(habit: habit,
+                                                            scheme: scheme,
+                                                            globalPalette: globalPalette))
         renderer.scale = 3
         return renderer.uiImage
     }
@@ -85,11 +96,14 @@ enum ShareCard {
 struct HabitShareImage: Transferable {
     let habit: Habit
     let dark: Bool
+    var globalPalette: GraphPalette = .default
 
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .png) { item in
             await MainActor.run {
-                ShareCard.render(habit: item.habit, scheme: item.dark ? .dark : .light)?
+                ShareCard.render(habit: item.habit,
+                                 scheme: item.dark ? .dark : .light,
+                                 globalPalette: item.globalPalette)?
                     .pngData() ?? Data()
             }
         }

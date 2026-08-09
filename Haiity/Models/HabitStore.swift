@@ -15,12 +15,42 @@ struct HabitData: Codable {
     var updatedAt: TimeInterval
     var summaryMinutes: Int?      // Abend-Zusammenfassung; nil = aus
     var habits: [Habit]
+    /// Hell/Dunkel/System. Liegt HIER und nicht in UserDefaults, damit die
+    /// Einstellung denselben Weg nimmt wie alles andere (Export, Import,
+    /// GitHub-Sync) — ein neues Gerät sieht sofort dieselbe App.
+    var appearance: AppearanceSetting
+    /// Globale Rasterfarbe.
+    var palette: GraphPalette
+    /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
+    /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
+    var matchAppIcon: Bool
+
+    /// Die drei neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
+    /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
+    /// Datei unverändert weiter (ein Sprung auf 3 würde ihn aussperren).
+    init(version: Int,
+         updatedAt: TimeInterval,
+         summaryMinutes: Int?,
+         habits: [Habit],
+         appearance: AppearanceSetting = .default,
+         palette: GraphPalette = .default,
+         matchAppIcon: Bool = true) {
+        self.version = version
+        self.updatedAt = updatedAt
+        self.summaryMinutes = summaryMinutes
+        self.habits = habits
+        self.appearance = appearance
+        self.palette = palette
+        self.matchAppIcon = matchAppIcon
+    }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
 }
 
 extension HabitData {
-    private enum CodingKeys: String, CodingKey { case version, updatedAt, summaryMinutes, habits }
+    private enum CodingKeys: String, CodingKey {
+        case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
+    }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
     /// wird abgelehnt, statt sie beim nächsten Speichern zu zerschreiben.
@@ -36,6 +66,14 @@ extension HabitData {
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
         summaryMinutes = try c.decodeIfPresent(Int.self, forKey: .summaryMinutes)
         habits = try c.decodeIfPresent([Habit].self, forKey: .habits) ?? []
+        // Fehlt / unbekannt -> Standard. Eine Datei aus einer neueren
+        // Version mit "palette":"neon" verliert nur die Farbe, nicht die
+        // Check-ins.
+        appearance = (try c.decodeIfPresent(String.self, forKey: .appearance))
+            .flatMap(AppearanceSetting.init(rawValue:)) ?? .default
+        palette = (try c.decodeIfPresent(String.self, forKey: .palette))
+            .flatMap(GraphPalette.init(rawValue:)) ?? .default
+        matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -44,6 +82,11 @@ extension HabitData {
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
         try c.encode(habits, forKey: .habits)
+        // Standards bleiben implizit — eine unveränderte Installation
+        // schreibt exakt dieselbe Datei wie vor dem Theming.
+        if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
+        if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
+        if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
     }
 }
 
@@ -85,6 +128,21 @@ final class HabitStore {
     var summaryMinutes: Int? {
         get { data.summaryMinutes }
         set { data.summaryMinutes = newValue; persist() }
+    }
+
+    var appearance: AppearanceSetting {
+        get { data.appearance }
+        set { data.appearance = newValue; persist() }
+    }
+
+    var palette: GraphPalette {
+        get { data.palette }
+        set { data.palette = newValue; persist() }
+    }
+
+    var matchAppIcon: Bool {
+        get { data.matchAppIcon }
+        set { data.matchAppIcon = newValue; persist() }
     }
 
     static func read(_ url: URL) -> HabitData? {
@@ -217,6 +275,7 @@ final class HabitStore {
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.goal = rh.goal
                     lh.archivedAt = rh.archivedAt
+                    lh.palette = rh.palette
                 }
                 byId[rh.id] = lh
             } else {
@@ -229,6 +288,14 @@ final class HabitStore {
         merged.append(contentsOf: remote.habits.filter { !localIds.contains($0.id) }.compactMap { byId[$0.id] })
         data.habits = merged
         if remoteNewer, remote.summaryMinutes != nil { data.summaryMinutes = remote.summaryMinutes }
+        // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
+        // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",
+        // der Standard IST ein gültiger Wert.
+        if remoteNewer {
+            data.appearance = remote.appearance
+            data.palette = remote.palette
+            data.matchAppIcon = remote.matchAppIcon
+        }
         persist()
     }
 

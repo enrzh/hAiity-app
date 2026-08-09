@@ -30,6 +30,16 @@ struct ContentView: View {
 
     var body: some View {
         tabs
+            // Die drei Zeilen sind das ganze Theming-Gerüst: das Schema wird
+            // fürs FENSTER gesetzt (Blätter inklusive), die Palette reist als
+            // Umgebungswert bis in jede Rasterzelle, und der Tint zieht die
+            // System-Steuerelemente mit. Alle drei hängen am Store, damit ein
+            // Umstellen in „Mehr" sofort durchschlägt.
+            .preferredColorScheme(store.appearance.colorScheme)
+            .environment(\.graphPalette, store.palette)
+            // accentText statt accent: die Markenfarbe hat auf hellem Grund
+            // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
+            .tint(Theme.accentText(store.palette))
             .onOpenURL { handleDeepLink($0) }
             .sheet(isPresented: $showAdd) {
                 EditHabitSheet(store: store)
@@ -220,7 +230,7 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            DemoGrid()
+            DemoGrid(palette: store.palette)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
             Text(String(localized: "Leg einen an und fang an, Quadrate zu füllen — jeder Tag, an dem du dranbleibst, färbt eine Zelle."))
@@ -235,7 +245,7 @@ struct ContentView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Theme.accentFill, in: Capsule())
+                    .background(Theme.accentFill(store.palette), in: Capsule())
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -259,7 +269,7 @@ struct ContentView: View {
                     .frame(width: 56, height: 56)
             }
             .buttonStyle(.plain)
-            .glassEffect(.regular.tint(Theme.accent).interactive(), in: .circle)
+            .glassEffect(.regular.tint(Theme.accent(store.palette)).interactive(), in: .circle)
             .padding(.trailing, 18)
             .padding(.bottom, 10)
             .accessibilityLabel(String(localized: "Habit hinzufügen"))
@@ -272,7 +282,7 @@ struct ContentView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(width: 50, height: 50)
-                    .background(Theme.accentFill, in: Circle())
+                    .background(Theme.accentFill(store.palette), in: Circle())
                     .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
             }
             .buttonStyle(.plain)
@@ -393,7 +403,9 @@ struct ContentView: View {
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for (name, habits) in scenarios {
             for (sizeName, family, size) in sizes {
-                let view = HaiityWidgetView(entry: HaiityEntry(date: .now, habits: habits))
+                let view = HaiityWidgetView(entry: HaiityEntry(date: .now,
+                                                               habits: habits,
+                                                               palette: store.palette))
                     .content(family: family)
                     .padding(12)
                     .frame(width: size.width, height: size.height)
@@ -414,7 +426,7 @@ struct ContentView: View {
         guard let habit = store.activeHabits.first else { return }
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for scheme in [ColorScheme.light, .dark] {
-            guard let png = ShareCard.render(habit: habit, scheme: scheme)?.pngData() else { continue }
+            guard let png = ShareCard.render(habit: habit, scheme: scheme, globalPalette: store.palette)?.pngData() else { continue }
             let name = scheme == .dark ? "sharecard-dark.png" : "sharecard-light.png"
             try? png.write(to: dir.appendingPathComponent(name))
         }
@@ -515,6 +527,7 @@ private extension View {
 
 /// Deko fürs Empty-State: ein kleines zufälliges Contribution-Muster.
 private struct DemoGrid: View {
+    let palette: GraphPalette
     @Environment(\.colorScheme) private var scheme
     private let pattern: [Int] = (0..<48).map { _ in
         Bool.random() && Bool.random() ? Int.random(in: 1...4) : 0
@@ -525,7 +538,7 @@ private struct DemoGrid: View {
         LazyVGrid(columns: cols, spacing: 3) {
             ForEach(Array(pattern.enumerated()), id: \.offset) { _, level in
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Theme.level(level, dark: scheme == .dark))
+                    .fill(Theme.level(level, dark: scheme == .dark, palette: palette))
                     .frame(height: 14)
             }
         }

@@ -19,6 +19,7 @@ struct MoreView: View {
     @State private var showImporter = false
     @State private var importMessage: String?
     @State private var summaryDenied = false
+    @Environment(\.graphPalette) private var palette
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
@@ -37,6 +38,8 @@ struct MoreView: View {
                      ? String(localized: "Optional: deine Daten in einem privaten Repo deines GitHub-Accounts. Ein Tipp, ein Code, fertig.")
                      : String(localized: "Optional: deine Daten in einem privaten Repo deines GitHub-Accounts."))
             }
+
+            appearanceSection
 
             Section {
                 Toggle(isOn: summaryEnabled) {
@@ -127,6 +130,71 @@ struct MoreView: View {
         }
     }
 
+    // MARK: – Darstellung
+    //
+    // Erscheinungsbild und Graph-Farbe stehen bewusst in EINEM Abschnitt und
+    // trotzdem als zwei getrennte Einstellungen: beides beantwortet „wie
+    // sieht die App aus", aber niemand will Hell/Dunkel mitverstellen, nur
+    // weil er das Grün loswerden möchte.
+
+    private var appearanceSection: some View {
+        Section {
+            Picker(selection: appearanceBinding) {
+                ForEach(AppearanceSetting.allCases, id: \.self) { option in
+                    Text(option.displayName).tag(option)
+                }
+            } label: {
+                Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("appearance-picker")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label(String(localized: "Graph-Farbe"), systemImage: "square.grid.3x3.fill")
+                PalettePicker(selection: paletteBinding)
+            }
+            .padding(.vertical, 2)
+
+            Toggle(isOn: matchIconBinding) {
+                Label(String(localized: "App-Icon anpassen"), systemImage: "app.badge")
+            }
+            .accessibilityIdentifier("match-icon-toggle")
+        } header: {
+            Text(String(localized: "Darstellung"))
+        } footer: {
+            Text(String(localized: "Die Graph-Farbe gilt für alle Habits. Einzelne Habits können beim Bearbeiten eine eigene Farbe bekommen. Beim Anpassen des App-Icons fragt iOS einmal kurz nach."))
+        }
+    }
+
+    private var appearanceBinding: Binding<AppearanceSetting> {
+        Binding(get: { store.appearance }, set: { store.appearance = $0 })
+    }
+
+    /// Global gibt es kein „Wie App" — deshalb wird nil hier nie gesetzt und
+    /// ein nil-Set (das der Picker in dieser Rolle gar nicht auslöst)
+    /// ignoriert, statt die Palette zurückzusetzen.
+    private var paletteBinding: Binding<GraphPalette?> {
+        Binding(
+            get: { store.palette },
+            set: { new in
+                guard let new, new != store.palette else { return }
+                store.palette = new
+                if store.matchAppIcon { Task { await AppIcons.apply(new) } }
+            })
+    }
+
+    private var matchIconBinding: Binding<Bool> {
+        Binding(
+            get: { store.matchAppIcon },
+            set: { on in
+                store.matchAppIcon = on
+                // Einschalten holt das Icon sofort nach, Ausschalten stellt
+                // das Standard-Icon wieder her — sonst bliebe ein oranges
+                // Icon kleben, obwohl die Kopplung aus ist.
+                Task { await AppIcons.apply(on ? store.palette : .default) }
+            })
+    }
+
     // MARK: – GitHub-Zeile
     //
     // Getrennt nach Zustand: nicht verbunden ist eine EINLADUNG (Akzent,
@@ -139,12 +207,12 @@ struct MoreView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Theme.accentFill,
+                .background(Theme.accentFill(palette),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Mit GitHub verbinden"))
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText)
+                    .foregroundStyle(Theme.accentText(palette))
                 Text(String(localized: "Code bestätigen — kein Token nötig"))
                     .font(.caption)
                     .foregroundStyle(.secondary)

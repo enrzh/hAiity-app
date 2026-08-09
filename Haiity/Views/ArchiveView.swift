@@ -6,6 +6,7 @@ struct ArchiveView: View {
     let store: HabitStore
     @State private var pendingDelete: Habit?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.graphPalette) private var palette
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
 
@@ -28,6 +29,10 @@ struct ArchiveView: View {
                                 Label(String(localized: "Löschen"), systemImage: "trash")
                             }
                         }
+                        // Ohne .contain schluckt der Container seine Kinder:
+                        // eine Kennung auf der Zeile macht "unarchive-habit"
+                        // im AX-Baum unauffindbar (auf HabitCard nachgewiesen).
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("archived-habit")
                 }
             }
@@ -92,8 +97,8 @@ struct ArchiveView: View {
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Theme.accentText.opacity(0.15), in: Capsule())
-                .foregroundStyle(Theme.accentText)
+                .background(Theme.accentText(palette).opacity(0.15), in: Capsule())
+                .foregroundStyle(Theme.accentText(palette))
         }
         .buttonStyle(.borderless)
         .accessibilityIdentifier("unarchive-habit")

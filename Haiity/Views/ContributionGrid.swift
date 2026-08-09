@@ -26,6 +26,8 @@ struct ContributionGrid: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// GLOBALE Palette; die Habit-eigene Farbe legt sich darüber.
+    @Environment(\.graphPalette) private var globalPalette
     /// Gemessene Breite des Rasters; 0 bis zur ersten Layout-Runde.
     @State private var available: CGFloat = 0
     /// Referenzmaß 100, skaliert mit Dynamic Type: `labelScale / 100` ist
@@ -134,7 +136,9 @@ struct ContributionGrid: View {
     private func cell(key: String?, level: Int, today: String, size: CGFloat) -> some View {
         let tappable = GridCalendar.isTappable(key: key, interactive: interactive, today: today)
         RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(Theme.level(level, dark: scheme == .dark))
+            .fill(Theme.level(level,
+                              dark: scheme == .dark,
+                              palette: GraphPalette.resolve(habit: habit, global: globalPalette)))
             // Zukunft: gedimmt und ohne Tap-Handler (siehe isTappable).
             .opacity(key == nil ? 0.35 : 1)
             .frame(width: size, height: size)

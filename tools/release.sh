@@ -79,7 +79,7 @@ ok "ios platform"
 # Check the COUNT, not the exit code: a test file absent from project.yml does
 # not compile, and xcodebuild still exits 0.
 say "Unit tests"
-MIN_TESTS="${MIN_TESTS:-164}"
+MIN_TESTS="${MIN_TESTS:-190}"
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
@@ -180,6 +180,22 @@ xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"AppIcon"' \
     Check Haiity/Assets.xcassets/AppIcon.appiconset and
     ASSETCATALOG_COMPILER_APPICON_NAME."
 ok "AppIcon present in Assets.car"
+
+# 5c-bis. Alternative Icons (eins je Palette). Der Unit-Test prüft den
+# DEBUG-Build; hier zählt der archivierte Release-Build, denn actool ist die
+# einzige Stelle, die CFBundleAlternateIcons erzeugt — fehlt ein Name in
+# ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES, scheitert der Icon-Wechsel
+# stillschweigend erst auf dem Gerät.
+ALT_NAMES=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundleAlternateIcons" \
+            "$APP/Info.plist" 2>/dev/null | sed -n 's/^ *\(AppIcon-[A-Za-z]*\) = Dict {/\1/p')
+[[ -n "$ALT_NAMES" ]] || fail "no CFBundleAlternateIcons in the app Info.plist —
+    the palette-matched icons will never appear.
+    Fix: ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in project.yml."
+for alt in $ALT_NAMES; do
+  xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q "\"$alt\"" \
+    || fail "$alt is declared but missing from Assets.car."
+done
+ok "alternate icons present ($(echo $ALT_NAMES | wc -w | tr -d ' ')): $(echo $ALT_NAMES | tr '\n' ' ')"
 
 # 5d. Localization. In an extension Bundle.main is the .appex, not the app —
 # without the catalog IN the .appex every widget string falls back to German.
