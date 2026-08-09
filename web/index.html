@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hAiity — habits, GitHub style</title>
+<meta name="description" content="A GitHub-style habit tracker. Your data lives in your own GitHub repo — or only in this browser. No account, no server, no tracking.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='6' y='6' width='40' height='40' rx='8' fill='%2339d353'/%3E%3Crect x='54' y='6' width='40' height='40' rx='8' fill='%2326a641'/%3E%3Crect x='6' y='54' width='40' height='40' rx='8' fill='%23006d32'/%3E%3Crect x='54' y='54' width='40' height='40' rx='8' fill='%230e4429'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true"><rect x="6" y="6" width="40" height="40" rx="10" fill="#39d353"/><rect x="54" y="6" width="40" height="40" rx="10" fill="#26a641"/><rect x="6" y="54" width="40" height="40" rx="10" fill="#006d32"/><rect x="54" y="54" width="40" height="40" rx="10" fill="#0e4429"/></svg>
+    <h1>hAiity</h1>
+    <span class="tagline">habits, GitHub style</span>
+  </div>
+  <div class="top-actions">
+    <span id="sync-status" class="sync-status" role="status"></span>
+    <button id="btn-sync" class="ghost" type="button">Sync</button>
+    <button id="btn-add" class="primary" type="button">+ Habit</button>
+  </div>
+</header>
+
+<main id="habits" aria-live="polite"></main>
+
+<section id="empty" class="empty" hidden>
+  <div class="empty-grid" aria-hidden="true"></div>
+  <h2>No habits yet</h2>
+  <p>Add one and start painting squares. Each day you follow through fills a cell — just like a contribution graph.</p>
+  <button class="primary" type="button" id="btn-add-empty">+ Add your first habit</button>
+</section>
+
+<footer class="foot">
+  <p>No account. No server. No tracking. Data lives <strong id="foot-where">in this browser</strong>.</p>
+  <p class="foot-links">
+    <button class="link" type="button" id="btn-export">Export JSON</button> ·
+    <button class="link" type="button" id="btn-import">Import</button> ·
+    <a href="https://github.com/enrzh/haiity" rel="noopener">Source</a>
+  </p>
+  <input id="import-file" type="file" accept="application/json" hidden>
+</footer>
+
+<!-- add/edit habit dialog -->
+<dialog id="dlg-habit">
+  <form method="dialog" id="form-habit">
+    <h2 id="dlg-habit-title">New habit</h2>
+    <label>Name <input id="habit-name" required maxlength="60" placeholder="e.g. Read 20 minutes"></label>
+    <label>Emoji <input id="habit-emoji" maxlength="4" placeholder="📖"></label>
+    <menu>
+      <button value="cancel" class="ghost" type="submit">Cancel</button>
+      <button value="ok" class="primary" type="submit" id="btn-habit-save">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- sync dialog -->
+<dialog id="dlg-sync">
+  <form method="dialog">
+    <h2>Sync with GitHub</h2>
+    <div id="sync-connected" hidden>
+      <p>Connected as <strong id="sync-user"></strong> → <code id="sync-repo"></code></p>
+      <p class="hint">Every check-in is a commit in your repo — it lights your real contribution graph.</p>
+      <menu>
+        <button value="disconnect" class="danger" type="submit">Disconnect</button>
+        <button value="close" class="primary" type="submit">Close</button>
+      </menu>
+    </div>
+    <div id="sync-setup">
+      <p>Your data is stored in a private repo <code>haiity-data</code> in <em>your</em> GitHub account. hAiity is a static page — there is no server on our side, and the token never leaves this browser.</p>
+      <ol class="hint">
+        <li>Create a <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained token</a></li>
+        <li>Repository access: <em>All repositories</em> (or create <code>haiity-data</code> yourself first and select only it)</li>
+        <li>Permissions → Repository → <em>Contents: Read and write</em> and <em>Administration: Read and write</em> (only needed once, to create the repo — you can revoke and re-issue a Contents-only token afterwards)</li>
+      </ol>
+      <label>Token <input id="sync-token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+      <p class="error" id="sync-error" role="alert" hidden></p>
+      <menu>
+        <button value="cancel" class="ghost" type="submit">Cancel</button>
+        <button value="connect" class="primary" type="submit" id="btn-connect">Connect</button>
+      </menu>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
