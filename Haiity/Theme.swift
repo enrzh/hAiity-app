@@ -195,6 +195,35 @@ enum Theme {
         static func check() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
         static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
+
+    /// EINE Maßskala für die Oberfläche. Alles ist ein Vielfaches von 4, das
+    /// meiste von 8; wer hier etwas ändert, verschiebt es überall — genau
+    /// dafür stehen die Werte hier und nicht verstreut in den Views.
+    ///
+    /// `control` ist die wichtigste Zahl: Umschalter-HÖHE, Durchmesser des
+    /// zusammengezogenen Blobs und Durchmesser des Anlegen-Knopfes sind
+    /// DASSELBE Maß. Geschwisterelemente derselben Ebene dürfen sich in der
+    /// Größe nicht unterscheiden, sonst steht das eine optisch höher als das
+    /// andere, obwohl beide auf derselben Grundlinie sitzen.
+    enum Metrics {
+        /// Kantenlänge der schwebenden Bedienelemente unten.
+        static let control: CGFloat = 52
+        /// Kleinste Trefferfläche (Apple: 44 pt) — auch dort, wo das
+        /// Sichtbare kleiner ist.
+        static let hit: CGFloat = 44
+        /// Grundabstand.
+        static let gap: CGFloat = 8
+        /// Seitenrand von Liste und Chrom.
+        static let gutter: CGFloat = 16
+        /// Innenabstand der Rasterfläche.
+        static let cardPadding: CGFloat = 12
+        /// Eckradius der Rasterfläche.
+        static let cardRadius: CGFloat = 16
+        /// Kästchen JEDES Chrom-Symbols. Gleich groß, damit die Mittelpunkte
+        /// auf einer Linie sitzen; die Punktgrößen darin sind optisch
+        /// abgeglichen (siehe ContentView.glyph).
+        static let glyph: CGFloat = 32
+    }
 }
 
 // MARK: – Umgebung
