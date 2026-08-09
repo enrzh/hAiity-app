@@ -87,3 +87,102 @@ enum ChromeLayout {
         return 0
     }
 }
+
+/// Die Geometrie der Mehr-Tafel — zwei Höhen, ein Zug, drei mögliche
+/// Ausgänge. Wieder als PURE Rechnung, aus demselben Grund wie oben: was in
+/// der Ansicht steht, lässt sich nur im Simulator anschauen, und „ab wann
+/// klappt sie auf" ist eine Zahl, keine Ansichtssache.
+///
+/// **Zwei Höhen statt einer.** Die Tafel öffnet klein (`ratio`, gedeckelt auf
+/// `cap`) — sie soll ein Stück der Habit-Liste stehen lassen, sonst ist sie
+/// eine Seite mit anderen Mitteln. Wer mehr will, zieht sie nach oben:
+/// `expandedRatio` der Container-Höhe, mehr nicht, damit sie unter der
+/// Statusleiste nicht anklebt.
+///
+/// **Gummiband.** Über die große Höhe hinaus folgt sie dem Finger nur noch
+/// gedämpft (`rubberBand`) — ohne das fühlt sich die Grenze wie ein
+/// Programmfehler an, mit ihr wie ein Ende.
+enum MorePanel {
+    /// Anteil der Container-Höhe im kleinen Zustand.
+    static let ratio: CGFloat = 0.58
+    /// Deckel für den kleinen Zustand (auf großen Geräten sonst zu viel).
+    static let cap: CGFloat = 520
+    /// Anteil der Container-Höhe im großen Zustand.
+    static let expandedRatio: CGFloat = 0.92
+    /// Ab hier gilt ein Zug als Entscheidung — nach oben wie nach unten.
+    static let snapDistance: CGFloat = 60
+    /// Ab hier ist ein Zug nach unten ein Schließen (aus dem kleinen
+    /// Zustand); aus dem großen führt er erst zurück auf den kleinen.
+    static let dismissDistance: CGFloat = 90
+    /// Wie weit der Wurf zählt: ein kurzer, schneller Zug soll dasselbe
+    /// bewirken wie ein langer, langsamer.
+    static let flickDistance: CGFloat = 180
+
+    static func collapsedHeight(container: CGFloat) -> CGFloat {
+        max(0, min(container * ratio, cap))
+    }
+
+    static func expandedHeight(container: CGFloat) -> CGFloat {
+        // Nie KLEINER als der kleine Zustand: auf einem sehr niedrigen
+        // Container (Landscape, Slide-Over) läge der Deckel sonst darunter
+        // und die Tafel schrumpfte beim Aufziehen.
+        max(collapsedHeight(container: container), container * expandedRatio)
+    }
+
+    /// Die Höhe WÄHREND eines Zuges. `drag` ist die Translation des Fingers:
+    /// negativ = nach oben, positiv = nach unten.
+    ///
+    ///  * nach oben: die Tafel WÄCHST, jenseits der großen Höhe gedämpft;
+    ///  * nach unten aus dem großen Zustand: sie schrumpft bis auf die kleine
+    ///    Höhe und bleibt dort stehen;
+    ///  * nach unten aus dem kleinen Zustand: sie behält ihre Höhe und
+    ///    WANDERT stattdessen (siehe `offset`) — genau das Verhalten von
+    ///    vorher, als es nur eine Höhe gab.
+    static func height(container: CGFloat, expanded: Bool, drag: CGFloat) -> CGFloat {
+        let small = collapsedHeight(container: container)
+        let large = expandedHeight(container: container)
+        let base = expanded ? large : small
+        if drag < 0 {
+            let wanted = base - drag                 // drag ist negativ
+            return wanted > large ? large + rubberBand(wanted - large) : wanted
+        }
+        guard expanded else { return base }
+        return max(small, large - drag)
+    }
+
+    /// Der senkrechte Versatz während eines Zuges: nur nach UNTEN und nur aus
+    /// dem KLEINEN Zustand. Aus dem großen ist der Zug nach unten das
+    /// Schrumpfen selbst (siehe `height`) — dort zusätzlich zu wandern hieße,
+    /// zwei Bewegungen auf eine Geste zu legen.
+    static func offset(expanded: Bool, drag: CGFloat) -> CGFloat {
+        guard drag > 0, !expanded else { return 0 }
+        return drag
+    }
+
+    /// Was ein losgelassener Zug bedeutet.
+    enum Outcome: Equatable { case expand, collapse, dismiss }
+
+    /// `drag` ist die Translation beim Loslassen, `predicted` die
+    /// vorhergesagte Endposition (der Wurf).
+    static func resolve(drag: CGFloat, predicted: CGFloat, expanded: Bool) -> Outcome {
+        let up = drag < -snapDistance || predicted < -flickDistance
+        let down = drag > snapDistance || predicted > flickDistance
+        if up { return .expand }
+        guard down else { return expanded ? .expand : .collapse }
+        // Nach unten: aus dem großen Zustand erst zurück auf den kleinen,
+        // erst von dort schließt der nächste Zug. Ein einziger langer Zug
+        // über die ganze Tafel schließt trotzdem sofort.
+        if expanded {
+            return (drag > dismissDistance * 3 || predicted > flickDistance * 3)
+                ? .dismiss : .collapse
+        }
+        return (drag > dismissDistance || predicted > flickDistance) ? .dismiss : .collapse
+    }
+
+    /// Logarithmische Dämpfung jenseits der Grenze — dieselbe Kurve, die
+    /// UIScrollView über seinen Rand hinaus fährt.
+    static func rubberBand(_ excess: CGFloat, limit: CGFloat = 120) -> CGFloat {
+        guard excess > 0 else { return 0 }
+        return limit * (1 - 1 / (excess / limit + 1))
+    }
+}

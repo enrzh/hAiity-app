@@ -1,20 +1,34 @@
 import SwiftUI
 
-/// Anlegen/Bearbeiten — als Half-Sheet präsentiert. Die Erinnerung ist der
-/// EINZIGE Ort, der die Benachrichtigungs-Berechtigung auslösen darf — beim
-/// aktiven Einschalten (unverändert).
+/// Anlegen/Bearbeiten — als Half-Sheet präsentiert. Es fragt NICHTS mehr nach
+/// Benachrichtigungen: die eigene Erinnerung je Habit ist weg, erinnert wird
+/// zentral über die Tages- und die Wochenzusammenfassung (Mehr →
+/// Einstellungen, siehe `Reminders`).
 ///
 /// Das Herz ist der Regel-Editor: Häufigkeit × Intervall, dazu die feine
-/// Regel (Wochentage, Tag im Monat, n-ter Wochentag), Zeitraum und das
-/// Mengenziel. Damit das nicht zu einem Formular wird, das man raten muss,
-/// steht ganz oben in der Sektion EIN Satz, der die eingestellte Regel
-/// vorliest — „Jeden 2. Montag und Donnerstag", „Am letzten Freitag im
-/// Monat". Der Satz kommt aus `RecurrenceText` und ist als reine Funktion
-/// getestet.
+/// Regel (Wochentage, Tag im Monat, n-ter Wochentag), das Startdatum und die
+/// Uhrzeit — alles unter EINER Überschrift „Zeitraum". Damit das nicht zu
+/// einem Formular wird, das man raten muss, steht ganz oben in der Sektion
+/// EIN Satz, der die eingestellte Regel vorliest — „Jeden 2. Montag und
+/// Donnerstag um 07:30", „Am letzten Freitag im Monat". Der Satz kommt aus
+/// `RecurrenceText` und ist als reine Funktion getestet.
+///
+/// **Was das Formular NICHT mehr zeigt** (und warum die Werte trotzdem
+/// stehen bleiben):
+///
+///  * **Feste Termine / Anzahl.** Die Regel benennt jetzt immer die TAGE.
+///    Das flexible Ziel („3× pro Woche", `Recurrence.timesPerPeriod`) bleibt
+///    im Modell und in der Rechnung — migrierte Alt-Ziele und alles, was in
+///    einer ausgelieferten Version angelegt wurde, verhält sich unverändert.
+///    Es lässt sich nur nicht mehr NEU einstellen.
+///  * **Das Ende** (nie / am Datum / nach Terminen, `Recurrence.End`).
+///    Ebenso: gespeicherte Enden gelten weiter und wandern beim Sichern
+///    unverändert mit, es gibt nur keinen Knopf mehr dafür.
 ///
 /// Der Zustand liegt in `RecurrenceDraft`, nicht in einem Dutzend
 /// `@State`-Variablen: der Weg Regel -> Formular -> Regel ist damit prüfbar,
-/// ohne den Simulator zu starten.
+/// ohne den Simulator zu starten — und genau darüber überleben die beiden
+/// nicht mehr angezeigten Felder eine Runde durch den Editor.
 struct EditHabitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -24,9 +38,6 @@ struct EditHabitSheet: View {
 
     @State private var name = ""
     @State private var emoji = ""
-    @State private var reminderOn = false
-    @State private var reminderTime = Calendar.current.date(from: DateComponents(hour: 9, minute: 0)) ?? .now
-    @State private var permissionDenied = false
 
     /// Die ganze Regel als EIN Wert.
     @State private var draft = RecurrenceDraft()
@@ -45,10 +56,9 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("habit-emoji")
                 }
                 recurrenceSection
-                periodSection
+                timeSection
                 quantitySection
                 colorSection
-                reminderSection
                 if let habit = existing {
                     Section {
                         ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
@@ -86,7 +96,7 @@ struct EditHabitSheet: View {
         .onChange(of: draft.flexible) { _, _ in draft.normalize(calendar: calendar) }
     }
 
-    // MARK: – Wiederholung
+    // MARK: – Zeitraum (Regel + Start)
 
     private var recurrenceSection: some View {
         Section {
@@ -105,15 +115,11 @@ struct EditHabitSheet: View {
             }
             .accessibilityIdentifier("interval-stepper")
 
-            if draft.frequency != .daily {
-                Picker(String(localized: "Art"), selection: $draft.flexible) {
-                    Text(String(localized: "Feste Termine")).tag(false)
-                    Text(String(localized: "Anzahl")).tag(true)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("flexible-picker")
-            }
-
+            // Die Wahl „feste Termine oder Anzahl" gibt es nicht mehr: die
+            // Regel benennt die TAGE. Ein Habit, das noch aus der Zeit des
+            // flexiblen Ziels stammt, behält seine Rechnung (siehe oben) und
+            // zeigt hier weiterhin seine Verabredung — nur ohne den Zähler,
+            // den man nicht mehr verstellen kann.
             if draft.flexible, draft.frequency != .daily {
                 flexibleControls
             } else {
@@ -124,13 +130,27 @@ struct EditHabitSheet: View {
                 case .yearly: yearlyControls
                 }
             }
+
+            // Der Start gehörte einmal in einen eigenen Abschnitt „Zeitraum"
+            // neben dieser Sektion. Zwei Überschriften für dieselbe Frage
+            // („wann?") waren eine zu viel — jetzt steht er hier, direkt
+            // unter der Regel, für die er gilt.
+            Toggle(String(localized: "Startdatum"), isOn: $draft.hasStart)
+                .accessibilityIdentifier("start-toggle")
+            if draft.hasStart {
+                DatePicker(String(localized: "Beginn"), selection: $draft.start,
+                           displayedComponents: .date)
+                    .accessibilityIdentifier("start-date")
+            }
         } header: {
-            Text(String(localized: "Wiederholung"))
+            Text(String(localized: "Zeitraum"))
         } footer: {
             if draft.frequency == .weekly, !draft.flexible, draft.weekdays.isEmpty {
                 Text(String(localized: "Ohne gewählten Wochentag steht nie ein Termin an. Check-ins zählen trotzdem."))
             } else if draft.flexible {
-                Text(String(localized: "Die Anzahl zählt pro Periode — welche Tage es werden, entscheidest du. Ein fester Tag ist dann nur eine Verabredung für die Erinnerung; ein Check-in an einem anderen Tag zählt genauso."))
+                Text(String(localized: "Dieser Habit zählt pro Periode — welche Tage es werden, entscheidest du. Ein fester Tag ist dann nur eine Verabredung; ein Check-in an einem anderen Tag zählt genauso."))
+            } else if !draft.hasStart {
+                Text(String(localized: "Ohne Startdatum gilt die Regel für die ganze Historie — so bleiben Quoten und Serien älterer Habits unverändert."))
             }
         }
     }
@@ -163,29 +183,22 @@ struct EditHabitSheet: View {
         }
     }
 
-    // MARK: – Flexibles Ziel („n× pro Periode")
+    // MARK: – Flexibles Ziel („n× pro Periode") — nur noch Bestandsschutz
+    //
+    // Der Zähler-Stepper stand hier einmal („3× pro Woche"). Er ist weg: die
+    // Anzahl pro Periode lässt sich nicht mehr NEU einstellen (das Mengenziel
+    // beantwortet die verwandte Frage „wie viel pro Tag"). Was bleibt, ist
+    // die Verabredung — der Tag, an dem so ein Habit gedacht ist. Der Satz
+    // ganz oben sagt weiterhin, wie oft pro Periode gezählt wird.
 
     @ViewBuilder
     private var flexibleControls: some View {
-        Stepper(value: $draft.times, in: 1...Recurrence.maxTimes(for: draft.frequency)) {
-            Text(flexibleLabel)
-        }
-        .accessibilityIdentifier("weekly-times")
         if draft.frequency == .weekly {
             Toggle(String(localized: "Fester Tag"), isOn: fixedWeekdayBinding)
                 .accessibilityIdentifier("fixed-weekday-toggle")
             if !draft.weekdays.isEmpty {
                 weekdayChips(multiSelect: false)
             }
-        }
-    }
-
-    private var flexibleLabel: String {
-        let n = draft.times
-        switch draft.frequency {
-        case .monthly: return String(localized: "\(n)× pro Monat")
-        case .yearly: return String(localized: "\(n)× pro Jahr")
-        default: return String(localized: "\(n)× pro Woche")
         }
     }
 
@@ -267,45 +280,24 @@ struct EditHabitSheet: View {
         }
     }
 
-    // MARK: – Zeitraum
+    // MARK: – Uhrzeit
+    //
+    // Eine EIGENSCHAFT des Termins, keine Benachrichtigung: „Laufen um 07:30"
+    // steht im Satz der Regel und auf der Karte, es klingelt nichts. Deshalb
+    // hinter einem Schalter — die meisten Habits haben keine Uhrzeit, und ein
+    // Datumsrad, das immer da ist, sähe aus wie eine Pflichtangabe.
 
-    private var periodSection: some View {
+    private var timeSection: some View {
         Section {
-            Toggle(String(localized: "Startdatum"), isOn: $draft.hasStart)
-                .accessibilityIdentifier("start-toggle")
-            if draft.hasStart {
-                DatePicker(String(localized: "Beginn"), selection: $draft.start,
-                           displayedComponents: .date)
-                    .accessibilityIdentifier("start-date")
+            Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
+                .accessibilityIdentifier("time-toggle")
+            if draft.hasTime {
+                DatePicker(String(localized: "Zeit"), selection: $draft.time,
+                           displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("habit-time")
             }
-            Picker(String(localized: "Ende"), selection: $draft.endMode) {
-                Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
-                Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
-                Text(String(localized: "Nach Terminen")).tag(RecurrenceDraft.EndMode.afterCount)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("end-picker")
-            switch draft.endMode {
-            case .never:
-                EmptyView()
-            case .onDate:
-                DatePicker(String(localized: "Endet am"), selection: $draft.endDate,
-                           displayedComponents: .date)
-                    .accessibilityIdentifier("end-date")
-            case .afterCount:
-                Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
-                    Text(String(localized: "Nach \(draft.endCount) Terminen"))
-                }
-                .accessibilityIdentifier("end-count")
-            }
-        } header: {
-            Text(String(localized: "Zeitraum"))
         } footer: {
-            if !draft.hasStart {
-                Text(String(localized: "Ohne Startdatum gilt die Regel für die ganze Historie — so bleiben Quoten und Serien älterer Habits unverändert."))
-            } else if draft.endMode == .afterCount {
-                Text(String(localized: "Gezählt werden TERMINE, nicht Tage."))
-            }
+            Text(String(localized: "Nur eine Angabe am Termin — sie erinnert nicht. Erinnerungen laufen über die Zusammenfassungen in „Mehr“."))
         }
     }
 
@@ -389,94 +381,41 @@ struct EditHabitSheet: View {
         }
     }
 
-    // MARK: – Erinnerung (Berechtigungs-Gate unverändert aus v1)
-
-    /// Wie oft es klingelt, sagt die Regel — die Beschriftung sagt dasselbe,
-    /// sonst verspricht ein „Tägliche Erinnerung" etwas, was die App gar
-    /// nicht plant (siehe `Reminders.plans`).
-    private var reminderTitle: String {
-        let recurrence = draft.recurrence(calendar: calendar)
-        guard let plan = Reminders.plan(for: previewHabit(recurrence),
-                                        calendar: calendar) else {
-            return String(localized: "Erinnerung")
-        }
-        if plan.isOneShot { return String(localized: "Erinnerung zum nächsten Termin") }
-        if plan.isWeekly { return String(localized: "Wöchentliche Erinnerung") }
-        if plan.dateMatching.month != nil { return String(localized: "Jährliche Erinnerung") }
-        if plan.isMonthly { return String(localized: "Monatliche Erinnerung") }
-        return String(localized: "Tägliche Erinnerung")
-    }
-
-    /// Ein Wegwerf-Habit nur für die Frage „wie würde geplant?" — dieselbe
-    /// Rechnung wie später beim echten Planen, kein zweites Regelwerk.
-    private func previewHabit(_ recurrence: Recurrence) -> Habit {
-        Habit(name: name, reminderMinutes: 12 * 60, recurrence: recurrence)
-    }
-
-    private var reminderSection: some View {
-        Section {
-            Toggle(reminderTitle, isOn: $reminderOn)
-                .accessibilityIdentifier("reminder-toggle")
-            if reminderOn {
-                DatePicker(String(localized: "Uhrzeit"), selection: $reminderTime, displayedComponents: .hourAndMinute)
-                    .accessibilityIdentifier("reminder-time")
-            }
-            if permissionDenied {
-                Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Erinnerung."))
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        } footer: {
-            Text(reminderOn
-                 ? String(localized: "\(draft.summary(calendar: calendar)) — zur gewählten Zeit. Gefragt wird nur, wenn du eine Erinnerung einschaltest — nie einfach so.")
-                 : String(localized: "Gefragt wird nur, wenn du eine Erinnerung einschaltest — nie einfach so."))
-        }
-    }
-
     // MARK: – Laden / Sichern
 
     private func load() {
         guard let habit = existing else { return }
         name = habit.name
         emoji = habit.emoji
-        if let minutes = habit.reminderMinutes {
-            reminderOn = true
-            reminderTime = calendar.date(from: DateComponents(hour: minutes / 60,
-                                                              minute: minutes % 60)) ?? .now
-        }
-        draft = RecurrenceDraft(habit.recurrence, calendar: calendar)
+        // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
+        // und im selben Satz wie die Regel.
+        draft = RecurrenceDraft(habit.recurrence, timeMinutes: habit.timeMinutes,
+                                calendar: calendar)
         habitPalette = habit.palette
     }
 
+    /// Sichern ist synchron — es gibt nichts mehr zu fragen. Die
+    /// Benachrichtigungs-Berechtigung hängt seit v5 ausschließlich an den
+    /// beiden Zusammenfassungen in „Mehr"; ein Habit anzulegen löst keinen
+    /// System-Dialog mehr aus.
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        let minutes: Int? = reminderOn
-            ? calendar.component(.hour, from: reminderTime) * 60
-              + calendar.component(.minute, from: reminderTime)
-            : nil
         // Bewusst OHNE `normalize`: die Grenzen zieht der Init der Regel
         // ohnehin, und eine bewusst leere Wochentagsmenge soll leer bleiben.
         let recurrence = draft.recurrence(calendar: calendar)
 
-        Task {
-            var granted = true
-            if minutes != nil { granted = await Reminders.ensurePermission() }
-            await MainActor.run {
-                if minutes != nil && !granted {
-                    permissionDenied = true
-                    return
-                }
-                var habit = existing ?? Habit(name: trimmed, emoji: emoji)
-                habit.name = trimmed
-                habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
-                habit.reminderMinutes = minutes
-                habit.recurrence = recurrence
-                habit.palette = habitPalette
-                if existing == nil { store.add(habit) } else { store.update(habit) }
-                Theme.Haptics.success()
-                dismiss()
-            }
-        }
+        var habit = existing ?? Habit(name: trimmed, emoji: emoji)
+        habit.name = trimmed
+        habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
+        habit.timeMinutes = draft.timeMinutes(calendar: calendar)
+        habit.recurrence = recurrence
+        habit.palette = habitPalette
+        // `habit.reminderMinutes` bleibt unangetastet: es steht in Dateien
+        // ausgelieferter Versionen und soll dort auch stehen bleiben (siehe
+        // `Habit`). Ausgewertet wird es nicht mehr.
+        if existing == nil { store.add(habit) } else { store.update(habit) }
+        Theme.Haptics.success()
+        dismiss()
     }
 }

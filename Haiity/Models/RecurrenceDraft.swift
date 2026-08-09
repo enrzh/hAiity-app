@@ -44,6 +44,13 @@ struct RecurrenceDraft: Equatable {
     var endCount = 10
     var quantity = false
     var target = 3
+    /// Hat der Habit eine Uhrzeit? Sie gehört NICHT zur Regel (die Regel
+    /// benennt Tage) und wird deshalb auch nicht in `recurrence()`
+    /// eingebaut — sie liegt am Habit (`Habit.timeMinutes`). Hier steht sie
+    /// trotzdem, weil sie im selben Abschnitt eingestellt wird und im selben
+    /// Satz vorgelesen wird: „Jeden Montag um 07:30".
+    var hasTime = false
+    var time = Date()
 
     // MARK: – Formular -> Regel
 
@@ -83,6 +90,10 @@ struct RecurrenceDraft: Equatable {
     init(today: Date = Date(), calendar: Calendar = .current) {
         start = today
         endDate = calendar.date(byAdding: .month, value: 3, to: today) ?? today
+        var clock = calendar.dateComponents([.year, .month, .day], from: today)
+        clock.hour = Self.defaultHour
+        clock.minute = 0
+        time = calendar.date(from: clock) ?? today
         weekdays = [calendar.component(.weekday, from: today)]
         nthWeekday = calendar.component(.weekday, from: today)
         dayOfMonth = calendar.component(.day, from: today)
@@ -90,8 +101,18 @@ struct RecurrenceDraft: Equatable {
         nth = min(5, (calendar.component(.day, from: today) - 1) / 7 + 1)
     }
 
-    init(_ recurrence: Recurrence, today: Date = Date(), calendar: Calendar = .current) {
+    init(_ recurrence: Recurrence,
+         timeMinutes: Int? = nil,
+         today: Date = Date(),
+         calendar: Calendar = .current) {
         self.init(today: today, calendar: calendar)
+        if let minutes = Habit.sanitizedMinutes(timeMinutes) {
+            hasTime = true
+            var clock = calendar.dateComponents([.year, .month, .day], from: today)
+            clock.hour = minutes / 60
+            clock.minute = minutes % 60
+            if let date = calendar.date(from: clock) { time = date }
+        }
         frequency = recurrence.frequency
         interval = recurrence.interval
         // Bewusst auch die LEERE Menge übernehmen: „wöchentlich ohne Tage"
@@ -157,8 +178,20 @@ struct RecurrenceDraft: Equatable {
         endCount = min(Recurrence.maxOccurrences, max(1, endCount))
     }
 
-    /// Der Satz, der im Editor unter den Knöpfen steht.
-    func summary(calendar: Calendar = .current) -> String {
-        RecurrenceText.summary(recurrence(calendar: calendar), calendar: calendar)
+    /// Die eingestellte Uhrzeit als Minuten seit Mitternacht; nil = ohne.
+    func timeMinutes(calendar: Calendar = .current) -> Int? {
+        guard hasTime else { return nil }
+        return calendar.component(.hour, from: time) * 60
+            + calendar.component(.minute, from: time)
     }
+
+    /// Der Satz, der im Editor unter den Knöpfen steht — samt Uhrzeit.
+    func summary(calendar: Calendar = .current) -> String {
+        RecurrenceText.summary(recurrence(calendar: calendar),
+                               timeMinutes: timeMinutes(calendar: calendar),
+                               calendar: calendar)
+    }
+
+    /// Vorgabe-Uhrzeit, wenn der Schalter eingeschaltet wird.
+    static let defaultHour = 9
 }

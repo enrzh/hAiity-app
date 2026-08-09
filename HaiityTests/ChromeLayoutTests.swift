@@ -113,3 +113,165 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(ChromeLayout.segment(at: CGPoint(x: 150, y: 26), frames: wide), .right)
     }
 }
+
+/// Die Mehr-Tafel: zwei Höhen, ein Zug, drei mögliche Ausgänge. In der
+/// Ansicht wäre das eine Sache fürs Auge; hier steht, ab wann sie aufklappt,
+/// wann sie zurückgeht und wann sie zu ist.
+final class MorePanelTests: XCTestCase {
+    /// Nutzhöhe eines iPhone 17 Pro Max.
+    private let tall: CGFloat = 874
+    /// Ein niedriger Container — dort greift der Deckel nicht.
+    private let short: CGFloat = 600
+
+    // MARK: – Die zwei Höhen
+
+    func testTheSmallHeightIsCapped() {
+        // 0,58 × 874 = 507 -> unter dem Deckel; 0,58 × 1000 = 580 -> gedeckelt.
+        XCTAssertEqual(MorePanel.collapsedHeight(container: tall),
+                       tall * MorePanel.ratio, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.collapsedHeight(container: 1000), MorePanel.cap, accuracy: 0.001)
+    }
+
+    func testTheBigHeightLeavesAStripOfTheList() {
+        let big = MorePanel.expandedHeight(container: tall)
+        XCTAssertEqual(big, tall * MorePanel.expandedRatio, accuracy: 0.001)
+        XCTAssertLessThan(big, tall)          // nie randlos
+        XCTAssertGreaterThan(big, MorePanel.collapsedHeight(container: tall))
+    }
+
+    /// Auf einem niedrigen Container liegt der Deckel des kleinen Zustands
+    /// unter der großen Höhe — die Tafel darf beim Aufziehen nicht
+    /// schrumpfen.
+    func testTheBigHeightIsNeverSmallerThanTheSmallOne() {
+        for h in stride(from: 200.0, through: 1200.0, by: 100.0) {
+            let container = CGFloat(h)
+            XCTAssertGreaterThanOrEqual(MorePanel.expandedHeight(container: container),
+                                        MorePanel.collapsedHeight(container: container))
+        }
+    }
+
+    // MARK: – Während des Zuges
+
+    func testPullingUpGrows() {
+        let small = MorePanel.collapsedHeight(container: tall)
+        let h = MorePanel.height(container: tall, expanded: false, drag: -100)
+        XCTAssertEqual(h, small + 100, accuracy: 0.001)
+    }
+
+    func testGrowthIsDampedBeyondTheBigHeight() {
+        let big = MorePanel.expandedHeight(container: tall)
+        let h = MorePanel.height(container: tall, expanded: true, drag: -300)
+        XCTAssertGreaterThan(h, big)                  // es geht noch etwas
+        XCTAssertLessThan(h, big + 300)               // aber lange nicht alles
+        XCTAssertLessThan(h, big + MorePanel.rubberBand(.infinity) + 1)
+    }
+
+    func testRubberBandIsMonotonicAndBounded() {
+        XCTAssertEqual(MorePanel.rubberBand(0), 0, accuracy: 0.001)
+        XCTAssertLessThan(MorePanel.rubberBand(50), MorePanel.rubberBand(200))
+        XCTAssertLessThan(MorePanel.rubberBand(100_000), 121)
+    }
+
+    func testPullingDownFromSmallMovesInsteadOfShrinking() {
+        let small = MorePanel.collapsedHeight(container: tall)
+        XCTAssertEqual(MorePanel.height(container: tall, expanded: false, drag: 80),
+                       small, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.offset(expanded: false, drag: 80), 80, accuracy: 0.001)
+    }
+
+    func testPullingDownFromBigShrinksToTheSmallHeightAndStops() {
+        let small = MorePanel.collapsedHeight(container: tall)
+        let big = MorePanel.expandedHeight(container: tall)
+        XCTAssertEqual(MorePanel.height(container: tall, expanded: true, drag: 100),
+                       big - 100, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.height(container: tall, expanded: true, drag: 5000),
+                       small, accuracy: 0.001)
+        // Und sie WANDERT dabei nicht: eine Geste, eine Bewegung.
+        XCTAssertEqual(MorePanel.offset(expanded: true, drag: 100), 0, accuracy: 0.001)
+    }
+
+    func testAnUntouchedPanelKeepsItsHeight() {
+        XCTAssertEqual(MorePanel.height(container: short, expanded: false, drag: 0),
+                       MorePanel.collapsedHeight(container: short), accuracy: 0.001)
+        XCTAssertEqual(MorePanel.height(container: short, expanded: true, drag: 0),
+                       MorePanel.expandedHeight(container: short), accuracy: 0.001)
+        XCTAssertEqual(MorePanel.offset(expanded: false, drag: 0), 0, accuracy: 0.001)
+    }
+
+    // MARK: – Was ein losgelassener Zug bedeutet
+
+    func testAShortPullUpExpands() {
+        XCTAssertEqual(MorePanel.resolve(drag: -80, predicted: -80, expanded: false), .expand)
+    }
+
+    func testAFlickUpExpandsEvenIfTheFingerBarelyMoved() {
+        XCTAssertEqual(MorePanel.resolve(drag: -20, predicted: -400, expanded: false), .expand)
+    }
+
+    func testATinyPullChangesNothing() {
+        XCTAssertEqual(MorePanel.resolve(drag: -10, predicted: -10, expanded: false), .collapse)
+        XCTAssertEqual(MorePanel.resolve(drag: 10, predicted: 10, expanded: true), .expand)
+    }
+
+    func testPullingDownFromSmallDismisses() {
+        XCTAssertEqual(MorePanel.resolve(drag: 120, predicted: 120, expanded: false), .dismiss)
+        // Kurz und knapp über der Schnappgrenze: erst zurück, nicht gleich zu.
+        XCTAssertEqual(MorePanel.resolve(drag: 70, predicted: 70, expanded: false), .collapse)
+    }
+
+    /// Aus dem großen Zustand führt ein Zug nach unten ZURÜCK auf die kleine
+    /// Höhe — nicht sofort hinaus. Erst ein Zug über die ganze Tafel schließt.
+    func testPullingDownFromBigGoesBackFirst() {
+        XCTAssertEqual(MorePanel.resolve(drag: 150, predicted: 150, expanded: true), .collapse)
+        XCTAssertEqual(MorePanel.resolve(drag: 400, predicted: 400, expanded: true), .dismiss)
+    }
+}
+
+/// Die Vorschau des langen Drucks: sie soll den Bildschirm ausfüllen (bis auf
+/// einen schmalen Rand) und so viel Historie zeigen, wie hineinpasst. Beides
+/// hängt an der FENSTERBREITE — auf einem SE muss es genauso stimmen wie auf
+/// einem Max, und ein Screenshot je Gerät ist keine Prüfung.
+final class HabitPreviewMetricsTests: XCTestCase {
+
+    func testPreviewIsScreenWideMinusASmallMargin() {
+        for width in [375.0, 393.0, 430.0, 440.0] {
+            let m = HabitCard.previewMetrics(windowWidth: CGFloat(width))
+            XCTAssertEqual(m.width, CGFloat(width) - 2 * HabitCard.previewMargin, accuracy: 0.001)
+        }
+    }
+
+    /// Auf einem sehr schmalen Fenster (Slide-Over) greift die Untergrenze —
+    /// eine 40-pt-Vorschau wäre keine.
+    func testVeryNarrowWindowsGetTheMinimum() {
+        let m = HabitCard.previewMetrics(windowWidth: 120)
+        XCTAssertEqual(m.width, HabitCard.previewMinWidth, accuracy: 0.001)
+    }
+
+    /// Mehr Breite heißt MEHR WOCHEN, nicht dasselbe Raster in einer
+    /// größeren Schachtel.
+    func testWiderWindowsShowMoreWeeks() {
+        let se = HabitCard.previewMetrics(windowWidth: 375).weeks
+        let max = HabitCard.previewMetrics(windowWidth: 440).weeks
+        XCTAssertGreaterThan(max, se)
+        XCTAssertGreaterThan(se, 8)
+    }
+
+    /// Die Wochen müssen auch WIRKLICH hineinpassen: Rastermaß × Wochen darf
+    /// das Innenmaß nicht überschreiten, sonst steht die Vorschau doch wieder
+    /// abgeschnitten da.
+    func testTheWeeksFitIntoTheWidth() {
+        for width in [320.0, 375.0, 393.0, 440.0, 1024.0] {
+            let m = HabitCard.previewMetrics(windowWidth: CGFloat(width))
+            let content = m.width - 2 * Theme.Metrics.gutter
+            let used = CGFloat(m.weeks) * (HabitCard.previewCell + HabitCard.previewGap)
+                - HabitCard.previewGap
+            XCTAssertLessThanOrEqual(used, content + 0.001, "bei \(width) pt")
+        }
+    }
+
+    /// Das Raster IST ein Jahr — auf einem sehr breiten Fenster hört es bei
+    /// 53 Wochen auf.
+    func testAYearIsTheCeiling() {
+        XCTAssertEqual(HabitCard.previewMetrics(windowWidth: 4000).weeks, 53)
+    }
+}

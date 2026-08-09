@@ -53,8 +53,13 @@ struct ContentView: View {
     /// Loslassen.
     @State private var dragSegment: Screen?
     @State private var draggingSwitcher = false
-    /// Mitgezogene Tafel (Wisch nach unten am Griff).
+    /// Mitgezogene Tafel (Wisch am Griff — nach oben größer, nach unten
+    /// kleiner und schließlich zu). Negativ = nach oben.
     @State private var panelDrag: CGFloat = 0
+    /// Steht die Tafel auf ihrer großen Höhe? Wird beim Schließen wieder
+    /// zurückgesetzt — die Tafel öffnet immer klein, damit von der Liste
+    /// etwas stehen bleibt.
+    @State private var panelExpanded = false
     /// Wann zuletzt ein ZUG entschieden hat. Der Knopf, auf dem der Finger
     /// aufgesetzt hat, feuert danach trotzdem noch — siehe `select`.
     @State private var lastDragSwitch = Date.distantPast
@@ -611,22 +616,36 @@ struct ContentView: View {
             }
             // Feste Höhe statt „so hoch wie der Inhalt": die Liste ist immer
             // länger als der Platz, und eine gerechnete Höhe hält die
-            // Aufklapp-Animation ruhig. Der Deckel ist wichtig — die Tafel
-            // soll ein Stück der Habit-Liste stehen lassen, sonst ist sie
-            // eine Seite mit anderen Mitteln.
-            .containerRelativeFrame(.vertical) { height, _ in min(height * 0.58, 520) }
+            // Aufklapp-Animation ruhig. ZWEI Höhen (siehe MorePanel): klein
+            // geöffnet, damit ein Stück der Habit-Liste stehen bleibt — und
+            // groß, wenn man sie nach oben zieht.
+            .containerRelativeFrame(.vertical) { height, _ in
+                MorePanel.height(container: height, expanded: panelExpanded, drag: panelDrag)
+            }
             .frame(maxWidth: .infinity)
             .modifier(PanelGlass(namespace: glassNamespace))
-            .offset(y: panelDrag)
+            .offset(y: MorePanel.offset(expanded: panelExpanded, drag: panelDrag))
             .transition(panelTransition)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("more-panel")
+            .accessibilityValue(panelExpanded
+                                ? String(localized: "Groß")
+                                : String(localized: "Klein"))
+            // Auch ohne Geste erreichbar: VoiceOver und Vollzugriff kennen
+            // keinen Wisch am Griff.
+            .accessibilityAction(named: panelExpanded
+                                 ? String(localized: "Tafel verkleinern")
+                                 : String(localized: "Tafel vergrößern")) {
+                setPanelExpanded(!panelExpanded)
+            }
         }
     }
 
-    /// Griff und Titel. Der Wisch nach unten hängt HIER und nicht an der
-    /// ganzen Tafel: eine Ziehgeste über der Liste würde mit deren Scrollen
-    /// streiten, und der Griff ist ohnehin die Stelle, an die man greift.
+    /// Griff und Titel. Der Zug hängt HIER und nicht an der ganzen Tafel:
+    /// eine Ziehgeste über der Liste würde mit deren Scrollen streiten, und
+    /// der Griff ist ohnehin die Stelle, an die man greift. Er ist dafür
+    /// bewusst hoch (Griff PLUS Titelzeile PLUS Ränder) — das ist die
+    /// „nicht scrollende" Fläche der Tafel.
     private var panelHandle: some View {
         VStack(spacing: 6) {
             Capsule()
@@ -639,23 +658,45 @@ struct ContentView: View {
         .padding(.top, 10)
         .padding(.bottom, 6)
         .contentShape(Rectangle())
-        .gesture(panelDismissDrag)
+        .gesture(panelDrag_gesture)
         .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("more-grabber")
     }
 
-    private var panelDismissDrag: some Gesture {
+    /// EINE Geste für beide Richtungen: nach oben wächst die Tafel auf ihre
+    /// große Höhe (darüber hinaus nur noch gedämpft), nach unten schrumpft
+    /// sie und schließt. Was der Zug bedeutet, entscheidet `MorePanel` —
+    /// hier steht nur, was mit der Entscheidung passiert.
+    private var panelDrag_gesture: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
+                // Reduzierte Bewegung: nicht mitziehen (das IST die
+                // Bewegung), nur beim Loslassen springen.
                 guard !reduceMotion else { return }
-                // Nur nach unten mitziehen; nach oben gibt es nichts zu holen.
-                panelDrag = max(0, value.translation.height)
+                panelDrag = value.translation.height
             }
             .onEnded { value in
-                let far = value.translation.height > 90
-                    || value.predictedEndTranslation.height > 180
+                let outcome = MorePanel.resolve(drag: value.translation.height,
+                                                predicted: value.predictedEndTranslation.height,
+                                                expanded: panelExpanded)
                 panelDrag = 0
-                if far { select(.habits) }
+                switch outcome {
+                case .expand:   setPanelExpanded(true)
+                case .collapse: setPanelExpanded(false)
+                case .dismiss:  select(.habits)
+                }
             }
+    }
+
+    /// Zwischen den beiden Höhen umschalten. Reduzierte Bewegung springt
+    /// ohne Animation — der Zustand ist derselbe, nur ohne Fahrt dorthin.
+    private func setPanelExpanded(_ expanded: Bool) {
+        guard expanded != panelExpanded else { return }
+        if reduceMotion {
+            panelExpanded = expanded
+        } else {
+            withAnimation(.snappy(duration: 0.3)) { panelExpanded = expanded }
+        }
     }
 
     private var panelTransition: AnyTransition {
@@ -819,6 +860,11 @@ struct ContentView: View {
         }
         let next: Screen = (target == .more && moreOpen) ? .habits : target
         guard next != screen else { return }
+        // Die Tafel öffnet IMMER klein. Der große Zustand ist eine Geste, die
+        // man gerade gemacht hat, keine Einstellung, die man später
+        // wiederfinden muss — und eine Tafel, die beim nächsten Tippen
+        // bildschirmfüllend aufspringt, überrascht.
+        if next != .more { panelExpanded = false }
         if reduceMotion {
             screen = next
         } else {
@@ -1237,11 +1283,22 @@ struct ContentView: View {
         await syncNow(announce: false)
     }
 
+    /// Die beiden Zusammenfassungen neu stellen. Sie tragen ZAHLEN, also
+    /// müssen sie nach jeder Änderung am Store neu gerechnet werden — genau
+    /// dafür hängt das hier an `store.onChange` und am Aktivwerden.
     private func rescheduleReminders() async {
-        await Reminders.reschedule(
-            habits: store.habits,
-            summaryMinutes: store.summaryMinutes,
-            openToday: store.openToday())
+        let calendar = Calendar.current
+        let today = DayKey.today(calendar: calendar)
+        let daily = Reminders.dailySummaryPlan(
+            minutes: store.summaryMinutes,
+            status: store.dailyStatus(today, calendar: calendar),
+            calendar: calendar)
+        let weekly = Reminders.weeklySummaryPlan(
+            minutes: store.weeklySummaryMinutes,
+            weekday: store.weeklySummaryWeekday,
+            status: store.weeklyStatus(today, calendar: calendar),
+            calendar: calendar)
+        await Reminders.reschedule(daily: daily, weekly: weekly)
     }
 
     /// Nach einer lokalen Änderung: entprellt hochschreiben. Mehrere Häkchen

@@ -11,8 +11,9 @@ enum MoreRoute: Hashable, Identifiable {
     var id: Self { self }
 }
 
-/// "Mehr": iCloud-Status, Darstellung, Graph-Farbe, Abend-Zusammenfassung,
-/// Statistik, Archiv, Export/Import und Über/Datenschutz.
+/// "Mehr": iCloud-Status, Darstellung, Graph-Farbe, die beiden
+/// Zusammenfassungen (Tag und Woche), Statistik, Archiv, Export/Import und
+/// Über/Datenschutz.
 ///
 /// Wohnt in der TAFEL, die aus der Leiste wächst (siehe ContentView) — nicht
 /// mehr auf einer eigenen Seite. Zwei Folgen davon stehen unten im Code:
@@ -30,6 +31,7 @@ struct MoreView: View {
     @State private var showImporter = false
     @State private var importMessage: String?
     @State private var summaryDenied = false
+    @State private var weeklyDenied = false
     // Eigene Farben: anlegen, bearbeiten, umbenennen, löschen.
     @State private var creatingPalette = false
     @State private var editingPalette: CustomPalette?
@@ -59,24 +61,8 @@ struct MoreView: View {
             appearanceSection
             paletteSection
 
-            Section {
-                Toggle(isOn: summaryEnabled) {
-                    Label(String(localized: "Abend-Zusammenfassung"), systemImage: "moon")
-                }
-                .accessibilityIdentifier("summary-toggle")
-                if store.summaryMinutes != nil {
-                    DatePicker(String(localized: "Uhrzeit"),
-                               selection: summaryTime,
-                               displayedComponents: .hourAndMinute)
-                }
-                if summaryDenied {
-                    Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Zusammenfassung."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-            } footer: {
-                Text(String(localized: "Erinnert abends einmal an alle noch offenen Habits."))
-            }
+            dailySummarySection
+            weeklySummarySection
 
             Section {
                 pageRow(.stats, title: String(localized: "Statistik"),
@@ -385,39 +371,148 @@ struct MoreView: View {
         .accessibilityIdentifier("icloud-status")
     }
 
-    // MARK: – Abend-Zusammenfassung
+    // MARK: – Die beiden Zusammenfassungen
+    //
+    // Sie sind der EINZIGE Ort in der App, an dem Benachrichtigungen
+    // vorkommen — seit v5 auch der einzige, der die Berechtigung auslösen
+    // darf. Vorher hatte jeder Habit seine eigene Erinnerung; zehn Habits
+    // waren zehn Weckrufe, und keiner wusste, ob der Tag schon erledigt war.
+    // Jetzt fasst EINE Meldung am Tag zusammen, was offen ist, und eine am
+    // Ende der Woche, was gehalten wurde (siehe `SummaryText`).
+    //
+    // Das Berechtigungs-Gate bleibt exakt wie gehabt: gefragt wird NUR beim
+    // aktiven Einschalten, nie beim Start.
 
-    private var summaryEnabled: Binding<Bool> {
+    private var dailySummarySection: some View {
+        Section {
+            Toggle(isOn: dailyEnabled) {
+                Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
+            }
+            .accessibilityIdentifier("summary-toggle")
+            if store.summaryMinutes != nil {
+                DatePicker(String(localized: "Uhrzeit"),
+                           selection: dailyTime,
+                           displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("summary-time")
+            }
+            if summaryDenied { permissionHint }
+        } footer: {
+            Text(String(localized: "Einmal am Tag: wie viel von heute erledigt ist und was noch offen steht. Gezählt wird nur, was heute laut Regel ansteht."))
+        }
+    }
+
+    private var weeklySummarySection: some View {
+        Section {
+            Toggle(isOn: weeklyEnabled) {
+                Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
+            }
+            .accessibilityIdentifier("weekly-summary-toggle")
+            if store.weeklySummaryMinutes != nil {
+                Picker(String(localized: "Wochentag"), selection: weeklyWeekday) {
+                    ForEach(orderedWeekdays, id: \.self) { day in
+                        Text(RecurrenceText.weekdayName(day)).tag(day)
+                    }
+                }
+                .accessibilityIdentifier("weekly-summary-weekday")
+                DatePicker(String(localized: "Uhrzeit"),
+                           selection: weeklyTime,
+                           displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("weekly-summary-time")
+            }
+            if weeklyDenied { permissionHint }
+        } footer: {
+            Text(String(localized: "Einmal in der Woche: wie viele der fälligen Termine du gehalten hast — und welche Habits zurückliegen."))
+        }
+    }
+
+    private var permissionHint: some View {
+        Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Zusammenfassung."))
+            .font(.caption)
+            .foregroundStyle(.orange)
+    }
+
+    /// Wochentage in der Reihenfolge des Nutzerkalenders (Mo … So in
+    /// Deutschland, So … Sa in den USA).
+    private var orderedWeekdays: [Int] {
+        let first = Calendar.current.firstWeekday
+        return (0..<7).map { ((first - 1 + $0) % 7) + 1 }
+    }
+
+    /// Standardzeiten: der Tag klingt abends aus, die Woche sonntags am
+    /// frühen Abend — beides nach dem letzten sinnvollen Moment, an dem man
+    /// noch etwas nachholen kann.
+    private static let defaultDailyMinutes = 20 * 60
+    private static let defaultWeeklyMinutes = 18 * 60
+
+    private var dailyEnabled: Binding<Bool> {
         Binding(
             get: { store.summaryMinutes != nil },
             set: { on in
-                if on {
-                    Task {
-                        let granted = await Reminders.ensurePermission()
-                        await MainActor.run {
-                            if granted {
-                                store.summaryMinutes = store.summaryMinutes ?? 20 * 60
-                                summaryDenied = false
-                            } else {
-                                summaryDenied = true
-                            }
-                        }
+                guard on else { store.summaryMinutes = nil; return }
+                askThen { granted in
+                    if granted {
+                        store.summaryMinutes = store.summaryMinutes ?? Self.defaultDailyMinutes
+                        summaryDenied = false
+                    } else {
+                        summaryDenied = true
                     }
-                } else {
-                    store.summaryMinutes = nil
                 }
             })
     }
 
-    private var summaryTime: Binding<Date> {
+    private var weeklyEnabled: Binding<Bool> {
+        Binding(
+            get: { store.weeklySummaryMinutes != nil },
+            set: { on in
+                guard on else { store.weeklySummaryMinutes = nil; return }
+                askThen { granted in
+                    if granted {
+                        store.weeklySummaryMinutes = store.weeklySummaryMinutes
+                            ?? Self.defaultWeeklyMinutes
+                        weeklyDenied = false
+                    } else {
+                        weeklyDenied = true
+                    }
+                }
+            })
+    }
+
+    /// Das Gate an EINER Stelle: fragen, dann auf dem Hauptthread entscheiden.
+    private func askThen(_ body: @escaping @MainActor (Bool) -> Void) {
+        Task {
+            let granted = await Reminders.ensurePermission()
+            await MainActor.run { body(granted) }
+        }
+    }
+
+    private var dailyTime: Binding<Date> {
+        timeBinding(get: { store.summaryMinutes ?? Self.defaultDailyMinutes },
+                    set: { store.summaryMinutes = $0 })
+    }
+
+    private var weeklyTime: Binding<Date> {
+        timeBinding(get: { store.weeklySummaryMinutes ?? Self.defaultWeeklyMinutes },
+                    set: { store.weeklySummaryMinutes = $0 })
+    }
+
+    private var weeklyWeekday: Binding<Int> {
+        Binding(get: { store.weeklySummaryWeekday },
+                set: { store.weeklySummaryWeekday = $0 })
+    }
+
+    /// Minuten seit Mitternacht <-> Datum. Zweimal dieselbe Rechnung wäre
+    /// zweimal dieselbe Gelegenheit, sie unterschiedlich zu runden.
+    private func timeBinding(get minutes: @escaping () -> Int,
+                             set store: @escaping (Int) -> Void) -> Binding<Date> {
         Binding(
             get: {
-                let m = store.summaryMinutes ?? 20 * 60
-                return Calendar.current.date(from: DateComponents(hour: m / 60, minute: m % 60)) ?? .now
+                let m = minutes()
+                return Calendar.current.date(from: DateComponents(hour: m / 60,
+                                                                  minute: m % 60)) ?? .now
             },
             set: { date in
-                store.summaryMinutes = Calendar.current.component(.hour, from: date) * 60
-                    + Calendar.current.component(.minute, from: date)
+                store(Calendar.current.component(.hour, from: date) * 60
+                      + Calendar.current.component(.minute, from: date))
             })
     }
 

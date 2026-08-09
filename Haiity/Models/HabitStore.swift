@@ -13,7 +13,14 @@ struct HabitData: Codable {
 
     var version: Int
     var updatedAt: TimeInterval
-    var summaryMinutes: Int?      // Abend-Zusammenfassung; nil = aus
+    /// Tageszusammenfassung; nil = aus. Hieß bis v4 „Abend-Zusammenfassung"
+    /// und behält deshalb ihren Schlüssel — dieselbe Einstellung, nur mit
+    /// mehr zu sagen (siehe `SummaryText`).
+    var summaryMinutes: Int?
+    /// Wochenzusammenfassung; nil = aus.
+    var weeklySummaryMinutes: Int?
+    /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
+    var weeklySummaryWeekday: Int
     var habits: [Habit]
     /// Hell/Dunkel/System. Liegt HIER und nicht in UserDefaults, damit die
     /// Einstellung denselben Weg nimmt wie alles andere (Export, Import,
@@ -32,6 +39,10 @@ struct HabitData: Codable {
     /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
     /// Datei unverändert weiter (ein Sprung auf 3 würde ihn aussperren).
+    /// Standard-Wochentag der Wochenzusammenfassung: Sonntag — der Tag, an
+    /// dem eine Woche zu Ende ist, egal wo sie anfängt.
+    static let defaultSummaryWeekday = 1
+
     init(version: Int,
          updatedAt: TimeInterval,
          summaryMinutes: Int?,
@@ -39,10 +50,15 @@ struct HabitData: Codable {
          appearance: AppearanceSetting = .default,
          palette: PaletteRef = .default,
          customPalettes: [CustomPalette] = [],
-         matchAppIcon: Bool = true) {
+         matchAppIcon: Bool = true,
+         weeklySummaryMinutes: Int? = nil,
+         weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
+        self.weeklySummaryMinutes = weeklySummaryMinutes
+        self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
+            ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
         self.appearance = appearance
         self.palette = palette
@@ -64,6 +80,10 @@ extension HabitData {
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
         case customPalettes
+        // Die Wochenzusammenfassung ist rein ADDITIV: ein Build ohne sie
+        // überliest die beiden Schlüssel, also braucht es dafür keinen
+        // Versionssprung (der ihn aussperren würde).
+        case weeklySummaryMinutes, weeklySummaryWeekday
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -79,6 +99,10 @@ extension HabitData {
         version = v
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
         summaryMinutes = try c.decodeIfPresent(Int.self, forKey: .summaryMinutes)
+        weeklySummaryMinutes = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryMinutes)
+        let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
+            ?? Self.defaultSummaryWeekday
+        weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
         habits = try c.decodeIfPresent([Habit].self, forKey: .habits) ?? []
         // Fehlt / unbekannt -> Standard. Eine Datei aus einer neueren
         // Version mit "palette":"neon" verliert nur die Farbe, nicht die
@@ -99,6 +123,13 @@ extension HabitData {
         try c.encode(version, forKey: .version)
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
+        try c.encodeIfPresent(weeklySummaryMinutes, forKey: .weeklySummaryMinutes)
+        // Der Wochentag steht nur da, wenn die Wochenzusammenfassung
+        // überhaupt läuft — sonst wäre er eine Einstellung ohne Wirkung in
+        // jeder Datei.
+        if weeklySummaryMinutes != nil, weeklySummaryWeekday != Self.defaultSummaryWeekday {
+            try c.encode(weeklySummaryWeekday, forKey: .weeklySummaryWeekday)
+        }
         try c.encode(habits, forKey: .habits)
         // Standards bleiben implizit — eine unveränderte Installation
         // schreibt exakt dieselbe Datei wie vor dem Theming.
@@ -107,6 +138,19 @@ extension HabitData {
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
     }
+}
+
+/// Der Stand, den eine Zusammenfassung zusammenfasst: erfüllte von fälligen
+/// Terminen und die Namen dessen, was noch aussteht. Bewusst EIN Typ für Tag
+/// und Woche — es ist dieselbe Frage über ein anderes Fenster.
+struct SummaryStatus: Equatable {
+    var done: Int
+    var total: Int
+    /// Namen der Habits, die im Fenster hinterherhinken (Tag: heute offen;
+    /// Woche: weniger erfüllt als fällig).
+    var missing: [String]
+
+    var isEmpty: Bool { total == 0 }
 }
 
 enum SharedStorage {
@@ -147,6 +191,20 @@ final class HabitStore {
     var summaryMinutes: Int? {
         get { data.summaryMinutes }
         set { data.summaryMinutes = newValue; persist() }
+    }
+
+    var weeklySummaryMinutes: Int? {
+        get { data.weeklySummaryMinutes }
+        set { data.weeklySummaryMinutes = newValue; persist() }
+    }
+
+    var weeklySummaryWeekday: Int {
+        get { data.weeklySummaryWeekday }
+        set {
+            data.weeklySummaryWeekday = (1...7).contains(newValue)
+                ? newValue : HabitData.defaultSummaryWeekday
+            persist()
+        }
     }
 
     var appearance: AppearanceSetting {
@@ -311,6 +369,90 @@ final class HabitStore {
         }
     }
 
+    // MARK: – Stand für die Zusammenfassungen
+    //
+    // Reine Zahlen, kein Text und keine Benachrichtigung: die Sätze baut
+    // `SummaryText`, gestellt wird in `Reminders`. Beides hängt an DIESER
+    // Rechnung, damit „3 von 5 erledigt" und die Liste darunter nicht aus
+    // zwei verschiedenen Quellen stammen.
+
+    /// Heute: fällige Termine, davon erfüllte, und die Namen der offenen.
+    /// „Fällig" ist exakt dasselbe wie in `openToday` — ein Habit ohne Termin
+    /// steht in keiner der drei Zahlen.
+    func dailyStatus(_ today: String = DayKey.today(),
+                     calendar: Calendar = .current) -> SummaryStatus {
+        var done = 0, total = 0
+        var missing: [String] = []
+        for habit in activeHabits
+        where GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) {
+            total += 1
+            if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) {
+                done += 1
+            } else {
+                missing.append(habit.name)
+            }
+        }
+        return SummaryStatus(done: done, total: total, missing: missing)
+    }
+
+    /// Die laufende Woche bis einschließlich heute: erfüllte gegen fällige
+    /// TERMINE über alle aktiven Habits, plus die Namen derer, die
+    /// hinterherhinken.
+    ///
+    /// Flexible Ziele („3× pro Woche") zählen mit ihrer ANZAHL, nicht mit
+    /// sieben fälligen Tagen — für sie ist jeder Tag der Periode ein
+    /// möglicher Termin, aber geschuldet sind drei. Flexible Ziele mit
+    /// größerer Periode (monatlich, jährlich) stehen bewusst gar nicht in der
+    /// Wochenbilanz: „5× pro Monat" ist keine Wochenschuld.
+    func weeklyStatus(_ today: String = DayKey.today(),
+                      calendar: Calendar = .current) -> SummaryStatus {
+        guard let todayDate = DayKey.date(from: today, calendar: calendar),
+              let week = calendar.dateInterval(of: .weekOfYear, for: todayDate)?.start
+        else { return SummaryStatus(done: 0, total: 0, missing: []) }
+        let firstDay = DayKey.key(for: week, calendar: calendar)
+        var done = 0, total = 0
+        var missing: [String] = []
+        for habit in activeHabits {
+            let schedule = habit.recurrence.schedule(calendar: calendar)
+            var due = 0, met = 0
+            if let times = habit.recurrence.timesPerPeriod {
+                guard habit.recurrence.frequency == .weekly,
+                      schedule.isActivePeriod(week),
+                      schedule.isScheduled(firstDay) || schedule.isScheduled(today)
+                else { continue }
+                due = times
+                met = min(times, countingDays(habit, from: firstDay, to: today, calendar: calendar))
+            } else {
+                var day = firstDay
+                while day <= today {
+                    if schedule.isScheduled(day) {
+                        due += 1
+                        if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) { met += 1 }
+                    }
+                    guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+                    day = next
+                }
+            }
+            guard due > 0 else { continue }
+            total += due
+            done += met
+            if met < due { missing.append(habit.name) }
+        }
+        return SummaryStatus(done: done, total: total, missing: missing)
+    }
+
+    /// Zählende Tage im Fenster — die Grundlage der flexiblen Wochenbilanz.
+    private func countingDays(_ habit: Habit, from: String, to: String,
+                              calendar: Calendar) -> Int {
+        var day = from, n = 0
+        while day <= to {
+            if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) { n += 1 }
+            guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+            day = next
+        }
+        return n
+    }
+
     // MARK: – Eigene Paletten
     //
     // Anlegen, Umbenennen, Ändern, Löschen. Gespeichert wird immer nur die
@@ -377,6 +519,7 @@ final class HabitStore {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.reminderMinutes = rh.reminderMinutes
+                    lh.timeMinutes = rh.timeMinutes
                     lh.recurrence = rh.recurrence
                     lh.archivedAt = rh.archivedAt
                     lh.palette = rh.palette
@@ -392,6 +535,10 @@ final class HabitStore {
         merged.append(contentsOf: remote.habits.filter { !localIds.contains($0.id) }.compactMap { byId[$0.id] })
         data.habits = merged
         if remoteNewer, remote.summaryMinutes != nil { data.summaryMinutes = remote.summaryMinutes }
+        if remoteNewer, remote.weeklySummaryMinutes != nil {
+            data.weeklySummaryMinutes = remote.weeklySummaryMinutes
+            data.weeklySummaryWeekday = remote.weeklySummaryWeekday
+        }
         // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
         // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",
         // der Standard IST ein gültiger Wert.

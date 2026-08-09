@@ -7,14 +7,14 @@ import SwiftUI
 ///
 /// Die Kopfzeile ist EINE Zeile:
 ///
-///     📚  Lesen   🔔 19:00  🔥 12            ✓ Erledigt   ⋯
+///     📚  Lesen   🕐 19:00  🔥 12            ✓ Erledigt   ⋯
 ///     └ Name zuerst ┘└ Nebendaten sekundär ┘  └ Aktion ┘  └ Menü ┘
 ///
-/// Erinnerung und Serie sind Nebendaten und stehen deshalb als kleine
+/// Uhrzeit und Serie sind Nebendaten und stehen deshalb als kleine
 /// Symbol-Zahl-Paare direkt hinter dem Namen — auf der Grundlinie des Namens,
 /// in `.secondary`. Sie bekommen KEINE eigene Zeile: eine zweite Zeile nur
-/// für „🔔 19:00" hat die Karte früher schief aussehen lassen und Karten mit
-/// und ohne Erinnerung unterschiedlich hoch gemacht.
+/// für „🕐 19:00" hat die Karte früher schief aussehen lassen und Karten mit
+/// und ohne Uhrzeit unterschiedlich hoch gemacht.
 ///
 /// `collapsed` kommt vom Scroll-Zustand der Liste (ContentView misst ihn aus
 /// den Zeilenpositionen): beim Scrollen zieht sich der Kopf auf den linken
@@ -67,23 +67,19 @@ struct HabitCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: innerGap) {
             header
+                // Der Schlucker liegt HINTER dem Kopf, nicht darüber: die
+                // Knöpfe darin (Heute-Pille, drei Punkte) sind gezeichnete
+                // Geschwister WEITER VORN und bekommen ihre Tipps zuerst.
+                // Ein Overlay — oder eine Geste auf dem Kopf selbst — nimmt
+                // sie ihnen weg (nachgemessen: die Pille reagierte dann
+                // nicht mehr).
+                .background { longPressSink }
             grid
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
         .padding(.top, 4)
         .padding(.bottom, outerGap)
-        // LANGER DRUCK auf die ganze Zeile — nicht nur auf die Rasterfläche.
-        // Er ersetzt die Wischgesten an beiden Kanten: statt einer
-        // unsichtbaren Belegung, die man sich merken muss, kommt eine
-        // VORSCHAU mit dem vergrößerten Raster und darunter die Aktionen,
-        // beschriftet. Das System liefert dafür die Standardanimation
-        // (Herausschälen aus der Zeile) und die Haptik.
-        .contextMenu {
-            habitActions
-        } preview: {
-            habitPreview
-        }
         // `.contain` ist hier Pflicht, nicht Deko: ein Identifier auf einem
         // Container ohne diese Angabe faltet den Teilbaum zu EINEM Element
         // zusammen — "check-today" und "edit-habit" verschwinden dann aus
@@ -95,7 +91,18 @@ struct HabitCard: View {
 
     // MARK: – Raster in der Fläche
 
-    /// Das Einzige, was noch Karte ist.
+    /// Das Einzige, was noch Karte ist — UND die einzige Fläche, die auf
+    /// langen Druck reagiert.
+    ///
+    /// Das Menü hing einmal an der ganzen Zeile. Das war zu viel: der Kopf
+    /// ist eine Werkzeugleiste (Name, Heute-Knopf, drei Punkte), und ein
+    /// langer Druck darauf schob die Vorschau über genau die Knöpfe, die man
+    /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
+    /// — dieselbe Fläche, die die Vorschau auch zeigt.
+    ///
+    /// Der Tipp auf eine EINZELNE Zelle überlebt das: `contextMenu` erkennt
+    /// den langen Druck und lässt kurze Tipps zu seinen Kindern durch (die
+    /// Zellen haben ihre eigenen `onTapGesture` in `ContributionGrid`).
     private var grid: some View {
         ContributionGrid(habit: habit, onToggle: onToggleDay)
             .padding(Theme.Metrics.cardPadding)
@@ -103,6 +110,22 @@ struct HabitCard: View {
             .background(Color(.secondarySystemGroupedBackground),
                         in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                              style: .continuous))
+            // Die Trefferfläche ist die KARTE, nicht nur das, was in ihr
+            // gezeichnet ist: ein langer Druck auf eine leere Ecke des
+            // Rasters soll dasselbe tun wie einer auf eine Zelle.
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
+            // LANGER DRUCK: statt einer unsichtbaren Wischbelegung, die man
+            // sich merken muss, eine VORSCHAU mit dem vergrößerten Raster und
+            // darunter die Aktionen, beschriftet. Das System liefert dafür
+            // die Standardanimation (Herausschälen) und die Haptik.
+            .contextMenu {
+                habitActions
+            } preview: {
+                habitPreview
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("habit-grid")
     }
 
     // MARK: – Langer Druck: Vorschau + Aktionen
@@ -111,12 +134,54 @@ struct HabitCard: View {
     // nur an einem größeren Maß: 20-pt-Zellen statt der ~11 pt, die in eine
     // Listenzeile passen. Ein nachgebautes „Vorschau-Raster" würde beim
     // nächsten Anfassen des echten auseinanderlaufen — hier kann es das
-    // nicht. Weniger Wochen, dafür lesbare Quadrate: die Vorschau ist zum
-    // ANSEHEN da, nicht zum Blättern (`interactive: false`).
+    // nicht. Die Vorschau ist zum ANSEHEN da, nicht zum Blättern
+    // (`interactive: false`).
+    //
+    // **Sie ist so breit wie der Bildschirm** (minus einem schmalen Rand).
+    // Eine Vorschau, die sich auf ihren Inhalt zusammenzieht, stand vorher
+    // als halbbreite Karte in der Mitte — bei einem Bauteil, dessen ganzer
+    // Sinn die BREITE ist (ein Jahr von links nach rechts), ist das die
+    // falsche Form. Die Breite ist deshalb explizit gesetzt, und die
+    // Wochenzahl fällt aus ihr: mehr Platz heißt mehr Historie, nicht
+    // dasselbe Raster in einer größeren Schachtel.
 
-    private static let previewCell: CGFloat = 20
-    private static let previewGap: CGFloat = 4
-    private static let previewWeeks = 26
+    static let previewCell: CGFloat = 20
+    static let previewGap: CGFloat = 4
+    /// Rand zwischen Vorschau und Bildschirmkante.
+    static let previewMargin: CGFloat = 16
+    /// Untergrenze für sehr schmale Fenster (Slide-Over).
+    static let previewMinWidth: CGFloat = 260
+
+    /// Breite des AKTIVEN Fensters, nicht `UIScreen.main.bounds`: das ist
+    /// die Größe des Bildschirms, nicht die der App — im Split View auf dem
+    /// iPad wäre die Vorschau damit breiter als das Fenster, in dem sie
+    /// steht. Nur wenn gar keine Szene erreichbar ist, fällt es auf den
+    /// Bildschirm zurück.
+    private static func windowWidth() -> CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        if let width = scene?.keyWindow?.bounds.width, width > 0 { return width }
+        if let width = scene?.screen.bounds.width, width > 0 { return width }
+        return UIScreen.main.bounds.width
+    }
+
+    /// Breite und Wochenzahl der Vorschau aus der FENSTERBREITE. Als reine
+    /// Funktion, weil sie auf einem SE (375 pt) und auf einem Max (440 pt)
+    /// stimmen muss und ein Screenshot je Gerät keine Prüfung ist.
+    ///
+    /// Die Wochenzahl fällt aus der Breite: Innenmaß geteilt durch das
+    /// Rastermaß (Zelle + Lücke). Mehr als 53 gibt es nicht — das Raster IST
+    /// ein Jahr.
+    static func previewMetrics(windowWidth: CGFloat) -> (width: CGFloat, weeks: Int) {
+        let width = max(previewMinWidth, windowWidth - 2 * previewMargin)
+        let content = width - 2 * Theme.Metrics.gutter
+        let pitch = previewCell + previewGap
+        let weeks = min(53, max(8, Int((content + previewGap) / pitch)))
+        return (width, weeks)
+    }
+
+    private var previewWidth: CGFloat { Self.previewMetrics(windowWidth: Self.windowWidth()).width }
+    private var previewWeeks: Int { Self.previewMetrics(windowWidth: Self.windowWidth()).weeks }
 
     private var habitPreview: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -133,14 +198,19 @@ struct HabitCard: View {
                 }
             }
             ContributionGrid(habit: habit,
-                             weeks: Self.previewWeeks,
+                             weeks: previewWeeks,
                              cellSize: Self.previewCell,
                              gap: Self.previewGap,
                              interactive: false)
         }
         .padding(Theme.Metrics.gutter)
-        .frame(width: 320)
+        .frame(width: previewWidth)
         .background(Color(.secondarySystemGroupedBackground))
+        // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
+        // der Zeile nicht: ohne diese Zeile fiel das Raster darin auf die
+        // Standardpalette zurück und leuchtete grün, während dieselben
+        // Zellen zwei Millimeter daneben blau sind.
+        .environment(\.palettes, palettes)
         // Der einzige verlässliche Aufhänger dafür, dass die Vorschau WIRKLICH
         // aufgegangen ist — das System sagt es sonst nicht. Dieselbe kurze
         // Rückmeldung wie beim Abhaken.
@@ -224,6 +294,25 @@ struct HabitCard: View {
         }
     }
 
+    /// **Warum der Kopf einen langen Druck schluckt.**
+    ///
+    /// Das Kontextmenü hängt am RASTER (siehe `grid`) — in einer `List` hilft
+    /// das allein aber nichts: SwiftUI hebt ein `contextMenu` aus dem
+    /// Zeileninhalt auf die ZELLE, und die ist die ganze Zeile. Nachgemessen:
+    /// ein langer Druck auf den Namen öffnete das Menü weiterhin, obwohl der
+    /// Modifier zwei Ebenen tiefer sitzt.
+    ///
+    /// Ein eigener Langdruck HINTER dem Kopf gewinnt die Erkennung gegen die
+    /// Zelle (der tiefere Erkenner hat Vorrang) und tut NICHTS. Damit bleibt
+    /// die Geste dem Raster vorbehalten — dem Bauteil, das die Vorschau auch
+    /// zeigt.
+    private var longPressSink: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(LongPressGesture(minimumDuration: 0.22).onEnded { _ in })
+            .accessibilityHidden(true)
+    }
+
     /// Name zuerst, Nebendaten dahinter — auf DERSELBEN Schriftgrundlinie,
     /// nicht auf gleicher Kastenmitte. Deshalb `.firstTextBaseline` und
     /// Symbole, die als Teil des Textes gesetzt sind.
@@ -302,10 +391,15 @@ struct HabitCard: View {
         return doneToday ? String(localized: "✓ Erledigt") : String(localized: "Heute")
     }
 
-    /// Erinnerung, Serie und — wenn heute gar kein Termin ist — der nächste.
+    /// Uhrzeit, Serie und — wenn heute gar kein Termin ist — der nächste.
     /// Alle drei nur, wenn sie etwas zu sagen haben: eine Serie von 0 ist
-    /// keine Serie, ohne Erinnerung fehlt die Glocke ersatzlos, und bei
-    /// einem Habit, das heute ohnehin dran ist, steht kein Kalender.
+    /// keine Serie, ohne Uhrzeit fehlt die Uhr ersatzlos, und bei einem
+    /// Habit, das heute ohnehin dran ist, steht kein Kalender.
+    ///
+    /// Hier stand bis v4 eine GLOCKE mit der Zeit der eigenen Erinnerung.
+    /// Die gibt es nicht mehr (erinnert wird zentral, siehe `Reminders`) —
+    /// eine Glocke, die nichts mehr auslöst, wäre eine Lüge. An ihrer Stelle
+    /// steht jetzt die Uhrzeit des Termins selbst, mit einer Uhr davor.
     ///
     /// Das ist die EINZIGE Stelle, an der die Liste zwischen „heute fällig"
     /// und „heute frei" unterscheidet. Die Heute-Kontrolle bleibt bewusst
@@ -314,11 +408,11 @@ struct HabitCard: View {
     @ViewBuilder
     private var meta: some View {
         let streak = habit.streak()
-        if habit.reminderMinutes != nil || streak > 0 || nextDueLabel != nil {
+        if timeText != nil || streak > 0 || nextDueLabel != nil {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
-                if let time = reminderText {
-                    metaItem("bell", time,
-                             label: String(localized: "Erinnerung um \(time)"))
+                if let time = timeText {
+                    metaItem("clock", time,
+                             label: String(localized: "Um \(time)"))
                 }
                 if streak > 0 {
                     metaItem("flame.fill", "\(streak)",
@@ -424,8 +518,7 @@ struct HabitCard: View {
         .accessibilityIdentifier("edit-habit")
     }
 
-    private var reminderText: String? {
-        guard let m = habit.reminderMinutes else { return nil }
-        return String(format: "%02d:%02d", m / 60, m % 60)
-    }
+    /// Die Uhrzeit des Habits — dieselbe Formatierung wie im Regel-Satz,
+    /// damit „um 07:30" auf der Karte und im Editor gleich aussieht.
+    private var timeText: String? { RecurrenceText.timeText(habit.timeMinutes) }
 }

@@ -10,8 +10,20 @@ struct Habit: Codable, Identifiable, Equatable {
     var name: String
     var emoji: String
     var createdAt: String
-    /// Minuten seit Mitternacht für die Erinnerung; nil = aus.
+    /// **Nur noch Altlast.** Bis v4 war das die Uhrzeit der EIGENEN
+    /// Erinnerung dieses Habits. Die gibt es nicht mehr — erinnert wird
+    /// zentral über die Tages- und die Wochenzusammenfassung (siehe
+    /// `Reminders`). Das Feld bleibt trotzdem stehen und wird weiter gelesen
+    /// UND geschrieben: eine ausgelieferte Datei soll unverändert durch die
+    /// App laufen, ohne dass ein Schlüssel still verschwindet (kein
+    /// Versionssprung, kein Datenverlust auf einem zweiten Gerät, das noch
+    /// den alten Build fährt). Ausgewertet wird der Wert nirgends mehr.
     var reminderMinutes: Int?
+    /// Uhrzeit des Habits selbst, als Minuten seit Mitternacht; nil = ohne
+    /// Uhrzeit. Das ist eine EIGENSCHAFT des Termins („Laufen um 07:30"),
+    /// keine Benachrichtigung: sie klingelt nicht, sie steht im Satz der
+    /// Regel und auf der Karte.
+    var timeMinutes: Int?
     var log: [String: Int]
     /// Tagesschlüssel der Archivierung; nil = aktiv. Archivierte Habits
     /// behalten ihre Historie, verschwinden aber aus Liste und Summary.
@@ -30,12 +42,14 @@ struct Habit: Codable, Identifiable, Equatable {
     init(name: String,
          emoji: String = "",
          reminderMinutes: Int? = nil,
+         timeMinutes: Int? = nil,
          recurrence: Recurrence = .daily) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
+        self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
         self.log = [:]
         self.archivedAt = nil
         self.recurrence = recurrence
@@ -51,8 +65,15 @@ struct Habit: Codable, Identifiable, Equatable {
 }
 
 extension Habit {
+    /// Minuten seit Mitternacht oder nichts. EINE Stelle für die Grenze,
+    /// damit ein importiertes „1500" nicht als 25:00 Uhr in der Oberfläche
+    /// landet.
+    static func sanitizedMinutes(_ value: Int?) -> Int? {
+        value.flatMap { (0..<24 * 60).contains($0) ? $0 : nil }
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, createdAt, reminderMinutes, log, archivedAt, goal, palette
+        case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette
     }
 
     /// Tolerantes Dekodieren: v1-Dateien (ohne goal/archivedAt) laden
@@ -63,7 +84,13 @@ extension Habit {
         name = try c.decode(String.self, forKey: .name)
         emoji = try c.decodeIfPresent(String.self, forKey: .emoji) ?? ""
         createdAt = try c.decode(String.self, forKey: .createdAt)
+        // Weiter tolerant gelesen, obwohl nichts mehr damit geplant wird —
+        // eine Datei mit `reminderMinutes` muss vollständig durchlaufen
+        // (siehe die Anmerkung am Feld).
         reminderMinutes = try c.decodeIfPresent(Int.self, forKey: .reminderMinutes)
+        // Fehlt der Schlüssel (jede Datei vor der Habit-Uhrzeit) oder steht
+        // dort Unsinn: keine Uhrzeit statt eines Fehlers.
+        timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
         // Müllabfuhr an der Grenze: was formal kein Tag ist oder keinen
         // positiven Zähler hat, kommt gar nicht erst in den Speicher.
         // Bewusst NUR strukturell — ein Schlüssel von morgen (Gerät in einer
@@ -90,6 +117,7 @@ extension Habit {
         try c.encode(emoji, forKey: .emoji)
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
+        try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
         try c.encode(log, forKey: .log)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         // Der Standard bleibt implizit — Dateien sehen für einfache Habits

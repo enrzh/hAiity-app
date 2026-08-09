@@ -8,11 +8,30 @@ import Foundation
 /// entsteht.
 enum RecurrenceText {
 
-    /// Der ganze Satz: Muster plus Ende („…, bis 31.12.2026").
-    static func summary(_ recurrence: Recurrence, calendar: Calendar = .current) -> String {
-        let base = pattern(recurrence, calendar: calendar)
-        guard let tail = endClause(recurrence.end, calendar: calendar) else { return base }
-        return base + tail
+    /// Der ganze Satz: Muster, optionale Uhrzeit („… um 07:30") und Ende
+    /// („…, bis 31.12.2026").
+    ///
+    /// Die Uhrzeit gehört zum HABIT, nicht zur Regel (siehe
+    /// `Habit.timeMinutes`) — sie kommt deshalb von außen herein und steht
+    /// zwischen Muster und Ende, wo ein Mensch sie erwartet: „Jeden Montag um
+    /// 07:30, bis 31.12.2026".
+    static func summary(_ recurrence: Recurrence,
+                        timeMinutes: Int? = nil,
+                        calendar: Calendar = .current) -> String {
+        var text = pattern(recurrence, calendar: calendar)
+        if let clock = timeText(timeMinutes) {
+            text += String(localized: " um \(clock)")
+        }
+        guard let tail = endClause(recurrence.end, calendar: calendar) else { return text }
+        return text + tail
+    }
+
+    /// Minuten seit Mitternacht als „07:30". nil für nil und für alles
+    /// außerhalb eines Tages — dieselbe Grenze wie `Habit.sanitizedMinutes`,
+    /// damit ein kaputter Wert nirgends als „25:00" auftaucht.
+    static func timeText(_ minutes: Int?) -> String? {
+        guard let minutes, (0..<24 * 60).contains(minutes) else { return nil }
+        return String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 
     // MARK: – Muster

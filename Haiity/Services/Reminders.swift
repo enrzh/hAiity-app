@@ -17,45 +17,45 @@ enum ReminderGate {
 }
 
 /// Ein geplanter Weckruf als reine DATEN — ohne
-/// `UNUserNotificationCenter`. Genau hier sitzt die Entscheidung, ob ein
-/// Habit täglich oder wöchentlich klingelt; als Wert ist sie prüfbar, ohne
+/// `UNUserNotificationCenter`. Als Wert ist die Entscheidung prüfbar, ohne
 /// dass ein Test dem Benachrichtigungssystem eine Berechtigung vorspielen
 /// müsste (die es im Simulator ohnehin nicht gibt).
 struct ReminderPlan: Equatable {
     var identifier: String
     var title: String
     var body: String
-    /// Was der `UNCalendarNotificationTrigger` abgleicht. Ohne weitere
-    /// Angabe passt es auf JEDEN Tag zur genannten Uhrzeit (täglich); mit
-    /// `weekday` auf diesen einen Wochentag (wöchentlich), mit `day` auf
-    /// diesen Monatstag (monatlich), mit `month` + `day` auf dieses Datum
-    /// (jährlich). Ein vollständiges Datum (`year`) ist der EINMALIGE
-    /// Wecker der Rückfallebene.
+    /// Was der `UNCalendarNotificationTrigger` abgleicht. Ein vollständiges
+    /// Datum (`year`) ist ein EINMALIGER Wecker, `weekday` + Uhrzeit ein
+    /// wöchentlich wiederkehrender.
     var dateMatching: DateComponents
     var repeats: Bool
 
     var isWeekly: Bool { dateMatching.weekday != nil }
-    var isMonthly: Bool { dateMatching.day != nil && dateMatching.year == nil }
-    /// Einmalig gestellt, weil sich die Regel nicht als Muster ausdrücken
-    /// lässt — wird bei jedem `reschedule` neu gesetzt.
+    /// Einmalig gestellt und bei jedem `reschedule` neu gesetzt.
     var isOneShot: Bool { !repeats }
 }
 
+/// Die beiden Zusammenfassungen — und sonst nichts.
+///
+/// **Was hier einmal stand und bewusst weg ist:** die EIGENE Erinnerung je
+/// Habit (`plans(for:)`, ein Trigger pro Wochentag, Rückfallebene für
+/// „am letzten Freitag"). Zehn Habits waren zehn Weckrufe, und keiner davon
+/// wusste, ob der Tag schon erledigt war. Stattdessen fasst EINE Meldung am
+/// Tag zusammen, was offen ist, und eine am Ende der Woche, was gehalten
+/// wurde. `Habit.reminderMinutes` bleibt in der Datei stehen (siehe dort),
+/// wird aber nirgends mehr ausgewertet — und alte, noch anstehende
+/// Habit-Weckrufe räumt `reschedule` beim ersten Start weg.
 enum Reminders {
     static let summaryId = "summary"
+    static let weeklySummaryId = "summary-weekly"
 
-    static func habitId(_ id: UUID) -> String { "habit-\(id.uuidString)" }
+    /// Präfix der bis v4 gestellten Habit-Weckrufe. Es gibt sie nicht mehr,
+    /// aber sie liegen auf Geräten mit einem alten Build als anstehende
+    /// Anfragen — ohne dieses Aufräumen klingelten sie ewig weiter.
+    static let legacyHabitPrefix = "habit-"
 
-    /// Ein Wochentag = EIN Trigger: `UNCalendarNotificationTrigger` gleicht
-    /// genau EINEN `weekday` ab, „Mo + Mi + Fr" sind also drei Anfragen mit
-    /// drei Kennungen. Das gemeinsame Präfix bleibt `habit-`, damit das
-    /// Aufräumen in `reschedule` sie alle findet.
-    static func habitId(_ id: UUID, weekday: Int) -> String {
-        "habit-\(id.uuidString)-w\(weekday)"
-    }
-
-    /// Wird beim Einschalten einer Erinnerung aufgerufen — der einzige Ort,
-    /// der den System-Dialog auslösen darf. Liefert false bei Ablehnung.
+    /// Wird beim Einschalten einer Zusammenfassung aufgerufen — der einzige
+    /// Ort, der den System-Dialog auslösen darf. Liefert false bei Ablehnung.
     static func ensurePermission() async -> Bool {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -69,171 +69,72 @@ enum Reminders {
 
     // MARK: – Planung (pur)
 
-    /// Die Weckrufe eines Habits — MEHRERE, weil ein Kalender-Trigger nur
-    /// einen Wochentag abgleichen kann.
+    /// Die Tageszusammenfassung: EINMALIG mit dem aktuellen Stand, neu
+    /// geplant nach jeder Änderung am Store (Abhaken, Anlegen, App-Start).
+    /// Genau deshalb ist sie nicht wiederholend — eine wiederholende Meldung
+    /// trüge auf ewig den Text von heute.
     ///
-    /// Was `UNCalendarNotificationTrigger` kann, wird als WIEDERHOLENDER
-    /// Trigger geplant:
-    ///
-    ///  * täglich (Intervall 1)                  -> Stunde + Minute
-    ///  * flexibles Ziel ohne Tage („3× pro Woche") -> Stunde + Minute; welche
-    ///    Tage das werden, entscheidet der Nutzer, die Erinnerung soll ihn an
-    ///    allen erwischen (unverändert die alte Regel)
-    ///  * feste Wochentage (Intervall 1)         -> ein Trigger JE Wochentag
-    ///  * monatlich am festen Tag (Intervall 1)  -> Tag + Stunde + Minute
-    ///  * jährlich am festen Tag (Intervall 1)   -> Monat + Tag + Stunde + Minute
-    ///
-    /// Und was es NICHT kann, ehrlich benannt: „alle 2 Wochen", „alle 3
-    /// Monate", „am letzten Freitag", „am 3. Dienstag" lassen sich als
-    /// Datumsmuster überhaupt nicht ausdrücken — ein Muster hat keine Phase
-    /// und kennt keinen n-ten Wochentag. Für diese Regeln wird der NÄCHSTE
-    /// Termin als einmaliger Wecker gestellt und bei jedem `reschedule` neu
-    /// gesetzt (App-Start, Aktivwerden, jede Änderung am Store, also auch
-    /// jedes Abhaken). Genau dieses Muster fährt die Abend-Zusammenfassung
-    /// schon immer.
-    ///
-    /// Archivierte Habits klingeln nicht — sie sind aus Liste, Widget und
-    /// Zusammenfassung verschwunden, eine Erinnerung wäre ein Geist.
-    static func plans(for habit: Habit,
-                      now: Date = Date(),
-                      calendar: Calendar = .current) -> [ReminderPlan] {
-        guard let minutes = habit.reminderMinutes, habit.archivedAt == nil,
-              (0..<24 * 60).contains(minutes) else { return [] }
-        let recurrence = habit.recurrence
-        let title = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
-        let body = String(localized: "Kleiner Schritt, volle Zelle.")
-
-        func plan(_ identifier: String, _ components: DateComponents, repeats: Bool) -> ReminderPlan {
-            var c = components
-            c.hour = minutes / 60
-            c.minute = minutes % 60
-            return ReminderPlan(identifier: identifier, title: title, body: body,
-                                dateMatching: c, repeats: repeats)
-        }
-
-        // Ein Ende in der Vergangenheit heißt: nichts steht mehr an.
-        let today = DayKey.key(for: now, calendar: calendar)
-        let schedule = recurrence.schedule(calendar: calendar)
-        if let lastDay = schedule.lastDay, lastDay < today { return [] }
-        // Eine Regel mit Ende wiederholt sich nicht ewig — dann lieber den
-        // nächsten Termin einzeln stellen, als über das Ende hinaus zu
-        // klingeln. Dasselbe VOR dem Start: ein Muster kennt keinen Anfang,
-        // ein wiederholender Trigger würde also schon vor dem ersten Termin
-        // klingeln.
-        let endless = recurrence.end == .never
-        let started = recurrence.start.map { $0 <= today } ?? true
-
-        if endless, started, recurrence.interval == 1 {
-            switch recurrence.frequency {
-            case .daily:
-                return [plan(habitId(habit.id), DateComponents(), repeats: true)]
-            case .weekly:
-                if recurrence.isFlexible {
-                    // „Einmal pro Woche, gedacht am Dienstag": ein fester Tag
-                    // ist eine Verabredung — er steuert genau hier, die
-                    // Erinnerung, und sonst nichts.
-                    let days = RecurrenceText.ordered(recurrence.weekdays, calendar: calendar)
-                    guard let single = days.count == 1 ? days.first : nil else {
-                        return [plan(habitId(habit.id), DateComponents(), repeats: true)]
-                    }
-                    return [plan(habitId(habit.id), DateComponents(weekday: single), repeats: true)]
-                }
-                let days = RecurrenceText.ordered(recurrence.weekdays, calendar: calendar)
-                guard !days.isEmpty else { return [] }
-                return days.map {
-                    plan(habitId(habit.id, weekday: $0), DateComponents(weekday: $0), repeats: true)
-                }
-            case .monthly:
-                if recurrence.isFlexible {
-                    return [plan(habitId(habit.id), DateComponents(), repeats: true)]
-                }
-                if case .dayOfMonth(let day)? = recurrence.rule {
-                    return [plan(habitId(habit.id), DateComponents(day: day), repeats: true)]
-                }
-            case .yearly:
-                if recurrence.isFlexible {
-                    return [plan(habitId(habit.id), DateComponents(), repeats: true)]
-                }
-                if case .dayOfMonth(let day)? = recurrence.rule {
-                    return [plan(habitId(habit.id),
-                                 DateComponents(month: recurrence.month ?? 1, day: day),
-                                 repeats: true)]
-                }
-            }
-        }
-
-        // Rückfallebene: den nächsten Termin einmalig stellen.
-        guard let day = nextFireDay(recurrence: recurrence, minutes: minutes,
-                                    now: now, calendar: calendar),
-              let parts = DayKey.components(day) else { return [] }
-        return [plan(habitId(habit.id),
-                     DateComponents(year: parts.year, month: parts.month, day: parts.day),
-                     repeats: false)]
-    }
-
-    /// Der erste Termin, der noch bevorsteht — heute nur, wenn die Uhrzeit
-    /// noch kommt.
-    static func nextFireDay(recurrence: Recurrence,
-                            minutes: Int,
-                            now: Date,
-                            calendar: Calendar) -> String? {
-        let today = DayKey.key(for: now, calendar: calendar)
-        let schedule = recurrence.schedule(calendar: calendar)
-        if schedule.isScheduled(today) {
-            var c = calendar.dateComponents([.year, .month, .day], from: now)
-            c.hour = minutes / 60
-            c.minute = minutes % 60
-            if let fire = calendar.date(from: c), fire > now { return today }
-        }
-        return schedule.next(after: today)
-    }
-
-    /// Der erste Weckruf — für Aufrufer, die nur wissen wollen, OB und in
-    /// welcher Form geplant wird. Geplant wird immer `plans(for:)`.
-    static func plan(for habit: Habit,
-                     now: Date = Date(),
-                     calendar: Calendar = .current) -> ReminderPlan? {
-        plans(for: habit, now: now, calendar: calendar).first
-    }
-
-    /// Die Abend-Zusammenfassung: nicht-wiederholend mit dem aktuellen
-    /// Stand, wird nach jedem Toggle neu geplant. Entfällt, wenn nichts mehr
-    /// offen ist oder die Uhrzeit heute schon vorbei ist.
-    static func summaryPlan(minutes: Int?,
-                            openCount: Int,
-                            now: Date = Date(),
-                            calendar: Calendar = .current) -> ReminderPlan? {
-        guard let minutes, openCount > 0, (0..<24 * 60).contains(minutes) else { return nil }
+    /// Entfällt, wenn heute nichts fällig war oder die Uhrzeit heute schon
+    /// vorbei ist.
+    static func dailySummaryPlan(minutes: Int?,
+                                 status: SummaryStatus,
+                                 now: Date = Date(),
+                                 calendar: Calendar = .current) -> ReminderPlan? {
+        guard let minutes, (0..<24 * 60).contains(minutes),
+              let body = SummaryText.daily(status, locale: calendar.locale ?? .current)
+        else { return nil }
         var c = calendar.dateComponents([.year, .month, .day], from: now)
         c.hour = minutes / 60
         c.minute = minutes % 60
         guard let fire = calendar.date(from: c), fire > now else { return nil }
         return ReminderPlan(identifier: summaryId,
-                            title: String(localized: "hAiity"),
-                            body: String(localized: "\(openCount) Gewohnheit(en) heute noch offen."),
+                            title: String(localized: "Heute"),
+                            body: body,
                             dateMatching: calendar.dateComponents(
                                 [.year, .month, .day, .hour, .minute], from: fire),
                             repeats: false)
     }
 
+    /// Die Wochenzusammenfassung: Wochentag + Uhrzeit, WIEDERHOLEND. Anders
+    /// als die Tagesmeldung soll sie auch dann kommen, wenn die App eine
+    /// Woche lang nicht offen war — ein einmaliger Wecker wäre genau dann
+    /// nicht gestellt. Der Text stammt vom letzten `reschedule`; er wird bei
+    /// jedem Abhaken aufgefrischt.
+    ///
+    /// Entfällt, wenn in dieser Woche gar kein Termin fällig war.
+    static func weeklySummaryPlan(minutes: Int?,
+                                  weekday: Int,
+                                  status: SummaryStatus,
+                                  calendar: Calendar = .current) -> ReminderPlan? {
+        guard let minutes, (0..<24 * 60).contains(minutes), (1...7).contains(weekday),
+              let body = SummaryText.weekly(status, locale: calendar.locale ?? .current)
+        else { return nil }
+        return ReminderPlan(identifier: weeklySummaryId,
+                            title: String(localized: "Diese Woche"),
+                            body: body,
+                            dateMatching: DateComponents(hour: minutes / 60,
+                                                         minute: minutes % 60,
+                                                         weekday: weekday),
+                            repeats: true)
+    }
+
     // MARK: – Ausführung
 
-    /// Plant alle Habit-Erinnerungen und die Abend-Zusammenfassung neu.
-    /// Idempotent: erst alle eigenen Pending-Requests entfernen, dann setzen.
-    static func reschedule(habits: [Habit], summaryMinutes: Int?, openToday: [Habit]) async {
+    /// Stellt die beiden Zusammenfassungen neu. Idempotent: erst alle eigenen
+    /// Pending-Requests entfernen (die alten Habit-Weckrufe eingeschlossen),
+    /// dann setzen.
+    static func reschedule(daily: ReminderPlan?, weekly: ReminderPlan?) async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
 
         let pending = await center.pendingNotificationRequests()
-        let ours = pending.map(\.identifier).filter { $0 == summaryId || $0.hasPrefix("habit-") }
+        let ours = pending.map(\.identifier).filter {
+            $0 == summaryId || $0 == weeklySummaryId || $0.hasPrefix(legacyHabitPrefix)
+        }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
-        var plans = habits.flatMap { self.plans(for: $0) }
-        if let summary = summaryPlan(minutes: summaryMinutes, openCount: openToday.count) {
-            plans.append(summary)
-        }
-        for plan in plans {
+        for plan in [daily, weekly].compactMap({ $0 }) {
             try? await center.add(request(plan))
         }
     }
