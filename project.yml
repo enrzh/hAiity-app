@@ -80,6 +80,10 @@ targets:
       # (HaiityShortcuts.swift bleibt bewusst App-only.)
       - path: Haiity/Intents/CheckOffHabitIntent.swift
       - path: Haiity/Theme.swift
+      # Ohne den Katalog IM Extension-Bundle fallen alle Widget-Strings auf
+      # Deutsch zurück: in einer Extension ist Bundle.main die .appex, nicht
+      # die App — die 16 .lproj liegen sonst nur in Haiity.app.
+      - path: Haiity/Localizable.xcstrings
     info:
       path: HaiityWidget/Info.plist
       properties:

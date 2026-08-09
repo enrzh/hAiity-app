@@ -1,0 +1,200 @@
+{
+  "sourceLanguage": "de",
+  "strings": {
+    "${applicationName} ${habit} erledigt": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} تم",
+              "سجّل ${habit} في ${applicationName}",
+              "علّم ${habit} كمنجزة في ${applicationName}",
+              "أضف ${habit} إلى ${applicationName}"
+            ]
+          }
+        },
+        "bn": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} সম্পন্ন",
+              "${applicationName}-এ ${habit} সম্পন্ন করো",
+              "${applicationName}-এ ${habit} রেকর্ড করো",
+              "${applicationName}-এ ${habit} শেষ বলে চিহ্নিত করো"
+            ]
+          }
+        },
+        "de": {
+          "stringSet": {
+            "state": "new",
+            "values": [
+              "${applicationName} ${habit} erledigt",
+              "Hake ${habit} in ${applicationName} ab",
+              "Markiere ${habit} in ${applicationName} als erledigt",
+              "Check off ${habit} in ${applicationName}",
+              "Mark ${habit} as done in ${applicationName}",
+              "Log ${habit} in ${applicationName}"
+            ]
+          }
+        },
+        "en": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} done",
+              "Check off ${habit} in ${applicationName}",
+              "Mark ${habit} as done in ${applicationName}",
+              "Log ${habit} in ${applicationName}"
+            ]
+          }
+        },
+        "es": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} hecho",
+              "Marca ${habit} como hecho en ${applicationName}",
+              "Registra ${habit} en ${applicationName}",
+              "Apunta ${habit} en ${applicationName}"
+            ]
+          }
+        },
+        "fr": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} fait",
+              "Coche ${habit} dans ${applicationName}",
+              "Marque ${habit} comme fait dans ${applicationName}",
+              "Enregistre ${habit} dans ${applicationName}"
+            ]
+          }
+        },
+        "hi": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} पूरा",
+              "${applicationName} में ${habit} पूरा करो",
+              "${applicationName} में ${habit} दर्ज करो",
+              "${applicationName} में ${habit} को पूरा मार्क करो"
+            ]
+          }
+        },
+        "id": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} selesai",
+              "Centang ${habit} di ${applicationName}",
+              "Catat ${habit} di ${applicationName}",
+              "Tandai ${habit} selesai di ${applicationName}"
+            ]
+          }
+        },
+        "it": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} fatto",
+              "Segna ${habit} come fatto su ${applicationName}",
+              "Registra ${habit} su ${applicationName}",
+              "Spunta ${habit} su ${applicationName}"
+            ]
+          }
+        },
+        "ja": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} 完了",
+              "${applicationName}で${habit}を完了にして",
+              "${applicationName}に${habit}を記録して",
+              "${applicationName}で${habit}をチェックして"
+            ]
+          }
+        },
+        "ko": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} 완료",
+              "${applicationName}에서 ${habit} 체크해 줘",
+              "${applicationName}에 ${habit} 기록해 줘",
+              "${applicationName}에서 ${habit} 완료로 표시해 줘"
+            ]
+          }
+        },
+        "pt": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} feito",
+              "Marcar ${habit} como feito no ${applicationName}",
+              "Registrar ${habit} no ${applicationName}",
+              "Concluir ${habit} no ${applicationName}"
+            ]
+          }
+        },
+        "ru": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} выполнено",
+              "Отметь ${habit} в ${applicationName}",
+              "Запиши ${habit} в ${applicationName}",
+              "Отметь ${habit} как выполненное в ${applicationName}"
+            ]
+          }
+        },
+        "tr": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} tamam",
+              "${applicationName} uygulamasında ${habit} işaretle",
+              "${applicationName} uygulamasına ${habit} kaydet",
+              "${applicationName} ile ${habit} tamamlandı"
+            ]
+          }
+        },
+        "ur": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} مکمل",
+              "${applicationName} میں ${habit} مکمل کرو",
+              "${applicationName} میں ${habit} درج کرو",
+              "${applicationName} میں ${habit} کو مکمل نشان زد کرو"
+            ]
+          }
+        },
+        "vi": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} xong",
+              "Đánh dấu ${habit} trong ${applicationName}",
+              "Ghi ${habit} vào ${applicationName}",
+              "Hoàn thành ${habit} trong ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans": {
+          "stringSet": {
+            "state": "translated",
+            "values": [
+              "${applicationName} ${habit} 完成",
+              "在 ${applicationName} 里给 ${habit} 打卡",
+              "用 ${applicationName} 记录 ${habit}",
+              "在 ${applicationName} 中把 ${habit} 标记为已完成"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
