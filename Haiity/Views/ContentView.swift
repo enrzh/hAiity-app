@@ -39,6 +39,9 @@ struct ContentView: View {
     /// Scroll-Zustand der Habit-Liste, ausschließlich aus Zeilenpositionen
     /// abgeleitet (siehe ChromeScroll).
     @State private var chrome = ChromeScroll()
+    /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
+    /// UndoToastState.
+    @State private var undo = UndoToastState()
     /// Hält die Glasteile unten zusammen: gleiche ID vor und nach dem
     /// Zusammenziehen = ein Morph statt zweier Blenden.
     @Namespace private var glassNamespace
@@ -110,6 +113,9 @@ struct ContentView: View {
             .onChange(of: screen) { _, _ in
                 editMode = .inactive
                 chrome.expand()
+                // Ein Toast, der auf eine Karte zeigt, die man nicht mehr
+                // sieht, ist nur noch ein Knopf ins Ungewisse.
+                undo.clear()
             }
             .onChange(of: searching) { _, _ in
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
@@ -234,9 +240,9 @@ struct ContentView: View {
         HabitCard(
             habit: habit,
             collapsed: collapsed,
-            onToggleDay: { store.toggle(habit.id, day: $0) },
-            onIncrement: { store.increment(habit.id) },
-            onClear: { store.clear(habit.id) },
+            onToggleDay: { toggleDay(habit, day: $0) },
+            onIncrement: { increment(habit) },
+            onClear: { revert(habit) },
             onEdit: { editing = habit },
             onArchive: { store.archive(habit.id) }
         )
@@ -250,14 +256,110 @@ struct ContentView: View {
                                   leading: Theme.Metrics.gutter,
                                   bottom: 0,
                                   trailing: Theme.Metrics.gutter))
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                store.archive(habit.id)
-            } label: {
-                Label(String(localized: "Archivieren"), systemImage: "archivebox")
-            }
-            .tint(.orange)
+        // Beide Kanten sind belegbar (Mehr → Wischgesten). Voll durchziehen
+        // löst nur an der FÜHRENDEN Kante aus und nur für umkehrbare
+        // Aktionen — hinten wäre das im Zweifel ein versehentlich
+        // archiviertes Habit.
+        .swipeActions(edge: .leading, allowsFullSwipe: store.leadingSwipe.allowsFullSwipe) {
+            swipeButton(store.leadingSwipe, for: habit)
         }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            swipeButton(store.trailingSwipe, for: habit)
+            // Ist heute schon abgehakt, kommt „Rückgängig" an der hinteren
+            // Kante ZUSÄTZLICH dazu — das Zurücknehmen soll dort liegen, wo
+            // man ohnehin hinwischt, ohne dafür das Archivieren zu opfern.
+            if store.trailingSwipe != .revert,
+               GoalEngine.dayCounts(habit: habit, day: DayKey.today()) {
+                swipeButton(.revert, for: habit)
+            }
+        }
+    }
+
+    /// EIN Wisch-Knopf. `.none` liefert nichts — die Kante bleibt dann
+    /// stumm, statt einen Knopf ohne Wirkung anzubieten.
+    @ViewBuilder
+    private func swipeButton(_ action: SwipeAction, for habit: Habit) -> some View {
+        switch action {
+        case .none:
+            EmptyView()
+        case .done:
+            swipeLabelButton(action, tint: Theme.accentFill(store.palette)) { markDone(habit) }
+        case .revert:
+            swipeLabelButton(action, tint: .gray) { revert(habit) }
+        case .archive:
+            swipeLabelButton(action, tint: .orange) { store.archive(habit.id) }
+        case .edit:
+            swipeLabelButton(action, tint: .blue) { editing = habit }
+        }
+    }
+
+    private func swipeLabelButton(_ action: SwipeAction,
+                                  tint: Color,
+                                  perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Label(action.title, systemImage: action.symbol ?? "circle")
+        }
+        .tint(tint)
+        .accessibilityIdentifier("swipe-\(action.rawValue)")
+    }
+
+    // MARK: – Check-in mit Rückgängig
+    //
+    // ALLES, was aus der OBERFLÄCHE einen Tageswert ändert, läuft durch
+    // `mutate`: erst den alten Wert merken, dann ändern, dann den Toast
+    // zeigen. Der Widget-Knopf und Siri/Shortcuts (CheckOffLogic im
+    // Extension- bzw. Intent-Prozess) laufen BEWUSST NICHT hier durch — ein
+    // Toast ist Oberfläche, und dort gibt es keine, die ihn zeigen könnte.
+
+    private func mutate(_ habit: Habit, day: String, _ change: () -> Void) {
+        let before = store.value(habit.id, day: day)
+        change()
+        let after = store.value(habit.id, day: day) ?? 0
+        let message = CheckInUndo.message(habitName: habit.name,
+                                          value: after,
+                                          target: habit.goal.target)
+        withToastAnimation {
+            undo.present(habitId: habit.id, day: day, previousValue: before, message: message)
+        }
+    }
+
+    /// Tippen auf die Heute-Pille bzw. auf eine Rasterzelle: schaltet um.
+    private func toggleDay(_ habit: Habit, day: String) {
+        mutate(habit, day: day) { store.toggle(habit.id, day: day) }
+    }
+
+    private func increment(_ habit: Habit) {
+        mutate(habit, day: DayKey.today()) { store.increment(habit.id) }
+    }
+
+    /// Wisch-„Erledigt": hakt AN, nie ab. Ein schon erledigtes Checkbox-
+    /// Habit bleibt unangetastet (und bekommt keinen Toast, der nichts
+    /// zurückzunehmen hätte) — zum Abhaken gibt es „Rückgängig".
+    private func markDone(_ habit: Habit) {
+        let today = DayKey.today()
+        if habit.goal.target == nil, habit.isDone(today) { return }
+        mutate(habit, day: today) {
+            if habit.goal.target != nil { store.increment(habit.id) }
+            else { store.toggle(habit.id, day: today) }
+        }
+    }
+
+    /// Heutigen Eintrag zurücknehmen — komplett, auch bei Mengen-Habits.
+    /// Der Toast bringt den exakten Vorwert zurück.
+    private func revert(_ habit: Habit) {
+        let today = DayKey.today()
+        guard store.value(habit.id, day: today) != nil else { return }
+        mutate(habit, day: today) { store.clear(habit.id, day: today) }
+    }
+
+    private func performUndo() {
+        guard let toast = undo.take() else { return }
+        store.setValue(toast.habitId, day: toast.day, value: toast.previousValue)
+        Theme.Haptics.check()
+    }
+
+    private func withToastAnimation(_ body: () -> Void) {
+        if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.24), body) }
     }
 
     /// Meldet die Oberkante JEDER sichtbaren Zeile. Aus zwei Momentaufnahmen
@@ -379,9 +481,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var bottomChrome: some View {
-        // Bei offener Suche steht das Chrom sonst auf der Tastatur.
+        // Bei offener Suche steht das Chrom sonst auf der Tastatur. Der
+        // Toast hängt bewusst MIT drin: er soll über dem Glas-Blob schweben,
+        // nicht darauf — und auf der Tastatur hätte er nichts verloren.
         if !searching {
             VStack(spacing: Theme.Metrics.gap) {
+                undoToast
                 syncBadge
                 chromeRow
             }
@@ -430,22 +535,41 @@ struct ContentView: View {
     /// Linksbündige Glas-Kapsel mit beiden Bereichen. Zusammengezogen fallen
     /// die Beschriftungen weg — beide Ziele bleiben aber Knöpfe (und ihre
     /// Identifier im Baum), der Blob ist kein totes Abzeichen.
+    ///
+    /// **Konzentrik.** Die Auswahl-Lasur liegt IN der Kapsel, also muss ihr
+    /// Radius exakt der äußere MINUS dem Rand sein — sonst läuft der Spalt
+    /// zwischen beiden Bögen um die Rundung herum auseinander, und genau das
+    /// sieht man. Die Rechnung, in beiden Zuständen dieselbe:
+    ///
+    ///     äußere Kapsel  H = control = 52  ->  R = H/2 = 26
+    ///     Rand           p = (control − hit)/2 = 4   (rundum gleich)
+    ///     innere Kapsel  h = control − 2p = hit = 44  ->  r = h/2 = 22
+    ///     Probe:         r = R − p  ->  22 = 26 − 4  ✓
+    ///
+    /// Beide Formen sind ECHTE Kapseln (Stadion), der Radius ist also die
+    /// halbe Höhe und nicht geraten. Damit das auch waagerecht stimmt, ist
+    /// die Lasur mindestens `hit` breit (`chromeInset` unten) — eine Kapsel,
+    /// die schmaler als hoch ist, bekäme den Radius aus der KLEINEREN Seite
+    /// und liefe zusammengezogen aus der Konzentrik.
     private var switcher: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Self.chromeInset) {
             tabButton(.habits, symbol: "square.grid.2x2",
                       title: String(localized: "Habits"), id: "tab-habits")
             tabButton(.more, symbol: "ellipsis",
                       title: String(localized: "Mehr"), id: "tab-more")
         }
-        // 44 (Trefferfläche) + 2 x 4 = 52 = Metrics.control: die Kapsel ist
-        // exakt so hoch wie der Anlegen-Knopf breit ist, und der innere
-        // Auswahl-Radius ist genau um den Rand kleiner als der äußere.
-        .padding((Theme.Metrics.control - Theme.Metrics.hit) / 2)
+        // RUNDUM derselbe Rand — links wie rechts wie oben wie unten.
+        .padding(Self.chromeInset)
         .modifier(ChromeGlass(id: "chrome-nav", namespace: glassNamespace, kind: .capsule,
                               union: chromeUnion("chrome-nav-solo")))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen-switcher")
     }
+
+    /// Der eine Rand, aus dem beide Radien folgen: (52 − 44)/2 = 4. Er ist
+    /// auch der Abstand ZWISCHEN den beiden Lasuren, damit der Spalt überall
+    /// im Blob derselbe ist.
+    private static let chromeInset: CGFloat = (Theme.Metrics.control - Theme.Metrics.hit) / 2
 
     /// Ein Symbol im Chrom. Gleiches Kästchen für alle drei, damit die
     /// Mittelpunkte auf EINER Linie sitzen — die Punktgrößen sind dagegen
@@ -475,14 +599,17 @@ struct ContentView: View {
                     Text(title)
                         .font(.footnote.weight(.semibold))
                         .fixedSize()
-                        .padding(.trailing, 8)
                 }
             }
-            // Die Auswahl-Fläche ist genau so hoch wie die Symbolkästchen —
-            // zusammengezogen also ein Kreis von derselben Größe wie seine
-            // Nachbarn, nicht der große grüne Klecks von vorher.
-            .frame(height: Theme.Metrics.glyph)
-            .padding(.leading, collapsed ? 0 : 8)
+            // Gleicher Innenabstand links wie rechts — vorher hing das
+            // Padding einseitig am Symbol bzw. am Text, dadurch stand die
+            // Beschriftung in der Lasur nicht mittig.
+            .padding(.horizontal, collapsed ? 0 : Theme.Metrics.gap)
+            // Die Lasur IST die Trefferfläche: `hit` hoch UND mindestens
+            // `hit` breit. Damit ist sie eine Kapsel mit Radius hit/2 = 22,
+            // also exakt (26 − 4) — konzentrisch zur Glaskapsel, in beiden
+            // Zuständen (siehe `switcher`).
+            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
             .background {
                 if screen == target {
                     // Kein beliebiger Alpha-Wert, sondern die eine
@@ -492,9 +619,7 @@ struct ContentView: View {
                     Capsule().fill(Theme.accent(store.palette).opacity(0.18))
                 }
             }
-            // Trefferfläche bleibt 44 pt hoch, auch wenn das Sichtbare 32 ist.
-            .frame(height: Theme.Metrics.hit)
-            .contentShape(Rectangle())
+            .contentShape(Capsule())
             // `.primary` statt `.secondary`: über einem dicht gefüllten
             // Raster ist Sekundärgrau hinter Glas nicht mehr lesbar. Die
             // Hierarchie trägt die Auswahl-Lasur, nicht die Textfarbe.
@@ -541,6 +666,49 @@ struct ContentView: View {
     // Now-Playing-Slot (volle Breite, persistenter Status). Als Anlegen-
     // Aktion belegt sie dauerhaft einen Streifen über dem Raster —
     // ausprobiert, sieht nach echtem Glas aus, ist aber die falsche Rolle.
+
+    /// Der Rückgängig-Toast: dieselbe Glas-Pille wie die Sync-Rückmeldung,
+    /// nur mit einer Aktion darin. Er sitzt IM Chrom-Stapel und damit immer
+    /// über dem Blob — kein Überlappen, egal ob der + gerade in der Ecke
+    /// steht oder in der Kapsel klebt.
+    ///
+    /// Der Zeitgeber hängt an `.task(id:)`: ein neuer Check-in ersetzt den
+    /// Toast, SwiftUI bricht die alte Aufgabe ab und startet die neue — die
+    /// vier Sekunden laufen also von vorn los, statt sich zu stapeln.
+    @ViewBuilder
+    private var undoToast: some View {
+        if let toast = undo.current {
+            HStack(spacing: Theme.Metrics.gap) {
+                Text(toast.message)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Divider().frame(height: 16)
+                Button {
+                    performUndo()
+                } label: {
+                    Text(String(localized: "Rückgängig"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accentText(store.palette))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("undo-action")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .modifier(GlassCapsule())
+            .transition(reduceMotion
+                        ? AnyTransition.opacity
+                        : AnyTransition.move(edge: .bottom).combined(with: .opacity))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("undo-toast")
+            .task(id: toast.id) {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                withToastAnimation { undo.expire(toast.id) }
+            }
+        }
+    }
 
     /// Kurzlebige Sync-Rückmeldung — eine kleine Glas-Pille über dem Chrom.
     @ViewBuilder
@@ -874,15 +1042,22 @@ private struct ChromeGlass: ViewModifier {
     }
 }
 
-/// Die Sync-Pille braucht kein Morphing, nur eine Fläche.
+/// Schwebende Pillen über der Liste (Sync-Rückmeldung, Rückgängig-Toast):
+/// kein Morphing, nur eine Fläche — aber dieselbe Lesbarkeits-Dosis wie das
+/// Chrom. `.regular` allein reicht über einem voll gefüllten Raster oder
+/// einer grünen Erledigt-Pille nicht: der Text darauf verschwimmt mit dem,
+/// was durchscheint. Der Systemhintergrund mit halber Deckung als Tint ist
+/// die kleinste Menge, die das behebt, ohne aus Glas Milchglas zu machen
+/// (dieselbe Rechnung wie in `ChromeGlass`).
 private struct GlassCapsule: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            content.glassEffect(.regular, in: .capsule)
+            content.glassEffect(.regular.tint(Color(.systemBackground).opacity(0.5)), in: .capsule)
         } else {
             content
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.quaternary))
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 3)
         }
     }
 }

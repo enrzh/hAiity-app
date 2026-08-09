@@ -38,9 +38,10 @@ struct Habit: Codable, Identifiable, Equatable {
 }
 
 /// Ziel eines Habits. Flaches Codable-Format, tolerant dekodiert:
-/// `{"cadence":"weekly","times":3,"restDays":[1,7],"target":5}` —
-/// fehlende Felder fallen auf .daily / keine Ruhetage / Checkbox zurück,
-/// unbekannte `cadence`-Werte ebenfalls (Vorwärts-Kompatibilität).
+/// `{"cadence":"weekly","times":3,"restDays":[1,7],"target":5,"weekday":3}` —
+/// fehlende Felder fallen auf .daily / keine Ruhetage / Checkbox / kein
+/// fester Tag zurück, unbekannte `cadence`-Werte ebenfalls
+/// (Vorwärts-Kompatibilität).
 struct Goal: Equatable {
     enum Cadence: Equatable {
         case daily
@@ -56,34 +57,73 @@ struct Goal: Equatable {
     /// Mengen-Habits: ein Tag zählt, wenn der Log-Wert >= target ist.
     /// nil = einfache Checkbox.
     var target: Int?
+    /// FESTER Wochentag der Wochen-Kadenz (1 = Sonntag … 7 = Samstag);
+    /// nil = der Tag ist frei wählbar (der Normalfall).
+    ///
+    /// Bewusst ein SEPARATES optionales Feld und keine neue zugeordnete
+    /// Größe an `.weekly` — bestehende Dateien UND bestehender Code, die
+    /// `.weekly(times:)` schreiben und lesen, bleiben damit unverändert
+    /// gültig.
+    ///
+    /// **Die Regel, die daran hängt:** Ein fester Tag heißt „einmal pro
+    /// Woche, gedacht am Dienstag" — er steuert die ERINNERUNG und die
+    /// Beschriftung, er ist keine Prüfung. Ein Check-in am Montag oder am
+    /// Donnerstag erfüllt dieselbe Woche genauso (siehe
+    /// `GoalEngine.weekSatisfied`). Wer zu früh oder zu spät dran ist, soll
+    /// seine Serie nicht verlieren; alles andere bestraft genau die Leute,
+    /// die trotzdem drangeblieben sind.
+    var weekday: Int?
 
-    init(cadence: Cadence = .daily, restDays: Set<Int> = [], target: Int? = nil) {
-        self.cadence = cadence
+    /// Normalisiert an EINER Stelle: ein fester Tag zieht `times` auf 1
+    /// herunter („3× pro Woche, jeden Dienstag" ist keine sinnvolle
+    /// Kombination), ein Tag außerhalb 1…7 fällt weg, und bei täglicher
+    /// Kadenz gibt es überhaupt keinen festen Wochentag.
+    init(cadence: Cadence = .daily, restDays: Set<Int> = [], target: Int? = nil, weekday: Int? = nil) {
+        let day = weekday.flatMap { (1...7).contains($0) ? $0 : nil }
+        if case .weekly(let times) = cadence {
+            self.cadence = .weekly(times: day != nil ? 1 : Self.clampTimes(times))
+            self.weekday = day
+        } else {
+            self.cadence = .daily
+            self.weekday = nil
+        }
         self.restDays = restDays
         self.target = target
     }
 
     static let daily = Goal()
-    static func weekly(times: Int) -> Goal { Goal(cadence: .weekly(times: clampTimes(times))) }
+    static func weekly(times: Int, weekday: Int? = nil) -> Goal {
+        Goal(cadence: .weekly(times: times), weekday: weekday)
+    }
     static func clampTimes(_ n: Int) -> Int { min(7, max(1, n)) }
+
+    /// Wie viele zählende Tage die Woche erfüllen. Bei festem Tag immer 1.
+    var weeklyTimes: Int? {
+        if case .weekly(let times) = cadence { return times }
+        return nil
+    }
 }
 
 extension Goal: Codable {
-    private enum CodingKeys: String, CodingKey { case cadence, times, restDays, target }
+    private enum CodingKeys: String, CodingKey { case cadence, times, restDays, target, weekday }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try c.decodeIfPresent(String.self, forKey: .cadence) ?? "daily"
+        let raw: Cadence
         if kind == "weekly" {
-            let times = try c.decodeIfPresent(Int.self, forKey: .times) ?? 1
-            cadence = .weekly(times: Self.clampTimes(times))
+            raw = .weekly(times: try c.decodeIfPresent(Int.self, forKey: .times) ?? 1)
         } else {
-            cadence = .daily // unbekannte Werte tolerant als Standard lesen
+            raw = .daily // unbekannte Werte tolerant als Standard lesen
         }
         let days = try c.decodeIfPresent([Int].self, forKey: .restDays) ?? []
-        restDays = Set(days.filter { (1...7).contains($0) })
         let t = try c.decodeIfPresent(Int.self, forKey: .target)
-        target = t.flatMap { $0 > 0 ? $0 : nil }
+        // Über den bezeichneten Init, damit die Normalisierung (Tag 1…7,
+        // times = 1 bei festem Tag) für Dateien GENAUSO gilt wie für die UI.
+        self = Goal(cadence: raw,
+                    restDays: Set(days.filter { (1...7).contains($0) }),
+                    target: t.flatMap { $0 > 0 ? $0 : nil },
+                    weekday: try c.decodeIfPresent(Int.self, forKey: .weekday))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -94,6 +134,9 @@ extension Goal: Codable {
         case .weekly(let times):
             try c.encode("weekly", forKey: .cadence)
             try c.encode(times, forKey: .times)
+            // Nur wenn gesetzt — eine Wochen-Kadenz ohne festen Tag sieht
+            // auf der Platte aus wie vorher.
+            try c.encodeIfPresent(weekday, forKey: .weekday)
         }
         if !restDays.isEmpty { try c.encode(restDays.sorted(), forKey: .restDays) }
         if let target { try c.encode(target, forKey: .target) }

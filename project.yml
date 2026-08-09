@@ -88,6 +88,9 @@ targets:
       - path: Haiity/Models/GoalEngine.swift
       - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/HabitStore.swift
+      # HabitData trägt die Wischgesten-Einstellung, also braucht auch die
+      # Extension den Typ — sonst kompiliert der geteilte Store nicht.
+      - path: Haiity/Models/Interaction.swift
       # Widget-Button braucht den Intent-TYP; perform() läuft im
       # Extension-Prozess und schreibt über den geteilten Store.
       # (HaiityShortcuts.swift bleibt bewusst App-only.)

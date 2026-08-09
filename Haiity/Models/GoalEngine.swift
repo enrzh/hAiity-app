@@ -23,6 +23,33 @@ enum GoalEngine {
         return true
     }
 
+    /// Ist die KALENDERWOCHE, in der `day` liegt, erfüllt?
+    ///
+    /// Bei täglicher Kadenz ist das schlicht der Tag selbst. Bei
+    /// Wochen-Kadenz zählt die Anzahl zählender Tage in dieser Woche gegen
+    /// `times`.
+    ///
+    /// **Fester Wochentag (`goal.weekday`):** `times` ist dann per
+    /// Normalisierung 1 — die Woche ist also erfüllt, sobald IRGENDEIN Tag
+    /// dieser Woche zählt. Der Check-in am festgelegten Tag erfüllt sie,
+    /// einer am Tag davor oder danach aber genauso. Der feste Tag ist eine
+    /// Verabredung für die Erinnerung, keine Prüfung: früh oder spät
+    /// abzuhaken darf keine Serie kosten. (Gegenentwurf wäre „nur der
+    /// Dienstag zählt" — das würde ausgerechnet die bestrafen, die die
+    /// Woche trotzdem geschafft haben.)
+    static func weekSatisfied(habit: Habit,
+                              day: String,
+                              today: String = DayKey.today(),
+                              calendar: Calendar = .current) -> Bool {
+        guard case .weekly(let times) = habit.goal.cadence else {
+            return dayCounts(habit: habit, day: day, calendar: calendar)
+        }
+        guard let date = DayKey.date(from: day, calendar: calendar),
+              let week = calendar.dateInterval(of: .weekOfYear, for: date) else { return false }
+        let counts = weeklyCounts(habit: habit, today: today, calendar: calendar)
+        return (counts[week.start] ?? 0) >= times
+    }
+
     /// Ruhetag? Nur für .daily bedeutsam; Wochentage nach Calendar-Nummern
     /// (1 = Sonntag … 7 = Samstag).
     static func isRestDay(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {

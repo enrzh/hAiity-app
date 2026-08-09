@@ -40,6 +40,7 @@ struct MoreView: View {
             }
 
             appearanceSection
+            swipeSection
 
             Section {
                 Toggle(isOn: summaryEnabled) {
@@ -164,6 +165,50 @@ struct MoreView: View {
         } footer: {
             Text(String(localized: "Die Graph-Farbe gilt für alle Habits. Einzelne Habits können beim Bearbeiten eine eigene Farbe bekommen. Beim Anpassen des App-Icons fragt iOS einmal kurz nach."))
         }
+    }
+
+    // MARK: – Wischgesten
+    //
+    // Die Richtungen sind BENANNT, nicht „links"/„rechts": ein Wisch heißt
+    // hier nach der BEWEGUNG des Fingers, weil genau das die Rückmeldung war
+    // („von links nach rechts = erledigt"). In RTL dreht das System die
+    // Kanten selbst — die Beschriftung folgt dem System, nicht der Kante.
+
+    private var swipeSection: some View {
+        Section {
+            swipePicker(String(localized: "Von links nach rechts"),
+                        symbol: "arrow.right",
+                        selection: swipeBinding(\.leadingSwipe),
+                        identifier: "swipe-leading-picker")
+            swipePicker(String(localized: "Von rechts nach links"),
+                        symbol: "arrow.left",
+                        selection: swipeBinding(\.trailingSwipe),
+                        identifier: "swipe-trailing-picker")
+        } header: {
+            Text(String(localized: "Wischgesten"))
+        } footer: {
+            Text(String(localized: "Ist ein Habit heute schon erledigt, bietet die Geste von rechts nach links zusätzlich „Rückgängig“ an. Voll durchziehen löst nur „Erledigt“ und „Rückgängig“ aus — Archivieren nie."))
+        }
+    }
+
+    private func swipePicker(_ title: String,
+                             symbol: String,
+                             selection: Binding<SwipeAction>,
+                             identifier: String) -> some View {
+        Picker(selection: selection) {
+            ForEach(SwipeAction.allCases) { action in
+                Text(action.title).tag(action)
+            }
+        } label: {
+            Label(title, systemImage: symbol)
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func swipeBinding(_ keyPath: ReferenceWritableKeyPath<HabitStore, SwipeAction>) -> Binding<SwipeAction> {
+        Binding(get: { store[keyPath: keyPath] },
+                set: { store[keyPath: keyPath] = $0 })
     }
 
     private var appearanceBinding: Binding<AppearanceSetting> {

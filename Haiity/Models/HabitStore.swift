@@ -24,8 +24,12 @@ struct HabitData: Codable {
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
+    /// Wischgeste von links nach rechts (Standard: erledigt).
+    var leadingSwipe: SwipeAction
+    /// Wischgeste von rechts nach links (Standard: archivieren).
+    var trailingSwipe: SwipeAction
 
-    /// Die drei neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
+    /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
     /// Datei unverändert weiter (ein Sprung auf 3 würde ihn aussperren).
     init(version: Int,
@@ -34,7 +38,9 @@ struct HabitData: Codable {
          habits: [Habit],
          appearance: AppearanceSetting = .default,
          palette: GraphPalette = .default,
-         matchAppIcon: Bool = true) {
+         matchAppIcon: Bool = true,
+         leadingSwipe: SwipeAction = .defaultLeading,
+         trailingSwipe: SwipeAction = .defaultTrailing) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
@@ -42,6 +48,8 @@ struct HabitData: Codable {
         self.appearance = appearance
         self.palette = palette
         self.matchAppIcon = matchAppIcon
+        self.leadingSwipe = leadingSwipe
+        self.trailingSwipe = trailingSwipe
     }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
@@ -50,6 +58,7 @@ struct HabitData: Codable {
 extension HabitData {
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
+        case leadingSwipe, trailingSwipe
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -74,6 +83,12 @@ extension HabitData {
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
             .flatMap(GraphPalette.init(rawValue:)) ?? .default
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
+        // Gleiche Regel wie bei Palette und Erscheinungsbild: unbekannt oder
+        // fehlend -> Standard, nie ein Fehler.
+        leadingSwipe = SwipeAction.tolerant(
+            try c.decodeIfPresent(String.self, forKey: .leadingSwipe), fallback: .defaultLeading)
+        trailingSwipe = SwipeAction.tolerant(
+            try c.decodeIfPresent(String.self, forKey: .trailingSwipe), fallback: .defaultTrailing)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -87,6 +102,8 @@ extension HabitData {
         if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
+        if leadingSwipe != .defaultLeading { try c.encode(leadingSwipe.rawValue, forKey: .leadingSwipe) }
+        if trailingSwipe != .defaultTrailing { try c.encode(trailingSwipe.rawValue, forKey: .trailingSwipe) }
     }
 }
 
@@ -143,6 +160,16 @@ final class HabitStore {
     var matchAppIcon: Bool {
         get { data.matchAppIcon }
         set { data.matchAppIcon = newValue; persist() }
+    }
+
+    var leadingSwipe: SwipeAction {
+        get { data.leadingSwipe }
+        set { data.leadingSwipe = newValue; persist() }
+    }
+
+    var trailingSwipe: SwipeAction {
+        get { data.trailingSwipe }
+        set { data.trailingSwipe = newValue; persist() }
     }
 
     static func read(_ url: URL) -> HabitData? {
@@ -210,6 +237,26 @@ final class HabitStore {
     func increment(_ id: UUID, day: String = DayKey.today()) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         data.habits[i].log[day] = (data.habits[i].log[day] ?? 0) + 1
+        persist()
+    }
+
+    /// Der aktuelle Tageswert; nil = kein Eintrag. Das ist der Wert, den
+    /// „Rückgängig" sich VOR einer Änderung merkt.
+    func value(_ id: UUID, day: String = DayKey.today()) -> Int? {
+        data.habits.first { $0.id == id }?.log[day]
+    }
+
+    /// Setzt den Tageswert EXAKT. Der Gegenspieler zu `value` und damit die
+    /// Grundlage für ein ehrliches Rückgängig: `toggle` und `increment`
+    /// würden nur „irgendwie zurück" kommen — ein Mengen-Habit, das von 3
+    /// auf 4 gezählt wurde, muss wieder auf 3 landen, nicht auf 0.
+    /// nil (oder ≤ 0) entfernt den Eintrag; 0-Werte werden nie
+    /// materialisiert (siehe Habit-Dekodierung).
+    func setValue(_ id: UUID, day: String, value: Int?) {
+        guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
+        let normalized = value.flatMap { $0 >= 1 ? $0 : nil }
+        guard data.habits[i].log[day] != normalized else { return }
+        data.habits[i].log[day] = normalized
         persist()
     }
 
@@ -295,6 +342,8 @@ final class HabitStore {
             data.appearance = remote.appearance
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
+            data.leadingSwipe = remote.leadingSwipe
+            data.trailingSwipe = remote.trailingSwipe
         }
         persist()
     }

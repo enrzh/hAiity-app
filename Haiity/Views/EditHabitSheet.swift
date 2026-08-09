@@ -20,6 +20,12 @@ struct EditHabitSheet: View {
     // Ziel-Zustand
     @State private var cadenceWeekly = false
     @State private var weeklyTimes = 3
+    /// „Einmal pro Woche, und zwar am …" — optional; aus bedeutet: der Tag
+    /// ist frei wählbar.
+    @State private var fixedWeekdayOn = false
+    /// Calendar-Wochentagsnummer (1 = So … 7 = Sa). 2 = Montag als
+    /// Vorbelegung.
+    @State private var weekday = 2
     @State private var restDays: Set<Int> = []
     @State private var quantityOn = false
     @State private var target = 3
@@ -76,7 +82,7 @@ struct EditHabitSheet: View {
     // MARK: – Ziel
 
     private var goalSection: some View {
-        Section(String(localized: "Ziel")) {
+        Section {
             Picker(String(localized: "Rhythmus"), selection: $cadenceWeekly) {
                 Text(String(localized: "Täglich")).tag(false)
                 Text(String(localized: "Pro Woche")).tag(true)
@@ -84,10 +90,18 @@ struct EditHabitSheet: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("cadence-picker")
             if cadenceWeekly {
-                Stepper(value: $weeklyTimes, in: 1...7) {
-                    Text(String(localized: "\(weeklyTimes)× pro Woche"))
+                // Fester Tag und „n× pro Woche" schließen sich aus: ein
+                // fester Tag IST einmal pro Woche.
+                Toggle(String(localized: "Fester Tag"), isOn: $fixedWeekdayOn)
+                    .accessibilityIdentifier("fixed-weekday-toggle")
+                if fixedWeekdayOn {
+                    weekdayPicker
+                } else {
+                    Stepper(value: $weeklyTimes, in: 1...7) {
+                        Text(String(localized: "\(weeklyTimes)× pro Woche"))
+                    }
+                    .accessibilityIdentifier("weekly-times")
                 }
-                .accessibilityIdentifier("weekly-times")
             } else {
                 restDayPicker
             }
@@ -99,7 +113,43 @@ struct EditHabitSheet: View {
                 }
                 .accessibilityIdentifier("quantity-target")
             }
+        } header: {
+            Text(String(localized: "Ziel"))
+        } footer: {
+            if cadenceWeekly && fixedWeekdayOn {
+                Text(String(localized: "Einmal pro Woche, gedacht am \(weekdayName(weekday)). Die Erinnerung kommt dann wöchentlich an diesem Tag — ein Check-in an einem anderen Tag zählt für die Woche trotzdem."))
+            }
         }
+    }
+
+    /// Ein Tag, einer davon. Dieselben Chips wie die Ruhetage, nur
+    /// Einfachauswahl — dieselbe Geste, dieselbe Optik, andere Bedeutung.
+    private var weekdayPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "Wochentag"))
+                .font(.subheadline)
+            HStack(spacing: 6) {
+                ForEach(orderedWeekdays, id: \.self) { day in
+                    let on = weekday == day
+                    Button {
+                        weekday = day
+                    } label: {
+                        Text(shortSymbol(day))
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .background(on ? Theme.accentFill(palette) : Color(.tertiarySystemFill), in: Capsule())
+                            .foregroundStyle(on ? .white : .primary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(weekdayName(day))
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("weekly-weekday")
     }
 
     // MARK: – Farbe
@@ -158,14 +208,29 @@ struct EditHabitSheet: View {
         return symbol.hasSuffix(".") ? String(symbol.dropLast()) : symbol
     }
 
+    /// Voller Wochentagsname — für Fußzeile und Vorlesen, wo „Mo" zu wenig
+    /// ist.
+    private func weekdayName(_ weekday: Int) -> String {
+        Calendar.current.weekdaySymbols[max(0, min(6, weekday - 1))]
+    }
+
     // MARK: – Erinnerung (Berechtigungs-Gate unverändert aus v1)
+
+    /// Bei festem Wochentag klingelt es WÖCHENTLICH — die Beschriftung sagt
+    /// das auch, sonst verspricht ein „Tägliche Erinnerung" etwas, was die
+    /// App gar nicht plant (siehe Reminders.plan).
+    private var weeklyReminder: Bool { cadenceWeekly && fixedWeekdayOn }
 
     private var reminderSection: some View {
         Section {
-            Toggle(String(localized: "Tägliche Erinnerung"), isOn: $reminderOn)
+            Toggle(weeklyReminder
+                   ? String(localized: "Wöchentliche Erinnerung")
+                   : String(localized: "Tägliche Erinnerung"),
+                   isOn: $reminderOn)
                 .accessibilityIdentifier("reminder-toggle")
             if reminderOn {
                 DatePicker(String(localized: "Uhrzeit"), selection: $reminderTime, displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("reminder-time")
             }
             if permissionDenied {
                 Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Erinnerung."))
@@ -173,7 +238,9 @@ struct EditHabitSheet: View {
                     .foregroundStyle(.orange)
             }
         } footer: {
-            Text(String(localized: "Gefragt wird nur, wenn du eine Erinnerung einschaltest — nie einfach so."))
+            Text(reminderOn && weeklyReminder
+                 ? String(localized: "Klingelt jeden \(weekdayName(weekday)) zur gewählten Zeit. Gefragt wird nur, wenn du eine Erinnerung einschaltest — nie einfach so.")
+                 : String(localized: "Gefragt wird nur, wenn du eine Erinnerung einschaltest — nie einfach so."))
         }
     }
 
@@ -192,7 +259,15 @@ struct EditHabitSheet: View {
             cadenceWeekly = false
         case .weekly(let times):
             cadenceWeekly = true
-            weeklyTimes = times
+            // Bei festem Tag ist times normalisiert 1 — der Stepper würde
+            // beim Abschalten des festen Tages sonst auf „1× pro Woche"
+            // stehen. 3 ist die Vorbelegung, die auch ein neues Habit hat.
+            if let day = h.goal.weekday {
+                fixedWeekdayOn = true
+                weekday = day
+            } else {
+                weeklyTimes = times
+            }
         }
         restDays = h.goal.restDays
         habitPalette = h.palette
@@ -209,10 +284,13 @@ struct EditHabitSheet: View {
             ? Calendar.current.component(.hour, from: reminderTime) * 60
               + Calendar.current.component(.minute, from: reminderTime)
             : nil
+        // Der Init normalisiert: ein fester Tag zieht times auf 1, ein Tag
+        // ohne Wochen-Kadenz fällt weg.
         let goal = Goal(
             cadence: cadenceWeekly ? .weekly(times: Goal.clampTimes(weeklyTimes)) : .daily,
             restDays: cadenceWeekly ? [] : restDays,
-            target: quantityOn ? target : nil)
+            target: quantityOn ? target : nil,
+            weekday: cadenceWeekly && fixedWeekdayOn ? weekday : nil)
 
         Task {
             var granted = true

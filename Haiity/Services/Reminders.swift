@@ -16,6 +16,24 @@ enum ReminderGate {
     }
 }
 
+/// Ein geplanter Weckruf als reine DATEN — ohne
+/// `UNUserNotificationCenter`. Genau hier sitzt die Entscheidung, ob ein
+/// Habit täglich oder wöchentlich klingelt; als Wert ist sie prüfbar, ohne
+/// dass ein Test dem Benachrichtigungssystem eine Berechtigung vorspielen
+/// müsste (die es im Simulator ohnehin nicht gibt).
+struct ReminderPlan: Equatable {
+    var identifier: String
+    var title: String
+    var body: String
+    /// Was der `UNCalendarNotificationTrigger` abgleicht. Ohne `weekday`
+    /// passt es auf JEDEN Tag zur genannten Uhrzeit (täglich), mit
+    /// `weekday` nur auf diesen einen Wochentag (wöchentlich).
+    var dateMatching: DateComponents
+    var repeats: Bool
+
+    var isWeekly: Bool { dateMatching.weekday != nil }
+}
+
 enum Reminders {
     static let summaryId = "summary"
 
@@ -34,6 +52,57 @@ enum Reminders {
         }
     }
 
+    // MARK: – Planung (pur)
+
+    /// Der Weckruf eines Habits, oder nil, wenn keiner ansteht.
+    ///
+    /// Zwei Trigger-Formen aus EINER Regel: hat das Habit eine Wochen-Kadenz
+    /// MIT festem Tag, wird `weekday` mit abgeglichen — der Trigger feuert
+    /// dann wöchentlich an genau diesem Tag. Ohne festen Tag bleibt es beim
+    /// täglichen Abgleich auf Stunde und Minute. („3× pro Woche" bleibt
+    /// bewusst täglich: welche drei Tage das sind, entscheidet der Nutzer,
+    /// die Erinnerung soll ihn an allen erwischen.)
+    ///
+    /// Archivierte Habits klingeln nicht — sie sind aus Liste, Widget und
+    /// Zusammenfassung verschwunden, eine Erinnerung wäre ein Geist.
+    static func plan(for habit: Habit) -> ReminderPlan? {
+        guard let minutes = habit.reminderMinutes, habit.archivedAt == nil,
+              (0..<24 * 60).contains(minutes) else { return nil }
+        var c = DateComponents()
+        c.hour = minutes / 60
+        c.minute = minutes % 60
+        if case .weekly = habit.goal.cadence, let weekday = habit.goal.weekday {
+            c.weekday = weekday
+        }
+        return ReminderPlan(identifier: habitId(habit.id),
+                            title: habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)",
+                            body: String(localized: "Kleiner Schritt, volle Zelle."),
+                            dateMatching: c,
+                            repeats: true)
+    }
+
+    /// Die Abend-Zusammenfassung: nicht-wiederholend mit dem aktuellen
+    /// Stand, wird nach jedem Toggle neu geplant. Entfällt, wenn nichts mehr
+    /// offen ist oder die Uhrzeit heute schon vorbei ist.
+    static func summaryPlan(minutes: Int?,
+                            openCount: Int,
+                            now: Date = Date(),
+                            calendar: Calendar = .current) -> ReminderPlan? {
+        guard let minutes, openCount > 0, (0..<24 * 60).contains(minutes) else { return nil }
+        var c = calendar.dateComponents([.year, .month, .day], from: now)
+        c.hour = minutes / 60
+        c.minute = minutes % 60
+        guard let fire = calendar.date(from: c), fire > now else { return nil }
+        return ReminderPlan(identifier: summaryId,
+                            title: String(localized: "hAiity"),
+                            body: String(localized: "\(openCount) Gewohnheit(en) heute noch offen."),
+                            dateMatching: calendar.dateComponents(
+                                [.year, .month, .day, .hour, .minute], from: fire),
+                            repeats: false)
+    }
+
+    // MARK: – Ausführung
+
     /// Plant alle Habit-Erinnerungen und die Abend-Zusammenfassung neu.
     /// Idempotent: erst alle eigenen Pending-Requests entfernen, dann setzen.
     static func reschedule(habits: [Habit], summaryMinutes: Int?, openToday: [Habit]) async {
@@ -45,37 +114,22 @@ enum Reminders {
         let ours = pending.map(\.identifier).filter { $0 == summaryId || $0.hasPrefix("habit-") }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
-        for h in habits {
-            guard let minutes = h.reminderMinutes else { continue }
-            let content = UNMutableNotificationContent()
-            content.title = h.emoji.isEmpty ? h.name : "\(h.emoji) \(h.name)"
-            content.body = String(localized: "Kleiner Schritt, volle Zelle.")
-            content.sound = .default
-            var c = DateComponents()
-            c.hour = minutes / 60
-            c.minute = minutes % 60
-            let trigger = UNCalendarNotificationTrigger(dateMatching: c, repeats: true)
-            try? await center.add(UNNotificationRequest(identifier: habitId(h.id), content: content, trigger: trigger))
+        var plans = habits.compactMap(plan(for:))
+        if let summary = summaryPlan(minutes: summaryMinutes, openCount: openToday.count) {
+            plans.append(summary)
         }
+        for plan in plans {
+            try? await center.add(request(plan))
+        }
+    }
 
-        // Abend-Zusammenfassung: nicht-wiederholend mit aktuellem Stand,
-        // wird nach jedem Toggle neu geplant; entfällt, wenn alles erledigt.
-        if let minutes = summaryMinutes, !openToday.isEmpty {
-            let content = UNMutableNotificationContent()
-            content.title = String(localized: "hAiity")
-            content.body = String(localized: "\(openToday.count) Gewohnheit(en) heute noch offen.")
-            content.sound = .default
-            let now = Date()
-            let cal = Calendar.current
-            var c = cal.dateComponents([.year, .month, .day], from: now)
-            c.hour = minutes / 60
-            c.minute = minutes % 60
-            if let fire = cal.date(from: c), fire > now {
-                let trigger = UNCalendarNotificationTrigger(
-                    dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire),
-                    repeats: false)
-                try? await center.add(UNNotificationRequest(identifier: summaryId, content: content, trigger: trigger))
-            }
-        }
+    private static func request(_ plan: ReminderPlan) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = plan.title
+        content.body = plan.body
+        content.sound = .default
+        let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateMatching,
+                                                    repeats: plan.repeats)
+        return UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
     }
 }
