@@ -46,6 +46,11 @@ struct PalettePicker: View {
             // Ein Chip an der Kante darf nicht angeschnitten wirken.
             .padding(.horizontal, 1)
         }
+        // Ohne .contain schluckt der Container seine Kinder: die Chips
+        // palette-global / palette-<name> / palette-custom-<uuid> wären im
+        // AX-Baum unauffindbar. Auf HabitCard und ArchiveView jeweils mit
+        // einem Kontrolllauf nachgewiesen (ohne die Zeile: 0 Treffer).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("palette-picker")
     }
 
