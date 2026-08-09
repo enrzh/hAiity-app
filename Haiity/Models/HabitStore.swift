@@ -17,7 +17,7 @@ struct HabitData: Codable {
     var habits: [Habit]
     /// Hell/Dunkel/System. Liegt HIER und nicht in UserDefaults, damit die
     /// Einstellung denselben Weg nimmt wie alles andere (Export, Import,
-    /// GitHub-Sync) — ein neues Gerät sieht sofort dieselbe App.
+    /// iCloud-Spiegel) — ein neues Gerät sieht sofort dieselbe App.
     var appearance: AppearanceSetting
     /// Globale Rasterfarbe.
     var palette: PaletteRef

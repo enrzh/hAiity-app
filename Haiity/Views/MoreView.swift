@@ -7,15 +7,15 @@ enum MoreRoute: Hashable {
     case stats, archive, about
 }
 
-/// "Mehr": GitHub-Sync, Abend-Zusammenfassung, Statistik, Archiv,
+/// "Mehr": iCloud-Status, Abend-Zusammenfassung, Statistik, Archiv,
 /// Export/Import und Über/Datenschutz. Läuft im selben NavigationStack wie
 /// die Habit-Liste — die Bottom-Bar bleibt sichtbar.
 struct MoreView: View {
     let store: HabitStore
-    let sync: GitHubSync
-    @Binding var connectedLogin: String?
+    /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
+    /// die Zeile sagt, warum nicht.
+    let cloudStatus: CloudSyncStatus
 
-    @State private var showSync = false
     @State private var showImporter = false
     @State private var importMessage: String?
     @State private var summaryDenied = false
@@ -32,17 +32,9 @@ struct MoreView: View {
     var body: some View {
         List {
             Section {
-                Button {
-                    showSync = true
-                } label: {
-                    if let login = connectedLogin { connectedSyncRow(login) } else { connectSyncRow }
-                }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("open-sync")
+                iCloudRow
             } footer: {
-                Text(connectedLogin == nil
-                     ? String(localized: "Optional: deine Daten in einem privaten Repo deines GitHub-Accounts. Ein Tipp, ein Code, fertig.")
-                     : String(localized: "Optional: deine Daten in einem privaten Repo deines GitHub-Accounts."))
+                Text(String(localized: "Deine Habits liegen auf diesem Gerät. Ist es bei iCloud angemeldet, spiegelt hAiity sie zusätzlich in deine private iCloud — nichts einzurichten, kein Konto bei uns, kein Server bei uns."))
             }
 
             appearanceSection
@@ -122,10 +114,6 @@ struct MoreView: View {
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
-        .sheet(isPresented: $showSync) {
-            SyncSheet(store: store, sync: sync, connectedLogin: $connectedLogin)
-                .themed(store)
-        }
         .sheet(isPresented: $creatingPalette) {
             CustomPaletteSheet(store: store).themed(store)
         }
@@ -166,17 +154,6 @@ struct MoreView: View {
         .onChange(of: store.palettes) { _, book in
             guard store.matchAppIcon else { return }
             Task { await AppIcons.apply(book) }
-        }
-        .task {
-            #if DEBUG
-            // Nur Debug: `-screen sync` öffnet das Sync-Blatt direkt — für
-            // Screenshot-Verifikation ohne UI-Automatisierung.
-            let args = ProcessInfo.processInfo.arguments
-            guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count,
-                  args[i + 1] == "sync" else { return }
-            try? await Task.sleep(for: .milliseconds(900))
-            showSync = true
-            #endif
         }
     }
 
@@ -366,48 +343,41 @@ struct MoreView: View {
             })
     }
 
-    // MARK: – GitHub-Zeile
+    // MARK: – iCloud-Zeile
     //
-    // Getrennt nach Zustand: nicht verbunden ist eine EINLADUNG (Akzent,
-    // Chevron, Untertitel) — kein Statuszeilen-Grau, das man übersieht.
-    // Verbunden ist reiner Status.
+    // KEIN Knopf, kein Blatt, kein Einrichten: es gibt nichts zu verbinden.
+    // Die Zeile ist reiner Status und sagt in jedem Zustand die Wahrheit —
+    // „aktiv“, „nur auf diesem Gerät“ (nicht angemeldet), „warten“ (offline)
+    // oder der echte Fehlertext. Nur der aktive Zustand trägt die
+    // Markenfarbe; alles andere bleibt sekundär, damit ein Problem nicht wie
+    // ein Erfolg aussieht.
 
-    private var connectSyncRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.2.circlepath")
+    private var iCloudRow: some View {
+        let state = cloudStatus.state
+        let ok: Bool = { if case .active = state { return true }; return false }()
+        return HStack(spacing: 12) {
+            Image(systemName: state.systemImage)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Theme.accentFill(palettes.style),
+                .background(ok ? AnyShapeStyle(Theme.accentFill(palettes.style))
+                               : AnyShapeStyle(Color.secondary),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "Mit GitHub verbinden"))
+                Text(state.title)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palettes.style))
-                Text(String(localized: "Code bestätigen — kein Token nötig"))
+                    .foregroundStyle(ok ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                        : AnyShapeStyle(HierarchicalShapeStyle.primary))
+                Text(state.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-
-    private func connectedSyncRow(_ login: String) -> some View {
-        HStack {
-            Label(String(localized: "GitHub-Sync"), systemImage: "checkmark.icloud")
-            Spacer()
-            Text(login)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("icloud-status")
     }
 
     // MARK: – Abend-Zusammenfassung
@@ -485,7 +455,7 @@ struct AboutView: View {
                     .font(.subheadline)
             }
             Section(String(localized: "Datenschutz")) {
-                Text(String(localized: "hAiity hat keinen Server. Deine Daten liegen ausschließlich auf diesem Gerät — und, nur wenn du es einrichtest, in einem privaten Repo deines eigenen GitHub-Accounts. Keine Analyse, kein Tracking, keine Konten."))
+                Text(String(localized: "hAiity hat keinen Server. Deine Daten liegen auf diesem Gerät — und, wenn du bei iCloud angemeldet bist, zusätzlich in deiner eigenen privaten iCloud. Wir sehen sie nie. Keine Analyse, kein Tracking, keine Konten."))
                     .font(.subheadline)
             }
         }

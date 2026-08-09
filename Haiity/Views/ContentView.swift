@@ -20,12 +20,15 @@ struct ContentView: View {
     enum Screen: Hashable { case habits, more }
 
     @State private var store = HabitStore()
-    @State private var sync = GitHubSync()
-    @State private var connectedLogin: String?
+    /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
+    /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
+    @State private var cloud = CloudSync()
+    @State private var cloudStatus = CloudSyncStatus()
+    /// Fasst schnelle Folgeänderungen zu EINEM Upload zusammen.
+    @State private var pushes = PushDebouncer()
     @State private var editing: Habit?
     @State private var showAdd = false
     @State private var syncStatus = ""
-    @State private var pushTask: Task<Void, Never>?
     @State private var screen: Screen = .habits
     @State private var search = ""
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
@@ -108,7 +111,12 @@ struct ContentView: View {
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
+                    // Konto kann sich ausserhalb der App geändert haben
+                    // (an-/abgemeldet), und das andere Gerät kann gehakt
+                    // haben, während diese App im Hintergrund lag.
+                    cloudStatus.refresh()
                     Task { await rescheduleReminders() }
+                    Task { await syncNow(announce: false) }
                 }
             }
             .onChange(of: search) { _, q in
@@ -157,7 +165,7 @@ struct ContentView: View {
 
     private var moreStack: some View {
         NavigationStack(path: $morePath) {
-            MoreView(store: store, sync: sync, connectedLogin: $connectedLogin)
+            MoreView(store: store, cloudStatus: cloudStatus)
                 .navigationTitle(String(localized: "Mehr"))
                 .navigationDestination(for: MoreRoute.self) { route in
                     switch route {
@@ -839,23 +847,23 @@ struct ContentView: View {
     }
     #endif
 
-    // MARK: – Boot / Sync / Reminder (unverändert aus v1)
+    // MARK: – Boot / iCloud / Reminder
+    //
+    // Lokal ist die Wahrheit: `store` schreibt data.json synchron, das Widget
+    // liest dieselbe Datei. iCloud ist der Spiegel — er wird beim Start, beim
+    // Aktivwerden und nach lokalen Änderungen (entprellt) nachgezogen. Fällt
+    // er aus, ändert das an der App nichts ausser der Statuszeile in „Mehr“.
 
     private func boot() async {
-        await sync.restore()
-        connectedLogin = await sync.login
         HaiityShortcuts.updateAppShortcutParameters()
-        store.onChange = { [weak store] in
-            guard let store else { return }
-            schedulePush(store)
+        store.onChange = {
+            schedulePush()
             Task { await rescheduleReminders() }
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
-        if connectedLogin != nil, let remote = try? await sync.pull() {
-            store.merge(remote: remote)
-        }
         await rescheduleReminders()
+        await syncNow(announce: false)
     }
 
     private func rescheduleReminders() async {
@@ -865,26 +873,49 @@ struct ContentView: View {
             openToday: store.openToday())
     }
 
-    private func schedulePush(_ store: HabitStore) {
-        guard connectedLogin != nil else { return }
-        pushTask?.cancel()
-        pushTask = Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled, let payload = store.exportJSON() else { return }
-            do {
-                try await sync.push(payload) { remote in
-                    if let remote {
-                        await MainActor.run { store.merge(remote: remote) }
-                    }
-                    return await MainActor.run { store.exportJSON() ?? payload }
-                }
-                await MainActor.run { syncStatus = String(localized: "✓ synchronisiert") }
-            } catch {
-                await MainActor.run { syncStatus = error.localizedDescription }
+    /// Nach einer lokalen Änderung: entprellt hochschreiben. Mehrere Häkchen
+    /// hintereinander werden EIN Upload (siehe PushDebouncer).
+    private func schedulePush() {
+        Task {
+            await pushes.schedule {
+                await syncNow(announce: true, pullFirst: false)
             }
-            try? await Task.sleep(for: .seconds(3))
-            await MainActor.run { syncStatus = "" }
         }
+    }
+
+    /// Ein Abgleich: Remote holen und mergen, dann den eigenen Stand
+    /// schreiben. Nicht angemeldet oder offline heisst NICHT „Fehler“ — die
+    /// App läuft vollständig weiter, der Status sagt nur, woran es liegt.
+    @MainActor
+    private func syncNow(announce: Bool, pullFirst: Bool = true) async {
+        guard cloudStatus.isSignedIn else { cloudStatus.refresh(); return }
+        do {
+            if pullFirst, let remote = try await cloud.pull() {
+                store.merge(remote: remote)
+            }
+            guard let payload = store.exportJSON() else { return }
+            try await cloud.push(payload) { remote in
+                // EIN Merge in dieser App — der aus dem Store.
+                if let remote { await MainActor.run { store.merge(remote: remote) } }
+                return await MainActor.run { store.exportJSON() ?? payload }
+            }
+            cloudStatus.noteSuccess()
+            if announce { await flash(String(localized: "✓ in iCloud gesichert")) }
+        } catch {
+            cloudStatus.noteFailure(error)
+            // Nur echte Fehler stören beim Abhaken; „offline“ steht in „Mehr“.
+            if announce, !CloudSyncError.map(error).isTemporary {
+                await flash(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Kurze Rückmeldung über dem Chrom, danach wieder weg.
+    @MainActor
+    private func flash(_ message: String) async {
+        syncStatus = message
+        try? await Task.sleep(for: .seconds(3))
+        if syncStatus == message { syncStatus = "" }
     }
 }
 

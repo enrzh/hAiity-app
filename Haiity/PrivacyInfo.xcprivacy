@@ -4,8 +4,9 @@
 <dict>
 	<!--
 	  hAiity sammelt nichts und trackt nicht. Alle Daten liegen in der
-	  App-Group-Datei data.json auf dem Gerät; die optionale GitHub-Sync
-	  schreibt ausschliesslich in ein Repo des Nutzers, nicht an uns.
+	  App-Group-Datei data.json auf dem Gerät; der iCloud-Spiegel schreibt
+	  ausschliesslich in die PRIVATE CloudKit-Datenbank der Apple-ID des
+	  Nutzers, nicht an uns.
 
 	  Diese Datei landet in BEIDEN Bundles (App und Widget-Extension) —
 	  Apple prueft jedes Bundle einzeln (ITMS-91053).
@@ -18,15 +19,6 @@
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
-		<dict>
-			<!-- GitHubSync merkt sich den verbundenen Login in UserDefaults. -->
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>CA92.1</string>
-			</array>
-		</dict>
 		<dict>
 			<!--
 			  HabitStore.mtime() liest die modificationDate von data.json im

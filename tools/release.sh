@@ -79,7 +79,7 @@ ok "ios platform"
 # Check the COUNT, not the exit code: a test file absent from project.yml does
 # not compile, and xcodebuild still exits 0.
 say "Unit tests"
-MIN_TESTS=315
+MIN_TESTS=326
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
@@ -222,8 +222,10 @@ done
 # 5e. No debug seams in the Release build.
 #
 # The app has launch-argument hooks (-screen, -dump-sharecard, -dump-widgets,
-# -demo-device-code, -reload-widgets) behind #if DEBUG. If one escapes the
-# guard it becomes a remote-control surface on a shipped build.
+# -reload-widgets) behind #if DEBUG. If one escapes the guard it becomes a
+# remote-control surface on a shipped build. (-demo-device-code went away with
+# the GitHub device flow; do not re-add names that no longer exist — the gate
+# would then be testing nothing.)
 #
 # Three layers, because the obvious one is a FALSE GREEN on its own: Swift
 # packs string literals of <= 15 UTF-8 bytes into the instruction stream as
@@ -241,7 +243,7 @@ done
 #
 # Every layer carries a positive control, so a gate that stops looking at
 # anything fails loudly instead of passing.
-SEAMS="-screen -dump-sharecard -dump-widgets -demo-device-code -reload-widgets"
+SEAMS="-screen -dump-sharecard -dump-widgets -reload-widgets"
 
 # --- layer 1: source ---
 SEAMS="$SEAMS" python3 - "$ROOT" <<'PY' || fail "debug seam outside #if DEBUG (see above)."
@@ -326,7 +328,7 @@ print("    (source: %d guarded seam literals, 0 unguarded)" % guarded)
 PY
 
 # --- layer 2: dSYM symbols ---
-DEBUG_FUNCS="handleLaunchScreenArgument dumpShareCards dumpWidgets seedDemoCodeIfRequested"
+DEBUG_FUNCS="handleLaunchScreenArgument dumpShareCards dumpWidgets"
 SYM_TOTAL=0
 for dwarf in "$ARCHIVE"/dSYMs/*.dSYM/Contents/Resources/DWARF/*; do
   [[ -f "$dwarf" ]] || continue

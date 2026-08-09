@@ -1,22 +1,15 @@
-/* hAiity — GitHub-style habit tracker.
-   Storage: localStorage always; optionally mirrored to the user's own GitHub
-   repo (haiity-data/data.json) via the Contents API. No server of ours. */
+/* hAiity — GitHub-style habit tracker (web prototype).
+   Storage: this browser's localStorage, and nothing else. This page makes no
+   network requests at all — no account, no server, no sync. Moving data in or
+   out is the export/import pair at the bottom.
+   The iOS app is the one with the iCloud mirror. */
 'use strict';
 
 const LS_DATA = 'haiity-data-v1';
-const LS_SYNC = 'haiity-sync-v1'; // {token, login, repo}
-const API = 'https://api.github.com';
-const DATA_REPO = 'haiity-data';
-const DATA_PATH = 'data.json';
 
 /* ---------- state ---------- */
 
 let state = load();
-let sync = loadSync();
-let remoteSha = null;      // sha of data.json at last read/write
-let pushTimer = null;
-let pushing = false;
-let pushQueued = false;
 
 function load() {
   try {
@@ -28,14 +21,9 @@ function load() {
   } catch (e) { /* corrupted -> start fresh, keep raw around */ }
   return { version: 1, updatedAt: 0, habits: [] };
 }
-function loadSync() {
-  try { return JSON.parse(localStorage.getItem(LS_SYNC)) || null; }
-  catch (e) { return null; }
-}
 function persist() {
   state.updatedAt = Date.now();
   localStorage.setItem(LS_DATA, JSON.stringify(state));
-  schedulePush();
   render();
 }
 
@@ -92,7 +80,6 @@ function render() {
   habitsEl.textContent = '';
   $('#empty').hidden = state.habits.length > 0;
   for (const h of state.habits) habitsEl.appendChild(renderHabit(h));
-  renderSyncStatus();
 }
 
 function renderHabit(h) {
@@ -199,12 +186,6 @@ function intensity(h, key) {
   return String(Math.min(4, Math.max(1, Math.ceil(run / 2))));
 }
 
-function renderSyncStatus() {
-  const el = $('#sync-status');
-  if (sync) { el.textContent = `✓ ${sync.login}`; el.classList.add('on'); $('#foot-where').textContent = `in your GitHub (${sync.login}/${DATA_REPO})`; }
-  else { el.textContent = ''; el.classList.remove('on'); $('#foot-where').textContent = 'in this browser'; }
-}
-
 /* ---------- habit dialog ---------- */
 
 let editing = null;
@@ -251,88 +232,7 @@ dlgHabit.addEventListener('close', () => {
 $('#btn-add').addEventListener('click', () => editHabit(null));
 $('#btn-add-empty').addEventListener('click', () => editHabit(null));
 
-/* ---------- GitHub sync ---------- */
-
-const dlgSync = $('#dlg-sync');
-$('#btn-sync').addEventListener('click', () => {
-  $('#sync-connected').hidden = !sync;
-  $('#sync-setup').hidden = !!sync;
-  if (sync) { $('#sync-user').textContent = sync.login; $('#sync-repo').textContent = `${sync.login}/${DATA_REPO}`; }
-  $('#sync-error').hidden = true;
-  dlgSync.showModal();
-});
-
-dlgSync.addEventListener('close', async () => {
-  const v = dlgSync.returnValue;
-  if (v === 'disconnect') {
-    sync = null; localStorage.removeItem(LS_SYNC); remoteSha = null;
-    renderSyncStatus();
-  } else if (v === 'connect') {
-    const token = $('#sync-token').value.trim();
-    if (token) await connect(token);
-  }
-});
-
-async function gh(path, opts = {}, token = sync && sync.token) {
-  const res = await fetch(API + path, {
-    ...opts,
-    headers: {
-      'Accept': 'application/vnd.github+json',
-      'Authorization': `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      ...(opts.headers || {}),
-    },
-  });
-  return res;
-}
-
-async function connect(token) {
-  const err = (m) => { $('#sync-error').textContent = m; $('#sync-error').hidden = false; dlgSync.showModal(); };
-  try {
-    const who = await gh('/user', {}, token);
-    if (!who.ok) return err(`Token rejected (HTTP ${who.status}). Check the token and its permissions.`);
-    const { login } = await who.json();
-
-    // ensure repo exists
-    let repo = await gh(`/repos/${login}/${DATA_REPO}`, {}, token);
-    if (repo.status === 404) {
-      const created = await gh('/user/repos', {
-        method: 'POST',
-        body: JSON.stringify({ name: DATA_REPO, private: true, auto_init: true, description: 'hAiity habit data — created by haiity (static app, your data stays yours)' }),
-      }, token);
-      if (!created.ok) return err(`Could not create ${DATA_REPO} (HTTP ${created.status}). The token needs repository Administration (or create the repo manually).`);
-    } else if (!repo.ok) {
-      return err(`Cannot access ${login}/${DATA_REPO} (HTTP ${repo.status}).`);
-    }
-
-    sync = { token, login };
-    localStorage.setItem(LS_SYNC, JSON.stringify(sync));
-
-    // merge remote if it exists
-    await pullMerge();
-    renderSyncStatus();
-    render();
-    schedulePush(0);
-  } catch (e) {
-    err(`Network error: ${e.message}`);
-  }
-}
-
-function b64encode(str) { return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
-function b64decode(b64) { return new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, '')), c => c.charCodeAt(0))); }
-
-async function pullMerge() {
-  if (!sync) return;
-  const res = await gh(`/repos/${sync.login}/${DATA_REPO}/contents/${DATA_PATH}`);
-  if (res.status === 404) { remoteSha = null; return; }
-  if (!res.ok) return;
-  const file = await res.json();
-  remoteSha = file.sha;
-  try {
-    const remote = JSON.parse(b64decode(file.content));
-    if (remote && Array.isArray(remote.habits)) mergeRemote(remote);
-  } catch (e) { /* unreadable remote: local wins on next push */ }
-}
+/* ---------- merge (shared by import; same union rule as the app) ---------- */
 
 function mergeRemote(remote) {
   // union merge: habits by id; logs by union of day-keys (a check-in anywhere counts)
@@ -346,58 +246,13 @@ function mergeRemote(remote) {
   localStorage.setItem(LS_DATA, JSON.stringify(state));
 }
 
-function schedulePush(delay = 1500) {
-  if (!sync) return;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(push, delay);
-}
-
-async function push() {
-  if (!sync) return;
-  if (pushing) { pushQueued = true; return; }
-  pushing = true;
-  try {
-    const body = {
-      message: `habits: ${today()}`,
-      content: b64encode(JSON.stringify(state, null, 2)),
-    };
-    if (remoteSha) body.sha = remoteSha;
-    let res = await gh(`/repos/${sync.login}/${DATA_REPO}/contents/${DATA_PATH}`, {
-      method: 'PUT', body: JSON.stringify(body),
-    });
-    if (res.status === 409 || res.status === 422) {
-      // stale sha — pull, merge, retry once
-      await pullMerge();
-      body.content = b64encode(JSON.stringify(state, null, 2));
-      if (remoteSha) body.sha = remoteSha; else delete body.sha;
-      res = await gh(`/repos/${sync.login}/${DATA_REPO}/contents/${DATA_PATH}`, {
-        method: 'PUT', body: JSON.stringify(body),
-      });
-    }
-    if (res.ok) {
-      const out = await res.json();
-      remoteSha = out.content.sha;
-      flashStatus('✓ synced');
-    } else {
-      flashStatus(`sync failed (${res.status})`, true);
-    }
-  } catch (e) {
-    flashStatus('offline — will retry', true);
-    schedulePush(30000);
-  } finally {
-    pushing = false;
-    if (pushQueued) { pushQueued = false; schedulePush(500); }
-  }
-}
-
 let statusTimer = null;
 function flashStatus(msg, isErr) {
-  const el = $('#sync-status');
-  const base = sync ? `✓ ${sync.login}` : '';
+  const el = $('#flash');
   el.textContent = msg;
   el.classList.toggle('on', !isErr);
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => { el.textContent = base; el.classList.toggle('on', !!sync); }, 2500);
+  statusTimer = setTimeout(() => { el.textContent = ''; el.classList.remove('on'); }, 2500);
 }
 
 /* ---------- import / export ---------- */
@@ -441,7 +296,6 @@ $('#import-file').addEventListener('change', async (e) => {
 /* ---------- boot ---------- */
 
 render();
-if (sync) pullMerge().then(() => { render(); });
 // re-render at midnight so "today" moves
 (function midnightTick() {
   const now = new Date();

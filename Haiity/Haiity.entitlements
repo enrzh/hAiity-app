@@ -7,5 +7,23 @@
 	<array>
 		<string>group.com.aiity.haiity</string>
 	</array>
+	<!--
+	  iCloud-Spiegel: EIN Datensatz in der PRIVATEN Datenbank der Apple-ID
+	  des Nutzers (siehe CloudSync). Nur die App braucht das — das Widget
+	  liest weiterhin die Datei aus der App Group und bleibt bei seiner
+	  App-Group-Berechtigung.
+
+	  Der Container wird beim ersten Signieren mit automatischer Verwaltung
+	  angelegt; im Developer-Portal / in App Store Connect taucht
+	  iCloud.com.aiity.haiity danach auf.
+	-->
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.aiity.haiity</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
 </dict>
 </plist>

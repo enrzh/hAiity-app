@@ -31,8 +31,9 @@ body {
 .brand h1 { font-size: 18px; margin: 0; }
 .tagline { color: var(--muted); font-size: 12px; }
 .top-actions { display: flex; align-items: center; gap: 8px; }
-.sync-status { font-size: 12px; color: var(--muted); }
-.sync-status.on { color: var(--l4); }
+/* Kurze Rückmeldung (Import) — kein Dauerzustand. */
+.flash { font-size: 12px; color: var(--muted); }
+.flash.on { color: var(--l4); }
 
 button {
   font: inherit; border-radius: 6px; border: 1px solid var(--border);
@@ -87,6 +88,7 @@ main { flex: 1; padding: 16px 20px 32px; display: grid; gap: 16px; max-width: 98
 
 .foot { border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; text-align: center; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); }
 .foot p { margin: 4px 0; }
+.foot-note { max-width: 46em; margin-left: auto; margin-right: auto; opacity: .85; }
 
 dialog {
   background: var(--panel); color: var(--fg); border: 1px solid var(--border);
