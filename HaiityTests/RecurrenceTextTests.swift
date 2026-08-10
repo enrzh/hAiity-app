@@ -90,6 +90,173 @@ final class RecurrenceTextTests: XCTestCase {
     }
 }
 
+/// Die Position im Monat als ORDNUNGSZAHL — und der Bruch eines Schlüssels
+/// in zwei.
+///
+/// Zwei Fehler, die Deutsch verdeckt hat:
+///
+///  * `„3. Freitag"` und `„15. März"` sahen als Formatzeichenkette gleich aus
+///    (`%lld. %@`) und teilten sich deshalb EINEN Katalogeintrag. Zwei
+///    Grammatiken, ein Text: in keiner anderen Sprache lassen sich beide
+///    daraus richtig bauen. Sie haben jetzt getrennte Schlüssel.
+///  * Die Position war eine nackte Zahl. Englisch konnte daraus nur
+///    „the 3. Friday" machen — nie „the 3rd Friday".
+final class RecurrenceOrdinalTests: XCTestCase {
+
+    /// Die 16 Übersetzungen (Deutsch ist die QUELLE und hat kein .lproj —
+    /// dort steht der Satz als `defaultValue` im Binary).
+    private static let languages = ["ar", "bn", "en", "es", "fr", "hi", "id", "it",
+                                    "ja", "ko", "pt", "ru", "tr", "ur", "vi", "zh-Hans"]
+
+    private var german: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        c.locale = Locale(identifier: "de_DE")
+        c.firstWeekday = 2
+        return c
+    }()
+
+    /// Die Formatzeichenkette, wie sie IM GEBAUTEN BUNDLE steht. Nicht aus
+    /// dem Katalog gelesen, sondern aus dem Produkt — sonst prüft der Test
+    /// eine Datei, die im Gerät niemand aufschlägt.
+    private func format(_ key: String, _ language: String) -> String? {
+        guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+              let bundle = Bundle(path: path) else { return nil }
+        let miss = "\u{1}missing"
+        let value = bundle.localizedString(forKey: key, value: miss, table: "Localizable")
+        return value == miss ? nil : value
+    }
+
+    // MARK: – die Zahl
+
+    func testOrdinalsFollowTheLanguage() {
+        let expected: [String: [String]] = [
+            "en": ["1st", "2nd", "3rd", "4th", "5th"],
+            "de": ["1.", "2.", "3.", "4.", "5."],
+            "tr": ["1.", "2.", "3.", "4.", "5."],
+            "ja": ["第1", "第2", "第3", "第4", "第5"],
+            "zh-Hans": ["第1", "第2", "第3", "第4", "第5"],
+            "ko": ["1번째", "2번째", "3번째", "4번째", "5번째"],
+            "id": ["ke-1", "ke-2", "ke-3", "ke-4", "ke-5"],
+            "fr": ["1er", "2e", "3e", "4e", "5e"],
+            "es": ["1.º", "2.º", "3.º", "4.º", "5.º"],
+        ]
+        for (code, want) in expected.sorted(by: { $0.key < $1.key }) {
+            let locale = Locale(identifier: code)
+            XCTAssertEqual((1...5).map { RecurrenceText.ordinal($0, locale: locale) }, want, code)
+        }
+    }
+
+    /// Sprachen ohne eigene Form (ru, ar) bekommen die blanke Zahl — die
+    /// Grammatik ringsherum steht im Katalog. Was NICHT passieren darf: leer,
+    /// oder ein durchgereichter Platzhalter.
+    func testEveryLanguageProducesSomethingUsable() {
+        for language in Self.languages + ["de"] {
+            let value = RecurrenceText.ordinal(3, locale: Locale(identifier: language))
+            XCTAssertFalse(value.isEmpty, language)
+            XCTAssertFalse(value.contains("%"), "\(language): \(value)")
+            XCTAssertTrue(value.contains("3") || value.contains("٣"), "\(language): \(value)")
+        }
+    }
+
+    // MARK: – der Satz
+
+    /// Der Fehler, um den es ging: Englisch konnte „3rd" nie schreiben.
+    func testEnglishWritesRealOrdinals() {
+        let en = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = en
+        let friday = RecurrenceText.weekdayName(6, calendar: calendar)
+        XCTAssertEqual(friday, "Friday")
+
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.short", "en")!,
+                              RecurrenceText.ordinal(3, locale: en), friday),
+                       "the 3rd Friday")
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.monthly", "en")!,
+                              RecurrenceText.ordinal(1, locale: en), friday),
+                       "On the 1st Friday of the month")
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.inMonth", "en")!,
+                              RecurrenceText.ordinal(2, locale: en), friday, "March"),
+                       "the 2nd Friday in March")
+    }
+
+    /// Deutsch, Türkisch, Japanisch — drei Formen, die nur zusammen zeigen,
+    /// dass die Ordnungszahl WIRKLICH aus der Sprache kommt: „3." steht vor
+    /// dem Tag, „第3" klebt daran, und beide sitzen an verschiedenen Stellen
+    /// des Satzes.
+    func testGermanTurkishAndJapaneseSentences() {
+        // Deutsch geht über die App selbst: der Satz steht dort als
+        // defaultValue, nicht in einer .lproj.
+        XCTAssertEqual(RecurrenceText.summary(.monthly(.nthWeekday(nth: 3, weekday: 6)),
+                                              calendar: german),
+                       "Am 3. Freitag im Monat")
+        XCTAssertEqual(RecurrenceText.summary(.monthly(.nthWeekday(nth: 3, weekday: 6), interval: 4),
+                                              calendar: german),
+                       "Alle 4 Monate am 3. Freitag")
+
+        let turkish = Locale(identifier: "tr_TR")
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.monthly", "tr")!,
+                              RecurrenceText.ordinal(3, locale: turkish), "Cuma"),
+                       "Ayın 3. Cuma günü")
+
+        let japanese = Locale(identifier: "ja_JP")
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.monthly", "ja")!,
+                              RecurrenceText.ordinal(3, locale: japanese), "金曜日"),
+                       "毎月第3金曜日")
+        XCTAssertEqual(String(format: format("recurrence.nthWeekday.inMonth", "ja")!,
+                              RecurrenceText.ordinal(1, locale: japanese), "金曜日", "3月"),
+                       "3月の第1金曜日")
+    }
+
+    // MARK: – ein Schlüssel je Bedeutung
+
+    /// Das Datum behält seine ZAHL, die Position bekommt eine ORDNUNGSZAHL.
+    /// Schon an den Spezifizierern muss sich das in JEDER Sprache ablesen
+    /// lassen — sonst hängen die beiden Sätze wieder aneinander.
+    func testTheYearlyDateAndTheNthWeekdayNoLongerShareAKey() {
+        for language in Self.languages {
+            guard let date = format("recurrence.date.dayInMonth", language),
+                  let nth = format("recurrence.nthWeekday.short", language) else {
+                XCTFail("\(language): one of the two keys is missing from the bundle")
+                continue
+            }
+            XCTAssertTrue(date.contains("%1$lld"), "\(language) date: \(date)")
+            XCTAssertFalse(nth.contains("lld"), "\(language) nth: \(nth)")
+        }
+    }
+
+    func testEveryLanguageCarriesAllFourRuleKeys() {
+        for language in Self.languages {
+            for key in ["recurrence.date.dayInMonth", "recurrence.nthWeekday.short",
+                        "recurrence.nthWeekday.monthly", "recurrence.nthWeekday.inMonth"] {
+                XCTAssertNotNil(format(key, language), "\(language) is missing \(key)")
+            }
+        }
+    }
+
+    /// „Der letzte Freitag" ist ein EIGENER Satz und keine Ordnungszahl —
+    /// sonst stünde dort „-1." bzw. „−1st".
+    func testTheLastWeekdayNeverBecomesAnOrdinal() {
+        let last = Recurrence.DayRule.last
+        XCTAssertEqual(RecurrenceText.summary(.monthly(.nthWeekday(nth: last, weekday: 6)),
+                                              calendar: german),
+                       "Am letzten Freitag im Monat")
+        XCTAssertEqual(RecurrenceText.summary(.monthly(.nthWeekday(nth: last, weekday: 6), interval: 3),
+                                              calendar: german),
+                       "Alle 3 Monate am letzten Freitag")
+        XCTAssertEqual(RecurrenceText.summary(.yearly(month: 8, .nthWeekday(nth: last, weekday: 6)),
+                                              calendar: german),
+                       "Jedes Jahr am letzten Freitag im August")
+        for language in Self.languages {
+            for key in ["letzten %@", "Am letzten %@ im Monat", "letzten %@ im %@"] {
+                let value = format(key, language)
+                XCTAssertNotNil(value, "\(language) is missing \(key)")
+                XCTAssertFalse(value?.contains("-1") ?? false, "\(language): \(value ?? "")")
+            }
+        }
+    }
+}
+
 /// Der Weg Regel -> Formular -> Regel. Das Formular hat mehr Knöpfe als das
 /// Modell Felder; genau in dieser Übersetzung stecken die Fehler, die man
 /// sonst erst im Simulator sieht.

@@ -108,7 +108,15 @@ enum RecurrenceText {
             return RuleText(
                 short: String(localized: "\(day)."),
                 monthly: String(localized: "Am \(day). jedes Monats"),
-                inMonth: { month in String(localized: "\(day). \(month)") })
+                // EIGENER Schlüssel, obwohl der deutsche Satz („15. März")
+                // zeichengleich mit dem des n-ten Wochentags („3. Freitag")
+                // ist: das sind zwei GRAMMATIKEN, nicht ein Text. Deutsch
+                // verdeckt das; „the 15 March" und „the 3rd Friday" brauchen
+                // in fast jeder anderen Sprache verschiedene Sätze.
+                inMonth: { month in
+                    String(localized: "recurrence.date.dayInMonth",
+                           defaultValue: "\(day). \(month)",
+                           comment: "Tag + Monatsname einer Jahresregel: „15. März“") })
         case .lastDayOfMonth:
             return RuleText(
                 short: String(localized: "letzten Tag"),
@@ -122,11 +130,53 @@ enum RecurrenceText {
                     monthly: String(localized: "Am letzten \(name) im Monat"),
                     inMonth: { month in String(localized: "letzten \(name) im \(month)") })
             }
+            // Die Position als fertige ORDNUNGSZAHL, nicht als nackte Zahl:
+            // ein `%lld` kann im Englischen nur „the 3. Friday" werden.
+            let position = ordinal(nth, locale: calendar.locale ?? .current)
             return RuleText(
-                short: String(localized: "\(nth). \(name)"),
-                monthly: String(localized: "Am \(nth). \(name) im Monat"),
-                inMonth: { month in String(localized: "\(nth). \(name) im \(month)") })
+                short: String(localized: "recurrence.nthWeekday.short",
+                              defaultValue: "\(position) \(name)",
+                              comment: "Kurzform des n-ten Wochentags: „3. Freitag“"),
+                monthly: String(localized: "recurrence.nthWeekday.monthly",
+                                defaultValue: "Am \(position) \(name) im Monat",
+                                comment: "Monatsregel: „Am 3. Freitag im Monat“"),
+                inMonth: { month in
+                    String(localized: "recurrence.nthWeekday.inMonth",
+                           defaultValue: "\(position) \(name) im \(month)",
+                           comment: "Jahresregel: „3. Freitag im März“") })
         }
+    }
+
+    /// Die Position als Ordnungszahl in der Sprache des Nutzers — „3." (de),
+    /// „3rd" (en), „3." (tr), „第3" (ja), „3번째" (ko), „ke-3" (id).
+    ///
+    /// Der Katalog kann das nicht: eine feste Zeichenkette mit `%lld` müsste
+    /// sich im Englischen zwischen 1st/2nd/3rd/4th entscheiden, bevor die
+    /// Zahl bekannt ist. Die Regeln dafür stecken in ICU, und `NumberFormatter`
+    /// ist der Weg dorthin. Wo eine Sprache gar keine eigene Form kennt (ru,
+    /// ar), kommt die blanke Zahl zurück und die Grammatik ringsherum steht
+    /// im Katalog.
+    ///
+    /// `Recurrence.DayRule.last` (-1) kommt hier NIE an — „der letzte Freitag"
+    /// ist ein eigener Satz, keine Ordnungszahl.
+    static func ordinal(_ n: Int, locale: Locale = .current) -> String {
+        formatter(for: locale).string(from: NSNumber(value: n)) ?? "\(n)"
+    }
+
+    /// Ein `NumberFormatter` je Sprache. Der Ordnungszahl-Stil zieht ein
+    /// ICU-Regelwerk hoch; das lohnt sich nicht pro Habit-Karte neu.
+    private static let formatterLock = NSLock()
+    private static var formatters: [String: NumberFormatter] = [:]
+
+    private static func formatter(for locale: Locale) -> NumberFormatter {
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+        if let cached = formatters[locale.identifier] { return cached }
+        let made = NumberFormatter()
+        made.numberStyle = .ordinal
+        made.locale = locale
+        formatters[locale.identifier] = made
+        return made
     }
 
     // MARK: – Ende
