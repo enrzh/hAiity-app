@@ -113,6 +113,77 @@ final class BackfillBoundsTests: GridTestCase {
     }
 }
 
+// MARK: – Die reservierte Höhe des Kalenderblatts
+
+/// Die Karte darf nach dem Erscheinen NICHT mehr ihre Größe ändern.
+///
+/// Der grafische `DatePicker` meldet seine Höhe in zwei Schritten (beim ersten
+/// Layout fehlt eine Wochenzeile, die richtige Höhe kommt Millisekunden später
+/// nach) — die Karte wuchs mit und sprang sichtbar. `Backfill.calendarHeight`
+/// ist die Reserve, die das verhindert; hier stehen die auf dem Gerät
+/// GEMESSENEN Endhöhen, gegen die sie halten muss.
+final class BackfillCalendarHeightTests: XCTestCase {
+    /// Nachgemessen auf einem 440-pt-Gerät (Innenmaß der Karte 328 pt):
+    /// Endhöhe des Kalenderblatts je Schriftfaktor.
+    private let measured: [(scale: CGFloat, height: CGFloat)] = [
+        (0.824, 370.0),   // xSmall
+        (1.0, 374.7),     // large (Standard)
+        (1.353, 384.3),   // xxxLarge
+    ]
+
+    func testReserveCoversTheMeasuredHeights() {
+        for case let (scale, height) in measured {
+            let reserved = Backfill.calendarHeight(width: 328, typeScale: scale)
+            XCTAssertGreaterThanOrEqual(reserved, height,
+                                        "Reserve zu knapp bei Faktor \(scale)")
+        }
+    }
+
+    /// Zu VIEL Reserve ist auch ein Fehler: dann steht unter dem Kalender ein
+    /// leerer Streifen. Höchstens ein paar Punkte darüber.
+    func testReserveIsNotWasteful() {
+        for case let (scale, height) in measured {
+            let reserved = Backfill.calendarHeight(width: 328, typeScale: scale)
+            XCTAssertLessThanOrEqual(reserved - height, 4,
+                                     "Reserve zu großzügig bei Faktor \(scale)")
+        }
+    }
+
+    /// Eine schmalere Karte heißt schmalere Spalten und damit ein flacheres
+    /// Blatt — sechs Zeilen, jede so hoch wie eine Spalte breit ist.
+    func testNarrowerCardReservesLess() {
+        let wide = Backfill.calendarHeight(width: 328)
+        let narrow = Backfill.calendarHeight(width: 311)   // iPhone SE
+        XCTAssertLessThan(narrow, wide)
+        XCTAssertEqual(wide - narrow, (6 * (328 - 311) / 7), accuracy: 1.5)
+    }
+
+    func testLargerTypeReservesMore() {
+        XCTAssertGreaterThan(Backfill.calendarHeight(width: 328, typeScale: 1.353),
+                             Backfill.calendarHeight(width: 328, typeScale: 0.824))
+    }
+
+    /// Entartete Eingaben dürfen die Karte nicht zerlegen.
+    func testDegenerateInputsStayFinite() {
+        XCTAssertGreaterThan(Backfill.calendarHeight(width: 0, typeScale: 0), 0)
+        XCTAssertGreaterThan(Backfill.calendarHeight(width: -50, typeScale: -3), 0)
+        // Ausreißer nach oben werden geklemmt, sonst reserviert eine kaputte
+        // Umgebung eine bildschirmhohe leere Fläche.
+        XCTAssertEqual(Backfill.calendarHeight(width: 328, typeScale: 99),
+                       Backfill.calendarHeight(width: 328, typeScale: 2))
+    }
+
+    /// Das Innenmaß der Karte, aus dem die Reserve fällt: gedeckelt auf 360,
+    /// sonst Fenster minus beiden Seitenrändern — und noch einmal minus dem
+    /// Innenrand der Karte.
+    func testContentWidthIsCappedAndInset() {
+        XCTAssertEqual(BackfillCard.contentWidth(window: 440), 328)   // Pro Max
+        XCTAssertEqual(BackfillCard.contentWidth(window: 393), 328)   // gedeckelt
+        XCTAssertEqual(BackfillCard.contentWidth(window: 375), 311)   // SE
+        XCTAssertGreaterThanOrEqual(BackfillCard.contentWidth(window: 0), 0)
+    }
+}
+
 // MARK: – Der Torwächter
 
 /// `HabitStore.setValue` prüft seinen Tagesschlüssel NICHT — es ist der

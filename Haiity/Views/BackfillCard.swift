@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// „Nacharbeiten": die Karte, in der ein VERGANGENER Tag nachgetragen wird.
 ///
@@ -36,6 +37,11 @@ struct BackfillCard: View {
     @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.calendar) private var calendar
+    /// Referenzmaß 100, skaliert mit Dynamic Type: `typeScale / 100` IST der
+    /// Faktor, mit dem `.body` gerade wächst. Dieselbe Messtechnik wie im
+    /// Jahresraster (`ContributionGrid.labelScale`) — sie sagt die
+    /// Schriftgröße, ohne die Trait-Collection nachzubauen.
+    @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 100
 
     private var state: Backfill.DayState { Backfill.state(habit: habit, day: day) }
     private var writable: Bool { Backfill.canWrite(habit: habit, day: day) }
@@ -95,7 +101,7 @@ struct BackfillCard: View {
             cardBody
             ScrollView { cardBody }
         }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: Self.maxWidth)
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -185,6 +191,38 @@ struct BackfillCard: View {
         }
     }
 
+    // MARK: – Maße der Karte
+    //
+    // Die Karte hat eine BERECHENBARE Breite: gedeckelt auf `maxWidth`, sonst
+    // das Fenster minus der beiden Seitenränder. Daraus fällt das Innenmaß —
+    // und aus dem Innenmaß die Höhe, die das Kalenderblatt reserviert.
+
+    static let maxWidth: CGFloat = 360
+
+    /// Innenmaß der Karte: die Breite, die Kopf, Kalender und Statuszeile
+    /// wirklich bekommen.
+    static func contentWidth(window: CGFloat) -> CGFloat {
+        max(0, min(maxWidth, window - 2 * Theme.Metrics.gutter) - 2 * Theme.Metrics.gutter)
+    }
+
+    /// Breite des AKTIVEN Fensters, nicht die des Bildschirms — im Split View
+    /// auf dem iPad sind das zwei verschiedene Zahlen (dieselbe Begründung wie
+    /// bei der Vorschau in `HabitCard`).
+    private static func windowWidth() -> CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        if let width = scene?.keyWindow?.bounds.width, width > 0 { return width }
+        if let width = scene?.screen.bounds.width, width > 0 { return width }
+        return UIScreen.main.bounds.width
+    }
+
+    /// Die Höhe, die das Kalenderblatt VORAB bekommt — der Kern der Sache,
+    /// siehe `Backfill.calendarHeight`.
+    private var calendarHeight: CGFloat {
+        Backfill.calendarHeight(width: Self.contentWidth(window: Self.windowWidth()),
+                                typeScale: typeScale / 100)
+    }
+
     /// Der Kalender. Die Spanne kommt aus `Backfill` — die Zukunft ist damit
     /// gar nicht erst antippbar, und der älteste wählbare Tag ist derselbe,
     /// den auch das Raster noch zeigt.
@@ -192,6 +230,15 @@ struct BackfillCard: View {
     /// Ab den Accessibility-Größen wird aus dem Kalenderblatt ein
     /// zusammengeklapptes Feld: der grafische Picker skaliert seine sieben
     /// Spalten nicht mit und schneidet die Ziffern sonst ab.
+    ///
+    /// **Die Höhe wird RESERVIERT, nicht abgewartet.** Der grafische
+    /// `DatePicker` ist ein `UIDatePicker` in SwiftUI-Kleidern, und der meldet
+    /// beim ERSTEN Layout eine Höhe, der genau eine Wochenzeile fehlt: auf
+    /// diesem Gerät 374,7 pt erst nach 324 pt (nachgemessen, Abstand zwischen
+    /// beiden Messungen 6 bis 100 ms). Die Karte wächst mit ihrem Inhalt, also
+    /// stand sie fünf Bilder lang 50 pt zu niedrig und sprang dann — genau das
+    /// „adjusts its size for a split second". Mit einer vorab gerechneten
+    /// Mindesthöhe steht die Karte vom ersten Bild an auf ihrem Endmaß.
     @ViewBuilder
     private var picker: some View {
         if multi {
@@ -216,6 +263,10 @@ struct BackfillCard: View {
                        displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .labelsHidden()
+                // `minHeight`, nicht `height`: liegt die Reserve einmal
+                // daneben, wächst das Blatt wie bisher weiter — es wird nie
+                // abgeschnitten.
+                .frame(minHeight: calendarHeight)
                 .accessibilityIdentifier("backfill-date-picker")
         }
     }
@@ -235,6 +286,15 @@ struct BackfillCard: View {
             .foregroundStyle(highlighted
                              ? AnyShapeStyle(Theme.accentText(palettes.style(for: habit)))
                              : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+            // IMMER eine Zeile. Der Text wechselt mit jeder Tageswahl und mit
+            // dem Mehrfach-Modus; dürfte er umbrechen, änderte sich mitten im
+            // Vorgang die Höhe der KARTE — dieselbe Art Sprung, die oben am
+            // Kalenderblatt behoben ist. Lieber eine Spur kleiner gesetzt als
+            // eine Karte, die beim Tippen die Größe wechselt. (In den
+            // Accessibility-Größen steht statt des Kalenderblatts ohnehin ein
+            // zusammengeklapptes Feld, und die Karte scrollt.)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("backfill-status")
     }

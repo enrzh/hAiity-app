@@ -17,6 +17,40 @@ enum Backfill {
     /// die man antippen kann, die die Karte dann aber nicht anzeigen darf.
     static let windowDays = 53 * GridCalendar.rows
 
+    // MARK: – Maße des Kalenderblatts
+
+    /// Wie hoch das Kalenderblatt (`DatePicker`, grafisch) im Voraus
+    /// RESERVIERT bekommt.
+    ///
+    /// **Warum es diese Rechnung gibt.** Der grafische `DatePicker` ist ein
+    /// `UIDatePicker` und meldet seine Höhe in ZWEI Schritten: beim ersten
+    /// Layout fehlt genau eine Wochenzeile, die richtige Höhe kommt 6 bis
+    /// 100 ms später nach (nachgemessen auf dem Gerät: 324 pt, dann 374,7 pt
+    /// bei 328 pt Breite). Die Karte wächst mit ihrem Inhalt — sie stand
+    /// damit einen Sekundenbruchteil 50 pt zu niedrig und sprang dann auf ihr
+    /// Endmaß. Wer die Höhe vorher weiß, muss nicht darauf warten.
+    ///
+    /// **Die Rechnung ist eine ENTSCHEIDUNG, keine Vorhersage.** Ein
+    /// Monatsblatt ist sechs Wochenzeilen hoch (der Kalender hält die Zahl
+    /// fest, damit das Blatt beim Blättern nicht springt), und eine Zeile ist
+    /// so hoch wie eine Spalte breit ist — sieben Spalten auf die Breite.
+    /// Darüber sitzen Monatszeile und Wochentagskopf; die wachsen mit der
+    /// Schrift, das Raster nicht. Angesetzt wird die Reserve als
+    /// MINDESTHÖHE: fällt sie einmal zu knapp aus, wächst das Blatt wie
+    /// vorher weiter, statt abgeschnitten zu werden.
+    ///
+    /// Nachgemessen (Breite 328 pt): 370,0 / 374,7 / 384,3 pt bei den
+    /// Schriftfaktoren 0,824 / 1,0 / 1,353 — die Rechnung liegt überall ein
+    /// bis drei Punkte darüber.
+    static func calendarHeight(width: CGFloat, typeScale: CGFloat = 1) -> CGFloat {
+        let rows = 6 * max(0, width) / 7
+        // Auf einen vernünftigen Bereich geklemmt: eine Schriftskala von 0
+        // oder 5 gibt es nicht, und ein Ausreißer soll die Karte nicht
+        // zerlegen.
+        let scale = min(2, max(0.5, typeScale))
+        return (rows + 67 + 27 * scale).rounded(.up)
+    }
+
     // MARK: – Grenzen der Datumswahl
 
     /// Erster und letzter wählbarer Tag, beide einschließlich.

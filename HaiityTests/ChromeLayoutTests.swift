@@ -274,6 +274,32 @@ final class MorePanelTests: XCTestCase {
                        gutter, accuracy: 0.001)
     }
 
+    /// **Die Fläche wächst, der Inhalt nicht.**
+    ///
+    /// Die Tafel legt den Überstand zweimal an: einmal als Rand NACH INNEN
+    /// (der Inhalt behält seine Breite) und einmal als negativen Rand nach
+    /// aussen (die Glasfläche geht bis an die Bildschirmkante). Beide müssen
+    /// in JEDEM Zwischenschritt derselbe Wert sein — sonst setzt die Liste
+    /// beim Aufziehen ihre Zeilen neu, und genau das sah „buggy" aus.
+    func testTheContentKeepsItsWidthAtEveryStep() {
+        let gutter = Theme.Metrics.gutter
+        let box: CGFloat = 408          // Bildschirm 440 minus beide Ränder
+        for step in 0...20 {
+            let progress = CGFloat(step) / 20
+            let side = MorePanel.sideOverhang(progress: progress, gutter: gutter)
+            // So breit ist die Fläche …
+            let surface = box + 2 * side
+            // … und so breit der Inhalt darin.
+            XCTAssertEqual(surface - 2 * side, box, accuracy: 0.001,
+                           "Inhaltsbreite wandert bei Fortschritt \(progress)")
+        }
+        // An den Enden stimmen die beiden Ruhelagen: Karte im Seitenrand,
+        // ganze Seite von Kante zu Kante.
+        XCTAssertEqual(box + 2 * MorePanel.sideOverhang(progress: 0, gutter: gutter), box)
+        XCTAssertEqual(box + 2 * MorePanel.sideOverhang(progress: 1, gutter: gutter),
+                       box + 2 * gutter)
+    }
+
     /// Nach unten reicht die volle Größe über die Leiste hinweg bis an die
     /// Bildschirmkante: Leiste + beide Abstände + untere Sicherheitszone.
     func testBottomOverhangReachesTheScreenEdge() {

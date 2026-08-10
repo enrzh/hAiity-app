@@ -78,6 +78,23 @@ struct MorePanelSurface: View {
             // ruhig.
             .frame(maxWidth: .infinity)
             .frame(height: height)
+            // DER INHALT BEHÄLT SEINE BREITE. Der Überstand nach den Seiten
+            // wird hier als Rand WIEDER ABGEZOGEN, bevor die negativen Ränder
+            // unten die Fläche aufschlagen: die Tafel wächst auf die volle
+            // Bildschirmbreite, die Liste darin bleibt exakt so breit wie im
+            // kleinen Zustand.
+            //
+            // Ohne das bekommt die Liste bei JEDEM Bildschritt eines Zuges
+            // eine andere Breite (nachgemessen: 408 → 440 pt) und setzt ihre
+            // Zeilen jedes Mal neu — Fußnoten brechen anders um, Häkchen und
+            // Chevrons wandern. Genau das war „the content adjusts itself".
+            // Die Höhe darf mitlaufen: eine Liste, die höher wird, zeigt
+            // einfach mehr Zeilen, ihre Zeilen bleiben stehen.
+            //
+            // Und es ist nicht bloß der ruhigere Weg, sondern der richtigere:
+            // die Textspalte ist in beiden Ruhelagen dieselbe. Die Tafel
+            // WÄCHST, sie setzt sich nicht neu.
+            .padding(.horizontal, side)
             // ITEM: der Schnitt auf die ANIMIERTE Form. Er steht VOR dem Glas
             // und vor den negativen Rändern — die Ränder schlagen die Fläche
             // erst auf ihre volle Breite auf, und genau diese Breite ist die,
