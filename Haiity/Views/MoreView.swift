@@ -15,18 +15,14 @@ enum MoreRoute: Hashable, Identifiable {
 /// Zusammenfassungen (Tag und Woche), Statistik, Archiv, Export/Import und
 /// Über/Datenschutz.
 ///
-/// Wohnt in der TAFEL, die aus der Leiste wächst (siehe ContentView) — nicht
-/// mehr auf einer eigenen Seite. Zwei Folgen davon stehen unten im Code:
-/// die Liste zeichnet keinen eigenen Hintergrund (das Glas der Tafel ist der
-/// Hintergrund), und die drei seitenartigen Ziele sind Knöpfe, die ein Blatt
-/// öffnen, statt `NavigationLink` in einen Stapel, den es hier nicht gibt.
+/// Wohnt auf der MEHR-SEITE (fullScreenCover aus dem Menü oben rechts,
+/// siehe ContentView.morePage) — wieder eine eigene Seite mit
+/// System-Navigationsleiste. Die drei seitenartigen Ziele bleiben Knöpfe,
+/// die ein Blatt öffnen (`onOpen`), präsentiert vom Aufrufer ÜBER der Seite.
 ///
-/// **`Equatable`, und das ist Tempo.** Die Tafel ändert beim Ziehen ihre
-/// Größe; der Aufrufer baut diese Ansicht dabei jedes Bild neu (schon weil
-/// er eine frische Closure mitgibt). Ohne einen Vergleich wertet SwiftUI
-/// dann jedes Bild die ganze Liste neu aus — mit Abschnitten, Fußnoten und
-/// Farbfeldern. Verglichen wird nur, worauf sie ZEIGT; echte Änderungen an
-/// den Daten kommen über Observation an und nicht über diesen Vergleich.
+/// **`Equatable`.** Verglichen wird nur, worauf die Ansicht ZEIGT; echte
+/// Änderungen an den Daten kommen über Observation an und nicht über diesen
+/// Vergleich. (Stammt aus der Tafel-Zeit, kostet nichts und bleibt.)
 struct MoreView: View, Equatable {
     static func == (a: MoreView, b: MoreView) -> Bool {
         a.store === b.store && a.cloudStatus === b.cloudStatus
@@ -66,13 +62,6 @@ struct MoreView: View, Equatable {
         FrameProbe.shared.mark("MoreView.body")
         #endif
         return List {
-            // Die Tafel bringt ihr Glas mit. Eine Liste, die darauf ihre
-            // eigenen weißen Kacheln malt, macht daraus wieder eine Seite —
-            // deshalb sind ALLE Zeilenhintergründe durchsichtig. Der
-            // `Group` ist der einzige Weg, das an einer Stelle zu sagen:
-            // `.listRowBackground` auf der `List` selbst greift nicht (die
-            // Liste ist keine Zeile), auf dem `Group` reicht es an jeden
-            // Abschnitt darin durch.
             Group {
             Section {
                 iCloudRow
@@ -129,12 +118,7 @@ struct MoreView: View, Equatable {
                         symbol: "lock.shield", identifier: "open-about")
             }
             }
-            .listRowBackground(Color.clear)
         }
-        .scrollContentBackground(.hidden)
-        // Oben schließt der Griff der Tafel an, unten die Leiste — die Liste
-        // braucht an beiden Enden keinen eigenen Rand.
-        .contentMargins(.top, 0, for: .scrollContent)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).

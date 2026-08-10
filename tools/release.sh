@@ -79,6 +79,9 @@ ok "ios platform"
 # Check the COUNT, not the exit code: a test file absent from project.yml does
 # not compile, and xcodebuild still exits 0.
 say "Unit tests"
+# v13-Nav-Umbau (Mehr → Menü oben rechts, native TabView): KEIN Test entfiel —
+# die reinen ChromeLayout/MorePanel-Rechnungen samt Tests bleiben; nur
+# View-Code (MorePanelSurface) wurde gelöscht. Der Boden bleibt bei 748.
 MIN_TESTS=748
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
