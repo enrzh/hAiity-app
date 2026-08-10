@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Anlegen/Bearbeiten — als Half-Sheet präsentiert. Es fragt NICHTS mehr nach
+/// Anlegen/Bearbeiten. ANLEGEN kommt als eigene SEITE (fullScreenCover, aus
+/// dem Anlegen-Kreis der Leiste gezoomt — siehe ContentView), BEARBEITEN
+/// bleibt das Half-Sheet an der Karte. Es fragt NICHTS mehr nach
 /// Benachrichtigungen: die eigene Erinnerung je Habit ist weg, erinnert wird
 /// zentral über die Tages- und die Wochenzusammenfassung (Mehr →
 /// Einstellungen, siehe `Reminders`).
@@ -35,6 +37,11 @@ struct EditHabitSheet: View {
     @Environment(\.palettes) private var palettes
     let store: HabitStore
     var existing: Habit?
+    /// Als SEITE präsentiert (Anlegen, fullScreenCover): das Schließen ist
+    /// dann ein X oben links — dieselbe Geste wie auf der Mehr-Seite. Als
+    /// Blatt (Bearbeiten) bleibt es das Wort „Abbrechen". Beide Wege tun
+    /// exakt dasselbe: verwerfen ohne zu sichern.
+    var asPage = false
 
     @State private var name = ""
     @State private var emoji = ""
@@ -93,7 +100,17 @@ struct EditHabitSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Abbrechen")) { dismiss() }
+                    if asPage {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .accessibilityLabel(String(localized: "Schließen"))
+                        .accessibilityIdentifier("close-create")
+                    } else {
+                        Button(String(localized: "Abbrechen")) { dismiss() }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Sichern")) { save() }

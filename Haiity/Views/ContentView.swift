@@ -15,8 +15,9 @@ import WidgetKit
 /// Die Leiste unten ist ab iOS 26 die NATIVE TabView — mit genau einem
 /// Inhalts-Tab (Habits) und einem zweiten Tab in der SUCH-ROLLE, dessen
 /// abgesetzten runden Platz rechts der Anlegen-Knopf übernimmt: seine
-/// Auswahl wird abgefangen (sofort zurück auf Habits) und öffnet das
-/// Anlegen-Blatt. Damit kommen Halten-Blase, Scroll-Minimieren
+/// Auswahl wird abgefangen (sofort zurück auf Habits) und öffnet die
+/// Anlegen-SEITE — ein fullScreenCover, das ab iOS 18 aus genau diesem
+/// Kreis zoomt (Anker: `createZoomAnchor`). Damit kommen Halten-Blase, Scroll-Minimieren
 /// (`.tabBarMinimizeBehavior(.onScrollDown)`) und das geteilte Glas vom
 /// SYSTEM, nicht aus einer Nachbildung. Die App-eigene Suche bleibt oben
 /// rechts (plus Runterziehen) — am Such-Tab hängt bewusst KEIN
@@ -103,6 +104,9 @@ struct ContentView: View {
     /// Namensraum der Zoom-Transition: die Mehr-Seite wächst aus dem
     /// Drei-Punkte-Menü oben rechts und schrumpft dorthin zurück (iOS 18+).
     @Namespace private var moreZoomNamespace
+    /// Namensraum der Anlegen-Zoom-Transition: die Anlegen-Seite wächst aus
+    /// dem Anlegen-Kreis der Leiste unten (iOS 18+).
+    @Namespace private var createZoomNamespace
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -166,12 +170,11 @@ struct ContentView: View {
             // kommen dort nicht an (nachgemessen — die Farbwahl im Blatt zeigte
             // sonst Grün, während die App längst in einer eigenen Farbe lief).
             // Deshalb beides hier noch einmal, an EINER Stelle je Blatt.
-            .sheet(isPresented: $showAdd) {
-                EditHabitSheet(store: store)
-                    .themed(store)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
+            // ANLEGEN ist eine SEITE, kein Half-Sheet mehr — dasselbe Muster
+            // wie „Mehr": ein fullScreenCover, das ab iOS 18 mit der
+            // Zoom-Transition aus dem Anlegen-Kreis der Leiste wächst und
+            // beim Schließen dorthin zurückschrumpft; X oben links schließt.
+            .fullScreenCover(isPresented: $showAdd) { createPage }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
                     .themed(store)
@@ -232,6 +235,15 @@ struct ContentView: View {
                 undo.clear()
                 // Dasselbe für die Nacharbeiten-Karte: sie gehört zu einer
                 // Zeile der Liste, und die ist gerade verdeckt worden.
+                backfill = nil
+            }
+            .onChange(of: showAdd) { _, open in
+                guard open else { return }
+                // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
+                // verdeckt Liste, Toast und Karte vollständig.
+                editMode = .inactive
+                expandChrome()
+                undo.clear()
                 backfill = nil
             }
             .onChange(of: nativeTab) { _, tab in
@@ -302,6 +314,10 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        // Der unsichtbare Anker über dem System-Anlegen-Kreis — Quelle der
+        // Zoom-Transition der Anlegen-Seite. Am TabView-Rahmen verankert
+        // (der reicht bis zur Bildschirmkante, die Leiste liegt darin).
+        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
     }
 
     /// Rückgängig-Toast und Sync-Pille als schwebende Schicht — in der
@@ -366,6 +382,67 @@ struct ContentView: View {
 
     /// Quelle und Ziel der Zoom-Transition tragen dieselbe Kennung.
     private static let moreZoomID = "more-blob"
+
+    // MARK: – Die Anlegen-Seite
+
+    /// Die Anlegen-Seite: dasselbe Formular wie bisher im Half-Sheet
+    /// (EditHabitSheet bringt seinen eigenen NavigationStack samt
+    /// Sichern-Knopf mit), jetzt als volle Seite mit X oben links
+    /// (`asPage`). Ziel der Zoom-Transition: sie wächst aus dem
+    /// Anlegen-Kreis der Leiste (siehe `createZoomAnchor` bzw. der
+    /// Fallback-`addButton`) und schrumpft dorthin zurück.
+    private var createPage: some View {
+        EditHabitSheet(store: store, asPage: true)
+            .themed(store)
+            .modifier(MoreZoomDestination(id: Self.createZoomID,
+                                          namespace: createZoomNamespace))
+    }
+
+    private static let createZoomID = "create-circle"
+
+    /// Quelle der Anlegen-Zoom-Transition unter iOS 26 — Option (b):
+    ///
+    /// Der Anlegen-Kreis ist dort das SYSTEMGEZEICHNETE Such-Rollen-Element
+    /// der nativen TabView; an ihm selbst gibt es keinen Modifier-Pfad für
+    /// `matchedTransitionSource`. Deshalb liegt hier ein unsichtbarer,
+    /// nicht treffbarer Anker exakt ÜBER dem Kreis — als Overlay am
+    /// TabView-Rahmen (der bis zur Bildschirmkante reicht), unten rechts
+    /// verankert und mit nachgemessenen Abständen positioniert.
+    ///
+    /// Der Kreis WANDERT beim Scroll-Minimieren (`.onScrollDown`): kleiner
+    /// und näher an der Kante. Der Anker folgt über `collapsed` — dieselbe
+    /// Scroll-Entscheidung, die auch die Karten verdichtet, läuft praktisch
+    /// synchron mit dem System-Minimieren (beide feuern auf den ersten
+    /// Zentimeter Abwärts-Scroll). Die Maße sind am Simulator nachgemessen
+    /// (Geräte-Punkte, Abstand von rechter/unterer Kante).
+    @available(iOS 26, *)
+    private var createZoomAnchor: some View {
+        let d: CGFloat = collapsed ? CreateAnchor.miniDiameter : CreateAnchor.diameter
+        return Circle()
+            // Praktisch unsichtbar, aber NICHT `.clear`: eine komplett
+            // transparente Quelle wird vom Transitionssystem verworfen und
+            // der Zoom fiele auf die Bildschirmmitte zurück (nachgemessen).
+            .fill(Color(.systemBackground).opacity(0.02))
+            .frame(width: d, height: d)
+            .modifier(MoreZoomSource(id: Self.createZoomID,
+                                     namespace: createZoomNamespace))
+            .padding(.trailing, collapsed ? CreateAnchor.miniTrailing : CreateAnchor.trailing)
+            .padding(.bottom, collapsed ? CreateAnchor.miniBottom : CreateAnchor.bottom)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// Nachgemessene Lage des System-Anlegen-Kreises (Geräte-Punkte,
+    /// Abstand von rechter/unterer Bildschirmkante). Beim Minimieren
+    /// schrumpft der Kreis um seinen MITTELPUNKT — der bleibt, wo er ist.
+    private enum CreateAnchor {
+        static let diameter: CGFloat = 61
+        static let trailing: CGFloat = 21
+        static let bottom: CGFloat = 21
+        static let miniDiameter: CGFloat = 47
+        static let miniTrailing: CGFloat = 28
+        static let miniBottom: CGFloat = 28
+    }
 
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
@@ -827,7 +904,9 @@ struct ContentView: View {
         // entscheidet das Chrom NICHT: die Präsentation verschiebt die
         // Zeilen ohne Finger, und der Umbau las sich sonst als Wisch —
         // dieselbe Regel wie früher beim Bereichswechsel.
-        guard !showMore else { chrome.scroll.rebase(frames); return }
+        // Gleiches gilt für die Anlegen-Seite: auch ihr Cover verschiebt die
+        // Zeilen beim Auf- und Zufahren ohne Finger.
+        guard !showMore, !showAdd else { chrome.scroll.rebase(frames); return }
 
         // Läuft gerade ein möglicher Such-Zug (Finger unten, Titelzeile beim
         // Aufsetzen sichtbar) — oder ist er eben erst losgelassen worden —,
@@ -1164,6 +1243,10 @@ struct ContentView: View {
                               kind: .circle,
                               accent: collapsed ? nil : store.paletteStyle,
                               union: chromeUnion("chrome-add-solo")))
+        // Fallback (iOS < 26): hier ist der Anlegen-Kreis eine EIGENE View —
+        // die Zoom-Quelle sitzt direkt auf ihm (iOS 18–25; unter 18 blendet
+        // das Cover schlicht).
+        .modifier(MoreZoomSource(id: Self.createZoomID, namespace: createZoomNamespace))
         .accessibilityLabel(String(localized: "Habit hinzufügen"))
         .accessibilityIdentifier("add-habit")
     }
