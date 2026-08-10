@@ -29,7 +29,16 @@ struct HabitCard: View {
     /// Zusammengezogener Kopf (beim Scrollen). Standard `false`, damit
     /// Vorschauen und Tests die Karte ohne Scroll-Kontext bauen können.
     var collapsed: Bool = false
+    /// Heute abhaken (Kopfzeile). Der einzige Weg von dieser Karte aus, der
+    /// direkt schreibt — er sitzt auf einem beschrifteten Knopf.
     let onToggleDay: (String) -> Void
+    /// Ein Tag im Raster wurde AUSGEWÄHLT. Schreibt nichts; der Aufrufer
+    /// öffnet damit die Nacharbeiten-Karte an diesem Datum.
+    let onSelectDay: (String) -> Void
+    /// „Nacharbeiten" aus dem Kontextmenü — dieselbe Karte, aber ohne
+    /// vorgewählten Tag (sie öffnet auf heute). Eigener Weg, weil er ERST
+    /// nach dem Schließen des Menüs greifen darf.
+    let onBackfill: () -> Void
     let onIncrement: () -> Void
     let onClear: () -> Void
     /// Abhaken bzw. hochzählen — hakt nur AN, nie ab (die Umkehrung heißt
@@ -102,9 +111,11 @@ struct HabitCard: View {
     ///
     /// Der Tipp auf eine EINZELNE Zelle überlebt das: `contextMenu` erkennt
     /// den langen Druck und lässt kurze Tipps zu seinen Kindern durch (die
-    /// Zellen haben ihre eigenen `onTapGesture` in `ContributionGrid`).
+    /// Zellen haben ihre eigenen `onTapGesture` in `ContributionGrid`). Er
+    /// WÄHLT den Tag aus und öffnet die Nacharbeiten-Karte — er schreibt
+    /// nicht.
     private var grid: some View {
-        ContributionGrid(habit: habit, onToggle: onToggleDay)
+        ContributionGrid(habit: habit, onSelectDay: onSelectDay)
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemGroupedBackground),
@@ -244,6 +255,16 @@ struct HabitCard: View {
                 .accessibilityIdentifier("revert-today")
             }
         }
+        // Nacharbeiten steht DIREKT unter den Heute-Aktionen: es ist
+        // dasselbe Tun, nur an einem anderen Tag. Der Tipp auf eine
+        // Rasterzelle öffnet dieselbe Karte — dieser Punkt ist der Weg
+        // dorthin für alle, die nicht auf ein 10-pt-Quadrat zielen wollen
+        // (und der einzige, den VoiceOver anbietet: das Raster ist EIN
+        // Element mit einer Zusammenfassung, keine 371 Knöpfe).
+        Button(action: onBackfill) {
+            Label(String(localized: "Nacharbeiten"), systemImage: "calendar.badge.plus")
+        }
+        .accessibilityIdentifier("backfill-habit")
         Button(action: onEdit) {
             Label(String(localized: "Bearbeiten"), systemImage: "pencil")
         }

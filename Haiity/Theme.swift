@@ -110,6 +110,11 @@ enum Theme {
     enum Haptics {
         static func check() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
         static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+        /// AUSWAHL, nicht Bestätigung — für Gesten, die nur etwas markieren
+        /// und nichts schreiben (Tipp auf eine Rasterzelle). Ein
+        /// Bestätigungs-Stups an einer Stelle, die gar nichts festmacht,
+        /// behauptet einen Vorgang, den es nicht gab.
+        static func select() { UISelectionFeedbackGenerator().selectionChanged() }
     }
 
     /// EINE Maßskala für die Oberfläche. Alles ist ein Vielfaches von 4, das

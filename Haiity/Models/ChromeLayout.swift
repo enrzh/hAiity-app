@@ -88,27 +88,39 @@ enum ChromeLayout {
     }
 }
 
-/// Die Geometrie der Mehr-Tafel — zwei Höhen, ein Zug, drei mögliche
+/// Die Geometrie der Mehr-Tafel — zwei Zustände, ein Zug, drei mögliche
 /// Ausgänge. Wieder als PURE Rechnung, aus demselben Grund wie oben: was in
 /// der Ansicht steht, lässt sich nur im Simulator anschauen, und „ab wann
 /// klappt sie auf" ist eine Zahl, keine Ansichtssache.
 ///
-/// **Zwei Höhen statt einer.** Die Tafel öffnet klein (`ratio`, gedeckelt auf
+/// **Karte oder ganze Seite.** Die Tafel öffnet klein (`ratio`, gedeckelt auf
 /// `cap`) — sie soll ein Stück der Habit-Liste stehen lassen, sonst ist sie
-/// eine Seite mit anderen Mitteln. Wer mehr will, zieht sie nach oben:
-/// `expandedRatio` der Container-Höhe, mehr nicht, damit sie unter der
-/// Statusleiste nicht anklebt.
+/// eine Seite mit anderen Mitteln. Wer mehr will, zieht sie nach oben: dann
+/// ist sie die GANZE Seite — von der oberen Sicherheitszone bis an die
+/// Unterkante, von Kante zu Kante.
 ///
-/// **Gummiband.** Über die große Höhe hinaus folgt sie dem Finger nur noch
-/// gedämpft (`rubberBand`) — ohne das fühlt sich die Grenze wie ein
-/// Programmfehler an, mit ihr wie ein Ende.
+/// **Ein Ding, das seine Größe ändert — keine zwei Präsentationen.** Deshalb
+/// laufen drei Dinge am selben Fortschritt mit (`progress`, 0 = Karte,
+/// 1 = ganze Seite):
+///
+///  * die HÖHE,
+///  * der ECKRADIUS (Kartenradius → Bildschirmradius: eine bildschirmfüllende
+///    Fläche mit Kartenecken sieht aus wie ein Fehler),
+///  * die SEITENRÄNDER (bis auf 0) und der Überstand nach unten.
+///
+/// Alles interpoliert, nichts springt: zwischen Karte und Seite gibt es
+/// keinen Zustand, in dem eine Kante „umschaltet".
+///
+/// **Kein Gummiband nach oben mehr.** Früher folgte die Tafel dem Finger über
+/// ihre große Höhe hinaus gedämpft weiter. Die große Höhe ist jetzt die obere
+/// Sicherheitszone — alles darüber liegt unter Statusleiste und Dynamic
+/// Island. Das ist keine Grenze, an der man federn darf, sondern eine, an der
+/// man steht.
 enum MorePanel {
     /// Anteil der Container-Höhe im kleinen Zustand.
     static let ratio: CGFloat = 0.58
     /// Deckel für den kleinen Zustand (auf großen Geräten sonst zu viel).
     static let cap: CGFloat = 520
-    /// Anteil der Container-Höhe im großen Zustand.
-    static let expandedRatio: CGFloat = 0.92
     /// Ab hier gilt ein Zug als Entscheidung — nach oben wie nach unten.
     static let snapDistance: CGFloat = 60
     /// Ab hier ist ein Zug nach unten ein Schließen (aus dem kleinen
@@ -117,37 +129,107 @@ enum MorePanel {
     /// Wie weit der Wurf zählt: ein kurzer, schneller Zug soll dasselbe
     /// bewirken wie ein langer, langsamer.
     static let flickDistance: CGFloat = 180
+    /// Eckradius im kleinen Zustand — groß genug, um sich mit einer
+    /// 26-pt-Kapsel zu vertragen.
+    static let cardRadius: CGFloat = 32
+
+    /// Eckradius, auf den die Tafel bei voller Größe zuläuft.
+    ///
+    /// Den ECHTEN Wert des Geräts gibt es nicht öffentlich
+    /// (`UIScreen._displayCornerRadius` ist privat, und private Schlüssel in
+    /// einer eingereichten App sind ein Risiko, das eine Ecke nicht wert
+    /// ist). Also eine bewusste Wahl: 52 pt auf Geräten mit gerundetem
+    /// Bildschirm (die echten Werte liegen zwischen 47 und 62) — LIEBER ETWAS
+    /// ZU ECKIG als zu rund: eine Ecke, die runder ist als die des
+    /// Bildschirms, lässt an den unteren Kanten den Hintergrund durchblitzen,
+    /// eine eckigere wird von der Bildschirmecke sauber weggeschnitten.
+    ///
+    /// Ein Gerät ohne Home-Indikator (SE) hat einen RECHTECKIGEN Bildschirm;
+    /// dort bleibt es beim Kartenradius, weil es keine Bildschirmecke gibt,
+    /// auf die man zulaufen könnte.
+    static func screenCornerRadius(safeBottom: CGFloat) -> CGFloat {
+        safeBottom > 0 ? 52 : cardRadius
+    }
 
     static func collapsedHeight(container: CGFloat) -> CGFloat {
         max(0, min(container * ratio, cap))
     }
 
-    static func expandedHeight(container: CGFloat) -> CGFloat {
+    /// Die GANZE Seite: obere Sicherheitszone bis Bildschirmunterkante.
+    ///
+    /// Der Container ist die sichere Fläche; die Tafel soll darüber hinaus
+    /// noch die untere Sicherheitszone abdecken (sonst endet die Fläche über
+    /// dem Home-Indikator und die „ganze Seite" hat einen Streifen).
+    static func expandedHeight(container: CGFloat, safeBottom: CGFloat) -> CGFloat {
         // Nie KLEINER als der kleine Zustand: auf einem sehr niedrigen
         // Container (Landscape, Slide-Over) läge der Deckel sonst darunter
         // und die Tafel schrumpfte beim Aufziehen.
-        max(collapsedHeight(container: container), container * expandedRatio)
+        max(collapsedHeight(container: container), container + max(0, safeBottom))
     }
 
     /// Die Höhe WÄHREND eines Zuges. `drag` ist die Translation des Fingers:
     /// negativ = nach oben, positiv = nach unten.
     ///
-    ///  * nach oben: die Tafel WÄCHST, jenseits der großen Höhe gedämpft;
+    ///  * nach oben: die Tafel WÄCHST bis zur ganzen Seite und dort ist Ende;
     ///  * nach unten aus dem großen Zustand: sie schrumpft bis auf die kleine
     ///    Höhe und bleibt dort stehen;
     ///  * nach unten aus dem kleinen Zustand: sie behält ihre Höhe und
     ///    WANDERT stattdessen (siehe `offset`) — genau das Verhalten von
     ///    vorher, als es nur eine Höhe gab.
-    static func height(container: CGFloat, expanded: Bool, drag: CGFloat) -> CGFloat {
+    static func height(container: CGFloat,
+                       safeBottom: CGFloat,
+                       expanded: Bool,
+                       drag: CGFloat) -> CGFloat {
         let small = collapsedHeight(container: container)
-        let large = expandedHeight(container: container)
+        let large = expandedHeight(container: container, safeBottom: safeBottom)
         let base = expanded ? large : small
-        if drag < 0 {
-            let wanted = base - drag                 // drag ist negativ
-            return wanted > large ? large + rubberBand(wanted - large) : wanted
-        }
+        if drag < 0 { return min(large, base - drag) }   // drag ist negativ
         guard expanded else { return base }
         return max(small, large - drag)
+    }
+
+    // MARK: – Alles, was mit der Höhe mitläuft
+
+    /// 0 = Karte, 1 = ganze Seite. DIE Zahl, an der Radius und Ränder hängen
+    /// — damit gibt es genau EINEN Fortschritt und nicht drei, die
+    /// auseinanderlaufen können.
+    static func progress(container: CGFloat,
+                         safeBottom: CGFloat,
+                         expanded: Bool,
+                         drag: CGFloat) -> CGFloat {
+        let small = collapsedHeight(container: container)
+        let large = expandedHeight(container: container, safeBottom: safeBottom)
+        guard large > small else { return expanded ? 1 : 0 }
+        let h = height(container: container, safeBottom: safeBottom,
+                       expanded: expanded, drag: drag)
+        return min(1, max(0, (h - small) / (large - small)))
+    }
+
+    /// Kartenradius → Bildschirmradius.
+    static func cornerRadius(progress: CGFloat, safeBottom: CGFloat) -> CGFloat {
+        let target = screenCornerRadius(safeBottom: safeBottom)
+        let t = min(1, max(0, progress))
+        return cardRadius + (target - cardRadius) * t
+    }
+
+    /// Wie weit die Tafel seitlich ÜBER ihren Kasten hinausragt. Der Kasten
+    /// steht im selben Seitenrand wie die Leiste; bei voller Größe soll die
+    /// Fläche bis an die Bildschirmkante gehen, also wächst der Überstand auf
+    /// genau diesen Rand.
+    static func sideOverhang(progress: CGFloat, gutter: CGFloat) -> CGFloat {
+        gutter * min(1, max(0, progress))
+    }
+
+    /// Wie weit die Tafel nach UNTEN über ihren Kasten hinausragt: bei voller
+    /// Größe bis an die Bildschirmunterkante, also über die Leiste hinweg
+    /// (Leiste plus die beiden Abstände plus die untere Sicherheitszone).
+    /// Die Leiste selbst bleibt sichtbar — sie wird NACH der Tafel gezeichnet
+    /// und liegt damit auf ihr.
+    static func bottomOverhang(progress: CGFloat,
+                               safeBottom: CGFloat,
+                               bar: CGFloat,
+                               gap: CGFloat) -> CGFloat {
+        (max(0, safeBottom) + bar + 2 * gap) * min(1, max(0, progress))
     }
 
     /// Der senkrechte Versatz während eines Zuges: nur nach UNTEN und nur aus
@@ -177,12 +259,5 @@ enum MorePanel {
                 ? .dismiss : .collapse
         }
         return (drag > dismissDistance || predicted > flickDistance) ? .dismiss : .collapse
-    }
-
-    /// Logarithmische Dämpfung jenseits der Grenze — dieselbe Kurve, die
-    /// UIScrollView über seinen Rand hinaus fährt.
-    static func rubberBand(_ excess: CGFloat, limit: CGFloat = 120) -> CGFloat {
-        guard excess > 0 else { return 0 }
-        return limit * (1 - 1 / (excess / limit + 1))
     }
 }

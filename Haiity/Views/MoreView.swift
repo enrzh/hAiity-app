@@ -20,7 +20,18 @@ enum MoreRoute: Hashable, Identifiable {
 /// die Liste zeichnet keinen eigenen Hintergrund (das Glas der Tafel ist der
 /// Hintergrund), und die drei seitenartigen Ziele sind Knöpfe, die ein Blatt
 /// öffnen, statt `NavigationLink` in einen Stapel, den es hier nicht gibt.
-struct MoreView: View {
+///
+/// **`Equatable`, und das ist Tempo.** Die Tafel ändert beim Ziehen ihre
+/// Größe; der Aufrufer baut diese Ansicht dabei jedes Bild neu (schon weil
+/// er eine frische Closure mitgibt). Ohne einen Vergleich wertet SwiftUI
+/// dann jedes Bild die ganze Liste neu aus — mit Abschnitten, Fußnoten und
+/// Farbfeldern. Verglichen wird nur, worauf sie ZEIGT; echte Änderungen an
+/// den Daten kommen über Observation an und nicht über diesen Vergleich.
+struct MoreView: View, Equatable {
+    static func == (a: MoreView, b: MoreView) -> Bool {
+        a.store === b.store && a.cloudStatus === b.cloudStatus
+    }
+
     let store: HabitStore
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
     /// die Zeile sagt, warum nicht.
@@ -43,7 +54,10 @@ struct MoreView: View {
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
     var body: some View {
-        List {
+        #if DEBUG
+        FrameProbe.shared.mark("MoreView.body")
+        #endif
+        return List {
             // Die Tafel bringt ihr Glas mit. Eine Liste, die darauf ihre
             // eigenen weißen Kacheln malt, macht daraus wieder eine Seite —
             // deshalb sind ALLE Zeilenhintergründe durchsichtig. Der

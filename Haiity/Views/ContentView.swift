@@ -53,13 +53,16 @@ struct ContentView: View {
     /// Loslassen.
     @State private var dragSegment: Screen?
     @State private var draggingSwitcher = false
-    /// Mitgezogene Tafel (Wisch am Griff — nach oben größer, nach unten
-    /// kleiner und schließlich zu). Negativ = nach oben.
-    @State private var panelDrag: CGFloat = 0
-    /// Steht die Tafel auf ihrer großen Höhe? Wird beim Schließen wieder
-    /// zurückgesetzt — die Tafel öffnet immer klein, damit von der Liste
-    /// etwas stehen bleibt.
-    @State private var panelExpanded = false
+    /// Größe und Zug der Tafel stehen NICHT mehr hier, sondern in
+    /// `MorePanelSurface`. Der Grund ist gemessen, nicht ästhetisch: solange
+    /// der Zug an einem `@State` DIESER Ansicht hing, wertete SwiftUI bei
+    /// jedem Bildschritt den ganzen `body` neu aus — samt Habit-Liste, samt
+    /// jeder Karte darin. Beim schnellen Auf- und Zuziehen fielen dabei
+    /// reproduzierbar Bilder aus. Der Zustand gehört der Tafel, also gehört
+    /// er in die Tafel.
+    ///
+    /// Nebeneffekt, der ausdrücklich erwünscht ist: die Tafel öffnet immer
+    /// klein, weil ihr Zustand mit ihr entsteht und mit ihr vergeht.
     /// Wann zuletzt ein ZUG entschieden hat. Der Knopf, auf dem der Finger
     /// aufgesetzt hat, feuert danach trotzdem noch — siehe `select`.
     @State private var lastDragSwitch = Date.distantPast
@@ -80,6 +83,11 @@ struct ContentView: View {
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
+    /// Offene Nacharbeiten-Karte; nil = keine. Sie hält NUR die Kennung des
+    /// Habits, nicht das Habit selbst: nach jedem Schreibvorgang muss die
+    /// Karte den frischen Stand aus dem Store zeigen, nicht eine Kopie von
+    /// vor dem Tippen.
+    @State private var backfill: BackfillRequest?
     /// Hält die Glasteile unten zusammen: gleiche ID vor und nach dem
     /// Zusammenziehen = ein Morph statt zweier Blenden.
     @Namespace private var glassNamespace
@@ -129,10 +137,19 @@ struct ContentView: View {
     }
 
     var body: some View {
-        screens
+        #if DEBUG
+        FrameProbe.shared.mark("CV.body")
+        #endif
+        return screens
             // Der Vorhang liegt ÜBER der Liste und UNTER dem Chrom: die
             // Leiste bleibt bedienbar, während die Tafel offen ist.
             .overlay { moreScrim }
+            // Die Nacharbeiten-Karte liegt DAZWISCHEN: über dem Vorhang von
+            // „Mehr", unter dem Chrom. Damit bleibt der Rückgängig-Toast
+            // (der IM Chrom hängt) neben ihr sichtbar und bedienbar — und
+            // genau die Änderungen, die am ehesten ein Zurück brauchen,
+            // verlieren ihr Zurück nicht.
+            .overlay { backfillLayer }
             // Chrom liegt ÜBER den Bereichen, nicht in ihnen: so bleibt es
             // beim Umschalten stehen und die Listen scrollen darunter durch.
             .overlay(alignment: .bottom) { bottomChrome }
@@ -182,6 +199,7 @@ struct ContentView: View {
                 await boot()
                 #if DEBUG
                 handleLaunchScreenArgument()
+                if FrameProbe.enabled { FrameProbe.shared.start() }
                 #endif
             }
             .onChange(of: scenePhase) { _, phase in
@@ -208,6 +226,9 @@ struct ContentView: View {
                 // Ein Toast, der auf eine Karte zeigt, die man nicht mehr
                 // sieht, ist nur noch ein Knopf ins Ungewisse.
                 undo.clear()
+                // Dasselbe für die Nacharbeiten-Karte: sie gehört zu einer
+                // Zeile der Liste, und die ist gerade weggeklappt worden.
+                backfill = nil
             }
             .onChange(of: searching) { _, _ in
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
@@ -316,10 +337,17 @@ struct ContentView: View {
     }
 
     private func row(for habit: Habit, index: Int) -> some View {
-        HabitCard(
+        #if DEBUG
+        FrameProbe.shared.mark("row")
+        #endif
+        return HabitCard(
             habit: habit,
             collapsed: collapsed,
             onToggleDay: { toggleDay(habit, day: $0) },
+            // Zellentipp: nur AUSWÄHLEN. Die Karte kommt sofort — hier ist
+            // kein Menü, das erst zugehen müsste.
+            onSelectDay: { openBackfill(habit, day: $0, afterMenu: false) },
+            onBackfill: { openBackfill(habit, day: DayKey.today(), afterMenu: true) },
             onIncrement: { increment(habit) },
             onClear: { revert(habit) },
             onMarkDone: { markDone(habit) },
@@ -355,9 +383,7 @@ struct ContentView: View {
         let before = store.value(habit.id, day: day)
         change()
         let after = store.value(habit.id, day: day) ?? 0
-        let message = CheckInUndo.message(habitName: habit.name,
-                                          value: after,
-                                          target: habit.recurrence.target)
+        let message = CheckInUndo.message(habit: habit, value: after, day: day)
         withToastAnimation {
             undo.present(habitId: habit.id, day: day, previousValue: before, message: message)
         }
@@ -392,10 +418,106 @@ struct ContentView: View {
         mutate(habit, day: today) { store.clear(habit.id, day: today) }
     }
 
+    /// Rückgängig nimmt den GANZEN Vorgang zurück — jeden Tag auf genau den
+    /// Wert, den er vorher hatte.
     private func performUndo() {
         guard let toast = undo.take() else { return }
-        store.setValue(toast.habitId, day: toast.day, value: toast.previousValue)
+        for entry in toast.entries {
+            store.setValue(toast.habitId, day: entry.day, value: entry.previousValue)
+        }
         Theme.Haptics.check()
+    }
+
+    // MARK: – Nacharbeiten
+
+    /// Welche Karte offen ist. Der Tag steckt MIT drin (und ist
+    /// veränderlich), das Habit nur als Kennung — siehe `backfill`.
+    struct BackfillRequest: Identifiable, Equatable {
+        let habitId: UUID
+        var day: String
+
+        var id: UUID { habitId }
+    }
+
+    /// Karte öffnen.
+    ///
+    /// `afterMenu` ist kein Feinschliff: eine Aktion IM Kontextmenü kann
+    /// nicht selbst etwas präsentieren — das Menü baut sich beim Antippen
+    /// erst ab, und was in derselben Runde erscheint, geht mit ihm unter
+    /// (bzw. flackert). Also erst das Menü schließen lassen, dann öffnen. Ein
+    /// Zellentipp hat dieses Problem nicht und wartet deshalb auch nicht.
+    private func openBackfill(_ habit: Habit, day: String, afterMenu: Bool) {
+        let request = BackfillRequest(habitId: habit.id, day: day)
+        guard afterMenu else {
+            withCardAnimation { backfill = request }
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(280))
+            withCardAnimation { backfill = request }
+        }
+    }
+
+    /// Der EINZIGE Schreibweg der Karte — für einen Tag wie für fünfzig.
+    ///
+    /// Drei Dinge stehen hier bewusst zusammen:
+    ///  * **Der Torwächter.** `setValue` prüft seinen Schlüssel nicht (es ist
+    ///    der exakte Setter für „Rückgängig"). Jeder Tag geht deshalb durch
+    ///    `Backfill.canWrite`, auch der fünfzigste.
+    ///  * **EIN Zurück.** Die Vorwerte ALLER betroffenen Tage werden vorher
+    ///    eingesammelt und wandern in EINEN Toast. Sieben Toasts wären eine
+    ///    Warteschlange, und ein Zurück nur für den letzten Tag ließe sechs
+    ///    stille Änderungen stehen.
+    ///  * **Einheitlich.** Alle Tage bekommen DENSELBEN Wert. Was gemischt
+    ///    war, ist danach gleich — das ist die Zusage der Mehrfachauswahl.
+    private func backfillWrite(_ habitId: UUID, days: [String], value: Int?) {
+        guard let habit = store.habits.first(where: { $0.id == habitId }) else { return }
+        let allowed = days.filter { Backfill.canWrite(habit: habit, day: $0) }.sorted()
+        guard !allowed.isEmpty else { return }
+
+        let entries = allowed.map {
+            CheckInUndo.Entry(day: $0, previousValue: store.value(habitId, day: $0))
+        }
+        for day in allowed { store.setValue(habitId, day: day, value: value) }
+
+        let message: String
+        if let single = allowed.first, allowed.count == 1 {
+            message = CheckInUndo.message(habit: habit,
+                                          value: store.value(habitId, day: single) ?? 0,
+                                          day: single)
+        } else {
+            message = CheckInUndo.message(habit: habit,
+                                          days: allowed.count,
+                                          cleared: value == nil)
+        }
+        withToastAnimation {
+            undo.present(habitId: habitId, entries: entries, message: message)
+        }
+        Theme.Haptics.check()
+    }
+
+    private func withCardAnimation(_ body: () -> Void) {
+        if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.22), body) }
+    }
+
+    /// Die Karte, wenn eine offen ist. Sie zieht ihr Habit LIVE aus dem Store
+    /// — ist es inzwischen weg (archiviert, gelöscht, Import), schließt sie
+    /// sich von selbst, statt einen Stand von vorhin zu zeigen.
+    @ViewBuilder
+    private var backfillLayer: some View {
+        if let request = backfill,
+           let habit = store.habits.first(where: { $0.id == request.habitId }) {
+            BackfillCard(habit: habit,
+                         day: Binding(get: { backfill?.day ?? request.day },
+                                      set: { backfill?.day = $0 }),
+                         onWrite: { days, value in
+                             backfillWrite(request.habitId, days: days, value: value)
+                         },
+                         onClose: { withCardAnimation { backfill = nil } })
+                .transition(reduceMotion
+                            ? AnyTransition.opacity
+                            : AnyTransition.opacity.combined(with: .scale(scale: 0.92)))
+        }
     }
 
     private func withToastAnimation(_ body: () -> Void) {
@@ -540,6 +662,14 @@ struct ContentView: View {
                 undoToast
                 syncBadge
                 chromeGlass
+                    // Offene Nacharbeiten-Karte = modal. Der Vorhang der
+                    // Karte liegt UNTER dem Chrom (damit der Toast darüber
+                    // bleibt), also muss die Leiste selbst stillgelegt
+                    // werden — sonst legt ein Fehlgriff auf den + ein Habit
+                    // hinter der offenen Karte an. Der Toast steht bewusst
+                    // NICHT in dieser Klammer: er ist das Zurück zu genau
+                    // dem, was die Karte gerade geschrieben hat.
+                    .allowsHitTesting(backfill == nil)
             }
             // Gleicher Seitenrand links wie rechts — der Umschalter steht
             // exakt so weit von der Kante wie der Anlegen-Knopf.
@@ -570,6 +700,21 @@ struct ContentView: View {
         }
     }
 
+    /// Die Tafel als EIGENE Ansicht — und das ist keine Aufräumaktion,
+    /// sondern die Behebung des Ruckelns beim schnellen Auf- und Zuziehen
+    /// (nachgemessen, siehe `MorePanelSurface`): der Zug hält seinen Zustand
+    /// dort, wo er hingehört, und lässt diesen `body` in Ruhe.
+    @ViewBuilder
+    private var morePanel: some View {
+        if moreOpen {
+            MorePanelSurface(store: store,
+                             cloudStatus: cloudStatus,
+                             namespace: glassNamespace,
+                             onOpen: { moreSheet = $0 },
+                             onDismiss: { select(.habits) })
+        }
+    }
+
     /// EINE Grundlinie: alle Kinder sind `Metrics.control` hoch, damit sitzen
     /// Ober- UND Unterkante von Umschalter und Anlegen-Knopf auf demselben
     /// Strich — unabhängig davon, ob der Knopf gerade rechts in der Ecke oder
@@ -597,117 +742,6 @@ struct ContentView: View {
             }
         }
         .frame(height: Theme.Metrics.control)
-    }
-
-    // MARK: – „Mehr" als Tafel über der Leiste
-
-    /// Die Tafel. Sie wächst aus dem Mehr-Segment heraus (Skalierung mit
-    /// Anker auf der Leiste, nicht aus der Mitte), trägt dieselbe
-    /// Vereinigungs-Kennung wie der Umschalter und sitzt nur `gap` darüber —
-    /// beides zusammen ergibt EIN Glasstück, das sich streckt.
-    @ViewBuilder
-    private var morePanel: some View {
-        if moreOpen {
-            VStack(spacing: 0) {
-                panelHandle
-                MoreView(store: store,
-                         cloudStatus: cloudStatus,
-                         onOpen: { moreSheet = $0 })
-            }
-            // Feste Höhe statt „so hoch wie der Inhalt": die Liste ist immer
-            // länger als der Platz, und eine gerechnete Höhe hält die
-            // Aufklapp-Animation ruhig. ZWEI Höhen (siehe MorePanel): klein
-            // geöffnet, damit ein Stück der Habit-Liste stehen bleibt — und
-            // groß, wenn man sie nach oben zieht.
-            .containerRelativeFrame(.vertical) { height, _ in
-                MorePanel.height(container: height, expanded: panelExpanded, drag: panelDrag)
-            }
-            .frame(maxWidth: .infinity)
-            .modifier(PanelGlass(namespace: glassNamespace))
-            .offset(y: MorePanel.offset(expanded: panelExpanded, drag: panelDrag))
-            .transition(panelTransition)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("more-panel")
-            .accessibilityValue(panelExpanded
-                                ? String(localized: "Groß")
-                                : String(localized: "Klein"))
-            // Auch ohne Geste erreichbar: VoiceOver und Vollzugriff kennen
-            // keinen Wisch am Griff.
-            .accessibilityAction(named: panelExpanded
-                                 ? String(localized: "Tafel verkleinern")
-                                 : String(localized: "Tafel vergrößern")) {
-                setPanelExpanded(!panelExpanded)
-            }
-        }
-    }
-
-    /// Griff und Titel. Der Zug hängt HIER und nicht an der ganzen Tafel:
-    /// eine Ziehgeste über der Liste würde mit deren Scrollen streiten, und
-    /// der Griff ist ohnehin die Stelle, an die man greift. Er ist dafür
-    /// bewusst hoch (Griff PLUS Titelzeile PLUS Ränder) — das ist die
-    /// „nicht scrollende" Fläche der Tafel.
-    private var panelHandle: some View {
-        VStack(spacing: 6) {
-            Capsule()
-                .fill(.tertiary)
-                .frame(width: 36, height: 5)
-            Text(String(localized: "Mehr"))
-                .font(.headline)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
-        .contentShape(Rectangle())
-        .gesture(panelDrag_gesture)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("more-grabber")
-    }
-
-    /// EINE Geste für beide Richtungen: nach oben wächst die Tafel auf ihre
-    /// große Höhe (darüber hinaus nur noch gedämpft), nach unten schrumpft
-    /// sie und schließt. Was der Zug bedeutet, entscheidet `MorePanel` —
-    /// hier steht nur, was mit der Entscheidung passiert.
-    private var panelDrag_gesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                // Reduzierte Bewegung: nicht mitziehen (das IST die
-                // Bewegung), nur beim Loslassen springen.
-                guard !reduceMotion else { return }
-                panelDrag = value.translation.height
-            }
-            .onEnded { value in
-                let outcome = MorePanel.resolve(drag: value.translation.height,
-                                                predicted: value.predictedEndTranslation.height,
-                                                expanded: panelExpanded)
-                panelDrag = 0
-                switch outcome {
-                case .expand:   setPanelExpanded(true)
-                case .collapse: setPanelExpanded(false)
-                case .dismiss:  select(.habits)
-                }
-            }
-    }
-
-    /// Zwischen den beiden Höhen umschalten. Reduzierte Bewegung springt
-    /// ohne Animation — der Zustand ist derselbe, nur ohne Fahrt dorthin.
-    private func setPanelExpanded(_ expanded: Bool) {
-        guard expanded != panelExpanded else { return }
-        if reduceMotion {
-            panelExpanded = expanded
-        } else {
-            withAnimation(.snappy(duration: 0.3)) { panelExpanded = expanded }
-        }
-    }
-
-    private var panelTransition: AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        // Anker auf dem Mehr-Segment, Unterkante. Der Wert ist nachgemessen,
-        // nicht geschätzt: das Segment sitzt auf einem 440-pt-Gerät bei rund
-        // 162 pt, die Zeile beginnt bei 16 und ist 408 breit —
-        // (162 − 16) / 408 ≈ 0,36. Die Tafel wächst damit genau dort heraus,
-        // wo getippt wurde, statt aus der Mitte.
-        return .scale(scale: 0.06, anchor: UnitPoint(x: 0.36, y: 1))
-            .combined(with: .opacity)
     }
 
     @ViewBuilder
@@ -863,12 +897,12 @@ struct ContentView: View {
         // Die Tafel öffnet IMMER klein. Der große Zustand ist eine Geste, die
         // man gerade gemacht hat, keine Einstellung, die man später
         // wiederfinden muss — und eine Tafel, die beim nächsten Tippen
-        // bildschirmfüllend aufspringt, überrascht.
-        if next != .more { panelExpanded = false }
+        // bildschirmfüllend aufspringt, überrascht. Dafür ist hier nichts
+        // mehr zu tun: der Zustand lebt IN der Tafel und geht mit ihr.
         if reduceMotion {
             screen = next
         } else {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) { screen = next }
+            withAnimation(PanelMotion.open) { screen = next }
         }
     }
 
@@ -1048,8 +1082,11 @@ struct ContentView: View {
             moreSheet = nil
         case "more", "sync":
             // "sync" landet ebenfalls in der Tafel — die iCloud-Zeile steht
-            // dort ganz oben.
-            screen = .more
+            // dort ganz oben. MIT Animation, wie ein Tipp auf den Umschalter:
+            // die Tafel wächst aus der Leiste. Ein Sprung wäre an dieser
+            // einen Stelle eine andere App.
+            if reduceMotion { screen = .more }
+            else { withAnimation(PanelMotion.open) { screen = .more } }
         case "stats":
             moreSheet = .stats
         case "archive":
@@ -1524,36 +1561,6 @@ private struct ChromeGlass: ViewModifier {
                 .background(accent.map { Theme.accentFill($0) } ?? Color.clear, in: Circle())
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
-        }
-    }
-}
-
-/// Die Mehr-Tafel. Ab iOS 26 echtes Liquid Glass im SELBEN
-/// `GlassEffectContainer` wie die Leiste (damit beide dieselbe Rechnung und
-/// dieselbe Lichtstimmung bekommen), aber mit EIGENER Form — die
-/// Vereinigung mit der Kapsel war zu viel des Guten, siehe `chromeUnion`.
-/// Darunter dieselbe Material-Attrappe wie beim Chrom.
-///
-/// Der Eckradius ist bewusst groß (32): die Tafel muss sich mit einer
-/// 26-pt-Kapsel vertragen, ohne dass die Ecke daneben eckig wirkt.
-private struct PanelGlass: ViewModifier {
-    let namespace: Namespace.ID
-
-    private static let radius: CGFloat = 32
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .glassEffect(.regular.tint(Color(.systemBackground).opacity(0.6)),
-                             in: .rect(cornerRadius: Self.radius, style: .continuous))
-                .glassEffectID("more-panel", in: namespace)
-        } else {
-            content
-                .background(.ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-                    .strokeBorder(.quaternary))
-                .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
         }
     }
 }

@@ -210,20 +210,39 @@ final class UndoToastStateTests: XCTestCase {
     }
 
     func testMessageForCheckbox() {
-        XCTAssertEqual(CheckInUndo.message(habitName: "Lesen", value: 1, target: nil),
+        let h = Habit(name: "Lesen")
+        XCTAssertEqual(CheckInUndo.message(habit: h, value: 1, day: "2026-08-09",
+                                           today: "2026-08-09"),
                        String(localized: "Lesen erledigt"))
-        XCTAssertEqual(CheckInUndo.message(habitName: "Lesen", value: 0, target: nil),
+        XCTAssertEqual(CheckInUndo.message(habit: h, value: 0, day: "2026-08-09",
+                                           today: "2026-08-09"),
                        String(localized: "Lesen zurückgesetzt"))
     }
 
     func testMessageForQuantityShowsProgressUntilTargetIsMet() {
-        XCTAssertEqual(CheckInUndo.message(habitName: "Wasser", value: 2, target: 3),
+        let h = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
+        XCTAssertEqual(CheckInUndo.message(habit: h, value: 2, day: "2026-08-09",
+                                           today: "2026-08-09"),
                        String(localized: "Wasser: 2/3"))
-        XCTAssertEqual(CheckInUndo.message(habitName: "Wasser", value: 3, target: 3),
+        XCTAssertEqual(CheckInUndo.message(habit: h, value: 3, day: "2026-08-09",
+                                           today: "2026-08-09"),
                        String(localized: "Wasser erledigt"))
         // Über dem Ziel bleibt es „erledigt" — kein 4/3.
-        XCTAssertEqual(CheckInUndo.message(habitName: "Wasser", value: 4, target: 3),
+        XCTAssertEqual(CheckInUndo.message(habit: h, value: 4, day: "2026-08-09",
+                                           today: "2026-08-09"),
                        String(localized: "Wasser erledigt"))
+    }
+
+    /// Ein NACHGETRAGENER Tag muss sein Datum mitbringen. Ohne das steht bei
+    /// „Lesen erledigt" nicht, WELCHER Tag gerade geschrieben wurde — und
+    /// „Rückgängig" nimmt dann etwas zurück, das man nicht gesehen hat.
+    func testMessageNamesTheDayWhenItIsNotToday() {
+        let h = Habit(name: "Lesen")
+        let message = CheckInUndo.message(habit: h, value: 1, day: "2026-08-03",
+                                          today: "2026-08-09")
+        XCTAssertNotEqual(message, String(localized: "Lesen erledigt"))
+        XCTAssertTrue(message.contains(Backfill.dayText("2026-08-03")))
+        XCTAssertTrue(message.contains("Lesen"))
     }
 }
 

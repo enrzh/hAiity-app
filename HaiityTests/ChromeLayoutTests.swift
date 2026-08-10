@@ -114,28 +114,34 @@ final class ChromeLayoutTests: XCTestCase {
     }
 }
 
-/// Die Mehr-Tafel: zwei Höhen, ein Zug, drei mögliche Ausgänge. In der
-/// Ansicht wäre das eine Sache fürs Auge; hier steht, ab wann sie aufklappt,
-/// wann sie zurückgeht und wann sie zu ist.
+/// Die Mehr-Tafel: Karte oder ganze Seite, ein Zug, drei mögliche Ausgänge.
+/// In der Ansicht wäre das eine Sache fürs Auge; hier steht, ab wann sie
+/// aufklappt, wie weit sie geht, was dabei mitläuft und wann sie zu ist.
 final class MorePanelTests: XCTestCase {
-    /// Nutzhöhe eines iPhone 17 Pro Max.
-    private let tall: CGFloat = 874
+    /// Nutzhöhe (sichere Fläche) eines iPhone 17 Pro Max.
+    private let tall: CGFloat = 860
+    /// Untere Sicherheitszone desselben Geräts.
+    private let safeBottom: CGFloat = 34
     /// Ein niedriger Container — dort greift der Deckel nicht.
     private let short: CGFloat = 600
 
-    // MARK: – Die zwei Höhen
+    // MARK: – Die zwei Größen
 
     func testTheSmallHeightIsCapped() {
-        // 0,58 × 874 = 507 -> unter dem Deckel; 0,58 × 1000 = 580 -> gedeckelt.
+        // 0,58 × 860 = 499 -> unter dem Deckel; 0,58 × 1000 = 580 -> gedeckelt.
         XCTAssertEqual(MorePanel.collapsedHeight(container: tall),
                        tall * MorePanel.ratio, accuracy: 0.001)
         XCTAssertEqual(MorePanel.collapsedHeight(container: 1000), MorePanel.cap, accuracy: 0.001)
     }
 
-    func testTheBigHeightLeavesAStripOfTheList() {
-        let big = MorePanel.expandedHeight(container: tall)
-        XCTAssertEqual(big, tall * MorePanel.expandedRatio, accuracy: 0.001)
-        XCTAssertLessThan(big, tall)          // nie randlos
+    /// Groß heißt jetzt GANZE SEITE: von der oberen Sicherheitszone bis an
+    /// die Bildschirmunterkante. Genau deshalb steht die untere
+    /// Sicherheitszone in der Rechnung — ohne sie endete die Fläche über dem
+    /// Home-Indikator und ließe dort einen Streifen stehen.
+    func testTheBigHeightIsTheWholePage() {
+        let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        XCTAssertEqual(big, tall + safeBottom, accuracy: 0.001)
+        XCTAssertGreaterThan(big, tall)
         XCTAssertGreaterThan(big, MorePanel.collapsedHeight(container: tall))
     }
 
@@ -145,8 +151,9 @@ final class MorePanelTests: XCTestCase {
     func testTheBigHeightIsNeverSmallerThanTheSmallOne() {
         for h in stride(from: 200.0, through: 1200.0, by: 100.0) {
             let container = CGFloat(h)
-            XCTAssertGreaterThanOrEqual(MorePanel.expandedHeight(container: container),
-                                        MorePanel.collapsedHeight(container: container))
+            XCTAssertGreaterThanOrEqual(
+                MorePanel.expandedHeight(container: container, safeBottom: 0),
+                MorePanel.collapsedHeight(container: container))
         }
     }
 
@@ -154,48 +161,149 @@ final class MorePanelTests: XCTestCase {
 
     func testPullingUpGrows() {
         let small = MorePanel.collapsedHeight(container: tall)
-        let h = MorePanel.height(container: tall, expanded: false, drag: -100)
+        let h = MorePanel.height(container: tall, safeBottom: safeBottom,
+                                 expanded: false, drag: -100)
         XCTAssertEqual(h, small + 100, accuracy: 0.001)
     }
 
-    func testGrowthIsDampedBeyondTheBigHeight() {
-        let big = MorePanel.expandedHeight(container: tall)
-        let h = MorePanel.height(container: tall, expanded: true, drag: -300)
-        XCTAssertGreaterThan(h, big)                  // es geht noch etwas
-        XCTAssertLessThan(h, big + 300)               // aber lange nicht alles
-        XCTAssertLessThan(h, big + MorePanel.rubberBand(.infinity) + 1)
-    }
-
-    func testRubberBandIsMonotonicAndBounded() {
-        XCTAssertEqual(MorePanel.rubberBand(0), 0, accuracy: 0.001)
-        XCTAssertLessThan(MorePanel.rubberBand(50), MorePanel.rubberBand(200))
-        XCTAssertLessThan(MorePanel.rubberBand(100_000), 121)
+    /// Die obere Sicherheitszone ist eine harte Decke, keine, an der man
+    /// federt: alles darüber läge unter Statusleiste und Dynamic Island.
+    func testGrowthStopsAtTheWholePage() {
+        let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        for drag in [-100.0, -300.0, -5000.0] {
+            let h = MorePanel.height(container: tall, safeBottom: safeBottom,
+                                     expanded: true, drag: CGFloat(drag))
+            XCTAssertEqual(h, big, accuracy: 0.001)
+        }
+        // Auch aus dem kleinen Zustand heraus in EINEM Zug nicht weiter.
+        XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
+                                        expanded: false, drag: -5000),
+                       big, accuracy: 0.001)
     }
 
     func testPullingDownFromSmallMovesInsteadOfShrinking() {
         let small = MorePanel.collapsedHeight(container: tall)
-        XCTAssertEqual(MorePanel.height(container: tall, expanded: false, drag: 80),
+        XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
+                                        expanded: false, drag: 80),
                        small, accuracy: 0.001)
         XCTAssertEqual(MorePanel.offset(expanded: false, drag: 80), 80, accuracy: 0.001)
     }
 
     func testPullingDownFromBigShrinksToTheSmallHeightAndStops() {
         let small = MorePanel.collapsedHeight(container: tall)
-        let big = MorePanel.expandedHeight(container: tall)
-        XCTAssertEqual(MorePanel.height(container: tall, expanded: true, drag: 100),
+        let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
+                                        expanded: true, drag: 100),
                        big - 100, accuracy: 0.001)
-        XCTAssertEqual(MorePanel.height(container: tall, expanded: true, drag: 5000),
+        XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
+                                        expanded: true, drag: 5000),
                        small, accuracy: 0.001)
         // Und sie WANDERT dabei nicht: eine Geste, eine Bewegung.
         XCTAssertEqual(MorePanel.offset(expanded: true, drag: 100), 0, accuracy: 0.001)
     }
 
     func testAnUntouchedPanelKeepsItsHeight() {
-        XCTAssertEqual(MorePanel.height(container: short, expanded: false, drag: 0),
+        XCTAssertEqual(MorePanel.height(container: short, safeBottom: 0,
+                                        expanded: false, drag: 0),
                        MorePanel.collapsedHeight(container: short), accuracy: 0.001)
-        XCTAssertEqual(MorePanel.height(container: short, expanded: true, drag: 0),
-                       MorePanel.expandedHeight(container: short), accuracy: 0.001)
+        XCTAssertEqual(MorePanel.height(container: short, safeBottom: 0,
+                                        expanded: true, drag: 0),
+                       MorePanel.expandedHeight(container: short, safeBottom: 0),
+                       accuracy: 0.001)
         XCTAssertEqual(MorePanel.offset(expanded: false, drag: 0), 0, accuracy: 0.001)
+    }
+
+    // MARK: – Was mit der Größe mitläuft
+
+    /// EIN Fortschritt für alles. Er ist 0 auf der Karte, 1 auf der ganzen
+    /// Seite und dazwischen streng monoton — sonst liefen Radius und Ränder
+    /// der Höhe hinterher oder voraus.
+    func testProgressRunsFromCardToWholePageAndIsMonotonic() {
+        XCTAssertEqual(MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                          expanded: false, drag: 0), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                          expanded: true, drag: 0), 1, accuracy: 0.001)
+        var last: CGFloat = -1
+        for drag in stride(from: 0.0, through: -400.0, by: -20.0) {
+            let p = MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                       expanded: false, drag: CGFloat(drag))
+            XCTAssertGreaterThanOrEqual(p, last)
+            XCTAssertGreaterThanOrEqual(p, 0)
+            XCTAssertLessThanOrEqual(p, 1)
+            last = p
+        }
+        XCTAssertEqual(last, 1, accuracy: 0.001)
+    }
+
+    /// Eine bildschirmfüllende Fläche mit Kartenecken sieht aus wie ein
+    /// Fehler — der Radius läuft deshalb mit.
+    func testCornerRadiusInterpolatesFromCardToScreen() {
+        let screen = MorePanel.screenCornerRadius(safeBottom: safeBottom)
+        XCTAssertGreaterThan(screen, MorePanel.cardRadius)
+        XCTAssertEqual(MorePanel.cornerRadius(progress: 0, safeBottom: safeBottom),
+                       MorePanel.cardRadius, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.cornerRadius(progress: 1, safeBottom: safeBottom),
+                       screen, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.cornerRadius(progress: 0.5, safeBottom: safeBottom),
+                       (MorePanel.cardRadius + screen) / 2, accuracy: 0.001)
+        // Ausserhalb von 0…1 wird geklemmt, nicht extrapoliert.
+        XCTAssertEqual(MorePanel.cornerRadius(progress: 2, safeBottom: safeBottom),
+                       screen, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.cornerRadius(progress: -1, safeBottom: safeBottom),
+                       MorePanel.cardRadius, accuracy: 0.001)
+    }
+
+    /// Ein Gerät mit rechteckigem Bildschirm (SE) hat keine Bildschirmecke,
+    /// auf die man zulaufen könnte — dort bleibt es beim Kartenradius.
+    func testASquareScreenKeepsTheCardRadius() {
+        XCTAssertEqual(MorePanel.screenCornerRadius(safeBottom: 0), MorePanel.cardRadius)
+        XCTAssertEqual(MorePanel.cornerRadius(progress: 1, safeBottom: 0),
+                       MorePanel.cardRadius, accuracy: 0.001)
+    }
+
+    /// Die Seitenränder schließen sich stetig bis auf 0 — kein Sprung an der
+    /// Kante.
+    func testSideOverhangClosesTheMarginsContinuously() {
+        let gutter = Theme.Metrics.gutter
+        XCTAssertEqual(MorePanel.sideOverhang(progress: 0, gutter: gutter), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.sideOverhang(progress: 1, gutter: gutter),
+                       gutter, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.sideOverhang(progress: 0.25, gutter: gutter),
+                       gutter / 4, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.sideOverhang(progress: 9, gutter: gutter),
+                       gutter, accuracy: 0.001)
+    }
+
+    /// Nach unten reicht die volle Größe über die Leiste hinweg bis an die
+    /// Bildschirmkante: Leiste + beide Abstände + untere Sicherheitszone.
+    func testBottomOverhangReachesTheScreenEdge() {
+        let bar = Theme.Metrics.control, gap = Theme.Metrics.gap
+        XCTAssertEqual(MorePanel.bottomOverhang(progress: 0, safeBottom: safeBottom,
+                                                bar: bar, gap: gap), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.bottomOverhang(progress: 1, safeBottom: safeBottom,
+                                                bar: bar, gap: gap),
+                       safeBottom + bar + 2 * gap, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.bottomOverhang(progress: 0.5, safeBottom: safeBottom,
+                                                bar: bar, gap: gap),
+                       (safeBottom + bar + 2 * gap) / 2, accuracy: 0.001)
+    }
+
+    /// Die Probe aufs Exempel: bei voller Größe steht die SICHTBARE Oberkante
+    /// der Tafel genau auf der oberen Sicherheitszone und ihre Unterkante
+    /// genau auf der Bildschirmkante. Beides fällt aus Höhe minus Überstand,
+    /// und beides war der Grund für die Rechnung.
+    func testAtFullSizeThePanelSpansSafeTopToScreenBottom() {
+        let bar = Theme.Metrics.control, gap = Theme.Metrics.gap
+        let h = MorePanel.height(container: tall, safeBottom: safeBottom,
+                                 expanded: true, drag: 0)
+        let over = MorePanel.bottomOverhang(progress: 1, safeBottom: safeBottom,
+                                            bar: bar, gap: gap)
+        // Unterkante des Kastens, von der Bildschirmunterkante aus gemessen.
+        let boxBottomFromScreenBottom = safeBottom + gap + bar + gap
+        XCTAssertEqual(over, boxBottomFromScreenBottom, accuracy: 0.001)
+        // Sichtbare Oberkante, von der Bildschirmunterkante aus gemessen.
+        let visibleTop = boxBottomFromScreenBottom + (h - over)
+        XCTAssertEqual(visibleTop, safeBottom + tall, accuracy: 0.001)
     }
 
     // MARK: – Was ein losgelassener Zug bedeutet

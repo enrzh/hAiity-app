@@ -2,8 +2,17 @@ import SwiftUI
 import UIKit
 
 /// Das Herzstück: 53 Wochen × 7 Tage, Sonntag oben, Monatsmarken darüber,
-/// scrollt zu heute. Tippen auf eine vergangene Zelle trägt nach — Tage
-/// vergisst man mal. Zukunft ist gedimmt und tot.
+/// scrollt zu heute. Zukunft ist gedimmt und tot.
+///
+/// **Ein Tipp auf eine Zelle SCHREIBT NICHT.** Er WÄHLT den Tag aus und
+/// öffnet damit die Nacharbeiten-Karte an genau diesem Datum
+/// (`onSelectDay`). Vorher hakte er direkt ab: auf einem 8- bis 12-pt-Quadrat
+/// heißt das, dass ein Fehlgriff still einen vergangenen Tag umschreibt — an
+/// der einzigen Stelle der App, an der Wochen alter Verlauf mit einem Finger
+/// erreichbar ist. Geschrieben wird jetzt erst in der Karte, auf eine
+/// benannte Aktion. Deshalb ist die Rückmeldung hier auch eine
+/// AUSWAHL-Haptik und nicht mehr der Stups des Abhakens: es ist nichts
+/// bestätigt worden.
 ///
 /// Drei Dinge, die hier bewusst NICHT der Umgebung folgen:
 ///  * **Layout-Richtung**: die Chronologie läuft immer links→rechts, auch
@@ -22,7 +31,9 @@ struct ContributionGrid: View {
     var gap: CGFloat?
     var interactive: Bool = true
     var showsMonthLabels: Bool = true
-    var onToggle: ((String) -> Void)?
+    /// Tag AUSGEWÄHLT (nicht geändert): der Aufrufer öffnet damit die
+    /// Nacharbeiten-Karte. Nil = das Raster ist nur Anzeige.
+    var onSelectDay: ((String) -> Void)?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -140,7 +151,9 @@ struct ContributionGrid: View {
                                     dark: scheme == .dark,
                                     palette: palettes.style(for: habit)),
                  size: size)
-            // Zukunft: gedimmt und ohne Tap-Handler (siehe isTappable).
+            // Zukunft: gedimmt und ohne Tap-Handler (siehe isTappable). Die
+            // Regel bleibt Zeichen für Zeichen dieselbe wie früher — geändert
+            // hat sich nur, WAS ein Tipp auslöst.
             .opacity(key == nil ? 0.35 : 1)
             .overlay {
                 if key == today {
@@ -150,8 +163,10 @@ struct ContributionGrid: View {
             }
             .modifier(TapCell(enabled: tappable) {
                 guard let key else { return }
-                Theme.Haptics.check()
-                onToggle?(key)
+                // Auswahl-Haptik, nicht die des Abhakens: hier wird nichts
+                // bestätigt, hier wird etwas ausgewählt.
+                Theme.Haptics.select()
+                onSelectDay?(key)
             })
     }
 
