@@ -74,8 +74,6 @@ struct MoreView: View, Equatable {
 
             statsCardsSection
 
-            backfillSection
-
             dailySummarySection
             weeklySummarySection
             testNotificationSection
@@ -199,36 +197,10 @@ struct MoreView: View, Equatable {
                 set: { statsCards.prefs.set(card, active: $0) })
     }
 
-    // MARK: – Nacharbeiten
-    //
-    // Wie die Nacharbeiten-Karte arbeitet: „Malen" (Pinsel wählen, Tage
-    // antippen) oder „Auswählen" (Tage sammeln, dann eine Aktion auf alle).
-    // Dieselbe Ablage wie die Statistik-Karten: App-Group-Defaults, eine
-    // Geräte-Ansicht, kein Habit-Datum — deshalb NICHT im HabitStore.
-
-    private var backfillSection: some View {
-        Section {
-            Picker(selection: backfillModeBinding) {
-                ForEach(Backfill.Mode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
-                }
-            } label: {
-                Label(String(localized: "Nacharbeiten"), systemImage: "square.and.pencil")
-            }
-            .accessibilityIdentifier("backfill-mode-picker")
-        } footer: {
-            Text(String(localized: "Malen: Pinsel wählen (Erledigt, Ja, Nein, Menge oder Leeren) und Tage antippen — jeder Tipp trägt sofort ein. Auswählen: erst Tage sammeln, dann eine Aktion auf alle anwenden."))
-        }
-    }
-
-    @AppStorage(Backfill.Mode.storageKey,
-                store: UserDefaults(suiteName: SharedStorage.appGroup))
-    private var backfillModeRaw = Backfill.Mode.paint.rawValue
-
-    private var backfillModeBinding: Binding<Backfill.Mode> {
-        Binding(get: { Backfill.Mode.resolve(backfillModeRaw) },
-                set: { backfillModeRaw = $0.rawValue })
-    }
+    // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der
+    // Malen-Modus ist auf Nutzerwunsch entfernt, die Karte arbeitet immer
+    // im Auswählen-Modus. Der alte App-Group-Schlüssel „backfillMode" wird
+    // schlicht nicht mehr gelesen.
 
     // MARK: – Darstellung
     //

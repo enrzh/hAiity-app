@@ -9,20 +9,16 @@ import UIKit
 /// behauptet mehr Gewicht, als der Vorgang hat. Und: unten steht die Leiste
 /// mit dem Rückgängig-Toast, und genau der muss neben ihr erreichbar bleiben.
 ///
-/// **Zwei Arbeitsweisen, EINE Einstellung (Mehr-Tafel, `Backfill.Mode`).**
-///  * **Malen:** oben liegt eine Pinselzeile (Erledigt / Ja / Nein / Menge /
-///    Leeren — je nach Habit-Art), und jeder angetippte Tag bekommt sofort
-///    den Pinselwert. Ein zweiter Tipp auf denselben Tag stellt seinen
-///    ALTEN Wert wieder her — nicht bloß leer.
-///  * **Auswählen:** erst Tage sammeln, dann EINE Aktion auf alle anwenden.
-///    Die Leiste kennt jetzt jeden Zielzustand der Art (auch „Nein" und die
-///    Menge); die Auswahl bleibt nach der Aktion stehen, damit die nächste
-///    gleich folgen kann.
+/// **EINE Arbeitsweise: Auswählen.** Erst Tage sammeln, dann EINE Aktion auf
+/// alle anwenden. Die Leiste kennt jeden Zielzustand der Habit-Art (auch
+/// „Nein" und die Menge); die Auswahl bleibt nach der Aktion stehen, damit
+/// die nächste gleich folgen kann. (Es gab einen zweiten Weg, „Malen" — er
+/// ist auf Nutzerwunsch entfernt; die Mehr-Tafel hat keine Einstellung mehr
+/// dazu.)
 ///
 /// Die Karte SCHREIBT NICHT SELBST. Sie meldet „schreib diesen Wert an diese
-/// Tage" (`onWrite`) bzw. „stell diese Vorwerte wieder her" (`onRestore`)
-/// nach oben — dort läuft alles durch dieselbe Stelle wie jedes andere
-/// Abhaken, inklusive EINES Rückgängig pro Griff (`ContentView`).
+/// Tage" (`onWrite`) nach oben — dort läuft alles durch dieselbe Stelle wie
+/// jedes andere Abhaken, inklusive EINES Rückgängig pro Griff (`ContentView`).
 struct BackfillCard: View {
     /// Der LEBENDE Habit aus dem Store: nach einem Schreibvorgang zeigt die
     /// Statuszeile sofort den neuen Stand, ohne die Karte zu schließen.
@@ -34,31 +30,17 @@ struct BackfillCard: View {
     /// Liste, auch für einen Tag: der Aufrufer schreibt einen Vorgang, nicht
     /// n Vorgänge, und macht daraus EIN Zurück.
     let onWrite: ([String], Int?) -> Void
-    /// (Tag, Vorwert) je Tag — der EXAKTE Rückbau eines gemalten Tages. Ein
-    /// einheitlicher Wert reicht hier nicht: drei abgemalte Tage können drei
-    /// verschiedene Vorwerte haben.
+    /// (Tag, Vorwert) je Tag — der exakte Rückbau. Nur noch als
+    /// VERTRÄGLICHKEITS-Anschluss: `ContentView` reicht den Rückbau-Weg
+    /// weiterhin herein (die Datei wird parallel bearbeitet und bleibt hier
+    /// unangetastet); die Karte selbst ruft ihn seit dem Ende des
+    /// Malen-Modus nie mehr auf.
     let onRestore: ([(day: String, value: Int?)]) -> Void
     let onClose: () -> Void
 
-    /// Die Arbeitsweise ist eine EINSTELLUNG (siehe `Backfill.Mode`), kein
-    /// Zustand der Karte — dieselbe Ablage wie die Statistik-Karten
-    /// (App-Group-Defaults, nicht data.json).
-    @AppStorage(Backfill.Mode.storageKey,
-                store: UserDefaults(suiteName: SharedStorage.appGroup))
-    private var modeRaw = Backfill.Mode.paint.rawValue
-    private var mode: Backfill.Mode { .resolve(modeRaw) }
-
-    /// Die gewählten bzw. angemalten Tage. `MultiDatePicker` spricht
-    /// `DateComponents`; umgerechnet wird an genau einer Stelle
-    /// (`selectedKeys`).
+    /// Die gewählten Tage. Der Kalender spricht `DateComponents`;
+    /// umgerechnet wird an genau einer Stelle (`selectedKeys`).
     @State private var dates: Set<DateComponents> = []
-    /// Malen: je angemaltem Tag der Wert, der VOR dem Pinsel dort stand
-    /// (nil = kein Eintrag). Der zweite Tipp stellt genau ihn wieder her.
-    @State private var painted: [String: Int?] = [:]
-    /// Der gewählte Pinsel als Kennungs-Stamm (`Backfill.Brush.id`). Leer =
-    /// der positive Standardpinsel der Habit-Art — so braucht es keinen
-    /// onAppear, der der Art hinterherläuft.
-    @State private var brushId = ""
     /// Stand des Mengen-Stellers. 0 = noch nicht angefasst -> Tagesziel.
     @State private var amount = 0
     /// Sperrklinke für die Höhe des Kalenders. `MultiDatePicker` misst sich
@@ -78,19 +60,9 @@ struct BackfillCard: View {
     /// Jahresraster (`ContributionGrid.labelScale`).
     @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 100
 
-    /// Mengenwert für Pinsel und Auswahl-Aktion: der Steller, sonst das
-    /// Tagesziel.
+    /// Mengenwert für die Auswahl-Aktion: der Steller, sonst das Tagesziel.
     private var effectiveAmount: Int {
         amount > 0 ? amount : max(1, habit.recurrence.target ?? 1)
-    }
-
-    /// Der wirksame Pinsel — Kennung plus Menge, gegen die Habit-Art
-    /// aufgelöst. Ein gespeicherter Stamm, der zur Art nicht passt (die gibt
-    /// es in EINER Kartensitzung nicht, aber die Auflösung soll es nicht
-    /// glauben müssen), fällt auf den Standard zurück.
-    private var brush: Backfill.Brush {
-        let known = Backfill.Brush.brushes(for: habit.kind, amount: effectiveAmount)
-        return known.first { $0.id == brushId } ?? known[0]
     }
 
     /// Die gewählten Tage als Tagesschlüssel, aufsteigend. Was der Kalender
@@ -139,10 +111,13 @@ struct BackfillCard: View {
         .shadow(color: .black.opacity(0.22), radius: 24, y: 8)
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.top, Theme.Metrics.gutter)
-        // Die Karte hält sich von der Leiste frei: sie liegt UNTER dem Chrom,
-        // und ein „Fertig", das hinter dem Umschalter klebt, wäre nicht
-        // erreichbar.
-        .padding(.bottom, Theme.Metrics.control + 2 * Theme.Metrics.gap)
+        // Die Karte hält sich von der Leiste UND vom Rückgängig-Toast frei:
+        // sie liegt UNTER dem Chrom, und der Toast (eine ~44-pt-Pille plus
+        // Abstand über dem Blob) muss bei OFFENER Karte vollständig sichtbar
+        // und antippbar bleiben — er ist das Zurück zu genau dem, was die
+        // Karte gerade geschrieben hat.
+        .padding(.bottom, Theme.Metrics.control + 2 * Theme.Metrics.gap
+                 + Theme.Metrics.hit + Theme.Metrics.gap)
         // Die Karte ist modal: VoiceOver soll nicht durch sie hindurch in die
         // Liste greifen, die dahinter noch steht.
         .accessibilityElement(children: .contain)
@@ -150,24 +125,24 @@ struct BackfillCard: View {
         .accessibilityLabel(String(localized: "Nacharbeiten: \(habit.name)"))
         .accessibilityIdentifier("backfill-card")
         .onAppear(perform: seed)
-        .onChange(of: dates) { old, new in datesChanged(from: old, to: new) }
     }
 
-    /// Beide Arbeitsweisen haben GENAU EINE Bedienzeile fester Höhe — beim
-    /// Malen über dem Kalender (der Pinsel kommt vor dem Tippen), beim
-    /// Auswählen darunter (die Aktion kommt nach dem Sammeln). Gleiche
-    /// Zeilenhöhe, gleiche Teile: die Karte ist in beiden Arbeitsweisen und
-    /// für jede Habit-Art gleich hoch — kein Größensprung beim Umstellen.
+    /// EINE Bedienzeile fester Höhe unter dem Kalender (die Aktion kommt
+    /// nach dem Sammeln) — für jede Habit-Art dieselbe Höhe, die Karte
+    /// springt beim Artwechsel nicht. Die Abstände sind bewusst KNAPP
+    /// (10 statt 14 pt, oben/unten 12 statt 16): unten muss neben der Karte
+    /// der Rückgängig-Toast stehen können, und jeder gesparte Punkt hier ist
+    /// einer, den der Kalender behalten darf.
     private var cardBody: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             header
-            if mode == .paint { brushRow }
             picker
             status
-            if mode == .select { actionRow }
+            actionRow
             closeButton
         }
-        .padding(Theme.Metrics.gutter)
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .padding(.vertical, Theme.Metrics.cardPadding)
     }
 
     private var header: some View {
@@ -177,9 +152,7 @@ struct BackfillCard: View {
                 Text(habit.name)
                     .font(.headline)
                     .lineLimit(2)
-                Text(mode == .paint
-                     ? String(localized: "Tage antippen und eintragen")
-                     : String(localized: "Tage auswählen, dann eintragen"))
+                Text(String(localized: "Tage auswählen, dann eintragen"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -196,9 +169,8 @@ struct BackfillCard: View {
 
     static let maxWidth: CGFloat = 360
 
-    /// Feste Höhe der Bedienzeile (Pinsel bzw. Aktionen) — für JEDE
-    /// Habit-Art dieselbe, sonst wäre die Karte bei „Menge" höher als bei
-    /// „Ja/Nein".
+    /// Feste Höhe der Aktionszeile — für JEDE Habit-Art dieselbe, sonst wäre
+    /// die Karte bei „Menge" höher als bei „Ja/Nein".
     private static let controlRowHeight = Theme.Metrics.hit
 
     /// Innenmaß der Karte: die Breite, die Kopf, Kalender und Statuszeile
@@ -225,9 +197,7 @@ struct BackfillCard: View {
                                 typeScale: typeScale / 100)
     }
 
-    /// Der Kalender — in BEIDEN Arbeitsweisen der `MultiDatePicker`: beim
-    /// Malen ist die Auswahl die Leinwand (jeder Tag darin trägt den
-    /// Pinselwert), beim Auswählen ist sie die Sammlung. Die Spanne kommt aus
+    /// Der Kalender: die Auswahl ist die Sammlung. Die Spanne kommt aus
     /// `Backfill` — die Zukunft ist damit gar nicht erst antippbar, und der
     /// älteste wählbare Tag ist derselbe, den auch das Raster noch zeigt.
     ///
@@ -252,17 +222,14 @@ struct BackfillCard: View {
             .accessibilityIdentifier("backfill-date-picker")
     }
 
-    /// Die lebende Statuszeile. Malen: wie viele Tage der Griff schon
-    /// geändert hat. Auswählen: wie viele Tage gewählt sind und wie viele
+    /// Die lebende Statuszeile: wie viele Tage gewählt sind und wie viele
     /// davon schon zählen — der einzige Ort, an dem man VOR dem Schreiben
     /// sieht, was eine Aktion tatsächlich ändern wird.
     private var status: some View {
         let selection = Backfill.selection(habit: habit, days: Set(selectedKeys))
-        let highlighted = mode == .paint ? !painted.isEmpty : selection.done > 0
-        return Text(mode == .paint
-                    ? Backfill.paintText(painted: painted.count)
-                    : Backfill.selectionLine(habit: habit, days: Set(selectedKeys),
-                                             calendar: calendar))
+        let highlighted = selection.done > 0
+        return Text(Backfill.selectionLine(habit: habit, days: Set(selectedKeys),
+                                           calendar: calendar))
             .font(.subheadline)
             .foregroundStyle(highlighted
                              ? AnyShapeStyle(Theme.accentText(palettes.style(for: habit)))
@@ -276,89 +243,6 @@ struct BackfillCard: View {
             .accessibilityIdentifier("backfill-status")
     }
 
-    // MARK: – Malen
-
-    /// Die Pinselzeile: ein Pinsel ist AUSGEWÄHLT (gefüllt), die anderen
-    /// stehen daneben. Bei „Menge" ist der Pinsel selbst ein Steller.
-    private var brushRow: some View {
-        HStack(spacing: Theme.Metrics.gap) {
-            ForEach(Backfill.Brush.brushes(for: habit.kind, amount: effectiveAmount)) { b in
-                if case .amount = b {
-                    amountBrush
-                } else {
-                    brushButton(b)
-                }
-            }
-        }
-        .frame(height: Self.controlRowHeight)
-    }
-
-    private func brushButton(_ b: Backfill.Brush) -> some View {
-        let selected = brush.id == b.id
-        return Button {
-            Theme.Haptics.select()
-            brushId = b.id
-        } label: {
-            Label(b.title, systemImage: b.systemImage)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity)
-                .frame(height: Self.controlRowHeight)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(selected ? brushForeground(b) : AnyShapeStyle(HierarchicalShapeStyle.primary))
-        .background(selected ? brushFill(b) : AnyShapeStyle(Color(.tertiarySystemFill)),
-                    in: Capsule())
-        .overlay(Capsule().strokeBorder(selected ? .clear : Color(.separator).opacity(0.5)))
-        .accessibilityLabel(b.title)
-        .accessibilityValue(selected
-                            ? String(localized: "Ausgewählt")
-                            : String(localized: "Nicht ausgewählt"))
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityIdentifier(b.accessibilityIdentifier)
-    }
-
-    /// Der Mengen-Pinsel: Minus, Stand, Plus in EINER Kapsel. Er ist immer
-    /// zugleich der aktive Pinsel, sobald man ihn anfasst — wer die Menge
-    /// stellt, will sie auch malen.
-    private var amountBrush: some View {
-        let b = Backfill.Brush.amount(effectiveAmount)
-        let selected = brush.id == b.id
-        return HStack(spacing: 0) {
-            stepButton("minus", enabled: effectiveAmount > 1) { step(-1) }
-                .accessibilityLabel(String(localized: "Menge verringern"))
-                .accessibilityIdentifier("backfill-amount-minus")
-            Button {
-                Theme.Haptics.select()
-                brushId = b.id
-            } label: {
-                Text(b.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Self.controlRowHeight)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Menge: \(effectiveAmount)"))
-            .accessibilityValue(selected
-                                ? String(localized: "Ausgewählt")
-                                : String(localized: "Nicht ausgewählt"))
-            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-            .accessibilityIdentifier(b.accessibilityIdentifier)
-            stepButton("plus", enabled: effectiveAmount < Habit.Answer.maxCount) { step(1) }
-                .accessibilityLabel(String(localized: "Menge erhöhen"))
-                .accessibilityIdentifier("backfill-amount-plus")
-        }
-        .foregroundStyle(selected ? brushForeground(b) : AnyShapeStyle(HierarchicalShapeStyle.primary))
-        .background(selected ? brushFill(b) : AnyShapeStyle(Color(.tertiarySystemFill)),
-                    in: Capsule())
-        .overlay(Capsule().strokeBorder(selected ? .clear : Color(.separator).opacity(0.5)))
-    }
-
     private func stepButton(_ symbol: String, enabled: Bool,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -370,31 +254,6 @@ struct BackfillCard: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)
-    }
-
-    /// Stellen wählt zugleich den Mengen-Pinsel — und ändert NIE bereits
-    /// gemalte Tage: der Steller gilt für die nächsten Tipps.
-    private func step(_ delta: Int) {
-        Theme.Haptics.select()
-        amount = min(Habit.Answer.maxCount, max(1, effectiveAmount + delta))
-        brushId = "amount"
-    }
-
-    private func brushForeground(_ b: Backfill.Brush) -> AnyShapeStyle {
-        if case .clear = b { return AnyShapeStyle(HierarchicalShapeStyle.primary) }
-        return AnyShapeStyle(Color.white)
-    }
-
-    /// Der Pinsel trägt die Farbe seiner Bedeutung: „Nein" in der
-    /// Verneinungsfarbe dieses Habits — derselben, in der der Tag gleich im
-    /// Raster steht (dieselbe Zusage wie bei den Aktionen).
-    private func brushFill(_ b: Backfill.Brush) -> AnyShapeStyle {
-        let style = palettes.style(for: habit)
-        switch b {
-        case .clear:    return AnyShapeStyle(Color(.systemFill))
-        case .declined: return AnyShapeStyle(Theme.color(style.negative(dark: scheme == .dark)))
-        default:        return AnyShapeStyle(Theme.accentFill(style))
-        }
     }
 
     // MARK: – Auswählen
@@ -485,63 +344,60 @@ struct BackfillCard: View {
         }
     }
 
+    /// „Fertig" als EIGENER Knopf mit Glas: die alte Fassung war eine
+    /// flache Textzeile, die im Kartenboden verschwand. Jetzt eine helle
+    /// Glas-Kapsel — ab iOS 26 echtes Liquid Glass (interaktiv), darunter
+    /// dieselbe Material-Attrappe wie das Chrom. Der helle Tint (System-
+    /// hintergrund, halbe Deckung) hebt sie in BEIDEN Schemata von der
+    /// Karte ab, ohne aus Glas Milchglas zu machen.
     private var closeButton: some View {
         Button(action: onClose) {
             Text(String(localized: "Fertig"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 32)
-                .contentShape(Rectangle())
+                .frame(height: 36)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .modifier(FertigGlass())
         .accessibilityIdentifier("backfill-close")
     }
 
     // MARK: – Tippen im Kalender
 
-    /// Auswählen startet mit dem Tag, an dem die Karte geöffnet wurde — wer
-    /// über eine Rasterzelle kam, findet genau sie vorausgewählt. Malen
-    /// startet LEER: eine Vorauswahl würde sofort malen, und das hat niemand
-    /// getan.
+    /// Die Auswahl startet mit dem Tag, an dem die Karte geöffnet wurde —
+    /// wer über eine Rasterzelle kam, findet genau sie vorausgewählt.
     private func seed() {
-        guard mode == .select, dates.isEmpty,
+        guard dates.isEmpty,
               let date = DayKey.date(from: day, calendar: calendar) else { return }
         dates = [calendar.dateComponents([.era, .year, .month, .day], from: date)]
     }
 
-    /// Malen: jeder NEU gewählte Tag bekommt sofort den Pinselwert; jeder
-    /// ABGEWÄHLTE bekommt seinen Vorwert zurück. Auswählen: nichts — dort
-    /// schreibt erst die Aktionsleiste.
-    private func datesChanged(from old: Set<DateComponents>, to new: Set<DateComponents>) {
-        guard mode == .paint else { return }
-        let keys = Set(selectedKeys)
-        let added = keys.subtracting(painted.keys).sorted()
-        let removed = Set(painted.keys).subtracting(keys).sorted()
-
-        if !added.isEmpty {
-            let b = brush
-            for key in added { painted.updateValue(habit.log[key], forKey: key) }
-            onWrite(added, b.value)
-            if let only = added.first, added.count == 1 {
-                announce(String(localized: "\(Backfill.dayText(only, calendar: calendar)): \(b.title)"))
-            }
-        }
-        if !removed.isEmpty {
-            let entries = removed.map { (day: $0, value: painted[$0] ?? nil) }
-            for key in removed { painted.removeValue(forKey: key) }
-            onRestore(entries)
-            if let only = removed.first, removed.count == 1 {
-                announce(String(localized: "\(Backfill.dayText(only, calendar: calendar)) wiederhergestellt"))
-            }
-        }
-    }
-
-    /// Gemalte Tage haben im Kalender ihren Auswahlkreis; WAS dort steht,
-    /// sagt VoiceOver hinterher — der Systemkalender kennt keine eigenen
-    /// Tagesdekorationen, und die Statuszeile zählt für alle Sehenden mit.
+    /// Gewählte Tage haben im Kalender ihren Auswahlkreis; WAS eine Aktion
+    /// geschrieben hat, sagt VoiceOver hinterher — der Systemkalender kennt
+    /// keine eigenen Tagesdekorationen, und die Statuszeile zählt für alle
+    /// Sehenden mit.
     private func announce(_ text: String) {
         UIAccessibility.post(notification: .announcement, argument: text)
+    }
+}
+
+/// Das Glas des Fertig-Knopfes. Ab iOS 26 `glassEffect` (interaktiv, mit
+/// hellem Tint für Lesbarkeit auf der Karte in beiden Schemata), darunter
+/// `.ultraThinMaterial` mit Haarlinie — dieselbe Rezeptur wie die
+/// Glas-Pillen des Chroms, nur lokal, weil deren Modifier dort privat ist.
+private struct FertigGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(
+                .regular.tint(Color(.systemBackground).opacity(0.5)).interactive(),
+                in: .capsule)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary))
+        }
     }
 }
 
