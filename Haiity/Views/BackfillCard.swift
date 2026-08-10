@@ -33,11 +33,18 @@ struct BackfillCard: View {
     /// `DateComponents`; umgerechnet wird an genau einer Stelle
     /// (`selectedKeys`).
     @State private var dates: Set<DateComponents> = []
+    /// Sperrklinke für die Höhe des Mehrfach-Kalenders. `MultiDatePicker`
+    /// misst sich nach dem ersten Layout noch einmal und wird dabei ein paar
+    /// Punkte NIEDRIGER (nachgemessen: 554 -> 551,3 pt) — die Karte zuckte
+    /// mit. Die größte je gesehene Höhe bleibt als Mindesthöhe stehen; das
+    /// Blatt sitzt oben bündig, und die Karte steht still.
+    @State private var multiHeight: CGFloat = 0
 
     @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.calendar) private var calendar
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Referenzmaß 100, skaliert mit Dynamic Type: `typeScale / 100` IST der
     /// Faktor, mit dem `.body` gerade wächst. Dieselbe Messtechnik wie im
     /// Jahresraster (`ContributionGrid.labelScale`) — sie sagt die
@@ -180,17 +187,25 @@ struct BackfillCard: View {
 
     private func toggleMulti() {
         Theme.Haptics.select()
-        if multi {
-            // Zurück auf einen Tag: der JÜNGSTE der Auswahl gewinnt — er ist
-            // der, den man zuletzt im Blick hatte.
-            if let latest = selectedKeys.last { day = latest }
-            multi = false
-        } else {
-            dates = [calendar.dateComponents([.era, .year, .month, .day],
-                                             from: DayKey.date(from: day, calendar: calendar)
-                                                ?? Date())]
-            multi = true
+        let flip = {
+            if multi {
+                // Zurück auf einen Tag: der JÜNGSTE der Auswahl gewinnt — er
+                // ist der, den man zuletzt im Blick hatte.
+                if let latest = selectedKeys.last { day = latest }
+                multi = false
+            } else {
+                dates = [calendar.dateComponents([.era, .year, .month, .day],
+                                                 from: DayKey.date(from: day, calendar: calendar)
+                                                    ?? Date())]
+                multi = true
+            }
         }
+        // Der Mehrfach-Kalender ist deutlich höher als der einzelne — die
+        // Karte ÄNDERT hier ihre Größe, und zwar absichtlich. Ein Sprung
+        // ohne Übergang sähe aus wie das Zucken, das diese Karte sonst
+        // überall unterbindet; also derselbe kurze Übergang wie beim Öffnen
+        // (`ContentView.withCardAnimation`).
+        if reduceMotion { flip() } else { withAnimation(.snappy(duration: 0.22), flip) }
     }
 
     // MARK: – Maße der Karte
@@ -251,6 +266,18 @@ struct BackfillCard: View {
                             selection: $dates,
                             in: Backfill.dateRangeExclusive(habit: habit, calendar: calendar))
                 .labelsHidden()
+                // Oben bündig in der eigenen Reserve, und die wächst nur:
+                // misst der Picker sich nach dem ersten Layout kleiner
+                // (siehe `multiHeight`), hält die Sperrklinke die Karte auf
+                // ihrem Maß.
+                .frame(minHeight: max(multiHeight, calendarHeight), alignment: .top)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { multiHeight = max(multiHeight, g.size.height) }
+                        .onChange(of: g.size.height) { _, h in
+                            multiHeight = max(multiHeight, h)
+                        }
+                })
                 .accessibilityIdentifier("backfill-date-picker")
         } else if typeSize.isAccessibilitySize {
             DatePicker(String(localized: "Tag"),
@@ -267,8 +294,11 @@ struct BackfillCard: View {
                 .labelsHidden()
                 // `minHeight`, nicht `height`: liegt die Reserve einmal
                 // daneben, wächst das Blatt wie bisher weiter — es wird nie
-                // abgeschnitten.
-                .frame(minHeight: calendarHeight)
+                // abgeschnitten. Oben bündig: fällt die Reserve ein, zwei
+                // Punkte größer aus als das Blatt, bleibt der Rest UNTEN als
+                // schmaler Rand, statt das Blatt beim Nachmessen zu
+                // verschieben.
+                .frame(minHeight: calendarHeight, alignment: .top)
                 .accessibilityIdentifier("backfill-date-picker")
         }
     }

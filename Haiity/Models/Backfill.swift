@@ -39,16 +39,42 @@ enum Backfill {
     /// MINDESTHÖHE: fällt sie einmal zu knapp aus, wächst das Blatt wie
     /// vorher weiter, statt abgeschnitten zu werden.
     ///
-    /// Nachgemessen (Breite 328 pt): 370,0 / 374,7 / 384,3 pt bei den
-    /// Schriftfaktoren 0,824 / 1,0 / 1,353 — die Rechnung liegt überall ein
-    /// bis drei Punkte darüber.
+    /// **Der Kopf wächst in STUFEN, nicht linear.** Die erste Fassung dieser
+    /// Rechnung setzte den Kopf als `67 + 27·Faktor` an — eine Gerade durch
+    /// drei Messpunkte (xSmall, Standard, xxxLarge). Zwischen den Punkten
+    /// liegt die Wahrheit aber DRÜBER: `UIFontMetrics` skaliert die
+    /// Kopfzeilen des `UIDatePicker` stufig, und bei xLarge/xxLarge stand das
+    /// Blatt 1,7 bzw. 3,3 pt über der Geraden (nachgemessen im Simulator,
+    /// Breite 328 pt: 379,7 bzw. 384,3 pt gegen 378 bzw. 381 pt Reserve).
+    /// Die Karte wuchs GENAU DANN nach dem Öffnen — das „manchmal" aus der
+    /// Rückmeldung war die Schriftgröße. Jetzt ist die Reserve eine
+    /// HÜLLKURVE über allen Messpunkten: unterhalb des Standards eine flache
+    /// Gerade, darüber eine steile, gedeckelt am xxLarge/xxxLarge-Plateau.
+    ///
+    /// **Der Faktor hier ist der GEMESSENE** (`@ScaledMetric` 100, geteilt
+    /// durch 100) — nicht das Verhältnis der Body-Schriftgrade aus der
+    /// Tabelle. `UIFontMetrics` skaliert große Ausgangswerte flacher: bei
+    /// xxLarge steht in der Schrifttabelle 21/17 = 1,235, gemessen kommen
+    /// 1,1833 an. Wer die Kurve gegen die Tabellenwerte eicht, liegt bei
+    /// den echten Eingaben wieder daneben.
+    ///
+    /// Nachgemessen (Breite 328 pt), Endhöhe des Blatts je GEMESSENEM
+    /// Faktor:
+    ///   Gerät:     370,0 / 374,7 / 384,3   bei 0,824 / 1,0 / 1,353
+    ///   Simulator: 372 / 373 / 374 / 376 / 379,7 / 384,3 / 384,3
+    ///     bei 0,8633 / 0,9100 / 0,9533 / 1,0 / 1,0900 / 1,1833 / 1,3167
+    /// — die Hüllkurve liegt überall bis zu vier Punkte darüber und
+    /// nirgends darunter.
     static func calendarHeight(width: CGFloat, typeScale: CGFloat = 1) -> CGFloat {
         let rows = 6 * max(0, width) / 7
         // Auf einen vernünftigen Bereich geklemmt: eine Schriftskala von 0
         // oder 5 gibt es nicht, und ein Ausreißer soll die Karte nicht
         // zerlegen.
         let scale = min(2, max(0.5, typeScale))
-        return (rows + 67 + 27 * scale).rounded(.up)
+        let header: CGFloat = scale <= 1
+            ? 95 + 17 * (scale - 1)
+            : min(95 + 46 * (scale - 1), 104.5)
+        return (rows + header).rounded(.up)
     }
 
     // MARK: – Grenzen der Datumswahl
