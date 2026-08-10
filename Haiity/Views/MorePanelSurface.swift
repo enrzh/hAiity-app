@@ -120,6 +120,8 @@ struct WithdrawingChrome<Content: View>: View {
 struct MorePanelSurface: View {
     let store: HabitStore
     let cloudStatus: CloudSyncStatus
+    /// Auswahl der Statistik-Karten — nur durchgereicht an MoreView.
+    let statsCards: StatsCardStore
     let namespace: Namespace.ID
     /// Wohin der Fortschritt gemeldet wird. NUR schreibend benutzt — diese
     /// Ansicht liest ihn nie, sie rechnet ihn ohnehin selbst.
@@ -251,7 +253,8 @@ struct MorePanelSurface: View {
             // Vergleich hängt die Liste nur noch an dem, was sie wirklich
             // zeigt — Änderungen am Speicher kommen weiterhin an (die laufen
             // über Observation, nicht über diesen Vergleich).
-            MoreView(store: store, cloudStatus: cloudStatus, onOpen: onOpen)
+            MoreView(store: store, cloudStatus: cloudStatus,
+                     statsCards: statsCards, onOpen: onOpen)
                 .equatable()
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     // Ohne `animation(nil)` läuft der Abstand die ganze

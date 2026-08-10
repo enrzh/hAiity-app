@@ -258,7 +258,10 @@ enum GoalEngine {
 
     /// Zählende Tage pro Periode, gebuckelt nach Periodenanfang. Nur
     /// plausible Tage — Müll und Zukunft dürfen keine Periode erfüllen.
-    private static func periodCounts(habit: Habit,
+    /// Intern statt privat: die Gesamt-Serie über alle Habits (StatsEngine)
+    /// braucht exakt dieselbe Bucketierung — zweimal implementiert wäre sie
+    /// irgendwann zweimal verschieden.
+    static func periodCounts(habit: Habit,
                                      schedule: Recurrence.Schedule,
                                      today: String,
                                      calendar: Calendar) -> [Date: Int] {

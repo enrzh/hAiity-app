@@ -75,6 +75,10 @@ struct ContentView: View {
     /// Fährt der Anlegen-Knopf gerade? Solange ja, KEINE gemeinsame
     /// Glas-Vereinigung (siehe `chromeUnion`).
     @State private var chromeTravelling = false
+    /// Auswahl der Statistik-Karten über dem Titel. Eigener kleiner Store
+    /// (App-Group-Defaults), bewusst NICHT im HabitStore: die Auswahl ist
+    /// eine Ansichts-Einstellung und soll weder Export noch iCloud anfassen.
+    @State private var statsCards = StatsCardStore()
     @State private var search = ""
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
@@ -301,7 +305,12 @@ struct ContentView: View {
                 .navigationTitle("Habits")
         } else {
             habitList
-                .navigationTitle("Habits")
+                // Der große Titel steht seit den Statistik-Karten IN der
+                // Liste (`titleRow`) — nur so kann etwas ÜBER ihm scrollen.
+                // Die Navigationsleiste bleibt (Suche, Blob), aber ohne
+                // eigenen Titel: zwei „Habits" übereinander wären keins.
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
                 .environment(\.editMode, $editMode)
                 .searchableHidden(text: $search,
                                   isPresented: $searching,
@@ -315,13 +324,17 @@ struct ContentView: View {
 
     private var habitList: some View {
         List {
+            statsRow
+            titleRow
             if filteredHabits.isEmpty {
                 ContentUnavailableView.search(text: search)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             } else {
                 ForEach(Array(filteredHabits.enumerated()), id: \.element.id) { index, habit in
-                    row(for: habit, index: index)
+                    // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
+                    // da und damit der stabile Anker der Scroll-Messung).
+                    row(for: habit, index: index + 1)
                 }
                 .onMove(perform: search.isEmpty
                     ? { store.move(fromOffsets: $0, toOffset: $1) }
@@ -329,6 +342,12 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        // Runterziehen ÖFFNET die Suche — wie Spotlight auf dem Homescreen.
+        // `simultaneousGesture`: das Scrollen der Liste läuft ungestört
+        // weiter, die Geste liest nur mit. Entschieden wird rein aus
+        // Fingerweg und Zeilenbewegung (SearchPull) — kein `@State` pro
+        // Bild, die Zwischenstände liegen in der Chrom-Kiste.
+        .simultaneousGesture(searchPullGesture)
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
@@ -351,6 +370,65 @@ struct ContentView: View {
     /// eine Bewegung ohne Finger und der Umschalter triebe sich selbst.
     private var chromeFootprint: CGFloat {
         Theme.Metrics.control + Theme.Metrics.gap + Theme.Metrics.gutter
+    }
+
+    /// Die Statistik-Karten ÜBER dem Titel — eine Listenzeile, die mit
+    /// scrollt. Null aktive Karten: die Zeile existiert gar nicht (kein
+    /// leerer Behälter). Der Schnappschuss ist memoisiert (StatsEngine):
+    /// eine `body`-Auswertung kostet hier nur den Gleichheitsvergleich.
+    @ViewBuilder
+    private var statsRow: some View {
+        if !statsCards.prefs.active.isEmpty {
+            StatsCardsView(snapshot: StatsEngine.snapshot(habits: store.activeHabits),
+                           cards: statsCards.prefs.active)
+                .equatable()
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
+                                          leading: Theme.Metrics.gutter,
+                                          bottom: 0,
+                                          trailing: Theme.Metrics.gutter))
+        }
+    }
+
+    /// Der große „Habits"-Titel als LISTENZEILE — die Navigationsleiste
+    /// trägt keinen mehr (siehe `habitsScreen`), sonst könnten die Karten
+    /// nicht darüber stehen. Trägt Messfühler 0: die Zeile ist immer da und
+    /// damit der Anker für „oben ist offen" und den Such-Zug.
+    private var titleRow: some View {
+        Text(String(localized: "Habits"))
+            .font(.largeTitle.bold())
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .background(rowProbe(0))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
+                                      leading: Theme.Metrics.gutter,
+                                      bottom: 2,
+                                      trailing: Theme.Metrics.gutter))
+            .accessibilityIdentifier("habits-title")
+    }
+
+    /// Der Such-Zug: ein Runterziehen am LISTENANFANG über die Schwelle
+    /// öffnet die Suche mit Tastatur. Die Entscheidung trifft `SearchPull`
+    /// aus zwei Größen: dem Fingerweg (aus der Geste) und der echten
+    /// Zeilenbewegung (aus der Scroll-Messung, via Chrom-Kiste). Nur im
+    /// Gummiband am Listenanfang bewegt sich der Inhalt deutlich LANGSAMER
+    /// als der Finger — genau daran erkennt der Zug „oben und drübergezogen",
+    /// ohne normales Scrollen zu kapern und ohne je einen `@State` pro Bild
+    /// anzufassen.
+    private var searchPullGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                guard screen == .habits, !searching, backfill == nil else { return }
+                if chrome.pull.update(translation: value.translation) {
+                    searching = true
+                    searchFieldFocused = true
+                    Theme.Haptics.select()
+                }
+            }
+            .onEnded { _ in chrome.pull.ended() }
     }
 
     private func row(for habit: Habit, index: Int) -> some View {
@@ -571,6 +649,10 @@ struct ContentView: View {
     }
 
     private func handleScroll(_ frames: [Int: CGFloat]) {
+        // Der Such-Zug braucht die Lage der Titelzeile (Messfühler 0) —
+        // in die Kiste geschrieben, nie in einen `@State`: das ist reine
+        // Buchführung und darf keinen `body` invalidieren.
+        chrome.pull.latestFirst = frames[0]
         guard screen == .habits else { chrome.scroll.rebase(frames); return }
         guard let want = chrome.scroll.decide(frames) else { return }
         if reduceMotion {
@@ -758,6 +840,7 @@ struct ContentView: View {
         if moreOpen {
             MorePanelSurface(store: store,
                              cloudStatus: cloudStatus,
+                             statsCards: statsCards,
                              namespace: glassNamespace,
                              chrome: panelProgress,
                              onOpen: { moreSheet = $0 },
@@ -1474,6 +1557,71 @@ struct ContentView: View {
 /// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
 final class ChromeScrollBox {
     var scroll = ChromeScroll()
+    var pull = SearchPull()
+}
+
+/// „Runterziehen öffnet die Suche" — die reine Entscheidung, ohne SwiftUI.
+///
+/// Das Problem, das sie löst: aus Zeilenpositionen allein ist „über den
+/// Listenanfang hinausgezogen" nicht von „nach oben gescrollt" zu
+/// unterscheiden (beides bewegt Zeilen nach unten), und eine gelernte
+/// Ruhelage verlernt jeder Layoutwechsel. Deshalb zwei Signale statt einem:
+///
+///  * der FINGERWEG aus der Ziehgeste (`translation`), und
+///  * die echte ZEILENBEWEGUNG seit Beginn der Geste (Messfühler 0,
+///    von `handleScroll` in `latestFirst` abgelegt).
+///
+/// Im Gummiband am Listenanfang folgt der Inhalt dem Finger nur gebremst
+/// (~halbe Strecke, iOS-Rubberband); beim normalen Scrollen folgt er 1:1.
+/// Gefeuert wird also genau dann, wenn der Finger DEUTLICH weiter ist als
+/// die Zeilen — und die Titelzeile beim Aufsetzen überhaupt sichtbar war
+/// (mitten in der Liste ist Messfühler 0 abgeräumt und `latestFirst` nil,
+/// dann kann die Geste nie feuern). Einmal je Geste, danach verriegelt.
+struct SearchPull {
+    /// Jüngste Lage der Titelzeile — Buchführung aus `handleScroll`.
+    var latestFirst: CGFloat?
+
+    private var tracking = false
+    private var startFirst: CGFloat?
+    private var fired = false
+
+    /// So weit muss der FINGER mindestens gezogen haben: eine bewusste
+    /// Strecke, kein Wackler — dieselbe Größenordnung wie Spotlight.
+    static let minTranslation: CGFloat = 90
+    /// Die Zeilen dürfen höchstens so viel vom Fingerweg mitgegangen sein.
+    /// 1:1 (= 1,0) ist Scrollen; das Gummiband liegt bei ~0,5.
+    static let maxRatio: CGFloat = 0.6
+    /// … aber bewegt haben müssen sie sich schon: ein Zug, bei dem gar
+    /// nichts mitkommt, ist keiner (z. B. wenn eine andere Geste gewann).
+    static let minTravel: CGFloat = 12
+
+    /// Neuer Gestenstand. `true` genau EINMAL: im Moment des Auslösens.
+    mutating func update(translation: CGSize, first: CGFloat?? = nil) -> Bool {
+        // ERST den Anker setzen, DANN die frische Messung übernehmen — der
+        // Startwert der Geste ist die Lage VOR dieser Bewegung.
+        if !tracking {
+            tracking = true
+            startFirst = latestFirst
+            fired = false
+        }
+        if let first { latestFirst = first }
+        guard !fired, let start = startFirst, let current = latestFirst else { return false }
+        let down = translation.height
+        // Deutlich senkrecht und deutlich weit — sonst ist es kein Zug.
+        guard down >= Self.minTranslation, abs(translation.width) < down / 2 else { return false }
+        let travel = current - start
+        guard travel >= Self.minTravel, travel <= Self.maxRatio * down else { return false }
+        fired = true
+        return true
+    }
+
+    /// Finger oben: alles zurück auf Anfang — die nächste Geste entscheidet
+    /// wieder frisch.
+    mutating func ended() {
+        tracking = false
+        startFirst = nil
+        fired = false
+    }
 }
 
 /// Oberkanten aller sichtbaren Zeilen, Index -> minY im Listen-Koordinatenraum.

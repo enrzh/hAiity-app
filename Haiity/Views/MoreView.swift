@@ -30,12 +30,15 @@ enum MoreRoute: Hashable, Identifiable {
 struct MoreView: View, Equatable {
     static func == (a: MoreView, b: MoreView) -> Bool {
         a.store === b.store && a.cloudStatus === b.cloudStatus
+            && a.statsCards === b.statsCards
     }
 
     let store: HabitStore
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
     /// die Zeile sagt, warum nicht.
     let cloudStatus: CloudSyncStatus
+    /// Auswahl der Statistik-Karten über der Liste (höchstens zwei).
+    let statsCards: StatsCardStore
     /// Ein seitenartiges Ziel öffnen (Statistik, Archiv, Über).
     let onOpen: (MoreRoute) -> Void
 
@@ -74,6 +77,8 @@ struct MoreView: View, Equatable {
 
             appearanceSection
             paletteSection
+
+            statsCardsSection
 
             dailySummarySection
             weeklySummarySection
@@ -166,6 +171,40 @@ struct MoreView: View, Equatable {
             guard store.matchAppIcon else { return }
             Task { await AppIcons.apply(book) }
         }
+    }
+
+    // MARK: – Statistik-Karten
+    //
+    // Vier Karten, höchstens zwei aktiv. Die Mechanik ist „sperren +
+    // Fußnote", nicht „älteste fliegt raus": ein Schalter, der beim
+    // Einschalten still einen anderen ausschaltet, wäre der einzige in der
+    // ganzen Tafel, der etwas Ungefragtes tut. Gesperrte Schalter bleiben
+    // sichtbar (ausgegraut), die Fußnote sagt warum.
+
+    private var statsCardsSection: some View {
+        Section {
+            ForEach(StatsCard.allCases) { card in
+                Toggle(isOn: cardBinding(card)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(card.displayName, systemImage: card.symbol)
+                        Text(card.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!statsCards.prefs.canToggle(card))
+                .accessibilityIdentifier("stats-card-toggle-\(card.rawValue)")
+            }
+        } header: {
+            Text(String(localized: "Statistik-Karten"))
+        } footer: {
+            Text(String(localized: "Bis zu zwei Karten stehen über der Habit-Liste. Sind zwei aktiv, schalte zuerst eine ab, um eine andere zu wählen."))
+        }
+    }
+
+    private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
+        Binding(get: { statsCards.prefs.isActive(card) },
+                set: { statsCards.prefs.set(card, active: $0) })
     }
 
     // MARK: – Darstellung
