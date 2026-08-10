@@ -46,6 +46,11 @@ struct MoreView: View, Equatable {
     @State private var importMessage: String?
     @State private var summaryDenied = false
     @State private var weeklyDenied = false
+    @State private var testMessage: String?
+    // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
+    // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
+    @State private var currentIconName: String?
+    @State private var iconChangeFailed = false
     // Eigene Farben: anlegen, bearbeiten, umbenennen, löschen.
     @State private var creatingPalette = false
     @State private var editingPalette: CustomPalette?
@@ -82,6 +87,7 @@ struct MoreView: View, Equatable {
 
             dailySummarySection
             weeklySummarySection
+            testNotificationSection
 
             Section {
                 pageRow(.stats, title: String(localized: "Statistik"),
@@ -230,10 +236,112 @@ struct MoreView: View, Equatable {
                 Label(String(localized: "App-Icon anpassen"), systemImage: "app.badge")
             }
             .accessibilityIdentifier("match-icon-toggle")
+
+            iconGrid
+
+            if iconChangeFailed {
+                Text(String(localized: "Der Icon-Wechsel ist auf diesem Gerät gerade nicht möglich."))
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         } header: {
             Text(String(localized: "Darstellung"))
         } footer: {
-            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. Für eigene Farben nimmt das Icon die nächstliegende der sechs eingebauten."))
+            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. Für eigene Farben nimmt das Icon die nächstliegende der sechs eingebauten. Tippst du unten selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus."))
+        }
+    }
+
+    // MARK: – App-Icon-Auswahl
+    //
+    // Der Schalter darüber ist der AUTOMATIK-Modus (Icon folgt der
+    // Graph-Farbe). Das Raster ist der manuelle: ein Tipp setzt das Icon fest
+    // und schaltet die Automatik aus. Vorher gab es NUR den Schalter — und
+    // wer die grüne Standardfarbe benutzt, sah beim Umlegen exakt nichts
+    // (Grün ist das Primär-Icon), was sich als „deaktiviert" las.
+
+    private var iconGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 12)], spacing: 12) {
+            ForEach(GraphPalette.allCases) { palette in
+                iconCell(palette)
+            }
+        }
+        .padding(.vertical, 4)
+        .onAppear { currentIconName = UIApplication.shared.alternateIconName }
+    }
+
+    /// Welche Familie gerade auf dem Homescreen liegt — mit Automatik die
+    /// aus der Graph-Farbe hergeleitete, sonst das zuletzt gesetzte Icon.
+    private var selectedIconPalette: GraphPalette {
+        store.matchAppIcon
+            ? AppIcons.iconPalette(for: store.palettes.global, customs: store.palettes.customs)
+            : AppIcons.palette(forIconName: currentIconName)
+    }
+
+    private func iconCell(_ palette: GraphPalette) -> some View {
+        let selected = selectedIconPalette == palette
+        return Button {
+            chooseIcon(palette)
+        } label: {
+            VStack(spacing: 4) {
+                // Gezeichnet statt aus dem Katalog geladen: die
+                // Alternate-Iconsets liegen in Assets.car, aber
+                // `UIImage(named:)` findet .appiconset-Bilder nicht
+                // zuverlässig (im Simulator gar nicht). Die Miniatur baut
+                // das Icon-Motiv nach — dunkle Kachel, Raster in der Rampe.
+                iconThumbnail(palette)
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .strokeBorder(selected ? Theme.accentFill(palettes.style)
+                                                   : Color.secondary.opacity(0.25),
+                                          lineWidth: selected ? 2.5 : 1))
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.caption2)
+                    .foregroundStyle(selected
+                                     ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                     : AnyShapeStyle(Color.secondary.opacity(0.4)))
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(palette.displayName)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("app-icon-\(palette.rawValue)")
+    }
+
+    /// Das Icon-Motiv als Miniatur: dunkle Kachel, darauf ein 2×2-Raster in
+    /// den Stufen der Familie — dieselbe Rampe wie im Jahresraster.
+    private func iconThumbnail(_ palette: GraphPalette) -> some View {
+        ZStack {
+            Color(red: 0.09, green: 0.11, blue: 0.10)
+            VStack(spacing: 3) {
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: 3) {
+                        ForEach(0..<2, id: \.self) { col in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(Theme.level([2, 4, 3, 1][row * 2 + col],
+                                                  dark: true, palette: palette.style))
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Manuelle Wahl: Automatik aus, Icon setzen, Ergebnis zurückmelden.
+    private func chooseIcon(_ palette: GraphPalette) {
+        store.matchAppIcon = false
+        Task {
+            let ok = await AppIcons.set(palette)
+            await MainActor.run {
+                iconChangeFailed = !ok
+                // Nicht zurücklesen: `alternateIconName` hinkt der Animation
+                // des System-Dialogs hinterher, und die Markierung stünde
+                // einen Moment auf dem falschen Icon.
+                currentIconName = ok ? AppIcons.name(for: palette)
+                                     : UIApplication.shared.alternateIconName
+            }
         }
     }
 
@@ -383,7 +491,12 @@ struct MoreView: View, Equatable {
                 // das Standard-Icon wieder her — sonst bliebe ein oranges
                 // Icon kleben, obwohl die Kopplung aus ist.
                 let book = on ? store.palettes : PaletteBook()
-                Task { await AppIcons.apply(book) }
+                Task {
+                    await AppIcons.apply(book)
+                    await MainActor.run {
+                        currentIconName = UIApplication.shared.alternateIconName
+                    }
+                }
             })
     }
 
@@ -479,9 +592,50 @@ struct MoreView: View, Equatable {
     }
 
     private var permissionHint: some View {
-        Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Zusammenfassung."))
-            .font(.caption)
-            .foregroundStyle(.orange)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Zusammenfassung."))
+                .font(.caption)
+                .foregroundStyle(.orange)
+            // Der direkte Sprung statt einer Wegbeschreibung: iOS öffnet die
+            // Mitteilungs-Einstellungen DIESER App.
+            Button(String(localized: "iOS-Einstellungen öffnen")) {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .font(.caption.weight(.semibold))
+            .accessibilityIdentifier("open-notification-settings")
+        }
+    }
+
+    /// Der sichtbare Beweis, dass die Kette bis zum Banner reicht — eine
+    /// echte, über den normalen Weg geplante Mitteilung in zehn Sekunden.
+    private var testNotificationSection: some View {
+        Section {
+            Button {
+                testMessage = nil
+                Task {
+                    let ok = await Reminders.scheduleTest()
+                    await MainActor.run {
+                        testMessage = ok
+                            ? String(localized: "Kommt in 10 Sekunden — auch bei geöffneter App.")
+                            : String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert.")
+                        summaryDenied = !ok
+                    }
+                }
+            } label: {
+                Label(String(localized: "Test-Mitteilung"), systemImage: "bell.badge")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("test-notification")
+            if let testMessage {
+                Text(testMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } footer: {
+            Text(String(localized: "Prüft, ob Mitteilungen von hAiity ankommen."))
+        }
     }
 
     /// Wochentage in der Reihenfolge des Nutzerkalenders (Mo … So in

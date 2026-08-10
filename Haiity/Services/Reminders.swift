@@ -49,6 +49,22 @@ enum Reminders {
     static let summaryId = "summary"
     static let weeklySummaryId = "summary-weekly"
 
+    /// Präfix der VORAUS geplanten Tagesmeldungen (ein Wecker je kommendem
+    /// Tag mit Terminen). Die einmalige `summaryId`-Meldung trägt den Stand
+    /// von HEUTE — aber sie existiert nur, wenn die App am selben Tag vor der
+    /// Uhrzeit lief. Wer die App drei Tage nicht öffnet, bekam bis v11 in
+    /// diesen drei Tagen GAR NICHTS: genau das gemeldete „Benachrichtigungen
+    /// kommen nicht". Deshalb stellt `reschedule` zusätzlich für jeden der
+    /// nächsten Tage, an dem laut Regel etwas ansteht, einen Wecker mit dem
+    /// prospektiven Satz („Heute fällig: …"). Öffnet die App vorher, werden
+    /// sie mit frischem Stand ersetzt; Tage ohne Termin bekommen weiterhin
+    /// bewusst keinen.
+    static let upcomingPrefix = "summary-day-"
+    static let upcomingDays = 7
+
+    /// Kennung der Test-Mitteilung (Mehr → „Test-Mitteilung").
+    static let testId = "summary-test"
+
     /// Präfix der bis v4 gestellten Habit-Weckrufe. Es gibt sie nicht mehr,
     /// aber sie liegen auf Geräten mit einem alten Build als anstehende
     /// Anfragen — ohne dieses Aufräumen klingelten sie ewig weiter.
@@ -118,6 +134,40 @@ enum Reminders {
                             repeats: true)
     }
 
+    /// Die vorausgeplanten Tagesmeldungen: für jeden der nächsten
+    /// `upcomingDays` Tage, an dem laut Wiederholungsregel mindestens ein
+    /// aktiver Habit ansteht, ein einmaliger Wecker zur Tageszeit der
+    /// Zusammenfassung. Pur und damit prüfbar; heute selbst deckt weiterhin
+    /// `dailySummaryPlan` mit dem ECHTEN Stand ab.
+    static func upcomingDailyPlans(minutes: Int?,
+                                   habits: [Habit],
+                                   now: Date = Date(),
+                                   calendar: Calendar = .current) -> [ReminderPlan] {
+        guard let minutes, (0..<24 * 60).contains(minutes) else { return [] }
+        let active = habits.filter { $0.archivedAt == nil }
+        guard !active.isEmpty else { return [] }
+        var plans: [ReminderPlan] = []
+        var day = DayKey.key(for: now, calendar: calendar)
+        for _ in 0..<upcomingDays {
+            guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+            day = next
+            let due = active
+                .filter { GoalEngine.isScheduled(habit: $0, day: day, calendar: calendar) }
+                .map(\.name)
+            guard let body = SummaryText.upcoming(due, locale: calendar.locale ?? .current),
+                  let date = DayKey.date(from: day, calendar: calendar) else { continue }
+            var c = calendar.dateComponents([.year, .month, .day], from: date)
+            c.hour = minutes / 60
+            c.minute = minutes % 60
+            plans.append(ReminderPlan(identifier: upcomingPrefix + day,
+                                      title: String(localized: "Heute"),
+                                      body: body,
+                                      dateMatching: c,
+                                      repeats: false))
+        }
+        return plans
+    }
+
     // MARK: – Ausführung
 
     /// Stellt die beiden Zusammenfassungen neu. Idempotent: erst alle eigenen
@@ -130,16 +180,41 @@ enum Reminders {
 
         let pending = await center.pendingNotificationRequests()
         let ours = pending.map(\.identifier).filter {
-            $0 == summaryId || $0 == weeklySummaryId || $0.hasPrefix(legacyHabitPrefix)
+            $0 == summaryId || $0 == weeklySummaryId
+                || $0.hasPrefix(legacyHabitPrefix) || $0.hasPrefix(upcomingPrefix)
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
-        for plan in [daily, weekly].compactMap({ $0 }) {
+        // Die Voraus-Wecker lesen ihren Stoff selbst von der Platte — die
+        // Aufrufer geben nur die beiden Zusammenfassungen mit, und dieselbe
+        // data.json ist ohnehin die einzige Wahrheit (auch fürs Widget).
+        var plans = [daily, weekly].compactMap { $0 }
+        if let data = HabitStore.read(SharedStorage.dataURL()) {
+            plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
+        }
+        for plan in plans {
             try? await center.add(request(plan))
         }
     }
 
-    private static func request(_ plan: ReminderPlan) -> UNNotificationRequest {
+    /// Eine Probemeldung in `seconds` Sekunden — der sichtbare Beweis, dass
+    /// die Kette bis zum Banner reicht. false, wenn die Berechtigung fehlt.
+    static func scheduleTest(after seconds: TimeInterval = 10) async -> Bool {
+        guard await ensurePermission() else { return false }
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Test-Mitteilung")
+        content.body = String(localized: "So sieht eine Zusammenfassung von hAiity aus.")
+        content.sound = .default
+        center.removePendingNotificationRequests(withIdentifiers: [testId])
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+        try? await center.add(UNNotificationRequest(identifier: testId,
+                                                    content: content,
+                                                    trigger: trigger))
+        return true
+    }
+
+    static func request(_ plan: ReminderPlan) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = plan.title
         content.body = plan.body
@@ -147,5 +222,20 @@ enum Reminders {
         let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateMatching,
                                                     repeats: plan.repeats)
         return UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
+    }
+}
+
+/// Ohne Delegat wirft iOS geplante Mitteilungen WEG, solange die App vorne
+/// ist — wer die Zusammenfassung einschaltet und zum Testen in der App auf
+/// die Uhrzeit wartet, sieht: nichts. Genau so wurde v11 als „Mitteilungen
+/// funktionieren nicht" gemeldet. Der Delegat sagt dem System, dass Banner,
+/// Ton und Mitteilungsliste auch im Vordergrund gelten.
+final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationPresenter()
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async
+        -> UNNotificationPresentationOptions {
+        [.banner, .sound, .list]
     }
 }

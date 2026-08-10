@@ -69,6 +69,22 @@ enum AppIcons {
         return candidates.min { $0.1 < $1.1 }?.0 ?? .default
     }
 
+    /// Umkehrung von `name(for:)` — aus dem, was iOS als
+    /// `alternateIconName` meldet, wird die Familie fürs Auswahlraster.
+    /// Unbekannte Namen (kaputter Stand, künftige Icons) fallen auf Grün
+    /// zurück, weil nil dort ohnehin „Primär-Icon" heißt.
+    static func palette(forIconName name: String?) -> GraphPalette {
+        GraphPalette.allCases.first { self.name(for: $0) == name } ?? .default
+    }
+
+    /// Anzeigename des Bildes im Auswahlraster. Dank
+    /// `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` liegen alle
+    /// .appiconset auch als benannte Bilder in Assets.car — `UIImage(named:)`
+    /// findet sie ohne lose PNGs.
+    static func assetName(for palette: GraphPalette) -> String {
+        name(for: palette) ?? "AppIcon"
+    }
+
     @MainActor
     static func apply(_ book: PaletteBook) async {
         await apply(iconPalette(for: book.global, customs: book.customs))
@@ -76,12 +92,22 @@ enum AppIcons {
 
     @MainActor
     static func apply(_ palette: GraphPalette) async {
-        let app = UIApplication.shared
-        guard app.supportsAlternateIcons else { return }
-        let wanted = name(for: palette)
-        guard app.alternateIconName != wanted else { return }
         // Fehler bewusst geschluckt: ein fehlgeschlagener Icon-Wechsel ist
         // kosmetisch und darf die Farbumstellung nicht zurückrollen.
-        try? await app.setAlternateIconName(wanted)
+        _ = await set(palette)
+    }
+
+    /// Wie `apply`, aber mit Antwort — das Auswahlraster in „Mehr" sagt dem
+    /// Nutzer, wenn der Wechsel nicht ging, statt still nichts zu tun (genau
+    /// dieses Schweigen las sich auf dem Gerät als „ist deaktiviert").
+    @MainActor
+    @discardableResult
+    static func set(_ palette: GraphPalette) async -> Bool {
+        let app = UIApplication.shared
+        guard app.supportsAlternateIcons else { return false }
+        let wanted = name(for: palette)
+        guard app.alternateIconName != wanted else { return true }
+        do { try await app.setAlternateIconName(wanted); return true }
+        catch { return false }
     }
 }

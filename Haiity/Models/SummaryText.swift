@@ -55,6 +55,15 @@ enum SummaryText {
         return String(localized: "\(status.done) von \(status.total) erledigt · offen: \(names)")
     }
 
+    /// Der PROSPEKTIVE Tagessatz für einen Tag, den die App noch nicht
+    /// gesehen hat (die Voraus-Wecker in `Reminders.upcomingDailyPlans`).
+    /// Er kennt keinen Erledigt-Stand — nur, was laut Regel ansteht.
+    /// nil bei leerer Liste: kein Termin, keine Meldung.
+    static func upcoming(_ names: [String], locale: Locale = .current) -> String? {
+        guard !names.isEmpty else { return nil }
+        return String(localized: "Heute fällig: \(nameList(names, locale: locale))")
+    }
+
     /// Der Satz der Wochenzusammenfassung. nil, wenn diese Woche gar kein
     /// Termin fällig war.
     static func weekly(_ status: SummaryStatus, locale: Locale = .current) -> String? {
