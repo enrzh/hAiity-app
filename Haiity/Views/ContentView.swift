@@ -264,6 +264,16 @@ struct ContentView: View {
                 nativeTab = .habits
                 if backfill == nil { showAdd = true }
             }
+            .onChange(of: searchFieldFocused) { _, focused in
+                // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert unter
+                // `.minimize` das Feld sofort wieder — genau der Kreislauf,
+                // der das X mehrfach drücken ließ: das System schreibt beim
+                // Abbrechen kurz `focus = true`, und je nach Reihenfolge
+                // landet das NACH unserem Löschen. Hier hart klemmen: Fokus
+                // gibt es nur bei offener Suche. (`openSearch` setzt
+                // `searching` VOR dem Fokus, der legitime Weg bleibt frei.)
+                if focused && !searching { searchFieldFocused = false }
+            }
             .onChange(of: searching) { _, open in
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
                 // Scrollen — den Lauf verwerfen, sonst wirkt er hinterher nach.
@@ -274,12 +284,7 @@ struct ContentView: View {
                 // (X → Lupe → Leiste klappt wieder auf).
                 if !open {
                     searchFieldFocused = false
-                    // Rückkehr zu `.minimize` erst, wenn die Abklapp-
-                    // Animation sicher durch ist (sonst: X → Lupe → Leiste
-                    // klappt wieder auf).
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                        if !searching { searchNeedsAutomaticBehavior = false }
-                    }
+                    scheduleMinimizeReturn()
                 }
             }
     }
@@ -488,6 +493,36 @@ struct ContentView: View {
         searchNeedsAutomaticBehavior = true
         withAnimation { searching = true }
         searchFieldFocused = true
+    }
+
+    /// Nach JEDEM Schließen zurück zu `.minimize` — aber erst an einem
+    /// sicheren Punkt: Suche zu, kein (auch kein nachzüglerischer) Fokus.
+    ///
+    /// Der alte Weg (fester 0.7-s-Timer, der bei `searching == true` einfach
+    /// aufgab) hatte zwei Löcher, beide vom Gerät gemeldet („X mehrmals
+    /// drücken"):
+    ///  * Wer innerhalb der 0.7 s wieder öffnete, ließ `.automatic` für immer
+    ///    stehen — die Leiste stand danach DAUERHAFT unter dem Titel, kein X
+    ///    der Welt schloss sie noch.
+    ///  * Fiel der Umschalter mitten in die Abklapp-Animation, riss er die
+    ///    Leiste wieder auf.
+    /// Deshalb: bei offener Suche nicht aufgeben, sondern SPÄTER erneut
+    /// versuchen (das nächste Schließen findet so immer einen scharfen
+    /// Rücksteller vor), bei hängendem Fokus erst den Fokus lösen, und der
+    /// eigentliche Wechsel läuft ohne Animation — er ist reine Buchhaltung,
+    /// nichts, das eine laufende System-Animation kapern darf.
+    private func scheduleMinimizeReturn(attempt: Int = 0) {
+        guard attempt < 8 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            guard searchNeedsAutomaticBehavior else { return }
+            guard !searching, !searchFieldFocused else {
+                scheduleMinimizeReturn(attempt: attempt + 1)
+                return
+            }
+            var tx = Transaction()
+            tx.disablesAnimations = true
+            withTransaction(tx) { searchNeedsAutomaticBehavior = false }
+        }
     }
 
     private var filteredHabits: [Habit] {
