@@ -24,7 +24,16 @@ import SwiftUI
 /// über dem Raster; genau das war die Rückmeldung. Der Preis: die Zeilen
 /// ändern beim Umschalten ihre Höhe und schieben einander — die Messung in
 /// `ChromeScroll` setzt dafür kurz aus (Nachlaufsperre).
-struct HabitCard: View {
+/// `Equatable` aus demselben Grund wie `ContributionGrid`: die Karte hängt
+/// sichtbar nur an `habit` und `collapsed` — ihre Closures sind Verhalten,
+/// bei jeder Auswertung des Aufrufers frisch gebaut und semantisch dieselben.
+/// Ohne den Vergleich reißt jede `ContentView`-Auswertung (Tafel auf/zu,
+/// Toast, Sync-Pille) alle sichtbaren Karten mit.
+struct HabitCard: View, Equatable {
+    static func == (a: HabitCard, b: HabitCard) -> Bool {
+        a.habit == b.habit && a.collapsed == b.collapsed
+    }
+
     let habit: Habit
     /// Zusammengezogener Kopf (beim Scrollen). Standard `false`, damit
     /// Vorschauen und Tests die Karte ohne Scroll-Kontext bauen können.
@@ -86,7 +95,10 @@ struct HabitCard: View {
     private var outerGap: CGFloat { collapsed ? 12 : Theme.Metrics.gutter }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: innerGap) {
+        #if DEBUG
+        let _ = FrameProbe.shared.mark("card.body")
+        #endif
+        return VStack(alignment: .leading, spacing: innerGap) {
             header
                 // Der Schlucker liegt HINTER dem Kopf, nicht darüber: die
                 // Knöpfe darin (Heute-Pille, drei Punkte) sind gezeichnete
@@ -127,7 +139,12 @@ struct HabitCard: View {
     /// WÄHLT den Tag aus und öffnet die Nacharbeiten-Karte — er schreibt
     /// nicht.
     private var grid: some View {
+        // `.equatable()` ist Tempo, nicht Kosmetik (dasselbe Muster wie die
+        // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
+        // Auswertung dieser Karte die 371 Zellen neu, auch wenn sich nur das
+        // Chrom bewegt hat. Store-Änderungen kommen an — sie ändern `habit`.
         ContributionGrid(habit: habit, onSelectDay: onSelectDay)
+            .equatable()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemGroupedBackground),
@@ -225,6 +242,7 @@ struct HabitCard: View {
                              cellSize: Self.previewCell,
                              gap: Self.previewGap,
                              interactive: false)
+                .equatable()
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)

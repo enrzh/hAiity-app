@@ -22,7 +22,25 @@ import UIKit
 ///    kleinere Quadrate), aber nie mit Dynamic Type — ein Raster aus
 ///    riesigen Quadraten ist nicht die Idee. Nur die Labels wachsen mit.
 ///  * **Scroll-zu-heute**: bei „Bewegung reduzieren" ohne Animation.
-struct ContributionGrid: View {
+/// `Equatable`, damit `.equatable()` an den heißen Stellen greift: das Raster
+/// ist mit Abstand der teuerste Teilbaum einer Karte (371 Zellen), und es
+/// hängt an KEINEM der Werte, die sich bei Chrom-Umbauten ändern (collapsed,
+/// Tafel, Toast). Ohne den Vergleich riss jede `ContentView`-Auswertung alle
+/// sichtbaren Raster mit, weil die frisch gebauten Closures für SwiftUI nie
+/// gleich aussehen. Der Callback bleibt darum ausdrücklich AUSSERHALB des
+/// Vergleichs — er ist Verhalten, nicht Anzeige, und an den `.equatable()`-
+/// Stellen in jeder Auswertung semantisch derselbe.
+struct ContributionGrid: View, Equatable {
+    static func == (a: ContributionGrid, b: ContributionGrid) -> Bool {
+        a.habit == b.habit
+            && a.weeks == b.weeks
+            && a.cellSize == b.cellSize
+            && a.gap == b.gap
+            && a.interactive == b.interactive
+            && a.showsMonthLabels == b.showsMonthLabels
+            && (a.onSelectDay == nil) == (b.onSelectDay == nil)
+    }
+
     let habit: Habit
     var weeks: Int = 53
     /// nil = adaptiv (aus der verfügbaren Breite); gesetzt = feste Größe
@@ -64,6 +82,9 @@ struct ContributionGrid: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = FrameProbe.shared.mark("grid.body")
+        #endif
         let m = metrics
         let pitch = m.cell + m.gap
         let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
@@ -93,6 +114,29 @@ struct ContributionGrid: View {
                             .id(wi)
                         }
                     }
+                    // EIN Tipp-Erkenner für alle 371 Zellen statt einer je
+                    // Zelle. Der Unterschied ist gemessen, nicht geraten:
+                    // jede Zelle mit eigenem `onTapGesture` bringt ihren
+                    // eigenen UIKit-Erkenner mit, und der Aufbau eines
+                    // Rasters beim Hereinscrollen einer Karte kostete damit
+                    // sichtbar Bilder. Getroffen wird über die Geometrie —
+                    // dieselbe Rechnung, aus der die Zellen gezeichnet
+                    // werden — und die Tippbarkeits-Regel bleibt Zeichen für
+                    // Zeichen `GridCalendar.isTappable`.
+                    .contentShape(Rectangle())
+                    .modifier(GridTap(enabled: interactive && onSelectDay != nil) { location in
+                        guard let key = GridCalendar.hitKey(location: location,
+                                                            keys: snapshot.keys,
+                                                            cell: m.cell,
+                                                            gap: m.gap),
+                              GridCalendar.isTappable(key: key,
+                                                      interactive: interactive,
+                                                      today: snapshot.today) else { return }
+                        // Auswahl-Haptik, nicht die des Abhakens: hier wird
+                        // nichts bestätigt, hier wird etwas ausgewählt.
+                        Theme.Haptics.select()
+                        onSelectDay?(key)
+                    })
                 }
                 .padding(.vertical, 2)
             }
@@ -146,14 +190,14 @@ struct ContributionGrid: View {
 
     @ViewBuilder
     private func cell(key: String?, level: Int, today: String, size: CGFloat) -> some View {
-        let tappable = GridCalendar.isTappable(key: key, interactive: interactive, today: today)
         GridCell(color: Theme.level(level,
                                     dark: scheme == .dark,
                                     palette: palettes.style(for: habit)),
                  size: size)
-            // Zukunft: gedimmt und ohne Tap-Handler (siehe isTappable). Die
-            // Regel bleibt Zeichen für Zeichen dieselbe wie früher — geändert
-            // hat sich nur, WAS ein Tipp auslöst.
+            // Zukunft: gedimmt und ohne Tipp-Wirkung (siehe isTappable im
+            // gemeinsamen Erkenner). Die Regel bleibt Zeichen für Zeichen
+            // dieselbe wie früher — geändert hat sich nur, WO sie geprüft
+            // wird.
             .opacity(key == nil ? 0.35 : 1)
             .overlay {
                 if key == today {
@@ -161,13 +205,6 @@ struct ContributionGrid: View {
                         .strokeBorder(.primary, lineWidth: 1.2)
                 }
             }
-            .modifier(TapCell(enabled: tappable) {
-                guard let key else { return }
-                // Auswahl-Haptik, nicht die des Abhakens: hier wird nichts
-                // bestätigt, hier wird etwas ausgewählt.
-                Theme.Haptics.select()
-                onSelectDay?(key)
-            })
     }
 
     /// Misst die Breite, die dem Raster zur Verfügung steht — daraus fällt
@@ -264,16 +301,22 @@ private struct GridWidthKey: PreferenceKey {
     }
 }
 
-/// Tap-Handler nur dann anhängen, wenn die Zelle wirklich tippbar ist —
-/// eine Zukunftszelle bekommt gar keine Gestenerkennung, nicht bloß ein
-/// `guard` im Handler.
-private struct TapCell: ViewModifier {
+/// Tipp-Erkenner fürs GANZE Raster — nur angehängt, wenn das Raster
+/// überhaupt interaktiv ist (Teilen-Karte und Vorschau bekommen gar keine
+/// Gestenerkennung, nicht bloß einen `guard` im Handler).
+private struct GridTap: ViewModifier {
     let enabled: Bool
-    let action: () -> Void
+    let action: (CGPoint) -> Void
 
     func body(content: Content) -> some View {
         if enabled {
-            content.onTapGesture(perform: action)
+            // `onTapGesture(coordinateSpace:)`, NICHT `SpatialTapGesture` in
+            // `.gesture` — Letzterer feuert in dieser Verschachtelung
+            // (List-Zelle mit gehobenem `contextMenu`, horizontale
+            // ScrollView) schlicht nicht (nachgemessen: kein einziger
+            // Treffer). Der Tap-Erkenner hier ist derselbe Mechanismus, den
+            // vorher jede Zelle einzeln trug.
+            content.onTapGesture(coordinateSpace: .local) { action($0) }
         } else {
             content
         }

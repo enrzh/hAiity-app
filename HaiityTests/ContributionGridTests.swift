@@ -207,6 +207,48 @@ final class GridWindowTests: GridTestCase {
         XCTAssertTrue(GridCalendar.isTappable(key: "2025-12-31", interactive: true, today: "2026-08-09"))
     }
 
+    // MARK: – Treffertest des gemeinsamen Tipp-Erkenners
+    //
+    // Seit die Zellen keinen eigenen Erkenner mehr tragen, entscheidet
+    // `hitKey` über die Trefferfläche. Sie muss exakt die alte sein: die
+    // Zelle trifft, die Lücke nicht, außerhalb ist nichts.
+
+    func testHitKeyMapsPointsToCells() {
+        let keys = GridCalendar.keys(weeks: 53, today: "2026-08-09", calendar: cal)
+        let cell: CGFloat = 11, gap: CGFloat = 3   // pitch 14
+        // Ecke der ersten Zelle -> ältester Sonntag.
+        XCTAssertEqual(GridCalendar.hitKey(location: CGPoint(x: 0, y: 0),
+                                           keys: keys, cell: cell, gap: gap), keys[0][0])
+        // Mitte einer mittleren Zelle.
+        XCTAssertEqual(GridCalendar.hitKey(location: CGPoint(x: 14 * 10 + 5, y: 14 * 3 + 5),
+                                           keys: keys, cell: cell, gap: gap), keys[10][3])
+        // Letzte Spalte, Zeile heute (Sonntag).
+        XCTAssertEqual(GridCalendar.hitKey(location: CGPoint(x: 14 * 52 + 1, y: 1),
+                                           keys: keys, cell: cell, gap: gap), keys[52][0])
+        // Zukunftszelle liefert nil-Schlüssel (Spalte heute, Zeile morgen).
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: 14 * 52 + 1, y: 14 + 1),
+                                         keys: keys, cell: cell, gap: gap))
+    }
+
+    func testHitKeyMissesGapsAndOutside() {
+        let keys = GridCalendar.keys(weeks: 53, today: "2026-08-09", calendar: cal)
+        let cell: CGFloat = 11, gap: CGFloat = 3
+        // In der Lücke rechts neben bzw. unter einer Zelle: kein Treffer.
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: 12, y: 5),
+                                         keys: keys, cell: cell, gap: gap))
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: 5, y: 12),
+                                         keys: keys, cell: cell, gap: gap))
+        // Außerhalb des Rasters.
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: -1, y: 0),
+                                         keys: keys, cell: cell, gap: gap))
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: 0, y: 14 * 7 + 1),
+                                         keys: keys, cell: cell, gap: gap))
+        XCTAssertNil(GridCalendar.hitKey(location: CGPoint(x: 14 * 53 + 1, y: 0),
+                                         keys: keys, cell: cell, gap: gap))
+        // Entartete Maße stürzen nicht ab.
+        XCTAssertNil(GridCalendar.hitKey(location: .zero, keys: keys, cell: 0, gap: 0))
+    }
+
     func testHabitCreatedTodayRendersEmptyGrid() {
         let h = habit(createdAt: "2026-08-09")
         let snap = GridCalendar.snapshot(habit: h, weeks: 53, today: "2026-08-09", calendar: cal)

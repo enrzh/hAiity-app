@@ -85,7 +85,18 @@ struct ContentView: View {
     @State private var editMode: EditMode = .inactive
     /// Scroll-Zustand der Habit-Liste, ausschließlich aus Zeilenpositionen
     /// abgeleitet (siehe ChromeScroll).
-    @State private var chrome = ChromeScroll()
+    ///
+    /// **In einer Kiste, nicht als `@State`-Wert.** `decide` mutiert bei
+    /// JEDER Messung (jede Zeilenbewegung, jedes Bild) — als Wert-`@State`
+    /// invalidierte damit jedes Scroll-Bild den ganzen `ContentView.body`
+    /// samt aller Karten und Raster (nachgemessen mit der Bildzeit-Sonde:
+    /// 1–3 Bilder je Sekunde beim Scrollen). Die Kiste ist eine schlichte
+    /// Referenz ohne Observation: Schreiben löst nichts aus. Was die
+    /// Oberfläche wirklich braucht, ist allein die ENTSCHEIDUNG — und nur
+    /// die steht als `@State` (`chromeCollapsed`) und flippt selten.
+    @State private var chrome = ChromeScrollBox()
+    /// Die eine Zahl, die aus dem Scroll-Signal an der Oberfläche ankommt.
+    @State private var chromeCollapsed = false
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
@@ -106,7 +117,7 @@ struct ContentView: View {
     /// `!searching` ist kein Schönheitsdetail: das Aufklappen der Suche
     /// schiebt die Liste um gut 100 pt: die Zeilenmessung liest das als Wisch
     /// und zieht alle Köpfe zusammen, ohne dass jemand gescrollt hätte.
-    private var collapsed: Bool { chrome.collapsed && screen == .habits && !searching }
+    private var collapsed: Bool { chromeCollapsed && screen == .habits && !searching }
 
     /// Ist die Mehr-Tafel offen?
     private var moreOpen: Bool { screen == .more }
@@ -228,7 +239,7 @@ struct ContentView: View {
             }
             .onChange(of: screen) { _, _ in
                 editMode = .inactive
-                chrome.expand()
+                expandChrome()
                 // Ein Toast, der auf eine Karte zeigt, die man nicht mehr
                 // sieht, ist nur noch ein Knopf ins Ungewisse.
                 undo.clear()
@@ -239,7 +250,7 @@ struct ContentView: View {
             .onChange(of: searching) { _, _ in
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
                 // Scrollen — den Lauf verwerfen, sonst wirkt er hinterher nach.
-                chrome.expand()
+                expandChrome()
             }
     }
 
@@ -361,6 +372,9 @@ struct ContentView: View {
             onArchive: { store.archive(habit.id) },
             onAnswer: { answer(habit, yes: $0) }
         )
+        // `.equatable()`: siehe HabitCard. Ohne das baut jeder Tafel-/Toast-
+        // Umbau alle sichtbaren Karten neu — gemessen der halbe Ruckler.
+        .equatable()
         .background(rowProbe(index))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
@@ -557,12 +571,12 @@ struct ContentView: View {
     }
 
     private func handleScroll(_ frames: [Int: CGFloat]) {
-        guard screen == .habits else { chrome.rebase(frames); return }
-        guard let want = chrome.decide(frames) else { return }
+        guard screen == .habits else { chrome.scroll.rebase(frames); return }
+        guard let want = chrome.scroll.decide(frames) else { return }
         if reduceMotion {
-            chrome.collapsed = want
+            chromeCollapsed = want
         } else {
-            withAnimation(.snappy(duration: 0.26)) { chrome.collapsed = want }
+            withAnimation(.snappy(duration: 0.26)) { chromeCollapsed = want }
             // Für die Dauer der Fahrt bleibt der Anlegen-Knopf ein eigenes
             // Glasstück (siehe chromeUnion). Etwas länger als die Animation,
             // damit die Vereinigung erst greift, wenn wirklich nichts mehr
@@ -573,7 +587,15 @@ struct ContentView: View {
                 chromeTravelling = false
             }
         }
-        chrome.settle()
+        chrome.scroll.settle()
+    }
+
+    /// Ausklappen von außen (Bereichswechsel, Suche): Lauf verwerfen und die
+    /// Entscheidung zurücksetzen. Das Setzen von `chromeCollapsed` auf einen
+    /// unveränderten Wert invalidiert nichts.
+    private func expandChrome() {
+        chrome.scroll.expand()
+        chromeCollapsed = false
     }
 
     private var emptyState: some View {
@@ -1446,6 +1468,13 @@ struct ContentView: View {
 }
 
 // MARK: – Scroll-Signal
+
+/// Referenz-Kiste um `ChromeScroll` — bewusst OHNE Observation. Die Messung
+/// mutiert bei jedem Bild; als `@State`-Wert war genau das die Invalidierung
+/// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
+final class ChromeScrollBox {
+    var scroll = ChromeScroll()
+}
 
 /// Oberkanten aller sichtbaren Zeilen, Index -> minY im Listen-Koordinatenraum.
 private struct RowOffsetKey: PreferenceKey {

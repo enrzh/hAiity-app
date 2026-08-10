@@ -143,6 +143,25 @@ enum GridCalendar {
         return key <= today
     }
 
+    /// Welcher Tagesschlüssel unter einem Punkt im Spalten-Koordinatenraum
+    /// liegt (Ursprung: linke obere Ecke der ersten Zelle). Nur die ZELLE
+    /// trifft, nicht die Lücke — exakt die Trefferfläche, die die Zellen
+    /// vorher einzeln hatten, als jede ihren eigenen Erkenner trug.
+    static func hitKey(location: CGPoint,
+                       keys: [[String?]],
+                       cell: CGFloat,
+                       gap: CGFloat) -> String? {
+        let pitch = cell + gap
+        guard pitch > 0, cell > 0, location.x >= 0, location.y >= 0 else { return nil }
+        let wi = Int(location.x / pitch)
+        let r = Int(location.y / pitch)
+        guard wi >= 0, wi < keys.count, r >= 0, r < rows else { return nil }
+        // In der Lücke hinter bzw. unter der Zelle: kein Treffer.
+        guard location.x - CGFloat(wi) * pitch <= cell,
+              location.y - CGFloat(r) * pitch <= cell else { return nil }
+        return keys[wi][r]
+    }
+
     // MARK: – Snapshot mit Cache
 
     /// Anzahl der ECHTEN Neuberechnungen (Cache-Misses). Der Test belegt
