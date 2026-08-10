@@ -67,6 +67,14 @@ struct ContentView: View {
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
     @FocusState private var searchFieldFocused: Bool
+    /// Solange WAHR, arbeitet `.searchable` mit `.searchToolbarBehavior(.automatic)`
+    /// statt `.minimize` — nötig für jede PROGRAMMATISCHE Präsentation
+    /// (Such-Zug, Deep-Link): unter `.minimize` ignoriert das System das
+    /// `isPresented`- wie das `searchFocused`-Binding vollständig (empirisch
+    /// geprüft, auch verzögert). Zurück auf `.minimize` erst NACH dem
+    /// Zuklappen (verzögert) — der Wechsel mitten in der Abklapp-Animation
+    /// bricht sie ab und präsentiert das Feld erneut.
+    @State private var searchNeedsAutomaticBehavior = false
     /// Sortiermodus. Früher ein `EditButton` in der Toolbar (zu breit), jetzt
     /// ein Punkt im Menü — der Modus muss deshalb selbst gehalten werden.
     @State private var editMode: EditMode = .inactive
@@ -256,10 +264,23 @@ struct ContentView: View {
                 nativeTab = .habits
                 if backfill == nil { showAdd = true }
             }
-            .onChange(of: searching) { _, _ in
+            .onChange(of: searching) { _, open in
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
                 // Scrollen — den Lauf verwerfen, sonst wirkt er hinterher nach.
                 expandChrome()
+                // Beim Schließen den Fokus AKTIV löschen: bleibt das
+                // `searchFocused`-Binding wahr, präsentiert das System das
+                // Feld nach dem Rückwechsel auf `.minimize` sofort wieder
+                // (X → Lupe → Leiste klappt wieder auf).
+                if !open {
+                    searchFieldFocused = false
+                    // Rückkehr zu `.minimize` erst, wenn die Abklapp-
+                    // Animation sicher durch ist (sonst: X → Lupe → Leiste
+                    // klappt wieder auf).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                        if !searching { searchNeedsAutomaticBehavior = false }
+                    }
+                }
             }
     }
 
@@ -455,6 +476,20 @@ struct ContentView: View {
 
     // MARK: – Habits-Bereich
 
+    /// Suche programmatisch öffnen — der EINE Weg für alle Einstiege außer
+    /// der System-Lupe (Such-Zug, Deep-Link, Fallback-Knopf).
+    ///
+    /// Ab iOS 26 reicht `isPresented = true` NICHT: mit
+    /// `.searchToolbarBehavior(.minimize)` klappt das System die Leiste nur
+    /// über seine eigene Lupe oder über den FOKUS auf. Deshalb erst den
+    /// Zustand setzen, dann im nächsten Umlauf den Fokus — das Setzen beider
+    /// im selben Umlauf verschluckt die Präsentation ebenfalls.
+    private func openSearch() {
+        searchNeedsAutomaticBehavior = true
+        withAnimation { searching = true }
+        searchFieldFocused = true
+    }
+
     private var filteredHabits: [Habit] {
         let active = store.activeHabits
         let q = search.trimmingCharacters(in: .whitespaces)
@@ -486,14 +521,15 @@ struct ContentView: View {
                 .searchableHidden(text: $search,
                                   isPresented: $searching,
                                   focus: $searchFieldFocused,
+                                  automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
-                    // Ab iOS 26 ZWEI native Einträge: das System fasst
-                    // benachbarte Einträge selbst zu einer Glas-Gruppe
-                    // zusammen — kein selbstgebauter Blob mehr. Darunter
-                    // bleibt der Doppelknopf mit eigener Kapsel.
+                    // Ab iOS 26 stellt `.searchToolbarBehavior(.minimize)`
+                    // die Lupe selbst als nativen Eintrag — hier kommt nur
+                    // noch das Menü dazu, das System gruppiert benachbarte
+                    // Einträge zu einer Glas-Gruppe. Darunter bleibt der
+                    // Doppelknopf mit eigener Kapsel.
                     if #available(iOS 26, *) {
-                        ToolbarItem(placement: .topBarTrailing) { searchButton }
                         ToolbarItem(placement: .topBarTrailing) { listMenu }
                     } else {
                         ToolbarItem(placement: .topBarTrailing) { searchAndMenu }
@@ -625,8 +661,7 @@ struct ContentView: View {
                     // verschwindet im selben Moment, in dem die Suchleiste
                     // erscheint, statt unter ihr weiterzuleuchten.
                     pullFeedback.value = 0
-                    searching = true
-                    searchFieldFocused = true
+                    openSearch()
                     Theme.Haptics.select()
                 } else {
                     // Fortschritt an den kleinen Hinweis melden — wie beim
@@ -1026,26 +1061,12 @@ struct ContentView: View {
         .modifier(MoreZoomSource(id: Self.moreZoomID, namespace: moreZoomNamespace))
     }
 
-    /// Der Such-Knopf als EIGENER nativer Toolbar-Eintrag (iOS 26) — das
-    /// System gruppiert ihn mit dem Menü daneben zu einer Glas-Gruppe.
-    private var searchButton: some View {
-        Button {
-            searching = true
-            searchFieldFocused = true
-        } label: {
-            Image(systemName: "magnifyingglass")
-                .accessibilityLabel(String(localized: "Habits durchsuchen"))
-        }
-        .accessibilityIdentifier("open-search")
-    }
-
     /// Fallback (iOS < 26): der Doppelknopf als EIN Blob mit eigener Kapsel —
     /// dort gruppiert das System nichts von selbst.
     private var searchAndMenu: some View {
         HStack(spacing: 0) {
             Button {
-                searching = true
-                searchFieldFocused = true
+                openSearch()
             } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
@@ -1337,8 +1358,7 @@ struct ContentView: View {
         case "search":
             showMore = false
             moreSheet = nil
-            searching = true
-            searchFieldFocused = true
+            openSearch()
         case "new":
             showAdd = true
         default:
@@ -2020,30 +2040,45 @@ private struct ToolbarBlob: ViewModifier {
     }
 }
 
-/// Suchfeld, das NICHT dauerhaft sichtbar ist. Es gibt die Suchleiste erst,
-/// wenn die Lupe im Toolbar-Blob getippt wurde — `.searchable` hängt bis
-/// dahin GAR NICHT am Baum.
+/// Suchfeld, das NICHT dauerhaft sichtbar ist.
 ///
-/// Der Umweg ist Absicht, beide naheliegenden Wege scheitern an Punkt 2 der
-/// Rückmeldung („Lupe und Menü als EIN Blob"):
-///  * `.searchToolbarBehavior(.minimize)` (ab iOS 26) versteckt die Leiste
-///    zwar, setzt dafür aber eine ZWEITE, systemeigene Lupe als eigene Blase
-///    neben den Blob — genau die doppelte Blase, die wegsollte.
-///  * `.navigationBarDrawer(displayMode: .automatic)` blendet die Leiste am
-///    Listenanfang dauerhaft ein; „standardmäßig unsichtbar" ist sie damit
-///    auch nicht.
-/// Bleibt: den Modifier an den Zustand hängen. Das System bekommt
-/// `isPresented` bereits als `true` und klappt die Leiste beim Anhängen auf;
-/// „Abbrechen" setzt es zurück, der Modifier fällt wieder weg.
+/// Ab iOS 26 macht das ganz das System: `.searchable` hängt DAUERHAFT am
+/// Baum, `.searchToolbarBehavior(.minimize)` faltet es zu einer nativen Lupe
+/// oben rechts zusammen. Auf- und Zuklappen laufen damit mit den
+/// Systemkurven im Leisten-Glas — der frühere Einwand („zweite Lupe neben
+/// dem Blob") ist hinfällig, seit die eigene Toolbar-Lupe entfällt und das
+/// System seine Lupe mit dem Menü daneben selbst zur Glas-Gruppe gruppiert.
+/// Beide Wege (Lupe, Such-Zug) schalten weiter nur `isPresented`.
+///
+/// Vor iOS 26 bleibt der alte Umweg: `.searchable` erst anhängen, wenn die
+/// Suche offen sein soll — `.minimize` gibt es dort nicht, und
+/// `.navigationBarDrawer(displayMode: .automatic)` zeigte die Leiste am
+/// Listenanfang dauerhaft. Das Anhängen mit `isPresented == true` klappt die
+/// Leiste ohne Übergang auf (ein harter Schnitt, bewusst in Kauf genommen —
+/// nur dort, wo das System nichts Besseres anbietet).
 private struct SearchableHidden: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
     let focus: FocusState<Bool>.Binding
+    let automaticBehavior: Bool
     let prompt: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if isPresented {
+        if #available(iOS 26, *) {
+            // `.minimize` nur im RUHEZUSTAND: es liefert die native Lupe samt
+            // System-Aufklapp-Animation, verschluckt aber JEDE programmatische
+            // Präsentation (isPresented wie searchFocused, auch verzögert —
+            // empirisch geprüft). Der Such-Zug und der Deep-Link setzen
+            // deshalb `isPresented` und der Modifier wechselt im selben
+            // Umlauf auf `.automatic`, wo das Binding normal präsentiert.
+            content
+                .searchable(text: $text,
+                            isPresented: $isPresented,
+                            prompt: Text(prompt))
+                .searchToolbarBehavior(automaticBehavior ? .automatic : .minimize)
+                .searchFocused(focus)
+        } else if isPresented {
             let base = content
                 .searchable(text: $text,
                             isPresented: $isPresented,
@@ -2066,9 +2101,12 @@ private extension View {
     func searchableHidden(text: Binding<String>,
                           isPresented: Binding<Bool>,
                           focus: FocusState<Bool>.Binding,
+                          automaticBehavior: Bool,
                           prompt: String) -> some View {
         modifier(SearchableHidden(text: text, isPresented: isPresented,
-                                  focus: focus, prompt: prompt))
+                                  focus: focus,
+                                  automaticBehavior: automaticBehavior,
+                                  prompt: prompt))
     }
 }
 
