@@ -135,6 +135,14 @@ struct MorePanelSurface: View {
     @State private var expanded = false
     /// Mitgezogen (negativ = nach oben).
     @State private var drag: CGFloat = 0
+    /// Erst NACH dem Einsetzen wird der Inhalt in voller Seitenhöhe
+    /// gelayoutet (das relayout-freie Ziehen). WÄHREND die Tafel einfährt,
+    /// steht er in Kartenhöhe: die volle Liste schon im Einsetz-Bild zu bauen
+    /// war messbar der teuerste Frame des Öffnens — genau das „laggy" der
+    /// Rückmeldung. Der Wechsel danach läuft ohne Animation und ist
+    /// pixelgleich (die Schnittkante zeigt in beiden Layouts dieselben
+    /// Zeilen, der Innenabstand unten gleicht die versteckte Höhe aus).
+    @State private var fullLayout = false
     /// Einmal beim Erscheinen gelesen: Höhe der sicheren Fläche und die
     /// untere Sicherheitszone. Beides ändert sich im Hochformat nicht, und
     /// eine Messung pro Bild wäre genau die Art Arbeit, die hier wegsollte.
@@ -169,13 +177,20 @@ struct MorePanelSurface: View {
         // nur, während der Finger unten ist; danach steht er richtig.
         // Er enthält jetzt AUCH den Teil der vollen Höhe, der im kleinen
         // Zustand hinter der Schnittkante liegt (siehe full unten).
-        let settledInset = MorePanel.contentBottomInset(container: metrics.container,
-                                                        safeBottom: metrics.safeBottom,
-                                                        expanded: expanded,
-                                                        bar: Theme.Metrics.control,
-                                                        gap: Theme.Metrics.gap)
-        let full = MorePanel.expandedHeight(container: metrics.container,
-                                            safeBottom: metrics.safeBottom)
+        let settledInset = fullLayout
+            ? MorePanel.contentBottomInset(container: metrics.container,
+                                           safeBottom: metrics.safeBottom,
+                                           expanded: expanded,
+                                           bar: Theme.Metrics.control,
+                                           gap: Theme.Metrics.gap)
+            : MorePanel.bottomOverhang(progress: expanded ? 1 : 0,
+                                       safeBottom: metrics.safeBottom,
+                                       bar: Theme.Metrics.control,
+                                       gap: Theme.Metrics.gap)
+        let full = fullLayout
+            ? MorePanel.expandedHeight(container: metrics.container,
+                                       safeBottom: metrics.safeBottom)
+            : height
 
         return content(listInset: settledInset)
             // DER INHALT WIRD EINMAL GELAYOUTET — in der Höhe der GANZEN
@@ -236,6 +251,15 @@ struct MorePanelSurface: View {
                 // Die Tafel misst ohnehin — und sie darf es: sie entsteht
                 // einmal beim Öffnen, nicht bei jeder Auswertung.
                 chrome.safeBottom = metrics.safeBottom
+                // Nach dem Einsetzen auf das Voll-Layout umschalten — ohne
+                // Animation, hinter der Schnittkante, pixelgleich. Ab hier
+                // gilt wieder: EIN Layout, Züge legen nur frei.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(Int(500 * PanelMotion.factor)))
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { fullLayout = true }
+                }
             }
             .onDisappear { chrome.value = 0 }
             .accessibilityElement(children: .contain)

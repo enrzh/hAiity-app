@@ -118,6 +118,13 @@ struct ContentView: View {
     /// Hält die Glasteile unten zusammen: gleiche ID vor und nach dem
     /// Zusammenziehen = ein Morph statt zweier Blenden.
     @Namespace private var glassNamespace
+    /// Eigener Namensraum NUR für die Auswahl-Lasur. Sie lebt zusätzlich in
+    /// einem EIGENEN `GlassEffectContainer` (siehe `glassLasur`): im großen
+    /// Chrom-Behälter hat die Mehr-Tafel beim Öffnen mit ihr verschmolzen —
+    /// die Lasur schwoll an und ein Glasklecks löste sich von der Leiste,
+    /// statt dass die Tafel aus der Kapsel wächst (Bilderfolge nachgemessen,
+    /// Rückmeldung „the more page opening animation … doesnt work").
+    @Namespace private var lasurNamespace
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -1078,15 +1085,34 @@ struct ContentView: View {
     @ViewBuilder
     private var glassLasur: some View {
         if let frame = segmentFrames[highlighted], frame.width > 0 {
-            Color.clear
-                .frame(width: frame.width, height: frame.height)
-                .glassEffect(.regular.tint(Theme.accent(store.paletteStyle)
-                                .opacity(draggingSwitcher ? 0.32 : 0.22))
-                             .interactive(),
-                             in: .capsule)
-                .glassEffectID("chrome-lasur", in: glassNamespace)
-                .scaleEffect(draggingSwitcher ? 1.12 : 1)
-                .offset(x: frame.minX, y: frame.minY)
+            // EIGENER Behälter, bewusst NICHT der des Chroms: die Lasur soll
+            // mit nichts verschmelzen und an keinem Morph teilnehmen. Im
+            // gemeinsamen Behälter zog die einfahrende Mehr-Tafel sie in
+            // ihren Einsetz-Morph — Anschwellen plus abgelöster Glasklecks
+            // statt des Wachsens aus der Kapsel. Interaktivität (Schwellen,
+            // Fließen) hängt nicht am Behälter und bleibt erhalten.
+            // Beim Halten wird die Lasur zur BLASE der System-Tableiste:
+            // deutlich höher als die Leiste selbst (≈ 1,7 × Leistenhöhe,
+            // mittig auf der Leiste, oben wie unten überstehend), als ECHTES
+            // Glas ohne kräftigen Tint — erst in dieser Größe liest die
+            // Linse (Brechung, Randsaum) überhaupt. Die Größe ist eine echte
+            // Rahmenänderung, kein `scaleEffect`: das Glas rechnet seine
+            // Linse für die tatsächliche Form. Bewegung reduzieren lässt die
+            // Blase weg, die Lasur bleibt.
+            let pressed = draggingSwitcher && !reduceMotion
+            let w = pressed ? frame.width * 1.15 : frame.width
+            let h = pressed ? Theme.Metrics.control * 1.7 : frame.height
+            GlassEffectContainer {
+                Color.clear
+                    .frame(width: w, height: h)
+                    .glassEffect(.regular.tint(Theme.accent(store.paletteStyle)
+                                    .opacity(pressed ? 0.10 : 0.22))
+                                 .interactive(),
+                                 in: .capsule)
+                    .glassEffectID("chrome-lasur", in: lasurNamespace)
+            }
+                .offset(x: frame.minX - (w - frame.width) / 2,
+                        y: frame.minY - (h - frame.height) / 2)
                 .animation(reduceMotion ? nil : .interactiveSpring(response: 0.24,
                                                                    dampingFraction: 0.86),
                            value: frame)
