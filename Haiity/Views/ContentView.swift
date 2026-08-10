@@ -99,6 +99,12 @@ struct ContentView: View {
     /// Oberfläche wirklich braucht, ist allein die ENTSCHEIDUNG — und nur
     /// die steht als `@State` (`chromeCollapsed`) und flippt selten.
     @State private var chrome = ChromeScrollBox()
+    /// Fortschritt des Such-Zugs (0…1) für den kleinen Spotlight-Hinweis.
+    /// Beobachtbares Objekt statt `@State` — gelesen wird es AUSSCHLIESSLICH
+    /// von `SearchPullIndicator`, damit ein laufender Zug nicht bei jedem
+    /// Bildschritt diesen ganzen `body` neu auswertet (dieselbe Lehre wie
+    /// beim Tafel-Zug, siehe `MorePanelProgress`).
+    @State private var pullFeedback = SearchPullFeedback()
     /// Die eine Zahl, die aus dem Scroll-Signal an der Oberfläche ankommt.
     @State private var chromeCollapsed = false
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
@@ -359,6 +365,14 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .coordinateSpace(.named(Self.listSpace))
+        // Der Spotlight-Hinweis: eine kleine Lupe, die dem Finger beim
+        // Runterziehen entgegenkommt — der Zug bekommt damit eine sichtbare
+        // Antwort AB dem ersten Zentimeter, nicht erst beim Feuern.
+        .overlay(alignment: .top) {
+            SearchPullIndicator(feedback: pullFeedback,
+                                accent: Theme.accentText(store.paletteStyle),
+                                reduceMotion: reduceMotion)
+        }
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
         }
@@ -422,13 +436,32 @@ struct ContentView: View {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
                 guard screen == .habits, !searching, backfill == nil else { return }
+                #if DEBUG
+                FrameProbe.shared.mark("pull.ev")
+                #endif
                 if chrome.pull.update(translation: value.translation) {
+                    #if DEBUG
+                    FrameProbe.shared.mark("pull.fire")
+                    #endif
+                    // Gefeuert: der Hinweis hat seine Arbeit getan — er
+                    // verschwindet im selben Moment, in dem die Suchleiste
+                    // erscheint, statt unter ihr weiterzuleuchten.
+                    pullFeedback.value = 0
                     searching = true
                     searchFieldFocused = true
                     Theme.Haptics.select()
+                } else {
+                    // Fortschritt an den kleinen Hinweis melden — wie beim
+                    // Tafel-Zug NUR an ein beobachtbares Objekt, das allein
+                    // die Hinweis-Ansicht liest. Dieser `body` bleibt bei
+                    // jedem Bildschritt unangetastet.
+                    pullFeedback.value = chrome.pull.progress
                 }
             }
-            .onEnded { _ in chrome.pull.ended() }
+            .onEnded { _ in
+                chrome.pull.ended()
+                pullFeedback.value = 0
+            }
     }
 
     private func row(for habit: Habit, index: Int) -> some View {
@@ -654,6 +687,14 @@ struct ContentView: View {
         // Buchführung und darf keinen `body` invalidieren.
         chrome.pull.latestFirst = frames[0]
         guard screen == .habits else { chrome.scroll.rebase(frames); return }
+        // Läuft gerade ein möglicher Such-Zug (Finger unten, Titelzeile beim
+        // Aufsetzen sichtbar) — oder ist er eben erst losgelassen worden —,
+        // trifft das Chrom KEINE Entscheidung. Genau das war Punkt 4 der
+        // Rückmeldung: der Gummiband-Rückschnepper nach einem Zug las sich
+        // als Wisch nach unten, die Leiste zog sich zusammen, und ERST DANN
+        // erschien die Suche. `rebase` statt bloßem Überspringen: die
+        // Messung bleibt frisch und der Lauf fängt danach bei null an.
+        if chrome.pull.suppressesChrome() { chrome.scroll.rebase(frames); return }
         guard let want = chrome.scroll.decide(frames) else { return }
         if reduceMotion {
             chromeCollapsed = want
@@ -923,10 +964,31 @@ struct ContentView: View {
         // Die Lasur liegt als EIN Stück HINTER beiden Zielen und wird über
         // gemessene Segmentrahmen positioniert. Vorher zeichnete jedes Ziel
         // seine eigene: dann kann sie nicht wandern, sie kann nur blinken.
-        .background(alignment: .topLeading) { selectionLasur }
+        //
+        // NUR unter iOS 26: ab dort ist die Lasur ein EIGENES Glasstück ÜBER
+        // der Kapsel (siehe unten) — die Linse der System-Tableiste, nicht
+        // eine Farbfläche unter dem Text.
+        .background(alignment: .topLeading) {
+            if #unavailable(iOS 26) { selectionLasur }
+        }
         .coordinateSpace(.named(Self.switcherSpace))
         .modifier(ChromeGlass(id: "chrome-nav", namespace: glassNamespace, kind: .capsule,
                               union: chromeUnion("chrome-nav-solo")))
+        // Die Glas-Lasur der iOS-26-Leisten: ein eigenes, INTERAKTIVES
+        // Glasstück über der Bar-Kapsel — im selben `GlassEffectContainer`
+        // (die Hülle liegt um das ganze Chrom), mit eigener `glassEffectID`,
+        // damit sie beim Wandern MORPHT statt zu blinken. Sie sitzt bewusst
+        // NACH dem Bar-Glas: die System-Tableiste zeichnet ihren Wähler
+        // genauso als Linse AUF dem Glas, nicht als Fläche darin.
+        .overlay(alignment: .topLeading) {
+            if #available(iOS 26, *) { glassLasur }
+        }
+        // Die ganze Kapsel schwillt beim Halten eine Spur mit — NACH dem
+        // Glas, damit die Glasscheibe selbst die Blase macht und nicht nur
+        // ihr Inhalt. Dieselbe Feder wie die Lasur, eine Bewegung.
+        .scaleEffect(draggingSwitcher && !reduceMotion ? 1.04 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.6),
+                   value: draggingSwitcher)
         .onPreferenceChange(SegmentFrameKey.self) { segmentFrames = $0 }
         // `simultaneousGesture`, nicht `gesture`: die beiden Knöpfe darin
         // bleiben Knöpfe (Tippen, VoiceOver, XCUITest), und der Zug läuft
@@ -954,12 +1016,48 @@ struct ContentView: View {
                 .fill(Theme.accent(store.paletteStyle)
                         .opacity(draggingSwitcher ? 0.26 : 0.18))
                 .frame(width: frame.width, height: frame.height)
+                // Die Wasserblase der iOS-26-Leisten: unter dem gedrückten
+                // Finger SCHWILLT die Lasur an, statt nur dunkler zu werden —
+                // dieselbe Rückmeldung, die die System-Tableiste beim Halten
+                // gibt. Der Scale sitzt VOR dem Offset und wirkt damit um die
+                // Mitte der Lasur selbst, egal auf welchem Segment sie steht.
+                .scaleEffect(draggingSwitcher ? 1.12 : 1)
                 .offset(x: frame.minX, y: frame.minY)
                 // Bewegung reduzieren: kein Mitlaufen, nur der Endzustand.
                 .animation(reduceMotion ? nil : .interactiveSpring(response: 0.24,
                                                                    dampingFraction: 0.86),
                            value: frame)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: draggingSwitcher)
+                .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.6),
+                           value: draggingSwitcher)
+        }
+    }
+
+    /// Die Glas-Lasur (nur iOS 26): dieselbe Geometrie und dieselben Federn
+    /// wie `selectionLasur`, aber als ECHTES Liquid Glass — `interactive()`
+    /// gibt ihr das Linsen-Schimmern des Systems, der Tint hält die
+    /// Markenfarbe, und beim Halten schwillt sie wie der Wähler der
+    /// System-Tableiste. Nicht treffbar: die Knöpfe darunter bleiben die
+    /// Ziele, die Lasur ist nur das Licht darauf.
+    @available(iOS 26, *)
+    @ViewBuilder
+    private var glassLasur: some View {
+        if let frame = segmentFrames[highlighted], frame.width > 0 {
+            Color.clear
+                .frame(width: frame.width, height: frame.height)
+                .glassEffect(.regular.tint(Theme.accent(store.paletteStyle)
+                                .opacity(draggingSwitcher ? 0.32 : 0.22))
+                             .interactive(),
+                             in: .capsule)
+                .glassEffectID("chrome-lasur", in: glassNamespace)
+                .scaleEffect(draggingSwitcher ? 1.12 : 1)
+                .offset(x: frame.minX, y: frame.minY)
+                .animation(reduceMotion ? nil : .interactiveSpring(response: 0.24,
+                                                                   dampingFraction: 0.86),
+                           value: frame)
+                .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.6),
+                           value: draggingSwitcher)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
@@ -1141,7 +1239,7 @@ struct ContentView: View {
                 .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
         .modifier(ChromeGlass(id: "chrome-add", namespace: glassNamespace,
                               kind: .circle,
                               accent: collapsed ? nil : store.paletteStyle,
@@ -1580,20 +1678,44 @@ final class ChromeScrollBox {
 struct SearchPull {
     /// Jüngste Lage der Titelzeile — Buchführung aus `handleScroll`.
     var latestFirst: CGFloat?
+    /// Wie weit der laufende Zug schon ist (0…1, Anteil an `minTranslation`).
+    /// Nur ein Zug, der die Verhältnis-Prüfung besteht, zählt — normales
+    /// Scrollen bleibt bei 0 und der Hinweis erscheint dort nie.
+    private(set) var progress: CGFloat = 0
 
     private var tracking = false
     private var startFirst: CGFloat?
     private var fired = false
+    /// Bis wann das Chrom nach einem Zug noch stillhält (siehe
+    /// `suppressesChrome`): der Gummiband-Rückschnepper nach dem Loslassen
+    /// braucht einen Wimpernschlag, und er ist KEIN Scrollen.
+    private var graceUntil: Date?
 
     /// So weit muss der FINGER mindestens gezogen haben: eine bewusste
-    /// Strecke, kein Wackler — dieselbe Größenordnung wie Spotlight.
-    static let minTranslation: CGFloat = 90
+    /// Strecke, kein Wackler. Vorher 90 — auf dem Gerät fühlte sich das an
+    /// wie „die Suche kommt zu spät"; 70 liegt bei Spotlight, und die
+    /// Verhältnis-Prüfung unten hält Scrollen und Wischer weiterhin fern.
+    static let minTranslation: CGFloat = 70
     /// Die Zeilen dürfen höchstens so viel vom Fingerweg mitgegangen sein.
     /// 1:1 (= 1,0) ist Scrollen; das Gummiband liegt bei ~0,5.
     static let maxRatio: CGFloat = 0.6
     /// … aber bewegt haben müssen sie sich schon: ein Zug, bei dem gar
     /// nichts mitkommt, ist keiner (z. B. wenn eine andere Geste gewann).
     static let minTravel: CGFloat = 12
+    /// So lange nach dem Loslassen hält das Chrom noch still — die Zeit, die
+    /// das Gummiband braucht, um an seine Ruhelage zurückzuschnappen.
+    static let chromeGrace: TimeInterval = 0.4
+
+    /// Zählt dieser Fingerstand als Zug am Listenanfang? Die drei Prüfungen
+    /// in EINER Stelle, damit Feuern und Fortschritt dieselben sind:
+    /// deutlich senkrecht, Anker vorhanden, Zeilen deutlich LANGSAMER als
+    /// der Finger (Gummiband), aber nicht festgenagelt.
+    private func qualifies(down: CGFloat, width: CGFloat,
+                           start: CGFloat, current: CGFloat) -> Bool {
+        guard down > 0, abs(width) < down / 2 else { return false }
+        let travel = current - start
+        return travel >= Self.minTravel && travel <= Self.maxRatio * down
+    }
 
     /// Neuer Gestenstand. `true` genau EINMAL: im Moment des Auslösens.
     mutating func update(translation: CGSize, first: CGFloat?? = nil) -> Bool {
@@ -1603,24 +1725,83 @@ struct SearchPull {
             tracking = true
             startFirst = latestFirst
             fired = false
+            progress = 0
         }
         if let first { latestFirst = first }
-        guard !fired, let start = startFirst, let current = latestFirst else { return false }
+        guard !fired, let start = startFirst, let current = latestFirst else {
+            progress = 0
+            return false
+        }
         let down = translation.height
-        // Deutlich senkrecht und deutlich weit — sonst ist es kein Zug.
-        guard down >= Self.minTranslation, abs(translation.width) < down / 2 else { return false }
-        let travel = current - start
-        guard travel >= Self.minTravel, travel <= Self.maxRatio * down else { return false }
+        guard qualifies(down: down, width: translation.width,
+                        start: start, current: current) else {
+            progress = 0
+            return false
+        }
+        progress = min(1, down / Self.minTranslation)
+        guard down >= Self.minTranslation else { return false }
         fired = true
         return true
     }
 
+    /// Muss das Chrom (Leiste unten, Zusammenzieh-Logik) gerade stillhalten?
+    /// Ja, solange ein Finger unten ist, der ein Such-Zug SEIN KÖNNTE (die
+    /// Titelzeile war beim Aufsetzen sichtbar) — und noch `chromeGrace` lang
+    /// danach, weil der Rückschnepper des Gummibands sonst als Wisch gelesen
+    /// wird und die Leiste sich mitten im Öffnen der Suche zusammenzieht.
+    func suppressesChrome(now: Date = .now) -> Bool {
+        if tracking, startFirst != nil { return true }
+        if let graceUntil, now < graceUntil { return true }
+        return false
+    }
+
     /// Finger oben: alles zurück auf Anfang — die nächste Geste entscheidet
-    /// wieder frisch.
-    mutating func ended() {
+    /// wieder frisch. War es ein Kandidat, hält das Chrom noch kurz still.
+    mutating func ended(now: Date = .now) {
+        if tracking, startFirst != nil {
+            graceUntil = now.addingTimeInterval(Self.chromeGrace)
+        }
         tracking = false
         startFirst = nil
         fired = false
+        progress = 0
+    }
+}
+
+/// Fortschritt des Such-Zugs für den kleinen Hinweis — beobachtbar, damit
+/// NUR die Hinweis-Ansicht daran hängt (dieselbe Konstruktion wie
+/// `MorePanelProgress`: der Schreiber invalidiert nichts, was ihn nicht liest).
+@Observable
+final class SearchPullFeedback {
+    /// 0 = kein Zug, 1 = Schwelle erreicht (die Suche öffnet).
+    var value: CGFloat = 0
+}
+
+/// Die kleine Lupe, die dem Such-Zug entgegenkommt — wie der
+/// Spotlight-Hinweis auf dem Homescreen: sie fährt mit dem Finger herein,
+/// wird zur Schwelle hin kräftiger und verschwindet im Moment des Öffnens.
+/// Reine Rückmeldung: nicht treffbar, nicht vorlesbar.
+private struct SearchPullIndicator: View {
+    let feedback: SearchPullFeedback
+    let accent: Color
+    let reduceMotion: Bool
+
+    var body: some View {
+        let p = min(1, max(0, feedback.value))
+        if p > 0.02 {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(accent)
+                .frame(width: 36, height: 36)
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.quaternary))
+                // Bewegung reduzieren: nur einblenden, nicht fahren.
+                .offset(y: reduceMotion ? 12 : -28 + 46 * p)
+                .opacity(0.35 + 0.65 * p)
+                .scaleEffect(reduceMotion ? 1 : 0.7 + 0.3 * p)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -1878,6 +2059,23 @@ private extension View {
                           prompt: String) -> some View {
         modifier(SearchableHidden(text: text, isPresented: isPresented,
                                   focus: focus, prompt: prompt))
+    }
+}
+
+/// Die Wasserblase beim Halten — die Rückmeldung der iOS-26-Glasleisten,
+/// nachgebaut für die eigenen Chrom-Knöpfe: unter dem Finger schwillt der
+/// Knopf federnd an und setzt sich beim Loslassen wieder. Der Scale sitzt am
+/// LABEL (also unter dem Glas-Modifier des Aufrufers): das Zeichen atmet, die
+/// Glasscheibe bleibt in Form — die Blase auf der Scheibe selbst besorgt
+/// `glassEffect(.interactive())`, wo es echtes Glas gibt.
+private struct BubbleButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 1.15 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.6),
+                       value: configuration.isPressed)
     }
 }
 

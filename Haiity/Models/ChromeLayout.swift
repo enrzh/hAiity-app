@@ -236,6 +236,30 @@ enum MorePanel {
         (max(0, safeBottom) + bar + 2 * gap) * min(1, max(0, progress))
     }
 
+    /// Unterer Innenabstand des Tafel-INHALTS, wenn der Inhalt dauerhaft in
+    /// seiner VOLLEN Höhe steht (siehe MorePanelSurface: die Liste wird
+    /// einmal für die ganze Seite gelayoutet und nur noch FREIGELEGT — sie
+    /// rechnet damit während eines Zuges kein einziges Mal neu).
+    ///
+    /// Zwei Anteile, beide am ZIEL-Zustand gerechnet, nie am laufenden Zug:
+    ///  * der Teil der vollen Höhe, der im kleinen Zustand hinter der
+    ///    Schnittkante liegt (`large − small`) — sonst endete die Liste
+    ///    unerreichbar unterhalb der sichtbaren Karte;
+    ///  * auf der ganzen Seite der Überstand unter der Leiste
+    ///    (`bottomOverhang(1)`), aus demselben Grund wie bisher.
+    static func contentBottomInset(container: CGFloat,
+                                   safeBottom: CGFloat,
+                                   expanded: Bool,
+                                   bar: CGFloat,
+                                   gap: CGFloat) -> CGFloat {
+        let small = collapsedHeight(container: container)
+        let large = expandedHeight(container: container, safeBottom: safeBottom)
+        let hidden = expanded ? 0 : max(0, large - small)
+        let overhang = bottomOverhang(progress: expanded ? 1 : 0,
+                                      safeBottom: safeBottom, bar: bar, gap: gap)
+        return hidden + overhang
+    }
+
     // MARK: – Was die LEISTE dabei macht
     //
     // Auf der KARTE liegt die Leiste bewusst AUF dem unteren Überstand der

@@ -167,17 +167,31 @@ struct MorePanelSurface: View {
         // Bildschritt eines Zuges ihre Ränder neu, und genau solche Arbeit
         // pro Bild ist das, was hier wegsollte. Sichtbar wird der Unterschied
         // nur, während der Finger unten ist; danach steht er richtig.
-        let settledInset = MorePanel.bottomOverhang(progress: expanded ? 1 : 0,
-                                                    safeBottom: metrics.safeBottom,
-                                                    bar: Theme.Metrics.control,
-                                                    gap: Theme.Metrics.gap)
+        // Er enthält jetzt AUCH den Teil der vollen Höhe, der im kleinen
+        // Zustand hinter der Schnittkante liegt (siehe full unten).
+        let settledInset = MorePanel.contentBottomInset(container: metrics.container,
+                                                        safeBottom: metrics.safeBottom,
+                                                        expanded: expanded,
+                                                        bar: Theme.Metrics.control,
+                                                        gap: Theme.Metrics.gap)
+        let full = MorePanel.expandedHeight(container: metrics.container,
+                                            safeBottom: metrics.safeBottom)
 
         return content(listInset: settledInset)
-            // Feste Höhe statt „so hoch wie der Inhalt": die Liste ist immer
-            // länger als der Platz, und eine gerechnete Höhe hält die Fahrt
-            // ruhig.
+            // DER INHALT WIRD EINMAL GELAYOUTET — in der Höhe der GANZEN
+            // Seite — und während eines Zuges nur noch FREIGELEGT. Vorher
+            // bekam die Liste bei jedem Bildschritt eine neue Höhe
+            // (`frame(height:)` direkt am Inhalt): UIKit-Liste, Kopfzeilen,
+            // jede sichtbare Zeile rechneten pro Bild neu — auf dem Gerät
+            // war genau das der Ruckler beim LANGSAMEN Ziehen. Jetzt steht
+            // der Inhalt fest auf `full`, oben ausgerichtet; das bewegliche
+            // Fenster darunter (die zweite `frame(height:)`) verschiebt nur
+            // noch die Schnittkante, und `clipShape` weiter unten schneidet
+            // den Überstand weg. Der Innenabstand unten sorgt dafür, dass die
+            // Liste im kleinen Zustand an der sichtbaren Kante endet.
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: full, alignment: .top)
+            .frame(height: height, alignment: .top)
             // DER INHALT BEHÄLT SEINE BREITE. Der Überstand nach den Seiten
             // wird hier als Rand WIEDER ABGEZOGEN, bevor die negativen Ränder
             // unten die Fläche aufschlagen: die Tafel wächst auf die volle
