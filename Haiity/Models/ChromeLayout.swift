@@ -172,7 +172,11 @@ enum MorePanel {
     ///
     ///  * nach oben: die Tafel WÄCHST bis zur ganzen Seite und dort ist Ende;
     ///  * nach unten aus dem großen Zustand: sie schrumpft bis auf die kleine
-    ///    Höhe und bleibt dort stehen;
+    ///    Höhe — und der Zug geht dort WEITER: ab der Kartenhöhe wandert sie
+    ///    (siehe `offset`). Vorher stand sie an der Karte fest, und ein
+    ///    langsamer Zug vom ganzen Bild zum Rand hielt sichtbar an („it
+    ///    stops … and then continues"): der Finger lief, die Tafel nicht.
+    ///    Ein Zug ist EIN Weg — ganze Seite → Karte → hinaus, ohne Halt;
     ///  * nach unten aus dem kleinen Zustand: sie behält ihre Höhe und
     ///    WANDERT stattdessen (siehe `offset`) — genau das Verhalten von
     ///    vorher, als es nur eine Höhe gab.
@@ -318,32 +322,64 @@ enum MorePanel {
         dark ? 0.62 : 0.34
     }
 
-    /// Der senkrechte Versatz während eines Zuges: nur nach UNTEN und nur aus
-    /// dem KLEINEN Zustand. Aus dem großen ist der Zug nach unten das
-    /// Schrumpfen selbst (siehe `height`) — dort zusätzlich zu wandern hieße,
-    /// zwei Bewegungen auf eine Geste zu legen.
-    static func offset(expanded: Bool, drag: CGFloat) -> CGFloat {
-        guard drag > 0, !expanded else { return 0 }
-        return drag
+    /// Wie viel Zug nach unten aus dem GROSSEN Zustand aufs Schrumpfen
+    /// entfällt, bevor die Tafel zu wandern beginnt: der Höhenunterschied
+    /// zwischen ganzer Seite und Karte. DIE Zahl, die den Zug vom großen
+    /// Zustand mit dem vom kleinen zu EINEM Weg verkettet — Versatz und
+    /// `resolve` rechnen beide mit ihr, damit die Geste und ihre Auflösung
+    /// dieselbe Karte an derselben Stelle sehen.
+    static func shrinkTravel(container: CGFloat, safeBottom: CGFloat) -> CGFloat {
+        expandedHeight(container: container, safeBottom: safeBottom)
+            - collapsedHeight(container: container)
+    }
+
+    /// Der senkrechte Versatz während eines Zuges: nur nach UNTEN.
+    ///
+    ///  * Aus dem KLEINEN Zustand wandert die Tafel sofort mit dem Finger.
+    ///  * Aus dem GROSSEN ist der Zug erst das Schrumpfen selbst (siehe
+    ///    `height`) — gewandert wird erst, wenn das Schrumpfen aufgebraucht
+    ///    ist (`shrinkTravel`). Zu jedem Zeitpunkt bewegt sich genau EINE
+    ///    Größe: erst die Höhe, dann der Versatz — nie beide. Vorher gab es
+    ///    aus dem großen Zustand GAR keinen Versatz, und der Finger lief ab
+    ///    der Kartenhöhe ins Leere.
+    static func offset(container: CGFloat,
+                       safeBottom: CGFloat,
+                       expanded: Bool,
+                       drag: CGFloat) -> CGFloat {
+        guard drag > 0 else { return 0 }
+        guard expanded else { return drag }
+        return max(0, drag - shrinkTravel(container: container, safeBottom: safeBottom))
     }
 
     /// Was ein losgelassener Zug bedeutet.
     enum Outcome: Equatable { case expand, collapse, dismiss }
 
     /// `drag` ist die Translation beim Loslassen, `predicted` die
-    /// vorhergesagte Endposition (der Wurf).
-    static func resolve(drag: CGFloat, predicted: CGFloat, expanded: Bool) -> Outcome {
+    /// vorhergesagte Endposition (der Wurf). `travel` ist `shrinkTravel` des
+    /// Geräts, wenn der Zug im GROSSEN Zustand begann, sonst 0: die Karte
+    /// liegt aus dem großen Zustand nicht bei 0, sondern bei `travel`, und
+    /// die Schließ-Schwellen zählen AB der Karte — nicht ab dem Startpunkt.
+    ///
+    /// Aufgelöst wird EINMAL, nach Position UND Wurf, in genau eine von drei
+    /// Ruhelagen. Es gibt keine Kaskade „erst zur Karte, dann von dort
+    /// schließen" mehr: wer langsam bis unten zieht, ist beim Loslassen
+    /// bereits hinter der Karte, und genau dort wird auch entschieden. Die
+    /// Karte gewinnt nur noch, wenn der Zug IN ihrem Band endet — das ist
+    /// dann kein erzwungener Zwischenhalt, sondern das richtige Ergebnis.
+    static func resolve(drag: CGFloat,
+                        predicted: CGFloat,
+                        expanded: Bool,
+                        travel: CGFloat = 0) -> Outcome {
         let up = drag < -snapDistance || predicted < -flickDistance
         let down = drag > snapDistance || predicted > flickDistance
         if up { return .expand }
         guard down else { return expanded ? .expand : .collapse }
-        // Nach unten: aus dem großen Zustand erst zurück auf den kleinen,
-        // erst von dort schließt der nächste Zug. Ein einziger langer Zug
-        // über die ganze Tafel schließt trotzdem sofort.
-        if expanded {
-            return (drag > dismissDistance * 3 || predicted > flickDistance * 3)
-                ? .dismiss : .collapse
-        }
-        return (drag > dismissDistance || predicted > flickDistance) ? .dismiss : .collapse
+        // Nach unten: hinter der Karte (plus Schwelle) ist es ein Schließen,
+        // davor ein Einrasten auf der Karte. Ein Wurf zählt wie überall als
+        // Strecke — ein schneller kurzer Zug vom ganzen Bild schließt sofort,
+        // ohne an der Karte vorbeizumüssen.
+        let beyondCard = max(0, travel)
+        return (drag > beyondCard + dismissDistance
+                || predicted > beyondCard + flickDistance) ? .dismiss : .collapse
     }
 }

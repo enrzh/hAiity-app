@@ -186,20 +186,57 @@ final class MorePanelTests: XCTestCase {
         XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
                                         expanded: false, drag: 80),
                        small, accuracy: 0.001)
-        XCTAssertEqual(MorePanel.offset(expanded: false, drag: 80), 80, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.offset(container: tall, safeBottom: safeBottom,
+                                        expanded: false, drag: 80), 80, accuracy: 0.001)
     }
 
-    func testPullingDownFromBigShrinksToTheSmallHeightAndStops() {
+    /// Aus dem großen Zustand schrumpft der Zug die Tafel bis auf die
+    /// Kartenhöhe — und geht dort WEITER als Versatz. Genau der Halt an der
+    /// Karte war die Rückmeldung („it stops … and then continues"): der
+    /// Finger lief, die Tafel stand.
+    func testPullingDownFromBigShrinksToTheSmallHeightThenTravelsOn() {
         let small = MorePanel.collapsedHeight(container: tall)
         let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        let travel = big - small
+        XCTAssertEqual(MorePanel.shrinkTravel(container: tall, safeBottom: safeBottom),
+                       travel, accuracy: 0.001)
         XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
                                         expanded: true, drag: 100),
                        big - 100, accuracy: 0.001)
         XCTAssertEqual(MorePanel.height(container: tall, safeBottom: safeBottom,
                                         expanded: true, drag: 5000),
                        small, accuracy: 0.001)
-        // Und sie WANDERT dabei nicht: eine Geste, eine Bewegung.
-        XCTAssertEqual(MorePanel.offset(expanded: true, drag: 100), 0, accuracy: 0.001)
+        // Solange die Höhe noch schrumpft, wandert nichts: zu jedem
+        // Zeitpunkt bewegt sich genau EINE Größe.
+        XCTAssertEqual(MorePanel.offset(container: tall, safeBottom: safeBottom,
+                                        expanded: true, drag: 100), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.offset(container: tall, safeBottom: safeBottom,
+                                        expanded: true, drag: travel), 0, accuracy: 0.001)
+        // Hinter der Karte übernimmt der Versatz — Punkt für Punkt.
+        XCTAssertEqual(MorePanel.offset(container: tall, safeBottom: safeBottom,
+                                        expanded: true, drag: travel + 60),
+                       60, accuracy: 0.001)
+    }
+
+    /// **Kein Halt an der Karte.** Die sichtbare Oberkante der Tafel
+    /// (Höhe minus Versatz) folgt einem Zug vom ganzen Bild bis hinaus
+    /// STETIG und ohne Plateau: kein Punktepaar, zwischen dem sie stehen
+    /// bliebe, kein Sprung an der Übergabe von Höhe an Versatz.
+    func testASlowDragFromFullPassesThroughTheCardWithoutStopping() {
+        let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        var lastTop = big
+        for step in 1...300 {
+            let drag = CGFloat(step) * 2          // 0…600, quer über die Karte
+            let h = MorePanel.height(container: tall, safeBottom: safeBottom,
+                                     expanded: true, drag: drag)
+            let off = MorePanel.offset(container: tall, safeBottom: safeBottom,
+                                       expanded: true, drag: drag)
+            let top = h - off
+            // Streng monoton: 2 pt Finger heißen 2 pt Tafel — überall.
+            XCTAssertEqual(top, lastTop - 2, accuracy: 0.001,
+                           "Tafel hält an oder springt bei Zug \(drag)")
+            lastTop = top
+        }
     }
 
     func testAnUntouchedPanelKeepsItsHeight() {
@@ -210,7 +247,8 @@ final class MorePanelTests: XCTestCase {
                                         expanded: true, drag: 0),
                        MorePanel.expandedHeight(container: short, safeBottom: 0),
                        accuracy: 0.001)
-        XCTAssertEqual(MorePanel.offset(expanded: false, drag: 0), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.offset(container: short, safeBottom: 0,
+                                        expanded: false, drag: 0), 0, accuracy: 0.001)
     }
 
     // MARK: – Was mit der Größe mitläuft
@@ -546,11 +584,36 @@ final class MorePanelTests: XCTestCase {
         XCTAssertEqual(MorePanel.resolve(drag: 70, predicted: 70, expanded: false), .collapse)
     }
 
-    /// Aus dem großen Zustand führt ein Zug nach unten ZURÜCK auf die kleine
-    /// Höhe — nicht sofort hinaus. Erst ein Zug über die ganze Tafel schließt.
-    func testPullingDownFromBigGoesBackFirst() {
-        XCTAssertEqual(MorePanel.resolve(drag: 150, predicted: 150, expanded: true), .collapse)
-        XCTAssertEqual(MorePanel.resolve(drag: 400, predicted: 400, expanded: true), .dismiss)
+    /// **EINMAL auflösen, drei Ruhelagen.** Aus dem großen Zustand zählt die
+    /// Strecke AB der Karte (`travel`): wer davor loslässt, rastet auf der
+    /// Karte ein — das ist dann das richtige Ergebnis, kein Zwischenhalt.
+    /// Wer dahinter loslässt, ist draussen, ohne zweite Geste.
+    func testReleasingFromBigResolvesOnceByPosition() {
+        let travel = MorePanel.shrinkTravel(container: tall, safeBottom: safeBottom)
+        // Kaum bewegt: zurück aufs ganze Bild.
+        XCTAssertEqual(MorePanel.resolve(drag: 20, predicted: 20,
+                                         expanded: true, travel: travel), .expand)
+        // Mitten im Kartenband losgelassen: Karte.
+        XCTAssertEqual(MorePanel.resolve(drag: 150, predicted: 150,
+                                         expanded: true, travel: travel), .collapse)
+        XCTAssertEqual(MorePanel.resolve(drag: travel, predicted: travel,
+                                         expanded: true, travel: travel), .collapse)
+        // Hinter der Karte plus Schwelle: zu — in EINEM Zug.
+        XCTAssertEqual(MorePanel.resolve(drag: travel + MorePanel.dismissDistance + 1,
+                                         predicted: travel + MorePanel.dismissDistance + 1,
+                                         expanded: true, travel: travel), .dismiss)
+    }
+
+    /// Ein Wurf zählt als Strecke: ein kurzer, schneller Zug vom ganzen Bild
+    /// schließt sofort — er muss nicht erst an der Karte vorbei.
+    func testAFlickDownFromBigDismissesDirectly() {
+        let travel = MorePanel.shrinkTravel(container: tall, safeBottom: safeBottom)
+        XCTAssertEqual(MorePanel.resolve(drag: 120,
+                                         predicted: travel + MorePanel.flickDistance + 200,
+                                         expanded: true, travel: travel), .dismiss)
+        // Ein gemächlicher Wurf, der nur bis ins Kartenband trüge: Karte.
+        XCTAssertEqual(MorePanel.resolve(drag: 120, predicted: 260,
+                                         expanded: true, travel: travel), .collapse)
     }
 }
 

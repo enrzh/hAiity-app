@@ -203,7 +203,9 @@ struct MorePanelSurface: View {
             // FLÄCHE wächst darüber hinaus bis an die Bildschirmkanten.
             .padding(.horizontal, -side)
             .padding(.bottom, -bottom)
-            .offset(y: MorePanel.offset(expanded: expanded, drag: drag))
+            .offset(y: MorePanel.offset(container: metrics.container,
+                                        safeBottom: metrics.safeBottom,
+                                        expanded: expanded, drag: drag))
             .transition(transition)
             // Die Tafel öffnet immer klein — also steht die Leiste beim
             // Erscheinen. Und beim Verschwinden steht sie WIEDER: das ist die
@@ -325,9 +327,18 @@ struct MorePanelSurface: View {
                 publish(drag: drag, expanded: expanded)
             }
             .onEnded { value in
+                // Aus dem großen Zustand liegt die Karte bei `shrinkTravel`,
+                // nicht bei 0 — die Auflösung muss dieselbe Strecke sehen wie
+                // die Geometrie, sonst schlösse ein Zug an einer anderen
+                // Stelle, als er die Tafel hingezogen hat.
+                let travel = expanded
+                    ? MorePanel.shrinkTravel(container: metrics.container,
+                                             safeBottom: metrics.safeBottom)
+                    : 0
                 let outcome = MorePanel.resolve(drag: value.translation.height,
                                                 predicted: value.predictedEndTranslation.height,
-                                                expanded: expanded)
+                                                expanded: expanded,
+                                                travel: travel)
                 switch outcome {
                 case .expand:   settle(expanded: true)
                 case .collapse: settle(expanded: false)
