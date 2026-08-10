@@ -64,6 +64,8 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        # Live-Aktivitäten (Habit-Sessions) — muss in App UND Extension stehen.
+        NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: com.aiity.haiity
             CFBundleURLSchemes: [haiity]
@@ -113,6 +115,12 @@ targets:
       # Extension-Prozess und schreibt über den geteilten Store.
       # (HaiityShortcuts.swift bleibt bewusst App-only.)
       - path: Haiity/Intents/CheckOffHabitIntent.swift
+      # Live-Aktivität: geteilter Attribut-Typ, Session-Logik/Ablage und die
+      # Intents der Knöpfe — die Extension braucht die TYPEN, perform()
+      # läuft im App-Prozess.
+      - path: Haiity/Models/HabitSession.swift
+      - path: Haiity/Models/HabitActivityAttributes.swift
+      - path: Haiity/Intents/HabitSessionIntents.swift
       # Die Widget-Konfiguration (welcher Habit steht in DIESER Instanz) —
       # greift auf dieselbe HabitEntity und dieselbe Query zurück.
       - path: Haiity/Intents/SelectHabitIntent.swift
@@ -130,6 +138,30 @@ targets:
         CFBundleDisplayName: hAiity
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSSupportsLiveActivities: true
+        # Wie die App: Deutsch ist die Entwicklungssprache. Ohne die Angabe
+        # fällt ein Schlüssel, der in de.lproj fehlt (Quellsprache), auf die
+        # NÄCHSTE Nutzersprache statt auf die deutsche Quelle zurück — auf
+        # einem Gerät mit de+zh stand auf der Live-Aktivität plötzlich 完成.
+        CFBundleDevelopmentRegion: de
+        CFBundleLocalizations:
+          - de
+          - en
+          - es
+          - fr
+          - pt
+          - it
+          - zh-Hans
+          - ja
+          - ru
+          - ar
+          - hi
+          - bn
+          - ur
+          - id
+          - tr
+          - vi
+          - ko
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

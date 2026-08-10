@@ -48,6 +48,11 @@ struct EditHabitSheet: View {
     /// des Habits. Sie steuert hier trotzdem `draft.quantity` mit — das
     /// Mengenziel ist die Art „Menge".
     @State private var kind: HabitKind = .checkbox
+    /// Geplante Session-Dauer. Wie die Uhrzeit hinter einem Schalter — die
+    /// meisten Habits haben keine, und ohne Dauer läuft eine Session
+    /// „limitless" (sie zählt nur hoch).
+    @State private var hasDuration = false
+    @State private var durationMinutes = EditHabitSheet.defaultDuration
 
     private var calendar: Calendar { .current }
 
@@ -62,6 +67,7 @@ struct EditHabitSheet: View {
                 }
                 recurrenceSection
                 timeSection
+                durationSection
                 kindSection
                 colorSection
                 if let habit = existing {
@@ -312,6 +318,47 @@ struct EditHabitSheet: View {
         }
     }
 
+    // MARK: – Dauer (geplante Session-Länge)
+    //
+    // Wie die Uhrzeit eine EIGENSCHAFT des Habits, keine Pflicht: die Dauer
+    // ist der Plan, gegen den eine gestartete Session (Live-Aktivität) ihren
+    // Fortschritt zeigt. Ohne Dauer zählt die Session einfach hoch.
+
+    /// Voreinstellung beim Einschalten und die wählbaren Stufen. Feste
+    /// Stufen statt eines freien Rads: eine Session-Dauer ist eine
+    /// Größenordnung („eine halbe Stunde"), keine Sekundenangabe.
+    static let defaultDuration = 30
+    static let durationPresets = [5, 10, 15, 20, 30, 45, 60, 90, 120]
+
+    /// Die Stufen, ggf. um einen BESTEHENDEN krummen Wert ergänzt (Import,
+    /// andere App-Version) — der eingestellte Wert muss im Rad stehen,
+    /// sonst würde das bloße Öffnen des Editors ihn verstellen.
+    private var durationChoices: [Int] {
+        var choices = Self.durationPresets
+        if !choices.contains(durationMinutes) {
+            choices.append(durationMinutes)
+            choices.sort()
+        }
+        return choices
+    }
+
+    private var durationSection: some View {
+        Section {
+            Toggle(String(localized: "Dauer"), isOn: $hasDuration)
+                .accessibilityIdentifier("duration-toggle")
+            if hasDuration {
+                Picker(String(localized: "Geplante Dauer"), selection: $durationMinutes) {
+                    ForEach(durationChoices, id: \.self) { minutes in
+                        Text(HabitSessionMath.durationText(minutes: minutes)).tag(minutes)
+                    }
+                }
+                .accessibilityIdentifier("duration-minutes")
+            }
+        } footer: {
+            Text(String(localized: "Eine Session (langer Druck auf die Karte → „Session starten“) läuft als Live-Aktivität mit. Mit Dauer zeigt sie den Fortschritt gegen den Plan, ohne zählt sie einfach hoch."))
+        }
+    }
+
     // MARK: – Art (Abhaken / Menge / Ja-Nein)
     //
     // Die drei Arten schließen einander aus, also stehen sie in EINEM
@@ -425,6 +472,10 @@ struct EditHabitSheet: View {
                                 calendar: calendar)
         habitPalette = habit.palette
         kind = habit.kind
+        if let duration = habit.durationMinutes {
+            hasDuration = true
+            durationMinutes = duration
+        }
     }
 
     /// Sichern ist synchron — es gibt nichts mehr zu fragen. Die
@@ -442,6 +493,7 @@ struct EditHabitSheet: View {
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.timeMinutes = draft.timeMinutes(calendar: calendar)
+        habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil
         habit.recurrence = recurrence
         habit.palette = habitPalette
         // Weg von Ja/Nein heißt auch: die Antworten mitnehmen. Ohne das

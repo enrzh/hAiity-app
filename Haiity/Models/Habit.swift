@@ -50,6 +50,18 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Regel und auf der Karte.
     var timeMinutes: Int?
     var log: [String: Int]
+    /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer
+    /// („limitless" — eine Session zählt dann nur hoch). Rein additiv und
+    /// tolerant dekodiert, KEIN Versionssprung: ein ausgelieferter Build
+    /// überliest den Schlüssel und lässt ihn beim Speichern weg — die
+    /// Einstellung reist über den Merge (neuerer `updatedAt` gewinnt,
+    /// siehe `HabitStore.merge`) wieder ein.
+    var durationMinutes: Int?
+    /// Tatsächliche Session-Minuten je Tag — dieselben Tagesschlüssel wie
+    /// `log`, dieselbe Müllabfuhr beim Lesen. Ein Tag trägt das MAXIMUM
+    /// aller Sessions (Merge-Regel wie beim Log: das Größere gewinnt, nie
+    /// wird gelöscht). Grundlage für „geplant vs. tatsächlich" in Stats.
+    var minutes: [String: Int]
     /// Tagesschlüssel der Archivierung; nil = aktiv. Archivierte Habits
     /// behalten ihre Historie, verschwinden aber aus Liste und Summary.
     var archivedAt: String?
@@ -87,7 +99,8 @@ struct Habit: Codable, Identifiable, Equatable {
          reminderMinutes: Int? = nil,
          timeMinutes: Int? = nil,
          recurrence: Recurrence = .daily,
-         kind: HabitKind = .checkbox) {
+         kind: HabitKind = .checkbox,
+         durationMinutes: Int? = nil) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -95,6 +108,8 @@ struct Habit: Codable, Identifiable, Equatable {
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
         self.log = [:]
+        self.durationMinutes = Habit.sanitizedDuration(durationMinutes)
+        self.minutes = [:]
         self.archivedAt = nil
         self.recurrence = recurrence
         self.palette = nil
@@ -118,8 +133,18 @@ extension Habit {
         value.flatMap { (0..<24 * 60).contains($0) ? $0 : nil }
     }
 
+    /// Geplante Session-Dauer: mindestens 1 Minute, höchstens ein Tag.
+    /// Dieselbe Idee wie `sanitizedMinutes` — ein importiertes „0" oder
+    /// „100000" wird zu „ohne Dauer" statt zu einer absurden Vorgabe.
+    static func sanitizedDuration(_ value: Int?) -> Int? {
+        value.flatMap { (1...24 * 60).contains($0) ? $0 : nil }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette
+        // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
+        // additiv — ein ausgelieferter Build überliest beide Schlüssel.
+        case durationMinutes, minutes
         // Der Marker der Habit-Art. Rein additiv und NUR für „Ja/Nein" da —
         // siehe `kind` und die lange Begründung an `Answer`.
         case kind
@@ -164,6 +189,12 @@ extension Habit {
         // der Rechen-Schicht ignoriert, statt hier Daten zu verlieren.
         let rawLog = try c.decodeIfPresent([String: Int].self, forKey: .log) ?? [:]
         log = rawLog.filter { $0.value >= 1 && DayKey.isValid($0.key) }
+        // Session-Felder: fehlend (jede Datei vor den Sessions) oder kaputt
+        // -> Standard statt Fehler. Die Minuten-Karte durchläuft dieselbe
+        // Müllabfuhr wie der Log.
+        durationMinutes = Habit.sanitizedDuration(try? c.decodeIfPresent(Int.self, forKey: .durationMinutes) ?? nil)
+        let rawMinutes = ((try? c.decodeIfPresent([String: Int].self, forKey: .minutes)) ?? nil) ?? [:]
+        minutes = rawMinutes.filter { $0.value >= 1 && DayKey.isValid($0.key) }
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
         // EIN Schlüssel für beide Formate: `Recurrence` erkennt am fehlenden
         // `freq`, dass dort ein Alt-Ziel steht, und migriert es. Ein kaputtes
@@ -197,6 +228,10 @@ extension Habit {
         // Schlüssel `goal` — ein ausgelieferter Build liest die Datei damit
         // unverändert weiter (kein Versionssprung, der ihn aussperrt).
         if recurrence != .daily { try c.encode(recurrence, forKey: .goal) }
+        // Standards bleiben implizit: ohne Dauer und ohne Sessions sieht die
+        // Datei Byte für Byte aus wie vorher.
+        try c.encodeIfPresent(durationMinutes, forKey: .durationMinutes)
+        if !minutes.isEmpty { try c.encode(minutes, forKey: .minutes) }
         try c.encodeIfPresent(palette?.rawValue, forKey: .palette)
         // Wie überall: der Standard bleibt implizit. Geschrieben wird der
         // Marker nur für die eine Art, die man ihm nicht ansieht — Checkbox

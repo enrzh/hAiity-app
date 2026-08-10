@@ -71,6 +71,9 @@ struct HaiityWidgetBundle: WidgetBundle {
         HaiityRosterWidget()
         HaiityRingWidget()
         HaiityStreakWidget()
+        // Die Live-Aktivität einer laufenden Session (Sperrbildschirm +
+        // Dynamic Island).
+        HabitSessionLiveActivity()
         // Steuerungselemente gibt es erst ab iOS 18; das Ziel ist 17. Der
         // `#available`-Zweig ist der einzige unterstützte Weg, ein
         // ControlWidget bedingt in ein Bundle zu hängen — ohne ihn wäre das

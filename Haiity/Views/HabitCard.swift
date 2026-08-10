@@ -312,6 +312,16 @@ struct HabitCard: View, Equatable {
             Label(String(localized: "Nacharbeiten"), systemImage: "calendar.badge.plus")
         }
         .accessibilityIdentifier("backfill-habit")
+        // Session: „ich mache das JETZT" — startet die Live-Aktivität mit
+        // laufender Zeit (und Fortschritt gegen die geplante Dauer, wenn es
+        // eine gibt). Beendet wird auf der Aktivität selbst; deren
+        // Fertig-Knopf hakt den Tag über denselben Trichter ab wie alles
+        // andere. Direkt am Manager statt als Closure aus ContentView — die
+        // Session hat keinen UI-Zustand, den die Liste kennen müsste.
+        Button(action: { HabitSessionManager.shared.start(habit: habit) }) {
+            Label(String(localized: "Session starten"), systemImage: "timer")
+        }
+        .accessibilityIdentifier("start-session")
         Button(action: onEdit) {
             Label(String(localized: "Bearbeiten"), systemImage: "pencil")
         }

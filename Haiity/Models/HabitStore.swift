@@ -341,6 +341,20 @@ final class HabitStore {
         persist()
     }
 
+    /// Schreibt tatsächliche Session-Minuten an einen Tag. MAX statt
+    /// Überschreiben — dieselbe Regel wie im Merge: eine zweite, kürzere
+    /// Session am selben Tag darf die längere nicht kleinrechnen, und ein
+    /// Gerät mit weniger Minuten kann ein anderes nie herunterziehen.
+    /// Ungültige Tage oder Minuten < 1: No-op.
+    func recordSessionMinutes(_ id: UUID, day: String, minutes: Int) {
+        guard let i = data.habits.firstIndex(where: { $0.id == id }),
+              minutes >= 1, DayKey.isValid(day) else { return }
+        let merged = max(data.habits[i].minutes[day] ?? 0, minutes)
+        guard data.habits[i].minutes[day] != merged else { return }
+        data.habits[i].minutes[day] = merged
+        persist()
+    }
+
     /// Entfernt den Tageseintrag komplett.
     func clear(_ id: UUID, day: String = DayKey.today()) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
@@ -567,12 +581,19 @@ final class HabitStore {
                     let merged = max(lh.log[k] ?? 0, v)
                     if merged >= 1 { lh.log[k] = merged } // 0-Werte nie materialisieren
                 }
+                // Session-Minuten wie der Log: Union mit MAX pro Tag — mehr
+                // gemessene Zeit irgendwo gewinnt, gelöscht wird nie.
+                for (k, v) in rh.minutes {
+                    let merged = max(lh.minutes[k] ?? 0, v)
+                    if merged >= 1 { lh.minutes[k] = merged }
+                }
                 if remoteNewer {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
                     lh.recurrence = rh.recurrence
+                    lh.durationMinutes = rh.durationMinutes
                     lh.archivedAt = rh.archivedAt
                     lh.palette = rh.palette
                     lh.kind = rh.kind
