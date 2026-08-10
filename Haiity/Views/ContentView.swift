@@ -63,6 +63,12 @@ struct ContentView: View {
     ///
     /// Nebeneffekt, der ausdrücklich erwünscht ist: die Tafel öffnet immer
     /// klein, weil ihr Zustand mit ihr entsteht und mit ihr vergeht.
+    /// Der eine Wert, der die Tafel doch verlässt: wie weit sie aufgezogen
+    /// ist. Er hängt an einem beobachtbaren Objekt und NICHT an einem `@State`
+    /// dieser Ansicht — gelesen wird er ausschließlich von der kleinen Hülle
+    /// um die Leiste (`WithdrawingChrome`), damit ein Zug weiterhin nicht den
+    /// ganzen `body` hier neu auswertet. Siehe `MorePanelProgress`.
+    @State private var panelProgress = MorePanelProgress()
     /// Wann zuletzt ein ZUG entschieden hat. Der Knopf, auf dem der Finger
     /// aufgesetzt hat, feuert danach trotzdem noch — siehe `select`.
     @State private var lastDragSwitch = Date.distantPast
@@ -707,10 +713,17 @@ struct ContentView: View {
         }
     }
 
+    /// Tafel und Leiste, in DIESER Reihenfolge — die Leiste wird nach der
+    /// Tafel gezeichnet und liegt damit auf deren unterem Überstand. Genau
+    /// das ist auf der KARTE richtig (die Tafel wächst aus der Leiste heraus)
+    /// und auf der GANZEN SEITE falsch: dort steht sonst ein Umschalter
+    /// mitten in einer bildschirmfüllenden Fläche. Deshalb die Hülle: sie
+    /// zieht die Leiste am SELBEN Fortschritt zurück, an dem auch Höhe,
+    /// Radius und Überstand hängen.
     private var chromeColumn: some View {
         VStack(spacing: Theme.Metrics.gap) {
             morePanel
-            chromeStack
+            WithdrawingChrome(panel: panelProgress, content: chromeStack)
         }
     }
 
@@ -724,6 +737,7 @@ struct ContentView: View {
             MorePanelSurface(store: store,
                              cloudStatus: cloudStatus,
                              namespace: glassNamespace,
+                             chrome: panelProgress,
                              onOpen: { moreSheet = $0 },
                              onDismiss: { select(.habits) })
         }
@@ -911,12 +925,21 @@ struct ContentView: View {
         // Die Tafel öffnet IMMER klein. Der große Zustand ist eine Geste, die
         // man gerade gemacht hat, keine Einstellung, die man später
         // wiederfinden muss — und eine Tafel, die beim nächsten Tippen
-        // bildschirmfüllend aufspringt, überrascht. Dafür ist hier nichts
-        // mehr zu tun: der Zustand lebt IN der Tafel und geht mit ihr.
+        // bildschirmfüllend aufspringt, überrascht. Der Zustand selbst lebt IN
+        // der Tafel und geht mit ihr; hier steht nur die AUSSENSICHT darauf
+        // gerade, damit die Leiste beim Schließen wieder mitkommt.
+        //
+        // Sie muss IN dieser Transaktion zurückgesetzt werden: käme sie erst
+        // hinterher (etwa aus `onDisappear` der Tafel), stünde die Leiste die
+        // ganze Schließbewegung lang noch weg und poppte danach herein.
         if reduceMotion {
             screen = next
+            panelProgress.value = 0
         } else {
-            withAnimation(PanelMotion.open) { screen = next }
+            withAnimation(PanelMotion.open) {
+                screen = next
+                panelProgress.value = 0
+            }
         }
     }
 
@@ -1090,15 +1113,29 @@ struct ContentView: View {
 
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "haiity" else { return }
+        // Jeder Weg über den Umschalter oder einen Link fängt bei der KARTE
+        // an — es gibt keinen Link, der die Tafel gleich als ganze Seite
+        // öffnet. Der Fortschritt steht deshalb überall dort, wo `screen`
+        // gesetzt wird, ausdrücklich wieder auf 0: die Leiste ist dann da,
+        // egal aus welchem Zustand man kam.
         switch url.host ?? url.lastPathComponent {
         case "habits":
             screen = .habits
+            panelProgress.value = 0
             moreSheet = nil
         case "more", "sync":
+            // Steht sie schon offen, ist der Link erfüllt — und zwar auch
+            // dann, wenn sie gerade als ganze Seite dasteht. Hier NICHTS zu
+            // tun ist die richtige Antwort: ein Zurücksetzen des
+            // Fortschritts holte sonst die Leiste zurück, während die Tafel
+            // weiterhin den ganzen Bildschirm füllt (ihre Größe lebt IN ihr
+            // und kann von hier aus gar nicht mitgezogen werden).
+            guard screen != .more else { break }
             // "sync" landet ebenfalls in der Tafel — die iCloud-Zeile steht
             // dort ganz oben. MIT Animation, wie ein Tipp auf den Umschalter:
             // die Tafel wächst aus der Leiste. Ein Sprung wäre an dieser
             // einen Stelle eine andere App.
+            panelProgress.value = 0
             if reduceMotion { screen = .more }
             else { withAnimation(PanelMotion.open) { screen = .more } }
         case "stats":
@@ -1107,6 +1144,7 @@ struct ContentView: View {
             moreSheet = .archive
         case "search":
             screen = .habits
+            panelProgress.value = 0
             moreSheet = nil
             searching = true
             searchFieldFocused = true

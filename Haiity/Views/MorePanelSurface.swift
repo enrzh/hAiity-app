@@ -1,5 +1,91 @@
 import SwiftUI
 import UIKit
+import Observation
+
+/// Wie weit die Mehr-Tafel gerade aufgezogen ist — der EINE Wert, den ausser
+/// der Tafel selbst noch jemand braucht: die Leiste unten, die sich dabei
+/// zurückzieht (siehe `MorePanel.chromeOpacity`).
+///
+/// **Warum nicht einfach ein `@State` in `ContentView`.** Genau daran hing der
+/// Zug einmal, und jeder Bildschritt wertete damit den ganzen
+/// `ContentView.body` neu aus — samt Habit-Liste, samt jeder Karte
+/// (nachgemessen mit der Bildzeit-Sonde; beim schnellen Auf- und Zuziehen
+/// fielen reproduzierbar Bilder aus). Als beobachtbares Objekt hängt an dem
+/// Wert nur, wer ihn AUCH LIEST: die Tafel schreibt, die kleine Hülle um die
+/// Leiste liest. `ContentView` selbst liest ihn nie und wird deshalb auch
+/// nicht neu ausgewertet.
+///
+/// **Und keine zweite Feder.** Geschrieben wird ausschließlich aus derselben
+/// Rechnung (`MorePanel.progress`) und innerhalb derselben Transaktion wie
+/// Höhe, Radius und Überstand. Es gibt damit weiterhin genau EINE Bewegung
+/// pro Geste — eine zweite Animation auf derselben Geste war die Ursache des
+/// Nachziehens, das hier schon einmal behoben werden musste.
+@Observable
+final class MorePanelProgress {
+    /// 0 = Karte, 1 = ganze Seite.
+    var value: CGFloat = 0
+    /// Die untere Sicherheitszone, gemeldet von der Tafel beim Erscheinen.
+    ///
+    /// Sie steht HIER und wird nicht dort gelesen, wo sie gebraucht wird —
+    /// und das ist keine Umständlichkeit, sondern eine Lehre: ein
+    /// `PanelMetrics.current()` im Eigenschafts-Initialisierer der Hülle um
+    /// die Leiste liest `window.safeAreaInsets` und damit UIKit MITTEN in der
+    /// Auswertung von `ContentView.body`. Das Ergebnis war reproduzierbar
+    /// kaputtes Layout: die Tafel bekam im Stapel die Höhe null und hing als
+    /// 94-pt-Streifen an der Unterkante, während ihre eigene Rechnung
+    /// unverändert 498,8 pt sagte. Die Tafel darf so messen — sie entsteht
+    /// EINMAL, wenn sie geöffnet wird; die Hülle entsteht bei jeder
+    /// Auswertung neu.
+    var safeBottom: CGFloat = 0
+}
+
+/// Die Leiste unten, während die Tafel wächst — Umschalter und Anlegen-Knopf
+/// ziehen sich zurück, sobald aus der Karte eine ganze Seite wird.
+///
+/// **Warum es diese Hülle überhaupt gibt.** Sie ist die einzige Ansicht, die
+/// `MorePanelProgress` LIEST. Damit hängt der Zug an ihr — und nur an ihr.
+/// Der `ContentView.body` sieht den Wert nicht und wird beim Ziehen weiterhin
+/// nicht neu ausgewertet; die Leiste selbst ist ein paar Dutzend Ansichten,
+/// die Habit-Liste dahinter sind es nicht.
+///
+/// **Der Inhalt wird nicht neu gebaut.** Er kommt als FERTIGER Wert herein,
+/// nicht als Closure: was die Hülle pro Bild tut, ist Deckkraft und Versatz
+/// setzen, nicht die Leiste noch einmal zusammenstellen.
+///
+/// **Die Höhe bleibt stehen.** Zurückziehen heißt fahren und verblassen, NICHT
+/// aus dem Stapel verschwinden: der untere Überstand der Tafel ist genau auf
+/// den Platz gerechnet, den die Leiste einnimmt (siehe
+/// `MorePanel.bottomOverhang`). Eine Leiste, die ihre Höhe aufgibt, zöge die
+/// Tafel im selben Bild um 60 pt nach unten.
+struct WithdrawingChrome<Content: View>: View {
+    let panel: MorePanelProgress
+    let content: Content
+
+    var body: some View {
+        #if DEBUG
+        let _ = FrameProbe.shared.mark("chrome.body")
+        #endif
+        let progress = panel.value
+        let safeBottom = panel.safeBottom
+        // Deckkraft, Versatz und Trefferbarkeit kommen aus DEMSELBEN Verlauf
+        // — auseinanderlaufen können sie damit nicht.
+        let interactive = MorePanel.chromeInteractive(progress: progress)
+        return content
+            .opacity(MorePanel.chromeOpacity(progress: progress))
+            .offset(y: MorePanel.chromeOffset(progress: progress,
+                                              bar: Theme.Metrics.control,
+                                              gap: Theme.Metrics.gap,
+                                              safeBottom: safeBottom))
+            // NICHT bloß Kosmetik: eine Ansicht mit `opacity(0)` ist in
+            // SwiftUI weiterhin treffbar. Ohne diese Zeile läge auf der ganzen
+            // Seite ein unsichtbarer Anlegen-Knopf, und ein Tipp dorthin
+            // öffnete das Anlegen-Blatt aus dem Nichts.
+            .allowsHitTesting(interactive)
+            // Dasselbe für VoiceOver: was nicht da ist, soll auch nicht
+            // vorgelesen werden.
+            .accessibilityHidden(!interactive)
+    }
+}
 
 /// Die Mehr-Tafel als EIGENE Ansicht — EIN Ding, das seine Größe ändert.
 ///
@@ -11,11 +97,19 @@ import UIKit
 /// eines Zuges gehört dem Gezogenen — hier drin sieht ihn sonst niemand.
 ///
 /// **Was sich alles mitbewegt.** Zwischen Karte und ganzer Seite gibt es
-/// keinen Umschaltpunkt: Höhe, ECKRADIUS, SEITENRÄNDER und der Überstand nach
-/// unten hängen alle am selben Fortschritt (`MorePanel.progress`). Bei voller
-/// Größe steht die Tafel von der oberen Sicherheitszone bis an die
-/// Unterkante, von Kante zu Kante, mit dem Eckradius des Bildschirms — und
-/// die Leiste liegt sichtbar darauf (sie wird nach der Tafel gezeichnet).
+/// keinen Umschaltpunkt: Höhe, ECKRADIUS, SEITENRÄNDER, der Überstand nach
+/// unten UND das Zurückziehen der Leiste hängen alle am selben Fortschritt
+/// (`MorePanel.progress`). Bei voller Größe steht die Tafel von der oberen
+/// Sicherheitszone bis an die Unterkante, von Kante zu Kante, mit dem
+/// Eckradius des Bildschirms.
+///
+/// **Auf der Karte liegt die Leiste darauf, auf der ganzen Seite nicht mehr.**
+/// Die Leiste wird nach der Tafel gezeichnet und deckt deren unteren Überstand
+/// ab — auf der Karte ist das richtig, die Tafel wächst schließlich aus ihr
+/// heraus. Sobald die Tafel den Bildschirm füllt, gibt es aber kein „daneben"
+/// mehr, über dem etwas schweben dürfte: Umschalter und Anlegen-Knopf ziehen
+/// sich zurück (`WithdrawingChrome`), und der GRIFF ist ab da der einzige Weg
+/// zurück. Er bleibt deshalb während der ganzen Fahrt sichtbar und treffbar.
 ///
 /// **Der Inhalt wird auf DIESELBE Form geschnitten, die sich bewegt.** Ohne
 /// das lief der Text während des Aufklappens neben dem Glas her: die Fläche
@@ -27,6 +121,9 @@ struct MorePanelSurface: View {
     let store: HabitStore
     let cloudStatus: CloudSyncStatus
     let namespace: Namespace.ID
+    /// Wohin der Fortschritt gemeldet wird. NUR schreibend benutzt — diese
+    /// Ansicht liest ihn nie, sie rechnet ihn ohnehin selbst.
+    let chrome: MorePanelProgress
     let onOpen: (MoreRoute) -> Void
     /// Zug nach unten über die Schwelle: die Tafel schließt.
     let onDismiss: () -> Void
@@ -42,6 +139,7 @@ struct MorePanelSurface: View {
     @State private var metrics = PanelMetrics.current()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         #if DEBUG
@@ -107,6 +205,21 @@ struct MorePanelSurface: View {
             .padding(.bottom, -bottom)
             .offset(y: MorePanel.offset(expanded: expanded, drag: drag))
             .transition(transition)
+            // Die Tafel öffnet immer klein — also steht die Leiste beim
+            // Erscheinen. Und beim Verschwinden steht sie WIEDER: das ist die
+            // letzte Sicherung gegen den einen Zustand, den es hier nicht
+            // geben darf — eine geschlossene Tafel und dazu keine Leiste. Der
+            // reguläre Weg setzt den Wert schon beim Schließen zurück (siehe
+            // ContentView.select), hier fällt nichts mehr an; es kostet aber
+            // auch nichts und deckt jeden Weg ab, der die Tafel sonst noch
+            // aus dem Baum nimmt.
+            .onAppear {
+                chrome.value = 0
+                // Die Tafel misst ohnehin — und sie darf es: sie entsteht
+                // einmal beim Öffnen, nicht bei jeder Auswertung.
+                chrome.safeBottom = metrics.safeBottom
+            }
+            .onDisappear { chrome.value = 0 }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("more-panel")
             .accessibilityValue(expanded
@@ -158,9 +271,7 @@ struct MorePanelSurface: View {
     /// direkt unter der Statusleiste, wo man sie wieder herunterzieht.
     private var handle: some View {
         VStack(spacing: 6) {
-            Capsule()
-                .fill(.tertiary)
-                .frame(width: 36, height: 5)
+            grabber
             Text(String(localized: "Mehr"))
                 .font(.headline)
         }
@@ -171,6 +282,32 @@ struct MorePanelSurface: View {
         .gesture(dragGesture)
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("more-grabber")
+    }
+
+    /// Der Zugbalken.
+    ///
+    /// Auf der ganzen Seite ist er der EINZIGE Weg zurück — es gibt kein
+    /// „daneben" mehr, auf das man tippen könnte, und die Leiste unten hat
+    /// sich zurückgezogen. Ein Griff, den man im Dunkeln suchen muss, ist
+    /// deshalb nicht bloß unschön, sondern die Sackgasse selbst. Genau das
+    /// war die Rückmeldung.
+    ///
+    /// `.tertiary` ist in beiden Schemata gleich schwach (rund 0,3 Deckkraft)
+    /// — auf dem hellen Tafelglas reicht das, auf dem dunklen nicht. Also
+    /// zwei gemessene Werte statt einer hierarchischen Stufe, und im Dunkeln
+    /// zusätzlich eine hauchdünne dunkle Kante: sie setzt den hellen Balken
+    /// vom aufgehellten Glas ab, ohne ihn im Hellen zu verändern.
+    private var grabber: some View {
+        let dark = scheme == .dark
+        return Capsule()
+            .fill(Color.primary.opacity(MorePanel.grabberOpacity(dark: dark)))
+            .frame(width: MorePanel.grabberWidth, height: MorePanel.grabberHeight)
+            .overlay {
+                if dark {
+                    Capsule().strokeBorder(Color.black.opacity(0.22), lineWidth: 0.5)
+                }
+            }
+            .accessibilityHidden(true)
     }
 
     /// EINE Geste für beide Richtungen: nach oben wächst die Tafel auf die
@@ -184,6 +321,8 @@ struct MorePanelSurface: View {
                 // Bewegung), nur beim Loslassen springen.
                 guard !reduceMotion else { return }
                 drag = value.translation.height
+                // In DERSELBEN Runde wie die Höhe und aus DERSELBEN Rechnung.
+                publish(drag: drag, expanded: expanded)
             }
             .onEnded { value in
                 let outcome = MorePanel.resolve(drag: value.translation.height,
@@ -205,12 +344,27 @@ struct MorePanelSurface: View {
         if reduceMotion {
             drag = 0
             expanded = want
+            publish(drag: 0, expanded: want)
         } else {
             withAnimation(PanelMotion.settle) {
                 drag = 0
                 expanded = want
+                // MIT in der Transaktion: die Leiste bekommt damit exakt
+                // dieselbe Feder wie Höhe und Radius. Eine eigene Animation
+                // an dieser Stelle wäre die zweite Bewegung auf einer Geste
+                // — genau der Fehler, der das Nachziehen verursacht hat.
+                publish(drag: 0, expanded: want)
             }
         }
+    }
+
+    /// Den Fortschritt nach draussen melden — aus derselben Rechnung, mit der
+    /// die Tafel selbst ihre Höhe, ihren Radius und ihre Überstände bildet.
+    /// Es gibt keine zweite Quelle: was hier ankommt, IST `MorePanel.progress`.
+    private func publish(drag: CGFloat, expanded: Bool) {
+        chrome.value = MorePanel.progress(container: metrics.container,
+                                          safeBottom: metrics.safeBottom,
+                                          expanded: expanded, drag: drag)
     }
 
     private var transition: AnyTransition {

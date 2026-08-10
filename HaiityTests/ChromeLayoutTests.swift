@@ -332,6 +332,199 @@ final class MorePanelTests: XCTestCase {
         XCTAssertEqual(visibleTop, safeBottom + tall, accuracy: 0.001)
     }
 
+    // MARK: – Was die LEISTE dabei macht
+    //
+    // Die Leiste wird NACH der Tafel gezeichnet und liegt auf deren unterem
+    // Überstand. Auf der Karte ist das richtig; auf der ganzen Seite stünden
+    // Umschalter und Anlegen-Knopf mitten in einer bildschirmfüllenden
+    // Fläche. Alles hier hängt am SELBEN `progress` wie Höhe, Radius und
+    // Überstand — geprüft wird genau das: eine Quelle, drei Wirkungen, keine
+    // Sprünge.
+
+    func testTheBarStandsWhileThePanelIsStillACard() {
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: 0), 1, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeWithdrawal(progress: 0), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOffset(progress: 0, bar: Theme.Metrics.control,
+                                              gap: Theme.Metrics.gap, safeBottom: safeBottom),
+                       0, accuracy: 0.001)
+        // Bis zur Haltegrenze passiert GAR nichts — eine Tafel, die noch wie
+        // eine Karte aussieht, hat ihre Leiste.
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: MorePanel.chromeHold), 1, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: MorePanel.chromeHold / 2), 1, accuracy: 0.001)
+    }
+
+    /// Der Kern der Rückmeldung: auf der ganzen Seite schwebt nichts mehr
+    /// darüber. Weder sichtbar noch — das ist der eigentliche Fehler —
+    /// unsichtbar treffbar.
+    func testAtFullPageTheBarIsGoneAndUntouchable() {
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: 1), 0, accuracy: 0.001)
+        XCTAssertFalse(MorePanel.chromeInteractive(progress: 1))
+        // Und sie steht dann unter der Bildschirmkante: Leiste + ihr Abstand
+        // nach unten + die untere Sicherheitszone.
+        let bar = Theme.Metrics.control, gap = Theme.Metrics.gap
+        XCTAssertEqual(MorePanel.chromeOffset(progress: 1, bar: bar, gap: gap,
+                                              safeBottom: safeBottom),
+                       bar + gap + safeBottom, accuracy: 0.001)
+    }
+
+    /// Sie ist schon VOR dem Ende weg: die letzten Prozent der Fahrt sollen
+    /// eine leere Fläche zeigen, nicht einen Knopf, der noch eben verglüht.
+    func testTheBarIsAlreadyGoneBeforeTheVeryEnd() {
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: MorePanel.chromeGone), 0, accuracy: 0.001)
+        XCTAssertLessThan(MorePanel.chromeGone, 1)
+        XCTAssertGreaterThan(MorePanel.chromeGone, MorePanel.chromeHold)
+    }
+
+    /// EIN Fortschritt, drei Wirkungen — und keine davon springt. Genau das
+    /// unterscheidet „am selben Wert" von „mit einer zweiten Animation
+    /// hinterher": ein Sprung wäre eine eigene Bewegung.
+    func testWithdrawalIsMonotonicAndContinuous() {
+        let bar = Theme.Metrics.control, gap = Theme.Metrics.gap
+        var lastOpacity = MorePanel.chromeOpacity(progress: 0)
+        var lastOffset = MorePanel.chromeOffset(progress: 0, bar: bar, gap: gap,
+                                                safeBottom: safeBottom)
+        for step in 1...200 {
+            let p = CGFloat(step) / 200
+            let opacity = MorePanel.chromeOpacity(progress: p)
+            let offset = MorePanel.chromeOffset(progress: p, bar: bar, gap: gap,
+                                                safeBottom: safeBottom)
+            XCTAssertLessThanOrEqual(opacity, lastOpacity + 0.0001, "Deckkraft steigt bei \(p)")
+            XCTAssertGreaterThanOrEqual(offset, lastOffset - 0.0001, "Versatz fällt bei \(p)")
+            XCTAssertGreaterThanOrEqual(opacity, 0)
+            XCTAssertLessThanOrEqual(opacity, 1)
+            // Keine Kante: über einen halben Prozentpunkt Fortschritt darf
+            // sich weder Deckkraft noch Versatz sprunghaft ändern. Ein Sprung
+            // wäre der sichtbare Beweis für eine zweite Bewegung.
+            XCTAssertLessThan(lastOpacity - opacity, 0.05, "Deckkraft springt bei \(p)")
+            XCTAssertLessThan(offset - lastOffset, 5, "Versatz springt bei \(p)")
+            lastOpacity = opacity
+            lastOffset = offset
+        }
+    }
+
+    /// Ausserhalb von 0…1 wird geklemmt, nicht extrapoliert — genau wie beim
+    /// Radius und den Rändern. Ein Wert von 1,2 (Federüberschwinger) darf
+    /// keine negative Deckkraft ergeben.
+    func testWithdrawalClampsOutsideTheRange() {
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: -3), 1, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: 4), 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOffset(progress: -3, bar: 52, gap: 8, safeBottom: 34),
+                       0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOffset(progress: 4, bar: 52, gap: 8, safeBottom: 34),
+                       94, accuracy: 0.001)
+        XCTAssertTrue(MorePanel.chromeInteractive(progress: -3))
+        XCTAssertFalse(MorePanel.chromeInteractive(progress: 4))
+    }
+
+    /// Ein Gerät ohne Home-Indikator hat keine untere Sicherheitszone — der
+    /// Weg nach unten wird dadurch kürzer, aber nie negativ.
+    func testOffsetNeverGoesBackwardsOnASquareScreen() {
+        let travel = MorePanel.chromeOffset(progress: 1, bar: 52, gap: 8, safeBottom: 0)
+        XCTAssertEqual(travel, 60, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOffset(progress: 1, bar: 52, gap: 8, safeBottom: -20),
+                       60, accuracy: 0.001)
+    }
+
+    /// **Die Leiste bleibt bedienbar, solange sie zu sehen ist — und wird
+    /// unbedienbar, bevor sie unsichtbar ist.**
+    ///
+    /// Der zweite Teil ist der wichtige: eine Ansicht mit `opacity(0)` ist in
+    /// SwiftUI weiterhin treffbar. Ohne die eigene Zusage läge auf der ganzen
+    /// Seite ein unsichtbarer Anlegen-Knopf über der Tafel.
+    func testHitTestingStopsBeforeTheBarIsInvisible() {
+        XCTAssertTrue(MorePanel.chromeInteractive(progress: 0))
+        XCTAssertTrue(MorePanel.chromeInteractive(progress: MorePanel.chromeHold))
+        for step in 0...200 {
+            let p = CGFloat(step) / 200
+            if MorePanel.chromeOpacity(progress: p) < 0.5 {
+                XCTAssertFalse(MorePanel.chromeInteractive(progress: p),
+                               "halb verblasst und trotzdem treffbar bei \(p)")
+            }
+            if MorePanel.chromeInteractive(progress: p) {
+                XCTAssertGreaterThan(MorePanel.chromeOpacity(progress: p), 0.4,
+                                     "treffbar, aber praktisch unsichtbar bei \(p)")
+            }
+        }
+    }
+
+    /// Die Probe auf die Rückmeldung selbst: aus einem Zug nach oben, der die
+    /// Tafel auf die ganze Seite bringt, folgt eine Leiste, die WEG ist —
+    /// gerechnet aus derselben Kette wie die Höhe, nicht aus einem zweiten
+    /// Zustand.
+    func testAPullToFullPageTakesTheBarWithIt() {
+        func chrome(drag: CGFloat, expanded: Bool) -> (Double, Bool) {
+            let p = MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                       expanded: expanded, drag: drag)
+            return (MorePanel.chromeOpacity(progress: p), MorePanel.chromeInteractive(progress: p))
+        }
+        // Karte, unangetastet: die Leiste steht.
+        XCTAssertEqual(chrome(drag: 0, expanded: false).0, 1, accuracy: 0.001)
+        XCTAssertTrue(chrome(drag: 0, expanded: false).1)
+        // Ein kurzer Zug nach oben: noch alles da.
+        XCTAssertEqual(chrome(drag: -60, expanded: false).0, 1, accuracy: 0.001)
+        // Ganz nach oben durchgezogen: weg.
+        XCTAssertEqual(chrome(drag: -5000, expanded: false).0, 0, accuracy: 0.001)
+        XCTAssertFalse(chrome(drag: -5000, expanded: false).1)
+        // Eingerastet auf der ganzen Seite: immer noch weg.
+        XCTAssertEqual(chrome(drag: 0, expanded: true).0, 0, accuracy: 0.001)
+        XCTAssertFalse(chrome(drag: 0, expanded: true).1)
+    }
+
+    /// **Kein Steckenbleiben.** Aus der ganzen Seite führt der Zug nach unten
+    /// zurück — und die Leiste kommt auf demselben Weg wieder. Das ist die
+    /// rechnerische Seite der Zusage „man kommt immer zurück": schon auf
+    /// halbem Weg nach unten ist sie wieder voll da und wieder bedienbar.
+    func testDraggingBackDownBringsTheBarBack() {
+        let big = MorePanel.expandedHeight(container: tall, safeBottom: safeBottom)
+        let small = MorePanel.collapsedHeight(container: tall)
+        var lastOpacity = 0.0
+        for drag in stride(from: 0.0, through: big - small, by: 20.0) {
+            let p = MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                       expanded: true, drag: CGFloat(drag))
+            let opacity = MorePanel.chromeOpacity(progress: p)
+            XCTAssertGreaterThanOrEqual(opacity, lastOpacity - 0.0001,
+                                        "Leiste wird beim Herunterziehen blasser bei \(drag)")
+            lastOpacity = opacity
+        }
+        // Ganz heruntergezogen ist sie zurück — voll sichtbar und treffbar.
+        let backP = MorePanel.progress(container: tall, safeBottom: safeBottom,
+                                       expanded: true, drag: 5000)
+        XCTAssertEqual(backP, 0, accuracy: 0.001)
+        XCTAssertEqual(MorePanel.chromeOpacity(progress: backP), 1, accuracy: 0.001)
+        XCTAssertTrue(MorePanel.chromeInteractive(progress: backP))
+    }
+
+    // MARK: – Der Griff
+    //
+    // Er ist auf der ganzen Seite der EINZIGE Weg zurück. Deshalb steht seine
+    // Sichtbarkeit hier als Zusage und nicht nur als Augenmaß.
+
+    /// Im Dunkeln deutlich kräftiger als im Hellen — genau das war die
+    /// Rückmeldung. Und in beiden Fällen noch ein Griff und kein Balken:
+    /// unter voller Deckkraft.
+    func testTheGrabberReadsInDarkAndStaysSubtleInLight() {
+        let dark = MorePanel.grabberOpacity(dark: true)
+        let light = MorePanel.grabberOpacity(dark: false)
+        XCTAssertGreaterThan(dark, light)
+        // Auf dunklem Glas braucht ein heller Strich mehr als die rund 0,3
+        // der hierarchischen Stufen — mit denen war er „kaum zu sehen".
+        XCTAssertGreaterThanOrEqual(dark, 0.5)
+        // Im Hellen war nie etwas falsch: dort bleibt es in der Nähe des
+        // alten Wertes, statt einen schwarzen Riegel hinzustellen.
+        XCTAssertGreaterThanOrEqual(light, 0.3)
+        XCTAssertLessThanOrEqual(light, 0.4)
+        XCTAssertLessThan(dark, 1)
+    }
+
+    /// Er ist etwas breiter als die 36 pt der System-Blätter und bleibt
+    /// trotzdem ein Strich — und er ist NICHT Teil des Rückzugs: was zurück
+    /// führt, darf nicht mit verschwinden.
+    func testTheGrabberIsAWideThinLine() {
+        XCTAssertGreaterThanOrEqual(MorePanel.grabberWidth, 36)
+        XCTAssertLessThanOrEqual(MorePanel.grabberHeight, 6)
+        XCTAssertGreaterThan(MorePanel.grabberWidth, MorePanel.grabberHeight * 4)
+    }
+
     // MARK: – Was ein losgelassener Zug bedeutet
 
     func testAShortPullUpExpands() {

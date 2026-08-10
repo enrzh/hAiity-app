@@ -232,6 +232,92 @@ enum MorePanel {
         (max(0, safeBottom) + bar + 2 * gap) * min(1, max(0, progress))
     }
 
+    // MARK: – Was die LEISTE dabei macht
+    //
+    // Auf der KARTE liegt die Leiste bewusst AUF dem unteren Überstand der
+    // Tafel: die Tafel wächst aus ihr heraus, und ein Umschalter, der dabei
+    // unter die eigene Tafel rutscht, sähe aus wie ein Fehler. Auf der GANZEN
+    // SEITE stimmt genau das nicht mehr — dort gibt es kein „daneben" mehr,
+    // über dem etwas schweben dürfte, und Umschalter und Anlegen-Knopf stehen
+    // mitten in einer bildschirmfüllenden Fläche.
+    //
+    // Deshalb zieht sich die Leiste zurück, und zwar am SELBEN `progress` wie
+    // Höhe, Radius und Überstand. Keine zweite Feder, kein zweiter Zustand:
+    // eine Geste, eine Bewegung. (Eine eigene Animation auf derselben Geste
+    // war schon einmal die Ursache des Nachziehens.)
+    //
+    // Was dabei NICHT verschwindet, ist der Griff — er ist auf der ganzen
+    // Seite der einzige Weg zurück, und der liegt IN der Tafel.
+
+    /// Bis hierhin steht die Leiste vollständig da. Solange die Tafel noch
+    /// wie eine Karte aussieht, gehört sie ins Bild.
+    static let chromeHold: CGFloat = 0.45
+    /// Ab hier ist sie ganz weg — bewusst VOR dem Ende: die letzten Prozent
+    /// der Fahrt sollen eine leere Fläche zeigen, nicht einen Knopf, der noch
+    /// eben verglüht.
+    static let chromeGone: CGFloat = 0.95
+
+    /// 0 = die Leiste steht, 1 = sie ist fort. Der gemeinsame Verlauf hinter
+    /// Deckkraft, Versatz und Trefferbarkeit — damit die drei nicht
+    /// auseinanderlaufen können.
+    static func chromeWithdrawal(progress: CGFloat) -> CGFloat {
+        let t = min(1, max(0, progress))
+        guard t > chromeHold else { return 0 }
+        guard chromeGone > chromeHold else { return 1 }
+        return min(1, (t - chromeHold) / (chromeGone - chromeHold))
+    }
+
+    /// Deckkraft von Umschalter und Anlegen-Knopf.
+    static func chromeOpacity(progress: CGFloat) -> Double {
+        Double(1 - chromeWithdrawal(progress: progress))
+    }
+
+    /// Wie weit die Leiste dabei nach unten aus dem Bild fährt. Sie
+    /// verschwindet nicht auf der Stelle, sie geht dorthin, wo sie herkam —
+    /// das ist dieselbe Richtung, in die die Tafel beim Schließen fällt.
+    ///
+    /// Die Strecke reicht bis unter die Bildschirmkante: Leiste plus ihr
+    /// Abstand nach unten plus die untere Sicherheitszone.
+    static func chromeOffset(progress: CGFloat,
+                             bar: CGFloat,
+                             gap: CGFloat,
+                             safeBottom: CGFloat) -> CGFloat {
+        chromeWithdrawal(progress: progress) * (bar + gap + max(0, safeBottom))
+    }
+
+    /// Nimmt die Leiste noch Tipper an?
+    ///
+    /// Das ist keine Kosmetik zur Deckkraft: eine Ansicht mit `opacity(0)`
+    /// ist in SwiftUI weiterhin TREFFBAR. Ohne diese Zeile läge auf der
+    /// ganzen Seite ein unsichtbarer Anlegen-Knopf über der Tafel, und ein
+    /// Tipp dorthin öffnete das Anlegen-Blatt aus dem Nichts.
+    static func chromeInteractive(progress: CGFloat) -> Bool {
+        chromeWithdrawal(progress: progress) < 0.5
+    }
+
+    // MARK: – Der Griff
+
+    /// Maße des Griffs. Etwas breiter als die 36 pt der System-Blätter: er
+    /// ist hier nicht nur ein Hinweis, sondern auf der ganzen Seite der
+    /// EINZIGE Weg zurück.
+    static let grabberWidth: CGFloat = 40
+    static let grabberHeight: CGFloat = 5
+
+    /// Deckkraft des Griffs auf `Color.primary` (schwarz im Hellen, weiß im
+    /// Dunklen).
+    ///
+    /// Warum nicht `.tertiary`: die hierarchischen Stufen sind in BEIDEN
+    /// Schemata gleich stark (rund 0,3), und das ist auf dem dunklen
+    /// Tafelglas zu wenig — die Rückmeldung war „im Dunkeln kaum zu sehen".
+    /// Ein heller Strich auf dunklem Grund braucht mehr Deckkraft als ein
+    /// dunkler auf hellem, weil das Glas im Dunkeln aufhellt und im Hellen
+    /// abdunkelt: es läuft dem Griff beide Male entgegen, aber im Dunkeln
+    /// stärker. Im Hellen bleibt es deshalb fast beim alten Wert (dort war
+    /// nie etwas falsch), im Dunkeln geht es deutlich hoch.
+    static func grabberOpacity(dark: Bool) -> Double {
+        dark ? 0.62 : 0.34
+    }
+
     /// Der senkrechte Versatz während eines Zuges: nur nach UNTEN und nur aus
     /// dem KLEINEN Zustand. Aus dem großen ist der Zug nach unten das
     /// Schrumpfen selbst (siehe `height`) — dort zusätzlich zu wandern hieße,
