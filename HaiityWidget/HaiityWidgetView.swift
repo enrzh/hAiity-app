@@ -58,12 +58,12 @@ struct HaiityWidgetView: View {
             HStack(spacing: 5) {
                 nameRun(habit, font: .subheadline.weight(.semibold))
                 Spacer(minLength: 4)
-                checkButton(habit)
+                checkButton(habit, dark: dark)
             }
             streakRun(habit)
                 .font(.title2.weight(.bold).monospacedDigit())
                 .foregroundStyle(.primary)
-            statusLine(status)
+            statusLine(status, dark: dark)
             grid(habit, dark: dark)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
@@ -81,9 +81,9 @@ struct HaiityWidgetView: View {
                 streakRun(habit)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .foregroundStyle(.secondary)
-                checkButton(habit)
+                checkButton(habit, dark: dark)
             }
-            statusLine(status)
+            statusLine(status, dark: dark)
             grid(habit, dark: dark)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
@@ -110,24 +110,39 @@ struct HaiityWidgetView: View {
         Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak(today: today))")
     }
 
-    private func statusLine(_ status: WidgetStatus) -> some View {
+    private func statusLine(_ status: WidgetStatus, dark: Bool) -> some View {
         Text(verbatim: WidgetLogic.statusText(status))
             .font(.caption2)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
-            .foregroundStyle(status == .done
-                             ? AnyShapeStyle(Theme.accentText(palette))
-                             : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+            .foregroundStyle(statusTint(status, dark: dark))
+    }
+
+    private func statusTint(_ status: WidgetStatus, dark: Bool) -> AnyShapeStyle {
+        switch status {
+        case .done:
+            return AnyShapeStyle(Theme.accentText(palette))
+        case .declined:
+            return AnyShapeStyle(Theme.color(entry.palettes.style(for: entry.habit)
+                .negative(dark: dark)))
+        case .open, .free:
+            return AnyShapeStyle(HierarchicalShapeStyle.secondary)
+        }
     }
 
     /// Abhak-Knopf: Checkbox-Habits zeigen ✓ (gefüllt, wenn der Tag zählt)
     /// und sind nur offen tippbar — der Intent ent-hakt nie. Mengen-Habits
     /// zeigen n/Ziel und zählen bei jedem Tipp weiter, auch über das Ziel
-    /// hinaus. Auch an einem terminfreien Tag bedienbar: der Bonus zählt.
-    private func checkButton(_ habit: Habit) -> some View {
+    /// hinaus. Ja/Nein-Habits zeigen ihre Antwort (✓ / ✗ / leerer Kreis) und
+    /// setzen auf Tipp JA — auch über ein bestehendes Nein hinweg, denn der
+    /// Homescreen hat für zwei Knöpfe keinen Platz und der eine, der da ist,
+    /// heißt „abhaken". Auch an einem terminfreien Tag bedienbar: der Bonus
+    /// zählt.
+    private func checkButton(_ habit: Habit, dark: Bool) -> some View {
         let done = GoalEngine.dayCounts(habit: habit, day: today)
+        let declined = habit.isDeclined(today)
         return Button(intent: CheckOffHabitIntent(habit: habit)) {
-            if let target = habit.recurrence.target {
+            if habit.kind == .quantity, let target = habit.recurrence.target {
                 Text(verbatim: "\(habit.log[today] ?? 0)/\(target)")
                     .font(.caption2.bold().monospacedDigit())
                     .padding(.horizontal, 7)
@@ -136,16 +151,31 @@ struct HaiityWidgetView: View {
                                 in: Capsule())
                     .foregroundStyle(done ? .white : .primary)
             } else {
-                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                Image(systemName: declined
+                      ? "xmark.circle.fill"
+                      : (done ? "checkmark.circle.fill" : "circle"))
                     .font(.title3)
-                    .foregroundStyle(done
-                                     ? AnyShapeStyle(Theme.accentText(palette))
-                                     : AnyShapeStyle(HierarchicalShapeStyle.tertiary))
+                    .foregroundStyle(negativeOrAccent(declined: declined, done: done, dark: dark))
             }
         }
         .buttonStyle(.plain)
-        .disabled(habit.recurrence.target == nil && done)
-        .accessibilityLabel(String(localized: "Habit abhaken"))
+        .disabled(habit.kind != .quantity && done)
+        .accessibilityLabel(habit.kind == .yesNo
+                            ? String(localized: "Mit Ja beantworten")
+                            : String(localized: "Habit abhaken"))
+    }
+
+    /// Verneint zeichnet in der Verneinungsfarbe DIESES Habits — dieselbe,
+    /// die im Raster darunter steht; sonst hieße dasselbe Nein oben rot und
+    /// unten anders.
+    private func negativeOrAccent(declined: Bool, done: Bool, dark: Bool) -> AnyShapeStyle {
+        if declined {
+            let cellPalette = entry.palettes.style(for: entry.habit)
+            return AnyShapeStyle(Theme.color(cellPalette.negative(dark: dark)))
+        }
+        return done
+            ? AnyShapeStyle(Theme.accentText(palette))
+            : AnyShapeStyle(HierarchicalShapeStyle.tertiary)
     }
 
     /// Dasselbe Raster wie in der App, nur kleiner — Habit-eigene Farbe

@@ -11,11 +11,21 @@ import Foundation
 /// Serie mit) — Mehrleistung darf nie bestraft werden. Das ist exakt die
 /// alte Ruhetag-Regel, nur verallgemeinert: Ruhetage sind jetzt schlicht die
 /// Tage, an denen die Wochentagsmenge keinen Termin vorsieht.
+///
+/// **Die eine Ausnahme von der Durchsichtigkeit:** eine ausdrückliche
+/// VERNEINUNG (Habit-Art „Ja/Nein"). Sie ist nie durchsichtig — sie bricht
+/// die Serie an jedem Tag, an dem sie steht, auch an einem terminfreien, und
+/// sie steht im Nenner der Quote. Das ist genau der Unterschied zwischen
+/// „nicht beantwortet" und „mit Nein beantwortet": das eine ist eine Lücke,
+/// das andere eine Aussage. Ohne diese Ausnahme wäre die ganze Habit-Art
+/// bedeutungslos — ein Nein verhielte sich wie gar kein Eintrag.
 enum GoalEngine {
 
     // MARK: – Tages-Semantik
 
     /// Zählt der Tag? Checkbox: Wert >= 1. Mengen-Habit: Wert >= target.
+    /// Ja/Nein: nur ein JA (eine Verneinung ist ein Wert ≥ 1 und darf hier
+    /// auf keinen Fall durchrutschen).
     /// Termine werden hier bewusst NICHT geprüft — ein Check-in zählt auch
     /// an einem terminfreien Tag (siehe oben).
     static func dayCounts(habit: Habit, day: String, calendar: Calendar = .current) -> Bool {
@@ -26,8 +36,20 @@ enum GoalEngine {
         // prüft `Habit.validDays` an allen Stellen, die über Log-Schlüssel
         // iterieren.
         guard value >= 1, DayKey.components(day) != nil else { return false }
-        if let target = habit.recurrence.target { return value >= target }
-        return true
+        // Die ART gewinnt über das Mengenziel: ein Ja/Nein-Habit, in dessen
+        // Regel noch ein altes `target` steht, bleibt ein Ja/Nein-Habit.
+        switch habit.kind {
+        case .yesNo:    return value != Habit.Answer.no
+        case .quantity: return value >= (habit.recurrence.target ?? 1)
+        case .checkbox: return true
+        }
+    }
+
+    /// Ausdrücklich verneint? Der Gegenspieler zu `dayCounts` — und der
+    /// EINZIGE Grund, warum eine Serie an einem terminfreien Tag reißen kann.
+    static func dayDeclined(habit: Habit, day: String) -> Bool {
+        guard DayKey.components(day) != nil else { return false }
+        return habit.isDeclined(day)
     }
 
     /// Ist an diesem Tag ein Termin fällig?
@@ -75,6 +97,11 @@ enum GoalEngine {
     /// Terminfreie Tage sind durchsichtig (sie brechen nichts und zählen
     /// nichts); ein Check-in an so einem Tag zählt trotzdem. Heute darf noch
     /// offen sein (die Serie lebt bis gestern).
+    ///
+    /// **Ein Nein bricht sofort** — vor allen anderen Regeln, also auch an
+    /// einem terminfreien Tag und auch HEUTE. „Heute noch offen" ist eine
+    /// Aussage über einen Tag, der noch nichts gesagt hat; ein Nein hat
+    /// gesprochen.
     private static func dayStreak(habit: Habit,
                                   schedule: Recurrence.Schedule,
                                   today: String,
@@ -93,6 +120,8 @@ enum GoalEngine {
         while day >= lower {
             if dayCounts(habit: habit, day: day, calendar: calendar) {
                 n += 1
+            } else if dayDeclined(habit: habit, day: day) {
+                break   // ausdrücklich verneint — nie durchsichtig
             } else if !schedule.isScheduled(day) {
                 // kein Termin — weder Bruch noch Zählung
             } else if day == today {
@@ -192,6 +221,8 @@ enum GoalEngine {
             if dayCounts(habit: habit, day: day, calendar: calendar) {
                 run += 1
                 best = max(best, run)
+            } else if dayDeclined(habit: habit, day: day) {
+                run = 0   // dieselbe Ausnahme wie in `dayStreak`
             } else if !schedule.isScheduled(day) {
                 // kein Termin — überbrückt den Lauf, ohne ihn zu verlängern
             } else {
@@ -249,6 +280,13 @@ enum GoalEngine {
     /// stehen in keinem der beiden). Flexibles Ziel: gemessen in den aktiven
     /// Perioden, die das Fenster berührt; die laufende Periode zählt nur mit,
     /// wenn sie schon erfüllt ist. Leerer Nenner -> 0.
+    ///
+    /// **Beantwortete Tage stehen immer im Nenner** — auch, wenn an ihnen
+    /// gar kein Termin war. Wer an einem freien Tag „Nein" sagt, hat etwas
+    /// gesagt, und die Quote ist die Stelle, an der es zählt; wer dort „Ja"
+    /// sagt, hebt sie (Nenner UND Zähler wachsen um eins, das kann eine
+    /// Quote nie senken). Für Checkbox- und Mengen-Habits ändert das nichts:
+    /// `isAnswered` ist dort immer falsch.
     static func completion(habit: Habit,
                            lastNDays: Int,
                            today: String = DayKey.today(),
@@ -259,7 +297,7 @@ enum GoalEngine {
             var done = 0, denom = 0
             var day = today
             for _ in 0..<lastNDays {
-                if schedule.isScheduled(day) {
+                if schedule.isScheduled(day) || habit.isAnswered(day) {
                     denom += 1
                     if dayCounts(habit: habit, day: day, calendar: calendar) { done += 1 }
                 }
@@ -304,10 +342,21 @@ enum GoalEngine {
     /// keine zweite Darstellung der Regel — ein eigener Grauton für „war
     /// nicht fällig" hätte 365 Zellen pro Habit eine dritte Bedeutung
     /// gegeben, die niemand ohne Legende liest.
+    ///
+    /// **Ja/Nein hat keine Menge** — es gibt nichts zu schattieren. Ein Ja
+    /// bekommt deshalb dieselbe Lauflängen-Schattierung wie eine Checkbox
+    /// (längere Ketten leuchten heller, gezählt werden nur JA-Tage), und ein
+    /// Nein bekommt die reservierte Stufe `Answer.declinedLevel`. Sie ist
+    /// die einzige Ausnahme von „eine leere Zelle ist eine leere Zelle": ein
+    /// Nein ist kein leerer Tag, sondern die Gegenaussage — die einzige
+    /// dritte Bedeutung, die das Raster je bekommt, und die einzige, die man
+    /// ohne Legende liest, weil sie eine eigene FARBE hat und keinen
+    /// Grauton.
     static func intensity(habit: Habit, key: String, calendar: Calendar = .current) -> Int {
+        if habit.isDeclined(key) { return Habit.Answer.declinedLevel }
         let value = habit.log[key] ?? 0
         guard value >= 1 else { return 0 }
-        if let target = habit.recurrence.target {
+        if habit.kind == .quantity, let target = habit.recurrence.target {
             guard target > 1 else { return 4 }
             // Bewusst Ganzzahl-Arithmetik: `3 · 3 / 9` muss exakt 1 sein,
             // in Double wäre es 0,9999… und fiele eine Stufe zu tief.
@@ -317,7 +366,9 @@ enum GoalEngine {
         var day = key
         while run < 8,
               let previous = DayKey.shifted(day, by: -1, calendar: calendar),
-              (habit.log[previous] ?? 0) >= 1 {
+              // Ein Nein unterbricht den Lauf, statt ihn zu verlängern —
+              // sonst leuchtete eine Kette aus Verneinungen am hellsten.
+              habit.isDone(previous) {
             run += 1
             day = previous
         }

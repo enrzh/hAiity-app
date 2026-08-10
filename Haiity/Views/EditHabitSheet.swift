@@ -43,6 +43,11 @@ struct EditHabitSheet: View {
     @State private var draft = RecurrenceDraft()
     /// nil = „Wie App" (kein Override) — der Normalfall.
     @State private var habitPalette: PaletteRef?
+    /// Die Art. Steht NEBEN dem Entwurf und nicht darin: `RecurrenceDraft`
+    /// bildet die REGEL ab (samt Mengenziel), die Art ist eine Eigenschaft
+    /// des Habits. Sie steuert hier trotzdem `draft.quantity` mit — das
+    /// Mengenziel ist die Art „Menge".
+    @State private var kind: HabitKind = .checkbox
 
     private var calendar: Calendar { .current }
 
@@ -57,7 +62,7 @@ struct EditHabitSheet: View {
                 }
                 recurrenceSection
                 timeSection
-                quantitySection
+                kindSection
                 colorSection
                 if let habit = existing {
                     Section {
@@ -94,6 +99,12 @@ struct EditHabitSheet: View {
         .onAppear { load() }
         .onChange(of: draft.frequency) { _, _ in draft.normalize(calendar: calendar) }
         .onChange(of: draft.flexible) { _, _ in draft.normalize(calendar: calendar) }
+        // Die Art IST das Mengenziel-Häkchen: „Menge" schaltet es an, alles
+        // andere aus. Ein Ja/Nein-Habit mit stehen gebliebenem Ziel wäre ein
+        // Widerspruch, den die Rechnung zwar aushält (die Art gewinnt), der
+        // aber beim nächsten Umschalten auf „Menge" aus dem Nichts wieder
+        // aufträte.
+        .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
     }
 
     // MARK: – Zeitraum (Regel + Start)
@@ -301,20 +312,41 @@ struct EditHabitSheet: View {
         }
     }
 
-    // MARK: – Mengenziel
+    // MARK: – Art (Abhaken / Menge / Ja-Nein)
+    //
+    // Die drei Arten schließen einander aus, also stehen sie in EINEM
+    // Umschalter und nicht als zwei Kippschalter nebeneinander. Vorher war
+    // hier ein einzelner Schalter „Mengenziel"; mit einer dritten Art wären
+    // daraus zwei Schalter geworden, die man gegenseitig ausknipsen muss —
+    // und ein Zustand, in dem beide an sind und niemand weiß, was gilt.
 
-    private var quantitySection: some View {
+    private var kindSection: some View {
         Section {
-            Toggle(String(localized: "Mengenziel"), isOn: $draft.quantity)
-                .accessibilityIdentifier("quantity-toggle")
-            if draft.quantity {
+            Picker(String(localized: "Art"), selection: $kind) {
+                ForEach(HabitKind.allCases, id: \.self) { kind in
+                    Text(kind.displayName).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("habit-kind-picker")
+
+            if kind == .quantity {
                 Stepper(value: $draft.target, in: 1...99) {
                     Text(String(localized: "Ziel: \(draft.target) pro Tag"))
                 }
                 .accessibilityIdentifier("quantity-target")
             }
         } header: {
-            Text(String(localized: "Ziel"))
+            Text(String(localized: "Art"))
+        } footer: {
+            switch kind {
+            case .checkbox:
+                Text(String(localized: "Ein Tag ist erledigt oder nicht."))
+            case .quantity:
+                Text(String(localized: "Ein Tag zählt, sobald das Ziel erreicht ist."))
+            case .yesNo:
+                Text(String(localized: "Der Habit stellt eine Frage („Kein Zucker?“). Jeder Tag wird mit Ja oder Nein beantwortet — ein Nein ist etwas anderes als ein unbeantworteter Tag und bricht die Serie."))
+            }
         }
     }
 
@@ -392,6 +424,7 @@ struct EditHabitSheet: View {
         draft = RecurrenceDraft(habit.recurrence, timeMinutes: habit.timeMinutes,
                                 calendar: calendar)
         habitPalette = habit.palette
+        kind = habit.kind
     }
 
     /// Sichern ist synchron — es gibt nichts mehr zu fragen. Die
@@ -411,6 +444,14 @@ struct EditHabitSheet: View {
         habit.timeMinutes = draft.timeMinutes(calendar: calendar)
         habit.recurrence = recurrence
         habit.palette = habitPalette
+        // Weg von Ja/Nein heißt auch: die Antworten mitnehmen. Ohne das
+        // stünde die Umstellung bis zum nächsten Start und wäre danach
+        // wieder da — die Selbstheilung liest die Antwort-Codes und macht
+        // erneut ein Ja/Nein-Habit daraus (siehe `Habit.migratedLog`).
+        habit.log = Habit.migratedLog(habit.log, to: kind)
+        habit.kind = Habit.resolvedKind(marker: kind.rawValue,
+                                        log: habit.log,
+                                        target: recurrence.target)
         // `habit.reminderMinutes` bleibt unangetastet: es steht in Dateien
         // ausgelieferter Versionen und soll dort auch stehen bleiben (siehe
         // `Habit`). Ausgewertet wird es nicht mehr.

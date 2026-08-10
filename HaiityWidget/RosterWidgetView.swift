@@ -88,6 +88,8 @@ struct RosterWidgetView: View {
                     .minimumScaleFactor(0.75)
                     .foregroundStyle(status == .done
                                      ? AnyShapeStyle(Theme.accentText(palette))
+                                     : status == .declined
+                                     ? AnyShapeStyle(Theme.color(cellPalette.negative(dark: dark)))
                                      : AnyShapeStyle(HierarchicalShapeStyle.secondary))
             }
             Spacer(minLength: 4)
@@ -96,21 +98,26 @@ struct RosterWidgetView: View {
             }
             .frame(width: large ? 116 : 88)
             .padding(.vertical, 2)
-            glyph(status)
+            glyph(status, palette: cellPalette, dark: dark)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
-    /// Der Zustand als Symbol — dieselben drei Fälle wie der Text daneben,
-    /// nur auf einen Blick: erledigt, offen, heute gar nicht dran.
+    /// Der Zustand als Symbol — dieselben Fälle wie der Text daneben, nur auf
+    /// einen Blick: erledigt, verneint, offen, heute gar nicht dran.
     @ViewBuilder
-    private func glyph(_ status: WidgetStatus) -> some View {
+    private func glyph(_ status: WidgetStatus, palette cellPalette: PaletteStyle,
+                       dark: Bool) -> some View {
         switch status {
         case .done:
             Image(systemName: "checkmark.circle.fill")
                 .font(.footnote)
                 .foregroundStyle(Theme.accentText(palette))
+        case .declined:
+            Image(systemName: "xmark.circle.fill")
+                .font(.footnote)
+                .foregroundStyle(Theme.color(cellPalette.negative(dark: dark)))
         case .open:
             Image(systemName: "circle")
                 .font(.footnote)

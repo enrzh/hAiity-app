@@ -164,21 +164,19 @@ enum Backfill {
 
     /// Wie ein einzelner Tag dasteht.
     ///
-    /// **Warum benannt und vierstellig, wo heute drei Fälle reichen.** Als
-    /// Nächstes kommt die Habit-Art „Ja/Nein": dort ist ein Tag
-    /// *unbeantwortet*, *ja* oder *nein* — drei Zustände, die ein aus
-    /// `dayCounts` abgeleiteter Umschalter (an/aus) nicht ausdrücken kann.
-    /// Ein einzelner Kippknopf in der Karte müsste dafür weggeworfen werden;
-    /// eine Liste aus Aktionen, die aus einem BENANNTEN Zustand fällt, nicht.
-    /// `.declined` ist deshalb schon da, wird von `state(habit:day:)` aber
-    /// noch von keiner Habit-Art erzeugt.
+    /// **Warum benannt und vierstellig.** Bei der Habit-Art „Ja/Nein" ist
+    /// ein Tag *unbeantwortet*, *ja* oder *nein* — drei Zustände, die ein
+    /// aus `dayCounts` abgeleiteter Umschalter (an/aus) nicht ausdrücken
+    /// kann. Ein einzelner Kippknopf in der Karte hätte dafür weggeworfen
+    /// werden müssen; eine Liste aus Aktionen, die aus einem BENANNTEN
+    /// Zustand fällt, nicht — `.declined` stand deshalb schon hier, bevor es
+    /// die Habit-Art gab, und die Karte hat sich für sie nicht geändert.
     enum DayState: Equatable {
-        /// Kein Eintrag — und bei Ja/Nein später: unbeantwortet.
+        /// Kein Eintrag — bei Ja/Nein: unbeantwortet.
         case empty
-        /// Checkbox-Habit: erledigt.
+        /// Checkbox-Habit: erledigt. Bei Ja/Nein: mit Ja beantwortet.
         case done
-        /// Ausdrücklich verneint. Reserviert für die Habit-Art „Ja/Nein";
-        /// heute unerreichbar, weil ein Log-Wert nur ≥ 1 sein kann.
+        /// Ausdrücklich verneint (nur bei der Habit-Art „Ja/Nein").
         case declined
         /// Mengen-Habit: Zählstand gegen das Ziel.
         case quantity(value: Int, target: Int)
@@ -196,10 +194,17 @@ enum Backfill {
 
     static func state(habit: Habit, day: String) -> DayState {
         let value = habit.log[day] ?? 0
-        if let target = habit.recurrence.target {
-            return .quantity(value: max(0, value), target: target)
+        switch habit.kind {
+        case .yesNo:
+            if value == Habit.Answer.no { return .declined }
+            // Jeder andere positive Wert ist ein Ja — auch die „1", die ein
+            // ausgelieferter Build hinterlässt (siehe `Habit.isAffirmed`).
+            return value >= 1 ? .done : .empty
+        case .quantity:
+            return .quantity(value: max(0, value), target: habit.recurrence.target ?? 1)
+        case .checkbox:
+            return value >= 1 ? .done : .empty
         }
-        return value >= 1 ? .done : .empty
     }
 
     // MARK: – Die Aktionen zu einem Zustand
@@ -210,7 +215,7 @@ enum Backfill {
     /// Nie ein Delta: „+1" wäre bei einem nachgetragenen Tag eine Rechnung
     /// auf einem Stand, den man gerade gar nicht vor Augen hat.
     struct Action: Identifiable, Equatable {
-        enum Kind: String { case done, declined, quantity, clear }
+        enum Kind: String { case done, affirmed, declined, quantity, clear }
 
         /// Gilt die Aktion für EINEN Tag oder für die ganze Auswahl? Nur die
         /// Beschriftung hängt daran — geschrieben wird in beiden Fällen
@@ -224,12 +229,17 @@ enum Backfill {
 
         var id: String { kind.rawValue }
 
+        /// Bei Ja/Nein heißen die Knöpfe „Ja" und „Nein" und nicht
+        /// „Erledigt"/„Nicht gemacht": das Habit stellt eine FRAGE („Kein
+        /// Zucker?"), und man beantwortet eine Frage nicht mit „erledigt".
         var title: String {
             switch (kind, scope) {
             case (.done, .day):     return String(localized: "Erledigt")
             case (.done, .set):     return String(localized: "Alle als erledigt")
-            case (.declined, .day): return String(localized: "Nicht gemacht")
-            case (.declined, .set): return String(localized: "Alle als nicht gemacht")
+            case (.affirmed, .day): return String(localized: "Ja")
+            case (.affirmed, .set): return String(localized: "Alle als Ja")
+            case (.declined, .day): return String(localized: "Nein")
+            case (.declined, .set): return String(localized: "Alle als Nein")
             case (.quantity, .day): return String(localized: "Ziel erreicht")
             case (.quantity, .set): return String(localized: "Alle auf das Ziel")
             case (.clear, .day):    return String(localized: "Rückgängig")
@@ -243,10 +253,10 @@ enum Backfill {
 
         var systemImage: String {
             switch kind {
-            case .done:     return "checkmark"
-            case .declined: return "xmark"
-            case .quantity: return "target"
-            case .clear:    return "arrow.uturn.backward"
+            case .done, .affirmed: return "checkmark"
+            case .declined:        return "xmark"
+            case .quantity:        return "target"
+            case .clear:           return "arrow.uturn.backward"
             }
         }
 
@@ -255,24 +265,43 @@ enum Backfill {
 
         static let done = Action(kind: .done, value: 1)
         static let clear = Action(kind: .clear, value: nil)
+        /// Ja/Nein: die beiden reservierten Antwort-Codes, nicht 1 und nicht
+        /// 0 (siehe `Habit.Answer`).
+        static let affirm = Action(kind: .affirmed, value: Habit.Answer.yes)
+        static let decline = Action(kind: .declined, value: Habit.Answer.no)
         /// Mengenziel: EXAKT das Ziel, nicht „einer mehr".
         static func quantity(target: Int) -> Action {
             Action(kind: .quantity, value: max(1, target))
         }
     }
 
-    /// Welche Aktionen gibt es zu diesem Zustand? Heute sind das ein oder
-    /// zwei je Zustand (insgesamt drei erreichbare: Erledigt, Ziel erreicht,
-    /// Rückgängig) — die Form nimmt aber schon mehr auf, siehe `DayState`.
-    static func actions(for state: DayState) -> [Action] {
+    /// Welche Aktionen gibt es zu diesem Zustand?
+    ///
+    /// Bei Ja/Nein sind es IMMER genau zwei, und in jedem Zustand die beiden,
+    /// die etwas ändern: unbeantwortet -> Ja | Nein, Ja -> Nein |
+    /// Rückgängig, Nein -> Ja | Rückgängig. Ein dritter Knopf wäre in jedem
+    /// Zustand einer, der nichts tut.
+    ///
+    /// Die Art muss mit hinein, weil `.done` bei einer Checkbox etwas
+    /// anderes bedeutet als bei einer Frage — und vor allem einen anderen
+    /// WERT schreibt.
+    static func actions(for state: DayState, kind: HabitKind = .checkbox) -> [Action] {
+        if kind == .yesNo {
+            switch state {
+            case .empty:    return [.affirm, .decline]
+            case .done:     return [.decline, .clear]
+            case .declined: return [.affirm, .clear]
+            case .quantity: return [.affirm, .decline]   // unmöglich; nie ohne Ausweg
+            }
+        }
         switch state {
         case .empty:
             return [.done]
         case .done:
             return [.clear]
         case .declined:
-            // Noch nicht erzeugbar; die Liste kann den Fall trotzdem schon:
-            // auf Ja drehen oder den Tag wieder leeren.
+            // Bei Checkbox und Menge nicht erzeugbar — die Liste hätte den
+            // Fall trotzdem: auf Ja drehen oder den Tag wieder leeren.
             return [.done, .clear]
         case let .quantity(value, target):
             var out: [Action] = []
@@ -280,6 +309,11 @@ enum Backfill {
             if value > 0 { out.append(.clear) }
             return out
         }
+    }
+
+    /// Bequemer Weg: Zustand UND Art kommen aus demselben Habit.
+    static func actions(habit: Habit, day: String) -> [Action] {
+        actions(for: state(habit: habit, day: day), kind: habit.kind)
     }
 
     // MARK: – Mehrere Tage auf einmal
@@ -301,8 +335,19 @@ enum Backfill {
     /// gelten für ALLE gewählten Tage gleich: nachtragen oder leeren. Es gibt
     /// bewusst kein „umschalten" — bei gemischten Tagen wüsste niemand
     /// vorher, was passiert.
+    ///
+    /// Auch bei Ja/Nein bleiben es zwei: „Alle als Ja" und „Alle
+    /// zurücksetzen". Ein drittes „Alle als Nein" ist bewusst NICHT dabei —
+    /// die Zeile trägt drei Beschriftungen dieser Länge nicht, und
+    /// nachgetragen wird, was man geschafft hat. Ein einzelnes Nein
+    /// nachzutragen geht weiterhin über den Einzel-Modus.
     static func setActions(habit: Habit) -> [Action] {
-        let write = habit.recurrence.target.map { Action.quantity(target: $0) } ?? Action.done
+        let write: Action
+        switch habit.kind {
+        case .yesNo:    write = .affirm
+        case .quantity: write = .quantity(target: habit.recurrence.target ?? 1)
+        case .checkbox: write = .done
+        }
         return [write.scoped(.set), Action.clear.scoped(.set)]
     }
 
@@ -331,15 +376,20 @@ enum Backfill {
 
     // MARK: – Text
 
-    /// Der Zustand als Satzstück.
-    static func statusText(for state: DayState) -> String {
+    /// Der Zustand als Satzstück. Bei Ja/Nein spricht die Zeile die Sprache
+    /// der Frage: „Unbeantwortet", „Ja", „Nein".
+    static func statusText(for state: DayState, kind: HabitKind = .checkbox) -> String {
         switch state {
         case .empty:
-            return String(localized: "Kein Eintrag")
+            return kind == .yesNo
+                ? String(localized: "Unbeantwortet")
+                : String(localized: "Kein Eintrag")
         case .done:
-            return String(localized: "Erledigt")
+            return kind == .yesNo
+                ? String(localized: "Ja")
+                : String(localized: "Erledigt")
         case .declined:
-            return String(localized: "Nicht gemacht")
+            return String(localized: "Nein")
         case let .quantity(value, target):
             return value >= target
                 ? String(localized: "Erledigt (\(value)/\(target))")
@@ -359,7 +409,7 @@ enum Backfill {
     /// steht unter dem Picker und ändert sich mit jeder Wahl und jedem
     /// Schreibvorgang — deshalb hier und nicht als zwei Texte in der Ansicht.
     static func statusLine(habit: Habit, day: String, calendar: Calendar = .current) -> String {
-        let text = statusText(for: state(habit: habit, day: day))
+        let text = statusText(for: state(habit: habit, day: day), kind: habit.kind)
         return String(localized: "\(dayText(day, calendar: calendar)) · \(text)")
     }
 }

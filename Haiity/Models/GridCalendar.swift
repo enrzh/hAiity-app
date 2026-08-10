@@ -153,6 +153,10 @@ enum GridCalendar {
         let habit: UUID
         let logHash: Int
         let target: Int?
+        /// Die ART gehört mit hinein: sie ändert die Zellstufen, ohne dass
+        /// sich ein einziger Log-Wert ändert (aus einem Ja/Nein-Habit ein
+        /// Checkbox-Habit zu machen färbt jede verneinte Zelle um).
+        let kind: HabitKind
         let weeks: Int
         let today: String
         let firstWeekday: Int
@@ -171,6 +175,7 @@ enum GridCalendar {
         let key = CacheKey(habit: habit.id,
                            logHash: habit.log.hashValue,
                            target: habit.recurrence.target,
+                           kind: habit.kind,
                            weeks: weeks,
                            today: today,
                            firstWeekday: calendar.firstWeekday)

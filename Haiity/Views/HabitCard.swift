@@ -46,6 +46,11 @@ struct HabitCard: View {
     let onMarkDone: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
+    /// Heute mit Ja bzw. Nein beantworten (Habit-Art „Ja/Nein"). Umschaltend:
+    /// dieselbe Antwort ein zweites Mal nimmt sie zurück. Steht mit einem
+    /// Standardwert ganz am Ende, damit Vorschauen und Tests die Karte ohne
+    /// diesen Weg bauen können.
+    var onAnswer: (Bool) -> Void = { _ in }
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -57,6 +62,13 @@ struct HabitCard: View {
 
     private var today: String { DayKey.today() }
     private var doneToday: Bool { GoalEngine.dayCounts(habit: habit, day: today) }
+    private var declinedToday: Bool { habit.isDeclined(today) }
+    /// Die Verneinungsfarbe DIESES Habits — dieselbe, die seine Zellen im
+    /// Raster tragen. Der Kopf darf nicht in einer anderen Farbe „Nein"
+    /// sagen als die Fläche darunter.
+    private var negativeColor: Color {
+        Theme.color(palettes.style(for: habit).negative(dark: scheme == .dark))
+    }
 
     /// Höhe der Kopfzeile. Ausgeklappt volle Trefferfläche, zusammengezogen
     /// deutlich flacher — der Kopf soll beim Scrollen nicht als leerer Kasten
@@ -236,7 +248,24 @@ struct HabitCard: View {
     /// sein wie direkt auf der Zeile.
     @ViewBuilder
     private var habitActions: some View {
-        if doneToday, habit.recurrence.target == nil {
+        if habit.kind == .yesNo {
+            // Die Frage bekommt BEIDE Antworten — sonst wäre der lange Druck
+            // der einzige Ort der App, an dem man nur zustimmen kann.
+            Button(action: { onAnswer(true) }) {
+                Label(String(localized: "Ja"), systemImage: "checkmark")
+            }
+            .accessibilityIdentifier("check-today")
+            Button(action: { onAnswer(false) }) {
+                Label(String(localized: "Nein"), systemImage: "xmark")
+            }
+            .accessibilityIdentifier("decline-today")
+            if habit.isAnswered(today) {
+                Button(action: onClear) {
+                    Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
+                }
+                .accessibilityIdentifier("revert-today")
+            }
+        } else if doneToday, habit.recurrence.target == nil {
             Button(action: onClear) {
                 Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
             }
@@ -346,7 +375,15 @@ struct HabitCard: View {
     private var nameRun: some View {
         Button {
             Theme.Haptics.check()
-            if habit.recurrence.target != nil { onIncrement() } else { onToggleDay(today) }
+            switch habit.kind {
+            // Zusammengezogen gibt es nur EINEN Tipp — er meint JA. Ein
+            // Dreiklang (unbeantwortet -> Ja -> Nein -> …) auf einer
+            // unsichtbaren Trefferfläche wäre geraten statt bedient; „Nein"
+            // steht ausgeklappt und im Menü.
+            case .yesNo:    onAnswer(true)
+            case .quantity: onIncrement()
+            case .checkbox: onToggleDay(today)
+            }
         } label: {
             nameContent
         }
@@ -387,7 +424,7 @@ struct HabitCard: View {
     /// hier neu aufzublitzen.
     @ViewBuilder
     private var mergedDone: some View {
-        if let target = habit.recurrence.target {
+        if habit.kind == .quantity, let target = habit.recurrence.target {
             let value = habit.log[today] ?? 0
             Text(verbatim: "\(value)/\(target)")
                 .font(.caption.weight(.semibold).monospacedDigit())
@@ -396,20 +433,31 @@ struct HabitCard: View {
                                  : AnyShapeStyle(HierarchicalShapeStyle.secondary))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         } else {
-            Image(systemName: doneToday ? "checkmark.circle.fill" : "circle")
+            // Drei Zustände, drei Glyphen — ein Ja/Nein-Habit darf im
+            // zusammengezogenen Kopf nicht aussehen wie ein offener.
+            Image(systemName: declinedToday
+                  ? "xmark.circle.fill"
+                  : (doneToday ? "checkmark.circle.fill" : "circle"))
                 .font(.footnote)
-                .foregroundStyle(doneToday
-                                 ? AnyShapeStyle(Theme.accentText(palettes.style))
-                                 : AnyShapeStyle(HierarchicalShapeStyle.tertiary))
+                .foregroundStyle(declinedToday
+                                 ? AnyShapeStyle(negativeColor)
+                                 : (doneToday
+                                    ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                    : AnyShapeStyle(HierarchicalShapeStyle.tertiary)))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         }
     }
 
     private var collapsedActionLabel: String {
-        if let target = habit.recurrence.target {
-            return String(localized: "Heute: \(habit.log[today] ?? 0) von \(target)")
+        switch habit.kind {
+        case .quantity:
+            return String(localized: "Heute: \(habit.log[today] ?? 0) von \(habit.recurrence.target ?? 1)")
+        case .yesNo:
+            if declinedToday { return String(localized: "Heute: Nein") }
+            return doneToday ? String(localized: "Heute: Ja") : String(localized: "Heute beantworten")
+        case .checkbox:
+            return doneToday ? String(localized: "✓ Erledigt") : String(localized: "Heute")
         }
-        return doneToday ? String(localized: "✓ Erledigt") : String(localized: "Heute")
     }
 
     /// Uhrzeit, Serie und — wenn heute gar kein Termin ist — der nächste.
@@ -476,7 +524,9 @@ struct HabitCard: View {
     /// dann im Namen aufgegangen (siehe `mergedDone`).
     @ViewBuilder
     private var todayButton: some View {
-        if let target = habit.recurrence.target {
+        switch habit.kind {
+        case .quantity:
+            let target = habit.recurrence.target ?? 1
             let value = habit.log[today] ?? 0
             Button {
                 Theme.Haptics.check()
@@ -491,7 +541,9 @@ struct HabitCard: View {
             // anderes tut. „Rückgängig" steht im Zeilenmenü.
             .accessibilityLabel(String(localized: "Heute: \(value) von \(target)"))
             .accessibilityIdentifier("check-today")
-        } else {
+        case .yesNo:
+            answerButtons
+        case .checkbox:
             Button {
                 Theme.Haptics.check()
                 onToggleDay(today)
@@ -504,6 +556,49 @@ struct HabitCard: View {
                                 : String(localized: "Heute"))
             .accessibilityIdentifier("check-today")
         }
+    }
+
+    /// Zwei Knöpfe statt einer Pille. Eine Frage hat zwei Antworten, und
+    /// beide müssen mit EINEM Finger erreichbar sein — sonst wäre „Nein" die
+    /// Antwort, die man sich verdienen muss (Menü öffnen, Punkt suchen),
+    /// und die Zahlen darunter wären systematisch zu freundlich.
+    ///
+    /// Symbole statt Text: „Ja"/„Nein" nebeneinander brauchen mehr Breite
+    /// als die „✓ Erledigt"-Pille, die hier vorher stand, und die Zeile hat
+    /// links den Namen zu tragen. Zwei 34-pt-Kreise sind zusammen so breit
+    /// wie die Pille — die Kopfzeile behält also ihr Maß, unabhängig von der
+    /// Art des Habits.
+    private var answerButtons: some View {
+        HStack(spacing: 6) {
+            answerButton(yes: true)
+            answerButton(yes: false)
+        }
+        .frame(height: headerHeight)
+        .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
+    }
+
+    private func answerButton(yes: Bool) -> some View {
+        let on = yes ? doneToday : declinedToday
+        return Button {
+            Theme.Haptics.check()
+            onAnswer(yes)
+        } label: {
+            Image(systemName: yes ? "checkmark" : "xmark")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(on ? AnyShapeStyle(Color.white)
+                                 : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+                .frame(width: 34, height: 30)
+                .background(on
+                            ? AnyShapeStyle(yes ? Theme.accentFill(palettes.style) : negativeColor)
+                            : AnyShapeStyle(Color(.tertiarySystemFill)),
+                            in: Capsule())
+                .frame(height: headerHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(yes ? String(localized: "Ja") : String(localized: "Nein"))
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityIdentifier(yes ? "check-today" : "decline-today")
     }
 
     /// Die Pille ist SICHTBAR klein, die Trefferfläche trotzdem so hoch wie

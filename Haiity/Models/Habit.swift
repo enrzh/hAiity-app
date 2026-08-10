@@ -1,10 +1,35 @@
 import Foundation
 
+/// Was ein Tag bei diesem Habit überhaupt bedeuten kann.
+///
+///  * `checkbox` — der Tag ist erledigt oder nicht.
+///  * `quantity` — der Tag trägt einen Zählstand und zählt ab
+///    `recurrence.target`.
+///  * `yesNo` — der Tag wird BEANTWORTET: „Kein Zucker?" — Ja ist Erfolg,
+///    Nein ist Misserfolg, und **unbeantwortet ist etwas Drittes**. Genau
+///    diese Dreiteilung ist der Grund für die eigene Art: ein Zähler kann
+///    „nein" nicht von „noch nichts" unterscheiden.
+///
+/// Nur `yesNo` steht als Marker in der Datei; `checkbox` und `quantity`
+/// fallen wie bisher aus `recurrence.target`. Siehe `Habit.CodingKeys`.
+enum HabitKind: String, Codable, CaseIterable, Sendable {
+    case checkbox, quantity, yesNo
+
+    var displayName: String {
+        switch self {
+        case .checkbox: return String(localized: "Abhaken")
+        case .quantity: return String(localized: "Menge")
+        case .yesNo:    return String(localized: "Ja/Nein")
+        }
+    }
+}
+
 /// Ein Habit ist ein Jahr aus Quadraten. `log` hält Check-ins als lokale
 /// Tagesschlüssel ("2026-08-09") — nie UTC, sonst rutscht ein
 /// Abend-Check-in auf morgen. Log-Werte sind Zähler: 1 für Checkbox-Habits,
 /// beliebige Zählstände für Mengen-Habits (ein Tag zählt ab
-/// `recurrence.target`).
+/// `recurrence.target`) — und für Ja/Nein-Habits zwei RESERVIERTE Codes weit
+/// oberhalb jedes menschlichen Zählers (siehe `Habit.Answer`).
 struct Habit: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
@@ -31,19 +56,38 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Wiederholungsregel samt Mengenziel. Fehlt das Feld im JSON, lädt es
     /// als „täglich" — v1-Dateien bleiben unverändert lesbar; ein Alt-Ziel
     /// (`{"cadence":…}`) wird beim Lesen migriert (siehe `Recurrence`).
-    var recurrence: Recurrence
+    ///
+    /// **Das Mengenziel steckt hier drin, die Art daneben** — also müssen die
+    /// beiden zusammengehalten werden. Wer die Regel setzt, setzt damit
+    /// (auch) die Art: ein nachträglich angehängtes `target` macht aus einem
+    /// Checkbox- ein Mengen-Habit, ein entferntes wieder zurück. Ohne diese
+    /// eine Zeile gäbe es zwei Wahrheiten über dieselbe Frage, und die
+    /// Rechnung entschiede je nachdem, welche sie zuerst liest.
+    var recurrence: Recurrence {
+        didSet {
+            kind = Habit.resolvedKind(marker: kind.rawValue, log: log,
+                                      target: recurrence.target)
+        }
+    }
     /// Eigene Rasterfarbe; nil = die App-Palette (Standardfall). Bewusst
     /// eine SEPARATE Einstellung von der globalen Palette: wer alles blau
     /// will, stellt es einmal um; wer EIN Habit hervorheben will, färbt nur
     /// dieses. Zeigt entweder auf eine eingebaute Familie oder auf eine
     /// eigene Farbe des Nutzers.
     var palette: PaletteRef?
+    /// Die Art des Habits. **Der einzige Wert, der hier etwas entscheidet,
+    /// ist `.yesNo`** — `.checkbox` und `.quantity` fallen wie bisher aus
+    /// `recurrence.target` und werden beim Anlegen wie beim Lesen
+    /// normalisiert (siehe `Habit.resolvedKind`). Bei `.yesNo` ist ein
+    /// gespeichertes Mengenziel bedeutungslos: die Art gewinnt.
+    var kind: HabitKind
 
     init(name: String,
          emoji: String = "",
          reminderMinutes: Int? = nil,
          timeMinutes: Int? = nil,
-         recurrence: Recurrence = .daily) {
+         recurrence: Recurrence = .daily,
+         kind: HabitKind = .checkbox) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -54,6 +98,8 @@ struct Habit: Codable, Identifiable, Equatable {
         self.archivedAt = nil
         self.recurrence = recurrence
         self.palette = nil
+        self.kind = Habit.resolvedKind(marker: kind.rawValue, log: [:],
+                                       target: recurrence.target)
     }
 
     /// Bequemer Weg für Alt-Ziele: legt das Habit mit der MIGRIERTEN Regel
@@ -74,6 +120,26 @@ extension Habit {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette
+        // Der Marker der Habit-Art. Rein additiv und NUR für „Ja/Nein" da —
+        // siehe `kind` und die lange Begründung an `Answer`.
+        case kind
+    }
+
+    /// Die WIRKSAME Art aus dem, was auf der Platte steht.
+    ///
+    /// **Die Reihenfolge ist die ganze Pointe.** Ein ausgelieferter Build
+    /// (1…7) kennt den Schlüssel `kind` nicht: er überliest ihn beim Lesen
+    /// UND lässt ihn beim Schreiben weg — nach einer Runde durch so ein
+    /// Gerät ist der Marker WEG. Die Antworten selbst überleben das (sie
+    /// stehen im `log`, das als Ganzes durchgereicht wird), also wird die
+    /// Art aus IHNEN zurückgewonnen: steht irgendwo eine Antwort, ist es ein
+    /// Ja/Nein-Habit. Der Marker ist damit nur noch für den einen Fall
+    /// nötig, in dem es noch keine Antwort gibt — ein frisch angelegtes
+    /// Ja/Nein-Habit.
+    static func resolvedKind(marker: String?, log: [String: Int], target: Int?) -> HabitKind {
+        if log.values.contains(where: Answer.isAnswer) { return .yesNo }
+        if marker.flatMap(HabitKind.init(rawValue:)) == .yesNo { return .yesNo }
+        return target != nil ? .quantity : .checkbox
     }
 
     /// Tolerantes Dekodieren: v1-Dateien (ohne goal/archivedAt) laden
@@ -108,6 +174,11 @@ extension Habit {
         // älterer Build beim nächsten Speichern das ganze Habit.
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
             .flatMap(PaletteRef.init(rawValue:))
+        // ZULETZT, weil die Antworten im Log darüber mitentscheiden — ein
+        // von einem älteren Build weggeschriebener Marker heilt sich daran.
+        kind = Habit.resolvedKind(marker: try c.decodeIfPresent(String.self, forKey: .kind),
+                                  log: log,
+                                  target: recurrence.target)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -127,6 +198,120 @@ extension Habit {
         // unverändert weiter (kein Versionssprung, der ihn aussperrt).
         if recurrence != .daily { try c.encode(recurrence, forKey: .goal) }
         try c.encodeIfPresent(palette?.rawValue, forKey: .palette)
+        // Wie überall: der Standard bleibt implizit. Geschrieben wird der
+        // Marker nur für die eine Art, die man ihm nicht ansieht — Checkbox
+        // und Menge fallen weiter aus `goal.target`, und eine Datei ohne
+        // Ja/Nein-Habits sieht Byte für Byte aus wie vorher.
+        if kind == .yesNo { try c.encode(kind.rawValue, forKey: .kind) }
+    }
+}
+
+// MARK: – Ja/Nein: die beiden Antworten
+
+extension Habit {
+    /// **Wie eine Antwort in eine Zahl passt — und warum ausgerechnet so.**
+    ///
+    /// Auf dem Telefon des Nutzers liegen die Builds 1…7, und sie
+    /// synchronisieren DIESELBE iCloud-Datei. Was ein solcher Build nicht
+    /// kennt, überliest er beim Dekodieren — und lässt es beim nächsten
+    /// Speichern WEG. Daraus folgt hart, wo eine Antwort stehen darf:
+    ///
+    ///  * **Nicht als neues Feld an `Habit`.** `Habit.encode` schreibt nur
+    ///    seine eigenen `CodingKeys`; ein Start plus ein Tipp auf dem alten
+    ///    Build löschte jedes „Nein" aus der Datei und schöbe das nach
+    ///    iCloud. Unumkehrbar.
+    ///  * **Nicht als eigener Log-Schlüssel** („2026-08-09#no"): `Habit`
+    ///    filtert beim Lesen gegen `DayKey.isValid` — der Schlüssel fiele
+    ///    sofort heraus.
+    ///  * **Nicht als negativer Wert**: derselbe Filter verlangt `>= 1`.
+    ///
+    /// Bleibt genau eine Stelle, die ein alter Build unverändert
+    /// durchreicht: ein POSITIVER Int unter einem GÜLTIGEN Tagesschlüssel.
+    /// Deshalb liegen die beiden Antworten in einem reservierten Band weit
+    /// oberhalb jedes menschlichen Zählers. Ein ausgelieferter Build liest
+    /// sie als „irgendein Wert ≥ 1", also als erledigten Tag — kosmetisch
+    /// falsch, aber verlustfrei, und mit dem nächsten Start unter dieser
+    /// Version wieder richtig.
+    ///
+    /// `yes > no` ist Absicht: der Merge nimmt pro Tag das MAXIMUM, ein
+    /// Zusammenlauf zweier Geräte kann eine Antwort also nie verschwinden
+    /// lassen und nie von Ja auf Nein drehen (siehe `HabitStore.merge`).
+    enum Answer {
+        /// Ausdrücklich verneint.
+        static let no = 901_000
+        /// Ausdrücklich bejaht.
+        static let yes = 902_000
+
+        /// Höchster Wert, den ein ECHTER Zähler je annehmen darf. Der Deckel
+        /// steht in `HabitStore.increment`; ohne ihn wäre das reservierte
+        /// Band eine Behauptung statt einer Zusage.
+        static let maxCount = 900_000
+
+        /// Gehört der Wert ins reservierte Band? (Nicht dasselbe wie „ist
+        /// eine bekannte Antwort" — das Band ist breiter als die zwei Codes,
+        /// damit eine spätere Antwort keinen Zähler überfährt.)
+        static func isReserved(_ value: Int) -> Bool { value > maxCount }
+
+        /// Genau eine der beiden bekannten Antworten.
+        static func isAnswer(_ value: Int) -> Bool { value == yes || value == no }
+
+        /// Die Stufe, mit der eine verneinte Zelle gezeichnet wird. Bewusst
+        /// EIN reservierter Wert neben den fünf Rampenstufen 0…4 — damit
+        /// erbt jeder Verbraucher von `Theme.level` (Liste, Vorschau,
+        /// Teilen-Karte, alle Widgets) die Farbe ohne eigenes Zutun.
+        static let declinedLevel = -1
+    }
+
+    /// Ist der Tag mit JA beantwortet?
+    ///
+    /// Tolerant nach oben: bei einem Ja/Nein-Habit gilt JEDER positive Wert
+    /// außer der Verneinung als Ja. Das ist kein Schlendrian, sondern der
+    /// Rückweg von einem ausgelieferten Build — der zeigt so ein Habit als
+    /// Checkbox und schreibt beim Abhaken eine 1. Diese 1 als
+    /// „unbeantwortet" zu lesen, hieße, den Tipp des Nutzers zu verschlucken.
+    func isAffirmed(_ key: String) -> Bool {
+        let value = log[key] ?? 0
+        return value >= 1 && value != Answer.no
+    }
+
+    /// Ist der Tag ausdrücklich mit NEIN beantwortet? Nur Ja/Nein-Habits
+    /// können das — bei allen anderen ist der Wert ein Zähler.
+    func isDeclined(_ key: String) -> Bool {
+        kind == .yesNo && log[key] == Answer.no
+    }
+
+    /// Überhaupt beantwortet (Ja ODER Nein)? Bei allen anderen Arten immer
+    /// `false`: dort gibt es keinen Zustand „beantwortet, aber nicht erfüllt".
+    func isAnswered(_ key: String) -> Bool {
+        kind == .yesNo && (log[key] ?? 0) >= 1
+    }
+
+    /// Wie oft mit NEIN beantwortet — die Zahl, die es bei Checkbox und
+    /// Menge schlicht nicht gibt. Über dieselbe Müllabfuhr wie alles andere.
+    func declinedCount(today: String = DayKey.today(), calendar: Calendar = .current) -> Int {
+        guard kind == .yesNo else { return 0 }
+        return validDays(today: today, calendar: calendar).filter { isDeclined($0) }.count
+    }
+
+    /// Der Log, umgeschrieben für eine ANDERE Art.
+    ///
+    /// Gebraucht wird das nur in einer Richtung: WEG von Ja/Nein. Die
+    /// Selbstheilung beim Lesen (siehe `resolvedKind`) sieht die
+    /// Antwort-Codes und macht daraus wieder ein Ja/Nein-Habit — eine
+    /// Umstellung im Editor bliebe sonst bis zum nächsten Start bestehen und
+    /// wäre danach weg. Also müssen die Daten mitkommen:
+    ///
+    ///  * Ja -> 1 (ein erledigter Tag, und genau so sah er auch aus)
+    ///  * Nein -> KEIN Eintrag. Es gibt in einer Checkbox-Welt keinen
+    ///    verneinten Tag; jeder andere Wert wäre eine Erfindung. Das ist der
+    ///    einzige Datenverlust der ganzen Habit-Art, und er steht am Ende
+    ///    einer ausdrücklichen Entscheidung des Nutzers.
+    static func migratedLog(_ log: [String: Int], to kind: HabitKind) -> [String: Int] {
+        guard kind != .yesNo else { return log }
+        return log.compactMapValues { value in
+            if value == Answer.no { return nil }
+            return value == Answer.yes ? 1 : value
+        }
     }
 }
 
@@ -205,7 +390,17 @@ enum DayKey {
 }
 
 extension Habit {
-    func isDone(_ key: String) -> Bool { (log[key] ?? 0) >= 1 }
+    /// „Steht an diesem Tag etwas Positives?"
+    ///
+    /// Für Checkbox und Menge unverändert „es gibt einen Eintrag" (bei
+    /// Mengen also NICHT dasselbe wie erfüllt — dafür gibt es
+    /// `GoalEngine.dayCounts`). Für Ja/Nein wäre genau diese alte Fassung
+    /// eine Falle: eine Verneinung ist ein Wert ≥ 1 und würde als erledigt
+    /// gelesen. Deshalb entscheidet dort die ANTWORT.
+    func isDone(_ key: String) -> Bool {
+        if kind == .yesNo { return isAffirmed(key) }
+        return (log[key] ?? 0) >= 1
+    }
 
     /// Log-Schlüssel, mit denen überhaupt gerechnet werden darf: echtes
     /// Datum, Wert ≥ 1, nicht in der Zukunft, nicht Jahrzehnte zurück.

@@ -181,6 +181,8 @@ struct InlineAccessoryView: View {
             return String(localized: "\(habit.name): Serie \(habit.streak())")
         case .open:
             return String(localized: "\(habit.name): heute offen")
+        case .declined:
+            return String(localized: "\(habit.name): heute Nein")
         case .free(nil):
             return String(localized: "\(habit.name): keine Termine mehr")
         case .free(let weekday?):
@@ -192,6 +194,7 @@ struct InlineAccessoryView: View {
         switch status {
         case .done: return "checkmark.circle.fill"
         case .open: return "circle"
+        case .declined: return "xmark.circle.fill"
         case .free: return "circle.dashed"
         }
     }

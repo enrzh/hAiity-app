@@ -37,8 +37,18 @@ enum Theme {
     /// Die Farbe einer Rasterzelle. `palette` kommt aus der Umgebung
     /// (`\.palettes`) bzw. beim Widget aus dem Timeline-Eintrag; die
     /// Habit-Übersteuerung wird VORHER über `PaletteStyle.resolve` aufgelöst.
+    ///
+    /// `Habit.Answer.declinedLevel` (−1) ist die eine Stufe NEBEN der Rampe:
+    /// ein mit Nein beantworteter Tag. Sie steht hier und nicht in jeder
+    /// Ansicht einzeln, weil an dieser Funktion ALLES hängt, was Zellen malt
+    /// — Liste, Vorschau, Teilen-Karte und jedes Widget erben die Farbe
+    /// damit ohne eigenes Zutun. Jeder ANDERE Ausreißer wird weiter geklemmt
+    /// (−3 ist keine Verneinung, sondern ein Fehler, und bleibt l0).
     static func level(_ n: Int, dark: Bool, palette: PaletteStyle = .default) -> Color {
-        color(palette.ramp(dark: dark)[max(0, min(4, n))])
+        guard n != Habit.Answer.declinedLevel else {
+            return color(palette.negative(dark: dark))
+        }
+        return color(palette.ramp(dark: dark)[max(0, min(4, n))])
     }
 
     /// Kartenfarbe (`secondarySystemGroupedBackground`) als Hex — die Fläche,

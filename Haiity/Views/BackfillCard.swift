@@ -37,6 +37,7 @@ struct BackfillCard: View {
     @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.calendar) private var calendar
+    @Environment(\.colorScheme) private var scheme
     /// Referenzmaß 100, skaliert mit Dynamic Type: `typeScale / 100` IST der
     /// Faktor, mit dem `.body` gerade wächst. Dieselbe Messtechnik wie im
     /// Jahresraster (`ContributionGrid.labelScale`) — sie sagt die
@@ -56,7 +57,8 @@ struct BackfillCard: View {
     }
 
     private var actions: [Backfill.Action] {
-        multi ? Backfill.setActions(habit: habit) : Backfill.actions(for: state)
+        multi ? Backfill.setActions(habit: habit)
+              : Backfill.actions(for: state, kind: habit.kind)
     }
 
     /// Ist überhaupt etwas zu schreiben?
@@ -319,14 +321,25 @@ struct BackfillCard: View {
                 .foregroundStyle(action.kind == .clear
                                  ? AnyShapeStyle(HierarchicalShapeStyle.primary)
                                  : AnyShapeStyle(Color.white))
-                .background(action.kind == .clear
-                            ? AnyShapeStyle(Color(.tertiarySystemFill))
-                            : AnyShapeStyle(Theme.accentFill(palettes.style(for: habit))),
-                            in: Capsule())
+                .background(fill(for: action), in: Capsule())
                 .disabled(!enabled)
                 .opacity(enabled ? 1 : 0.4)
                 .accessibilityIdentifier(action.accessibilityIdentifier)
             }
+        }
+    }
+
+    /// Der Knopf trägt die Farbe seiner Bedeutung: „Nein" in der
+    /// Verneinungsfarbe dieses Habits — derselben, in der der Tag gleich im
+    /// Raster steht. Ein rot gemeinter Knopf in Akzentgrün wäre die einzige
+    /// Stelle, an der die App die Zusage bricht, dass eine Farbe eine
+    /// Bedeutung hat.
+    private func fill(for action: Backfill.Action) -> AnyShapeStyle {
+        let style = palettes.style(for: habit)
+        switch action.kind {
+        case .clear:    return AnyShapeStyle(Color(.tertiarySystemFill))
+        case .declined: return AnyShapeStyle(Theme.color(style.negative(dark: scheme == .dark)))
+        default:        return AnyShapeStyle(Theme.accentFill(style))
         }
     }
 

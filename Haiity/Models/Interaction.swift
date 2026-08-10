@@ -58,22 +58,31 @@ struct CheckInUndo: Equatable, Identifiable {
     /// da wie beim Abhaken von heute, und „Rückgängig" zeigt ins Ungewisse.
     ///
     /// **Warum das ganze Habit und nicht Name plus Ziel.** Die Meldung hängt
-    /// an EIGENSCHAFTEN des Habits, und davon kommen welche dazu: als
-    /// Nächstes die Art „Ja/Nein", bei der ein Tag auch verneint sein kann.
-    /// Mit dem Habit als Argument ist das ein Fall mehr in dieser Funktion —
-    /// mit `name` und `target` einzeln wäre es wieder eine neue Signatur und
-    /// wieder jeder Aufrufer.
+    /// an EIGENSCHAFTEN des Habits — und die Art „Ja/Nein", bei der ein Tag
+    /// auch verneint sein kann, ist genau der Fall, für den das gebaut war:
+    /// ein Fall mehr in DIESER Funktion statt einer neuen Signatur und
+    /// wieder jedem Aufrufer.
     static func message(habit: Habit,
                         value: Int,
                         day: String,
                         today: String = DayKey.today(),
                         calendar: Calendar = .current) -> String {
         let base: String
-        if let target = habit.recurrence.target {
+        switch habit.kind {
+        case .yesNo:
+            if value == Habit.Answer.no {
+                base = String(localized: "\(habit.name): Nein")
+            } else if value >= 1 {
+                base = String(localized: "\(habit.name): Ja")
+            } else {
+                base = String(localized: "\(habit.name) unbeantwortet")
+            }
+        case .quantity:
+            let target = habit.recurrence.target ?? 1
             base = value >= target
                 ? String(localized: "\(habit.name) erledigt")
                 : String(localized: "\(habit.name): \(value)/\(target)")
-        } else {
+        case .checkbox:
             base = value >= 1
                 ? String(localized: "\(habit.name) erledigt")
                 : String(localized: "\(habit.name) zurückgesetzt")

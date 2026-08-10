@@ -111,11 +111,24 @@ enum WidgetInk {
     /// Kleinster erlaubter Abstand zwischen zwei Stufen.
     static let minimumStep = 0.15
 
+    /// Ein mit NEIN beantworteter Tag — auf dem Sperrbildschirm.
+    ///
+    /// **Hier ist die einzige Stelle der App, an der die Verneinung KEINE
+    /// eigene Farbe bekommen kann**, und das ist keine Nachlässigkeit,
+    /// sondern die Eigenschaft des Mediums: `.vibrant` und `.accented`
+    /// rechnen alles auf EINE Achse herunter (Helligkeit), und die ist von
+    /// den fünf Rasterstufen bereits vollständig belegt. Bleibt eine einzige
+    /// freie Richtung: UNTER die leere Zelle. Ein verneinter Tag ist dort
+    /// also dunkler als ein leerer — „schlechter als nichts", und das ist
+    /// genau die Aussage. Die harte Zahl daneben (Serie) trägt den Rest.
+    static let declinedOpacity = 0.05
+
     static func opacity(_ level: Int) -> Double {
-        opacities[max(0, min(opacities.count - 1, level))]
+        guard level != Habit.Answer.declinedLevel else { return declinedOpacity }
+        return opacities[max(0, min(opacities.count - 1, level))]
     }
 
-    /// Stufe 0…4 ohne Farbe.
+    /// Stufe 0…4 (und die Verneinung) ohne Farbe.
     static func mono(_ level: Int) -> Color {
         Color.white.opacity(opacity(level))
     }

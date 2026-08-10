@@ -296,9 +296,28 @@ final class HabitStore {
 
     /// Mengen-Habits: +1 auf den Tageszähler (1, 2, 3 …) — kein Wrap.
     /// Löschen läuft explizit über `clear` (Langdruck/Menü in der UI).
+    ///
+    /// Gedeckelt bei `Habit.Answer.maxCount`. Das ist keine Schikane gegen
+    /// den fleißigsten Nutzer der Welt, sondern die Zusage, auf der die
+    /// Ja/Nein-Codierung steht: kein Zähler darf je ins reservierte Band
+    /// laufen, sonst läse sich ein Habit eines Tages selbst als Ja/Nein.
     func increment(_ id: UUID, day: String = DayKey.today()) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
-        data.habits[i].log[day] = (data.habits[i].log[day] ?? 0) + 1
+        let next = (data.habits[i].log[day] ?? 0) + 1
+        data.habits[i].log[day] = min(next, Habit.Answer.maxCount)
+        persist()
+    }
+
+    /// Ja/Nein-Habits: den Tag BEANTWORTEN.
+    ///
+    /// Dieselbe Antwort ein zweites Mal nimmt sie zurück — der Tag ist dann
+    /// wieder unbeantwortet. Das ist derselbe Umschalt-Reflex wie bei der
+    /// Checkbox und der einzige Weg, ein versehentliches Ja oder Nein ohne
+    /// Umweg über ein Menü loszuwerden.
+    func answer(_ id: UUID, day: String = DayKey.today(), yes: Bool) {
+        guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
+        let value = yes ? Habit.Answer.yes : Habit.Answer.no
+        data.habits[i].log[day] = data.habits[i].log[day] == value ? nil : value
         persist()
     }
 
@@ -363,9 +382,15 @@ final class HabitStore {
     /// wäre die unangenehmste Sorte Erinnerung, an etwas gemahnt zu werden,
     /// das gar nicht dran ist. (Flexible Ziele wie „3× pro Woche" sind an
     /// jedem Tag ihrer Periode fällig, für sie ändert sich nichts.)
+    ///
+    /// **Ein verneinter Tag ist NICHT offen.** Er ist erledigt im Sinne von
+    /// „entschieden": um 20 Uhr an etwas zu erinnern, das man um 14 Uhr
+    /// ausdrücklich mit Nein beantwortet hat, wäre keine Erinnerung, sondern
+    /// eine Nachfrage.
     func openToday(_ today: String = DayKey.today()) -> [Habit] {
         activeHabits.filter {
-            GoalEngine.isScheduled(habit: $0, day: today) && !$0.isDone(today)
+            GoalEngine.isScheduled(habit: $0, day: today)
+                && !$0.isDone(today) && !$0.isAnswered(today)
         }
     }
 
@@ -379,6 +404,12 @@ final class HabitStore {
     /// Heute: fällige Termine, davon erfüllte, und die Namen der offenen.
     /// „Fällig" ist exakt dasselbe wie in `openToday` — ein Habit ohne Termin
     /// steht in keiner der drei Zahlen.
+    ///
+    /// Ein mit NEIN beantworteter Tag zählt in `total` (er war fällig), aber
+    /// weder in `done` noch in `missing`: er ist nicht erfüllt und trotzdem
+    /// nicht offen. Deshalb ist `done + missing.count` hier nicht zwingend
+    /// `total` — die Summe war nie die Aussage, „x von y" und „das steht noch
+    /// aus" sind zwei verschiedene Sätze (siehe `SummaryText`).
     func dailyStatus(_ today: String = DayKey.today(),
                      calendar: Calendar = .current) -> SummaryStatus {
         var done = 0, total = 0
@@ -388,7 +419,7 @@ final class HabitStore {
             total += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) {
                 done += 1
-            } else {
+            } else if !habit.isAnswered(today) {
                 missing.append(habit.name)
             }
         }
@@ -506,6 +537,27 @@ final class HabitStore {
     /// ein Tag gelöscht. Bei Metadaten-Konflikt (Name/Emoji/Erinnerung/
     /// Regel/Archiv) gewinnt der neuere `updatedAt`-Stand.
     /// Exakter Gleichstand: LOKAL gewinnt — nie beidseitig löschen.
+    ///
+    /// **Was MAX mit den Ja/Nein-Codes macht** — die Reihenfolge im Band ist
+    /// genau deshalb so gewählt (`yes` = 902 000 > `no` = 901 000 >
+    /// `maxCount` = 900 000):
+    ///
+    ///  * Antwort gegen nichts -> die Antwort. Eine Antwort kann also nie
+    ///    verschwinden, so wenig wie ein Check-in verschwinden kann.
+    ///  * Ja gegen Nein -> Ja. Dieselbe Regel wie überall in diesem Merge:
+    ///    das Positivere gewinnt, nie das Löschende. Sie ist damit
+    ///    ASYMMETRISCH — eine Korrektur von Ja auf Nein kann ein Gerät, das
+    ///    noch das alte Ja trägt, wieder aufziehen. Das ist keine neue
+    ///    Eigenheit dieser Habit-Art, sondern dieselbe, die ein von 5 auf 3
+    ///    korrigierter Zähler seit jeher hat; ein Zurücknehmen über Geräte
+    ///    hinweg gibt es in diesem Merge nicht.
+    ///  * Antwort gegen Zähler -> die Antwort (das Band liegt über jedem
+    ///    Zähler, `increment` deckelt bei `maxCount`). Genau das braucht der
+    ///    Rückweg von einem ausgelieferten Build: dessen „1" verliert gegen
+    ///    das „Nein", das dieser Build geschrieben hat.
+    ///
+    /// Eine Antwort kann durch den Merge also NIE zu „unbeantwortet" werden
+    /// und nie von Ja auf Nein kippen.
     func merge(remote: HabitData) {
         var byId = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
         let remoteNewer = remote.updatedAt > data.updatedAt
@@ -523,7 +575,15 @@ final class HabitStore {
                     lh.recurrence = rh.recurrence
                     lh.archivedAt = rh.archivedAt
                     lh.palette = rh.palette
+                    lh.kind = rh.kind
                 }
+                // Die Art zum Schluss noch einmal am VEREINIGTEN Log
+                // nachziehen: bringt die Gegenseite die erste Antwort mit
+                // (oder hat ein ausgelieferter Build den Marker unterwegs
+                // abgestreift), steht sie danach trotzdem richtig da.
+                lh.kind = Habit.resolvedKind(marker: lh.kind.rawValue,
+                                             log: lh.log,
+                                             target: lh.recurrence.target)
                 byId[rh.id] = lh
             } else {
                 byId[rh.id] = rh

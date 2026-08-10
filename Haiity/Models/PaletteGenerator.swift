@@ -108,6 +108,87 @@ enum PaletteGenerator {
                 textLight: at(0.148), textDark: at(0.300))
     }
 
+    // MARK: – Die Verneinung („Nein" bei Ja/Nein-Habits)
+    //
+    // Eine verneinte Zelle muss sich von ZWEI Dingen unterscheiden: von der
+    // leeren Zelle (sonst wäre „Nein" dasselbe wie „noch nichts" — genau die
+    // Unterscheidung, für die es die Habit-Art gibt) und von jeder gefüllten
+    // Stufe (sonst läse sie sich als Erfolg). Beides ist eine Kontrast-Frage,
+    // also wird sie wie die Rampe GERECHNET und nicht nach Augenmaß gewählt.
+
+    /// Der Farbton, den eine Verneinung bekommt, wenn die Palette ihn frei
+    /// lässt: Rot. Kein Designgeschmack, sondern die einzige Farbkonvention,
+    /// die man ohne Legende liest. In OKLCH liegt reines Rot bei 29°.
+    static let negativeHue = 29.0 * .pi / 180
+
+    /// So weit muss die Verneinung dem Farbton der Palette AUSWEICHEN. Ist
+    /// die Palette selbst rot (Rosé, ein rotes Wunschfarbe des Nutzers),
+    /// wäre ein rotes „Nein" ein Rasterfeld wie jedes andere — dann gilt
+    /// Unterscheidbarkeit mehr als Konvention und die Verneinung springt auf
+    /// den GEGENFARBTON.
+    static let negativeHueClearance = 40.0 * .pi / 180
+
+    /// Buntheit der Verneinung. FEST, nicht aus der Basisfarbe abgeleitet:
+    /// sie soll in jeder Palette gleich schwer wiegen — in einer monochromen
+    /// ist sie der einzige Farbton überhaupt, und genau das ist erwünscht.
+    static let negativeChroma = 0.15
+
+    /// Die Farbe der Verneinung für EINE Rampe.
+    ///
+    /// **Wo sie liegt**: genau in der Mitte zwischen l2 und l3 — gemessen im
+    /// Kontrast gegen die Karte, geometrisch gemittelt. Damit ist ihr
+    /// Abstand zu beiden Nachbarn die Wurzel aus deren Abstand
+    /// (bei allen eingebauten Rampen ≥ 1,21 : 1, bei gerechneten ≥ 1,27 : 1)
+    /// und zu jeder weiter entfernten Stufe erst recht größer — dieselbe
+    /// Schwelle, die auch zwischen zwei Rampenstufen gilt. Von der leeren
+    /// Zelle trennt sie damit ein Vielfaches davon.
+    ///
+    /// **Welchen Farbton sie hat**: Rot, außer die Palette ist selbst rot —
+    /// siehe `negativeHueClearance`.
+    static func negative(ramp: [UInt32], hueSource: UInt32, dark: Bool) -> UInt32 {
+        guard ramp.count == 5 else { return dark ? 0xF85149 : 0xCF222E }
+        let key = NegativeKey(l2: ramp[2], l3: ramp[3], hueSource: hueSource & 0xFFFFFF, dark: dark)
+        if let hit = negativeCache.withLock({ $0[key] }) { return hit }
+
+        let card = luminance(cardHex(dark: dark))
+        // Kontrast gegen die Karte, in der Richtung, in der die Rampe läuft.
+        func contrastToCard(_ hex: UInt32) -> Double {
+            let y = luminance(hex)
+            return (max(y, card) + 0.05) / (min(y, card) + 0.05)
+        }
+        let target = (contrastToCard(ramp[2]) * contrastToCard(ramp[3])).squareRoot()
+        let y = dark ? (card + 0.05) * target - 0.05 : (card + 0.05) / target - 0.05
+
+        let (_, chroma, hue) = oklch(hueSource)
+        var wanted = negativeHue
+        if chroma >= achromatic {
+            // Kreisförmiger Abstand — 350° und 10° sind 20° auseinander.
+            var delta = abs(hue - negativeHue).truncatingRemainder(dividingBy: 2 * .pi)
+            if delta > .pi { delta = 2 * .pi - delta }
+            if delta < negativeHueClearance { wanted = hue + .pi }
+        }
+        let hex = solve(hue: wanted, chroma: negativeChroma,
+                        targetLuminance: max(0, min(1, y)))
+        negativeCache.withLock { store in
+            if store.count > 128 { store.removeAll() }
+            store[key] = hex
+        }
+        return hex
+    }
+
+    /// Der Cache-Schlüssel ist bewusst die RAMPE (ihre beiden mittleren
+    /// Stufen) plus der Farbton-Geber: die eingebauten Paletten haben keine
+    /// Basisfarbe, und zwei verschiedene Basen können dieselbe Rampe
+    /// erzeugen.
+    private struct NegativeKey: Hashable {
+        let l2: UInt32
+        let l3: UInt32
+        let hueSource: UInt32
+        let dark: Bool
+    }
+
+    private static let negativeCache = NegativeCache()
+
     /// Die fertige Palette. Gecacht, weil `CustomPalette.style` bei jedem
     /// Zeichnen gelesen wird und eine Rampe rund 2 500 Farbraum-Umrechnungen
     /// kostet — einmal pro Basisfarbe reicht.
@@ -115,13 +196,17 @@ enum PaletteGenerator {
         let key = base & 0xFFFFFF
         if let hit = cache.withLock({ $0[key] }) { return hit }
         let a = accents(base: key)
-        let style = PaletteStyle(lightRamp: ramp(base: key, dark: false),
-                                 darkRamp: ramp(base: key, dark: true),
+        let light = ramp(base: key, dark: false)
+        let dark = ramp(base: key, dark: true)
+        let style = PaletteStyle(lightRamp: light,
+                                 darkRamp: dark,
                                  accentHex: a.accent,
                                  accentFillLight: a.fillLight,
                                  accentFillDark: a.fillDark,
                                  accentTextLight: a.textLight,
-                                 accentTextDark: a.textDark)
+                                 accentTextDark: a.textDark,
+                                 negativeLight: negative(ramp: light, hueSource: key, dark: false),
+                                 negativeDark: negative(ramp: dark, hueSource: key, dark: true))
         cache.withLock { store in
             // Kein LRU nötig: so viele eigene Farben legt niemand an. Der
             // Deckel ist nur die Bremse gegen einen ColorPicker, der beim
@@ -257,6 +342,21 @@ private final class PaletteCache: @unchecked Sendable {
     private var store: [UInt32: PaletteStyle] = [:]
 
     func withLock<R>(_ body: (inout [UInt32: PaletteStyle]) -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&store)
+    }
+}
+
+/// Derselbe Mutex für die Verneinung. Sie braucht einen EIGENEN Cache, weil
+/// auch die EINGEBAUTEN Paletten sie rechnen lassen — `GraphPalette.style`
+/// ist eine berechnete Eigenschaft und wird bei jedem Zeichnen ausgewertet;
+/// eine Intervallhalbierung pro Zelle wäre dort untragbar.
+private final class NegativeCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var store: [AnyHashable: UInt32] = [:]
+
+    func withLock<R>(_ body: (inout [AnyHashable: UInt32]) -> R) -> R {
         lock.lock()
         defer { lock.unlock() }
         return body(&store)

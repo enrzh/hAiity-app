@@ -50,6 +50,10 @@ enum WidgetStatus: Equatable {
     case done
     /// Heute ist ein Termin und er ist noch offen.
     case open
+    /// Heute ausdrücklich mit NEIN beantwortet (nur Ja/Nein-Habits). Ein
+    /// eigener Fall und nicht `.open`: der Tag ist entschieden, nur eben
+    /// negativ — „Heute noch offen" wäre schlicht falsch.
+    case declined
     /// Heute ist KEIN Termin. `next` ist der Calendar-Wochentag des nächsten
     /// (1 = So … 7 = Sa); nil, wenn keiner mehr kommt.
     case free(next: Int?)
@@ -110,6 +114,9 @@ enum WidgetLogic {
                        today: String = DayKey.today(),
                        calendar: Calendar = .current) -> WidgetStatus {
         if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) { return .done }
+        // VOR der Termin-Frage: eine Verneinung gilt auch an einem Tag, an
+        // dem gar nichts fällig war (dieselbe Regel wie in der GoalEngine).
+        if habit.isDeclined(today) { return .declined }
         if GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) { return .open }
         guard let next = habit.recurrence.nextOccurrence(after: today, calendar: calendar),
               let date = DayKey.date(from: next, calendar: calendar) else { return .free(next: nil) }
@@ -123,6 +130,8 @@ enum WidgetLogic {
             return String(localized: "✓ Heute erledigt")
         case .open:
             return String(localized: "Heute noch offen")
+        case .declined:
+            return String(localized: "✗ Heute Nein")
         case .free(nil):
             return String(localized: "Keine Termine mehr")
         case .free(let weekday?):

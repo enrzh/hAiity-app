@@ -90,18 +90,29 @@ struct CheckOffHabitIntent: AppIntent {
 enum CheckOffLogic {
     /// Checkbox-Habits: nur AN-haken, wenn heute noch offen — idempotent,
     /// ein Widget-Button darf nie ENT-haken. Mengen-Habits: +1, auch über
-    /// das Ziel hinaus. Archivierte oder unbekannte Habits: No-op.
-    /// Rückgabe: wurde etwas geschrieben?
+    /// das Ziel hinaus. Ja/Nein-Habits: JA setzen — auch über ein
+    /// bestehendes Nein hinweg (der Knopf heißt „abhaken", und wer ihn
+    /// drückt, meint Ja); ein schon bejahter Tag bleibt unberührt, damit
+    /// auch hier nichts zurückgenommen wird. Archivierte oder unbekannte
+    /// Habits: No-op. Rückgabe: wurde etwas geschrieben?
     @discardableResult
     static func apply(to store: HabitStore, habitId: UUID, day: String = DayKey.today()) -> Bool {
         guard let habit = store.habits.first(where: { $0.id == habitId }),
               habit.archivedAt == nil else { return false }
-        if habit.recurrence.target != nil {
+        switch habit.kind {
+        case .quantity:
             store.increment(habitId, day: day)
             return true
+        case .yesNo:
+            guard !habit.isAffirmed(day) else { return false }
+            // NICHT `answer`: das würde ein bestehendes Ja umschalten und
+            // damit doch wieder ent-haken.
+            store.setValue(habitId, day: day, value: Habit.Answer.yes)
+            return true
+        case .checkbox:
+            guard !habit.isDone(day) else { return false }
+            store.toggle(habitId, day: day)
+            return true
         }
-        guard !habit.isDone(day) else { return false }
-        store.toggle(habitId, day: day)
-        return true
     }
 }

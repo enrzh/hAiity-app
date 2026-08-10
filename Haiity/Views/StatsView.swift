@@ -66,7 +66,15 @@ private struct StatsRow: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(String(localized: "Best: \(GoalEngine.bestStreak(habit: habit))"))
+                    // Bei Ja/Nein sagt „Gesamt" nur die halbe Wahrheit: es
+                    // zählt die Ja-Tage. Die Zahl daneben ist die, die es
+                    // bei keiner anderen Art gibt — und die einzige, die
+                    // beantwortet, ob ein Habit gerade läuft oder nur
+                    // ungefragt bleibt.
                     Text(String(localized: "Gesamt: \(habit.checkInCount())"))
+                    if habit.kind == .yesNo {
+                        Text(String(localized: "Nein: \(habit.declinedCount())"))
+                    }
                 }
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)

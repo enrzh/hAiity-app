@@ -352,7 +352,8 @@ struct ContentView: View {
             onClear: { revert(habit) },
             onMarkDone: { markDone(habit) },
             onEdit: { editing = habit },
-            onArchive: { store.archive(habit.id) }
+            onArchive: { store.archive(habit.id) },
+            onAnswer: { answer(habit, yes: $0) }
         )
         .background(rowProbe(index))
         .listRowSeparator(.hidden)
@@ -398,15 +399,28 @@ struct ContentView: View {
         mutate(habit, day: DayKey.today()) { store.increment(habit.id) }
     }
 
+    /// Heute beantworten (Habit-Art „Ja/Nein"). Läuft durch dieselbe Stelle
+    /// wie jedes Abhaken — also mit exaktem Rückgängig, auch wenn die
+    /// Antwort eine bestehende überschreibt.
+    private func answer(_ habit: Habit, yes: Bool) {
+        mutate(habit, day: DayKey.today()) { store.answer(habit.id, yes: yes) }
+    }
+
     /// Wisch-„Erledigt": hakt AN, nie ab. Ein schon erledigtes Checkbox-
     /// Habit bleibt unangetastet (und bekommt keinen Toast, der nichts
     /// zurückzunehmen hätte) — zum Abhaken gibt es „Rückgängig".
     private func markDone(_ habit: Habit) {
         let today = DayKey.today()
-        if habit.recurrence.target == nil, habit.isDone(today) { return }
+        // `isDone` ist bei Ja/Nein die ANTWORT und nicht „es steht ein Wert
+        // da" — ein verneinter Tag ist hier also offen und darf auf Ja
+        // gedreht werden.
+        if habit.kind != .quantity, habit.isDone(today) { return }
         mutate(habit, day: today) {
-            if habit.recurrence.target != nil { store.increment(habit.id) }
-            else { store.toggle(habit.id, day: today) }
+            switch habit.kind {
+            case .quantity: store.increment(habit.id)
+            case .yesNo:    store.setValue(habit.id, day: today, value: Habit.Answer.yes)
+            case .checkbox: store.toggle(habit.id, day: today)
+            }
         }
     }
 

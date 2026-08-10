@@ -108,13 +108,22 @@ enum GraphPalette: String, CaseIterable, Codable, Identifiable, Sendable {
     /// eine eigene Palette erzeugt. Ab hier weiß der Rest der App nicht mehr,
     /// ob eine Farbe eingebaut oder gerechnet ist.
     var style: PaletteStyle {
+        // Die Verneinung ist auch hier GERECHNET und nicht als siebte
+        // Konstante von Hand gesetzt: dieselbe Regel für eingebaute und
+        // eigene Farben, sonst wäre sie an sechs Stellen prüfbar und an
+        // unendlich vielen nicht. Der Farbton-Geber ist die Markenfarbe der
+        // Familie — die eingebauten haben keine „Basisfarbe".
         PaletteStyle(lightRamp: ramp(dark: false),
                      darkRamp: ramp(dark: true),
                      accentHex: accentHex,
                      accentFillLight: accentFillHex.light,
                      accentFillDark: accentFillHex.dark,
                      accentTextLight: accentTextHex.light,
-                     accentTextDark: accentTextHex.dark)
+                     accentTextDark: accentTextHex.dark,
+                     negativeLight: PaletteGenerator.negative(ramp: ramp(dark: false),
+                                                              hueSource: accentHex, dark: false),
+                     negativeDark: PaletteGenerator.negative(ramp: ramp(dark: true),
+                                                             hueSource: accentHex, dark: true))
     }
 }
 
@@ -131,8 +140,15 @@ struct PaletteStyle: Equatable, Hashable, Sendable {
     let accentFillDark: UInt32
     let accentTextLight: UInt32
     let accentTextDark: UInt32
+    /// Die Farbe eines mit NEIN beantworteten Tages. Gehört in die Tafel und
+    /// nicht neben sie: sie hängt an der RAMPE dieser Palette (sie liegt in
+    /// deren Mitte) und muss überall dort verfügbar sein, wo die Rampe es
+    /// ist — bis in den Widget-Eintrag, der keine Umgebung hat.
+    let negativeLight: UInt32
+    let negativeDark: UInt32
 
     func ramp(dark: Bool) -> [UInt32] { dark ? darkRamp : lightRamp }
+    func negative(dark: Bool) -> UInt32 { dark ? negativeDark : negativeLight }
     var accentFillHex: (light: UInt32, dark: UInt32) { (accentFillLight, accentFillDark) }
     var accentTextHex: (light: UInt32, dark: UInt32) { (accentTextLight, accentTextDark) }
 
