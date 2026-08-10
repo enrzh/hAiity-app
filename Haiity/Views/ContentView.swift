@@ -641,6 +641,39 @@ struct ContentView: View {
         Theme.Haptics.check()
     }
 
+    /// Der Rückbau-Weg des Malen-Modus: ABGEWÄHLTE Tage bekommen ihren
+    /// EXAKTEN Vorwert zurück (je Tag ein eigener — deshalb reicht `onWrite`
+    /// mit seinem einen Wert hier nicht). Sonst dieselben drei Zusagen wie
+    /// `backfillWrite`: Torwächter vor jedem Tag, EIN Toast für den ganzen
+    /// Griff, und der Toast trägt die Vorwerte, macht also auch DAS wieder
+    /// rückgängig.
+    private func backfillRestore(_ habitId: UUID,
+                                 entries: [(day: String, value: Int?)]) {
+        guard let habit = store.habits.first(where: { $0.id == habitId }) else { return }
+        let allowed = entries.filter { Backfill.canWrite(habit: habit, day: $0.day) }
+            .sorted { $0.day < $1.day }
+        guard !allowed.isEmpty else { return }
+
+        let undoEntries = allowed.map {
+            CheckInUndo.Entry(day: $0.day, previousValue: store.value(habitId, day: $0.day))
+        }
+        for entry in allowed { store.setValue(habitId, day: entry.day, value: entry.value) }
+
+        let message: String
+        if let single = allowed.first, allowed.count == 1 {
+            message = CheckInUndo.message(habit: habit,
+                                          value: store.value(habitId, day: single.day) ?? 0,
+                                          day: single.day)
+        } else {
+            message = CheckInUndo.message(habit: habit,
+                                          days: allowed.count, cleared: true)
+        }
+        withToastAnimation {
+            undo.present(habitId: habitId, entries: undoEntries, message: message)
+        }
+        Theme.Haptics.select()
+    }
+
     private func withCardAnimation(_ body: () -> Void) {
         if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.22), body) }
     }
@@ -657,6 +690,9 @@ struct ContentView: View {
                                       set: { backfill?.day = $0 }),
                          onWrite: { days, value in
                              backfillWrite(request.habitId, days: days, value: value)
+                         },
+                         onRestore: { entries in
+                             backfillRestore(request.habitId, entries: entries)
                          },
                          onClose: { withCardAnimation { backfill = nil } })
                 .transition(reduceMotion
@@ -1629,7 +1665,10 @@ struct ContentView: View {
                 return await MainActor.run { store.exportJSON() ?? payload }
             }
             cloudStatus.noteSuccess()
-            if announce { await flash(String(localized: "✓ in iCloud gesichert")) }
+            // BEWUSST keine Erfolgs-Pille („✓ in iCloud gesichert") mehr:
+            // dass der Normalfall funktioniert, ist keine Nachricht — die
+            // Pille meldete sich nach jedem Häkchen. Fehler blitzen weiterhin
+            // auf (unten), und der Dauerzustand steht in „Mehr".
         } catch {
             cloudStatus.noteFailure(error)
             // Nur echte Fehler stören beim Abhaken; „offline“ steht in „Mehr“.

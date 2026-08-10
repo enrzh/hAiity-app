@@ -243,38 +243,25 @@ enum Backfill {
     struct Action: Identifiable, Equatable {
         enum Kind: String { case done, affirmed, declined, quantity, clear }
 
-        /// Gilt die Aktion für EINEN Tag oder für die ganze Auswahl? Nur die
-        /// Beschriftung hängt daran — geschrieben wird in beiden Fällen
-        /// derselbe Wert, und zwar für JEDEN betroffenen Tag derselbe. Eine
-        /// Mehrfachauswahl mischt nicht: sie setzt alle gleich.
-        enum Scope { case day, set }
-
         let kind: Kind
         let value: Int?
-        var scope: Scope = .day
 
         var id: String { kind.rawValue }
 
         /// Bei Ja/Nein heißen die Knöpfe „Ja" und „Nein" und nicht
         /// „Erledigt"/„Nicht gemacht": das Habit stellt eine FRAGE („Kein
         /// Zucker?"), und man beantwortet eine Frage nicht mit „erledigt".
+        /// „Leeren" statt „Rückgängig": die Aktion entfernt Einträge — das
+        /// echte Rückgängig ist der Toast, und zwei Knöpfe mit demselben
+        /// Namen und verschiedener Bedeutung wären eine Falle.
         var title: String {
-            switch (kind, scope) {
-            case (.done, .day):     return String(localized: "Erledigt")
-            case (.done, .set):     return String(localized: "Alle als erledigt")
-            case (.affirmed, .day): return String(localized: "Ja")
-            case (.affirmed, .set): return String(localized: "Alle als Ja")
-            case (.declined, .day): return String(localized: "Nein")
-            case (.declined, .set): return String(localized: "Alle als Nein")
-            case (.quantity, .day): return String(localized: "Ziel erreicht")
-            case (.quantity, .set): return String(localized: "Alle auf das Ziel")
-            case (.clear, .day):    return String(localized: "Rückgängig")
-            case (.clear, .set):    return String(localized: "Alle zurücksetzen")
+            switch kind {
+            case .done:     return String(localized: "Erledigt")
+            case .affirmed: return String(localized: "Ja")
+            case .declined: return String(localized: "Nein")
+            case .quantity: return String(localized: "Eintragen")
+            case .clear:    return String(localized: "Leeren")
             }
-        }
-
-        func scoped(_ scope: Scope) -> Action {
-            Action(kind: kind, value: value, scope: scope)
         }
 
         var systemImage: String {
@@ -295,9 +282,11 @@ enum Backfill {
         /// 0 (siehe `Habit.Answer`).
         static let affirm = Action(kind: .affirmed, value: Habit.Answer.yes)
         static let decline = Action(kind: .declined, value: Habit.Answer.no)
-        /// Mengenziel: EXAKT das Ziel, nicht „einer mehr".
+        /// Mengenziel: EXAKT der gewünschte Stand, nicht „einer mehr" —
+        /// geklemmt auf das echte Zählerband (mindestens 1, nie hinein ins
+        /// reservierte Antwortband, siehe `Habit.Answer`).
         static func quantity(target: Int) -> Action {
-            Action(kind: .quantity, value: max(1, target))
+            Action(kind: .quantity, value: min(Habit.Answer.maxCount, max(1, target)))
         }
     }
 
@@ -357,24 +346,138 @@ enum Backfill {
                   done: days.filter { state(habit: habit, day: $0).counts }.count)
     }
 
-    /// Die Aktionen für eine Mehrfachauswahl. Immer genau ZWEI, und beide
-    /// gelten für ALLE gewählten Tage gleich: nachtragen oder leeren. Es gibt
-    /// bewusst kein „umschalten" — bei gemischten Tagen wüsste niemand
-    /// vorher, was passiert.
+    /// Die Aktionen der Auswahl-Leiste („Auswählen"-Modus) — VOLLSTÄNDIG je
+    /// Habit-Art, und jede gilt für ALLE gewählten Tage gleich.
     ///
-    /// Auch bei Ja/Nein bleiben es zwei: „Alle als Ja" und „Alle
-    /// zurücksetzen". Ein drittes „Alle als Nein" ist bewusst NICHT dabei —
-    /// die Zeile trägt drei Beschriftungen dieser Länge nicht, und
-    /// nachgetragen wird, was man geschafft hat. Ein einzelnes Nein
-    /// nachzutragen geht weiterhin über den Einzel-Modus.
-    static func setActions(habit: Habit) -> [Action] {
-        let write: Action
+    /// Früher gab es hier genau zwei („kein Mischen" hieß auch „kein Nein
+    /// für alle"). Das war die Rückmeldung: Massen-Nein und Massen-Menge
+    /// gingen schlicht nicht. Jetzt steht jeder Zielzustand der Art zur
+    /// Wahl — einheitlich bleibt der Schreibvorgang trotzdem: EIN Wert für
+    /// jeden gewählten Tag.
+    ///
+    /// `amount` ist der Stand des Mengen-Stellers in der Karte; ohne ihn
+    /// gilt das Tagesziel. Für Checkbox und Ja/Nein ist er bedeutungslos.
+    static func selectActions(habit: Habit, amount: Int? = nil) -> [Action] {
         switch habit.kind {
-        case .yesNo:    write = .affirm
-        case .quantity: write = .quantity(target: habit.recurrence.target ?? 1)
-        case .checkbox: write = .done
+        case .yesNo:
+            return [.affirm, .decline, .clear]
+        case .quantity:
+            return [.quantity(target: amount ?? habit.recurrence.target ?? 1), .clear]
+        case .checkbox:
+            return [.done, .clear]
         }
-        return [write.scoped(.set), Action.clear.scoped(.set)]
+    }
+
+    // MARK: – Pinsel („Malen"-Modus)
+
+    /// EIN Pinsel: der Zielzustand, den ein angetippter Tag bekommt.
+    ///
+    /// Dasselbe Wertemodell wie `Action` (nie ein Delta, `nil` leert den
+    /// Tag), aber als eigener Typ: ein Pinsel ist AUSGEWÄHLT und wird dann
+    /// auf beliebig viele Tage getippt — eine Aktion wird EINMAL auf eine
+    /// stehende Auswahl angewendet. Die Menge steckt IM Pinsel
+    /// (`.amount(n)`), damit „Menge 5 malen" und „Menge 2 malen" zwei
+    /// verschiedene Pinsel sind und nicht ein Pinsel mit Nebenzustand.
+    enum Brush: Equatable, Identifiable {
+        case done
+        case affirmed
+        case declined
+        case amount(Int)
+        case clear
+
+        /// Die Pinsel zu einer Habit-Art — vollständig und in fester
+        /// Reihenfolge. `amount` ist der aktuelle Steller-Stand; Standard
+        /// ist das Tagesziel (gesetzt von der Karte).
+        static func brushes(for kind: HabitKind, amount: Int) -> [Brush] {
+            switch kind {
+            case .checkbox: return [.done, .clear]
+            case .yesNo:    return [.affirmed, .declined, .clear]
+            case .quantity: return [.amount(amount), .clear]
+            }
+        }
+
+        /// Der Wert, den der Pinsel schreibt — durch dieselbe Klemme wie
+        /// `Action.quantity`: mindestens 1 (eine gemalte 0 wäre `clear` in
+        /// Verkleidung), höchstens der echte Zählerdeckel, damit ein
+        /// Ausreißer nie ins reservierte Antwortband hineinschreibt.
+        var value: Int? {
+            switch self {
+            case .done:            return 1
+            case .affirmed:        return Habit.Answer.yes
+            case .declined:        return Habit.Answer.no
+            case let .amount(n):   return min(Habit.Answer.maxCount, max(1, n))
+            case .clear:           return nil
+            }
+        }
+
+        /// Kennungs-Stamm — die Menge gehört NICHT hinein, sonst wechselte
+        /// die Kennung des Pinsels mit jedem Stellerschritt.
+        var id: String {
+            switch self {
+            case .done: return "done"
+            case .affirmed: return "affirmed"
+            case .declined: return "declined"
+            case .amount: return "amount"
+            case .clear: return "clear"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .done:          return String(localized: "Erledigt")
+            case .affirmed:      return String(localized: "Ja")
+            case .declined:      return String(localized: "Nein")
+            case let .amount(n): return String(localized: "Menge: \(min(Habit.Answer.maxCount, max(1, n)))")
+            case .clear:         return String(localized: "Leeren")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .done, .affirmed: return "checkmark"
+            case .declined:        return "xmark"
+            case .amount:          return "number"
+            case .clear:           return "eraser"
+            }
+        }
+
+        var accessibilityIdentifier: String { "backfill-brush-\(id)" }
+    }
+
+    /// Die Statuszeile im Malen-Modus: wie viele Tage DIESER Griff schon
+    /// geändert hat — und solange es keiner ist, die Gebrauchsanweisung.
+    static func paintText(painted: Int) -> String {
+        switch painted {
+        case ..<1: return String(localized: "Pinsel wählen, Tage antippen")
+        case 1:    return String(localized: "1 Tag geändert · Antippen stellt zurück")
+        default:   return String(localized: "\(painted) Tage geändert · Antippen stellt zurück")
+        }
+    }
+
+    // MARK: – Die beiden Arbeitsweisen der Karte
+
+    /// Wie die Karte arbeitet — eine EINSTELLUNG (Mehr-Tafel), kein Zustand
+    /// der Karte. Roh-Wert ist der Speicher-Schlüssel in den App-Group-
+    /// Defaults; Umbenennen wäre ein stiller Reset der Einstellung.
+    enum Mode: String, CaseIterable, Identifiable {
+        case paint, select
+
+        static let storageKey = "backfillMode"
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .paint:  return String(localized: "Malen")
+            case .select: return String(localized: "Auswählen")
+            }
+        }
+
+        /// Kein gespeicherter oder ein unbekannter Wert -> Malen. Standard
+        /// per Entscheidung: der direktere der beiden Wege.
+        static func resolve(_ raw: String?) -> Mode {
+            raw.flatMap(Mode.init(rawValue:)) ?? .paint
+        }
     }
 
     /// Die Statuszeile im Mehrfach-Modus.

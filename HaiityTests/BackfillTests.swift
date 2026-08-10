@@ -380,32 +380,34 @@ final class BackfillStateTests: GridTestCase {
 
     // MARK: – Mehrere Tage auf einmal
 
-    /// „Kein Mischen": eine Mehrfachauswahl bietet genau ZWEI Aktionen an,
-    /// und beide gelten für ALLE gewählten Tage gleich. Ein „umschalten" gäbe
-    /// es hier nicht — bei gemischten Tagen wüsste niemand vorher, was
-    /// passiert.
-    func testSetActionsAreTwoUniformOnes() {
+    /// Die Auswahl-Leiste ist VOLLSTÄNDIG je Habit-Art — die alte
+    /// „kein Nein für alle"-Regel ist bewusst weg. Einheitlich bleibt der
+    /// Schreibvorgang trotzdem: jede Aktion trägt EINEN Wert für alle Tage.
+    func testSelectActionsCoverEveryTargetState() {
         let checkbox = habit(createdAt: "2026-01-01")
-        let a = Backfill.setActions(habit: checkbox)
+        let a = Backfill.selectActions(habit: checkbox)
         XCTAssertEqual(a.map(\.kind), [.done, .clear])
         XCTAssertEqual(a[0].value, 1)
         XCTAssertNil(a[1].value)
-        XCTAssertTrue(a.allSatisfy { $0.scope == .set })
 
         let quantity = habit(recurrence: Recurrence(target: 4), createdAt: "2026-01-01")
-        let q = Backfill.setActions(habit: quantity)
+        let q = Backfill.selectActions(habit: quantity)
         XCTAssertEqual(q.map(\.kind), [.quantity, .clear])
-        XCTAssertEqual(q[0].value, 4, "genau das Ziel, für jeden Tag derselbe Wert")
+        XCTAssertEqual(q[0].value, 4, "ohne Steller gilt genau das Tagesziel")
         XCTAssertNil(q[1].value)
     }
 
-    /// Die Beschriftung sagt, dass es um ALLE geht — die Kennung bleibt
-    /// dieselbe, es ist dieselbe Aktion.
-    func testSetActionsAreLabelledForTheWholeSelection() {
-        let single = Backfill.actions(for: .empty)[0]
-        let all = Backfill.setActions(habit: habit(createdAt: "2026-01-01"))[0]
-        XCTAssertNotEqual(single.title, all.title)
-        XCTAssertEqual(single.accessibilityIdentifier, all.accessibilityIdentifier)
+    /// Der Mengen-Steller der Karte fließt in die Aktion ein — Massen-Menge
+    /// mit frei gewähltem Wert, geklemmt auf das echte Zählerband.
+    func testSelectActionsTakeTheDialledAmount() {
+        let quantity = habit(recurrence: Recurrence(target: 4), createdAt: "2026-01-01")
+        XCTAssertEqual(Backfill.selectActions(habit: quantity, amount: 7)[0].value, 7)
+        XCTAssertEqual(Backfill.selectActions(habit: quantity, amount: 0)[0].value, 1,
+                       "eine Menge unter 1 wäre `Leeren` in Verkleidung")
+        XCTAssertEqual(Backfill.selectActions(habit: quantity,
+                                              amount: Habit.Answer.maxCount + 5)[0].value,
+                       Habit.Answer.maxCount,
+                       "nie ins reservierte Antwortband hineinschreiben")
     }
 
     /// Die Zusammenfassung sagt, was eine einheitliche Aktion noch ändert.
@@ -631,5 +633,103 @@ final class BackfillWriteTests: XCTestCase {
         undo(&state)
         XCTAssertEqual(store.habits[0].log[today], 1)
         XCTAssertNil(store.habits[0].log["2026-08-05"])
+    }
+}
+
+// MARK: – Pinsel und Arbeitsweisen
+
+/// Der Malen-Modus: Pinsel je Habit-Art, ihre Werte, und die Einstellung,
+/// die zwischen den beiden Arbeitsweisen wählt. Alles reine Rechnung — was
+/// hier falsch wäre, schriebe falsche Werte in den Log.
+final class BackfillBrushTests: GridTestCase {
+    // MARK: Pinsel-Listen
+
+    /// Jede Habit-Art bekommt ihre VOLLSTÄNDIGE Pinselzeile — inklusive
+    /// „Nein" (Massen-Nein war die Rückmeldung) und immer mit „Leeren".
+    func testBrushesPerKindAreCompleteAndOrdered() {
+        XCTAssertEqual(Backfill.Brush.brushes(for: .checkbox, amount: 1),
+                       [.done, .clear])
+        XCTAssertEqual(Backfill.Brush.brushes(for: .yesNo, amount: 1),
+                       [.affirmed, .declined, .clear])
+        XCTAssertEqual(Backfill.Brush.brushes(for: .quantity, amount: 5),
+                       [.amount(5), .clear])
+    }
+
+    /// Der Pinselwert IST der Log-Wert — dieselben Codes wie überall:
+    /// 1, `Answer.yes`, `Answer.no`, die Menge, `nil` zum Leeren.
+    func testBrushValuesMatchTheStoreCodes() {
+        XCTAssertEqual(Backfill.Brush.done.value, 1)
+        XCTAssertEqual(Backfill.Brush.affirmed.value, Habit.Answer.yes)
+        XCTAssertEqual(Backfill.Brush.declined.value, Habit.Answer.no)
+        XCTAssertEqual(Backfill.Brush.amount(4).value, 4)
+        XCTAssertNil(Backfill.Brush.clear.value)
+    }
+
+    /// Die Mengen-Klemme: nie unter 1 (das wäre „Leeren" in Verkleidung)
+    /// und nie hinein ins reservierte Antwortband.
+    func testAmountBrushIsClampedToTheCounterBand() {
+        XCTAssertEqual(Backfill.Brush.amount(0).value, 1)
+        XCTAssertEqual(Backfill.Brush.amount(-3).value, 1)
+        XCTAssertEqual(Backfill.Brush.amount(Habit.Answer.maxCount + 1).value,
+                       Habit.Answer.maxCount)
+        XCTAssertLessThan(Backfill.Brush.amount(Int.max).value ?? 0, Habit.Answer.no,
+                          "eine gemalte Menge darf nie wie ein Nein aussehen")
+    }
+
+    /// Die Kennung trägt die Menge NICHT — sonst wechselte der ausgewählte
+    /// Pinsel seine Identität mit jedem Stellerschritt.
+    func testBrushIdentityIsStableAcrossAmounts() {
+        XCTAssertEqual(Backfill.Brush.amount(2).id, Backfill.Brush.amount(9).id)
+        XCTAssertEqual(Backfill.Brush.amount(3).accessibilityIdentifier,
+                       "backfill-brush-amount")
+        let ids = Backfill.Brush.brushes(for: .yesNo, amount: 1).map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "Kennungen sind eindeutig")
+    }
+
+    /// Beschriftung und Kennung sind nie leer — die Zeile beschriftet sich
+    /// aus dem Modell, nicht aus der Ansicht.
+    func testBrushTitlesExist() {
+        for kind in HabitKind.allCases {
+            for b in Backfill.Brush.brushes(for: kind, amount: 3) {
+                XCTAssertFalse(b.title.isEmpty)
+                XCTAssertFalse(b.systemImage.isEmpty)
+                XCTAssertTrue(b.accessibilityIdentifier.hasPrefix("backfill-brush-"))
+            }
+        }
+    }
+
+    // MARK: Statuszeile des Malen-Modus
+
+    func testPaintTextCountsAndInstructs() {
+        XCTAssertFalse(Backfill.paintText(painted: 0).isEmpty)
+        XCTAssertTrue(Backfill.paintText(painted: 1).contains("1"))
+        XCTAssertTrue(Backfill.paintText(painted: 12).contains("12"))
+        XCTAssertNotEqual(Backfill.paintText(painted: 0), Backfill.paintText(painted: 1))
+        XCTAssertNotEqual(Backfill.paintText(painted: 1), Backfill.paintText(painted: 2))
+    }
+
+    // MARK: Die Einstellung
+
+    /// Roh-Wert ist der Speicher-Schlüssel — Umbenennen wäre ein stiller
+    /// Reset der Einstellung auf jedem Gerät.
+    func testModeRawValuesAreStorageStable() {
+        XCTAssertEqual(Backfill.Mode.paint.rawValue, "paint")
+        XCTAssertEqual(Backfill.Mode.select.rawValue, "select")
+        XCTAssertEqual(Backfill.Mode.storageKey, "backfillMode")
+    }
+
+    /// Kein Wert, Müll, bekannter Wert: aufgelöst wird IMMER — Standard ist
+    /// Malen, ein gespeichertes „select" bleibt „select".
+    func testModeResolvesLenientlyWithPaintAsDefault() {
+        XCTAssertEqual(Backfill.Mode.resolve(nil), .paint)
+        XCTAssertEqual(Backfill.Mode.resolve(""), .paint)
+        XCTAssertEqual(Backfill.Mode.resolve("banana"), .paint)
+        XCTAssertEqual(Backfill.Mode.resolve("select"), .select)
+        XCTAssertEqual(Backfill.Mode.resolve("paint"), .paint)
+    }
+
+    func testModeNamesAreDistinct() {
+        XCTAssertNotEqual(Backfill.Mode.paint.displayName,
+                          Backfill.Mode.select.displayName)
     }
 }

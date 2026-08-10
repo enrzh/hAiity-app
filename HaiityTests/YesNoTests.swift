@@ -567,12 +567,15 @@ final class YesNoSurfaceTests: XCTestCase {
                        [.quantity, .clear])
     }
 
-    func testMultiSelectWritesYes() {
+    func testMultiSelectOffersYesNoAndClear() {
         var h = Habit(name: "Kein Zucker", kind: .yesNo)
         h.kind = .yesNo
-        let set = Backfill.setActions(habit: h)
-        XCTAssertEqual(set.map(\.kind), [.affirmed, .clear])
+        let set = Backfill.selectActions(habit: h)
+        XCTAssertEqual(set.map(\.kind), [.affirmed, .declined, .clear],
+                       "Massen-Nein ist jetzt möglich — die No-Mix-Regel ist weg")
         XCTAssertEqual(set[0].value, Habit.Answer.yes)
+        XCTAssertEqual(set[1].value, Habit.Answer.no)
+        XCTAssertNil(set[2].value)
     }
 
     func testStatusTextSpeaksTheLanguageOfTheQuestion() {
