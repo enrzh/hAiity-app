@@ -176,6 +176,10 @@ struct ContentView: View {
             // NUR Fallback (iOS < 26): das selbstgebaute Chrom über der
             // Liste. Ab iOS 26 zeichnet die native TabView die Leiste selbst.
             .overlay(alignment: .bottom) { legacyBottomChrome }
+            // Der Feld-Beobachter (nur iOS 27, nur bei offener Suche) —
+            // absichtlich hier oben und nicht an der Liste: er darf nicht
+            // mit ihr verschwinden, wenn sie gerade neu gebaut wird.
+            .background { searchFieldWatcher }
             // Die drei Zeilen sind das ganze Theming-Gerüst: das Schema wird
             // fürs FENSTER gesetzt (Blätter inklusive), die Palette reist als
             // Umgebungswert bis in jede Rasterzelle, und der Tint zieht die
@@ -655,6 +659,40 @@ struct ContentView: View {
         }
     }
 
+    /// Der zweite iOS-27-Fehler, abgefangen: das System klappt die Suche zu,
+    /// schreibt aber KEIN `false` ins Binding zurück (`\.isSearching` bleibt
+    /// ebenfalls wahr — nachgemessen) und reisst das halb zugeklappte Feld
+    /// deshalb sofort wieder auf. Also wird das Feld an der ECHTEN Ansicht
+    /// vermessen und der Zustand daran angeglichen, bevor das Zurückreissen
+    /// einsetzt. Hier steht nur die Messung; entschieden wird in
+    /// `SearchFlow.fieldReading`.
+    ///
+    /// Nur iOS 27: auf iOS 26 kommt das `false` sauber zurück, und ein
+    /// zweiter Weg zum selben Zustand ist ein zweiter Weg, ihn zu verlieren.
+    @ViewBuilder
+    private var searchFieldWatcher: some View {
+        if #available(iOS 27, *) {
+            SearchFieldWatcher(active: searching) { reading in
+                reconcileSearchField(reading)
+            }
+        }
+    }
+
+    private func reconcileSearchField(_ reading: SearchFieldReading) {
+        guard chrome.searchFlow.fieldReading(reading) else { return }
+        trace("watcher: system dismissed the search -> isPresented=false")
+        searching = false
+        searchFieldFocused = false
+        // … und den Suchbegriff mit. Auf iOS 26 räumt SwiftUI ihn beim
+        // Schließen selbst weg (nachgemessen: getippt, X getippt, Liste
+        // wieder vollständig). Auf iOS 27 kommt das Schließen nie bei
+        // SwiftUI an, also räumt hier auch niemand auf — und die Liste bliebe
+        // gefiltert, ohne dass noch ein Suchfeld zu sehen wäre, in dem man
+        // das ablesen oder rückgängig machen könnte. Genau ein Zustand, in
+        // dem Habits verschwunden aussehen.
+        search = ""
+    }
+
     /// Nach JEDEM Schließen zurück zu `.minimize` — aber erst an einem
     /// sicheren Punkt: Suche zu, kein (auch kein nachzüglerischer) Fokus.
     ///
@@ -705,7 +743,10 @@ struct ContentView: View {
                 // Ohne Habits gibt es nichts zu durchsuchen: hier steht nur
                 // das Menü, nie die Lupe.
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) { listMenu }
+                    // Dieselbe Seite wie mit Habits (siehe `menuPlacement`) —
+                    // das Menü darf nicht die Seite wechseln, nur weil der
+                    // letzte Habit ins Archiv gewandert ist.
+                    ToolbarItem(placement: menuPlacement) { listMenu }
                 }
         } else {
             habitList
@@ -722,13 +763,13 @@ struct ContentView: View {
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
-                    // Auf iOS 26 stellt `.searchToolbarBehavior(.minimize)`
+                    // Ab iOS 26 stellt `.searchToolbarBehavior(.minimize)`
                     // die Lupe selbst als nativen Eintrag — dort kommt nur
-                    // noch das Menü dazu, und das System gruppiert beide zu
-                    // EINER Glaskapsel. Auf iOS 27 (und unter iOS 26) bringt
-                    // die App ihre eigene Lupe mit; siehe
-                    // `SearchableHidden`.
-                    ToolbarItem(placement: .topBarTrailing) { searchToolbarItem }
+                    // noch das Menü dazu (auf iOS 26 rechts daneben, vom
+                    // System zu EINER Glaskapsel gruppiert; auf iOS 27
+                    // links, siehe `menuPlacement`). Unter iOS 26 bringt die
+                    // App ihre eigene Lupe mit; siehe `SearchableHidden`.
+                    ToolbarItem(placement: menuPlacement) { searchToolbarItem }
                 }
         }
     }
@@ -1302,23 +1343,39 @@ struct ContentView: View {
         .accessibilityIdentifier("open-more")
     }
 
-    /// Was oben rechts steht — je nachdem, WER die Lupe stellt.
+    /// Was in der Leiste steht — je nachdem, WER die Lupe stellt.
     ///
-    /// Auf iOS 26 das System (`.searchToolbarBehavior(.minimize)`), hier
-    /// kommt nur das Menü dazu; das System gruppiert beide zu EINER
-    /// Glaskapsel. Auf iOS 27 und unter iOS 26 bringt die App Lupe UND Menü
-    /// selbst mit — derselbe Doppelknopf an derselben Stelle (ab iOS 26 legt
-    /// das System das Glas darunter, siehe `ToolbarBlob`). Warum iOS 27 die
-    /// System-Lupe nicht benutzen kann, steht bei `SearchableHidden`.
+    /// Ab iOS 26 das System (`.searchToolbarBehavior(.minimize)`), hier kommt
+    /// nur das Menü dazu: auf iOS 26 rechts daneben (das System gruppiert
+    /// beide zu EINER Glaskapsel), auf iOS 27 links (siehe `menuPlacement`).
+    /// Unter iOS 26 gibt es keine minimierte System-Suche — dort bringt die
+    /// App Lupe UND Menü selbst mit, als ein Doppelknopf in eigener Kapsel.
     @ViewBuilder
     private var searchToolbarItem: some View {
-        if #available(iOS 27, *) {
-            searchAndMenu
-        } else if #available(iOS 26, *) {
+        if #available(iOS 26, *) {
             listMenu
         } else {
             searchAndMenu
         }
+    }
+
+    /// Wo dieser eine Toolbar-Eintrag sitzt — und das ist auf iOS 27 keine
+    /// Geschmacksfrage, sondern die Bedingung dafür, dass die System-Lupe
+    /// überhaupt aufklappt.
+    ///
+    /// Auf iOS 27 tötet JEDER eigene Eintrag auf der NACHLAUFENDEN Seite die
+    /// minimierte System-Suche: der Tipp auf die Lupe kommt an, das Binding
+    /// springt auf wahr — es erscheint kein Feld (in einer nackten Testapp
+    /// nachgestellt, auf iOS 26.4 jedes Mal einwandfrei). Auf der FÜHRENDEN
+    /// Seite stört derselbe Eintrag nicht. Deshalb wandert das Menü dort
+    /// nach links, und rechts bleibt allein die Lupe des Systems — mit ihrem
+    /// Aufklapp-Morph aus genau dieser Lupe heraus.
+    ///
+    /// SOBALD APPLE DAS BEHOBEN HAT: diesen Zweig löschen, dann steht das
+    /// Menü überall wieder rechts neben der Lupe.
+    private var menuPlacement: ToolbarItemPlacement {
+        if #available(iOS 27, *) { return .topBarLeading }
+        return .topBarTrailing
     }
 
     /// Das Drei-Punkte-Menü — zugleich die QUELLE der Zoom-Transition: die
@@ -1334,7 +1391,7 @@ struct ContentView: View {
         .modifier(MoreZoomSource(id: Self.moreZoomID, namespace: moreZoomNamespace))
     }
 
-    /// Fallback (iOS < 26): der Doppelknopf als EIN Blob mit eigener Kapsel —
+    /// Nur unter iOS 26: der Doppelknopf als EIN Blob mit eigener Kapsel —
     /// dort gruppiert das System nichts von selbst.
     private var searchAndMenu: some View {
         HStack(spacing: 0) {
@@ -1934,9 +1991,18 @@ struct ContentView: View {
 
 // MARK: – Scroll-Signal
 
-/// Referenz-Kiste um `ChromeScroll` — bewusst OHNE Observation. Die Messung
-/// mutiert bei jedem Bild; als `@State`-Wert war genau das die Invalidierung
-/// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
+/// Ein Messbild des System-Suchfeldes (siehe `SearchFieldProbe`).
+struct SearchFieldReading: Equatable {
+    /// Steht überhaupt ein Suchfeld im Fenster?
+    var present: Bool
+    /// Seine Breite in Punkten (0, wenn keins da ist).
+    var width: CGFloat
+    /// Hält es die Eingabe (`isFirstResponder`)?
+    var focused: Bool
+
+    static let none = SearchFieldReading(present: false, width: 0, focused: false)
+}
+
 /// Die Such-Präsentation als EXPLIZITE Zustandsmaschine — rein, ohne SwiftUI,
 /// testbar. Sie beendet das Whack-a-Mole der Geräte-Rückmeldungen („X schließt
 /// nicht in einem Tipp", „Anlegen-Schließen öffnet die Suche"): beides sind
@@ -1976,8 +2042,32 @@ struct SearchFlow {
     /// nachzügelnden Such-Rollen-Impuls des Systems.
     static let coverSettle: TimeInterval = 0.8
 
+    /// So lange muss das Zuklapp-Bild anhalten, bevor die App nachzieht
+    /// (siehe `fieldReading`): lang genug, dass ein einzelnes Messbild nichts
+    /// auslöst, kurz genug, dass „ein Tipp schließt" bleibt. Gemessen: das
+    /// abgebrochene Zuklappen der iOS-27-Suche liegt rund 0,22 s unter der
+    /// Ruhebreite — ein Fenster von 0,12 s liegt sicher darin.
+    static let dismissSettle: TimeInterval = 0.12
+    /// Ab so vielen Punkten UNTER der Ruhebreite gilt das Feld als
+    /// zuklappend. Gemessen: Ruhe 344 pt, Zuklappen fällt sofort auf 280 pt;
+    /// das Absenden über die Tastatur lässt die Breite exakt stehen.
+    static let collapseMargin: CGFloat = 10
+
     private var coverOpen = false
     private var coverClosedAt: Date?
+    /// Wurde das Feld seit DIESEM Öffnen überhaupt schon gemessen? Ohne diese
+    /// Klemme schlösse der Beobachter die Suche im selben Atemzug wieder, in
+    /// dem sie aufgeht — beim Aufklappen ist das Feld ein paar Bilder lang
+    /// noch nicht da.
+    private var fieldSeen = false
+    /// Die Breite, die das Feld im RUHEZUSTAND hat (zuletzt gemessen, solange
+    /// es die Eingabe hielt). Der Maßstab, an dem ein Zuklappen erkannt wird.
+    private var restingWidth: CGFloat?
+    /// Seit wann sieht die Messung nach Zuklappen aus? (nil = tut sie nicht)
+    private var dismissSince: Date?
+    /// Schon gemeldet? Ein Zuklappen ist EIN Ereignis, kein Dauerzustand —
+    /// sonst feuerte der Takt zwanzigmal je Sekunde dieselbe Meldung.
+    private var dismissReported = false
 
     /// Anlegen-Cover auf/zu — der Such-Rollen-Tab ist der Anlegen-Kreis,
     /// seine fehlgeleitete Such-Aktivierung hängt an genau diesem Fenster.
@@ -1987,7 +2077,24 @@ struct SearchFlow {
     }
 
     /// Programmatisches Öffnen — ausdrückliche Absicht, gilt immer.
-    mutating func userOpened() { state = .open }
+    mutating func userOpened() { enterOpen() }
+
+    /// JEDER Weg nach `open` läuft hier durch — und setzt die Feldmessung
+    /// zurück. Das ist der Grund, warum der Beobachter über beliebig viele
+    /// Zyklen gleich arbeitet: er trägt NICHTS aus dem vorigen Zyklus mit.
+    /// (Ohne das reichte ein `fieldGoneSince` von vorhin, um die frisch
+    /// geöffnete Suche im ersten Messschritt wieder zuzuschlagen.)
+    private mutating func enterOpen() {
+        state = .open
+        resetField()
+    }
+
+    private mutating func resetField() {
+        fieldSeen = false
+        restingWidth = nil
+        dismissSince = nil
+        dismissReported = false
+    }
 
     /// Das System hat präsentiert (Binding → `true`, nicht von uns).
     /// Ergebnis `false` = verwerfen (Binding sofort zurücksetzen).
@@ -1998,7 +2105,90 @@ struct SearchFlow {
         if coverOpen { return false }
         if let t = coverClosedAt,
            now.timeIntervalSince(t) < Self.coverSettle { return false }
-        state = .open
+        enterOpen()
+        return true
+    }
+
+    /// Was der Feld-Beobachter gemessen hat. Rückgabe `true` = die Ansicht
+    /// muss `isPresented` SELBST auf `false` ziehen.
+    ///
+    /// Das ist die Antwort auf den zweiten iOS-27-Fehler: das System klappt
+    /// die Suche zu, schreibt aber kein `false` zurück (auch `\.isSearching`
+    /// bleibt wahr — nachgemessen). Schlimmer noch: weil das Binding wahr
+    /// bleibt, ZIEHT SwiftUI das halb zugeklappte Feld sofort wieder auf.
+    /// Genau deshalb reicht „ist das Feld weg?" nicht — beim ersten Tipp ist
+    /// es nie weg, es klappt nur an und wird zurückgerissen. Der Tipp muss
+    /// IM ZUKLAPPEN erkannt werden, bevor das Zurückreißen einsetzt.
+    ///
+    /// Woran: an der BREITE des Feldes, gegen die Ruhebreite gehalten
+    /// (Messwerte im Simulator, iOS 27.0, 17 Pro Max):
+    ///
+    /// | Vorgang            | Eingabe | Breite        |
+    /// |--------------------|---------|---------------|
+    /// | offen, in Ruhe     | ja      | 344 pt        |
+    /// | Liste scrollen     | ja      | 344 pt        |
+    /// | „Suchen" (Tastatur)| nein    | 344 pt        |
+    /// | X getippt          | nein    | 344 → 280 pt  |
+    ///
+    /// Die Eingabe allein taugt also NICHT als Signal (das Absenden über die
+    /// Tastatur gibt sie ebenso ab), die Breite allein auch nicht (beim
+    /// Aufklappen schrumpft das Feld von 389 auf 344). Erst beides zusammen —
+    /// „hält die Eingabe nicht mehr UND ist schmaler als in Ruhe" — trennt
+    /// das Zuklappen sauber von allem anderen.
+    ///
+    /// Vier Eigenschaften, und alle vier sind Absicht:
+    ///  * **Nur im Zustand `open`.** Sonst ist die Messung bedeutungslos und
+    ///    wird zurückgesetzt — ein Beobachter, der über Zustandsgrenzen
+    ///    hinweg etwas merkt, ist genau der, der beim zweiten Durchgang
+    ///    danebengreift.
+    ///  * **Erst sehen, dann vermissen** (`fieldSeen`): vor dem ersten
+    ///    Treffer schließt nichts, sonst schlüge die Suche im selben Atemzug
+    ///    wieder zu, in dem sie aufgeht.
+    ///  * **Die Ruhebreite kommt aus DIESEM Öffnen**, nicht aus einer
+    ///    Konstanten: sie hängt an Gerät, Sprache und daran, ob rechts ein X
+    ///    steht.
+    ///  * **Ereignislos wiederholbar.** Der Aufruf ist eine reine Frage; ihn
+    ///    zwanzigmal je Sekunde zu stellen ändert nichts am Ergebnis, und ein
+    ///    verschlucktes Messbild verschiebt es höchstens um einen Takt.
+    mutating func fieldReading(_ reading: SearchFieldReading, now: Date = .now) -> Bool {
+        guard case .open = state else {
+            resetField()
+            return false
+        }
+        if reading.present {
+            fieldSeen = true
+            // Ruhebreite nur, solange das Feld die Eingabe hält: während des
+            // Zuklappens hat es sie schon abgegeben, seine Breite darf den
+            // Maßstab also nicht mehr verschieben.
+            if reading.focused {
+                restingWidth = reading.width
+                dismissSince = nil
+                dismissReported = false
+                return false
+            }
+        }
+        guard fieldSeen else { return false }
+        let dismissing: Bool
+        if !reading.present {
+            dismissing = true
+        } else if let resting = restingWidth {
+            dismissing = reading.width <= resting - Self.collapseMargin
+        } else {
+            // Feld da, ohne Eingabe, ohne je eine Ruhebreite gehabt zu haben:
+            // daraus lässt sich nichts ablesen.
+            dismissing = false
+        }
+        guard dismissing else {
+            dismissSince = nil
+            return false
+        }
+        guard !dismissReported else { return false }
+        guard let since = dismissSince else {
+            dismissSince = now
+            return false
+        }
+        guard now.timeIntervalSince(since) >= Self.dismissSettle else { return false }
+        dismissReported = true
         return true
     }
 
@@ -2010,6 +2200,9 @@ struct SearchFlow {
     }
 }
 
+/// Referenz-Kiste um `ChromeScroll` — bewusst OHNE Observation. Die Messung
+/// mutiert bei jedem Bild; als `@State`-Wert war genau das die Invalidierung
+/// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
 final class ChromeScrollBox {
     var scroll = ChromeScroll()
     var pull = SearchPull()
@@ -2408,31 +2601,30 @@ private struct ToolbarBlob: ViewModifier {
 /// Leiste ohne Übergang auf (ein harter Schnitt, bewusst in Kauf genommen —
 /// nur dort, wo das System nichts Besseres anbietet).
 ///
-/// **iOS 27 geht denselben alten Weg, und zwar aus einem gemessenen Grund.**
-/// Dort ist die minimierte System-Suche kaputt, gleich zweifach — beides in
+/// **iOS 27 hat mit dieser Minimierung zwei gemessene Fehler** — beide in
 /// einer NACKTEN Testapp nachgestellt, ohne eine Zeile dieser App, und auf
 /// iOS 26.4 jedes Mal einwandfrei:
 ///  * Steht rechts in der Navigationsleiste IRGENDEIN eigener Eintrag (Menü,
 ///    schlichter Knopf, eigene Gruppe, mit oder ohne `ToolbarSpacer`), klappt
 ///    die System-Lupe gar nicht mehr auf: der Tipp kommt an, das Binding
-///    springt auf wahr — es erscheint kein Suchfeld. Die Suche wäre über die
-///    Lupe schlicht unerreichbar.
-///  * Und schließt man die Suche über ihr X, NIMMT das System das Feld aus
+///    springt auf wahr — es erscheint kein Suchfeld.
+///    ANTWORT: auf iOS 27 wandert das Menü auf die FÜHRENDE Seite (siehe
+///    `ContentView.menuPlacement`). Rechts steht dann allein die Lupe, und
+///    sie arbeitet wieder — samt ihrem Aufklapp-Morph.
+///  * Und klappt man die Suche über ihr X zu, NIMMT das System das Feld aus
 ///    dem Bild, schreibt aber KEIN `false` ins Binding zurück (auch
-///    `\.isSearching` bleibt wahr). Die App hält die Suche danach für offen —
-///    das ist die Wurzel beider Geräte-Meldungen: das X „musste zweimal
-///    gedrückt werden", und beim Schließen der Anlegen-Seite präsentierte
-///    SwiftUI das Feld beim nächsten Auswerten der Ansicht ERNEUT („closing
-///    create habit page opens searchbar").
+///    `\.isSearching` bleibt wahr — nachgemessen). Weil das Binding wahr
+///    bleibt, reisst SwiftUI das halb zugeklappte Feld sofort wieder auf: der
+///    erste Tipp aufs X verpufft sichtbar, der zweite schließt. Das ist die
+///    Wurzel beider Geräte-Meldungen — das X „musste zweimal gedrückt
+///    werden", und beim Schließen der Anlegen-Seite präsentierte SwiftUI das
+///    Feld beim nächsten Auswerten der Ansicht ERNEUT.
+///    ANTWORT: der Feld-Beobachter. Er misst das Zuklappen an der echten
+///    Ansicht und zieht `isPresented` selbst nach, bevor das Zurückreissen
+///    einsetzt (siehe `SearchFieldProbe` und `SearchFlow.fieldReading`).
 ///
-/// Der programmatische Weg dagegen — anhängen, wenn offen — arbeitet auf
-/// iOS 27 sauber: Feld erscheint, ein Tipp schließt, und das Binding kommt
-/// korrekt zurück. Deshalb bekommt iOS 27 die eigene Lupe (im selben Glas
-/// wie das Menü, an derselben Stelle wie bisher) und diesen Weg.
-///
-/// SOBALD APPLE BEIDES BEHOBEN HAT: die `#unavailable(iOS 27)`-Klammer hier
-/// und in `searchToolbarItem` fallen lassen — dann gilt der iOS-26-Zweig
-/// wieder für alle.
+/// SOBALD APPLE BEIDES BEHOBEN HAT: `menuPlacement` und der Feld-Beobachter
+/// können ersatzlos entfallen — der iOS-26-Weg gilt dann wieder für alle.
 private struct SearchableHidden: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
@@ -2445,7 +2637,6 @@ private struct SearchableHidden: ViewModifier {
     /// `#available` und `#unavailable` nicht zusammen stehen), deshalb hier.
     private var usesSystemMinimizedSearch: Bool {
         if #unavailable(iOS 26) { return false }
-        if #available(iOS 27, *) { return false }
         return true
     }
 
@@ -2520,6 +2711,146 @@ private struct BubbleButtonStyle: ButtonStyle {
 // es nur im SDK 27, mit dem diese App nicht ausgeliefert werden darf —
 // ausführlich in `ContentView.nativeShell`. Bis es ein Release-Xcode 27
 // gibt, steht der Kreis hier selbst.
+
+// MARK: – Der Feld-Beobachter (iOS 27)
+
+/// Nimmt Messbilder des System-Suchfeldes auf und reicht jedes an
+/// `onReading` weiter. Gebraucht wird das nur auf iOS 27 (siehe
+/// `SearchableHidden`): dort klappt das System die Suche zu, ohne
+/// `isPresented` zurückzuschreiben. Was ein Messbild bedeutet, entscheidet
+/// nicht dieser Ausmesser, sondern `SearchFlow.fieldReading`.
+///
+/// **Warum getaktet und nicht ereignisgesteuert?** Zwei Gründe, beide
+/// nachgemessen:
+///  * Der naheliegende Weg — KVO auf `hidden`/`alpha`, wie beim Teller-Messer
+///    der Tableiste — trägt nicht: beim Schließen wird das Feld nicht
+///    versteckt, sondern ABGERÄUMT. Ein Beobachter hinge danach an einer
+///    Ansicht, die es nicht mehr gibt, und der nächste Zyklus baute ein Feld
+///    auf, das niemand beobachtet — genau die Bauart, bei der der ZWEITE
+///    Durchgang stillsteht.
+///  * Das entscheidende Signal ist ohnehin kein Ereignis, sondern eine
+///    laufende Größe: die BREITE des Feldes im Zuklappen. Die liest man ab,
+///    man bekommt sie nicht gemeldet.
+///
+/// Der Takt läuft ausschließlich bei OFFENER Suche (`active`) — im
+/// Ruhezustand der App tickt hier nichts.
+@available(iOS 26, *)
+private struct SearchFieldWatcher: UIViewRepresentable {
+    let active: Bool
+    let onReading: (SearchFieldReading) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let probe = SearchFieldProbe()
+        probe.onReading = onReading
+        probe.active = active
+        return probe
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        guard let probe = uiView as? SearchFieldProbe else { return }
+        probe.onReading = onReading
+        probe.active = active
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: ()) {
+        (uiView as? SearchFieldProbe)?.active = false
+    }
+}
+
+@available(iOS 26, *)
+private final class SearchFieldProbe: UIView {
+    var onReading: ((SearchFieldReading) -> Void)?
+
+    var active = false {
+        didSet {
+            guard active != oldValue else { return }
+            if active { start() } else { stop() }
+        }
+    }
+
+    /// 20 Hz: schnell genug, dass „ein Tipp schließt" sich sofort anfühlt
+    /// (Messung + `dismissSettle` bleiben zusammen unter zwei Zehnteln) und
+    /// dass das abgebrochene Zuklappen — rund 0,22 s schmal — nicht
+    /// durchrutscht; langsam genug, dass ein paar Dutzend Ansichten je Takt
+    /// nicht ins Gewicht fallen.
+    private static let interval: TimeInterval = 0.05
+
+    private var timer: Timer?
+
+    init() {
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        isHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    deinit { timer?.invalidate() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Fenster gewechselt: sofort neu messen, nicht erst im nächsten Takt.
+        if active { sample() }
+    }
+
+    private func start() {
+        stop()
+        sample()
+        // `.common`: sonst schweigt der Takt, solange ein Finger scrollt oder
+        // eine Animation läuft — also genau in den Momenten, um die es geht.
+        let t = Timer(timeInterval: Self.interval, repeats: true) { [weak self] _ in
+            self?.sample()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    private func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func sample() {
+        onReading?(Self.reading(in: window))
+    }
+
+    /// Wie sieht das Suchfeld im Fenster gerade aus?
+    ///
+    /// Gesucht wird `UISearchTextField` — eine ÖFFENTLICHE Klasse (ab iOS 13);
+    /// gelesen werden nur öffentliche Eigenschaften (`bounds`, `isHidden`,
+    /// `alpha`, `isFirstResponder`). Nichts wird verändert, keine private
+    /// Schnittstelle berührt.
+    ///
+    /// Die Breitenschwelle hält das AUFKLAPPEN aus der Messung heraus: das
+    /// Feld wächst aus der Lupe heraus (nachgemessen: von unter 50 pt auf
+    /// 344 pt in rund 0,25 s). Erst ab `minWidth` ist es ein Feld und nicht
+    /// mehr eine wachsende Lupe — sonst geriete eine Zwischenbreite als
+    /// „Ruhebreite" in die Bücher.
+    static let minWidth: CGFloat = 120
+
+    static func reading(in window: UIWindow?) -> SearchFieldReading {
+        guard let window, let field = find(window, window: window) else { return .none }
+        return SearchFieldReading(present: true,
+                                  width: field.bounds.width,
+                                  focused: field.isFirstResponder)
+    }
+
+    private static func find(_ view: UIView, window: UIWindow) -> UISearchTextField? {
+        if let field = view as? UISearchTextField {
+            let f = view.convert(view.bounds, to: window)
+            if f.width >= minWidth, f.height >= 16, f.intersects(window.bounds) {
+                return field
+            }
+        }
+        // Unsichtbare Zweige gar nicht erst betreten: ein abgeblendeter
+        // Navigationsbaum (verdeckt von einem Cover) zählt nicht als Feld.
+        for sub in view.subviews where !sub.isHidden && sub.alpha > 0.05 {
+            if let found = find(sub, window: window) { return found }
+        }
+        return nil
+    }
+}
 
 /// Wo die schwebende System-Tableiste WIRKLICH steht — ausgemessen an der
 /// echten Ansicht, nicht aus Sicherheitszonen gerechnet.
