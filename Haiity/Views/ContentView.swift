@@ -285,13 +285,21 @@ struct ContentView: View {
             }
             .onChange(of: searchFieldFocused) { _, focused in
                 trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior)")
-                // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert unter
-                // `.minimize` das Feld sofort wieder — genau der Kreislauf,
-                // der das X mehrfach drücken ließ: das System schreibt beim
-                // Abbrechen kurz `focus = true`, und je nach Reihenfolge
-                // landet das NACH unserem Löschen. Hier hart klemmen: Fokus
-                // gibt es nur bei offener Suche. (`openSearch` setzt
-                // `searching` VOR dem Fokus, der legitime Weg bleibt frei.)
+                // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert AUF
+                // iOS 26 unter `.minimize` das Feld sofort wieder — genau der
+                // Kreislauf, der dort das X mehrfach drücken ließ: das System
+                // schreibt beim Abbrechen kurz `focus = true`, und je nach
+                // Reihenfolge landet das NACH unserem Löschen. Dort also hart
+                // klemmen: Fokus gibt es nur bei offener Suche. (`openSearch`
+                // setzt `searching` VOR dem Fokus, der legitime Weg bleibt
+                // frei.)
+                //
+                // Auf iOS 27 hängt an dieser Klemme nichts mehr: dort
+                // präsentiert das System die Suche gar nicht selbst (siehe
+                // `SearchableHidden`), ein Fokus ohne offene Suche kann also
+                // nichts aufklappen. Sie bleibt trotzdem stehen — für den
+                // Fall, dass ein Nachzügler-Fokus doch einmal durchkommt,
+                // ist „Fokus nur bei offener Suche" auch dort richtig.
                 if focused && !searching { searchFieldFocused = false }
             }
             .onChange(of: searching) { _, open in
@@ -346,37 +354,73 @@ struct ContentView: View {
         }
     }
 
-    /// Die native Leiste, GETEILT wie die System-Apps mit Suche: der
-    /// Habits-Tab als Pille links, der Such-Rollen-Tab als eigener Kreis
-    /// rechts — nur dass der Kreis hier ANLEGEN heißt und ein Plus trägt.
-    /// Halten-Blase, Minimieren beim Scrollen und das Glas kommen vom System.
+    /// Ab iOS 26 die native Leiste — aber auf iOS 26 und iOS 27 aus
+    /// verschiedenen Teilen gebaut. Der Grund ist kein Geschmack, sondern
+    /// drei gemeldete Gerätefehler und eine Grenze der Werkzeugkette.
     ///
-    /// Am Such-Tab hängt KEIN `.searchable` — das System hat also nie ein
-    /// Suchfeld, das es dort aufklappen könnte; die Auswahl wird in
-    /// `onChange(of: nativeTab)` abgefangen, bevor der leere Inhalt sichtbar
-    /// wird.
+    /// **iOS 26: der Such-Rollen-Trick.** Dort gibt es genau EINE Rolle, die
+    /// ein Tab-Element aus der Kapsel löst und als eigenen Kreis rechts
+    /// absetzt: `.search`. Deshalb trägt der Anlegen-Knopf sie, obwohl er
+    /// nicht sucht — seine Auswahl wird in `onChange(of: nativeTab)`
+    /// abgefangen und öffnet die Anlegen-Seite. Am Tab hängt KEIN
+    /// `.searchable`; auf iOS 26 hat das System dort also nichts aufzuklappen
+    /// (nachgemessen: geteilte Leiste, Suche unbehelligt).
+    ///
+    /// **iOS 27 trägt diesen Missbrauch nicht mehr** (am Gerät gemeldet, im
+    /// Simulator nachgestellt):
+    ///  * Die Leiste ist NICHT mehr geteilt — der Such-Rollen-Tab sitzt als
+    ///    gewöhnlicher Eintrag mit Beschriftung in derselben Kapsel
+    ///    („Habits | Neuer Habit", genau der Bildschirmabzug vom Gerät).
+    ///  * Schlimmer: iOS 27 verdrahtet den Such-Rollen-Tab mit dem
+    ///    `.searchable` DES ANDEREN Tabs. Jeder Tipp auf ANLEGEN löste damit
+    ///    eine Such-Aktivierung aus, die niemand bestellt hat: das Suchfeld
+    ///    klappte von selbst wieder zu, während unser `searching` WAHR blieb
+    ///    (Zustands-Riss → das X brauchte zwei Tipps), und das Schließen der
+    ///    Anlegen-Seite zog die Suche auf.
+    ///
+    /// **Warum nicht einfach die richtige Rolle?** iOS 27 bringt sie mit:
+    /// `TabRole.prominent` — ein hervorgehobener Ablauf-Tab, der genau so
+    /// abgesetzt rendert wie der Suchkreis, ohne irgendetwas mit der Suche zu
+    /// tun zu haben (im iOS-27-Simulator nachgemessen: Leiste wieder geteilt,
+    /// `.searchable` wieder normal). Sie existiert aber NUR im SDK 27, und
+    /// hAiity wird mit dem RELEASE-Xcode gebaut, weil App Store Connect
+    /// Beta-SDK-Builds bei der Annahme zurückweist (siehe tools/release.sh).
+    /// Ein `if #available(iOS 27, *)`-Zweig hilft nicht: der Symbolzugriff
+    /// wird beim ÜBERSETZEN aufgelöst und schlägt unter SDK 26 fehl.
+    ///
+    /// SOBALD ES EIN RELEASE-XCODE 27 GIBT: diesen Zweig durch
+    /// `Tab(..., role: .prominent)` ersetzen und `CreateCircle` löschen.
+    ///
+    /// **Bis dahin auf iOS 27: EIN Tab plus ein eigener Kreis.** Ohne
+    /// zweiten Tab gibt es keine Such-Rolle, die etwas kapern könnte, und die
+    /// Leiste ist wieder zwei getrennte Glasteile. (Die Suche hat auf iOS 27
+    /// noch eine zweite, davon unabhängige Baustelle — siehe
+    /// `SearchableHidden`.) Der Kreis rechts ist dann allerdings
+    /// EIGENBAU — ein bewusster Abstrich gegenüber „so nativ wie möglich",
+    /// erzwungen vom SDK. Damit er trotzdem AUF DERSELBEN LINIE sitzt wie die
+    /// Kapsel, wird er NICHT gerechnet, sondern an der echten Leiste
+    /// AUSGEMESSEN (siehe `TabBarPlatters`): Sicherheitszonen-Arithmetik
+    /// ergibt auf Geräten mit Home-Indikator eine andere Grundlinie als ohne
+    /// (nachgemessen: 17 Pro Max gegen SE) — die gemessene Leiste stimmt
+    /// überall.
     @available(iOS 26, *)
+    @ViewBuilder
     private var nativeShell: some View {
+        if #available(iOS 27, *) {
+            splitShell
+        } else {
+            searchRoleShell
+        }
+    }
+
+    /// iOS 26: Habits-Pille links, Such-Rollen-Tab als Anlegen-Kreis rechts.
+    /// Halten-Blase, Minimieren beim Scrollen und das Glas kommen vom System.
+    @available(iOS 26, *)
+    private var searchRoleShell: some View {
         TabView(selection: $nativeTab) {
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                 value: NativeTab.habits) {
-                ZStack {
-                    Color(.systemGroupedBackground).ignoresSafeArea()
-                    habitsStack
-                }
-                // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
-                // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
-                // genau dem, was die Karte gerade geschrieben hat, und muss
-                // bei offener Karte antippbar bleiben — dieselbe Schichtung
-                // wie im Fallback (Karte unter dem Chrom-Stapel).
-                .overlay { backfillLayer }
-                // Toast und Sync-Pille schweben über der Liste, oberhalb
-                // der nativen Leiste (der Tab-Inhalt endet an deren
-                // Sicherheitszone). Bei offener Suche stünden sie auf der
-                // Tastatur — dann nicht.
-                .overlay(alignment: .bottom) {
-                    if !searching { floatingPills }
-                }
+                habitsTabContent
             }
             Tab(String(localized: "Neuer Habit"), systemImage: "plus",
                 value: NativeTab.create, role: .search) {
@@ -391,6 +435,61 @@ struct ContentView: View {
         // Zoom-Transition der Anlegen-Seite. Am TabView-Rahmen verankert
         // (der reicht bis zur Bildschirmkante, die Leiste liegt darin).
         .overlay(alignment: .bottomTrailing) { createZoomAnchor }
+    }
+
+    /// iOS 27: EIN Tab — und der Anlegen-Kreis als eigenes Glasstück auf der
+    /// Linie der Leiste. Er ist zugleich die Quelle der Zoom-Transition, und
+    /// zwar in BEIDEN Leisten-Zuständen richtig: die Quelle sitzt auf dem
+    /// Kreis selbst, nicht auf einem Anker daneben.
+    @available(iOS 27, *)
+    private var splitShell: some View {
+        TabView(selection: $nativeTab) {
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                value: NativeTab.habits) {
+                habitsTabContent
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .overlay {
+            CreateCircle(reduceMotion: reduceMotion,
+                         // Kein eigener Sichtbarkeits-Schalter: der Kreis
+                         // gehört zur Leiste und ist genau dann da, wenn die
+                         // Leiste da ist (auf iOS 26 bleibt der System-Kreis
+                         // bei offener Suche ebenfalls stehen). Was hier
+                         // durchgereicht wird, ist nur ein ANLASS, neu zu
+                         // messen: ändert sich einer dieser Zustände, kann
+                         // die Leiste gerade gekommen oder gegangen sein.
+                         remeasureOn: [searching, showAdd, showMore],
+                         zoomID: Self.createZoomID,
+                         zoomNamespace: createZoomNamespace) {
+                // Dieselbe Sperre wie an der Fallback-Leiste und im
+                // `onChange(of: nativeTab)`: bei offener Nacharbeiten-Karte
+                // legt ein Fehlgriff nichts hinter ihr an.
+                if backfill == nil { showAdd = true }
+            }
+        }
+    }
+
+    /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
+    @available(iOS 26, *)
+    private var habitsTabContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+            habitsStack
+        }
+        // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
+        // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
+        // genau dem, was die Karte gerade geschrieben hat, und muss
+        // bei offener Karte antippbar bleiben — dieselbe Schichtung
+        // wie im Fallback (Karte unter dem Chrom-Stapel).
+        .overlay { backfillLayer }
+        // Toast und Sync-Pille schweben über der Liste, oberhalb
+        // der nativen Leiste (der Tab-Inhalt endet an deren
+        // Sicherheitszone). Bei offener Suche stünden sie auf der
+        // Tastatur — dann nicht.
+        .overlay(alignment: .bottom) {
+            if !searching { floatingPills }
+        }
     }
 
     /// Rückgängig-Toast und Sync-Pille als schwebende Schicht — in der
@@ -473,7 +572,8 @@ struct ContentView: View {
 
     private static let createZoomID = "create-circle"
 
-    /// Quelle der Anlegen-Zoom-Transition unter iOS 26 — Option (b):
+    /// Quelle der Anlegen-Zoom-Transition auf iOS 26 (auf iOS 27 sitzt sie
+    /// direkt auf dem eigenen Kreis, siehe `CreateCircle`):
     ///
     /// Der Anlegen-Kreis ist dort das SYSTEMGEZEICHNETE Such-Rollen-Element
     /// der nativen TabView; an ihm selbst gibt es keinen Modifier-Pfad für
@@ -601,7 +701,9 @@ struct ContentView: View {
             emptyState
                 .navigationTitle("Habits")
                 // Auch ohne Habits muss „Mehr" erreichbar sein — es wohnt
-                // jetzt oben rechts, nicht mehr in der Leiste unten.
+                // jetzt im Drei-Punkte-Menü, nicht mehr in der Leiste unten.
+                // Ohne Habits gibt es nichts zu durchsuchen: hier steht nur
+                // das Menü, nie die Lupe.
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) { listMenu }
                 }
@@ -620,16 +722,13 @@ struct ContentView: View {
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
-                    // Ab iOS 26 stellt `.searchToolbarBehavior(.minimize)`
-                    // die Lupe selbst als nativen Eintrag — hier kommt nur
-                    // noch das Menü dazu, das System gruppiert benachbarte
-                    // Einträge zu einer Glas-Gruppe. Darunter bleibt der
-                    // Doppelknopf mit eigener Kapsel.
-                    if #available(iOS 26, *) {
-                        ToolbarItem(placement: .topBarTrailing) { listMenu }
-                    } else {
-                        ToolbarItem(placement: .topBarTrailing) { searchAndMenu }
-                    }
+                    // Auf iOS 26 stellt `.searchToolbarBehavior(.minimize)`
+                    // die Lupe selbst als nativen Eintrag — dort kommt nur
+                    // noch das Menü dazu, und das System gruppiert beide zu
+                    // EINER Glaskapsel. Auf iOS 27 (und unter iOS 26) bringt
+                    // die App ihre eigene Lupe mit; siehe
+                    // `SearchableHidden`.
+                    ToolbarItem(placement: .topBarTrailing) { searchToolbarItem }
                 }
         }
     }
@@ -1201,6 +1300,25 @@ struct ContentView: View {
             Label(String(localized: "Mehr"), systemImage: "ellipsis.circle")
         }
         .accessibilityIdentifier("open-more")
+    }
+
+    /// Was oben rechts steht — je nachdem, WER die Lupe stellt.
+    ///
+    /// Auf iOS 26 das System (`.searchToolbarBehavior(.minimize)`), hier
+    /// kommt nur das Menü dazu; das System gruppiert beide zu EINER
+    /// Glaskapsel. Auf iOS 27 und unter iOS 26 bringt die App Lupe UND Menü
+    /// selbst mit — derselbe Doppelknopf an derselben Stelle (ab iOS 26 legt
+    /// das System das Glas darunter, siehe `ToolbarBlob`). Warum iOS 27 die
+    /// System-Lupe nicht benutzen kann, steht bei `SearchableHidden`.
+    @ViewBuilder
+    private var searchToolbarItem: some View {
+        if #available(iOS 27, *) {
+            searchAndMenu
+        } else if #available(iOS 26, *) {
+            listMenu
+        } else {
+            searchAndMenu
+        }
     }
 
     /// Das Drei-Punkte-Menü — zugleich die QUELLE der Zoom-Transition: die
@@ -2289,6 +2407,32 @@ private struct ToolbarBlob: ViewModifier {
 /// Listenanfang dauerhaft. Das Anhängen mit `isPresented == true` klappt die
 /// Leiste ohne Übergang auf (ein harter Schnitt, bewusst in Kauf genommen —
 /// nur dort, wo das System nichts Besseres anbietet).
+///
+/// **iOS 27 geht denselben alten Weg, und zwar aus einem gemessenen Grund.**
+/// Dort ist die minimierte System-Suche kaputt, gleich zweifach — beides in
+/// einer NACKTEN Testapp nachgestellt, ohne eine Zeile dieser App, und auf
+/// iOS 26.4 jedes Mal einwandfrei:
+///  * Steht rechts in der Navigationsleiste IRGENDEIN eigener Eintrag (Menü,
+///    schlichter Knopf, eigene Gruppe, mit oder ohne `ToolbarSpacer`), klappt
+///    die System-Lupe gar nicht mehr auf: der Tipp kommt an, das Binding
+///    springt auf wahr — es erscheint kein Suchfeld. Die Suche wäre über die
+///    Lupe schlicht unerreichbar.
+///  * Und schließt man die Suche über ihr X, NIMMT das System das Feld aus
+///    dem Bild, schreibt aber KEIN `false` ins Binding zurück (auch
+///    `\.isSearching` bleibt wahr). Die App hält die Suche danach für offen —
+///    das ist die Wurzel beider Geräte-Meldungen: das X „musste zweimal
+///    gedrückt werden", und beim Schließen der Anlegen-Seite präsentierte
+///    SwiftUI das Feld beim nächsten Auswerten der Ansicht ERNEUT („closing
+///    create habit page opens searchbar").
+///
+/// Der programmatische Weg dagegen — anhängen, wenn offen — arbeitet auf
+/// iOS 27 sauber: Feld erscheint, ein Tipp schließt, und das Binding kommt
+/// korrekt zurück. Deshalb bekommt iOS 27 die eigene Lupe (im selben Glas
+/// wie das Menü, an derselben Stelle wie bisher) und diesen Weg.
+///
+/// SOBALD APPLE BEIDES BEHOBEN HAT: die `#unavailable(iOS 27)`-Klammer hier
+/// und in `searchToolbarItem` fallen lassen — dann gilt der iOS-26-Zweig
+/// wieder für alle.
 private struct SearchableHidden: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
@@ -2296,9 +2440,18 @@ private struct SearchableHidden: ViewModifier {
     let automaticBehavior: Bool
     let prompt: String
 
+    /// Nur iOS 26 lässt das System die minimierte Suche stellen. Zwei
+    /// Verfügbarkeits-Prüfungen dürfen nicht in EINE Bedingung (Swift lässt
+    /// `#available` und `#unavailable` nicht zusammen stehen), deshalb hier.
+    private var usesSystemMinimizedSearch: Bool {
+        if #unavailable(iOS 26) { return false }
+        if #available(iOS 27, *) { return false }
+        return true
+    }
+
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if usesSystemMinimizedSearch, #available(iOS 26, *) {
             // `.minimize` nur im RUHEZUSTAND: es liefert die native Lupe samt
             // System-Aufklapp-Animation, verschluckt aber JEDE programmatische
             // Präsentation (isPresented wie searchFocused, auch verzögert —
@@ -2357,6 +2510,308 @@ private struct BubbleButtonStyle: ButtonStyle {
             .scaleEffect(!reduceMotion && configuration.isPressed ? 1.15 : 1)
             .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.6),
                        value: configuration.isPressed)
+    }
+}
+
+// MARK: – Der Anlegen-Kreis auf iOS 27
+//
+// Auf iOS 26 zeichnet ihn das System (Such-Rollen-Tab). Auf iOS 27 trägt
+// dieser Trick nicht mehr und die richtige Rolle (`TabRole.prominent`) gibt
+// es nur im SDK 27, mit dem diese App nicht ausgeliefert werden darf —
+// ausführlich in `ContentView.nativeShell`. Bis es ein Release-Xcode 27
+// gibt, steht der Kreis hier selbst.
+
+/// Wo die schwebende System-Tableiste WIRKLICH steht — ausgemessen an der
+/// echten Ansicht, nicht aus Sicherheitszonen gerechnet.
+///
+/// Warum nicht gerechnet: die Leiste hängt an der BILDSCHIRMKANTE, nicht an
+/// der Sicherheitszone. Ein Gerät mit Home-Indikator hat unten 34 pt Zone,
+/// eines ohne 0 — dieselbe Rechnung landet auf beiden auf verschiedenen
+/// Linien (nachgemessen: auf dem 17 Pro Max saß der Kreis 34 pt ÜBER der
+/// Kapsel, auf dem SE stimmte er). Gemessen stimmt beides: die Leiste meldet
+/// dieselbe Geometrie relativ zur Unterkante (Kapsel 62 pt hoch mit 21 pt
+/// Abstand, minimierter Teller 48 pt mit 28 pt — beide um DIESELBE Mittellinie).
+///
+/// Beobachtbar, damit ausschließlich der Kreis neu zeichnet und nicht der
+/// ganze Bildschirm (dieselbe Lehre wie bei `ChromeScrollBox`).
+@available(iOS 26, *)
+@Observable final class TabBarPlatters {
+    struct Placement: Equatable {
+        /// Mittelpunkt des Kreises in Fensterkoordinaten. Er ist in BEIDEN
+        /// Leisten-Zuständen derselbe — die Leiste schrumpft um ihre Mitte.
+        var center: CGPoint
+        /// Aktueller Durchmesser: die Höhe des gerade sichtbaren Tellers.
+        var diameter: CGFloat
+    }
+    var placement: Placement?
+    /// Wurde überhaupt je eine Leiste gefunden? Trennt „die Leiste ist gerade
+    /// weg" (dann gehört auch der Kreis weg) von „hier misst nichts" (dann
+    /// muss der Rückfallwert her).
+    var everFound = false
+}
+
+/// Der Ausmesser: eine unsichtbare Ansicht, die im Fenster die Tableiste
+/// sucht und ihre Teller meldet. Gelesen werden nur öffentliche
+/// UIView-Eigenschaften (`frame`, `isHidden`, `alpha`) — keine private
+/// Programmierschnittstelle, kein Verändern der Systemansichten.
+@available(iOS 26, *)
+private struct TabBarPlatterReader: UIViewRepresentable {
+    let platters: TabBarPlatters
+    /// Nur damit SwiftUI `updateUIView` aufruft, wenn sich einer dieser
+    /// Zustände ändert — dann lohnt ein neuer Messversuch.
+    let remeasureOn: [Bool]
+
+    func makeUIView(context: Context) -> UIView { PlatterProbe(platters: platters) }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        // Mit zurückgesetztem Zähler: hat sich an der Oberfläche etwas
+        // geändert (Suche zu, Farbe gewechselt), lohnt ein neuer Anlauf.
+        (uiView as? PlatterProbe)?.measure(retrying: true)
+    }
+}
+
+@available(iOS 26, *)
+private final class PlatterProbe: UIView {
+    private let platters: TabBarPlatters
+    /// Ansichten, an denen ein Beobachter hängt. BEWUSST stark gehalten: eine
+    /// Ansicht, die mit angemeldetem Beobachter abgeräumt wird, ist ein
+    /// Absturz. Abgemeldet wird beim nächsten Ausmessen oder beim Abbau.
+    private var observed: [UIView] = []
+    /// Die Leiste steht nicht sofort im Fenster (und ist bei offener Suche
+    /// zeitweise gar nicht da). Solange nichts zu messen ist, wird es in
+    /// Ruhe noch einmal versucht, statt für immer auf den Rückfallwerten
+    /// stehen zu bleiben.
+    private var retries = 0
+    private static let maxRetries = 40
+
+    init(platters: TabBarPlatters) {
+        self.platters = platters
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    deinit { unobserve() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil else { unobserve(); return }
+        // Die Leiste steht erst NACH diesem Umlauf im Fenster.
+        measure(retrying: true)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        measure(retrying: true)
+    }
+
+    /// Erneut ausmessen und dabei den Wiederhol-Zähler zurücksetzen — von
+    /// aussen aufgerufen, wenn sich die Lage geändert haben kann (Suche zu,
+    /// Farbe gewechselt).
+    func measure(retrying: Bool) {
+        if retrying { retries = 0 }
+        measure()
+    }
+
+    /// Höchstens EIN wartender Versuch — sonst legt jedes Aktualisieren der
+    /// Ansicht eine weitere Kette an.
+    private var retryPending = false
+
+    private func retryLater() {
+        guard retries < Self.maxRetries, !retryPending else { return }
+        retries += 1
+        retryPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.retryPending = false
+            self?.measure()
+        }
+    }
+
+    /// Das Minimieren der Leiste ist kein Weg, den man interpolieren könnte:
+    /// die Teller behalten ihre Rahmen, das System blendet den einen ein und
+    /// den anderen aus (nachgemessen mit einem Bildtakt-Mitschnitt). Ein
+    /// Beobachter auf `hidden` ist deshalb genau das richtige Signal — und es
+    /// ist DAS DES SYSTEMS, nicht unsere eigene Scroll-Vermutung.
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?,
+                               change: [NSKeyValueChangeKey: Any]?,
+                               context: UnsafeMutableRawPointer?) {
+        measure()
+    }
+
+    private func measure() {
+        guard let window, let bar = Self.findTabBar(in: window) else {
+            publish(nil)
+            retryLater()
+            return
+        }
+        let barFrame = bar.convert(bar.bounds, to: window)
+        // Die „Teller" der Leiste: die Kapsel (ruhend) und der kleine Teller
+        // (minimiert). Beide existieren immer, sichtbar ist einer.
+        //
+        // Erkannt werden sie an der LAGE, nicht am Klassennamen: ein Teller
+        // ist ein Stück in Leistenhöhe, das VOLLSTÄNDIG in der Leiste liegt.
+        // Das ist die Prüfung, die den Umbett-Behälter der Glas-Animation
+        // aussortiert (100 × 100 an der Leistenkante — er ragt hinaus und
+        // hätte als „größter Teller" die ganze Messung verdorben).
+        let platterViews = bar.subviews.filter { view in
+            let f = view.convert(view.bounds, to: window)
+            return f.height >= 30 && f.height <= 90 && f.width >= 30
+                && barFrame.insetBy(dx: -1, dy: -1).contains(f)
+        }
+        observe(bar: bar, platters: platterViews)
+        // Bei offener Suche nimmt das System die Leiste aus dem Bild — der
+        // Kreis gehört zu ihr und geht mit.
+        guard !bar.isHidden, bar.alpha > 0.05, barFrame.intersects(window.bounds),
+              // Der GRÖSSTE Teller ist die Kapsel: sie gibt Linie,
+              // Randabstand und den ruhenden Durchmesser. (Der kleine Teller
+              // sitzt um dieselbe Mitte, einer reicht also für die Linie.)
+              let capsule = platterViews.max(by: { $0.bounds.height < $1.bounds.height })
+        else {
+            publish(nil)
+            retryLater()
+            return
+        }
+        let capsuleFrame = capsule.convert(capsule.bounds, to: window)
+        // Der Abstand der Leiste zur Unterkante ist AUCH ihr Seitenabstand —
+        // die schwebende Leiste ist rundum gleich eingerückt (nachgemessen in
+        // beiden Zuständen, mit und ohne Home-Indikator).
+        let gutter = window.bounds.maxY - capsuleFrame.maxY
+        let resting = capsuleFrame.height
+        guard gutter >= 0, gutter <= 60 else {
+            trace("platter probe: implausible bar \(capsuleFrame) gutter \(gutter)")
+            publish(nil)
+            retryLater()
+            return
+        }
+        retries = 0
+        // Während des Umschaltens sind beide Teller kurz sichtbar; der
+        // KLEINERE gewinnt, damit der Kreis mit dem Anfang der System-
+        // Animation schrumpft statt an ihrem Ende zu springen.
+        let shown = platterViews.filter { !$0.isHidden && $0.alpha > 0.05 }
+        let diameter = shown.map(\.bounds.height).min() ?? resting
+        publish(.init(center: CGPoint(x: window.bounds.maxX - gutter - resting / 2,
+                                      y: capsuleFrame.midY),
+                      diameter: min(max(diameter, 28), resting)))
+    }
+
+    /// Erst im nächsten Umlauf schreiben: `measure()` läuft auch aus
+    /// `updateUIView`, und ein Zustandsschreiben MITTEN im Auswerten der
+    /// Ansicht ist genau die Warnung, die man nicht ignorieren soll.
+    private func publish(_ placement: TabBarPlatters.Placement?) {
+        let found = placement != nil
+        guard platters.placement != placement || (found && !platters.everFound) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if found { platters.everFound = true }
+            guard platters.placement != placement else { return }
+            platters.placement = placement
+        }
+    }
+
+    private func observe(bar: UIView, platters: [UIView]) {
+        let wanted = [bar] + platters
+        guard observed.map(ObjectIdentifier.init) != wanted.map(ObjectIdentifier.init) else { return }
+        unobserve()
+        for view in wanted {
+            view.addObserver(self, forKeyPath: "hidden", options: [], context: nil)
+            view.addObserver(self, forKeyPath: "alpha", options: [], context: nil)
+        }
+        observed = wanted
+    }
+
+    private func unobserve() {
+        for view in observed {
+            view.removeObserver(self, forKeyPath: "hidden")
+            view.removeObserver(self, forKeyPath: "alpha")
+        }
+        observed = []
+    }
+
+    /// Die Tableiste im Fenster. `UITabBar` ist eine ÖFFENTLICHE Klasse; ihre
+    /// Teller sind es nicht, werden hier aber nur als gewöhnliche UIViews
+    /// gelesen. Findet sich keine, meldet der Ausmesser schlicht nichts und
+    /// der Kreis fällt auf die nachgemessenen Werte zurück.
+    static func findTabBar(in view: UIView) -> UIView? {
+        if view is UITabBar { return view }
+        for sub in view.subviews.reversed() {
+            if let found = findTabBar(in: sub) { return found }
+        }
+        return nil
+    }
+}
+
+/// Der Anlegen-Kreis auf iOS 27: eigenes Glas, auf der Linie der gemessenen
+/// Leiste — und zugleich die Quelle der Zoom-Transition der Anlegen-Seite.
+@available(iOS 27, *)
+private struct CreateCircle: View {
+    let reduceMotion: Bool
+    /// Zustände, deren Wechsel ein neues Ausmessen wert ist — der Wert selbst
+    /// wird nie gelesen (siehe `remeasureOn` beim Aufruf).
+    let remeasureOn: [Bool]
+    let zoomID: String
+    let zoomNamespace: Namespace.ID
+    let action: () -> Void
+
+    @State private var platters = TabBarPlatters()
+
+    var body: some View {
+        GeometryReader { geo in
+            let origin = geo.frame(in: .global).origin
+            if let placement = resolved(in: geo.size) {
+                circle(diameter: placement.diameter)
+                    .position(x: placement.center.x - origin.x,
+                              y: placement.center.y - origin.y)
+                    // Die Leiste morpht ihre Kapsel in rund einer halben
+                    // Sekunde zum kleinen Teller (nachgemessen im Bildtakt);
+                    // der Kreis geht denselben Weg statt zu springen.
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.45),
+                               value: placement.diameter)
+                    .transition(.opacity)
+            }
+        }
+        .background(TabBarPlatterReader(platters: platters, remeasureOn: remeasureOn))
+        // Die Leiste sitzt an der Bildschirmkante, nicht in der
+        // Sicherheitszone — der Kreis braucht dieselbe Fläche.
+        .ignoresSafeArea()
+    }
+
+    /// Die gemessene Lage. Ist die Leiste GEFUNDEN, aber gerade nicht zu
+    /// messen (das System hat sie aus dem Bild genommen), gehört der Kreis
+    /// ebenfalls nicht ins Bild — er ist ein Teil von ihr. Nur wenn hier NIE
+    /// eine Leiste gefunden wurde, tritt der nachgemessene Rückfallwert an
+    /// ihre Stelle: lieber ein Kreis an der richtigen Stelle als gar keiner.
+    private func resolved(in size: CGSize) -> TabBarPlatters.Placement? {
+        if let measured = platters.placement { return measured }
+        guard !platters.everFound else { return nil }
+        return .init(center: CGPoint(x: size.width - CreateCircle.fallbackCenterInset,
+                                     y: size.height - CreateCircle.fallbackCenterInset),
+                     diameter: CreateCircle.fallbackDiameter)
+    }
+
+    private static let fallbackCenterInset: CGFloat = 52
+    private static let fallbackDiameter: CGFloat = 62
+
+    private func circle(diameter: CGFloat) -> some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 19, weight: .semibold))
+                // Wie das System-Zeichen der Leiste, NICHT wie die
+                // Markenfarbe: der Kreis auf iOS 26 trägt ein fast schwarzes
+                // Plus (am Bildabzug gemessen: 30/30/33), und der Eigenbau
+                // soll neben derselben Kapsel nicht anders aussehen.
+                .foregroundStyle(.primary)
+                .frame(width: diameter, height: diameter)
+                .contentShape(Circle())
+        }
+        // Halten-Blase wie an den eigenen Chrom-Knöpfen: das Zeichen atmet,
+        // die Glasscheibe antwortet über `.interactive()`.
+        .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
+        .glassEffect(.regular.interactive(), in: .circle)
+        .modifier(MoreZoomSource(id: zoomID, namespace: zoomNamespace))
+        .accessibilityLabel(String(localized: "Habit hinzufügen"))
+        .accessibilityIdentifier("add-habit")
     }
 }
 
