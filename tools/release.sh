@@ -85,7 +85,7 @@ say "Unit tests"
 # v13-Nacharbeiten: der Malen-Modus wurde auf Nutzerwunsch ENTFERNT — mit ihm
 # ehrlich seine 9 Tests (BackfillBrushTests: Pinsel, paintText, Mode). Keine
 # überlebende Zusicherung wurde abgeschwächt. Boden: 748 − 9 = 739.
-MIN_TESTS=746
+MIN_TESTS=761
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

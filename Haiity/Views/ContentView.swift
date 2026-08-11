@@ -2,6 +2,15 @@ import SwiftUI
 import UIKit
 import AppIntents
 import WidgetKit
+#if DEBUG
+import os
+/// Diagnose-Spur der Such-/Anlegen-Zustandsmaschine (nur Debug): jede
+/// Zustandsänderung eine Zeile im os_log, abgreifbar per `log stream`.
+let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
+@inline(__always) func trace(_ msg: String) { searchTrace.notice("\(msg, privacy: .public)") }
+#else
+@inline(__always) func trace(_ msg: String) {}
+#endif
 
 /// Haupt-Einstieg. EIN Bereich (die Habit-Liste in ihrem NavigationStack).
 ///
@@ -250,6 +259,11 @@ struct ContentView: View {
                 backfill = nil
             }
             .onChange(of: showAdd) { _, open in
+                trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
+                // Der Zustandsmaschine melden: solange das Cover offen ist
+                // (und im Fenster nach dem Zufahren) kann keine ECHTE
+                // Lupen-Berührung eine Suche präsentieren.
+                chrome.searchFlow.coverChanged(open: open)
                 guard open else { return }
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
@@ -258,7 +272,8 @@ struct ContentView: View {
                 undo.clear()
                 backfill = nil
             }
-            .onChange(of: nativeTab) { _, tab in
+            .onChange(of: nativeTab) { old, tab in
+                trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
                 // Der Such-Rollen-Tab IST der Anlegen-Knopf: die Auswahl wird
                 // sofort zurückgenommen und stattdessen das Blatt geöffnet.
                 // Bei offener Nacharbeiten-Karte passiert BEWUSST nichts —
@@ -269,6 +284,7 @@ struct ContentView: View {
                 if backfill == nil { showAdd = true }
             }
             .onChange(of: searchFieldFocused) { _, focused in
+                trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior)")
                 // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert unter
                 // `.minimize` das Feld sofort wieder — genau der Kreislauf,
                 // der das X mehrfach drücken ließ: das System schreibt beim
@@ -279,6 +295,23 @@ struct ContentView: View {
                 if focused && !searching { searchFieldFocused = false }
             }
             .onChange(of: searching) { _, open in
+                trace("searching=\(open) focus=\(searchFieldFocused) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior) tab=\(nativeTab)")
+                if open {
+                    // JEDES `true` läuft durch die Zustandsmaschine: die
+                    // System-Lupe ist willkommen, Nachzügler (Re-Present
+                    // mitten im Zuklappen, verspätete Such-Aktivierung des
+                    // Such-Rollen-Tabs rund ums Anlegen-Cover) werden im
+                    // selben Umlauf zurückgeschrieben — dieselbe Klemme wie
+                    // beim Fokus, nur eine Ebene höher.
+                    guard chrome.searchFlow.systemPresented() else {
+                        trace("REVERT spurious search present")
+                        searching = false
+                        searchFieldFocused = false
+                        return
+                    }
+                } else {
+                    chrome.searchFlow.dismissed()
+                }
                 // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
                 // Scrollen — den Lauf verwerfen, sonst wirkt er hinterher nach.
                 expandChrome()
@@ -504,9 +537,22 @@ struct ContentView: View {
     /// Zustand setzen, dann im nächsten Umlauf den Fokus — das Setzen beider
     /// im selben Umlauf verschluckt die Präsentation ebenfalls.
     private func openSearch() {
+        trace("openSearch() showAdd=\(showAdd)")
+        // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
+        // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
+        chrome.searchFlow.userOpened()
+        // DREI Umläufe, nicht einer: Umschalter (`.automatic`), Präsentation,
+        // Fokus. Fielen Umschalter und Präsentation in DENSELBEN Umlauf, sah
+        // das System die Präsentation noch unter `.minimize` und verschluckte
+        // sie — zuverlässig reproduzierbar direkt nach dem Zufahren des
+        // Anlegen-Covers (Suche „offen", aber keine Leiste, keine Tastatur,
+        // keine Lupe mehr — ein toter Zustand). Erst wenn `.automatic` im
+        // Baum steht, darf `isPresented` springen; der Fokus danach.
         searchNeedsAutomaticBehavior = true
-        withAnimation { searching = true }
-        searchFieldFocused = true
+        DispatchQueue.main.async {
+            withAnimation { searching = true }
+            DispatchQueue.main.async { searchFieldFocused = true }
+        }
     }
 
     /// Nach JEDEM Schließen zurück zu `.minimize` — aber erst an einem
@@ -535,6 +581,7 @@ struct ContentView: View {
             }
             var tx = Transaction()
             tx.disablesAnimations = true
+            trace("minimizeReturn attempt=\(attempt) -> auto=false")
             withTransaction(tx) { searchNeedsAutomaticBehavior = false }
         }
     }
@@ -1772,9 +1819,83 @@ struct ContentView: View {
 /// Referenz-Kiste um `ChromeScroll` — bewusst OHNE Observation. Die Messung
 /// mutiert bei jedem Bild; als `@State`-Wert war genau das die Invalidierung
 /// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
+/// Die Such-Präsentation als EXPLIZITE Zustandsmaschine — rein, ohne SwiftUI,
+/// testbar. Sie beendet das Whack-a-Mole der Geräte-Rückmeldungen („X schließt
+/// nicht in einem Tipp", „Anlegen-Schließen öffnet die Suche"): beides sind
+/// SYSTEM-Schreibvorgänge auf das `isPresented`-Binding, die zeitlich NACH
+/// unserem eigenen Zustand landen — auf dem Gerät anders getaktet als im
+/// Simulator. Statt Timer nachzustimmen, entscheidet hier ein Regelwerk, ob
+/// eine Präsentation GEWOLLT sein kann:
+///
+///  * `userOpened` (Such-Zug, Deep-Link, Fallback-Knopf): Absicht — gilt immer.
+///  * `systemPresented` (das Binding springt auf `true`, ohne dass wir es
+///    waren — die System-Lupe, aber auch jeder Nachzügler): erlaubt NUR, wenn
+///    weder gerade geschlossen wird noch das Anlegen-Cover im Spiel ist.
+///     – Im Schließ-Fenster (`closeSettle` nach dem Zuklappen) ist es der
+///       bekannte Re-Present des Systems mitten in der Abklapp-Animation —
+///       genau der Grund, warum das X auf dem Gerät mehrere Tipps brauchte.
+///       Die Lupe existiert in diesem Fenster noch gar nicht wieder als
+///       Tippziel, ein echter Nutzer kann das nicht sein → verwerfen.
+///     – Bei offenem Anlegen-Cover (oder im `coverSettle`-Fenster nach dessen
+///       Zufahren) liegt die Lupe unter dem Cover bzw. unter der laufenden
+///       Zoom-Animation — auch das kann kein Nutzer sein. Es ist der
+///       Such-Rollen-Tab (der Anlegen-Kreis!), dessen Auswahl das System
+///       verspätet doch noch als Such-Aktivierung ausspielt → verwerfen.
+///  * `dismissed`: das Binding fällt auf `false` — ab jetzt läuft das
+///    Schließ-Fenster.
+///
+/// Die Ansicht setzt ein „verworfen" um, indem sie das Binding sofort wieder
+/// auf `false` schreibt (und den Fokus löscht) — dieselbe Klemme, die sich
+/// beim Fokus bereits bewährt hat, jetzt auch für die Präsentation selbst.
+struct SearchFlow {
+    enum State: Equatable { case closed, open, closing(since: Date) }
+    private(set) var state: State = .closed
+
+    /// Länger als die Abklapp-Animation (~0,35 s), kürzer als der schnellste
+    /// echte Wieder-Tipp auf die (erst danach wieder existierende) Lupe.
+    static let closeSettle: TimeInterval = 0.45
+    /// Zoom-Rückfahrt des Anlegen-Covers (~0,5 s) plus Luft für den
+    /// nachzügelnden Such-Rollen-Impuls des Systems.
+    static let coverSettle: TimeInterval = 0.8
+
+    private var coverOpen = false
+    private var coverClosedAt: Date?
+
+    /// Anlegen-Cover auf/zu — der Such-Rollen-Tab ist der Anlegen-Kreis,
+    /// seine fehlgeleitete Such-Aktivierung hängt an genau diesem Fenster.
+    mutating func coverChanged(open: Bool, now: Date = .now) {
+        coverOpen = open
+        if !open { coverClosedAt = now }
+    }
+
+    /// Programmatisches Öffnen — ausdrückliche Absicht, gilt immer.
+    mutating func userOpened() { state = .open }
+
+    /// Das System hat präsentiert (Binding → `true`, nicht von uns).
+    /// Ergebnis `false` = verwerfen (Binding sofort zurücksetzen).
+    mutating func systemPresented(now: Date = .now) -> Bool {
+        if case .open = state { return true }
+        if case .closing(let since) = state,
+           now.timeIntervalSince(since) < Self.closeSettle { return false }
+        if coverOpen { return false }
+        if let t = coverClosedAt,
+           now.timeIntervalSince(t) < Self.coverSettle { return false }
+        state = .open
+        return true
+    }
+
+    /// Das Binding ist auf `false` gefallen (X, Abbrechen, eigener Rücksetzer).
+    /// Nur aus `open` beginnt das Schließ-Fenster — ein verworfener
+    /// Präsentations-Versuch (unser eigenes Zurückschreiben) startet keins.
+    mutating func dismissed(now: Date = .now) {
+        if case .open = state { state = .closing(since: now) }
+    }
+}
+
 final class ChromeScrollBox {
     var scroll = ChromeScroll()
     var pull = SearchPull()
+    var searchFlow = SearchFlow()
     /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
     /// minY im Listenraum) — reine Buchführung aus `handleScroll`, gelesen
     /// nur beim Öffnen der Nacharbeiten-Karte (`backfillAnchor`).
