@@ -331,6 +331,60 @@ enum Backfill {
         actions(for: state(habit: habit, day: day), kind: habit.kind)
     }
 
+    // MARK: – Dekoration des Kalenderblatts
+
+    /// Was unter einem Tag im Nacharbeiten-Kalender steht — der Punkt, der
+    /// sagt, WAS an diesem Tag schon eingetragen ist. Reines Modell: die
+    /// Farbe löst erst die Ansicht auf (Palette + Hell/Dunkel).
+    ///
+    /// **Warum nicht einfach `GoalEngine.intensity`.** Die Lauflängen-
+    /// Schattierung des Rasters (längere Ketten leuchten heller) ist für
+    /// einen 6-pt-Punkt unter einer Kalenderzahl zu fein — Stufe 1 wäre dort
+    /// kaum vom Papier zu unterscheiden, und ein erledigter Tag sähe je nach
+    /// Nachbarschaft anders aus, obwohl an IHM nichts anders ist. Ein
+    /// erledigter/bejahter Tag bekommt deshalb IMMER die volle Stufe; nur
+    /// die Menge schattiert (ihr Stand gegen das Ziel ist eine Eigenschaft
+    /// des Tages selbst — dieselbe Ganzzahl-Rampe wie im Raster).
+    enum Decoration: Equatable {
+        /// Erledigt (Checkbox) bzw. mit Ja beantwortet: voller Farbpunkt.
+        case affirmed
+        /// Mit Nein beantwortet: die Verneinungsfarbe des Habits.
+        case declined
+        /// Menge: Rampenstufe 1…4 aus Stand gegen Ziel.
+        case quantity(level: Int)
+
+        /// Die Rampenstufe für `Theme.level` — die EINE Brücke zur Farbe,
+        /// an der schon Raster, Widgets und Teilen-Karte hängen.
+        var level: Int {
+            switch self {
+            case .affirmed:            return 4
+            case .declined:            return Habit.Answer.declinedLevel
+            case let .quantity(level): return max(1, min(4, level))
+            }
+        }
+    }
+
+    /// Die Dekoration EINES Tages — nil heißt: kein Eintrag, kein Punkt.
+    ///
+    /// Fällt komplett aus `state` (dem einen abgeleiteten Tageszustand der
+    /// Karte) plus — für die Mengenstufe — derselben Rechnung, die auch die
+    /// Rasterzelle schattiert (`GoalEngine.intensity`).
+    static func decoration(habit: Habit, day: String,
+                           calendar: Calendar = .current) -> Decoration? {
+        switch state(habit: habit, day: day) {
+        case .empty:
+            return nil
+        case .done:
+            return habit.kind == .quantity ? .quantity(level: 4) : .affirmed
+        case .declined:
+            return .declined
+        case let .quantity(value, _):
+            guard value >= 1 else { return nil }
+            return .quantity(level: GoalEngine.intensity(habit: habit, key: day,
+                                                         calendar: calendar))
+        }
+    }
+
     // MARK: – Mehrere Tage auf einmal
 
     /// Was in einer Mehrfachauswahl steckt: wie viele Tage, und wie viele

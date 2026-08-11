@@ -156,10 +156,14 @@ struct ContentView: View {
         FrameProbe.shared.mark("CV.body")
         #endif
         return shell
-            // Die Nacharbeiten-Karte liegt ÜBER der Liste und unter den
-            // schwebenden Pillen (Toast) — genau die Änderungen, die am
-            // ehesten ein Zurück brauchen, verlieren ihr Zurück nicht.
-            .overlay { backfillLayer }
+            // Die Nacharbeiten-Karte steckt IM jeweiligen Shell-Zweig (siehe
+            // `nativeShell` bzw. den Fallback darunter), nicht mehr hier
+            // über allem: sie muss ÜBER der Liste, aber UNTER dem
+            // Rückgängig-Toast liegen. Als Overlay an dieser Stelle lag ihr
+            // Vorhang über den schwebenden Pillen der nativen Leiste — der
+            // Toast war sichtbar, aber sein Tipp landete im Vorhang und
+            // SCHLOSS die Karte, statt zurückzunehmen (nachgemessen im
+            // Simulator; genau das Zurück, das die Kommentare versprechen).
             // NUR Fallback (iOS < 26): das selbstgebaute Chrom über der
             // Liste. Ab iOS 26 zeichnet die native TabView die Leiste selbst.
             .overlay(alignment: .bottom) { legacyBottomChrome }
@@ -302,6 +306,10 @@ struct ContentView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 habitsStack
             }
+            // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
+            // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
+            // offenen Karte antippbar.
+            .overlay { backfillLayer }
         }
     }
 
@@ -323,6 +331,12 @@ struct ContentView: View {
                     Color(.systemGroupedBackground).ignoresSafeArea()
                     habitsStack
                 }
+                // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
+                // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
+                // genau dem, was die Karte gerade geschrieben hat, und muss
+                // bei offener Karte antippbar bleiben — dieselbe Schichtung
+                // wie im Fallback (Karte unter dem Chrom-Stapel).
+                .overlay { backfillLayer }
                 // Toast und Sync-Pille schweben über der Liste, oberhalb
                 // der nativen Leiste (der Tab-Inhalt endet an deren
                 // Sicherheitszone). Bei offener Suche stünden sie auf der
@@ -828,6 +842,12 @@ struct ContentView: View {
     struct BackfillRequest: Identifiable, Equatable {
         let habitId: UUID
         var day: String
+        /// Wo die Karte herkommt: die Lage der Habit-Zeile beim Öffnen, als
+        /// Anker der Skalierung (0…1 der Bildschirmhöhe). Einmal beim Öffnen
+        /// bestimmt und dann FEST — die Karte schrumpft beim Schließen an
+        /// dieselbe Stelle zurück, auch wenn die Liste inzwischen anders
+        /// stünde.
+        var anchor: UnitPoint = .center
 
         var id: UUID { habitId }
     }
@@ -840,7 +860,8 @@ struct ContentView: View {
     /// (bzw. flackert). Also erst das Menü schließen lassen, dann öffnen. Ein
     /// Zellentipp hat dieses Problem nicht und wartet deshalb auch nicht.
     private func openBackfill(_ habit: Habit, day: String, afterMenu: Bool) {
-        let request = BackfillRequest(habitId: habit.id, day: day)
+        let request = BackfillRequest(habitId: habit.id, day: day,
+                                      anchor: backfillAnchor(for: habit))
         guard afterMenu else {
             withCardAnimation { backfill = request }
             return
@@ -922,8 +943,53 @@ struct ContentView: View {
         Theme.Haptics.select()
     }
 
+    /// Der Anker, aus dem die Nacharbeiten-Karte wächst: die Zeile des
+    /// Habits, dessen langer Druck (bzw. Zellentipp) sie öffnet — als
+    /// Bildschirmanteil (0…1). Die Zeilenlagen liegen schon in der
+    /// Chrom-Kiste (die Scroll-Messung schreibt sie bei jedem Bild); hier
+    /// wird nur beim ÖFFNEN einmal gelesen. Der feste Aufschlag (~halbe
+    /// Kartenhöhe) zielt auf die Mitte des Rasters statt auf die Oberkante;
+    /// die Klemme hält den Anker auf dem Bildschirm, wenn die Zeile gerade
+    /// halb hinausgescrollt ist. Ohne Messwert (Zeile nicht sichtbar,
+    /// gefilterte Liste): Bildmitte — das alte Verhalten, nie etwas
+    /// Schlechteres.
+    private func backfillAnchor(for habit: Habit) -> UnitPoint {
+        guard let index = filteredHabits.firstIndex(where: { $0.id == habit.id }),
+              let rowTop = chrome.rowFrames[index + 1] else { return .center }
+        let height = Self.windowHeight()
+        guard height > 0 else { return .center }
+        let y = (Self.windowSafeTop() + rowTop + 110) / height
+        return UnitPoint(x: 0.5, y: min(0.92, max(0.08, y)))
+    }
+
+    /// Höhe bzw. obere Sicherheitszone des AKTIVEN Fensters — dieselbe
+    /// Begründung wie `HabitCard.windowWidth`: im Split View ist das Fenster
+    /// nicht der Bildschirm.
+    private static func activeWindow() -> UIWindow? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return scene?.keyWindow
+    }
+
+    private static func windowHeight() -> CGFloat {
+        if let height = activeWindow()?.bounds.height, height > 0 { return height }
+        return UIScreen.main.bounds.height
+    }
+
+    private static func windowSafeTop() -> CGFloat {
+        activeWindow()?.safeAreaInsets.top ?? 0
+    }
+
+    /// Öffnen/Schließen der Nacharbeiten-Karte: eine Feder mit kurzem,
+    /// weichem Ausklang statt der reinen Blendkurve — die Karte SETZT sich,
+    /// statt einfach dazustehen. Bei Reduzierter Bewegung bleibt eine reine
+    /// Blende (die Karte trägt dann auch nur einen Opacity-Übergang).
     private func withCardAnimation(_ body: () -> Void) {
-        if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.22), body) }
+        if reduceMotion {
+            withAnimation(.easeInOut(duration: 0.2), body)
+        } else {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82), body)
+        }
     }
 
     /// Die Karte, wenn eine offen ist. Sie zieht ihr Habit LIVE aus dem Store
@@ -942,10 +1008,14 @@ struct ContentView: View {
                          onRestore: { entries in
                              backfillRestore(request.habitId, entries: entries)
                          },
-                         onClose: { withCardAnimation { backfill = nil } })
-                .transition(reduceMotion
-                            ? AnyTransition.opacity
-                            : AnyTransition.opacity.combined(with: .scale(scale: 0.92)))
+                         onClose: { withCardAnimation { backfill = nil } },
+                         sourceAnchor: request.anchor)
+                // KEIN eigener Übergang mehr an der ganzen Schicht: Vorhang
+                // und Karte tragen ihre Übergänge selbst (BackfillCard.body)
+                // — der Vorhang blendet nur, die Karte wächst aus ihrer
+                // Zeile. Ein Übergang HIER würde beide zusammen skalieren,
+                // und ein skalierender Vorhang war genau das „schlechte
+                // Fade" aus der Rückmeldung.
         }
     }
 
@@ -970,6 +1040,9 @@ struct ContentView: View {
         // in die Kiste geschrieben, nie in einen `@State`: das ist reine
         // Buchführung und darf keinen `body` invalidieren.
         chrome.pull.latestFirst = frames[0]
+        // Ebenfalls Buchführung: die Zeilenlagen für den Anker der
+        // Nacharbeiten-Karte (siehe `backfillAnchor`).
+        chrome.rowFrames = frames
         // Während die Mehr-Seite offen ist (oder gerade auf- oder zufährt),
         // entscheidet das Chrom NICHT: die Präsentation verschiebt die
         // Zeilen ohne Finger, und der Umbau las sich sonst als Wisch —
@@ -1702,6 +1775,10 @@ struct ContentView: View {
 final class ChromeScrollBox {
     var scroll = ChromeScroll()
     var pull = SearchPull()
+    /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
+    /// minY im Listenraum) — reine Buchführung aus `handleScroll`, gelesen
+    /// nur beim Öffnen der Nacharbeiten-Karte (`backfillAnchor`).
+    var rowFrames: [Int: CGFloat] = [:]
 }
 
 /// „Runterziehen öffnet die Suche" — die reine Entscheidung, ohne SwiftUI.

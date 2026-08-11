@@ -480,6 +480,103 @@ final class BackfillStateTests: GridTestCase {
     }
 }
 
+// MARK: – Dekoration des Kalenderblatts
+
+/// Der Farbpunkt unter einem Kalendertag der Nacharbeiten-Karte: WAS an dem
+/// Tag steht, als reines Mapping Tag → Dekorationszustand. Die Farbe selbst
+/// löst die Ansicht über `Theme.level` auf — hier wird nur die STUFE geprüft.
+final class BackfillDecorationTests: GridTestCase {
+    private let day = "2026-08-05"
+
+    func testEmptyDaysCarryNoDecoration() {
+        XCTAssertNil(Backfill.decoration(habit: habit(), day: day, calendar: cal))
+        let quantity = habit(recurrence: Recurrence(target: 3))
+        XCTAssertNil(Backfill.decoration(habit: quantity, day: day, calendar: cal),
+                     "0 von 3 ist ein leerer Tag, kein blasser Punkt")
+        var yesNo = Habit(name: "Zucker?", kind: .yesNo)
+        yesNo.createdAt = "2025-01-01"
+        XCTAssertNil(Backfill.decoration(habit: yesNo, day: day, calendar: cal))
+    }
+
+    /// Ein erledigter Checkbox-Tag bekommt IMMER den vollen Punkt — auch als
+    /// Einzeltag ohne Lauf davor. Die Lauflängen-Schattierung des Rasters
+    /// wäre unter einer Kalenderzahl nicht mehr lesbar, und sie würde einen
+    /// Tag anders färben, obwohl an IHM nichts anders ist.
+    func testDoneCheckboxDayIsAlwaysTheFullDot() {
+        let single = habit([day: 1])
+        XCTAssertEqual(Backfill.decoration(habit: single, day: day, calendar: cal),
+                       .affirmed)
+        XCTAssertEqual(Backfill.decoration(habit: single, day: day, calendar: cal)?.level, 4)
+        let chained = habit(run(days: 10, endingAt: day))
+        XCTAssertEqual(Backfill.decoration(habit: chained, day: day, calendar: cal),
+                       .affirmed, "Kettenlänge ändert am Punkt nichts")
+    }
+
+    func testYesNoAnswersMapToTheirOwnStates() {
+        var h = Habit(name: "Zucker?", kind: .yesNo)
+        h.createdAt = "2025-01-01"
+        h.log[day] = Habit.Answer.yes
+        XCTAssertEqual(Backfill.decoration(habit: h, day: day, calendar: cal), .affirmed)
+        h.log[day] = Habit.Answer.no
+        XCTAssertEqual(Backfill.decoration(habit: h, day: day, calendar: cal), .declined)
+        XCTAssertEqual(Backfill.decoration(habit: h, day: day, calendar: cal)?.level,
+                       Habit.Answer.declinedLevel,
+                       "die Stufe NEBEN der Rampe — dieselbe, mit der die Rasterzelle gemalt wird")
+    }
+
+    /// Menge: derselbe Stufenverlauf wie die Rasterzelle — `GoalEngine
+    /// .intensity` ist die EINE Rechnung für beide Darstellungen.
+    func testQuantityDotSharesTheGridRamp() {
+        var h = habit(recurrence: Recurrence(target: 9))
+        for value in [1, 4, 9, 12] {
+            h.log[day] = value
+            XCTAssertEqual(Backfill.decoration(habit: h, day: day, calendar: cal),
+                           .quantity(level: GoalEngine.intensity(habit: h, key: day,
+                                                                 calendar: cal)),
+                           "Wert \(value)")
+        }
+    }
+
+    func testQuantityLevelsGrowWithTheValueAndCapAtFour() {
+        var h = habit(recurrence: Recurrence(target: 9))
+        var seen: [Int] = []
+        for value in [1, 4, 9, 90] {
+            h.log[day] = value
+            guard let deco = Backfill.decoration(habit: h, day: day, calendar: cal)
+            else { return XCTFail("Wert \(value) müsste einen Punkt tragen") }
+            seen.append(deco.level)
+        }
+        XCTAssertEqual(seen, seen.sorted(), "mehr Wert wird nie blasser")
+        XCTAssertEqual(seen.first, 1)
+        XCTAssertEqual(seen.last, 4, "über dem Ziel bleibt es die volle Stufe")
+        XCTAssertTrue(seen.allSatisfy { (1...4).contains($0) })
+    }
+
+    /// Die Stufe der Dekoration ist IMMER eine, die `Theme.level` kennt:
+    /// 1…4 oder die Verneinungsstufe. Alles andere wäre ein Punkt in einer
+    /// Farbe, die es im Raster nicht gibt.
+    func testDecorationLevelsAreAlwaysDrawable() {
+        XCTAssertEqual(Backfill.Decoration.affirmed.level, 4)
+        XCTAssertEqual(Backfill.Decoration.declined.level, Habit.Answer.declinedLevel)
+        XCTAssertEqual(Backfill.Decoration.quantity(level: 0).level, 1,
+                       "unter der Rampe wird geklemmt, nie Stufe 0 (unsichtbar)")
+        XCTAssertEqual(Backfill.Decoration.quantity(level: 99).level, 4)
+    }
+
+    /// Ein Schreibvorgang der Karte ändert genau die Tage, die die Ansicht
+    /// nachladen muss — das Mapping hängt NUR am Tag selbst, nie an den
+    /// Nachbarn. (Das ist die Zusage, auf der das gezielte
+    /// `reloadDecorations` der Karte steht.)
+    func testDecorationDependsOnlyOnTheDayItself() {
+        let before = habit([day: 1])
+        var after = before
+        after.log["2026-08-06"] = 1
+        XCTAssertEqual(Backfill.decoration(habit: before, day: day, calendar: cal),
+                       Backfill.decoration(habit: after, day: day, calendar: cal),
+                       "der Nachbartag ändert den Punkt dieses Tages nicht")
+    }
+}
+
 // MARK: – Schreiben und Zurücknehmen
 
 /// Der ganze Weg, wie ihn die Karte geht: Vorwert merken, über den EXAKTEN

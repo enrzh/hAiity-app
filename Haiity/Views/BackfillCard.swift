@@ -37,6 +37,13 @@ struct BackfillCard: View {
     /// Malen-Modus nie mehr auf.
     let onRestore: ([(day: String, value: Int?)]) -> Void
     let onClose: () -> Void
+    /// Wo die Karte HERKOMMT: die Lage der Habit-Zeile, deren langer Druck
+    /// bzw. Zellentipp sie geöffnet hat, als Anker der Skalierung (0…1 der
+    /// Bildschirmhöhe). Die Karte wächst aus ihrer Zeile heraus und schrumpft
+    /// beim Schließen dorthin zurück, statt körperlos aus der Bildmitte zu
+    /// blenden. Standard `.center`, damit Vorschauen und Tests sie ohne
+    /// Herkunft bauen können.
+    var sourceAnchor: UnitPoint = .center
 
     /// Die gewählten Tage. Der Kalender spricht `DateComponents`;
     /// umgerechnet wird an genau einer Stelle (`selectedKeys`).
@@ -75,9 +82,22 @@ struct BackfillCard: View {
     }
 
     var body: some View {
+        // Vorhang und Karte tragen GETRENNTE Übergänge, laufen aber in
+        // DERSELBEN Transaktion (dem einen `withCardAnimation` des
+        // Aufrufers): der Vorhang blendet nur, die Karte wächst aus ihrer
+        // Zeile — beides mit derselben Kurve, als EINE Bewegung. Vorher
+        // steckte die ganze Karte samt Vorhang in EINEM
+        // Skalieren+Blenden-Übergang: der Vorhang wurde beim Öffnen sichtbar
+        // MITSKALIERT (ein randloses Rechteck, das kurz Ränder hat) — genau
+        // das „schlechte Fade" aus der Rückmeldung.
         ZStack {
             scrim
+                .transition(.opacity)
             card
+                .transition(reduceMotion
+                            ? AnyTransition.opacity
+                            : .scale(scale: 0.82, anchor: sourceAnchor)
+                                .combined(with: .opacity))
         }
     }
 
@@ -206,6 +226,8 @@ struct BackfillCard: View {
     /// zusammen steht die Karte vom ersten Bild an auf ihrem Endmaß.
     private var picker: some View {
         BackfillCalendar(dates: $dates,
+                         habit: habit,
+                         style: palettes.style(for: habit),
                          range: Backfill.dateRange(habit: habit, calendar: calendar),
                          calendar: calendar)
             // Oben bündig in der eigenen Reserve, und die wächst nur: misst
@@ -374,9 +396,9 @@ struct BackfillCard: View {
         dates = [calendar.dateComponents([.era, .year, .month, .day], from: date)]
     }
 
-    /// Gewählte Tage haben im Kalender ihren Auswahlkreis; WAS eine Aktion
-    /// geschrieben hat, sagt VoiceOver hinterher — der Systemkalender kennt
-    /// keine eigenen Tagesdekorationen, und die Statuszeile zählt für alle
+    /// Gewählte Tage haben im Kalender ihren Auswahlkreis, eingetragene ihren
+    /// Farbpunkt (siehe `BackfillCalendar`); WAS eine Aktion geschrieben hat,
+    /// sagt VoiceOver zusätzlich hinterher — die Statuszeile zählt für alle
     /// Sehenden mit.
     private func announce(_ text: String) {
         UIAccessibility.post(notification: .announcement, argument: text)
@@ -415,6 +437,13 @@ private struct FertigGlass: ViewModifier {
 /// beide Richtungen; die eine Wahrheit ist `selectedDates` der Selection.
 private struct BackfillCalendar: UIViewRepresentable {
     @Binding var dates: Set<DateComponents>
+    /// Der LEBENDE Habit — die Dekorationen unter den Tagen zeigen SEINE
+    /// Daten und müssen nach jedem Schreibvorgang (und jedem Rückgängig aus
+    /// dem Toast) den frischen Stand zeigen.
+    let habit: Habit
+    /// Die AUFGELÖSTE Palette des Habits: dieselben Farben, in denen seine
+    /// Zellen im Jahresraster stehen.
+    let style: PaletteStyle
     let range: ClosedRange<Date>
     let calendar: Calendar
 
@@ -425,6 +454,7 @@ private struct BackfillCalendar: UIViewRepresentable {
         view.calendar = calendar
         view.availableDateRange = DateInterval(start: range.lowerBound,
                                                end: range.upperBound)
+        view.delegate = context.coordinator
         let selection = UICalendarSelectionMultiDate(delegate: context.coordinator)
         selection.setSelectedDates(Array(dates), animated: false)
         view.selectionBehavior = selection
@@ -433,11 +463,31 @@ private struct BackfillCalendar: UIViewRepresentable {
         view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.accessibilityIdentifier = "backfill-date-picker"
+        context.coordinator.decoratedLog = habit.log
         return view
     }
 
     func updateUIView(_ view: UICalendarView, context: Context) {
+        let previousLog = context.coordinator.decoratedLog
         context.coordinator.parent = self
+        // Dekorationen NACHZIEHEN, wenn sich der Log geändert hat — der
+        // Kalender fragt von selbst nie nach. Genau die Tage, deren Wert
+        // sich unterscheidet (Schreibvorgang der Karte ODER Rückgängig aus
+        // dem Toast bei offener Karte — beide ändern `habit.log` und laufen
+        // hier durch). Der Vergleichsstand liegt im Coordinator, nicht in
+        // einem @State: das hier ist Buchführung, keine Ansicht.
+        if previousLog != habit.log {
+            context.coordinator.decoratedLog = habit.log
+            let changed = Set(previousLog.keys).symmetricDifference(habit.log.keys)
+                .union(previousLog.keys.filter { previousLog[$0] != habit.log[$0] })
+            let components = changed.compactMap { key -> DateComponents? in
+                guard let date = DayKey.date(from: key, calendar: calendar) else { return nil }
+                return calendar.dateComponents([.era, .year, .month, .day], from: date)
+            }
+            if !components.isEmpty {
+                view.reloadDecorations(forDateComponents: components, animated: true)
+            }
+        }
         guard let selection = view.selectionBehavior as? UICalendarSelectionMultiDate
         else { return }
         // Vergleich über TAGE, nicht über `DateComponents`-Instanzen: die
@@ -454,10 +504,50 @@ private struct BackfillCalendar: UIViewRepresentable {
             .map { DayKey.key(for: $0, calendar: calendar) })
     }
 
-    final class Coordinator: NSObject, UICalendarSelectionMultiDateDelegate {
+    final class Coordinator: NSObject, UICalendarSelectionMultiDateDelegate,
+                             UICalendarViewDelegate {
         var parent: BackfillCalendar
+        /// Der Log-Stand, für den die Dekorationen zuletzt geladen wurden —
+        /// die Vergleichsbasis von `updateUIView`.
+        var decoratedLog: [String: Int] = [:]
 
         init(_ parent: BackfillCalendar) { self.parent = parent }
+
+        // MARK: Dekorationen
+
+        /// Der Punkt unter einem Tag: WAS an diesem Tag schon steht, in den
+        /// Farben, in denen es auch im Jahresraster steht. Leerer Tag: kein
+        /// Punkt. Das Mapping selbst ist reine Rechnung (`Backfill
+        /// .decoration`, getestet); hier wird nur noch Farbe aufgelöst.
+        func calendarView(_ calendarView: UICalendarView,
+                          decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
+            guard let date = parent.calendar.date(from: dateComponents) else { return nil }
+            let key = DayKey.key(for: date, calendar: parent.calendar)
+            guard let decoration = Backfill.decoration(habit: parent.habit, day: key,
+                                                       calendar: parent.calendar)
+            else { return nil }
+            return .default(color: Self.color(level: decoration.level,
+                                              style: parent.style),
+                            size: .medium)
+        }
+
+        /// Dynamische Farbe zur Rampenstufe: hell/dunkel entscheidet die
+        /// Trait-Collection des Kalenders SELBST — der Punkt wechselt beim
+        /// Schema-Wechsel mit, ohne dass jemand neu lädt. Dieselbe
+        /// Stufenlogik wie `Theme.level` (−1 = Verneinungsfarbe), nur als
+        /// `UIColor`, weil `UICalendarView` kein SwiftUI spricht.
+        static func color(level: Int, style: PaletteStyle) -> UIColor {
+            UIColor { trait in
+                let dark = trait.userInterfaceStyle == .dark
+                let hex = level == Habit.Answer.declinedLevel
+                    ? style.negative(dark: dark)
+                    : style.ramp(dark: dark)[max(0, min(4, level))]
+                return UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                               green: CGFloat((hex >> 8) & 0xFF) / 255,
+                               blue: CGFloat(hex & 0xFF) / 255,
+                               alpha: 1)
+            }
+        }
 
         /// Beide Richtungen schreiben DIESELBE Wahrheit zurück: den ganzen
         /// Stand der Selection — kein Einfügen/Entfernen von Hand, das mit
