@@ -18,6 +18,21 @@ struct AppRouteEffect: Equatable {
     let opensCreate: Bool
 }
 
+/// Identifies the latest accepted route. Delayed UI work keeps the token it
+/// was created with and must not apply after a newer route supersedes it.
+struct RouteWork {
+    private var generation = 0
+
+    mutating func begin() -> Int {
+        generation += 1
+        return generation
+    }
+
+    func isCurrent(_ generation: Int) -> Bool {
+        self.generation == generation
+    }
+}
+
 enum AppDestination: Equatable {
     case habits
     case more

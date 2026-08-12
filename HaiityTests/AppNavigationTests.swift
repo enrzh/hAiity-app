@@ -40,6 +40,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(AppDestination.create.effect.opensCreate)
     }
 
+    func testMoreRouteWinsOverQueuedSearchWork() {
+        var work = RouteWork()
+        let searchRoute = work.begin()
+        let moreRoute = work.begin()
+
+        // The queued `haiity://search` callback must not apply after
+        // `haiity://more` has become the current route.
+        XCTAssertFalse(work.isCurrent(searchRoute))
+        XCTAssertTrue(work.isCurrent(moreRoute))
+    }
+
     func testContentViewDeclaresHabitsAndMoreTabs() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("value: AppTab.habits"))

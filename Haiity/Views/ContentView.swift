@@ -52,6 +52,8 @@ struct ContentView: View {
     /// Wartet die Tab-Auswahl ab, bevor ein Deep-Link eine Präsentation
     /// auslöst. Ein neuer Link ersetzt eine noch ausstehende Präsentation.
     @State private var routePresentationTask: Task<Void, Never>?
+    /// Sperrt bereits eingereihte Sucharbeit eines älteren Deep-Links.
+    @State private var routeWork = RouteWork()
     /// Die synchronisierte Auswahl der Statistik-Karten und der festen
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
@@ -571,7 +573,7 @@ struct ContentView: View {
     /// über seine eigene Lupe oder über den FOKUS auf. Deshalb erst den
     /// Zustand setzen, dann im nächsten Umlauf den Fokus — das Setzen beider
     /// im selben Umlauf verschluckt die Präsentation ebenfalls.
-    private func openSearch(origin: SearchOpenOrigin) {
+    private func openSearch(origin: SearchOpenOrigin, routeGeneration: Int? = nil) {
         trace("openSearch(\(origin)) showAdd=\(showAdd)")
         // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
         // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
@@ -581,9 +583,18 @@ struct ContentView: View {
         // es ab- und als zweite Leiste wieder aufbauen.
         searchNeedsAutomaticBehavior = origin.requiresAutomaticToolbarBehavior
         DispatchQueue.main.async {
+            guard routeWorkIsCurrent(routeGeneration) else { return }
             withAnimation { searching = true }
-            DispatchQueue.main.async { searchFieldFocused = true }
+            DispatchQueue.main.async {
+                guard routeWorkIsCurrent(routeGeneration) else { return }
+                searchFieldFocused = true
+            }
         }
+    }
+
+    private func routeWorkIsCurrent(_ generation: Int?) -> Bool {
+        guard let generation else { return true }
+        return routeWork.isCurrent(generation)
     }
 
     /// Der zweite iOS-27-Fehler, abgefangen: das System klappt die Suche zu,
@@ -1394,6 +1405,19 @@ struct ContentView: View {
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
         routePresentationTask?.cancel()
+        let routeGeneration = routeWork.begin()
+        if !effect.opensSearch {
+            // The first queued search callback may have run just before this
+            // route arrived. A non-search route still wins in that ordering.
+            if searching {
+                searching = false
+            } else {
+                chrome.searchFlow.dismissed()
+                searchNeedsAutomaticBehavior = false
+            }
+            searchFieldFocused = false
+            search = ""
+        }
         moreSheet = nil
         morePageRoute = nil
         nativeTab = effect.tab
@@ -1410,7 +1434,7 @@ struct ContentView: View {
                     moreSheet = route
                 }
             } else if effect.opensSearch {
-                openSearch(origin: .deepLink)
+                openSearch(origin: .deepLink, routeGeneration: routeGeneration)
             } else if effect.opensCreate {
                 showAdd = true
             }
