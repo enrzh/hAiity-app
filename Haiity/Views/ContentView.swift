@@ -64,6 +64,10 @@ struct ContentView: View {
     /// Zuklappen (verzögert) — der Wechsel mitten in der Abklapp-Animation
     /// bricht sie ab und präsentiert das Feld erneut.
     @State private var searchNeedsAutomaticBehavior = false
+    /// Der native EditButton schaltet die Griffleisten der Habit-Liste ein.
+    /// Beim Filtern wird er geschlossen, weil die Move-Offsets dann nicht
+    /// mehr auf die vollständige aktive Liste zeigen.
+    @State private var editMode: EditMode = .inactive
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
@@ -189,6 +193,9 @@ struct ContentView: View {
                     Task { await syncNow(announce: false) }
                 }
             }
+            .onChange(of: search) { _, query in
+                if !query.isEmpty { editMode = .inactive }
+            }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
                 // Der Zustandsmaschine melden: solange das Cover offen ist
@@ -196,6 +203,7 @@ struct ContentView: View {
                 // Lupen-Berührung eine Suche präsentieren.
                 chrome.searchFlow.coverChanged(open: open)
                 guard open else { return }
+                editMode = .inactive
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
                 undo.clear()
@@ -648,12 +656,18 @@ struct ContentView: View {
                 // eigenen Titel: zwei „Habits" übereinander wären keins.
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
+                .environment(\.editMode, $editMode)
                 .searchableHidden(text: $search,
                                   isPresented: $searching,
                                   focus: $searchFieldFocused,
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        EditButton()
+                            .disabled(!search.isEmpty)
+                            .accessibilityIdentifier("reorder-habits")
+                    }
                     if #unavailable(iOS 26) {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
@@ -683,6 +697,9 @@ struct ContentView: View {
                     // da und damit der stabile Anker der Scroll-Messung).
                     row(for: habit, index: index + 1)
                 }
+                .onMove(perform: search.isEmpty
+                    ? { store.move(fromOffsets: $0, toOffset: $1) }
+                    : nil)
             }
         }
         .listStyle(.plain)

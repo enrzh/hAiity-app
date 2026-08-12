@@ -31,6 +31,14 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertFalse(source.contains("enum NativeTab"))
     }
 
+    func testContentViewKeepsHabitReorderingReachable() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("@State private var editMode: EditMode = .inactive"))
+        XCTAssertTrue(source.contains(".environment(\\.editMode, $editMode)"))
+        XCTAssertTrue(source.contains("EditButton()"))
+        XCTAssertTrue(source.contains(".onMove(perform: search.isEmpty"))
+    }
+
     private func sourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

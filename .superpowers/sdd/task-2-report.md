@@ -82,4 +82,58 @@ Result: 761 tests executed, 0 failures, `** TEST SUCCEEDED **`. This is the 760-
 ## Concerns
 
 - Automated tests validate source contracts and search/navigation state, but not the final native tab-bar composition. The two-tab iOS 26 shell and two-tab-plus-measured-circle iOS 27 shell still need repeated on-device or simulator visual/interaction verification, especially minimized tab-bar geometry and CreateCircle placement.
-- Removing `listMenuItems` also removes its reorder entry, as required by deleting that menu. Reordering remains absent unless a later task introduces a replacement interaction.
+- Removing `listMenuItems` also removed its reorder entry. The follow-up fix below restores reordering with a native `EditButton` in the Habits toolbar.
+
+## Fix Review: Habit Reordering Regression
+
+### RED Evidence
+
+Added `AppNavigationTests.testContentViewKeepsHabitReorderingReachable` before changing production code. The source contract requires the `editMode` state and environment binding, a native `EditButton`, and the search-safe `.onMove` closure.
+
+Command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: 5 tests executed. The new source-contract test had 4 expected assertion failures because the Task 2 revision had removed `editMode`, its environment binding, `EditButton`, and `.onMove`; the previous four navigation tests passed. `xcodebuild` exited 65.
+
+### Fix
+
+- Restored `editMode` and the existing search rule that exits edit mode when filtering starts.
+- Restored the list's search-safe `.onMove` path to `HabitStore.move`.
+- Added native `EditButton` as a leading Habits toolbar item, keeping the iOS 27 trailing search control clear and without restoring the removed Mehr menu or full-screen Mehr cover.
+- Closes edit mode when the create cover opens, matching the prior list-state hygiene.
+
+### GREEN Evidence
+
+Focused navigation and search command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests/AppNavigationTests \
+  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: 36 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+
+Full suite command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: 762 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+
+### Tracked Follow-Up
+
+- Legacy Mehr reachability remains explicitly assigned to Task 3 and was not changed here.
+- Deep-link route clearing and lifecycle behavior remain explicitly assigned to Task 4 and were not changed here.
