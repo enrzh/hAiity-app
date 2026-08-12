@@ -29,7 +29,7 @@ let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
 /// Kreis zoomt (Anker: `createZoomAnchor`). Damit kommen Halten-Blase, Scroll-Minimieren
 /// (`.tabBarMinimizeBehavior(.onScrollDown)`) und das geteilte Glas vom
 /// SYSTEM, nicht aus einer Nachbildung. Die App-eigene Suche bleibt oben
-/// rechts (plus Runterziehen) — am Such-Tab hängt bewusst KEIN
+/// rechts — am Such-Tab hängt bewusst KEIN
 /// `.searchable`, es erscheint dort also nie ein Suchfeld.
 ///
 /// Unter iOS 26 (17–25) bleibt die bisherige selbstgebaute Leiste als
@@ -74,7 +74,7 @@ struct ContentView: View {
     @FocusState private var searchFieldFocused: Bool
     /// Solange WAHR, arbeitet `.searchable` mit `.searchToolbarBehavior(.automatic)`
     /// statt `.minimize` — nötig für jede PROGRAMMATISCHE Präsentation
-    /// (Such-Zug, Deep-Link): unter `.minimize` ignoriert das System das
+    /// (Deep-Link): unter `.minimize` ignoriert das System das
     /// `isPresented`- wie das `searchFocused`-Binding vollständig (empirisch
     /// geprüft, auch verzögert). Zurück auf `.minimize` erst NACH dem
     /// Zuklappen (verzögert) — der Wechsel mitten in der Abklapp-Animation
@@ -83,15 +83,9 @@ struct ContentView: View {
     /// Sortiermodus. Früher ein `EditButton` in der Toolbar (zu breit), jetzt
     /// ein Punkt im Menü — der Modus muss deshalb selbst gehalten werden.
     @State private var editMode: EditMode = .inactive
-    /// Scroll-Buchfuehrung fuer Pull-to-search und Nacharbeiten-Anker. Sie
+    /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
-    /// Fortschritt des Such-Zugs (0…1) für den kleinen Spotlight-Hinweis.
-    /// Beobachtbares Objekt statt `@State` — gelesen wird es AUSSCHLIESSLICH
-    /// von `SearchPullIndicator`, damit ein laufender Zug nicht bei jedem
-    /// Bildschritt diesen ganzen `body` neu auswertet (dieselbe Lehre wie
-    /// beim Tafel-Zug, siehe `MorePanelProgress`).
-    @State private var pullFeedback = SearchPullFeedback()
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
@@ -601,8 +595,8 @@ struct ContentView: View {
 
     // MARK: – Habits-Bereich
 
-    /// Suche programmatisch öffnen — der EINE Weg für alle Einstiege außer
-    /// der System-Lupe (Such-Zug, Deep-Link, Fallback-Knopf).
+    /// Suche programmatisch öffnen — der EINE Weg für Deep-Links und den
+    /// Fallback-Knopf; die System-Lupe schreibt direkt in ihr Binding.
     ///
     /// Ab iOS 26 reicht `isPresented = true` NICHT: mit
     /// `.searchToolbarBehavior(.minimize)` klappt das System die Leiste nur
@@ -759,12 +753,6 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
-        // Runterziehen ÖFFNET die Suche — wie Spotlight auf dem Homescreen.
-        // `simultaneousGesture`: das Scrollen der Liste läuft ungestört
-        // weiter, die Geste liest nur mit. Entschieden wird rein aus
-        // Fingerweg und Zeilenbewegung (SearchPull) — kein `@State` pro
-        // Bild, die Zwischenstände liegen in der Chrom-Kiste.
-        .simultaneousGesture(searchPullGesture)
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
@@ -776,14 +764,6 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .coordinateSpace(.named(Self.listSpace))
-        // Der Spotlight-Hinweis: eine kleine Lupe, die dem Finger beim
-        // Runterziehen entgegenkommt — der Zug bekommt damit eine sichtbare
-        // Antwort AB dem ersten Zentimeter, nicht erst beim Feuern.
-        .overlay(alignment: .top) {
-            SearchPullIndicator(feedback: pullFeedback,
-                                accent: Theme.accentText(store.paletteStyle),
-                                reduceMotion: reduceMotion)
-        }
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
         }
@@ -823,7 +803,7 @@ struct ContentView: View {
     /// Der große „Habits"-Titel als LISTENZEILE — die Navigationsleiste
     /// trägt keinen mehr (siehe `habitsScreen`), sonst könnten die Karten
     /// nicht darüber stehen. Trägt Messfühler 0: die Zeile ist immer da und
-    /// damit der Anker für „oben ist offen" und den Such-Zug.
+    /// damit der stabile Listenanker.
     private var titleRow: some View {
         Text(String(localized: "Habits"))
             .font(.largeTitle.bold())
@@ -837,45 +817,6 @@ struct ContentView: View {
                                       bottom: 2,
                                       trailing: Theme.Metrics.gutter))
             .accessibilityIdentifier("habits-title")
-    }
-
-    /// Der Such-Zug: ein Runterziehen am LISTENANFANG über die Schwelle
-    /// öffnet die Suche mit Tastatur. Die Entscheidung trifft `SearchPull`
-    /// aus zwei Größen: dem Fingerweg (aus der Geste) und der echten
-    /// Zeilenbewegung (aus der Scroll-Messung, via Chrom-Kiste). Nur im
-    /// Gummiband am Listenanfang bewegt sich der Inhalt deutlich LANGSAMER
-    /// als der Finger — genau daran erkennt der Zug „oben und drübergezogen",
-    /// ohne normales Scrollen zu kapern und ohne je einen `@State` pro Bild
-    /// anzufassen.
-    private var searchPullGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                guard !searching, backfill == nil else { return }
-                #if DEBUG
-                FrameProbe.shared.mark("pull.ev")
-                #endif
-                if chrome.pull.update(translation: value.translation) {
-                    #if DEBUG
-                    FrameProbe.shared.mark("pull.fire")
-                    #endif
-                    // Gefeuert: der Hinweis hat seine Arbeit getan — er
-                    // verschwindet im selben Moment, in dem die Suchleiste
-                    // erscheint, statt unter ihr weiterzuleuchten.
-                    pullFeedback.value = 0
-                    openSearch(origin: .pull)
-                    Theme.Haptics.select()
-                } else {
-                    // Fortschritt an den kleinen Hinweis melden — wie beim
-                    // Tafel-Zug NUR an ein beobachtbares Objekt, das allein
-                    // die Hinweis-Ansicht liest. Dieser `body` bleibt bei
-                    // jedem Bildschritt unangetastet.
-                    pullFeedback.value = chrome.pull.progress
-                }
-            }
-            .onEnded { _ in
-                chrome.pull.ended()
-                pullFeedback.value = 0
-            }
     }
 
     private func row(for habit: Habit, index: Int) -> some View {
@@ -1188,10 +1129,6 @@ struct ContentView: View {
     }
 
     private func handleScroll(_ frames: [Int: CGFloat]) {
-        // Der Such-Zug braucht die Lage der Titelzeile (Messfühler 0) —
-        // in die Kiste geschrieben, nie in einen `@State`: das ist reine
-        // Buchführung und darf keinen `body` invalidieren.
-        chrome.pull.latestFirst = frames[0]
         // Ebenfalls Buchführung: die Zeilenlagen für den Anker der
         // Nacharbeiten-Karte (siehe `backfillAnchor`).
         chrome.rowFrames = frames
@@ -1941,10 +1878,8 @@ struct SearchFieldReading: Equatable {
 }
 
 /// Herkunft einer ausdrücklich angeforderten Suche. Nur ein Deep-Link muss
-/// den minimierten System-Toolbar-Modus verlassen; bei Zug und Toolbar-Tipp
-/// ist das native Feld schon da und darf nicht neu aufgebaut werden.
+/// den minimierten System-Toolbar-Modus verlassen.
 enum SearchOpenOrigin: CustomStringConvertible {
-    case pull
     case toolbar
     case deepLink
 
@@ -1952,7 +1887,6 @@ enum SearchOpenOrigin: CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .pull: "pull"
         case .toolbar: "toolbar"
         case .deepLink: "deepLink"
         }
@@ -1967,7 +1901,7 @@ enum SearchOpenOrigin: CustomStringConvertible {
 /// Simulator. Statt Timer nachzustimmen, entscheidet hier ein Regelwerk, ob
 /// eine Präsentation GEWOLLT sein kann:
 ///
-///  * `userOpened` (Such-Zug, Deep-Link, Fallback-Knopf): Absicht — gilt immer.
+///  * `userOpened` (Deep-Link, Fallback-Knopf): Absicht — gilt immer.
 ///  * `systemPresented` (das Binding springt auf `true`, ohne dass wir es
 ///    waren — die System-Lupe, aber auch jeder Nachzügler): erlaubt NUR, wenn
 ///    weder gerade geschlossen wird noch das Anlegen-Cover im Spiel ist.
@@ -2158,159 +2092,11 @@ struct SearchFlow {
 
 /// Referenz-Kiste fuer Scroll-Buchfuehrung ohne Observation.
 final class ChromeScrollBox {
-    var pull = SearchPull()
     var searchFlow = SearchFlow()
     /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
     /// minY im Listenraum) — reine Buchführung aus `handleScroll`, gelesen
     /// nur beim Öffnen der Nacharbeiten-Karte (`backfillAnchor`).
     var rowFrames: [Int: CGFloat] = [:]
-}
-
-/// „Runterziehen öffnet die Suche" — die reine Entscheidung, ohne SwiftUI.
-///
-/// Das Problem, das sie löst: aus Zeilenpositionen allein ist „über den
-/// Listenanfang hinausgezogen" nicht von „nach oben gescrollt" zu
-/// unterscheiden (beides bewegt Zeilen nach unten), und eine gelernte
-/// Ruhelage verlernt jeder Layoutwechsel. Deshalb zwei Signale statt einem:
-///
-///  * der FINGERWEG aus der Ziehgeste (`translation`), und
-///  * die echte ZEILENBEWEGUNG seit Beginn der Geste (Messfühler 0,
-///    von `handleScroll` in `latestFirst` abgelegt).
-///
-/// Im Gummiband am Listenanfang folgt der Inhalt dem Finger nur gebremst
-/// (~halbe Strecke, iOS-Rubberband); beim normalen Scrollen folgt er 1:1.
-/// Gefeuert wird also genau dann, wenn der Finger DEUTLICH weiter ist als
-/// die Zeilen — und die Titelzeile beim Aufsetzen überhaupt sichtbar war
-/// (mitten in der Liste ist Messfühler 0 abgeräumt und `latestFirst` nil,
-/// dann kann die Geste nie feuern). Einmal je Geste, danach verriegelt.
-struct SearchPull {
-    /// Jüngste Lage der Titelzeile — Buchführung aus `handleScroll`.
-    var latestFirst: CGFloat?
-    /// Wie weit der laufende Zug schon ist (0…1, Anteil an `minTranslation`).
-    /// Nur ein Zug, der die Verhältnis-Prüfung besteht, zählt — normales
-    /// Scrollen bleibt bei 0 und der Hinweis erscheint dort nie.
-    private(set) var progress: CGFloat = 0
-
-    private var tracking = false
-    private var startFirst: CGFloat?
-    private var fired = false
-    /// Bis wann das Chrom nach einem Zug noch stillhält (siehe
-    /// `suppressesChrome`): der Gummiband-Rückschnepper nach dem Loslassen
-    /// braucht einen Wimpernschlag, und er ist KEIN Scrollen.
-    private var graceUntil: Date?
-
-    /// So weit muss der FINGER mindestens gezogen haben: eine bewusste
-    /// Strecke, kein Wackler. Vorher 90 — auf dem Gerät fühlte sich das an
-    /// wie „die Suche kommt zu spät"; 70 liegt bei Spotlight, und die
-    /// Verhältnis-Prüfung unten hält Scrollen und Wischer weiterhin fern.
-    static let minTranslation: CGFloat = 70
-    /// Die Zeilen dürfen höchstens so viel vom Fingerweg mitgegangen sein.
-    /// 1:1 (= 1,0) ist Scrollen; das Gummiband liegt bei ~0,5.
-    static let maxRatio: CGFloat = 0.6
-    /// … aber bewegt haben müssen sie sich schon: ein Zug, bei dem gar
-    /// nichts mitkommt, ist keiner (z. B. wenn eine andere Geste gewann).
-    static let minTravel: CGFloat = 12
-    /// So lange nach dem Loslassen hält das Chrom noch still — die Zeit, die
-    /// das Gummiband braucht, um an seine Ruhelage zurückzuschnappen.
-    static let chromeGrace: TimeInterval = 0.4
-
-    /// Zählt dieser Fingerstand als Zug am Listenanfang? Die drei Prüfungen
-    /// in EINER Stelle, damit Feuern und Fortschritt dieselben sind:
-    /// deutlich senkrecht, Anker vorhanden, Zeilen deutlich LANGSAMER als
-    /// der Finger (Gummiband), aber nicht festgenagelt.
-    private func qualifies(down: CGFloat, width: CGFloat,
-                           start: CGFloat, current: CGFloat) -> Bool {
-        guard down > 0, abs(width) < down / 2 else { return false }
-        let travel = current - start
-        return travel >= Self.minTravel && travel <= Self.maxRatio * down
-    }
-
-    /// Neuer Gestenstand. `true` genau EINMAL: im Moment des Auslösens.
-    mutating func update(translation: CGSize, first: CGFloat?? = nil) -> Bool {
-        // ERST den Anker setzen, DANN die frische Messung übernehmen — der
-        // Startwert der Geste ist die Lage VOR dieser Bewegung.
-        if !tracking {
-            tracking = true
-            startFirst = latestFirst
-            fired = false
-            progress = 0
-        }
-        if let first { latestFirst = first }
-        guard !fired, let start = startFirst, let current = latestFirst else {
-            progress = 0
-            return false
-        }
-        let down = translation.height
-        guard qualifies(down: down, width: translation.width,
-                        start: start, current: current) else {
-            progress = 0
-            return false
-        }
-        progress = min(1, down / Self.minTranslation)
-        guard down >= Self.minTranslation else { return false }
-        fired = true
-        return true
-    }
-
-    /// Muss das Chrom (Leiste unten, Zusammenzieh-Logik) gerade stillhalten?
-    /// Ja, solange ein Finger unten ist, der ein Such-Zug SEIN KÖNNTE (die
-    /// Titelzeile war beim Aufsetzen sichtbar) — und noch `chromeGrace` lang
-    /// danach, weil der Rückschnepper des Gummibands sonst als Wisch gelesen
-    /// wird und die Leiste sich mitten im Öffnen der Suche zusammenzieht.
-    func suppressesChrome(now: Date = .now) -> Bool {
-        if tracking, startFirst != nil { return true }
-        if let graceUntil, now < graceUntil { return true }
-        return false
-    }
-
-    /// Finger oben: alles zurück auf Anfang — die nächste Geste entscheidet
-    /// wieder frisch. War es ein Kandidat, hält das Chrom noch kurz still.
-    mutating func ended(now: Date = .now) {
-        if tracking, startFirst != nil {
-            graceUntil = now.addingTimeInterval(Self.chromeGrace)
-        }
-        tracking = false
-        startFirst = nil
-        fired = false
-        progress = 0
-    }
-}
-
-/// Fortschritt des Such-Zugs für den kleinen Hinweis — beobachtbar, damit
-/// NUR die Hinweis-Ansicht daran hängt (dieselbe Konstruktion wie
-/// `MorePanelProgress`: der Schreiber invalidiert nichts, was ihn nicht liest).
-@Observable
-final class SearchPullFeedback {
-    /// 0 = kein Zug, 1 = Schwelle erreicht (die Suche öffnet).
-    var value: CGFloat = 0
-}
-
-/// Die kleine Lupe, die dem Such-Zug entgegenkommt — wie der
-/// Spotlight-Hinweis auf dem Homescreen: sie fährt mit dem Finger herein,
-/// wird zur Schwelle hin kräftiger und verschwindet im Moment des Öffnens.
-/// Reine Rückmeldung: nicht treffbar, nicht vorlesbar.
-private struct SearchPullIndicator: View {
-    let feedback: SearchPullFeedback
-    let accent: Color
-    let reduceMotion: Bool
-
-    var body: some View {
-        let p = min(1, max(0, feedback.value))
-        if p > 0.02 {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(accent)
-                .frame(width: 36, height: 36)
-                .background(.regularMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(.quaternary))
-                // Bewegung reduzieren: nur einblenden, nicht fahren.
-                .offset(y: reduceMotion ? 12 : -28 + 46 * p)
-                .opacity(0.35 + 0.65 * p)
-                .scaleEffect(reduceMotion ? 1 : 0.7 + 0.3 * p)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
 }
 
 /// Oberkanten aller sichtbaren Zeilen, Index -> minY im Listen-Koordinatenraum.
@@ -2468,7 +2254,7 @@ private struct ToolbarBlob: ViewModifier {
 /// Systemkurven im Leisten-Glas — der frühere Einwand („zweite Lupe neben
 /// dem Blob") ist hinfällig, seit die eigene Toolbar-Lupe entfällt und das
 /// System seine Lupe mit dem Menü daneben selbst zur Glas-Gruppe gruppiert.
-/// Beide Wege (Lupe, Such-Zug) schalten weiter nur `isPresented`.
+/// Beide Wege (System-Lupe, Fallback-Knopf) schalten weiter nur `isPresented`.
 ///
 /// Vor iOS 26 bleibt der alte Umweg: `.searchable` erst anhängen, wenn die
 /// Suche offen sein soll — `.minimize` gibt es dort nicht, und
@@ -2522,7 +2308,7 @@ private struct SearchableHidden: ViewModifier {
             // `.minimize` nur im RUHEZUSTAND: es liefert die native Lupe samt
             // System-Aufklapp-Animation, verschluckt aber JEDE programmatische
             // Präsentation (isPresented wie searchFocused, auch verzögert —
-            // empirisch geprüft). Der Such-Zug und der Deep-Link setzen
+            // empirisch geprüft). Der Deep-Link setzt
             // deshalb `isPresented` und der Modifier wechselt im selben
             // Umlauf auf `.automatic`, wo das Binding normal präsentiert.
             content

@@ -18,8 +18,7 @@ final class SearchFlowTests: XCTestCase {
 
     private func t(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
 
-    func testPullAndToolbarSearchKeepTheNativeMinimizedField() {
-        XCTAssertFalse(SearchOpenOrigin.pull.requiresAutomaticToolbarBehavior)
+    func testToolbarSearchKeepsTheNativeMinimizedField() {
         XCTAssertFalse(SearchOpenOrigin.toolbar.requiresAutomaticToolbarBehavior)
         XCTAssertTrue(SearchOpenOrigin.deepLink.requiresAutomaticToolbarBehavior)
     }
@@ -124,7 +123,7 @@ final class SearchFlowTests: XCTestCase {
     }
 
     func testUserOpenWhileCoverJustClosedIsAccepted() {
-        // Such-Zug direkt nach dem Anlegen-Schließen: Absicht schlägt Fenster.
+        // Direkte Nutzerabsicht nach dem Anlegen-Schließen schlägt das Fenster.
         var flow = SearchFlow()
         flow.coverChanged(open: true, now: t0)
         flow.coverChanged(open: false, now: t(1))

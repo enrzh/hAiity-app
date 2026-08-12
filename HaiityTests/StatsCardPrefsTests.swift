@@ -2,7 +2,7 @@ import XCTest
 @testable import Haiity
 
 /// Auswahl der Statistik-Karten: Standard, Obergrenze zwei, tolerantes
-/// Codable und die Ablage in UserDefaults — plus der Such-Zug (SearchPull),
+/// Codable und die Ablage in UserDefaults,
 /// der aus Fingerweg und Zeilenbewegung entscheidet.
 final class StatsCardPrefsTests: XCTestCase {
     func testViewPreferencesDefaultToExpandedWithYearPulse() {
@@ -154,64 +154,5 @@ final class StatsCardPrefsTests: XCTestCase {
         XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse, .streakFlame])
         let reloaded = StatsCardStore(defaults: defaults)
         XCTAssertEqual(reloaded.prefs.active, [.yearPulse, .streakFlame])
-    }
-}
-
-/// Der Such-Zug: „runterziehen öffnet die Suche" — entschieden aus dem
-/// Fingerweg der Geste und der echten Zeilenbewegung.
-final class SearchPullTests: XCTestCase {
-
-    private func pull(first: CGFloat?) -> SearchPull {
-        var p = SearchPull()
-        p.latestFirst = first
-        return p
-    }
-
-    func testRubberBandPullAtTopFiresOnce() {
-        var p = pull(first: 0)
-        // Finger 40 pt, Zeilen 20 pt (Gummiband ~0,5): noch unter der Schwelle.
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: 40), first: 20))
-        // Finger 100 pt, Zeilen 48 pt: Schwelle überschritten, Verhältnis < 0,6.
-        XCTAssertTrue(p.update(translation: CGSize(width: 2, height: 100), first: 48))
-        // Verriegelt bis zum Loslassen.
-        XCTAssertFalse(p.update(translation: CGSize(width: 2, height: 140), first: 60))
-    }
-
-    func testOneToOneScrollingNeverFires() {
-        var p = pull(first: 0)
-        // Zeilen folgen dem Finger 1:1 — das ist Scrollen, kein Zug.
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: 100), first: 100))
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: 200), first: 198))
-    }
-
-    func testMidListGestureWithoutVisibleAnchorNeverFires() {
-        // Mitten in der Liste ist die Titelzeile abgeräumt: kein Anker.
-        var p = pull(first: nil)
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: 300)))
-    }
-
-    func testHorizontalDragDoesNotFire() {
-        var p = pull(first: 0)
-        XCTAssertFalse(p.update(translation: CGSize(width: 90, height: 100), first: 50))
-    }
-
-    func testEndedRearmsForTheNextGesture() {
-        var p = pull(first: 0)
-        XCTAssertTrue(p.update(translation: CGSize(width: 0, height: 100), first: 48))
-        p.ended()
-        p.latestFirst = 0
-        XCTAssertTrue(p.update(translation: CGSize(width: 0, height: 100), first: 48))
-    }
-
-    func testPinnedContentDoesNotFire() {
-        // Die Zeilen bewegen sich gar nicht (eine andere Geste gewann):
-        // kein Gummiband, kein Zug.
-        var p = pull(first: 0)
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: 120), first: 0))
-    }
-
-    func testUpwardDragDoesNotFire() {
-        var p = pull(first: 0)
-        XCTAssertFalse(p.update(translation: CGSize(width: 0, height: -120), first: -60))
     }
 }
