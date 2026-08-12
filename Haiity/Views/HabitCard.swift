@@ -16,14 +16,12 @@ import SwiftUI
 /// für „🕐 19:00" hat die Karte früher schief aussehen lassen und Karten mit
 /// und ohne Uhrzeit unterschiedlich hoch gemacht.
 ///
-/// `collapsed` kommt vom Scroll-Zustand der Liste (ContentView misst ihn aus
-/// den Zeilenpositionen): beim Scrollen zieht sich der Kopf auf den linken
+/// `collapsed` kommt aus der persistenten Ansichts-Einstellung: der Kopf zieht sich auf den linken
 /// Namen zusammen — Nebendaten weg, Name und Knopf eine Stufe kleiner, und
 /// die Zeile wird flacher (44 -> 32 pt), samt der Abstände darum. Ein Kopf,
 /// der beim Scrollen seine ausgeklappte Höhe behält, steht als leerer Kasten
 /// über dem Raster; genau das war die Rückmeldung. Der Preis: die Zeilen
-/// ändern beim Umschalten ihre Höhe und schieben einander — die Messung in
-/// `ChromeScroll` setzt dafür kurz aus (Nachlaufsperre).
+/// ändern beim Umschalten ihre Höhe und schieben einander.
 /// `Equatable` aus demselben Grund wie `ContributionGrid`: die Karte hängt
 /// sichtbar nur an `habit` und `collapsed` — ihre Closures sind Verhalten,
 /// bei jeder Auswertung des Aufrufers frisch gebaut und semantisch dieselben.
@@ -35,8 +33,8 @@ struct HabitCard: View, Equatable {
     }
 
     let habit: Habit
-    /// Zusammengezogener Kopf (beim Scrollen). Standard `false`, damit
-    /// Vorschauen und Tests die Karte ohne Scroll-Kontext bauen können.
+    /// Zusammengezogener Kopf. Standard `false`, damit Vorschauen und Tests
+    /// die Karte ohne Einstellungs-Kontext bauen können.
     var collapsed: Bool = false
     /// Heute abhaken (Kopfzeile). Der einzige Weg von dieser Karte aus, der
     /// direkt schreibt — er sitzt auf einem beschrifteten Knopf.

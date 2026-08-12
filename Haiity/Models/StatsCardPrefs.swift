@@ -43,10 +43,7 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
 }
 
 /// Welche Karten aktiv sind — höchstens zwei, Reihenfolge = Reihenfolge des
-/// Einschaltens (und damit die Reihenfolge über der Liste). Bewusst ein
-/// reines Wertmodell OHNE Store-Anbindung: die Einstellung liegt in den
-/// App-Group-UserDefaults, nicht in data.json — sie ist eine Geräte-Ansicht,
-/// kein Habit-Datum, und soll weder Export noch iCloud-Merge anfassen.
+/// Einschaltens (und damit die Reihenfolge über der Liste).
 struct StatsCardPrefs: Codable, Equatable {
     static let maxActive = 2
     static let storageKey = "statsCards"
@@ -117,16 +114,54 @@ struct StatsCardPrefs: Codable, Equatable {
     }
 }
 
-/// Die beobachtbare Hülle: hält die Auswahl im Speicher und schreibt jede
-/// Änderung sofort in die App-Group-Defaults. Bewusst NICHT im HabitStore —
-/// der gehört den Habit-Daten, und diese Einstellung soll seinen
-/// Persistenz-Weg (data.json, Widget-Reload, iCloud-Push) nicht auslösen.
-@Observable
-final class StatsCardStore {
-    @ObservationIgnored private let defaults: UserDefaults
+struct ViewPreferences: Codable, Equatable {
+    static let storageKey = "viewPreferences"
 
-    var prefs: StatsCardPrefs {
-        didSet { prefs.save(to: defaults) }
+    var updatedAt: TimeInterval
+    var statsCards: StatsCardPrefs
+    var compactMode: Bool
+
+    init(updatedAt: TimeInterval = 0,
+         statsCards: StatsCardPrefs = StatsCardPrefs(),
+         compactMode: Bool = false) {
+        self.updatedAt = updatedAt
+        self.statsCards = statsCards
+        self.compactMode = compactMode
+    }
+
+    static func load(from defaults: UserDefaults) -> ViewPreferences {
+        if let raw = defaults.data(forKey: storageKey),
+           let prefs = try? JSONDecoder().decode(ViewPreferences.self, from: raw) {
+            return prefs
+        }
+        // Build 20 and earlier wrote just this key. Preserve it as the first
+        // local view-preference payload so it will join the iCloud mirror.
+        return ViewPreferences(updatedAt: Date().timeIntervalSince1970,
+                               statsCards: StatsCardPrefs.load(from: defaults))
+    }
+
+    func save(to defaults: UserDefaults) {
+        guard let raw = try? JSONEncoder().encode(self) else { return }
+        defaults.set(raw, forKey: Self.storageKey)
+    }
+}
+
+/// Local cache for the syncable view preferences. Changes notify ContentView,
+/// which folds the value into HabitData and schedules its normal iCloud push.
+@Observable
+final class ViewPreferencesStore {
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored var onChange: (() -> Void)?
+    @ObservationIgnored private var adoptingRemote = false
+
+    var preferences: ViewPreferences {
+        didSet {
+            preferences.save(to: defaults)
+            // Keep the Build 20 cache current for a clean local migration
+            // path and for extensions that have not yet adopted the wrapper.
+            preferences.statsCards.save(to: defaults)
+            if !adoptingRemote { onChange?() }
+        }
     }
 
     init(defaults: UserDefaults? = nil) {
@@ -134,6 +169,41 @@ final class StatsCardStore {
             ?? UserDefaults(suiteName: SharedStorage.appGroup)
             ?? .standard
         self.defaults = resolved
-        self.prefs = StatsCardPrefs.load(from: resolved)
+        self.preferences = ViewPreferences.load(from: resolved)
+    }
+
+    var statsCards: StatsCardPrefs {
+        preferences.statsCards
+    }
+
+    /// Read-only compatibility surface for existing consumers.
+    var prefs: StatsCardPrefs {
+        get { statsCards }
+    }
+
+    var compactMode: Bool {
+        get { preferences.compactMode }
+        set { update { $0.compactMode = newValue } }
+    }
+
+    func update(_ body: (inout ViewPreferences) -> Void) {
+        var next = preferences
+        body(&next)
+        guard next.statsCards != preferences.statsCards || next.compactMode != preferences.compactMode else { return }
+        next.updatedAt = Date().timeIntervalSince1970
+        preferences = next
+    }
+
+    func setStatsCard(_ card: StatsCard, active: Bool) {
+        update { $0.statsCards.set(card, active: active) }
+    }
+
+    func adoptRemote(_ remote: ViewPreferences) {
+        guard remote.updatedAt > preferences.updatedAt else { return }
+        adoptingRemote = true
+        preferences = remote
+        adoptingRemote = false
     }
 }
+
+typealias StatsCardStore = ViewPreferencesStore

@@ -2,6 +2,32 @@ import XCTest
 @testable import Haiity
 
 final class StoreAndMergeTests: XCTestCase {
+    func testHabitDataLegacyJSONDefaultsViewPreferences() throws {
+        let data = try JSONEncoder().encode(HabitData.empty)
+        let decoded = try JSONDecoder().decode(HabitData.self, from: data)
+
+        XCTAssertEqual(decoded.viewPreferences, ViewPreferences())
+    }
+
+    func testNewerRemoteHabitDataWinsViewPreferences() {
+        let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [],
+                              viewPreferences: ViewPreferences(updatedAt: 10,
+                                                               statsCards: StatsCardPrefs(active: [.yearPulse]),
+                                                               compactMode: false))
+        let remote = HabitData(version: 2, updatedAt: 20, summaryMinutes: nil, habits: [],
+                               viewPreferences: ViewPreferences(updatedAt: 20,
+                                                                statsCards: StatsCardPrefs(active: [.todayRing]),
+                                                                compactMode: true))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-view-preferences-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try! JSONEncoder().encode(local).write(to: url)
+        let store = HabitStore(url: url)
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.data.viewPreferences, remote.viewPreferences)
+    }
     private var url: URL!
     private var store: HabitStore!
 

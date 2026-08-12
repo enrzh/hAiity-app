@@ -64,13 +64,9 @@ struct ContentView: View {
     /// Unterziel, aufgerufen aus einer Zeile DER MEHR-SEITE — als Blatt über
     /// dem Cover.
     @State private var morePageRoute: MoreRoute?
-    /// Fährt der Anlegen-Knopf gerade? Solange ja, KEINE gemeinsame
-    /// Glas-Vereinigung (siehe `chromeUnion`).
-    @State private var chromeTravelling = false
-    /// Auswahl der Statistik-Karten über dem Titel. Eigener kleiner Store
-    /// (App-Group-Defaults), bewusst NICHT im HabitStore: die Auswahl ist
-    /// eine Ansichts-Einstellung und soll weder Export noch iCloud anfassen.
-    @State private var statsCards = StatsCardStore()
+    /// Die synchronisierte Auswahl der Statistik-Karten und der festen
+    /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
+    @State private var viewPreferences = ViewPreferencesStore()
     @State private var search = ""
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
@@ -87,17 +83,8 @@ struct ContentView: View {
     /// Sortiermodus. Früher ein `EditButton` in der Toolbar (zu breit), jetzt
     /// ein Punkt im Menü — der Modus muss deshalb selbst gehalten werden.
     @State private var editMode: EditMode = .inactive
-    /// Scroll-Zustand der Habit-Liste, ausschließlich aus Zeilenpositionen
-    /// abgeleitet (siehe ChromeScroll).
-    ///
-    /// **In einer Kiste, nicht als `@State`-Wert.** `decide` mutiert bei
-    /// JEDER Messung (jede Zeilenbewegung, jedes Bild) — als Wert-`@State`
-    /// invalidierte damit jedes Scroll-Bild den ganzen `ContentView.body`
-    /// samt aller Karten und Raster (nachgemessen mit der Bildzeit-Sonde:
-    /// 1–3 Bilder je Sekunde beim Scrollen). Die Kiste ist eine schlichte
-    /// Referenz ohne Observation: Schreiben löst nichts aus. Was die
-    /// Oberfläche wirklich braucht, ist allein die ENTSCHEIDUNG — und nur
-    /// die steht als `@State` (`chromeCollapsed`) und flippt selten.
+    /// Scroll-Buchfuehrung fuer Pull-to-search und Nacharbeiten-Anker. Sie
+    /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
     /// Fortschritt des Such-Zugs (0…1) für den kleinen Spotlight-Hinweis.
     /// Beobachtbares Objekt statt `@State` — gelesen wird es AUSSCHLIESSLICH
@@ -105,8 +92,6 @@ struct ContentView: View {
     /// Bildschritt diesen ganzen `body` neu auswertet (dieselbe Lehre wie
     /// beim Tafel-Zug, siehe `MorePanelProgress`).
     @State private var pullFeedback = SearchPullFeedback()
-    /// Die eine Zahl, die aus dem Scroll-Signal an der Oberfläche ankommt.
-    @State private var chromeCollapsed = false
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
@@ -128,11 +113,8 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Zusammengezogenes Chrom (Fallback-Leiste) und verdichtete Karten.
-    ///
-    /// `!searching` ist kein Schönheitsdetail: das Aufklappen der Suche
-    /// schiebt die Liste um gut 100 pt: die Zeilenmessung liest das als Wisch
-    /// und zieht alle Köpfe zusammen, ohne dass jemand gescrollt hätte.
-    private var collapsed: Bool { chromeCollapsed && !searching }
+    /// Dieser Zustand ist ausschließlich eine persistente Nutzerwahl.
+    private var collapsed: Bool { viewPreferences.compactMode }
 
     private static let listSpace = "habit-list"
 
@@ -141,15 +123,6 @@ struct ContentView: View {
     /// und Anlegen-Knopf zu einem Blob, sonst bleibt jeder eine eigene
     /// Scheibe an seinem Rand.
     ///
-    /// **Erst am Ziel vereinigen.** `chromeTravelling` ist kein Feinschliff:
-    /// iOS rechnet die Vereinigung aus den RUHENDEN Plätzen der Mitglieder.
-    /// Trägt der Knopf die gemeinsame Kennung schon während der Fahrt, wird
-    /// er auf die Blob-Form geschnitten und ist unterwegs schlicht nicht da
-    /// — er verschwindet rechts und erscheint links. Genau die Blende, die
-    /// wegsollte (nachgemessen an der Aufnahme). Während der Fahrt bleibt er
-    /// deshalb eine eigene Scheibe, die sichtbar wandert; erst wenn sie
-    /// steht, fließen beide zu einer Kapsel zusammen.
-    ///
     /// Die Mehr-Tafel steht bewusst gar nicht in dieser Vereinigung.
     /// Ausprobiert und wieder ausgebaut: verschmilzt die Tafel mit der
     /// Kapsel, gewinnt die große Fläche — die Leiste verliert ihre eigene
@@ -157,7 +130,7 @@ struct ContentView: View {
     /// Eindruck „wächst aus der Leiste" trägt die Animation (Skalierung mit
     /// Anker auf dem Mehr-Segment), nicht ein gemeinsamer Glaskörper.
     private func chromeUnion(_ solo: String) -> String {
-        collapsed && !chromeTravelling ? "chrome-blob" : solo
+        collapsed ? "chrome-blob" : solo
     }
 
     var body: some View {
@@ -238,6 +211,7 @@ struct ContentView: View {
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
+                    viewPreferences.adoptRemote(store.data.viewPreferences)
                     // Konto kann sich ausserhalb der App geändert haben
                     // (an-/abgemeldet), und das andere Gerät kann gehakt
                     // haben, während diese App im Hintergrund lag.
@@ -254,7 +228,6 @@ struct ContentView: View {
             .onChange(of: showMore) { _, open in
                 guard open else { return }
                 editMode = .inactive
-                expandChrome()
                 // Ein Toast, der auf eine Karte zeigt, die man nicht mehr
                 // sieht, ist nur noch ein Knopf ins Ungewisse.
                 undo.clear()
@@ -272,7 +245,6 @@ struct ContentView: View {
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
                 editMode = .inactive
-                expandChrome()
                 undo.clear()
                 backfill = nil
             }
@@ -324,9 +296,6 @@ struct ContentView: View {
                 } else {
                     chrome.searchFlow.dismissed()
                 }
-                // Auf- und Zuklappen der Suche ist ein Layout-Sprung, kein
-                // Scrollen — den Lauf verwerfen, sonst wirkt er hinterher nach.
-                expandChrome()
                 // Beim Schließen den Fokus AKTIV löschen: bleibt das
                 // `searchFocused`-Binding wahr, präsentiert das System das
                 // Feld nach dem Rückwechsel auf `.minimize` sofort wieder
@@ -524,7 +493,7 @@ struct ContentView: View {
     private var morePage: some View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
-                     statsCards: statsCards, onOpen: { morePageRoute = $0 })
+                     statsCards: viewPreferences, onOpen: { morePageRoute = $0 })
                 .navigationTitle(String(localized: "Mehr"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -640,19 +609,15 @@ struct ContentView: View {
     /// über seine eigene Lupe oder über den FOKUS auf. Deshalb erst den
     /// Zustand setzen, dann im nächsten Umlauf den Fokus — das Setzen beider
     /// im selben Umlauf verschluckt die Präsentation ebenfalls.
-    private func openSearch() {
-        trace("openSearch() showAdd=\(showAdd)")
+    private func openSearch(origin: SearchOpenOrigin) {
+        trace("openSearch(\(origin)) showAdd=\(showAdd)")
         // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
         // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
         chrome.searchFlow.userOpened()
-        // DREI Umläufe, nicht einer: Umschalter (`.automatic`), Präsentation,
-        // Fokus. Fielen Umschalter und Präsentation in DENSELBEN Umlauf, sah
-        // das System die Präsentation noch unter `.minimize` und verschluckte
-        // sie — zuverlässig reproduzierbar direkt nach dem Zufahren des
-        // Anlegen-Covers (Suche „offen", aber keine Leiste, keine Tastatur,
-        // keine Lupe mehr — ein toter Zustand). Erst wenn `.automatic` im
-        // Baum steht, darf `isPresented` springen; der Fokus danach.
-        searchNeedsAutomaticBehavior = true
+        // Nur ein Deep-Link braucht den automatischen Drawer: beim Zug ist
+        // das native minimierte Feld bereits im Baum. Sein Umschalten würde
+        // es ab- und als zweite Leiste wieder aufbauen.
+        searchNeedsAutomaticBehavior = origin.requiresAutomaticToolbarBehavior
         DispatchQueue.main.async {
             withAnimation { searching = true }
             DispatchQueue.main.async { searchFieldFocused = true }
@@ -842,9 +807,9 @@ struct ContentView: View {
     /// eine `body`-Auswertung kostet hier nur den Gleichheitsvergleich.
     @ViewBuilder
     private var statsRow: some View {
-        if !statsCards.prefs.active.isEmpty {
+        if !viewPreferences.statsCards.active.isEmpty {
             StatsCardsView(snapshot: StatsEngine.snapshot(habits: store.activeHabits),
-                           cards: statsCards.prefs.active)
+                           cards: viewPreferences.statsCards.active)
                 .equatable()
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -897,7 +862,7 @@ struct ContentView: View {
                     // verschwindet im selben Moment, in dem die Suchleiste
                     // erscheint, statt unter ihr weiterzuleuchten.
                     pullFeedback.value = 0
-                    openSearch()
+                    openSearch(origin: .pull)
                     Theme.Haptics.select()
                 } else {
                     // Fortschritt an den kleinen Hinweis melden — wie beim
@@ -1230,46 +1195,6 @@ struct ContentView: View {
         // Ebenfalls Buchführung: die Zeilenlagen für den Anker der
         // Nacharbeiten-Karte (siehe `backfillAnchor`).
         chrome.rowFrames = frames
-        // Während die Mehr-Seite offen ist (oder gerade auf- oder zufährt),
-        // entscheidet das Chrom NICHT: die Präsentation verschiebt die
-        // Zeilen ohne Finger, und der Umbau las sich sonst als Wisch —
-        // dieselbe Regel wie früher beim Bereichswechsel.
-        // Gleiches gilt für die Anlegen-Seite: auch ihr Cover verschiebt die
-        // Zeilen beim Auf- und Zufahren ohne Finger.
-        guard !showMore, !showAdd else { chrome.scroll.rebase(frames); return }
-
-        // Läuft gerade ein möglicher Such-Zug (Finger unten, Titelzeile beim
-        // Aufsetzen sichtbar) — oder ist er eben erst losgelassen worden —,
-        // trifft das Chrom KEINE Entscheidung. Genau das war Punkt 4 der
-        // Rückmeldung: der Gummiband-Rückschnepper nach einem Zug las sich
-        // als Wisch nach unten, die Leiste zog sich zusammen, und ERST DANN
-        // erschien die Suche. `rebase` statt bloßem Überspringen: die
-        // Messung bleibt frisch und der Lauf fängt danach bei null an.
-        if chrome.pull.suppressesChrome() { chrome.scroll.rebase(frames); return }
-        guard let want = chrome.scroll.decide(frames) else { return }
-        if reduceMotion {
-            chromeCollapsed = want
-        } else {
-            withAnimation(.snappy(duration: 0.26)) { chromeCollapsed = want }
-            // Für die Dauer der Fahrt bleibt der Anlegen-Knopf ein eigenes
-            // Glasstück (siehe chromeUnion). Etwas länger als die Animation,
-            // damit die Vereinigung erst greift, wenn wirklich nichts mehr
-            // wandert.
-            chromeTravelling = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(320))
-                chromeTravelling = false
-            }
-        }
-        chrome.scroll.settle()
-    }
-
-    /// Ausklappen von außen (Bereichswechsel, Suche): Lauf verwerfen und die
-    /// Entscheidung zurücksetzen. Das Setzen von `chromeCollapsed` auf einen
-    /// unveränderten Wert invalidiert nichts.
-    private func expandChrome() {
-        chrome.scroll.expand()
-        chromeCollapsed = false
     }
 
     private var emptyState: some View {
@@ -1396,7 +1321,7 @@ struct ContentView: View {
     private var searchAndMenu: some View {
         HStack(spacing: 0) {
             Button {
-                openSearch()
+                openSearch(origin: .toolbar)
             } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
@@ -1688,7 +1613,7 @@ struct ContentView: View {
         case "search":
             showMore = false
             moreSheet = nil
-            openSearch()
+            openSearch(origin: .deepLink)
         case "new":
             showAdd = true
         default:
@@ -1918,6 +1843,11 @@ struct ContentView: View {
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
+        viewPreferences.onChange = {
+            store.setViewPreferences(viewPreferences.preferences)
+            schedulePush()
+        }
+        store.setViewPreferences(viewPreferences.preferences)
         await rescheduleReminders()
         await syncNow(announce: false)
     }
@@ -1957,13 +1887,20 @@ struct ContentView: View {
     private func syncNow(announce: Bool, pullFirst: Bool = true) async {
         guard cloudStatus.isSignedIn else { cloudStatus.refresh(); return }
         do {
+            store.setViewPreferences(viewPreferences.preferences)
             if pullFirst, let remote = try await cloud.pull() {
                 store.merge(remote: remote)
             }
+            viewPreferences.adoptRemote(store.data.viewPreferences)
             guard let payload = store.exportJSON() else { return }
             try await cloud.push(payload) { remote in
                 // EIN Merge in dieser App — der aus dem Store.
-                if let remote { await MainActor.run { store.merge(remote: remote) } }
+                if let remote {
+                    await MainActor.run {
+                        store.merge(remote: remote)
+                        viewPreferences.adoptRemote(store.data.viewPreferences)
+                    }
+                }
                 return await MainActor.run { store.exportJSON() ?? payload }
             }
             cloudStatus.noteSuccess()
@@ -2001,6 +1938,25 @@ struct SearchFieldReading: Equatable {
     var focused: Bool
 
     static let none = SearchFieldReading(present: false, width: 0, focused: false)
+}
+
+/// Herkunft einer ausdrücklich angeforderten Suche. Nur ein Deep-Link muss
+/// den minimierten System-Toolbar-Modus verlassen; bei Zug und Toolbar-Tipp
+/// ist das native Feld schon da und darf nicht neu aufgebaut werden.
+enum SearchOpenOrigin: CustomStringConvertible {
+    case pull
+    case toolbar
+    case deepLink
+
+    var requiresAutomaticToolbarBehavior: Bool { self == .deepLink }
+
+    var description: String {
+        switch self {
+        case .pull: "pull"
+        case .toolbar: "toolbar"
+        case .deepLink: "deepLink"
+        }
+    }
 }
 
 /// Die Such-Präsentation als EXPLIZITE Zustandsmaschine — rein, ohne SwiftUI,
@@ -2200,11 +2156,8 @@ struct SearchFlow {
     }
 }
 
-/// Referenz-Kiste um `ChromeScroll` — bewusst OHNE Observation. Die Messung
-/// mutiert bei jedem Bild; als `@State`-Wert war genau das die Invalidierung
-/// des ganzen Bildschirms pro Scroll-Bild (siehe `ContentView.chrome`).
+/// Referenz-Kiste fuer Scroll-Buchfuehrung ohne Observation.
 final class ChromeScrollBox {
-    var scroll = ChromeScroll()
     var pull = SearchPull()
     var searchFlow = SearchFlow()
     /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
@@ -2365,83 +2318,6 @@ private struct RowOffsetKey: PreferenceKey {
     static var defaultValue: [Int: CGFloat] = [:]
     static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
         value.merge(nextValue()) { a, _ in a }
-    }
-}
-
-/// Der selbstgebaute Ersatz für `.tabBarMinimizeBehavior(.onScrollDown)`.
-///
-/// Gerechnet wird ausschließlich mit Zeilenpositionen, weil das die einzige
-/// Größe ist, die eine faule `List` unter iOS 17 hergibt. Drei Feinheiten,
-/// ohne die es kippt:
-///
-///  * **Delta statt Absolutwert.** Zwischen zwei Momentaufnahmen wandern ALLE
-///    sichtbaren Zeilen um denselben Betrag; die oberste gemeinsame Zeile
-///    liefert ihn exakt, auch wenn Zeilen unterschiedlich hoch sind.
-///  * **Nachlaufsperre.** Das Zusammenziehen ändert die Kopfhöhen und damit
-///    die Zeilenpositionen — ohne kurze Sperre liest sich der eigene Umbau
-///    als weiteres Scrollen und der Umschalter flackert.
-///  * **Oben ist immer offen.** Solange die erste Zeile an ihrer Ruheposition
-///    steht, bleibt das Chrom ausgeklappt; sonst bliebe es nach einem kurzen
-///    Wisch am Listenanfang zusammengezogen stehen.
-struct ChromeScroll {
-    var collapsed = false
-
-    private var frames: [Int: CGFloat] = [:]
-    /// Ruheposition der ersten Zeile (größte je gesehene Oberkante).
-    private var restY: CGFloat = -.greatestFiniteMagnitude
-    /// Zurückgelegte Strecke seit dem letzten Richtungswechsel.
-    private var run: CGFloat = 0
-    private var settledUntil: Date?
-
-    /// Ab hier gilt eine Bewegung als Absicht, nicht als Zittern.
-    private static let threshold: CGFloat = 26
-    /// So weit darf die Liste am Anfang stehen und gilt noch als „oben".
-    private static let topSlack: CGFloat = 8
-    /// Sprünge größer als das sind Layout-Wechsel (Bereich, Tastatur), kein Finger.
-    private static let jumpLimit: CGFloat = 400
-
-    /// Neue Messung einwerfen. Ergebnis: gewünschter Zustand, oder `nil`,
-    /// wenn sich nichts ändert.
-    mutating func decide(_ next: [Int: CGFloat], now: Date = .now) -> Bool? {
-        let previous = frames
-        frames = next
-        if let first = next[0] { restY = max(restY, first) }
-        if let settledUntil, now < settledUntil { return nil }
-
-        // Oben angekommen: immer ausgeklappt, egal was der Lauf sagt.
-        if let first = next[0], first > restY - Self.topSlack {
-            run = 0
-            return collapsed ? false : nil
-        }
-
-        guard let key = previous.keys
-                .filter({ next[$0] != nil })
-                .min(by: { previous[$0] ?? 0 < previous[$1] ?? 0 }),
-              let before = previous[key], let after = next[key] else { return nil }
-        let delta = after - before          // > 0: Inhalt wandert nach unten = hochgescrollt
-        guard abs(delta) > 0.5, abs(delta) < Self.jumpLimit else { return nil }
-        run = (delta < 0) == (run < 0) ? run + delta : delta
-
-        if run <= -Self.threshold, !collapsed { return true }
-        if run >= Self.threshold, collapsed { return false }
-        return nil
-    }
-
-    /// Nach einem Wechsel kurz nicht hinhören (siehe Nachlaufsperre).
-    mutating func settle(now: Date = .now) {
-        settledUntil = now.addingTimeInterval(0.45)
-        run = 0
-    }
-
-    /// Messung übernehmen, ohne zu entscheiden (anderer Bereich sichtbar).
-    mutating func rebase(_ next: [Int: CGFloat]) {
-        frames = next
-        run = 0
-    }
-
-    mutating func expand() {
-        collapsed = false
-        run = 0
     }
 }
 

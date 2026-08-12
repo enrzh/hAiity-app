@@ -35,6 +35,9 @@ struct HabitData: Codable {
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
+    /// Ansichts-Einstellungen (Statistik-Karten und kompakte Darstellung).
+    /// Sie reisen als Teil desselben privaten iCloud-Payloads mit.
+    var viewPreferences: ViewPreferences
 
     /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
@@ -52,7 +55,8 @@ struct HabitData: Codable {
          customPalettes: [CustomPalette] = [],
          matchAppIcon: Bool = true,
          weeklySummaryMinutes: Int? = nil,
-         weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday) {
+         weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
+         viewPreferences: ViewPreferences = ViewPreferences()) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
@@ -64,6 +68,7 @@ struct HabitData: Codable {
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
+        self.viewPreferences = viewPreferences
     }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
@@ -83,7 +88,7 @@ extension HabitData {
         // Die Wochenzusammenfassung ist rein ADDITIV: ein Build ohne sie
         // überliest die beiden Schlüssel, also braucht es dafür keinen
         // Versionssprung (der ihn aussperren würde).
-        case weeklySummaryMinutes, weeklySummaryWeekday
+        case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -116,6 +121,7 @@ extension HabitData {
         // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
         customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
+        viewPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) ?? ViewPreferences()
     }
 
     func encode(to encoder: Encoder) throws {
@@ -137,6 +143,7 @@ extension HabitData {
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
+        if viewPreferences != ViewPreferences() { try c.encode(viewPreferences, forKey: .viewPreferences) }
     }
 }
 
@@ -234,6 +241,12 @@ final class HabitStore {
         set { data.matchAppIcon = newValue; persist() }
     }
 
+    func setViewPreferences(_ preferences: ViewPreferences) {
+        guard preferences != data.viewPreferences else { return }
+        data.viewPreferences = preferences
+        persist(notify: false)
+    }
+
     static func read(_ url: URL) -> HabitData? {
         guard let raw = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(HabitData.self, from: raw)
@@ -256,7 +269,7 @@ final class HabitStore {
         onChange?()
     }
 
-    func persist() {
+    func persist(notify: Bool = true) {
         data.version = HabitData.currentVersion
         data.updatedAt = Date().timeIntervalSince1970
         let enc = JSONEncoder()
@@ -268,7 +281,7 @@ final class HabitStore {
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
-        onChange?()
+        if notify { onChange?() }
     }
 
     // MARK: – Mutationen
@@ -627,6 +640,9 @@ final class HabitStore {
             data.appearance = remote.appearance
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
+        }
+        if remote.viewPreferences.updatedAt > data.viewPreferences.updatedAt {
+            data.viewPreferences = remote.viewPreferences
         }
         // Eigene Paletten sind additive Daten wie Habits, nicht wie eine
         // Einstellung: VEREINIGT nach Kennung, damit eine auf dem anderen

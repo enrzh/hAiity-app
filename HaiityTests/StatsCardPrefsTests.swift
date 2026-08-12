@@ -5,6 +5,58 @@ import XCTest
 /// Codable und die Ablage in UserDefaults — plus der Such-Zug (SearchPull),
 /// der aus Fingerweg und Zeilenbewegung entscheidet.
 final class StatsCardPrefsTests: XCTestCase {
+    func testViewPreferencesDefaultToExpandedWithYearPulse() {
+        let prefs = ViewPreferences()
+
+        XCTAssertFalse(prefs.compactMode)
+        XCTAssertEqual(prefs.statsCards.active, [.yearPulse])
+    }
+
+    func testViewPreferencesStorePersistsCompactModeAndCards() {
+        let suite = "ViewPreferencesStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.compactMode = true
+        store.setStatsCard(.streakFlame, active: true)
+
+        let reloaded = ViewPreferencesStore(defaults: defaults)
+        XCTAssertTrue(reloaded.compactMode)
+        XCTAssertEqual(reloaded.statsCards.active, [.yearPulse, .streakFlame])
+    }
+
+    func testNewerRemotePreferencesReplaceLocalPreferences() {
+        let suite = "ViewPreferencesStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.adoptRemote(ViewPreferences(updatedAt: 100,
+                                          statsCards: StatsCardPrefs(active: [.weekMomentum]),
+                                          compactMode: true))
+
+        XCTAssertTrue(store.compactMode)
+        XCTAssertEqual(store.statsCards.active, [.weekMomentum])
+    }
+
+    func testOlderRemotePreferencesDoNotReplaceLocalPreferences() {
+        let suite = "ViewPreferencesStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.adoptRemote(ViewPreferences(updatedAt: 100,
+                                          statsCards: StatsCardPrefs(active: [.todayRing]),
+                                          compactMode: true))
+        store.adoptRemote(ViewPreferences(updatedAt: 99,
+                                          statsCards: StatsCardPrefs(active: [.weekMomentum]),
+                                          compactMode: false))
+
+        XCTAssertTrue(store.compactMode)
+        XCTAssertEqual(store.statsCards.active, [.todayRing])
+    }
+
 
     // MARK: – Grundzustand und Obergrenze
 
@@ -98,7 +150,7 @@ final class StatsCardPrefsTests: XCTestCase {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
         let store = StatsCardStore(defaults: defaults)
-        store.prefs.set(.streakFlame, active: true)
+        store.setStatsCard(.streakFlame, active: true)
         XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse, .streakFlame])
         let reloaded = StatsCardStore(defaults: defaults)
         XCTAssertEqual(reloaded.prefs.active, [.yearPulse, .streakFlame])

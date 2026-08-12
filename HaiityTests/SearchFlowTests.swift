@@ -18,6 +18,12 @@ final class SearchFlowTests: XCTestCase {
 
     private func t(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
 
+    func testPullAndToolbarSearchKeepTheNativeMinimizedField() {
+        XCTAssertFalse(SearchOpenOrigin.pull.requiresAutomaticToolbarBehavior)
+        XCTAssertFalse(SearchOpenOrigin.toolbar.requiresAutomaticToolbarBehavior)
+        XCTAssertTrue(SearchOpenOrigin.deepLink.requiresAutomaticToolbarBehavior)
+    }
+
     // MARK: – Grundfälle
 
     func testStartsClosed() {

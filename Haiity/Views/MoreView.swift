@@ -73,6 +73,7 @@ struct MoreView: View, Equatable {
             paletteSection
 
             statsCardsSection
+            compactModeSection
 
             dailySummarySection
             weeklySummarySection
@@ -192,9 +193,20 @@ struct MoreView: View, Equatable {
         }
     }
 
+    private var compactModeSection: some View {
+        Section {
+            Toggle(String(localized: "Kompakte Ansicht"), isOn: Binding(
+                get: { statsCards.compactMode },
+                set: { statsCards.compactMode = $0 }))
+            .accessibilityIdentifier("compact-mode-toggle")
+        } footer: {
+            Text(String(localized: "Verdichtet die Habit-Liste und die untere Navigation dauerhaft."))
+        }
+    }
+
     private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
         Binding(get: { statsCards.prefs.isActive(card) },
-                set: { statsCards.prefs.set(card, active: $0) })
+                set: { statsCards.setStatsCard(card, active: $0) })
     }
 
     // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der

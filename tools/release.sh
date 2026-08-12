@@ -85,8 +85,9 @@ say "Unit tests"
 # v13-Nacharbeiten: der Malen-Modus wurde auf Nutzerwunsch ENTFERNT — mit ihm
 # ehrlich seine 9 Tests (BackfillBrushTests: Pinsel, paintText, Mode). Keine
 # überlebende Zusicherung wurde abgeschwächt. Boden: 748 − 9 = 739.
-# v15 (iOS-27-Suche): der Feld-Beobachter bringt 15 Regeln mit — 761 + 15 = 776.
-MIN_TESTS=776
+# v21: die scrollgetriebene Chrome-Zustandsmaschine samt 13 Regeln entfiel;
+# sechs Einstellungen-/iCloud-Regeln kamen hinzu. Boden: 769.
+MIN_TESTS=769
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
