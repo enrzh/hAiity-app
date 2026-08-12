@@ -55,6 +55,7 @@ struct ContentView: View {
     @State private var nativeTab: NativeTab = .habits
     /// Die Mehr-SEITE (fullScreenCover), geöffnet aus dem Menü oben rechts.
     @State private var showMore = false
+    @State private var showReminderSetup = false
     /// Bildschirmartige Unterziele des Mehr-Bereichs, als Blatt — präsentiert
     /// vom BILDSCHIRM (Menü-Direktwege, Deep-Links bei geschlossener
     /// Mehr-Seite). Die Mehr-Seite hat für ihre eigenen Zeilen eine eigene
@@ -193,6 +194,9 @@ struct ContentView: View {
             // rechts und schrumpft beim Schließen dorthin zurück. Darunter
             // (iOS 17) eine schlichte Blende — dieselbe Seite, ohne Morph.
             .fullScreenCover(isPresented: $showMore) { morePage }
+            .fullScreenCover(isPresented: $showReminderSetup) {
+                ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
+            }
             .task {
                 await boot()
                 #if DEBUG
@@ -487,7 +491,8 @@ struct ContentView: View {
     private var morePage: some View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences, onOpen: { morePageRoute = $0 })
+                     statsCards: viewPreferences,
+                     onOpen: { morePageRoute = $0 })
                 .navigationTitle(String(localized: "Mehr"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -1787,6 +1792,9 @@ struct ContentView: View {
         store.setViewPreferences(viewPreferences.preferences)
         await rescheduleReminders()
         await syncNow(announce: false)
+        if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
+            showReminderSetup = true
+        }
     }
 
     /// Die beiden Zusammenfassungen neu stellen. Sie tragen ZAHLEN, also

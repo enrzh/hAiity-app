@@ -341,4 +341,14 @@ final class ReminderGateTests: XCTestCase {
     }
 }
 
+final class ReminderSetupTests: XCTestCase {
+    func testIncompleteSetupIsPresented() {
+        XCTAssertTrue(ReminderSetup.shouldPresent(completed: false))
+    }
+
+    func testCompletedSetupIsNotPresentedAgain() {
+        XCTAssertFalse(ReminderSetup.shouldPresent(completed: true))
+    }
+}
+
 extension ReminderGate.Decision: Equatable {}

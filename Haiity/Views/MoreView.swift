@@ -43,6 +43,7 @@ struct MoreView: View, Equatable {
     @State private var summaryDenied = false
     @State private var weeklyDenied = false
     @State private var testMessage: String?
+    @State private var showReminderSetup = false
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
     @State private var currentIconName: String?
@@ -78,6 +79,13 @@ struct MoreView: View, Equatable {
             dailySummarySection
             weeklySummarySection
             testNotificationSection
+            Section {
+                Button { showReminderSetup = true } label: {
+                    Label(String(localized: "Erinnerungen einrichten"), systemImage: "bell")
+                }
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("open-reminder-setup")
+            }
 
             Section {
                 pageRow(.stats, title: String(localized: "Statistik"),
@@ -126,6 +134,9 @@ struct MoreView: View, Equatable {
         }
         .sheet(item: $editingPalette) { palette in
             CustomPaletteSheet(store: store, existing: palette).themed(store)
+        }
+        .fullScreenCover(isPresented: $showReminderSetup) {
+            ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
         }
         .alert(String(localized: "Farbe umbenennen"),
                isPresented: Binding(get: { renamingPalette != nil },
