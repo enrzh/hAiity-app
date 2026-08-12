@@ -21,6 +21,12 @@ struct AppRouteEffect: Equatable {
 /// Identifies the latest accepted route. Delayed UI work keeps the token it
 /// was created with and must not apply after a newer route supersedes it.
 struct RouteWork {
+    struct Item: Equatable {
+        let generation: Int
+        let effect: AppRouteEffect
+        let requiresCreateDismissal: Bool
+    }
+
     private var generation = 0
 
     mutating func begin() -> Int {
@@ -28,8 +34,23 @@ struct RouteWork {
         return generation
     }
 
+    mutating func begin(_ effect: AppRouteEffect, createIsPresented: Bool) -> Item {
+        let generation = begin()
+        return Item(generation: generation,
+                    effect: effect,
+                    requiresCreateDismissal: createIsPresented && !effect.opensCreate)
+    }
+
     func isCurrent(_ generation: Int) -> Bool {
         self.generation == generation
+    }
+
+    func isCurrent(_ item: Item) -> Bool {
+        isCurrent(item.generation)
+    }
+
+    func canDeliverAfterCreateDismissal(_ item: Item) -> Bool {
+        item.requiresCreateDismissal && isCurrent(item)
     }
 }
 

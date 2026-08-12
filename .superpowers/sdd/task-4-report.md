@@ -149,3 +149,68 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
 ```
 
 Result: 765 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+
+## Create Cover Route Lifecycle Follow-up
+
+### RED
+
+Added the create-cover lifecycle tests before production changes:
+
+- `testNonCreateRoutesWaitForOpenCreateCover`
+- `testLatestRouteWinsOverQueuedCreateCoverDismissal`
+
+Command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: expected compilation failure. `RouteWork.begin(_:createIsPresented:)`
+and `RouteWork.canDeliverAfterCreateDismissal(_:)` did not exist;
+`xcodebuild` exited 65.
+
+### GREEN
+
+`RouteWork.Item` now carries the effect, generation, and whether a non-create
+route must wait for the Anlegen full-screen cover to finish dismissing.
+`ContentView` holds the latest deferred item, sets `showAdd = false`, and
+delivers it only from the cover's `onDismiss` after one main-actor turn.
+Generation checks prevent an older dismissal callback or queued presentation
+task from applying after a newer route. A separate transition flag keeps routes
+that arrive after `showAdd` becomes false but before `onDismiss` waiting behind
+the still-visible cover. Create routes remain idempotent. The existing
+`showAdd` observer still calls `SearchFlow.coverChanged(open:)` unchanged.
+
+Focused command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests/AppNavigationTests \
+  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: 41 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+
+### Full Suite
+
+Command:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
+  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: 767 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+
+### Concerns
+
+- The supplied simulator runs iOS 26.5. The lifecycle ordering is covered by
+  deterministic `RouteWork` tests; visual runtime verification on iOS 17-25
+  still needs an older simulator or device.

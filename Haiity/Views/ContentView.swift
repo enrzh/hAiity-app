@@ -39,6 +39,10 @@ struct ContentView: View {
     @State private var pushes = PushDebouncer()
     @State private var editing: Habit?
     @State private var showAdd = false
+    /// `showAdd` flips to false before the full-screen-cover transition has
+    /// completed. Keep this true until `onDismiss` so a newer route still
+    /// waits for the cover that remains visually above the app.
+    @State private var createCoverIsPresented = false
     @State private var syncStatus = ""
     /// Auswahl der Bereiche. In der nativen Tableiste wird `.create` im
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
@@ -54,6 +58,10 @@ struct ContentView: View {
     @State private var routePresentationTask: Task<Void, Never>?
     /// Sperrt bereits eingereihte Sucharbeit eines älteren Deep-Links.
     @State private var routeWork = RouteWork()
+    /// Nicht-Anlegen-Routen warten hier auf das Ende des Anlegen-Covers.
+    /// Der Token verhindert, dass ein älterer `onDismiss` eine neuere Route
+    /// noch ausliefert.
+    @State private var pendingCreateDismissalRoute: RouteWork.Item?
     /// Die synchronisierte Auswahl der Statistik-Karten und der festen
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
@@ -154,7 +162,8 @@ struct ContentView: View {
             // wie „Mehr": ein fullScreenCover, das ab iOS 18 mit der
             // Zoom-Transition aus dem Anlegen-Kreis der Leiste wächst und
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
-            .fullScreenCover(isPresented: $showAdd) { createPage }
+            .fullScreenCover(isPresented: $showAdd,
+                             onDismiss: deliverPendingCreateDismissalRoute) { createPage }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
                     .themed(store)
@@ -204,6 +213,7 @@ struct ContentView: View {
             }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
+                if open { createCoverIsPresented = true }
                 // Der Zustandsmaschine melden: solange das Cover offen ist
                 // (und im Fenster nach dem Zufahren) kann keine ECHTE
                 // Lupen-Berührung eine Suche präsentieren.
@@ -1405,7 +1415,8 @@ struct ContentView: View {
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
         routePresentationTask?.cancel()
-        let routeGeneration = routeWork.begin()
+        let route = routeWork.begin(effect,
+                                    createIsPresented: showAdd || createCoverIsPresented)
         if !effect.opensSearch {
             // The first queued search callback may have run just before this
             // route arrived. A non-search route still wins in that ordering.
@@ -1420,22 +1431,58 @@ struct ContentView: View {
         }
         moreSheet = nil
         morePageRoute = nil
-        nativeTab = effect.tab
+        if route.requiresCreateDismissal {
+            pendingCreateDismissalRoute = route
+            showAdd = false
+            return
+        }
+
+        pendingCreateDismissalRoute = nil
+        apply(route)
+    }
+
+    private func deliverPendingCreateDismissalRoute() {
+        // A newer create route may have re-presented the cover while an older
+        // dismissal callback was still queued. That callback must not mark
+        // the newly presented cover as gone.
+        guard !showAdd else {
+            createCoverIsPresented = true
+            return
+        }
+        createCoverIsPresented = false
+        guard let route = pendingCreateDismissalRoute,
+              routeWork.canDeliverAfterCreateDismissal(route) else {
+            pendingCreateDismissalRoute = nil
+            return
+        }
+
+        pendingCreateDismissalRoute = nil
+        routePresentationTask?.cancel()
+        routePresentationTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled, routeWork.isCurrent(route) else { return }
+            apply(route)
+        }
+    }
+
+    private func apply(_ route: RouteWork.Item) {
+        guard routeWork.isCurrent(route) else { return }
+        nativeTab = route.effect.tab
 
         routePresentationTask = Task { @MainActor in
             await Task.yield()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, routeWork.isCurrent(route) else { return }
 
-            if let morePage = effect.morePage {
+            if let morePage = route.effect.morePage {
                 let route = moreRoute(for: morePage)
                 if #available(iOS 26, *) {
                     morePageRoute = route
                 } else {
                     moreSheet = route
                 }
-            } else if effect.opensSearch {
-                openSearch(origin: .deepLink, routeGeneration: routeGeneration)
-            } else if effect.opensCreate {
+            } else if route.effect.opensSearch {
+                openSearch(origin: .deepLink, routeGeneration: route.generation)
+            } else if route.effect.opensCreate {
                 showAdd = true
             }
         }

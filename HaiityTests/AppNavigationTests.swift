@@ -51,6 +51,30 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(work.isCurrent(moreRoute))
     }
 
+    func testNonCreateRoutesWaitForOpenCreateCover() {
+        let destinations: [AppDestination] = [.habits, .more, .stats, .archive, .search]
+
+        for destination in destinations {
+            var work = RouteWork()
+            let route = work.begin(destination.effect, createIsPresented: true)
+
+            XCTAssertTrue(route.requiresCreateDismissal, "\(destination) must dismiss create first")
+        }
+
+        var work = RouteWork()
+        let createRoute = work.begin(AppDestination.create.effect, createIsPresented: true)
+        XCTAssertFalse(createRoute.requiresCreateDismissal)
+    }
+
+    func testLatestRouteWinsOverQueuedCreateCoverDismissal() {
+        var work = RouteWork()
+        let statsRoute = work.begin(AppDestination.stats.effect, createIsPresented: true)
+        let habitsRoute = work.begin(AppDestination.habits.effect, createIsPresented: true)
+
+        XCTAssertFalse(work.canDeliverAfterCreateDismissal(statsRoute))
+        XCTAssertTrue(work.canDeliverAfterCreateDismissal(habitsRoute))
+    }
+
     func testContentViewDeclaresHabitsAndMoreTabs() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("value: AppTab.habits"))
