@@ -134,10 +134,14 @@ struct ViewPreferences: Codable, Equatable {
            let prefs = try? JSONDecoder().decode(ViewPreferences.self, from: raw) {
             return prefs
         }
-        // Build 20 and earlier wrote just this key. Preserve it as the first
-        // local view-preference payload so it will join the iCloud mirror.
-        return ViewPreferences(updatedAt: Date().timeIntervalSince1970,
-                               statsCards: StatsCardPrefs.load(from: defaults))
+        // Build 20 and earlier wrote just this key. Give a real legacy value
+        // a timestamp so it joins the first iCloud upload, but leave a fresh
+        // install at zero so an existing remote preference wins.
+        let cards = StatsCardPrefs.load(from: defaults)
+        let migratedAt = defaults.data(forKey: StatsCardPrefs.storageKey) == nil
+            ? 0
+            : Date().timeIntervalSince1970
+        return ViewPreferences(updatedAt: migratedAt, statsCards: cards)
     }
 
     func save(to defaults: UserDefaults) {
