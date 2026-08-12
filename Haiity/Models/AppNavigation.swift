@@ -6,6 +6,23 @@ enum AppTab: Hashable {
     case create
 }
 
+struct AppTabLayerState: Equatable {
+    let opacity: Double
+    let allowsHitTesting: Bool
+    let accessibilityHidden: Bool
+    let zIndex: Double
+}
+
+extension AppTabLayerState {
+    init(tab: AppTab, selectedTab: AppTab) {
+        let selected = tab == selectedTab
+        self.init(opacity: selected ? 1 : 0,
+                  allowsHitTesting: selected,
+                  accessibilityHidden: !selected,
+                  zIndex: selected ? 1 : 0)
+    }
+}
+
 enum AppMoreDestination: Equatable {
     case stats
     case archive
@@ -18,13 +35,33 @@ struct AppRouteEffect: Equatable {
     let opensCreate: Bool
 }
 
+enum RoutePresentationPhase: Equatable {
+    case absent
+    case presented
+    case dismissing
+}
+
+struct RoutePresentation: Equatable {
+    var create: RoutePresentationPhase = .absent
+    var more: RoutePresentationPhase = .absent
+    var morePage: AppMoreDestination? = nil
+}
+
 /// Identifies the latest accepted route. Delayed UI work keeps the token it
 /// was created with and must not apply after a newer route supersedes it.
 struct RouteWork {
     struct Item: Equatable {
         let generation: Int
         let effect: AppRouteEffect
-        let requiresCreateDismissal: Bool
+    }
+
+    enum Step: Equatable {
+        case dismissCreate
+        case waitForCreateDismissal
+        case dismissMore
+        case waitForMoreDismissal
+        case keepCurrentMorePage
+        case apply
     }
 
     private var generation = 0
@@ -34,11 +71,9 @@ struct RouteWork {
         return generation
     }
 
-    mutating func begin(_ effect: AppRouteEffect, createIsPresented: Bool) -> Item {
+    mutating func begin(_ effect: AppRouteEffect) -> Item {
         let generation = begin()
-        return Item(generation: generation,
-                    effect: effect,
-                    requiresCreateDismissal: createIsPresented && !effect.opensCreate)
+        return Item(generation: generation, effect: effect)
     }
 
     func isCurrent(_ generation: Int) -> Bool {
@@ -49,8 +84,29 @@ struct RouteWork {
         isCurrent(item.generation)
     }
 
-    func canDeliverAfterCreateDismissal(_ item: Item) -> Bool {
-        item.requiresCreateDismissal && isCurrent(item)
+    func nextStep(for item: Item, presentation: RoutePresentation) -> Step? {
+        guard isCurrent(item) else { return nil }
+
+        if !item.effect.opensCreate {
+            switch presentation.create {
+            case .presented: return .dismissCreate
+            case .dismissing: return .waitForCreateDismissal
+            case .absent: break
+            }
+        }
+
+        switch presentation.more {
+        case .presented:
+            if item.effect.morePage == presentation.morePage,
+               item.effect.morePage != nil {
+                return .keepCurrentMorePage
+            }
+            return .dismissMore
+        case .dismissing:
+            return .waitForMoreDismissal
+        case .absent:
+            return .apply
+        }
     }
 }
 

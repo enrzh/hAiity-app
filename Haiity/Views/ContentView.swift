@@ -12,6 +12,11 @@ let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
 @inline(__always) func trace(_ msg: String) {}
 #endif
 
+private enum CreateAccessibility {
+    static let label = String(localized: "Neuer Habit")
+    static let identifier = "create-habit"
+}
+
 /// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
 /// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
 /// ihrem Tab.
@@ -53,15 +58,21 @@ struct ContentView: View {
     @State private var moreSheet: MoreRoute?
     /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
     @State private var morePageRoute: MoreRoute?
+    /// Bleibt bis zum gemeinsamen sheet-onDismiss wahr. Damit startet eine
+    /// Ersatzroute weder im Abgang des Fallback- noch des nativen Blatts.
+    @State private var moreSheetIsPresented = false
+    /// Das Unterziel bleibt während des Abgangs bekannt. So kann dieselbe
+    /// Route vom bereits sichtbaren Ziel unterschieden werden, ohne neu zu
+    /// präsentieren.
+    @State private var presentedMoreDestination: AppMoreDestination?
     /// Wartet die Tab-Auswahl ab, bevor ein Deep-Link eine Präsentation
     /// auslöst. Ein neuer Link ersetzt eine noch ausstehende Präsentation.
     @State private var routePresentationTask: Task<Void, Never>?
     /// Sperrt bereits eingereihte Sucharbeit eines älteren Deep-Links.
     @State private var routeWork = RouteWork()
-    /// Nicht-Anlegen-Routen warten hier auf das Ende des Anlegen-Covers.
-    /// Der Token verhindert, dass ein älterer `onDismiss` eine neuere Route
-    /// noch ausliefert.
-    @State private var pendingCreateDismissalRoute: RouteWork.Item?
+    /// Genau die letzte noch nicht angewandte Route. Beide Präsentations-
+    /// callbacks prüfen ihren Generationstoken, bevor sie sie weiterreichen.
+    @State private var pendingRoute: RouteWork.Item?
     /// Die synchronisierte Auswahl der Statistik-Karten und der festen
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
@@ -172,17 +183,19 @@ struct ContentView: View {
             }
             // Direkte Unterziele bleiben Blätter über dem aktuell sichtbaren
             // Bereich. Mehr-Zeilen präsentieren über `morePageRoute`.
-            .sheet(item: $moreSheet) { route in
+            .sheet(item: $moreSheet,
+                   onDismiss: deliverPendingMoreDismissalRoute) { route in
                 NavigationStack {
                     moreDestination(route)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button(String(localized: "Fertig")) { moreSheet = nil }
+                                Button(String(localized: "Fertig")) { dismissMoreSheet() }
                                     .accessibilityIdentifier("close-more-sheet")
                             }
                         }
                 }
                 .themed(store)
+                .onAppear { moreSheetDidPresent(route) }
             }
             .fullScreenCover(isPresented: $showReminderSetup) {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
@@ -295,17 +308,29 @@ struct ContentView: View {
         } else {
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
-                if nativeTab == .more {
-                    fallbackMoreContent
-                } else {
-                    habitsStack
-                }
+                fallbackTabLayer(.habits) { habitsStack }
+                fallbackTabLayer(.more) { fallbackMoreContent }
             }
             // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
             // offenen Karte antippbar.
             .overlay { backfillLayer }
         }
+    }
+
+    /// Feste ZStack-Positionen halten beide NavigationStacks samt Scroll- und
+    /// lokalem View-Zustand am Leben. Opazitaet 0 spart das Zeichnen des
+    /// inaktiven Baums; Treffer und Accessibility folgen derselben Auswahl.
+    private func fallbackTabLayer<Content: View>(
+        _ tab: AppTab,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let state = AppTabLayerState(tab: tab, selectedTab: nativeTab)
+        return content()
+            .opacity(state.opacity)
+            .allowsHitTesting(state.allowsHitTesting)
+            .accessibilityHidden(state.accessibilityHidden)
+            .zIndex(state.zIndex)
     }
 
     /// Ab iOS 26 die native Leiste — aber auf iOS 26 und iOS 27 aus
@@ -379,7 +404,10 @@ struct ContentView: View {
                 value: AppTab.more) {
                 moreTabContent
             }
-            Tab(String(localized: "Neuer Habit"), systemImage: "plus",
+            // Das systemeigene Tab-Element uebernimmt den lokalisierten Namen.
+            // SwiftUI bietet am Tab selbst keinen Modifier-Pfad fuer einen
+            // expliziten Identifier; iOS 26 exponiert daher nur diesen Namen.
+            Tab(CreateAccessibility.label, systemImage: "plus",
                 value: AppTab.create, role: .search) {
                 // Nie sichtbar: die Auswahl wird im selben Umlauf
                 // zurückgenommen (siehe onChange). Trotzdem kein leeres
@@ -458,20 +486,22 @@ struct ContentView: View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
-                     onOpen: { morePageRoute = $0 })
+                     onOpen: presentMoreSheet)
                 .navigationTitle(String(localized: "Mehr"))
         }
-        .sheet(item: $morePageRoute) { route in
+        .sheet(item: $morePageRoute,
+               onDismiss: deliverPendingMoreDismissalRoute) { route in
             NavigationStack {
                 moreDestination(route)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button(String(localized: "Fertig")) { morePageRoute = nil }
+                            Button(String(localized: "Fertig")) { dismissMoreSheet() }
                                 .accessibilityIdentifier("close-more-sheet")
                         }
                     }
             }
             .themed(store)
+            .onAppear { moreSheetDidPresent(route) }
         }
     }
 
@@ -479,7 +509,7 @@ struct ContentView: View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
-                     onOpen: { moreSheet = $0 })
+                     onOpen: presentMoreSheet)
                 .navigationTitle(String(localized: "Mehr"))
         }
     }
@@ -1337,8 +1367,8 @@ struct ContentView: View {
         // die Zoom-Quelle sitzt direkt auf ihm (iOS 18–25; unter 18 blendet
         // das Cover schlicht).
         .modifier(MoreZoomSource(id: Self.createZoomID, namespace: createZoomNamespace))
-        .accessibilityLabel(String(localized: "Neuer Habit"))
-        .accessibilityIdentifier("create-habit")
+        .accessibilityLabel(CreateAccessibility.label)
+        .accessibilityIdentifier(CreateAccessibility.identifier)
     }
 
     // Bewusst KEIN `.tabViewBottomAccessory`: die Zubehörleiste ist Apples
@@ -1415,8 +1445,8 @@ struct ContentView: View {
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
         routePresentationTask?.cancel()
-        let route = routeWork.begin(effect,
-                                    createIsPresented: showAdd || createCoverIsPresented)
+        let route = routeWork.begin(effect)
+        pendingRoute = route
         if !effect.opensSearch {
             // The first queued search callback may have run just before this
             // route arrived. A non-search route still wins in that ordering.
@@ -1429,16 +1459,7 @@ struct ContentView: View {
             searchFieldFocused = false
             search = ""
         }
-        moreSheet = nil
-        morePageRoute = nil
-        if route.requiresCreateDismissal {
-            pendingCreateDismissalRoute = route
-            showAdd = false
-            return
-        }
-
-        pendingCreateDismissalRoute = nil
-        apply(route)
+        advance(route)
     }
 
     private func deliverPendingCreateDismissalRoute() {
@@ -1450,18 +1471,69 @@ struct ContentView: View {
             return
         }
         createCoverIsPresented = false
-        guard let route = pendingCreateDismissalRoute,
-              routeWork.canDeliverAfterCreateDismissal(route) else {
-            pendingCreateDismissalRoute = nil
+        advancePendingRoute()
+    }
+
+    private func presentMoreSheet(_ route: MoreRoute) {
+        presentedMoreDestination = appMoreDestination(for: route)
+        if #available(iOS 26, *) {
+            morePageRoute = route
+        } else {
+            moreSheet = route
+        }
+    }
+
+    private func moreSheetDidPresent(_ route: MoreRoute) {
+        guard moreSheet == route || morePageRoute == route else { return }
+        moreSheetIsPresented = true
+        presentedMoreDestination = appMoreDestination(for: route)
+    }
+
+    private func dismissMoreSheet() {
+        moreSheet = nil
+        morePageRoute = nil
+    }
+
+    private func deliverPendingMoreDismissalRoute() {
+        // A stale callback must not clear a newer sheet that is already bound.
+        guard moreSheet == nil, morePageRoute == nil else { return }
+        moreSheetIsPresented = false
+        presentedMoreDestination = nil
+        advancePendingRoute()
+    }
+
+    private func advancePendingRoute() {
+        guard let route = pendingRoute, routeWork.isCurrent(route) else {
+            pendingRoute = nil
             return
         }
+        advance(route)
+    }
 
-        pendingCreateDismissalRoute = nil
-        routePresentationTask?.cancel()
-        routePresentationTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled, routeWork.isCurrent(route) else { return }
+    private func advance(_ route: RouteWork.Item) {
+        let presentation = RoutePresentation(
+            create: showAdd ? .presented : createCoverIsPresented ? .dismissing : .absent,
+            more: moreSheet != nil || morePageRoute != nil
+                ? .presented : moreSheetIsPresented ? .dismissing : .absent,
+            morePage: presentedMoreDestination)
+
+        switch routeWork.nextStep(for: route, presentation: presentation) {
+        case .dismissCreate:
+            showAdd = false
+        case .dismissMore:
+            let waitsForOnDismiss = moreSheetIsPresented
+            dismissMoreSheet()
+            if !waitsForOnDismiss { advance(route) }
+        case .waitForCreateDismissal, .waitForMoreDismissal:
+            break
+        case .keepCurrentMorePage:
+            pendingRoute = nil
+            nativeTab = .more
+        case .apply:
+            pendingRoute = nil
             apply(route)
+        case nil:
+            if pendingRoute == route { pendingRoute = nil }
         }
     }
 
@@ -1474,17 +1546,20 @@ struct ContentView: View {
             guard !Task.isCancelled, routeWork.isCurrent(route) else { return }
 
             if let morePage = route.effect.morePage {
-                let route = moreRoute(for: morePage)
-                if #available(iOS 26, *) {
-                    morePageRoute = route
-                } else {
-                    moreSheet = route
-                }
+                presentMoreSheet(moreRoute(for: morePage))
             } else if route.effect.opensSearch {
                 openSearch(origin: .deepLink, routeGeneration: route.generation)
             } else if route.effect.opensCreate {
                 showAdd = true
             }
+        }
+    }
+
+    private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
+        switch route {
+        case .stats: .stats
+        case .archive: .archive
+        case .about: nil
         }
     }
 
@@ -2719,8 +2794,8 @@ private struct CreateCircle: View {
         .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
         .glassEffect(.regular.interactive(), in: .circle)
         .modifier(MoreZoomSource(id: zoomID, namespace: zoomNamespace))
-        .accessibilityLabel(String(localized: "Habit hinzufügen"))
-        .accessibilityIdentifier("add-habit")
+        .accessibilityLabel(CreateAccessibility.label)
+        .accessibilityIdentifier(CreateAccessibility.identifier)
     }
 }
 
