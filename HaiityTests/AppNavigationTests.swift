@@ -5,6 +5,7 @@ final class AppNavigationTests: XCTestCase {
     func testPrimaryDeepLinksSelectTheirTabs() {
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://habits")!), .habits)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://more")!), .more)
+        XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://sync")!), .more)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://stats")!), .stats)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://archive")!), .archive)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://search")!), .search)
@@ -22,6 +23,21 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.more.selectedTab, .more)
         XCTAssertEqual(AppDestination.search.selectedTab, .habits)
         XCTAssertEqual(AppDestination.create.selectedTab, .create)
+    }
+
+    func testStatsAndArchiveRouteViaMoreTab() {
+        XCTAssertEqual(AppDestination.stats.effect,
+                       AppRouteEffect(tab: .more, morePage: .stats,
+                                      opensSearch: false, opensCreate: false))
+        XCTAssertEqual(AppDestination.archive.effect,
+                       AppRouteEffect(tab: .more, morePage: .archive,
+                                      opensSearch: false, opensCreate: false))
+    }
+
+    func testSearchAndCreateHaveExplicitEffects() {
+        XCTAssertEqual(AppDestination.search.effect.tab, .habits)
+        XCTAssertTrue(AppDestination.search.effect.opensSearch)
+        XCTAssertTrue(AppDestination.create.effect.opensCreate)
     }
 
     func testContentViewDeclaresHabitsAndMoreTabs() throws {

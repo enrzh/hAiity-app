@@ -11,6 +11,13 @@ enum AppMoreDestination: Equatable {
     case archive
 }
 
+struct AppRouteEffect: Equatable {
+    let tab: AppTab
+    let morePage: AppMoreDestination?
+    let opensSearch: Bool
+    let opensCreate: Bool
+}
+
 enum AppDestination: Equatable {
     case habits
     case more
@@ -24,7 +31,7 @@ enum AppDestination: Equatable {
 
         switch url.host?.lowercased() {
         case "habits": return .habits
-        case "more": return .more
+        case "more", "sync": return .more
         case "stats": return .stats
         case "archive": return .archive
         case "search": return .search
@@ -41,6 +48,23 @@ enum AppDestination: Equatable {
             return .more
         case .create:
             return .create
+        }
+    }
+
+    var effect: AppRouteEffect {
+        switch self {
+        case .habits:
+            .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: false)
+        case .more:
+            .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false)
+        case .stats:
+            .init(tab: .more, morePage: .stats, opensSearch: false, opensCreate: false)
+        case .archive:
+            .init(tab: .more, morePage: .archive, opensSearch: false, opensCreate: false)
+        case .search:
+            .init(tab: .habits, morePage: nil, opensSearch: true, opensCreate: false)
+        case .create:
+            .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: true)
         }
     }
 }

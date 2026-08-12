@@ -49,6 +49,9 @@ struct ContentView: View {
     @State private var moreSheet: MoreRoute?
     /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
     @State private var morePageRoute: MoreRoute?
+    /// Wartet die Tab-Auswahl ab, bevor ein Deep-Link eine Präsentation
+    /// auslöst. Ein neuer Link ersetzt eine noch ausstehende Präsentation.
+    @State private var routePresentationTask: Task<Void, Never>?
     /// Die synchronisierte Auswahl der Statistik-Karten und der festen
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
@@ -1384,31 +1387,40 @@ struct ContentView: View {
     // MARK: – Deep-Links (haiity://habits|more|stats|archive|search|new)
 
     private func handleDeepLink(_ url: URL) {
-        if url.scheme?.lowercased() == "haiity", url.host?.lowercased() == "sync" {
-            if #available(iOS 26, *) { nativeTab = .more }
-            return
-        }
         guard let destination = AppDestination.resolve(url: url) else { return }
-        switch destination {
-        case .habits:
-            nativeTab = .habits
-            moreSheet = nil
-        case .more:
-            nativeTab = .more
-        case .stats, .archive:
-            let route: MoreRoute = destination == .stats ? .stats : .archive
-            if #available(iOS 26, *) {
-                nativeTab = .more
-                morePageRoute = route
-            } else {
-                moreSheet = route
+        handle(destination)
+    }
+
+    private func handle(_ destination: AppDestination) {
+        let effect = destination.effect
+        routePresentationTask?.cancel()
+        moreSheet = nil
+        morePageRoute = nil
+        nativeTab = effect.tab
+
+        routePresentationTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            if let morePage = effect.morePage {
+                let route = moreRoute(for: morePage)
+                if #available(iOS 26, *) {
+                    morePageRoute = route
+                } else {
+                    moreSheet = route
+                }
+            } else if effect.opensSearch {
+                openSearch(origin: .deepLink)
+            } else if effect.opensCreate {
+                showAdd = true
             }
-        case .search:
-            nativeTab = .habits
-            moreSheet = nil
-            openSearch(origin: .deepLink)
-        case .create:
-            showAdd = true
+        }
+    }
+
+    private func moreRoute(for destination: AppMoreDestination) -> MoreRoute {
+        switch destination {
+        case .stats: .stats
+        case .archive: .archive
         }
     }
 
