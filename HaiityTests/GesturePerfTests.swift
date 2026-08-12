@@ -10,10 +10,10 @@ final class HabitCardInteractionSourceTests: XCTestCase {
     }
 
     func testLongPressMenuKeepsEditAction() throws {
-        let source = try habitCardSource()
-        XCTAssertTrue(source.contains("Button(action: onEdit)"))
-        XCTAssertTrue(source.contains("String(localized: \"Bearbeiten\")"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit\")"))
+        let habitActions = try habitActionsSource()
+        XCTAssertTrue(habitActions.contains("Button(action: onEdit)"))
+        XCTAssertTrue(habitActions.contains("Label(String(localized: \"Bearbeiten\"), systemImage: \"pencil\")"))
+        XCTAssertTrue(habitActions.contains(".accessibilityIdentifier(\"edit-habit\")"))
     }
 
     private func habitCardSource() throws -> String {
@@ -22,6 +22,18 @@ final class HabitCardInteractionSourceTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/HabitCard.swift")
         return try String(contentsOf: url)
+    }
+
+    private func habitActionsSource() throws -> String {
+        let source = try habitCardSource()
+        let startMarker = "private var habitActions: some View {"
+        let endMarker = "    // MARK: – Kopf auf nacktem Grund"
+        guard let start = source.range(of: startMarker),
+              let end = source.range(of: endMarker, range: start.upperBound..<source.endIndex) else {
+            XCTFail("Could not locate habitActions block in HabitCard.swift")
+            return ""
+        }
+        return String(source[start.lowerBound..<end.lowerBound])
     }
 }
 
