@@ -1,14 +1,14 @@
 import SwiftUI
 
 /// Habit-Karte, seit v3 umgedreht: in der Fläche steckt NUR noch das Raster
-/// (samt Monatsmarken). Name, Emoji, Nebendaten, der Heute-Knopf und das Menü
+/// (samt Monatsmarken). Name, Emoji, Nebendaten und der Heute-Knopf
 /// stehen darüber nackt auf dem App-Hintergrund — das Raster ist der Held,
 /// der Rest ist Beschriftung und braucht kein eigenes Kärtchen.
 ///
 /// Die Kopfzeile ist EINE Zeile:
 ///
-///     📚  Lesen   🕐 19:00  🔥 12            ✓ Erledigt   ⋯
-///     └ Name zuerst ┘└ Nebendaten sekundär ┘  └ Aktion ┘  └ Menü ┘
+///     📚  Lesen   🕐 19:00  🔥 12            ✓ Erledigt
+///     └ Name zuerst ┘└ Nebendaten sekundär ┘  └ Aktion ┘
 ///
 /// Uhrzeit und Serie sind Nebendaten und stehen deshalb als kleine
 /// Symbol-Zahl-Paare direkt hinter dem Namen — auf der Grundlinie des Namens,
@@ -99,7 +99,7 @@ struct HabitCard: View, Equatable {
         return VStack(alignment: .leading, spacing: innerGap) {
             header
                 // Der Schlucker liegt HINTER dem Kopf, nicht darüber: die
-                // Knöpfe darin (Heute-Pille, drei Punkte) sind gezeichnete
+                // Knöpfe darin (Heute-Pille) sind gezeichnete
                 // Geschwister WEITER VORN und bekommen ihre Tipps zuerst.
                 // Ein Overlay — oder eine Geste auf dem Kopf selbst — nimmt
                 // sie ihnen weg (nachgemessen: die Pille reagierte dann
@@ -350,7 +350,6 @@ struct HabitCard: View, Equatable {
                 HStack(spacing: Theme.Metrics.gap) {
                     Spacer(minLength: 0)
                     todayButton
-                    editButton
                 }
             }
             .padding(.horizontal, Theme.Metrics.cardPadding)
@@ -358,10 +357,9 @@ struct HabitCard: View, Equatable {
             HStack(spacing: Theme.Metrics.gap) {
                 nameRun
                 Spacer(minLength: Theme.Metrics.gap)
-                // Zusammengezogen bleiben NUR Name (mit verschmolzenem
-                // Heute-Zustand) und die drei Punkte.
+                // Zusammengezogen bleibt der Name mit verschmolzenem
+                // Heute-Zustand.
                 if !collapsed { todayButton }
-                editButton
             }
             .frame(height: headerHeight)
             // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
@@ -641,23 +639,6 @@ struct HabitCard: View, Equatable {
             .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
             .frame(height: headerHeight)
             .contentShape(Rectangle())
-    }
-
-    /// Das Glyph steht an der TRAILING-Kante seiner 44er-Trefferfläche —
-    /// damit fluchtet es mit der rechten Innenkante des Rasters, während der
-    /// Finger die vollen 44 pt bekommt.
-    private var editButton: some View {
-        Button(action: onEdit) {
-            Image(systemName: "ellipsis")
-                .font(collapsed ? .caption : .footnote)
-                .foregroundStyle(.secondary)
-                .frame(width: Theme.Metrics.hit, height: headerHeight,
-                       alignment: .trailing)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "\(habit.name) bearbeiten"))
-        .accessibilityIdentifier("edit-habit")
     }
 
     /// Die Uhrzeit des Habits — dieselbe Formatierung wie im Regel-Satz,

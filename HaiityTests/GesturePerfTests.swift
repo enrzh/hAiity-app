@@ -1,6 +1,30 @@
 import XCTest
 @testable import Haiity
 
+final class HabitCardInteractionSourceTests: XCTestCase {
+
+    func testCardHeaderHasNoEllipsisEditButton() throws {
+        let source = try habitCardSource()
+        XCTAssertFalse(source.contains("private var editButton"))
+        XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
+    }
+
+    func testLongPressMenuKeepsEditAction() throws {
+        let source = try habitCardSource()
+        XCTAssertTrue(source.contains("Button(action: onEdit)"))
+        XCTAssertTrue(source.contains("String(localized: \"Bearbeiten\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit\")"))
+    }
+
+    private func habitCardSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/HabitCard.swift")
+        return try String(contentsOf: url)
+    }
+}
+
 /// Punkt 2: der Tafel-Inhalt wird EINMAL in voller Höhe gelayoutet und beim
 /// Ziehen nur freigelegt — `contentBottomInset` ist die Zahl, die dabei die
 /// Erreichbarkeit der letzten Zeile sichert.
