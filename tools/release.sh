@@ -86,8 +86,9 @@ say "Unit tests"
 # ehrlich seine 9 Tests (BackfillBrushTests: Pinsel, paintText, Mode). Keine
 # überlebende Zusicherung wurde abgeschwächt. Boden: 748 − 9 = 739.
 # v23: die Reminder-Einrichtung bringt zwei Zustandsregeln hinzu.
-# Boden: 757.
-MIN_TESTS=757
+# Navigation/Karten-Umbau: 12 neue Navigations-, Layout- und Interaktionstests.
+# Boden: 769.
+MIN_TESTS=769
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

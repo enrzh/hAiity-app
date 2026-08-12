@@ -126,7 +126,7 @@ struct HabitCard: View, Equatable {
     /// langen Druck reagiert.
     ///
     /// Das Menü hing einmal an der ganzen Zeile. Das war zu viel: der Kopf
-    /// ist eine Werkzeugleiste (Name, Heute-Knopf, drei Punkte), und ein
+    /// ist eine Werkzeugleiste (Name und Heute-Knopf), und ein
     /// langer Druck darauf schob die Vorschau über genau die Knöpfe, die man
     /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
     /// — dieselbe Fläche, die die Vorschau auch zeigt.
@@ -584,7 +584,7 @@ struct HabitCard: View, Equatable {
 
     /// Zwei Knöpfe statt einer Pille. Eine Frage hat zwei Antworten, und
     /// beide müssen mit EINEM Finger erreichbar sein — sonst wäre „Nein" die
-    /// Antwort, die man sich verdienen muss (Menü öffnen, Punkt suchen),
+    /// Antwort, die man sich verdienen muss (Kontextmenü öffnen),
     /// und die Zahlen darunter wären systematisch zu freundlich.
     ///
     /// Symbole statt Text: „Ja"/„Nein" nebeneinander brauchen mehr Breite
