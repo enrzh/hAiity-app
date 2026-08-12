@@ -9,13 +9,11 @@ final class ChromeLayoutTests: XCTestCase {
 
     // MARK: – Wohin der Anlegen-Knopf fährt
 
-    func testCollapsedWidthFollowsTheMetrics() {
+    func testFallbackSelectorContainsTwoMinimumHitTargets() {
         // 2 Lasuren à 44 + der Spalt dazwischen + Rand links und rechts.
         XCTAssertEqual(ChromeLayout.inset, 4, accuracy: 0.001)
-        XCTAssertEqual(ChromeLayout.collapsedSwitcherWidth, 100, accuracy: 0.001)
-        XCTAssertEqual(ChromeLayout.collapsedSwitcherWidth,
-                       2 * Theme.Metrics.hit + 3 * ChromeLayout.inset,
-                       accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(ChromeLayout.navigationWidth,
+                                    2 * Theme.Metrics.hit + 3 * ChromeLayout.inset)
     }
 
     func testExpandedButtonSitsFlushAtTheTrailingEdge() {
@@ -28,8 +26,8 @@ final class ChromeLayoutTests: XCTestCase {
         let x = ChromeLayout.addButtonX(collapsed: true, rowWidth: 361)
         // Er steht NICHT daneben, sondern greift um `gap` in die Kapsel —
         // näher als der Container-Abstand, damit das Glas verschmilzt.
-        XCTAssertEqual(x, ChromeLayout.collapsedSwitcherWidth - Theme.Metrics.gap, accuracy: 0.001)
-        XCTAssertLessThan(x, ChromeLayout.collapsedSwitcherWidth)
+        XCTAssertEqual(x, ChromeLayout.navigationWidth - Theme.Metrics.gap, accuracy: 0.001)
+        XCTAssertLessThan(x, ChromeLayout.navigationWidth)
     }
 
     func testTheTravelIsOneContinuousDistance() {

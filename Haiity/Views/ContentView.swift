@@ -26,9 +26,9 @@ let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
 /// rechts — am Such-Tab hängt bewusst KEIN
 /// `.searchable`, es erscheint dort also nie ein Suchfeld.
 ///
-/// Unter iOS 26 (17–25) bleibt die bisherige selbstgebaute Leiste als
-/// Fallback: linksbündige Glas-Kapsel (nur noch „Habits") plus der + rechts
-/// in der Ecke, mit dem gerechneten Zusammenziehen beim Scrollen.
+/// Unter iOS 26 (17–25) bleibt die selbstgebaute Leiste als Fallback:
+/// linksbündige Glas-Kapsel für Habits und Mehr plus der + rechts in der
+/// Ecke, mit dem gerechneten Zusammenziehen beim Scrollen.
 struct ContentView: View {
     @State private var store = HabitStore()
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
@@ -40,8 +40,9 @@ struct ContentView: View {
     @State private var editing: Habit?
     @State private var showAdd = false
     @State private var syncStatus = ""
-    /// Auswahl der nativen Tableiste. `.create` wird im selben Umlauf auf den
-    /// zuvor gewählten echten Tab zurückgesetzt und öffnet die Anlegen-Seite.
+    /// Auswahl der Bereiche. In der nativen Tableiste wird `.create` im
+    /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
+    /// öffnet die Anlegen-Seite.
     @State private var nativeTab: AppTab = .habits
     @State private var showReminderSetup = false
     /// Mehr-Unterziele aus Deep-Links auf dem Fallback vor iOS 26.
@@ -279,7 +280,11 @@ struct ContentView: View {
         } else {
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
-                habitsStack
+                if nativeTab == .more {
+                    fallbackMoreContent
+                } else {
+                    habitsStack
+                }
             }
             // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
@@ -452,6 +457,15 @@ struct ContentView: View {
                     }
             }
             .themed(store)
+        }
+    }
+
+    private var fallbackMoreContent: some View {
+        NavigationStack {
+            MoreView(store: store, cloudStatus: cloudStatus,
+                     statsCards: viewPreferences,
+                     onOpen: { moreSheet = $0 })
+                .navigationTitle(String(localized: "Mehr"))
         }
     }
 
@@ -1111,7 +1125,7 @@ struct ContentView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    // MARK: – Fallback-Chrom unten (iOS < 26): Habits-Pille links, + rechts
+    // MARK: – Fallback-Chrom unten (iOS < 26): Navigation links, + rechts
 
     @ViewBuilder
     private var legacyBottomChrome: some View {
@@ -1182,9 +1196,7 @@ struct ContentView: View {
         .frame(height: Theme.Metrics.control)
     }
 
-    /// Linksbündige Glas-Kapsel — nur noch EIN Ziel: „Habits". Der Bereich
-    /// „Mehr" wohnt oben rechts im Menü; die Kapsel ist die Standort-Anzeige
-    /// der Leiste (und behält ihre Kennungen für die Verifikation).
+    /// Linksbündige Glas-Kapsel für die zwei Inhalte des Fallbacks.
     ///
     /// **Konzentrik.** Die Auswahl-Lasur liegt IN der Kapsel, also ist ihr
     /// Radius exakt der äußere MINUS dem Rand:
@@ -1193,7 +1205,10 @@ struct ContentView: View {
     ///     Rand           p = (control − hit)/2 = 4   (rundum gleich)
     ///     innere Kapsel  h = control − 2p = hit = 44  ->  r = h/2 = 22
     private var switcher: some View {
-        habitsPill
+        HStack(spacing: Self.chromeInset) {
+            habitsPill
+            morePill
+        }
             // RUNDUM derselbe Rand — links wie rechts wie oben wie unten.
             .padding(Self.chromeInset)
             .modifier(ChromeGlass(id: "chrome-nav", namespace: glassNamespace, kind: .capsule,
@@ -1220,30 +1235,46 @@ struct ContentView: View {
             .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
     }
 
-    /// Das eine Ziel der Fallback-Leiste. Kein Knopf mehr — es gibt nichts
-    /// mehr umzuschalten; die Lasur zeigt schlicht, wo man ist. Kennung
-    /// bleibt `tab-habits`, damit die Verifikation ihren Anker behält.
     private var habitsPill: some View {
-        HStack(spacing: 4) {
-            glyph("square.grid.2x2")
-            if !collapsed {
-                Text(String(localized: "Habits"))
-                    .font(.footnote.weight(.semibold))
-                    .fixedSize()
+        navigationPill(tab: .habits, title: "Habits", symbol: "square.grid.2x2",
+                       identifier: "tab-habits")
+    }
+
+    private var morePill: some View {
+        navigationPill(tab: .more, title: "Mehr", symbol: "ellipsis",
+                       identifier: "tab-more")
+    }
+
+    private func navigationPill(tab: AppTab, title: LocalizedStringKey,
+                                symbol: String, identifier: String) -> some View {
+        let selected = nativeTab == tab
+        return Button {
+            nativeTab = tab
+        } label: {
+            HStack(spacing: 4) {
+                glyph(symbol)
+                if !collapsed {
+                    Text(title)
+                        .font(.footnote.weight(.semibold))
+                        .fixedSize()
+                }
             }
+            .padding(.horizontal, collapsed ? 0 : Theme.Metrics.gap)
+            // Die Lasur IST die Fläche: `hit` hoch UND mindestens `hit` breit.
+            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+            .background {
+                if selected {
+                    Capsule().fill(Theme.accent(store.paletteStyle).opacity(0.18))
+                }
+            }
+            .foregroundStyle(selected
+                             ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
+                             : AnyShapeStyle(.secondary))
         }
-        .padding(.horizontal, collapsed ? 0 : Theme.Metrics.gap)
-        // Die Lasur IST die Fläche: `hit` hoch UND mindestens `hit` breit —
-        // eine Kapsel mit Radius hit/2 = 22, also exakt (26 − 4),
-        // konzentrisch zur Glaskapsel (siehe `switcher`).
-        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-        .background {
-            Capsule().fill(Theme.accent(store.paletteStyle).opacity(0.18))
-        }
-        .foregroundStyle(Theme.accentText(store.paletteStyle))
-        .accessibilityLabel(String(localized: "Habits"))
-        .accessibilityAddTraits([.isSelected])
-        .accessibilityIdentifier("tab-habits")
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityIdentifier(identifier)
     }
 
     /// Der Anlegen-Knopf. EIN Knopf, EINE Größe (`Metrics.control`, dasselbe
@@ -1282,8 +1313,8 @@ struct ContentView: View {
         // die Zoom-Quelle sitzt direkt auf ihm (iOS 18–25; unter 18 blendet
         // das Cover schlicht).
         .modifier(MoreZoomSource(id: Self.createZoomID, namespace: createZoomNamespace))
-        .accessibilityLabel(String(localized: "Habit hinzufügen"))
-        .accessibilityIdentifier("add-habit")
+        .accessibilityLabel(String(localized: "Neuer Habit"))
+        .accessibilityIdentifier("create-habit")
     }
 
     // Bewusst KEIN `.tabViewBottomAccessory`: die Zubehörleiste ist Apples

@@ -34,7 +34,7 @@ enum ChromeLayout {
     /// der Knopf würde dem Blob dann eine Bildwiederholung hinterherhinken
     /// und ruckeln. Dynamic Type ändert an der Zahl nichts — im
     /// zusammengezogenen Zustand steht dort kein Text.
-    static let collapsedSwitcherWidth: CGFloat = 2 * Theme.Metrics.hit + 3 * inset
+    static let navigationWidth: CGFloat = 2 * Theme.Metrics.hit + 3 * inset
 
     /// Linke Kante des Anlegen-Knopfes, gemessen von der linken Kante der
     /// Chrom-Zeile.
@@ -44,7 +44,7 @@ enum ChromeLayout {
     /// `GlassEffectContainer`, und erst dann rechnet iOS beide Formen als
     /// EINE Fläche, statt zwei Scheiben nebeneinander zu stellen.
     static func addButtonX(collapsed: Bool, rowWidth: CGFloat) -> CGFloat {
-        let merged = collapsedSwitcherWidth - Theme.Metrics.gap
+        let merged = navigationWidth - Theme.Metrics.gap
         guard !collapsed else { return merged }
         // Auf absurd schmalen Zeilen (Vorschauen, iPad-Slide-Over) darf der
         // Knopf nicht LINKS von seiner Blob-Position landen — sonst führe er
