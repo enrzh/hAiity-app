@@ -23,4 +23,18 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.search.selectedTab, .habits)
         XCTAssertEqual(AppDestination.create.selectedTab, .create)
     }
+
+    func testContentViewDeclaresHabitsAndMoreTabs() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("value: AppTab.habits"))
+        XCTAssertTrue(source.contains("value: AppTab.more"))
+        XCTAssertFalse(source.contains("enum NativeTab"))
+    }
+
+    private func sourceURL(_ path: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path)
+    }
 }

@@ -12,17 +12,11 @@ let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
 @inline(__always) func trace(_ msg: String) {}
 #endif
 
-/// Haupt-Einstieg. EIN Bereich (die Habit-Liste in ihrem NavigationStack).
+/// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
+/// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
+/// ihrem Tab.
 ///
-/// „Mehr" wohnt NICHT mehr in der Leiste unten: es ist ein Punkt im
-/// Drei-Punkte-Menü oben rechts und öffnet eine EIGENE SEITE
-/// (`fullScreenCover`), die ab iOS 18 mit der Zoom-Transition aus genau
-/// dieser Blase wächst und beim Schließen wieder in sie schrumpft — das X
-/// oben LINKS schließt. Bildschirmartige Unterziele (Statistik, Archiv,
-/// Über) bleiben Blätter, jetzt ÜBER der Mehr-Seite präsentiert.
-///
-/// Die Leiste unten ist ab iOS 26 die NATIVE TabView — mit genau einem
-/// Inhalts-Tab (Habits) und einem zweiten Tab in der SUCH-ROLLE, dessen
+/// Ein dritter Tab in der SUCH-ROLLE, dessen
 /// abgesetzten runden Platz rechts der Anlegen-Knopf übernimmt: seine
 /// Auswahl wird abgefangen (sofort zurück auf Habits) und öffnet die
 /// Anlegen-SEITE — ein fullScreenCover, das ab iOS 18 aus genau diesem
@@ -36,10 +30,6 @@ let searchTrace = Logger(subsystem: "de.aiity.haiity", category: "searchtrace")
 /// Fallback: linksbündige Glas-Kapsel (nur noch „Habits") plus der + rechts
 /// in der Ecke, mit dem gerechneten Zusammenziehen beim Scrollen.
 struct ContentView: View {
-    /// Auswahl der nativen Tableiste (iOS 26). `create` ist nie länger als
-    /// einen Tick gewählt — die Auswahl wird abgefangen und öffnet das Blatt.
-    enum NativeTab: Hashable { case habits, create }
-
     @State private var store = HabitStore()
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
@@ -50,20 +40,13 @@ struct ContentView: View {
     @State private var editing: Habit?
     @State private var showAdd = false
     @State private var syncStatus = ""
-    /// Auswahl der nativen Tableiste (iOS 26). Bleibt praktisch immer auf
-    /// `.habits` — `.create` wird im selben Umlauf abgefangen.
-    @State private var nativeTab: NativeTab = .habits
-    /// Die Mehr-SEITE (fullScreenCover), geöffnet aus dem Menü oben rechts.
-    @State private var showMore = false
+    /// Auswahl der nativen Tableiste. `.create` wird im selben Umlauf auf den
+    /// zuvor gewählten echten Tab zurückgesetzt und öffnet die Anlegen-Seite.
+    @State private var nativeTab: AppTab = .habits
     @State private var showReminderSetup = false
-    /// Bildschirmartige Unterziele des Mehr-Bereichs, als Blatt — präsentiert
-    /// vom BILDSCHIRM (Menü-Direktwege, Deep-Links bei geschlossener
-    /// Mehr-Seite). Die Mehr-Seite hat für ihre eigenen Zeilen eine eigene
-    /// Route (`morePageRoute`): ein Blatt muss von der OBERSTEN Präsentation
-    /// kommen, sonst erscheint es nicht.
+    /// Mehr-Unterziele aus Deep-Links auf dem Fallback vor iOS 26.
     @State private var moreSheet: MoreRoute?
-    /// Unterziel, aufgerufen aus einer Zeile DER MEHR-SEITE — als Blatt über
-    /// dem Cover.
+    /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
     @State private var morePageRoute: MoreRoute?
     /// Die synchronisierte Auswahl der Statistik-Karten und der festen
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
@@ -81,9 +64,6 @@ struct ContentView: View {
     /// Zuklappen (verzögert) — der Wechsel mitten in der Abklapp-Animation
     /// bricht sie ab und präsentiert das Feld erneut.
     @State private var searchNeedsAutomaticBehavior = false
-    /// Sortiermodus. Früher ein `EditButton` in der Toolbar (zu breit), jetzt
-    /// ein Punkt im Menü — der Modus muss deshalb selbst gehalten werden.
-    @State private var editMode: EditMode = .inactive
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
@@ -98,9 +78,6 @@ struct ContentView: View {
     /// Hält die Glasteile unten zusammen: gleiche ID vor und nach dem
     /// Zusammenziehen = ein Morph statt zweier Blenden. (Nur Fallback-Leiste.)
     @Namespace private var glassNamespace
-    /// Namensraum der Zoom-Transition: die Mehr-Seite wächst aus dem
-    /// Drei-Punkte-Menü oben rechts und schrumpft dorthin zurück (iOS 18+).
-    @Namespace private var moreZoomNamespace
     /// Namensraum der Anlegen-Zoom-Transition: die Anlegen-Seite wächst aus
     /// dem Anlegen-Kreis der Leiste unten (iOS 18+).
     @Namespace private var createZoomNamespace
@@ -174,9 +151,8 @@ struct ContentView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
-            // Statistik, Archiv und Über sind SEITEN: eigener Titel, eigene
-            // Navigationsleiste, beliebig lang. In der Tafel über der Leiste
-            // hätten sie keinen Platz — als Blatt behalten sie ihre Form.
+            // Direkte Unterziele bleiben Blätter über dem aktuell sichtbaren
+            // Bereich. Mehr-Zeilen präsentieren über `morePageRoute`.
             .sheet(item: $moreSheet) { route in
                 NavigationStack {
                     moreDestination(route)
@@ -189,11 +165,6 @@ struct ContentView: View {
                 }
                 .themed(store)
             }
-            // Die Mehr-SEITE. Ein `fullScreenCover`, ab iOS 18 mit der
-            // Zoom-Transition: sie wächst aus der Drei-Punkte-Blase oben
-            // rechts und schrumpft beim Schließen dorthin zurück. Darunter
-            // (iOS 17) eine schlichte Blende — dieselbe Seite, ohne Morph.
-            .fullScreenCover(isPresented: $showMore) { morePage }
             .fullScreenCover(isPresented: $showReminderSetup) {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
             }
@@ -218,21 +189,6 @@ struct ContentView: View {
                     Task { await syncNow(announce: false) }
                 }
             }
-            .onChange(of: search) { _, q in
-                // Sortieren und Filtern schließen sich aus: die Offsets aus
-                // `onMove` zeigen sonst in eine Liste, die es nicht gibt.
-                if !q.isEmpty { editMode = .inactive }
-            }
-            .onChange(of: showMore) { _, open in
-                guard open else { return }
-                editMode = .inactive
-                // Ein Toast, der auf eine Karte zeigt, die man nicht mehr
-                // sieht, ist nur noch ein Knopf ins Ungewisse.
-                undo.clear()
-                // Dasselbe für die Nacharbeiten-Karte: sie gehört zu einer
-                // Zeile der Liste, und die ist gerade verdeckt worden.
-                backfill = nil
-            }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
                 // Der Zustandsmaschine melden: solange das Cover offen ist
@@ -242,7 +198,6 @@ struct ContentView: View {
                 guard open else { return }
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
-                editMode = .inactive
                 undo.clear()
                 backfill = nil
             }
@@ -254,7 +209,7 @@ struct ContentView: View {
                 // dieselbe Sperre wie `allowsHitTesting` an der
                 // Fallback-Leiste.
                 guard tab == .create else { return }
-                nativeTab = .habits
+                nativeTab = old == .create ? .habits : old
                 if backfill == nil { showAdd = true }
             }
             .onChange(of: searchFieldFocused) { _, focused in
@@ -362,9 +317,8 @@ struct ContentView: View {
     /// SOBALD ES EIN RELEASE-XCODE 27 GIBT: diesen Zweig durch
     /// `Tab(..., role: .prominent)` ersetzen und `CreateCircle` löschen.
     ///
-    /// **Bis dahin auf iOS 27: EIN Tab plus ein eigener Kreis.** Ohne
-    /// zweiten Tab gibt es keine Such-Rolle, die etwas kapern könnte, und die
-    /// Leiste ist wieder zwei getrennte Glasteile. (Die Suche hat auf iOS 27
+    /// **Bis dahin auf iOS 27: echte Inhalts-Tabs plus ein eigener Kreis.**
+    /// Ohne Such-Rolle kann kein Tab die Suche kapern. (Die Suche hat auf iOS 27
     /// noch eine zweite, davon unabhängige Baustelle — siehe
     /// `SearchableHidden`.) Der Kreis rechts ist dann allerdings
     /// EIGENBAU — ein bewusster Abstrich gegenüber „so nativ wie möglich",
@@ -390,11 +344,15 @@ struct ContentView: View {
     private var searchRoleShell: some View {
         TabView(selection: $nativeTab) {
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: NativeTab.habits) {
+                value: AppTab.habits) {
                 habitsTabContent
             }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) {
+                moreTabContent
+            }
             Tab(String(localized: "Neuer Habit"), systemImage: "plus",
-                value: NativeTab.create, role: .search) {
+                value: AppTab.create, role: .search) {
                 // Nie sichtbar: die Auswahl wird im selben Umlauf
                 // zurückgenommen (siehe onChange). Trotzdem kein leeres
                 // Weiß, falls doch je ein Bild durchrutscht.
@@ -408,16 +366,20 @@ struct ContentView: View {
         .overlay(alignment: .bottomTrailing) { createZoomAnchor }
     }
 
-    /// iOS 27: EIN Tab — und der Anlegen-Kreis als eigenes Glasstück auf der
-    /// Linie der Leiste. Er ist zugleich die Quelle der Zoom-Transition, und
+    /// iOS 27: zwei echte Tabs und der Anlegen-Kreis als eigenes Glasstück
+    /// auf der Linie der Leiste. Er ist zugleich die Quelle der Zoom-Transition, und
     /// zwar in BEIDEN Leisten-Zuständen richtig: die Quelle sitzt auf dem
     /// Kreis selbst, nicht auf einem Anker daneben.
     @available(iOS 27, *)
     private var splitShell: some View {
         TabView(selection: $nativeTab) {
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: NativeTab.habits) {
+                value: AppTab.habits) {
                 habitsTabContent
+            }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) {
+                moreTabContent
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -430,7 +392,7 @@ struct ContentView: View {
                          // durchgereicht wird, ist nur ein ANLASS, neu zu
                          // messen: ändert sich einer dieser Zustände, kann
                          // die Leiste gerade gekommen oder gegangen sein.
-                         remeasureOn: [searching, showAdd, showMore],
+                         remeasureOn: [searching, showAdd],
                          zoomID: Self.createZoomID,
                          zoomNamespace: createZoomNamespace) {
                 // Dieselbe Sperre wie an der Fallback-Leiste und im
@@ -463,6 +425,28 @@ struct ContentView: View {
         }
     }
 
+    @available(iOS 26, *)
+    private var moreTabContent: some View {
+        NavigationStack {
+            MoreView(store: store, cloudStatus: cloudStatus,
+                     statsCards: viewPreferences,
+                     onOpen: { morePageRoute = $0 })
+                .navigationTitle(String(localized: "Mehr"))
+        }
+        .sheet(item: $morePageRoute) { route in
+            NavigationStack {
+                moreDestination(route)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(String(localized: "Fertig")) { morePageRoute = nil }
+                                .accessibilityIdentifier("close-more-sheet")
+                        }
+                    }
+            }
+            .themed(store)
+        }
+    }
+
     /// Rückgängig-Toast und Sync-Pille als schwebende Schicht — in der
     /// Fallback-Leiste stecken sie im Chrom-Stapel, hier sind sie die ganze
     /// Schicht.
@@ -480,52 +464,6 @@ struct ContentView: View {
             habitsScreen
         }
     }
-
-    // MARK: – Die Mehr-Seite
-
-    /// Die Mehr-Seite: dieselbe Liste wie früher in der Tafel, jetzt als
-    /// eigene Seite mit System-Navigationsleiste. Schließen über das X oben
-    /// LINKS; die Unterziele (Statistik, Archiv, Über) öffnen als Blätter
-    /// ÜBER dieser Seite (`morePageRoute`) — ein Blatt kann nur von der
-    /// obersten Präsentation kommen.
-    private var morePage: some View {
-        NavigationStack {
-            MoreView(store: store, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences,
-                     onOpen: { morePageRoute = $0 })
-                .navigationTitle(String(localized: "Mehr"))
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            showMore = false
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
-                        .accessibilityLabel(String(localized: "Schließen"))
-                        .accessibilityIdentifier("close-more")
-                    }
-                }
-        }
-        .sheet(item: $morePageRoute) { route in
-            NavigationStack {
-                moreDestination(route)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(String(localized: "Fertig")) { morePageRoute = nil }
-                                .accessibilityIdentifier("close-more-sheet")
-                        }
-                    }
-            }
-            .themed(store)
-        }
-        .themed(store)
-        .modifier(MoreZoomDestination(id: Self.moreZoomID, namespace: moreZoomNamespace))
-        .accessibilityIdentifier("more-page")
-    }
-
-    /// Quelle und Ziel der Zoom-Transition tragen dieselbe Kennung.
-    private static let moreZoomID = "more-blob"
 
     // MARK: – Die Anlegen-Seite
 
@@ -702,16 +640,6 @@ struct ContentView: View {
         if store.activeHabits.isEmpty {
             emptyState
                 .navigationTitle("Habits")
-                // Auch ohne Habits muss „Mehr" erreichbar sein — es wohnt
-                // jetzt im Drei-Punkte-Menü, nicht mehr in der Leiste unten.
-                // Ohne Habits gibt es nichts zu durchsuchen: hier steht nur
-                // das Menü, nie die Lupe.
-                .toolbar {
-                    // Dieselbe Seite wie mit Habits (siehe `menuPlacement`) —
-                    // das Menü darf nicht die Seite wechseln, nur weil der
-                    // letzte Habit ins Archiv gewandert ist.
-                    ToolbarItem(placement: menuPlacement) { listMenu }
-                }
         } else {
             habitList
                 // Der große Titel steht seit den Statistik-Karten IN der
@@ -720,20 +648,23 @@ struct ContentView: View {
                 // eigenen Titel: zwei „Habits" übereinander wären keins.
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
-                .environment(\.editMode, $editMode)
                 .searchableHidden(text: $search,
                                   isPresented: $searching,
                                   focus: $searchFieldFocused,
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
-                    // Ab iOS 26 stellt `.searchToolbarBehavior(.minimize)`
-                    // die Lupe selbst als nativen Eintrag — dort kommt nur
-                    // noch das Menü dazu (auf iOS 26 rechts daneben, vom
-                    // System zu EINER Glaskapsel gruppiert; auf iOS 27
-                    // links, siehe `menuPlacement`). Unter iOS 26 bringt die
-                    // App ihre eigene Lupe mit; siehe `SearchableHidden`.
-                    ToolbarItem(placement: menuPlacement) { searchToolbarItem }
+                    if #unavailable(iOS 26) {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                openSearch(origin: .toolbar)
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                            }
+                            .accessibilityLabel(String(localized: "Habits durchsuchen"))
+                            .accessibilityIdentifier("open-search")
+                        }
+                    }
                 }
         }
     }
@@ -752,9 +683,6 @@ struct ContentView: View {
                     // da und damit der stabile Anker der Scroll-Messung).
                     row(for: habit, index: index + 1)
                 }
-                .onMove(perform: search.isEmpty
-                    ? { store.move(fromOffsets: $0, toOffset: $1) }
-                    : nil)
             }
         }
         .listStyle(.plain)
@@ -1166,134 +1094,6 @@ struct ContentView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    // MARK: – Toolbar: Lupe und Menü in EINEM Blob
-    //
-    // „Bearbeiten" war als Wort-Knopf fast ein Drittel der Leiste breit und
-    // stand als zweite Blase neben der Lupe. Jetzt: ein Behälter, zwei
-    // Symbole. Die Lupe klappt die Suche auf, die drei Punkte tragen alles,
-    // was die LISTE betrifft (Sortieren, Archiv, Statistik) — die drei Punkte
-    // AUF der Karte bleiben davon unberührt, die betreffen einen Habit.
-
-    /// Die Menü-Einträge — EINE Quelle für beide Leisten-Varianten und den
-    /// Leerzustand. Neu darin: „Mehr" — der Bereich ist aus der Leiste unten
-    /// hierher gezogen und öffnet die eigene Seite.
-    @ViewBuilder
-    private var listMenuItems: some View {
-        Button {
-            withAnimation(reduceMotion ? nil : .snappy) {
-                editMode = editMode.isEditing ? .inactive : .active
-            }
-        } label: {
-            Label(editMode.isEditing
-                  ? String(localized: "Fertig")
-                  : String(localized: "Reihenfolge ändern"),
-                  systemImage: "arrow.up.arrow.down")
-        }
-        .disabled(!search.isEmpty || store.activeHabits.isEmpty)
-        Divider()
-        Button {
-            moreSheet = .stats
-        } label: {
-            Label(String(localized: "Statistik"), systemImage: "chart.bar")
-        }
-        Button {
-            moreSheet = .archive
-        } label: {
-            Label(String(localized: "Archiv"), systemImage: "archivebox")
-        }
-        Divider()
-        Button {
-            showMore = true
-        } label: {
-            Label(String(localized: "Mehr"), systemImage: "ellipsis.circle")
-        }
-        .accessibilityIdentifier("open-more")
-    }
-
-    /// Was in der Leiste steht — je nachdem, WER die Lupe stellt.
-    ///
-    /// Ab iOS 26 das System (`.searchToolbarBehavior(.minimize)`), hier kommt
-    /// nur das Menü dazu: auf iOS 26 rechts daneben (das System gruppiert
-    /// beide zu EINER Glaskapsel), auf iOS 27 links (siehe `menuPlacement`).
-    /// Unter iOS 26 gibt es keine minimierte System-Suche — dort bringt die
-    /// App Lupe UND Menü selbst mit, als ein Doppelknopf in eigener Kapsel.
-    @ViewBuilder
-    private var searchToolbarItem: some View {
-        if #available(iOS 26, *) {
-            listMenu
-        } else {
-            searchAndMenu
-        }
-    }
-
-    /// Wo dieser eine Toolbar-Eintrag sitzt — und das ist auf iOS 27 keine
-    /// Geschmacksfrage, sondern die Bedingung dafür, dass die System-Lupe
-    /// überhaupt aufklappt.
-    ///
-    /// Auf iOS 27 tötet JEDER eigene Eintrag auf der NACHLAUFENDEN Seite die
-    /// minimierte System-Suche: der Tipp auf die Lupe kommt an, das Binding
-    /// springt auf wahr — es erscheint kein Feld (in einer nackten Testapp
-    /// nachgestellt, auf iOS 26.4 jedes Mal einwandfrei). Auf der FÜHRENDEN
-    /// Seite stört derselbe Eintrag nicht. Deshalb wandert das Menü dort
-    /// nach links, und rechts bleibt allein die Lupe des Systems — mit ihrem
-    /// Aufklapp-Morph aus genau dieser Lupe heraus.
-    ///
-    /// SOBALD APPLE DAS BEHOBEN HAT: diesen Zweig löschen, dann steht das
-    /// Menü überall wieder rechts neben der Lupe.
-    private var menuPlacement: ToolbarItemPlacement {
-        if #available(iOS 27, *) { return .topBarLeading }
-        return .topBarTrailing
-    }
-
-    /// Das Drei-Punkte-Menü — zugleich die QUELLE der Zoom-Transition: die
-    /// Mehr-Seite wächst aus genau dieser Blase und schrumpft dorthin zurück.
-    private var listMenu: some View {
-        Menu {
-            listMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .accessibilityLabel(String(localized: "Weitere Aktionen"))
-        }
-        .accessibilityIdentifier("list-menu")
-        .modifier(MoreZoomSource(id: Self.moreZoomID, namespace: moreZoomNamespace))
-    }
-
-    /// Nur unter iOS 26: der Doppelknopf als EIN Blob mit eigener Kapsel —
-    /// dort gruppiert das System nichts von selbst.
-    private var searchAndMenu: some View {
-        HStack(spacing: 0) {
-            Button {
-                openSearch(origin: .toolbar)
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: Theme.Metrics.hit, height: 34)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Habits durchsuchen"))
-            .accessibilityIdentifier("open-search")
-
-            Divider()
-                .frame(height: 20)
-
-            Menu {
-                listMenuItems
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: Theme.Metrics.hit, height: 34)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Weitere Aktionen"))
-            .accessibilityIdentifier("list-menu")
-            .modifier(MoreZoomSource(id: Self.moreZoomID, namespace: moreZoomNamespace))
-        }
-        .foregroundStyle(Theme.accentText(store.paletteStyle))
-        .modifier(ToolbarBlob())
-    }
-
     // MARK: – Fallback-Chrom unten (iOS < 26): Habits-Pille links, + rechts
 
     @ViewBuilder
@@ -1536,30 +1336,31 @@ struct ContentView: View {
     // MARK: – Deep-Links (haiity://habits|more|stats|archive|search|new)
 
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "haiity" else { return }
-        switch url.host ?? url.lastPathComponent {
-        case "habits":
-            showMore = false
+        if url.scheme?.lowercased() == "haiity", url.host?.lowercased() == "sync" {
+            if #available(iOS 26, *) { nativeTab = .more }
+            return
+        }
+        guard let destination = AppDestination.resolve(url: url) else { return }
+        switch destination {
+        case .habits:
+            nativeTab = .habits
             moreSheet = nil
-        case "more", "sync":
-            // "sync" landet ebenfalls auf der Mehr-Seite — die iCloud-Zeile
-            // steht dort ganz oben. Steht die Seite schon offen, ist der
-            // Link erfüllt.
-            showMore = true
-        case "stats", "archive":
-            let route: MoreRoute = (url.host ?? url.lastPathComponent) == "stats"
-                ? .stats : .archive
-            // Ist die Mehr-Seite offen, gehört das Blatt IHR — ein Blatt
-            // kann nur von der obersten Präsentation kommen.
-            if showMore { morePageRoute = route } else { moreSheet = route }
-        case "search":
-            showMore = false
+        case .more:
+            nativeTab = .more
+        case .stats, .archive:
+            let route: MoreRoute = destination == .stats ? .stats : .archive
+            if #available(iOS 26, *) {
+                nativeTab = .more
+                morePageRoute = route
+            } else {
+                moreSheet = route
+            }
+        case .search:
+            nativeTab = .habits
             moreSheet = nil
             openSearch(origin: .deepLink)
-        case "new":
+        case .create:
             showAdd = true
-        default:
-            break
         }
     }
 
@@ -2239,30 +2040,13 @@ private struct MoreZoomDestination: ViewModifier {
     }
 }
 
-/// Der Toolbar-Blob. Ab iOS 26 legt das System seine Glasfläche selbst unter
-/// den Inhalt EINES Toolbar-Eintrags — deshalb dort nichts eigenes, sonst
-/// liegt Glas auf Glas. Darunter ist die Leiste flach, da braucht der
-/// Doppelknopf eine eigene Kapsel, damit er als ein Ding liest.
-private struct ToolbarBlob: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-        } else {
-            content
-                .background(Color.primary.opacity(0.06), in: Capsule())
-        }
-    }
-}
-
 /// Suchfeld, das NICHT dauerhaft sichtbar ist.
 ///
 /// Ab iOS 26 macht das ganz das System: `.searchable` hängt DAUERHAFT am
 /// Baum, `.searchToolbarBehavior(.minimize)` faltet es zu einer nativen Lupe
 /// oben rechts zusammen. Auf- und Zuklappen laufen damit mit den
-/// Systemkurven im Leisten-Glas — der frühere Einwand („zweite Lupe neben
-/// dem Blob") ist hinfällig, seit die eigene Toolbar-Lupe entfällt und das
-/// System seine Lupe mit dem Menü daneben selbst zur Glas-Gruppe gruppiert.
-/// Beide Wege (System-Lupe, Fallback-Knopf) schalten weiter nur `isPresented`.
+/// Systemkurven im Leisten-Glas. Beide Wege (System-Lupe, Fallback-Knopf)
+/// schalten weiter nur `isPresented`.
 ///
 /// Vor iOS 26 bleibt der alte Umweg: `.searchable` erst anhängen, wenn die
 /// Suche offen sein soll — `.minimize` gibt es dort nicht, und
@@ -2274,13 +2058,6 @@ private struct ToolbarBlob: ViewModifier {
 /// **iOS 27 hat mit dieser Minimierung zwei gemessene Fehler** — beide in
 /// einer NACKTEN Testapp nachgestellt, ohne eine Zeile dieser App, und auf
 /// iOS 26.4 jedes Mal einwandfrei:
-///  * Steht rechts in der Navigationsleiste IRGENDEIN eigener Eintrag (Menü,
-///    schlichter Knopf, eigene Gruppe, mit oder ohne `ToolbarSpacer`), klappt
-///    die System-Lupe gar nicht mehr auf: der Tipp kommt an, das Binding
-///    springt auf wahr — es erscheint kein Suchfeld.
-///    ANTWORT: auf iOS 27 wandert das Menü auf die FÜHRENDE Seite (siehe
-///    `ContentView.menuPlacement`). Rechts steht dann allein die Lupe, und
-///    sie arbeitet wieder — samt ihrem Aufklapp-Morph.
 ///  * Und klappt man die Suche über ihr X zu, NIMMT das System das Feld aus
 ///    dem Bild, schreibt aber KEIN `false` ins Binding zurück (auch
 ///    `\.isSearching` bleibt wahr — nachgemessen). Weil das Binding wahr
@@ -2293,8 +2070,8 @@ private struct ToolbarBlob: ViewModifier {
 ///    Ansicht und zieht `isPresented` selbst nach, bevor das Zurückreissen
 ///    einsetzt (siehe `SearchFieldProbe` und `SearchFlow.fieldReading`).
 ///
-/// SOBALD APPLE BEIDES BEHOBEN HAT: `menuPlacement` und der Feld-Beobachter
-/// können ersatzlos entfallen — der iOS-26-Weg gilt dann wieder für alle.
+/// SOBALD APPLE DEN BINDING-FEHLER BEHOBEN HAT: der Feld-Beobachter kann
+/// ersatzlos entfallen — der iOS-26-Weg gilt dann wieder für alle.
 private struct SearchableHidden: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
