@@ -82,7 +82,7 @@ targets:
         # — dafür gibt es einen Test.
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Blue AppIcon-Violet AppIcon-Amber AppIcon-Rose AppIcon-Gray"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
-        CURRENT_PROJECT_VERSION: 29
+        CURRENT_PROJECT_VERSION: 30
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_ENTITLEMENTS: Haiity/Haiity.entitlements
         CODE_SIGN_STYLE: Automatic
@@ -116,6 +116,12 @@ targets:
       # Extension-Prozess und schreibt über den geteilten Store.
       # (HaiityShortcuts.swift bleibt bewusst App-only.)
       - path: Haiity/Intents/CheckOffHabitIntent.swift
+      # perform() gleicht seit v16 auch die Mitteilungen ab (heutigen
+      # Habit-Weckruf löschen, Tagesmeldung neu stellen) — sonst klingelt
+      # nach einem Widget-Check-in die Erinnerung für ein erledigtes Habit.
+      # Reminders zieht SummaryText (den Text der Tagesmeldung) mit herein.
+      - path: Haiity/Services/Reminders.swift
+      - path: Haiity/Models/SummaryText.swift
       # Live-Aktivität: geteilter Attribut-Typ, Session-Logik/Ablage und die
       # Intents der Knöpfe — die Extension braucht die TYPEN, perform()
       # läuft im App-Prozess.
@@ -170,7 +176,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.aiity.haiity.widget
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"
-        CURRENT_PROJECT_VERSION: 29
+        CURRENT_PROJECT_VERSION: 30
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_ENTITLEMENTS: HaiityWidget/HaiityWidget.entitlements
         CODE_SIGN_STYLE: Automatic

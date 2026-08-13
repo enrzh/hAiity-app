@@ -160,14 +160,92 @@ final class ReminderUpcomingTests: XCTestCase {
         let plan = Reminders.sessionMilestonePlan(session, calendar: calendar)
 
         XCTAssertEqual(plan?.identifier, Reminders.sessionMilestoneIdentifier(session))
+        // MIT Sekunden: ohne sie feuerte der Meilenstein zur vollen Minute —
+        // bei einem Start um hh:mm:45 bis zu 45 Sekunden zu früh.
         XCTAssertEqual(plan?.dateMatching, calendar.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: now.addingTimeInterval(30 * 60)
+            [.year, .month, .day, .hour, .minute, .second], from: now.addingTimeInterval(30 * 60)
         ))
         XCTAssertEqual(plan?.body, "Deine geplante Dauer ist erreicht.")
         XCTAssertNil(Reminders.sessionMilestonePlan(
             HabitSession(id: UUID(), habitID: UUID(), day: "2026-08-09", startedAt: now,
                          plannedMinutes: nil), calendar: calendar
         ))
+    }
+
+    // MARK: – v16: flexible Regeln erinnern nicht mehr täglich
+
+    /// „1× pro Woche, dienstags": die Wochentagsmenge neben einem flexiblen
+    /// Ziel ist die VERABREDUNG — genau sie steuert die Erinnerung. Vorher
+    /// klingelte so ein Habit an allen sieben Tagen (isScheduled ist in der
+    /// Periode überall wahr).
+    func testFlexibleWeeklyRemindsOnlyOnAgreedWeekdays() {
+        let habit = Habit(name: "Yoga", timeMinutes: 18 * 60,
+                          recurrence: .times(1, per: .weekly, weekdays: [3]))
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+
+        // Fixture: So 09.08. Der einzige Dienstag im Fenster ist der 11.08.
+        XCTAssertEqual(plans.map(\.identifier), [
+            Reminders.habitReminderIdentifier(habitID: habit.id, day: "2026-08-11")
+        ])
+    }
+
+    /// Eine ERFÜLLTE Periode schweigt: „1× pro Woche" mit einem Check-in am
+    /// Mittwoch erinnert nicht mehr am Sonntag derselben Woche — erst die
+    /// nächste Periode ist wieder dran.
+    func testFlexibleWeeklySilencesASatisfiedPeriod() {
+        var habit = Habit(name: "Schwimmen", timeMinutes: 18 * 60,
+                          recurrence: .times(1, per: .weekly))
+        habit.log["2026-08-05"] = 1
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+        let days = plans.map { String($0.identifier.suffix(10)) }
+
+        XCTAssertFalse(days.contains("2026-08-09"),
+                       "erfüllte Periode darf heute nicht mehr erinnern")
+        XCTAssertEqual(days.first, "2026-08-10")
+        // Fenster heute+8: 10.–17.08., alle in noch unerfüllten Perioden.
+        XCTAssertEqual(days.count, 8)
+    }
+
+    /// Das 64er-Budget des Systems läuft nicht mehr stumm über: ab sechs
+    /// Habits mit Uhrzeit schrumpft das Voraus-Fenster, statt dass iOS die
+    /// hintersten Anfragen wegwirft.
+    func testReminderWindowShrinksWithManyTimedHabits() {
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 0), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 1), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 5), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 6), 8)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 10), 5)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 64), 1)
+    }
+
+    // MARK: – v16: die Wochenmeldung fällt nicht mehr aus
+
+    /// Montag geöffnet, Termin am Freitag: „bis heute" wäre die Woche leer
+    /// und der (wiederholende!) Wochen-Wecker würde gelöscht und nie neu
+    /// gestellt — die Meldung fiele für die ganze Woche aus. `fullWeek`
+    /// zählt Geschuldetes über die ganze Woche; erfüllt wird weiter nur,
+    /// was im Log steht.
+    func testWeeklyStatusFullWeekKeepsAnEarlyWeekLaunchHonest() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reminder-fullweek-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        store.add(Habit(name: "Freitags", recurrence: .weekdays([6])))
+        let monday = "2026-08-03"
+
+        let toDate = store.weeklyStatus(monday, calendar: calendar)
+        XCTAssertEqual(toDate.total, 0)
+        XCTAssertNil(Reminders.weeklySummaryPlan(minutes: 18 * 60, weekday: 1,
+                                                 status: toDate, calendar: calendar))
+
+        let full = store.weeklyStatus(monday, calendar: calendar, fullWeek: true)
+        XCTAssertEqual(full.total, 1)
+        XCTAssertEqual(full.done, 0)
+        XCTAssertEqual(full.missing, ["Freitags"])
+        XCTAssertNotNil(Reminders.weeklySummaryPlan(minutes: 18 * 60, weekday: 1,
+                                                    status: full, calendar: calendar))
     }
 }
 

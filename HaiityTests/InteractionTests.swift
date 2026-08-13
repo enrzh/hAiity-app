@@ -303,6 +303,55 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertFalse(archive.allowsFullSwipe)
     }
 
+    // MARK: – v16: Extra-Aktionen hinter den festen Wischgesten
+
+    func testExtraSwipeChoicesResolveToTheirOperations() {
+        var prefs = ViewPreferences()
+        prefs.swipeActions = SwipeActionsPreferences(enabled: true,
+                                                     leading: .session,
+                                                     trailing: .backfill)
+
+        let effective = prefs.effectiveSwipeActions(for: Habit(name: "Lesen"))
+        XCTAssertEqual(effective.leading, EffectiveSwipeAction(operation: .session))
+        XCTAssertEqual(effective.trailing, EffectiveSwipeAction(operation: .backfill))
+
+        prefs.swipeActions = SwipeActionsPreferences(enabled: true,
+                                                     leading: .edit, trailing: .archive)
+        let second = prefs.effectiveSwipeActions(for: Habit(name: "Lesen"))
+        XCTAssertEqual(second.leading, EffectiveSwipeAction(operation: .edit))
+        XCTAssertEqual(second.trailing, EffectiveSwipeAction(operation: .archive))
+    }
+
+    /// `primary`/`secondary` sind Altlasten früherer Dateien: sie bedeuten
+    /// „keine Extra-Aktion" — die festen Erst-Aktionen liefert ContentView
+    /// ohnehin immer.
+    func testLegacyPrimarySecondaryChoicesMeanNoExtraAction() {
+        var prefs = ViewPreferences()
+        prefs.swipeActions = SwipeActionsPreferences(enabled: true,
+                                                     leading: .primary,
+                                                     trailing: .secondary)
+
+        let effective = prefs.effectiveSwipeActions(for: Habit(name: "Lesen"))
+        XCTAssertNil(effective.leading)
+        XCTAssertNil(effective.trailing)
+    }
+
+    func testSelectableChoicesExcludeLegacyValues() {
+        XCTAssertEqual(SwipeActionChoice.selectable,
+                       [.archive, .backfill, .session, .edit, .none])
+    }
+
+    /// Nichts Navigierendes oder Zerstörendes per Voll-Wisch.
+    func testNavigatingExtrasAreNeverEligibleForFullSwipe() {
+        for operation: SwipeOperation in [.archive, .backfill, .session, .edit] {
+            XCTAssertFalse(EffectiveSwipeAction(operation: operation).allowsFullSwipe,
+                           "\(operation) darf nicht voll durchwischen")
+        }
+        for operation: SwipeOperation in [.done, .reset, .increment, .yes, .no] {
+            XCTAssertTrue(EffectiveSwipeAction(operation: operation).allowsFullSwipe)
+        }
+    }
+
     func testCurrentSwipeConfigurationRoundTrips() throws {
         var habit = Habit(name: "Lesen")
         habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .some(.none))

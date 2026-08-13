@@ -70,7 +70,12 @@ enum Reminders {
     static let legacyHabitPrefix = "habit-"
     static let habitReminderPrefix = "habit-reminder-"
     static let sessionMilestonePrefix = "session-milestone-"
-    static let habitReminderDays = 7
+    /// Fenster der Habit-Weckrufe in TAGEN (heute + 8): deckt „nächste Woche,
+    /// gleicher Wochentag" ab — ein 7-Tage-Fenster verlöre genau den
+    /// wöchentlichen Termin, dessen diese Woche schon erledigt ist. Bei
+    /// vielen Habits mit Uhrzeit schrumpft das Fenster (`reminderWindow`),
+    /// damit das 64er-Budget des Systems nicht stumm überläuft.
+    static let habitReminderDays = 9
 
     static func habitReminderIdentifier(habitID: UUID, day: String) -> String {
         "\(habitReminderPrefix)\(habitID.uuidString)-\(day)"
@@ -157,12 +162,13 @@ enum Reminders {
         let active = habits.filter { $0.archivedAt == nil }
         guard !active.isEmpty else { return [] }
         var plans: [ReminderPlan] = []
-        var day = DayKey.key(for: now, calendar: calendar)
+        let today = DayKey.key(for: now, calendar: calendar)
+        var day = today
         for _ in 0..<upcomingDays {
             guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
             day = next
             let due = active
-                .filter { GoalEngine.isScheduled(habit: $0, day: day, calendar: calendar) }
+                .filter { reminderWorthy(habit: $0, day: day, today: today, calendar: calendar) }
                 .map(\.name)
             guard let body = SummaryText.upcoming(due, locale: calendar.locale ?? .current),
                   let date = DayKey.date(from: day, calendar: calendar) else { continue }
@@ -178,19 +184,66 @@ enum Reminders {
         return plans
     }
 
+    /// Verdient dieser Tag eine Erinnerung an dieses Habit?
+    ///
+    /// Feste Regeln: der Terminplan entscheidet. Flexible Regeln („n× pro
+    /// Woche") sind laut `isScheduled` an JEDEM Tag der Periode „dran" —
+    /// als Erinnerung wäre das ein täglicher Weckruf für ein Wochenziel
+    /// (gemeldeter Fehler). Deshalb gilt zusätzlich:
+    ///  * Ist eine Wochentags-Verabredung hinterlegt, wird nur an diesen
+    ///    Tagen erinnert — genau wofür sie dokumentiert ist („steuert nur
+    ///    die Erinnerung").
+    ///  * Ist die Periode bereits erfüllt (3 von 3 geschafft), schweigt der
+    ///    Rest der Periode.
+    static func reminderWorthy(habit: Habit, day: String, today: String,
+                               calendar: Calendar = .current) -> Bool {
+        guard GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar) else { return false }
+        let recurrence = habit.recurrence
+        guard recurrence.isFlexible else { return true }
+        if !recurrence.weekdays.isEmpty {
+            guard let date = DayKey.date(from: day, calendar: calendar),
+                  recurrence.weekdays.contains(calendar.component(.weekday, from: date))
+            else { return false }
+        }
+        return !GoalEngine.periodSatisfied(habit: habit, day: day, today: today,
+                                           calendar: calendar)
+    }
+
+    /// Feste Anfragen neben den Habit-Weckrufen: Tages-Zusammenfassung,
+    /// Wochen-Zusammenfassung, bis zu `upcomingDays` Voraus-Wecker, ein
+    /// Session-Meilenstein, eine Test-Mitteilung — plus Luft. iOS deckelt
+    /// bei 64 ANSTEHENDEN Anfragen und wirft den Überhang stumm weg.
+    static let pendingBudget = 64
+    static let fixedRequestEstimate = upcomingDays + 7
+
+    /// Wie viele Tage je Habit vorausgeplant werden dürfen, ohne das
+    /// 64er-Budget zu sprengen: bei 1–5 Habits mit Uhrzeit die vollen
+    /// `habitReminderDays`, darüber entsprechend weniger — lieber ein
+    /// kürzeres Fenster für alle als ein stummes für die letzten.
+    static func reminderWindow(timedHabitCount: Int) -> Int {
+        guard timedHabitCount > 0 else { return habitReminderDays }
+        let available = max(1, (pendingBudget - fixedRequestEstimate) / timedHabitCount)
+        return min(habitReminderDays, available)
+    }
+
     static func habitPlans(habits: [Habit], now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
         let today = DayKey.key(for: now, calendar: calendar)
-        for habit in habits where habit.archivedAt == nil {
+        let timed = habits.filter {
+            $0.archivedAt == nil
+                && Habit.sanitizedMinutes($0.timeMinutes ?? $0.reminderMinutes) != nil
+        }
+        let window = reminderWindow(timedHabitCount: timed.count)
+        for habit in timed {
             guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
             var day = today
-            for offset in 0...habitReminderDays + 1 {
+            for offset in 0..<window {
                 if offset > 0 {
                     guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
                     day = next
                 }
-                guard GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar),
+                guard reminderWorthy(habit: habit, day: day, today: today, calendar: calendar),
                       !habit.isDone(day), !habit.isAnswered(day),
                       let date = DayKey.date(from: day, calendar: calendar)
                 else { continue }
@@ -212,10 +265,13 @@ enum Reminders {
                                      calendar: Calendar = .current) -> ReminderPlan? {
         guard let end = HabitSessionMath.plannedEnd(startedAt: session.startedAt,
                                                      plannedMinutes: session.plannedMinutes) else { return nil }
+        // MIT Sekunden: ohne sie feuerte der Meilenstein zur vollen Minute —
+        // bei einem Start um hh:mm:45 also bis zu 45 Sekunden zu früh.
         return ReminderPlan(identifier: sessionMilestoneIdentifier(session),
                             title: String(localized: "Session-Ziel erreicht"),
                             body: String(localized: "Deine geplante Dauer ist erreicht."),
-                            dateMatching: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: end),
+                            dateMatching: calendar.dateComponents(
+                                [.year, .month, .day, .hour, .minute, .second], from: end),
                             repeats: false)
     }
 
@@ -226,9 +282,11 @@ enum Reminders {
     /// dann setzen.
     static func reschedule(daily: ReminderPlan?, weekly: ReminderPlan?) async {
         let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
 
+        // Aufräumen VOR dem Berechtigungs-Gate: auch wer Mitteilungen in den
+        // iOS-Einstellungen abgeschaltet hat, darf keine veralteten Anfragen
+        // liegen lassen — sonst klingelt nach dem Wieder-Einschalten ein
+        // längst archiviertes Habit weiter.
         let pending = await center.pendingNotificationRequests()
         let ours = pending.map(\.identifier).filter {
             $0 == summaryId || $0 == weeklySummaryId
@@ -236,6 +294,9 @@ enum Reminders {
                 || $0.hasPrefix(habitReminderPrefix)
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
+
+        let settings = await center.notificationSettings()
+        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
 
         // Die Voraus-Wecker lesen ihren Stoff selbst von der Platte — die
         // Aufrufer geben nur die beiden Zusammenfassungen mit, und dieselbe
@@ -247,6 +308,33 @@ enum Reminders {
         }
         for plan in plans {
             try? await center.add(request(plan))
+        }
+    }
+
+    /// Nach einem Check-in AUSSERHALB der App (Widget-Knopf, Steuerungs-
+    /// element, Siri): die App-eigene Neuplanung (`store.onChange` →
+    /// `reschedule`) läuft in DIESEM Prozess nie. Ohne diesen Abgleich
+    /// klingelte am Abend die Erinnerung für ein längst abgehaktes Habit,
+    /// und die Tages-Zusammenfassung nannte es weiter „offen" (gemeldeter
+    /// Fehlerklasse). Bewusst schmal: nur der heutige Habit-Weckruf und die
+    /// einmalige Tagesmeldung — alles andere holt der nächste App-Start nach.
+    static func reconcileAfterExternalCheckIn(store: HabitStore,
+                                              habitID: UUID,
+                                              now: Date = Date(),
+                                              calendar: Calendar = .current) async {
+        let center = UNUserNotificationCenter.current()
+        let today = DayKey.key(for: now, calendar: calendar)
+        center.removePendingNotificationRequests(
+            withIdentifiers: [habitReminderIdentifier(habitID: habitID, day: today)])
+
+        let settings = await center.notificationSettings()
+        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
+        center.removePendingNotificationRequests(withIdentifiers: [summaryId])
+        if let daily = dailySummaryPlan(minutes: store.summaryMinutes,
+                                        status: store.dailyStatus(today, calendar: calendar),
+                                        now: now,
+                                        calendar: calendar) {
+            try? await center.add(request(daily))
         }
     }
 

@@ -484,7 +484,7 @@ struct EditHabitSheet: View {
 
             if swipeActions != nil {
                 Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
-                    ForEach([SwipeActionChoice.archive, .none]) { choice in
+                    ForEach(SwipeActionChoice.selectable) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -492,7 +492,7 @@ struct EditHabitSheet: View {
                 .accessibilityIdentifier("habit-swipe-leading-picker")
 
                 Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
-                    ForEach([SwipeActionChoice.archive, .none]) { choice in
+                    ForEach(SwipeActionChoice.selectable) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -501,16 +501,24 @@ struct EditHabitSheet: View {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
+        } footer: {
+            Text(String(localized: "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten. Hier wählst du, was als zweiter Knopf dahinter erscheint."))
         }
     }
 
+    /// Altlasten (`primary`/`secondary`) lesen sich als „keine Extra-Aktion".
+    private func normalized(_ choice: SwipeActionChoice?) -> SwipeActionChoice {
+        guard let choice, SwipeActionChoice.selectable.contains(choice) else { return .none }
+        return choice
+    }
+
     private var swipeLeadingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { swipeActions?.leading == .archive ? .archive : .none },
+        Binding(get: { normalized(swipeActions?.leading) },
                 set: { swipeActions?.leading = $0 })
     }
 
     private var swipeTrailingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { swipeActions?.trailing == .archive ? .archive : .none },
+        Binding(get: { normalized(swipeActions?.trailing) },
                 set: { swipeActions?.trailing = $0 })
     }
 

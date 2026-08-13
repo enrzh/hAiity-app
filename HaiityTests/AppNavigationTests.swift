@@ -17,17 +17,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://unknown")!))
     }
 
-    func testNestedMoreDestinationsSelectMoreTab() {
-        XCTAssertEqual(AppDestination.stats.selectedTab, .more)
+    func testDestinationsSelectTheirTabs() {
+        XCTAssertEqual(AppDestination.stats.selectedTab, .stats)
         XCTAssertEqual(AppDestination.archive.selectedTab, .more)
         XCTAssertEqual(AppDestination.more.selectedTab, .more)
-        XCTAssertEqual(AppDestination.search.selectedTab, .habits)
+        XCTAssertEqual(AppDestination.search.selectedTab, .search)
         XCTAssertEqual(AppDestination.create.selectedTab, .create)
     }
 
-    func testStatsAndArchiveRouteViaMoreTab() {
+    func testStatsIsARealTabAndArchiveRoutesViaMoreTab() {
         XCTAssertEqual(AppDestination.stats.effect,
-                       AppRouteEffect(tab: .more, morePage: .stats,
+                       AppRouteEffect(tab: .stats, morePage: nil,
                                       opensSearch: false, opensCreate: false))
         XCTAssertEqual(AppDestination.archive.effect,
                        AppRouteEffect(tab: .more, morePage: .archive,
@@ -35,7 +35,7 @@ final class AppNavigationTests: XCTestCase {
     }
 
     func testSearchAndCreateHaveExplicitEffects() {
-        XCTAssertEqual(AppDestination.search.effect.tab, .habits)
+        XCTAssertEqual(AppDestination.search.effect.tab, .search)
         XCTAssertTrue(AppDestination.search.effect.opensSearch)
         XCTAssertTrue(AppDestination.create.effect.opensCreate)
     }
@@ -135,13 +135,14 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertFalse(cover.dismissalIsOwed)
     }
 
-    func testStatsToArchiveDismissesThenAppliesAfterMoreOnDismiss() {
+    func testArchiveRouteDismissesForeignSheetThenAppliesAfterOnDismiss() {
         var work = RouteWork()
         let archive = work.begin(AppDestination.archive.effect)
 
+        // Ein fremdes Blatt (z. B. "Ueber", morePage nil) muss erst weichen.
         XCTAssertEqual(work.nextStep(for: archive,
                                      presentation: .init(more: .presented,
-                                                         morePage: .stats)),
+                                                         morePage: nil)),
                        .dismissMore)
         XCTAssertEqual(work.nextStep(for: archive,
                                      presentation: .init(more: .dismissing)),
@@ -160,14 +161,14 @@ final class AppNavigationTests: XCTestCase {
             // transition governs fallback moreSheet and native morePageRoute.
             XCTAssertEqual(work.nextStep(for: route,
                                          presentation: .init(more: .presented,
-                                                             morePage: .stats)),
+                                                             morePage: .archive)),
                            .dismissMore,
                            "\(destination) must depart More through onDismiss")
         }
     }
 
     func testAlreadyPresentedMoreDestinationDoesNotDismissOrRepresent() {
-        for destination in [AppDestination.stats, .archive] {
+        for destination in [AppDestination.archive] {
             var work = RouteWork()
             let route = work.begin(destination.effect)
 
@@ -199,15 +200,18 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppTabLayerState(tab: .more, selectedTab: .more), habits)
     }
 
-    func testContentViewDeclaresHabitsAndMoreTabs() throws {
+    func testContentViewDeclaresAllFourTabs() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("value: AppTab.stats"))
         XCTAssertTrue(source.contains("value: AppTab.habits"))
         XCTAssertTrue(source.contains("value: AppTab.more"))
+        XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
         XCTAssertFalse(source.contains("enum NativeTab"))
     }
 
     func testFallbackKeepsBothDestinationTreesMounted() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("fallbackTabLayer(.stats) { fallbackStatsContent }"))
         XCTAssertTrue(source.contains("fallbackTabLayer(.habits) { habitsStack }"))
         XCTAssertTrue(source.contains("fallbackTabLayer(.more) { fallbackMoreContent }"))
         XCTAssertFalse(source.contains("if nativeTab == .more {"))
@@ -266,27 +270,30 @@ final class AppNavigationTests: XCTestCase {
     func testHabitToolbarKeepsManagementDestinationsReachable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-management\")"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-stats\")"))
+        // Statistik ist ein eigener Tab; im Menue bleibt nur noch das Archiv.
+        XCTAssertFalse(source.contains("accessibilityIdentifier(\"open-stats\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))
     }
 
-    func testSearchUsesNativeTrailingRoleAndKeepsLifecycleState() throws {
+    func testSearchIsARealTabWithItsOwnSearchable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
-        XCTAssertTrue(source.contains("if backfill == nil { openSearch(origin: .toolbar) }"))
+        // Der Such-Tab traegt sein EIGENES searchable (Fotos-Muster) …
+        XCTAssertTrue(source.contains("private var searchTabContent: some View"))
+        XCTAssertTrue(source.contains(".searchFocused($searchFieldFocused)"))
+        // … seine Auswahl BLEIBT stehen (kein Zurückspringen auf den
+        // vorherigen Tab mehr); das Betreten fokussiert nur noch das Feld.
+        XCTAssertFalse(source.contains("nativeTab = old == .search ? .habits : old"))
         XCTAssertTrue(source.contains("@State private var searchPresentationArmed = false"))
     }
 
-    func testIOS27NavigationIsLeadingWithCreateTrailing() throws {
+    func testSingleNativeShellWithoutCompilerGates() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let start = try XCTUnwrap(source.range(of: "private var splitShell: some View"))
-        let end = try XCTUnwrap(source.range(of: "private var habitsTabContent", range: start.upperBound..<source.endIndex))
-        let shell = String(source[start.lowerBound..<end.lowerBound])
-        XCTAssertTrue(shell.contains("TabView(selection: $nativeTab)"))
-        XCTAssertTrue(shell.contains("value: AppTab.search, role: .prominent"))
-        XCTAssertTrue(shell.contains("#if compiler(>=6.4)"))
-        XCTAssertFalse(shell.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
-        XCTAssertFalse(shell.contains("ios27SplitControls"))
+        // Die Rollen-Verrenkung (prominent hinter #if compiler) ist Geschichte.
+        XCTAssertFalse(source.contains("role: .prominent"))
+        XCTAssertFalse(source.contains("#if compiler(>=6.4)"))
+        XCTAssertFalse(source.contains("private var splitShell"))
+        XCTAssertTrue(source.contains("private var nativeShell: some View"))
     }
 
     private func sourceURL(_ path: String) -> URL {

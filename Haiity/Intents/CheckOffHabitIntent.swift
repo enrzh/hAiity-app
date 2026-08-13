@@ -81,6 +81,9 @@ struct CheckOffHabitIntent: AppIntent {
         // (WidgetCenter.reloadAllTimelines unter canImport(WidgetKit)).
         let store = HabitStore(url: SharedStorage.dataURL())
         CheckOffLogic.apply(to: store, habitId: habit.id)
+        // Der App-Prozess bekommt von diesem Check-in nichts mit — die
+        // heutige Erinnerung und die Tagesmeldung hier selbst nachziehen.
+        await Reminders.reconcileAfterExternalCheckIn(store: store, habitID: habit.id)
         return .result()
     }
 }

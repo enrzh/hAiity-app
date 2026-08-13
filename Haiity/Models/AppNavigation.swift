@@ -1,6 +1,7 @@
 import Foundation
 
 enum AppTab: Hashable {
+    case stats
     case habits
     case more
     case create
@@ -25,7 +26,6 @@ extension AppTabLayerState {
 }
 
 enum AppMoreDestination: Equatable {
-    case stats
     case archive
 }
 
@@ -156,9 +156,13 @@ enum AppDestination: Equatable {
 
     var selectedTab: AppTab {
         switch self {
-        case .habits, .search:
+        case .habits:
             return .habits
-        case .more, .stats, .archive:
+        case .search:
+            return .search
+        case .stats:
+            return .stats
+        case .more, .archive:
             return .more
         case .create:
             return .create
@@ -172,11 +176,11 @@ enum AppDestination: Equatable {
         case .more:
             .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false)
         case .stats:
-            .init(tab: .more, morePage: .stats, opensSearch: false, opensCreate: false)
+            .init(tab: .stats, morePage: nil, opensSearch: false, opensCreate: false)
         case .archive:
             .init(tab: .more, morePage: .archive, opensSearch: false, opensCreate: false)
         case .search:
-            .init(tab: .habits, morePage: nil, opensSearch: true, opensCreate: false)
+            .init(tab: .search, morePage: nil, opensSearch: true, opensCreate: false)
         case .create:
             .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: true)
         }

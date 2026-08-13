@@ -245,18 +245,26 @@ typealias StatsCardStore = ViewPreferencesStore
 
 // MARK: - Wischaktionen
 
-/// Die Wahl in den Einstellungen. Haupt- und Nebenaktion werden erst mit
-/// einer Habit-Art zu einer konkreten Operation aufgeloest.
+/// Die Wahl in den Einstellungen — eine ZUSÄTZLICHE Aktion hinter der
+/// festen Erst-Aktion jeder Seite (Erledigt/+1/Ja vorwärts, Zurücksetzen/
+/// Nein rückwärts, siehe ContentView). `primary`/`secondary` sind Altlasten
+/// früherer Dateien und lösen zu „keine Extra-Aktion" auf.
 enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
-    case primary, secondary, archive, none
+    case primary, secondary, archive, backfill, session, edit, none
 
     var id: String { rawValue }
+
+    /// Die Auswahl, die die Einstellungen anbieten — ohne die Altlasten.
+    static var selectable: [SwipeActionChoice] { [.archive, .backfill, .session, .edit, .none] }
 
     var displayName: String {
         switch self {
         case .primary: return String(localized: "Standardaktion")
         case .secondary: return String(localized: "Zurücksetzen")
         case .archive: return String(localized: "Archivieren")
+        case .backfill: return String(localized: "Nacharbeiten")
+        case .session: return String(localized: "Session starten")
+        case .edit: return String(localized: "Bearbeiten")
         case .none: return String(localized: "Keine Aktion")
         }
     }
@@ -297,13 +305,22 @@ struct SwipeActionsPreferences: Codable, Equatable, Sendable {
 /// Eine konkrete Aktion, die `ContentView` direkt in ein `swipeActions`-
 /// Element uebersetzen kann. Archivieren bleibt immer ein gezielter Tap.
 enum SwipeOperation: String, Equatable, Sendable {
-    case done, reset, increment, yes, no, archive
+    case done, reset, increment, yes, no, archive, backfill, session, edit
 }
 
 struct EffectiveSwipeAction: Equatable, Sendable {
     let operation: SwipeOperation
 
-    var allowsFullSwipe: Bool { operation != .archive }
+    /// Voll durchwischen löst nur die FESTE Erst-Aktion aus (die zuerst
+    /// deklarierte). Für die Extra-Aktionen ist die Eigenschaft trotzdem
+    /// ehrlich gepflegt: nichts Zerstörendes oder Navigierendes per
+    /// Voll-Wisch.
+    var allowsFullSwipe: Bool {
+        switch operation {
+        case .done, .reset, .increment, .yes, .no: return true
+        case .archive, .backfill, .session, .edit: return false
+        }
+    }
 }
 
 struct EffectiveSwipeActions: Equatable, Sendable {
@@ -327,6 +344,9 @@ extension ViewPreferences {
     private func extraAction(_ choice: SwipeActionChoice) -> EffectiveSwipeAction? {
         switch choice {
         case .archive: return EffectiveSwipeAction(operation: .archive)
+        case .backfill: return EffectiveSwipeAction(operation: .backfill)
+        case .session: return EffectiveSwipeAction(operation: .session)
+        case .edit: return EffectiveSwipeAction(operation: .edit)
         case .none, .primary, .secondary: return nil
         }
     }

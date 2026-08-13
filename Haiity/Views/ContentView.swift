@@ -79,14 +79,6 @@ struct ContentView: View {
     @State private var searching = false
     @State private var searchPresentationArmed = false
     @FocusState private var searchFieldFocused: Bool
-    /// Solange WAHR, arbeitet `.searchable` mit `.searchToolbarBehavior(.automatic)`
-    /// statt `.minimize` — nötig für jede PROGRAMMATISCHE Präsentation
-    /// (Deep-Link): unter `.minimize` ignoriert das System das
-    /// `isPresented`- wie das `searchFocused`-Binding vollständig (empirisch
-    /// geprüft, auch verzögert). Zurück auf `.minimize` erst NACH dem
-    /// Zuklappen (verzögert) — der Wechsel mitten in der Abklapp-Animation
-    /// bricht sie ab und präsentiert das Feld erneut.
-    @State private var searchNeedsAutomaticBehavior = false
     /// Der native EditButton schaltet die Griffleisten der Habit-Liste ein.
     /// Beim Filtern wird er geschlossen, weil die Move-Offsets dann nicht
     /// mehr auf die vollständige aktive Liste zeigen.
@@ -241,12 +233,25 @@ struct ContentView: View {
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
-                guard tab == .search else { return }
-                nativeTab = old == .search ? .habits : old
-                if backfill == nil { openSearch(origin: .toolbar) }
+                // Der Such-Tab ist ein ECHTES Ziel (siehe nativeShell) — die
+                // Auswahl bleibt stehen. Beim Betreten klappt das Feld auf
+                // und die Tastatur kommt mit (das Fotos-Verhalten: EIN Tipp
+                // auf den Kreis, tippen kann man sofort) …
+                if tab == .search, old != .search, backfill == nil {
+                    openSearch(origin: .toolbar)
+                }
+                // … und beim Verlassen räumt die App den Suchzustand selbst
+                // weg: das System schreibt beim Tab-Wechsel nicht zuverlässig
+                // `false` zurück, und eine gefilterte Liste hinter einem
+                // anderen Tab wäre genau der „Habits sind
+                // verschwunden"-Zustand.
+                guard old == .search, tab != .search else { return }
+                if searching { searching = false }
+                searchFieldFocused = false
+                search = ""
             }
             .onChange(of: searchFieldFocused) { _, focused in
-                trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior)")
+                trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd)")
                 // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert AUF
                 // iOS 26 unter `.minimize` das Feld sofort wieder — genau der
                 // Kreislauf, der dort das X mehrfach drücken ließ: das System
@@ -265,7 +270,7 @@ struct ContentView: View {
                 if focused && !searching { searchFieldFocused = false }
             }
             .onChange(of: searching) { _, open in
-                trace("searching=\(open) focus=\(searchFieldFocused) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior) tab=\(nativeTab)")
+                trace("searching=\(open) focus=\(searchFieldFocused) showAdd=\(showAdd) tab=\(nativeTab)")
                 if open {
                     guard searchPresentationArmed else {
                         searching = false
@@ -289,11 +294,9 @@ struct ContentView: View {
                 }
                 // Beim Schließen den Fokus AKTIV löschen: bleibt das
                 // `searchFocused`-Binding wahr, präsentiert das System das
-                // Feld nach dem Rückwechsel auf `.minimize` sofort wieder
-                // (X → Lupe → Leiste klappt wieder auf).
+                // Feld sofort wieder (X → Kreis → Leiste klappt wieder auf).
                 if !open {
                     searchFieldFocused = false
-                    scheduleMinimizeReturn()
                 }
             }
     }
@@ -309,6 +312,7 @@ struct ContentView: View {
         } else {
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
+                fallbackTabLayer(.stats) { fallbackStatsContent }
                 fallbackTabLayer(.habits) { habitsStack }
                 fallbackTabLayer(.more) { fallbackMoreContent }
             }
@@ -334,115 +338,100 @@ struct ContentView: View {
             .zIndex(state.zIndex)
     }
 
-    /// Ab iOS 26 ist die Leiste vollständig nativ. iOS 27 verwendet die
-    /// dafür vorgesehene prominente Rolle, damit Habits/Mehr links und
-    /// Anlegen separat rechts stehen.
+    /// Ab iOS 26 ist die Leiste vollständig nativ: drei Inhalts-Tabs in der
+    /// Kapsel (Statistik, Habits, Mehr) plus der ECHTE Such-Tab als
+    /// abgesetzter Kreis rechts — das Fotos-Muster.
     ///
-    /// **iOS 26: der Such-Rollen-Trick.** Dort gibt es genau EINE Rolle, die
-    /// ein Tab-Element aus der Kapsel löst und als eigenen Kreis rechts
-    /// absetzt: `.search`. Deshalb trägt der Anlegen-Knopf sie, obwohl er
-    /// nicht sucht — seine Auswahl wird in `onChange(of: nativeTab)`
-    /// abgefangen und öffnet die Anlegen-Seite. Am Tab hängt KEIN
-    /// `.searchable`; auf iOS 26 hat das System dort also nichts aufzuklappen
-    /// (nachgemessen: geteilte Leiste, Suche unbehelligt).
+    /// **Der Such-Tab ist jetzt eine echte Suche.** Sein `.searchable` hängt
+    /// an SEINEM Inhalt (der gefilterten Habit-Liste), nicht mehr am
+    /// Habits-Tab: nur so klappt das System die Leiste UNTEN aus dem
+    /// Suchkreis auf und fährt sie mit der Tastatur hoch — genau die
+    /// Fotos-Mechanik. Der alte Umweg (Such-Rolle abfangen, Suchfeld als
+    /// Drawer OBEN am Habits-Tab präsentieren) sprang sichtbar an die
+    /// falsche Kante.
     ///
-    /// **iOS 27 trägt diesen Missbrauch nicht mehr** (am Gerät gemeldet, im
-    /// Simulator nachgestellt):
-    ///  * Die Leiste ist NICHT mehr geteilt — der Such-Rollen-Tab sitzt als
-    ///    gewöhnlicher Eintrag mit Beschriftung in derselben Kapsel
-    ///    („Habits | Neuer Habit", genau der Bildschirmabzug vom Gerät).
-    ///  * Schlimmer: iOS 27 verdrahtet den Such-Rollen-Tab mit dem
-    ///    `.searchable` DES ANDEREN Tabs. Jeder Tipp auf ANLEGEN löste damit
-    ///    eine Such-Aktivierung aus, die niemand bestellt hat: das Suchfeld
-    ///    klappte von selbst wieder zu, während unser `searching` WAHR blieb
-    ///    (Zustands-Riss → das X brauchte zwei Tipps), und das Schließen der
-    ///    Anlegen-Seite zog die Suche auf.
-    ///
-    /// iOS 27 bringt die richtige Rolle mit:
-    /// `TabRole.prominent` — ein hervorgehobener Ablauf-Tab, der genau so
-    /// abgesetzt rendert wie der Suchkreis, ohne irgendetwas mit der Suche zu
-    /// tun zu haben (im iOS-27-Simulator nachgemessen: Leiste wieder geteilt,
-    /// `.searchable` wieder normal). Sie existiert aber NUR im SDK 27.
-    /// Ein `if #available(iOS 27, *)`-Zweig hilft nicht: der Symbolzugriff
-    /// wird beim ÜBERSETZEN aufgelöst und schlägt unter SDK 26 fehl.
-    /// Der SDK-26-Zweig bleibt ebenfalls eine einzelne native TabView. Er
-    /// nutzt die dort einzig verfügbare abgesetzte Rolle und wird nicht mit
-    /// einer zweiten, selbstgebauten Leiste überlagert.
+    /// Die früheren iOS-27-Verrenkungen (`TabRole.prominent` hinter
+    /// `#if compiler`, Auswahl-Abfangen des Such-Rollen-Tabs) sind damit
+    /// gegenstandslos: die Such-Rolle wird nicht mehr zweckentfremdet,
+    /// sondern genau so benutzt, wie das System sie verdrahtet. Der
+    /// Feld-Beobachter für den iOS-27-Binding-Fehler (Zuklappen schreibt
+    /// kein `false` zurück) bleibt als Sicherheitsnetz bestehen — er greift
+    /// nur, wenn er wirklich ein Zuklappen misst.
     @available(iOS 26, *)
-    @ViewBuilder
     private var nativeShell: some View {
-        if #available(iOS 27, *) {
-            splitShell
-        } else {
-            searchRoleShell
+        TabView(selection: $nativeTab) {
+            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
+                value: AppTab.stats) {
+                statsTabContent
+            }
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                value: AppTab.habits) {
+                habitsTabContent
+            }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) {
+                moreTabContent
+            }
+            // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
+            // Beschriftung in der Kapsel („Habits durchsuchen" sprengte sie).
+            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .search) {
+                searchTabContent
+            }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 
-    /// iOS 26: Habits-Pille links, Such-Rollen-Tab als Anlegen-Kreis rechts.
-    /// Halten-Blase, Minimieren beim Scrollen und das Glas kommen vom System.
+    /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.
     @available(iOS 26, *)
-    private var searchRoleShell: some View {
-        TabView(selection: $nativeTab) {
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: AppTab.habits) {
-                habitsTabContent
-            }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) {
-                moreTabContent
-            }
-            // Das systemeigene Tab-Element uebernimmt den lokalisierten Namen.
-            // SwiftUI bietet am Tab selbst keinen Modifier-Pfad fuer einen
-            // expliziten Identifier; iOS 26 exponiert daher nur diesen Namen.
-            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
-                value: AppTab.search, role: .search) {
-                // Nie sichtbar: die Auswahl wird im selben Umlauf
-                // zurückgenommen (siehe onChange). Trotzdem kein leeres
-                // Weiß, falls doch je ein Bild durchrutscht.
-                Color(.systemGroupedBackground).ignoresSafeArea()
-            }
+    private var statsTabContent: some View {
+        NavigationStack {
+            StatsView(store: store)
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
     }
 
-    /// iOS 27: echte Inhalts-Tabs plus nativer prominenter Such-Tab.
-    @available(iOS 27, *)
-    @ViewBuilder
-    private var splitShell: some View {
-        #if compiler(>=6.4)
-        TabView(selection: $nativeTab) {
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: AppTab.habits) {
-                habitsTabContent
+    /// Der Inhalt des Such-Tabs: DIESELBEN Karten, gefiltert. Leerer
+    /// Suchbegriff zeigt die volle Liste — der Tab ist damit auch ohne
+    /// Eingabe kein weißes Loch (dasselbe Verhalten wie Fotos).
+    @available(iOS 26, *)
+    private var searchTabContent: some View {
+        NavigationStack {
+            Group {
+                if store.activeHabits.isEmpty {
+                    emptyState
+                } else {
+                    searchList
+                }
             }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) {
-                moreTabContent
-            }
-            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
-                value: AppTab.search, role: .prominent) {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+            .navigationTitle(String(localized: "Suchen"))
+            .searchable(text: $search,
+                        isPresented: $searching,
+                        prompt: Text(String(localized: "Habits durchsuchen")))
+            .searchFocused($searchFieldFocused)
+        }
+        // Rückgängig-Toast und Sync-Pille auch hier: ein Wisch in den
+        // Suchtreffern schreibt genauso und braucht dasselbe Zurück.
+        .overlay(alignment: .bottom) {
+            if !searching { floatingPills }
+        }
+    }
+
+    @available(iOS 26, *)
+    private var searchList: some View {
+        List {
+            if filteredHabits.isEmpty {
+                ContentUnavailableView.search(text: search)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else {
+                ForEach(Array(filteredHabits.enumerated()), id: \.element.id) { index, habit in
+                    row(for: habit, index: index + 1, inSearchTab: true)
+                }
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        #else
-        // SDK 26 cannot name `TabRole.prominent`. Keep this fallback fully
-        // native as well; shipping with SDK 27 automatically selects the
-        // proper prominent layout above.
-        TabView(selection: $nativeTab) {
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2", value: AppTab.habits) {
-                habitsTabContent
-            }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis", value: AppTab.more) {
-                moreTabContent
-            }
-            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
-                value: AppTab.search, role: .search) {
-                Color(.systemGroupedBackground).ignoresSafeArea()
-            }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        #endif
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground))
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
@@ -500,6 +489,12 @@ struct ContentView: View {
         }
     }
 
+    private var fallbackStatsContent: some View {
+        NavigationStack {
+            StatsView(store: store)
+        }
+    }
+
     /// Rückgängig-Toast und Sync-Pille als schwebende Schicht — in der
     /// Fallback-Leiste stecken sie im Chrom-Stapel, hier sind sie die ganze
     /// Schicht.
@@ -537,7 +532,6 @@ struct ContentView: View {
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
         switch route {
-        case .stats: StatsView(store: store)
         case .archive: ArchiveView(store: store)
         case .about: AboutView()
         }
@@ -545,23 +539,19 @@ struct ContentView: View {
 
     // MARK: – Habits-Bereich
 
-    /// Suche programmatisch öffnen — der EINE Weg für Deep-Links und den
-    /// Fallback-Knopf; die System-Lupe schreibt direkt in ihr Binding.
+    /// Suche programmatisch öffnen — der EINE Weg für Deep-Links.
     ///
-    /// Ab iOS 26 reicht `isPresented = true` NICHT: mit
-    /// `.searchToolbarBehavior(.minimize)` klappt das System die Leiste nur
-    /// über seine eigene Lupe oder über den FOKUS auf. Deshalb erst den
-    /// Zustand setzen, dann im nächsten Umlauf den Fokus — das Setzen beider
-    /// im selben Umlauf verschluckt die Präsentation ebenfalls.
+    /// Ab iOS 26 heißt „Suche öffnen": den ECHTEN Such-Tab wählen und dann
+    /// sein `searchable(isPresented:)` aufklappen — dieselbe Mechanik, die
+    /// auch ein Tipp auf den Suchkreis auslöst. Erst der Zustand, dann im
+    /// nächsten Umlauf der Fokus; beides im selben Umlauf verschluckt die
+    /// Präsentation (nachgemessen, gilt unverändert).
     private func openSearch(origin: SearchOpenOrigin, routeGeneration: Int? = nil) {
         trace("openSearch(\(origin)) showAdd=\(showAdd)")
         // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
         // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
         chrome.searchFlow.userOpened()
-        // Nur ein Deep-Link braucht den automatischen Drawer: beim Zug ist
-        // das native minimierte Feld bereits im Baum. Sein Umschalten würde
-        // es ab- und als zweite Leiste wieder aufbauen.
-        searchNeedsAutomaticBehavior = origin.requiresAutomaticToolbarBehavior
+        if #available(iOS 26, *), nativeTab != .search { nativeTab = .search }
         DispatchQueue.main.async {
             guard routeWorkIsCurrent(routeGeneration) else { return }
             withAnimation { searching = true }
@@ -611,34 +601,17 @@ struct ContentView: View {
         search = ""
     }
 
-    /// Nach JEDEM Schließen zurück zu `.minimize` — aber erst an einem
-    /// sicheren Punkt: Suche zu, kein (auch kein nachzüglerischer) Fokus.
-    ///
-    /// Der alte Weg (fester 0.7-s-Timer, der bei `searching == true` einfach
-    /// aufgab) hatte zwei Löcher, beide vom Gerät gemeldet („X mehrmals
-    /// drücken"):
-    ///  * Wer innerhalb der 0.7 s wieder öffnete, ließ `.automatic` für immer
-    ///    stehen — die Leiste stand danach DAUERHAFT unter dem Titel, kein X
-    ///    der Welt schloss sie noch.
-    ///  * Fiel der Umschalter mitten in die Abklapp-Animation, riss er die
-    ///    Leiste wieder auf.
-    /// Deshalb: bei offener Suche nicht aufgeben, sondern SPÄTER erneut
-    /// versuchen (das nächste Schließen findet so immer einen scharfen
-    /// Rücksteller vor), bei hängendem Fokus erst den Fokus lösen, und der
-    /// eigentliche Wechsel läuft ohne Animation — er ist reine Buchhaltung,
-    /// nichts, das eine laufende System-Animation kapern darf.
-    private func scheduleMinimizeReturn(attempt: Int = 0) {
-        guard attempt < 8 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            guard searchNeedsAutomaticBehavior else { return }
-            guard !searching, !searchFieldFocused else {
-                scheduleMinimizeReturn(attempt: attempt + 1)
-                return
-            }
-            var tx = Transaction()
-            tx.disablesAnimations = true
-            trace("minimizeReturn attempt=\(attempt) -> auto=false")
-            withTransaction(tx) { searchNeedsAutomaticBehavior = false }
+    /// Aus dem Such-Tab heraus zu Nacharbeiten: erst zurück zu Habits (dort
+    /// wohnen Karte, Vorhang und Anker-Messung), dann öffnen. Die kurze
+    /// Pause lässt den Tab-Wechsel und das Zuklappen der Suche setzen.
+    private func redirectBackfillFromSearch(_ habit: Habit, day: String) {
+        if searching { searching = false }
+        searchFieldFocused = false
+        search = ""
+        nativeTab = .habits
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            openBackfill(habit, day: day, afterMenu: false)
         }
     }
 
@@ -656,12 +629,10 @@ struct ContentView: View {
         if store.activeHabits.isEmpty {
             emptyState
                 .navigationTitle("Habits")
-                .searchableHidden(text: $search,
-                                  isPresented: $searching,
-                                  focus: $searchFieldFocused,
-                                  mounted: searchPresentationArmed,
-                                  automaticBehavior: searchNeedsAutomaticBehavior,
-                                  prompt: String(localized: "Habits durchsuchen"))
+                .legacySearchDrawer(text: $search,
+                                    isPresented: $searching,
+                                    focus: $searchFieldFocused,
+                                    prompt: String(localized: "Habits durchsuchen"))
                 .toolbar { createToolbarItem }
         } else {
             habitList
@@ -672,12 +643,10 @@ struct ContentView: View {
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
                 .environment(\.editMode, $editMode)
-                .searchableHidden(text: $search,
-                                  isPresented: $searching,
-                                  focus: $searchFieldFocused,
-                                  mounted: searchPresentationArmed,
-                                  automaticBehavior: searchNeedsAutomaticBehavior,
-                                  prompt: String(localized: "Habits durchsuchen"))
+                .legacySearchDrawer(text: $search,
+                                    isPresented: $searching,
+                                    focus: $searchFieldFocused,
+                                    prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
@@ -693,11 +662,6 @@ struct ContentView: View {
                             }
                             .disabled(!search.isEmpty)
                             .accessibilityIdentifier("reorder-habits")
-
-                            Button { presentMoreSheet(.stats) } label: {
-                                Label(String(localized: "Statistik"), systemImage: "chart.bar")
-                            }
-                            .accessibilityIdentifier("open-stats")
 
                             Button { presentMoreSheet(.archive) } label: {
                                 Label(String(localized: "Archiv"), systemImage: "archivebox")
@@ -728,7 +692,6 @@ struct ContentView: View {
 
     private var habitList: some View {
         List {
-            statsRow
             titleRow
             if filteredHabits.isEmpty {
                 ContentUnavailableView.search(text: search)
@@ -774,24 +737,9 @@ struct ContentView: View {
         return Theme.Metrics.control + Theme.Metrics.gap + Theme.Metrics.gutter
     }
 
-    /// Die Statistik-Karten ÜBER dem Titel — eine Listenzeile, die mit
-    /// scrollt. Null aktive Karten: die Zeile existiert gar nicht (kein
-    /// leerer Behälter). Der Schnappschuss ist memoisiert (StatsEngine):
-    /// eine `body`-Auswertung kostet hier nur den Gleichheitsvergleich.
-    @ViewBuilder
-    private var statsRow: some View {
-        if !viewPreferences.statsCards.active.isEmpty {
-            StatsCardsView(snapshot: StatsEngine.snapshot(habits: store.activeHabits),
-                           cards: viewPreferences.statsCards.active)
-                .equatable()
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
-                                          leading: Theme.Metrics.gutter,
-                                          bottom: 0,
-                                          trailing: Theme.Metrics.gutter))
-        }
-    }
+    // Die Statistik-Karten über dem Titel sind in den eigenen
+    // Statistik-Tab umgezogen (siehe StatsView) — die Habit-Liste beginnt
+    // wieder mit ihrem Titel.
 
     /// Der große „Habits"-Titel als LISTENZEILE — die Navigationsleiste
     /// trägt keinen mehr (siehe `habitsScreen`), sonst könnten die Karten
@@ -812,7 +760,7 @@ struct ContentView: View {
             .accessibilityIdentifier("habits-title")
     }
 
-    private func row(for habit: Habit, index: Int) -> some View {
+    private func row(for habit: Habit, index: Int, inSearchTab: Bool = false) -> some View {
         #if DEBUG
         FrameProbe.shared.mark("row")
         #endif
@@ -822,9 +770,17 @@ struct ContentView: View {
             collapsed: collapsed,
             onToggleDay: { toggleDay(habit, day: $0) },
             // Zellentipp: nur AUSWÄHLEN. Die Karte kommt sofort — hier ist
-            // kein Menü, das erst zugehen müsste.
-            onSelectDay: { openBackfill(habit, day: $0, afterMenu: false) },
-            onBackfill: { openBackfill(habit, day: DayKey.today(), afterMenu: true) },
+            // kein Menü, das erst zugehen müsste. Aus dem SUCH-Tab führt der
+            // Weg erst zurück zu Habits: die Nacharbeiten-Karte wohnt dort
+            // (Overlay samt Anker-Messung), nicht über den Suchtreffern.
+            onSelectDay: { day in
+                if inSearchTab { redirectBackfillFromSearch(habit, day: day) }
+                else { openBackfill(habit, day: day, afterMenu: false) }
+            },
+            onBackfill: {
+                if inSearchTab { redirectBackfillFromSearch(habit, day: DayKey.today()) }
+                else { openBackfill(habit, day: DayKey.today(), afterMenu: true) }
+            },
             onIncrement: { increment(habit) },
             onClear: { revert(habit) },
             onMarkDone: { markDone(habit) },
@@ -835,7 +791,10 @@ struct ContentView: View {
         // `.equatable()`: siehe HabitCard. Ohne das baut jeder Tafel-/Toast-
         // Umbau alle sichtbaren Karten neu — gemessen der halbe Ruckler.
         .equatable()
-        .background(rowProbe(index))
+        // Die Messfühler gehören ausschließlich der Habits-Liste: zwei
+        // montierte Listen, die in DASSELBE rowFrames schreiben, überschrieben
+        // sich sonst gegenseitig die Anker.
+        .background { if !inSearchTab { rowProbe(index) } }
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         // NUR die Seitenränder. Die vertikalen Abstände sitzen in der Karte
@@ -880,8 +839,17 @@ struct ContentView: View {
             case .yes: answer(habit, yes: true)
             case .no: answer(habit, yes: false)
             case .archive: store.archive(habit.id)
+            case .backfill: openBackfill(habit, day: DayKey.today(), afterMenu: false)
+            case .session: HabitSessionManager.shared.start(habit: habit)
+            case .edit: editing = habit
             }
         } label: {
+            // Zur Höhe: iOS 26 zeichnet Wisch-Knöpfe als SYSTEM-Kapseln
+            // fester Größe (wie Mail/Podcasts). Frames am Label sind wirkungslos
+            // — der Inhalt wird zu Titel+Symbol plattgedrückt (nachgemessen:
+            // minHeight 260 und ein voller Zeilenhintergrund ändern nichts).
+            // Kartenhohe Knöpfe hießen: das komplette native Wisch-Verhalten
+            // (Haptik, Voll-Wisch, RTL, VoiceOver) selbst nachbauen.
             Label(label.title, systemImage: label.symbol)
                 .frame(maxHeight: .infinity)
         }
@@ -898,6 +866,9 @@ struct ContentView: View {
         case .yes: return (String(localized: "Ja"), "checkmark", .green)
         case .no: return (String(localized: "Nein"), "xmark", .red)
         case .archive: return (String(localized: "Archivieren"), "archivebox", .orange)
+        case .backfill: return (String(localized: "Nacharbeiten"), "calendar.badge.plus", .indigo)
+        case .session: return (String(localized: "Session starten"), "timer", .teal)
+        case .edit: return (String(localized: "Bearbeiten"), "pencil", .blue)
         }
     }
 
@@ -1285,6 +1256,7 @@ struct ContentView: View {
     ///     innere Kapsel  h = control − 2p = hit = 44  ->  r = h/2 = 22
     private var switcher: some View {
         HStack(spacing: Self.chromeInset) {
+            statsPill
             habitsPill
             morePill
         }
@@ -1314,6 +1286,14 @@ struct ContentView: View {
             .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
     }
 
+    /// Statistik im Fallback bewusst NUR als Symbol: drei beschriftete
+    /// Pillen plus Anlegen-Knopf passen auf 320-pt-Geräte nicht mehr in
+    /// eine Zeile, und das Balken-Symbol ist eindeutig.
+    private var statsPill: some View {
+        navigationPill(tab: .stats, title: "Statistik", symbol: "chart.bar",
+                       identifier: "tab-stats", iconOnly: true)
+    }
+
     private var habitsPill: some View {
         navigationPill(tab: .habits, title: "Habits", symbol: "square.grid.2x2",
                        identifier: "tab-habits")
@@ -1325,14 +1305,15 @@ struct ContentView: View {
     }
 
     private func navigationPill(tab: AppTab, title: LocalizedStringKey,
-                                symbol: String, identifier: String) -> some View {
+                                symbol: String, identifier: String,
+                                iconOnly: Bool = false) -> some View {
         let selected = nativeTab == tab
         return Button {
             nativeTab = tab
         } label: {
             HStack(spacing: 4) {
                 glyph(symbol)
-                if !collapsed {
+                if !collapsed, !iconOnly {
                     Text(title)
                         .font(.footnote.weight(.semibold))
                         .fixedSize()
@@ -1479,7 +1460,6 @@ struct ContentView: View {
                 searching = false
             } else {
                 chrome.searchFlow.dismissed()
-                searchNeedsAutomaticBehavior = false
             }
             searchFieldFocused = false
             search = ""
@@ -1586,7 +1566,6 @@ struct ContentView: View {
 
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
-        case .stats: .stats
         case .archive: .archive
         case .about: nil
         }
@@ -1594,7 +1573,6 @@ struct ContentView: View {
 
     private func moreRoute(for destination: AppMoreDestination) -> MoreRoute {
         switch destination {
-        case .stats: .stats
         case .archive: .archive
         }
     }
@@ -1843,10 +1821,13 @@ struct ContentView: View {
             minutes: store.summaryMinutes,
             status: store.dailyStatus(today, calendar: calendar),
             calendar: calendar)
+        // `fullWeek`: die Wochen-Mitteilung darf nicht ausfallen, nur weil
+        // die Woche BIS HEUTE noch leer ist (Montag geöffnet, Termin am
+        // Freitag) — geschuldet wird über die ganze Woche gezählt.
         let weekly = Reminders.weeklySummaryPlan(
             minutes: store.weeklySummaryMinutes,
             weekday: store.weeklySummaryWeekday,
-            status: store.weeklyStatus(today, calendar: calendar),
+            status: store.weeklyStatus(today, calendar: calendar, fullWeek: true),
             calendar: calendar)
         await Reminders.reschedule(daily: daily, weekly: weekly)
     }
@@ -1926,8 +1907,6 @@ struct SearchFieldReading: Equatable {
 enum SearchOpenOrigin: CustomStringConvertible {
     case toolbar
     case deepLink
-
-    var requiresAutomaticToolbarBehavior: Bool { self == .deepLink }
 
     var description: String {
         switch self {
@@ -2275,13 +2254,13 @@ private struct MoreZoomDestination: ViewModifier {
     }
 }
 
-/// Suchfeld, das NICHT dauerhaft sichtbar ist.
+/// Suchfeld, das NICHT dauerhaft sichtbar ist — NUR noch für iOS < 26.
 ///
-/// Ab iOS 26 macht das ganz das System: `.searchable` hängt DAUERHAFT am
-/// Baum, `.searchToolbarBehavior(.minimize)` faltet es zu einer nativen Lupe
-/// oben rechts zusammen. Auf- und Zuklappen laufen damit mit den
-/// Systemkurven im Leisten-Glas. Beide Wege (System-Lupe, Fallback-Knopf)
-/// schalten weiter nur `isPresented`.
+/// Ab iOS 26 wohnt die Suche im echten Such-Tab (siehe `nativeShell`); dort
+/// hängt ein gewöhnliches `.searchable` am Tab-Inhalt und das System
+/// besorgt Auf- und Zuklappen unten an der Leiste. Der Feld-Beobachter für
+/// den iOS-27-Binding-Fehler (Zuklappen schreibt kein `false` zurück; siehe
+/// `SearchFieldProbe` und `SearchFlow.fieldReading`) bleibt daneben aktiv.
 ///
 /// Vor iOS 26 bleibt der alte Umweg: `.searchable` erst anhängen, wenn die
 /// Suche offen sein soll — `.minimize` gibt es dort nicht, und
@@ -2289,42 +2268,15 @@ private struct MoreZoomDestination: ViewModifier {
 /// Listenanfang dauerhaft. Das Anhängen mit `isPresented == true` klappt die
 /// Leiste ohne Übergang auf (ein harter Schnitt, bewusst in Kauf genommen —
 /// nur dort, wo das System nichts Besseres anbietet).
-///
-/// **iOS 27 hat mit dieser Minimierung zwei gemessene Fehler** — beide in
-/// einer NACKTEN Testapp nachgestellt, ohne eine Zeile dieser App, und auf
-/// iOS 26.4 jedes Mal einwandfrei:
-///  * Und klappt man die Suche über ihr X zu, NIMMT das System das Feld aus
-///    dem Bild, schreibt aber KEIN `false` ins Binding zurück (auch
-///    `\.isSearching` bleibt wahr — nachgemessen). Weil das Binding wahr
-///    bleibt, reisst SwiftUI das halb zugeklappte Feld sofort wieder auf: der
-///    erste Tipp aufs X verpufft sichtbar, der zweite schließt. Das ist die
-///    Wurzel beider Geräte-Meldungen — das X „musste zweimal gedrückt
-///    werden", und beim Schließen der Anlegen-Seite präsentierte SwiftUI das
-///    Feld beim nächsten Auswerten der Ansicht ERNEUT.
-///    ANTWORT: der Feld-Beobachter. Er misst das Zuklappen an der echten
-///    Ansicht und zieht `isPresented` selbst nach, bevor das Zurückreissen
-///    einsetzt (siehe `SearchFieldProbe` und `SearchFlow.fieldReading`).
-///
-/// SOBALD APPLE DEN BINDING-FEHLER BEHOBEN HAT: der Feld-Beobachter kann
-/// ersatzlos entfallen — der iOS-26-Weg gilt dann wieder für alle.
-private struct SearchableHidden: ViewModifier {
+private struct LegacySearchDrawer: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
     let focus: FocusState<Bool>.Binding
-    let mounted: Bool
-    let automaticBehavior: Bool
     let prompt: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if mounted, isPresented, #available(iOS 26, *) {
-            content
-                .searchable(text: $text,
-                            isPresented: $isPresented,
-                            prompt: Text(prompt))
-                .searchToolbarBehavior(.automatic)
-                .searchFocused(focus)
-        } else if isPresented {
+        if #unavailable(iOS 26), isPresented {
             let base = content
                 .searchable(text: $text,
                             isPresented: $isPresented,
@@ -2342,17 +2294,13 @@ private struct SearchableHidden: ViewModifier {
 }
 
 private extension View {
-    func searchableHidden(text: Binding<String>,
-                          isPresented: Binding<Bool>,
-                          focus: FocusState<Bool>.Binding,
-                          mounted: Bool,
-                          automaticBehavior: Bool,
-                          prompt: String) -> some View {
-        modifier(SearchableHidden(text: text, isPresented: isPresented,
-                                  focus: focus,
-                                  mounted: mounted,
-                                  automaticBehavior: automaticBehavior,
-                                  prompt: prompt))
+    func legacySearchDrawer(text: Binding<String>,
+                            isPresented: Binding<Bool>,
+                            focus: FocusState<Bool>.Binding,
+                            prompt: String) -> some View {
+        modifier(LegacySearchDrawer(text: text, isPresented: isPresented,
+                                    focus: focus,
+                                    prompt: prompt))
     }
 }
 

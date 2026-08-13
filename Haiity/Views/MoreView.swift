@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 /// `Identifiable`, weil sie als `.sheet(item:)` präsentiert werden: in der
 /// Tafel über der Leiste ist für eine eigene Seite kein Platz.
 enum MoreRoute: Hashable, Identifiable {
-    case stats, archive, about
+    case archive, about
 
     var id: Self { self }
 }
@@ -73,7 +73,6 @@ struct MoreView: View, Equatable {
             appearanceSection
             paletteSection
 
-            statsCardsSection
             compactModeSection
             swipeActionsSection
 
@@ -89,8 +88,6 @@ struct MoreView: View, Equatable {
             }
 
             Section {
-                pageRow(.stats, title: String(localized: "Statistik"),
-                        symbol: "chart.bar", identifier: "open-stats")
                 pageRow(.archive, title: String(localized: "Archiv"),
                         symbol: "archivebox", identifier: "open-archive",
                         badge: archivedCount > 0 ? "\(archivedCount)" : nil)
@@ -176,34 +173,11 @@ struct MoreView: View, Equatable {
         }
     }
 
-    // MARK: – Statistik-Karten
-    //
-    // Vier Karten, höchstens zwei aktiv. Die Mechanik ist „sperren +
-    // Fußnote", nicht „älteste fliegt raus": ein Schalter, der beim
-    // Einschalten still einen anderen ausschaltet, wäre der einzige in der
-    // ganzen Tafel, der etwas Ungefragtes tut. Gesperrte Schalter bleiben
-    // sichtbar (ausgegraut), die Fußnote sagt warum.
-
-    private var statsCardsSection: some View {
-        Section {
-            ForEach(StatsCard.allCases) { card in
-                Toggle(isOn: cardBinding(card)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label(card.displayName, systemImage: card.symbol)
-                        Text(card.detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .disabled(!statsCards.prefs.canToggle(card))
-                .accessibilityIdentifier("stats-card-toggle-\(card.rawValue)")
-            }
-        } header: {
-            Text(String(localized: "Statistik-Karten"))
-        } footer: {
-            Text(String(localized: "Bis zu zwei Karten stehen über der Habit-Liste. Sind zwei aktiv, schalte zuerst eine ab, um eine andere zu wählen."))
-        }
-    }
+    // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
+    // Habit-Liste). Die Karten wohnen jetzt vollzählig im eigenen
+    // Statistik-Tab — es gibt nichts mehr auszuwählen. `StatsCardPrefs`
+    // bleibt als Datenformat bestehen (alte Dateien und iCloud-Stände
+    // decodieren unverändert), nur die Oberfläche dazu ist weg.
 
     private var compactModeSection: some View {
         Section {
@@ -214,11 +188,6 @@ struct MoreView: View, Equatable {
         } footer: {
             Text(String(localized: "Verdichtet die Habit-Liste und die untere Navigation dauerhaft."))
         }
-    }
-
-    private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
-        Binding(get: { statsCards.prefs.isActive(card) },
-                set: { statsCards.setStatsCard(card, active: $0) })
     }
 
     private var swipeActionsSection: some View {
@@ -232,7 +201,7 @@ struct MoreView: View, Equatable {
 
             if statsCards.preferences.swipeActions.enabled {
                 Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
-                    ForEach([SwipeActionChoice.archive, .none]) { choice in
+                    ForEach(SwipeActionChoice.selectable) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -240,7 +209,7 @@ struct MoreView: View, Equatable {
                 .accessibilityIdentifier("swipe-leading-picker")
 
                 Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
-                    ForEach([SwipeActionChoice.archive, .none]) { choice in
+                    ForEach(SwipeActionChoice.selectable) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -249,16 +218,24 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
+        } footer: {
+            Text(String(localized: "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten. Hier wählst du, was als zweiter Knopf dahinter erscheint."))
         }
     }
 
+    /// Die Altlasten `primary`/`secondary` lesen sich als „keine
+    /// Extra-Aktion" — genau so löst ContentView sie auch auf.
+    private func normalized(_ choice: SwipeActionChoice) -> SwipeActionChoice {
+        SwipeActionChoice.selectable.contains(choice) ? choice : .none
+    }
+
     private var swipeLeadingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { statsCards.preferences.swipeActions.leading == .archive ? .archive : .none },
+        Binding(get: { normalized(statsCards.preferences.swipeActions.leading) },
                 set: { choice in statsCards.update { $0.swipeActions.leading = choice } })
     }
 
     private var swipeTrailingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { statsCards.preferences.swipeActions.trailing == .archive ? .archive : .none },
+        Binding(get: { normalized(statsCards.preferences.swipeActions.trailing) },
                 set: { choice in statsCards.update { $0.swipeActions.trailing = choice } })
     }
 

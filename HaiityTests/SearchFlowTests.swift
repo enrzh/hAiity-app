@@ -18,10 +18,9 @@ final class SearchFlowTests: XCTestCase {
 
     private func t(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
 
-    func testToolbarSearchKeepsTheNativeMinimizedField() {
-        XCTAssertFalse(SearchOpenOrigin.toolbar.requiresAutomaticToolbarBehavior)
-        XCTAssertTrue(SearchOpenOrigin.deepLink.requiresAutomaticToolbarBehavior)
-    }
+    // Der frühere Verhaltens-Umschalter (`.automatic` nur für Deep-Links)
+    // ist mit dem echten Such-Tab gegenstandslos: es gibt nur noch EIN
+    // `.searchable`, und es wohnt am Such-Tab selbst.
 
     // MARK: – Grundfälle
 

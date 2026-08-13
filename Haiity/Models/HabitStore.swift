@@ -500,12 +500,21 @@ final class HabitStore {
     /// möglicher Termin, aber geschuldet sind drei. Flexible Ziele mit
     /// größerer Periode (monatlich, jährlich) stehen bewusst gar nicht in der
     /// Wochenbilanz: „5× pro Monat" ist keine Wochenschuld.
+    /// `fullWeek` zählt die GESCHULDETEN Termine über die ganze Woche statt
+    /// nur bis heute — erfüllt wird weiterhin nur, was schon im Log steht.
+    /// Das ist der Stoff für die WOCHEN-Mitteilung: sie feuert am
+    /// Wochenende, geplant wird sie aber oft am Montag — mit „bis heute"
+    /// wäre eine Woche, deren einziger Termin noch vor ihr liegt, scheinbar
+    /// leer, und der Plan fiele ersatzlos aus (gemeldeter Fehler).
     func weeklyStatus(_ today: String = DayKey.today(),
-                      calendar: Calendar = .current) -> SummaryStatus {
+                      calendar: Calendar = .current,
+                      fullWeek: Bool = false) -> SummaryStatus {
         guard let todayDate = DayKey.date(from: today, calendar: calendar),
               let week = calendar.dateInterval(of: .weekOfYear, for: todayDate)?.start
         else { return SummaryStatus(done: 0, total: 0, missing: []) }
         let firstDay = DayKey.key(for: week, calendar: calendar)
+        let lastDay = DayKey.shifted(firstDay, by: 6, calendar: calendar) ?? today
+        let dueThrough = fullWeek ? max(lastDay, today) : today
         var done = 0, total = 0
         var missing: [String] = []
         for habit in activeHabits {
@@ -520,10 +529,11 @@ final class HabitStore {
                 met = min(times, countingDays(habit, from: firstDay, to: today, calendar: calendar))
             } else {
                 var day = firstDay
-                while day <= today {
+                while day <= dueThrough {
                     if schedule.isScheduled(day) {
                         due += 1
-                        if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) { met += 1 }
+                        if day <= today,
+                           GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) { met += 1 }
                     }
                     guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
                     day = next

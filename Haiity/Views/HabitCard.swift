@@ -265,6 +265,13 @@ struct HabitCard: View, Equatable {
         VStack(spacing: Theme.Metrics.gutter) {
             Button { requestGraphPreviewAction(.edit) } label: {
                 habitPreview
+                    // Die Vorschau enthält (im Raster) einen horizontalen
+                    // ScrollView — der frisst Tipps, bevor sie den Knopf
+                    // erreichen: genau das gemeldete „Tippen auf den großen
+                    // Graphen tut nichts". Die Vorschau ist zum ANSEHEN da
+                    // und braucht keine eigenen Treffer; ohne sie gehört
+                    // jeder Tipp auf der ganzen Fläche dem Bearbeiten-Knopf.
+                    .allowsHitTesting(false)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

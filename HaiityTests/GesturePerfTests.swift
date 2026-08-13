@@ -17,6 +17,19 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit-preview\")"))
     }
 
+    /// Die Vorschau enthält (im Raster) einen horizontalen ScrollView. Ohne
+    /// abgeschaltete Treffer frisst er den Tipp, bevor er den
+    /// Bearbeiten-Knopf erreicht — „Tippen auf den großen Graphen tut
+    /// nichts" war genau so vom Gerät gemeldet.
+    func testPreviewDoesNotSwallowTheEditTap() throws {
+        let source = try habitCardSource()
+        let start = try XCTUnwrap(source.range(of: "private var graphPreviewSheet"))
+        let end = try XCTUnwrap(source.range(of: "private var habitActions",
+                                             range: start.upperBound..<source.endIndex))
+        let sheet = String(source[start.lowerBound..<end.lowerBound])
+        XCTAssertTrue(sheet.contains(".allowsHitTesting(false)"))
+    }
+
     func testLongPressMenuKeepsEditAction() throws {
         let habitActions = try habitActionsSource()
         XCTAssertTrue(habitActions.contains("requestGraphPreviewAction(.edit)"))
