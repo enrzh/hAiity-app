@@ -4,9 +4,9 @@ import SwiftUI
 /// Habit-Liste plus Unterseite in „Mehr", sondern eine Seite, die beides
 /// vereint:
 ///
-///  1. **Jahres-Puls** als Held: das vereinigte Raster aller Habits in der
-///     Sprache der App (dieselbe Rampe wie die großen Raster), daneben der
-///     Heute-Ring.
+///  1. **Jahres-Puls** als Held: das vereinigte Raster aller Habits über
+///     die volle Kartenbreite, in der Sprache der App (dieselbe Rampe wie
+///     die großen Raster; reine Nein-Tage in der Verneinungsfarbe).
 ///  2. **Vier Kacheln** im 2er-Raster: Serie, Heute, Woche, Gesamt — kurze
 ///     Zahlen, monospaced, eine Aussage je Kachel.
 ///  3. **Je Habit** die vertraute Zeile: Quoten 30/90/365, Serien, Summe und
@@ -62,8 +62,14 @@ struct StatsView: View {
 
     // MARK: – Held: Jahres-Puls
 
-    /// Vereinigtes Raster + Heute-Ring. EIN VoiceOver-Element mit einem Satz
-    /// — die Mini-Zellen einzeln wären eine Zumutung.
+    /// Das vereinigte Raster als HELD — volle Kartenbreite, satte Zellen.
+    /// EIN VoiceOver-Element mit einem Satz (die Mini-Zellen einzeln wären
+    /// eine Zumutung).
+    ///
+    /// Der Heute-Ring stand hier daneben und ist bewusst raus: die
+    /// HEUTE-Kachel direkt darunter zeigt exakt dieselbe Zahl — und der
+    /// doppelte Ring hat dem Raster die halbe Breite gestohlen, das dann
+    /// klein und verloren in der Ecke saß (vom Gerät gemeldet).
     private func heroCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.cardPadding) {
             HStack(alignment: .center) {
@@ -77,13 +83,7 @@ struct StatsView: View {
                     streakChip(snapshot.streak)
                 }
             }
-            HStack(spacing: Theme.Metrics.cardPadding) {
-                mergedGrid(snapshot.mergedLevels)
-                Spacer(minLength: 0)
-                progressRing(done: snapshot.todayDone,
-                             total: snapshot.todayTotal,
-                             size: 60, line: 6)
-            }
+            mergedGrid(snapshot.mergedLevels)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Jahres-Puls"))
@@ -91,19 +91,30 @@ struct StatsView: View {
         .accessibilityIdentifier("stats-card-yearPulse")
     }
 
-    /// Das vereinigte Raster: dieselbe Rampe wie überall, kleine Zellen.
+    /// Gemessene Kartenbreite fürs Puls-Raster — feste SPALTENZAHL, die
+    /// Zellgröße fällt aus der Breite (dasselbe Prinzip wie das große
+    /// Raster: mehr Platz heißt größere Quadrate, nicht mehr Spalten).
+    @State private var pulseWidth: CGFloat = 0
+
     private func mergedGrid(_ levels: [[Int]]) -> some View {
-        let cell: CGFloat = 8, gap: CGFloat = 2
+        let columns = max(levels.count, 1)
+        let pitch = pulseWidth > 0 ? pulseWidth / CGFloat(columns) : 15
+        let gap = min(3, max(2, pitch * 0.16))
+        let cell = pitch - gap
         return HStack(alignment: .top, spacing: gap) {
             ForEach(Array(levels.enumerated()), id: \.offset) { _, column in
                 VStack(spacing: gap) {
                     ForEach(Array(column.enumerated()), id: \.offset) { _, level in
-                        RoundedRectangle(cornerRadius: 1.8, style: .continuous)
+                        RoundedRectangle(cornerRadius: cell * 0.24, style: .continuous)
                             .fill(Theme.level(level, dark: dark, palette: palettes.style))
                             .frame(width: cell, height: cell)
                     }
                 }
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            pulseWidth = width
         }
         // Chronologie läuft immer links -> rechts, wie im großen Raster.
         .environment(\.layoutDirection, .leftToRight)
@@ -295,24 +306,6 @@ struct StatsView: View {
                         .rotationEffect(.degrees(-90))
                 }
             }
-        }
-        .frame(width: size, height: size)
-        .padding(line / 2)
-    }
-
-    /// Einfacher Fortschritts-Ring (Jahres-Puls rechts): EIN Bogen, Anteil
-    /// erledigt, Zahl in der Mitte.
-    private func progressRing(done: Int, total: Int, size: CGFloat, line: CGFloat) -> some View {
-        ZStack {
-            Circle().stroke(Color(.quaternaryLabel), lineWidth: line)
-            if total > 0 {
-                Circle()
-                    .trim(from: 0, to: Double(done) / Double(total))
-                    .stroke(accent, style: StrokeStyle(lineWidth: line, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            }
-            Text(verbatim: "\(done)/\(total)")
-                .font(.caption2.weight(.bold).monospacedDigit())
         }
         .frame(width: size, height: size)
         .padding(line / 2)

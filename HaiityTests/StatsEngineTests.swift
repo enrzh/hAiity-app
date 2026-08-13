@@ -278,4 +278,31 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(snap.perHabit.first?.name, "Lesen")
         XCTAssertEqual(snap.perHabit.first?.current, 5)
     }
+
+    /// Reine Nein-Tage tragen die Verneinungsstufe statt leer zu bleiben —
+    /// wer täglich antwortet (auch mit Nein), sieht einen Puls. Ein
+    /// zählender Tag GEWINNT gegen ein Nein desselben Tages.
+    func testMergedLevelsShowDeclinedOnlyDaysAsNegative() {
+        var yesNo = Habit(name: "Kein Zucker", kind: .yesNo)
+        yesNo.log["2026-08-07"] = Habit.Answer.no
+        yesNo.log["2026-08-08"] = Habit.Answer.no
+        var done = Habit(name: "Lesen")
+        done.log["2026-08-08"] = 1
+
+        let levels = StatsEngine.mergedLevels(habits: [yesNo, done], weeks: 4,
+                                              today: "2026-08-09")
+        // Zukunftstage haben KEINEN Schlüssel (nil) — nur echte Tage zuordnen.
+        var flat: [String: Int] = [:]
+        for (keyColumn, levelColumn) in zip(GridCalendar.keys(weeks: 4, today: "2026-08-09"),
+                                            levels) {
+            for (key, level) in zip(keyColumn, levelColumn) where key != nil {
+                flat[key!] = level
+            }
+        }
+
+        XCTAssertEqual(flat["2026-08-07"], Habit.Answer.declinedLevel)
+        // Das Ja von „Lesen" übermalt das Nein desselben Tages.
+        XCTAssertGreaterThanOrEqual(flat["2026-08-08"] ?? 0, 1)
+        XCTAssertEqual(flat["2026-08-06"], 0)
+    }
 }

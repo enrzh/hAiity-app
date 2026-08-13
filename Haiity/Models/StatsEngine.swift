@@ -292,21 +292,35 @@ enum StatsEngine {
     /// Rampenformel wie die Zielerreichung der Mengen-Habits (der erste
     /// Zähler ist Stufe 1, das Maximum Stufe 4). Spalten/Zeilen exakt wie
     /// `GridCalendar.keys` (Zukunft = 0).
+    ///
+    /// **Nein-Tage zählen als Puls.** Ein Tag, an dem nur verneint wurde,
+    /// trägt `Habit.Answer.declinedLevel` (die Verneinungsfarbe) statt leer
+    /// zu bleiben: wer täglich antwortet — auch mit Nein — hat einen
+    /// Rhythmus, und ein Puls-Raster, das davon NICHTS zeigt, sah bei genau
+    /// solchen Nutzern wie eine leere Karte aus (vom Gerät gemeldet).
+    /// Zählende Tage gewinnen: ein Ja irgendwo übermalt das Nein des Tages.
     static func mergedLevels(habits: [Habit], weeks: Int,
                              today: String = DayKey.today(),
                              calendar: Calendar = .current) -> [[Int]] {
         let keys = GridCalendar.keys(weeks: weeks, today: today, calendar: calendar)
         var counts: [String: Int] = [:]
+        var declined: Set<String> = []
         for habit in habits {
-            for day in habit.validDays(today: today, calendar: calendar)
-            where GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) {
-                counts[day, default: 0] += 1
+            for day in habit.validDays(today: today, calendar: calendar) {
+                if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) {
+                    counts[day, default: 0] += 1
+                } else if habit.isDeclined(day) {
+                    declined.insert(day)
+                }
             }
         }
         let maxCount = counts.values.max() ?? 0
         return keys.map { column in
             column.map { key in
-                guard let key, let c = counts[key], c >= 1, maxCount >= 1 else { return 0 }
+                guard let key else { return 0 }
+                guard let c = counts[key], c >= 1, maxCount >= 1 else {
+                    return declined.contains(key) ? Habit.Answer.declinedLevel : 0
+                }
                 guard maxCount > 1 else { return 4 }
                 return min(4, max(1, 1 + (3 * (c - 1)) / (maxCount - 1)))
             }
