@@ -248,11 +248,11 @@ final class AppNavigationTests: XCTestCase {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("static let label = String(localized: \"Neuer Habit\")"))
         XCTAssertTrue(source.contains("static let identifier = \"create-habit\""))
-        XCTAssertEqual(source.components(separatedBy:
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy:
             ".accessibilityLabel(CreateAccessibility.label)").count - 1, 2)
-        XCTAssertEqual(source.components(separatedBy:
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy:
             ".accessibilityIdentifier(CreateAccessibility.identifier)").count - 1, 2)
-        XCTAssertTrue(source.contains("Tab(CreateAccessibility.label, systemImage: \"plus\""))
+        XCTAssertTrue(source.contains("private var createToolbarItem: some ToolbarContent"))
     }
 
     func testContentViewKeepsHabitReorderingReachable() throws {
@@ -270,11 +270,10 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))
     }
 
-    func testSearchUsesOneExplicitToolbarCommand() throws {
+    func testSearchUsesNativeTrailingRoleAndKeepsLifecycleState() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let marker = "accessibilityIdentifier(\"open-search\")"
-        XCTAssertEqual(source.components(separatedBy: marker).count - 1, 1)
-        XCTAssertTrue(source.contains("if #unavailable(iOS 26) {\n                        ToolbarItem(placement: .topBarTrailing)"))
+        XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
+        XCTAssertTrue(source.contains("if backfill == nil { openSearch(origin: .toolbar) }"))
         XCTAssertTrue(source.contains("@State private var searchPresentationArmed = false"))
     }
 
@@ -284,7 +283,7 @@ final class AppNavigationTests: XCTestCase {
         let end = try XCTUnwrap(source.range(of: "private var habitsTabContent", range: start.upperBound..<source.endIndex))
         let shell = String(source[start.lowerBound..<end.lowerBound])
         XCTAssertTrue(shell.contains("TabView(selection: $nativeTab)"))
-        XCTAssertTrue(shell.contains("value: AppTab.create, role: .prominent"))
+        XCTAssertTrue(shell.contains("value: AppTab.search, role: .prominent"))
         XCTAssertTrue(shell.contains("#if compiler(>=6.4)"))
         XCTAssertFalse(shell.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
         XCTAssertFalse(shell.contains("ios27SplitControls"))

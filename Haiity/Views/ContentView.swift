@@ -21,15 +21,13 @@ private enum CreateAccessibility {
 /// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
 /// ihrem Tab.
 ///
-/// Ein dritter Tab in der SUCH-ROLLE, dessen
-/// abgesetzten runden Platz rechts der Anlegen-Knopf übernimmt: seine
-/// Auswahl wird abgefangen (sofort zurück auf Habits) und öffnet die
-/// Anlegen-SEITE — ein fullScreenCover, das ab iOS 18 aus genau diesem
-/// Kreis zoomt (Anker: `createZoomAnchor`). Damit kommen Halten-Blase, Scroll-Minimieren
+/// Ein dritter Tab übernimmt als native Suchaktion den abgesetzten runden
+/// Platz rechts. Seine Auswahl wird abgefangen (sofort zurück auf den
+/// vorherigen Inhalts-Tab) und öffnet das Suchfeld. Der Anlegen-Knopf sitzt
+/// oben rechts; seine Seite zoomt ab iOS 18 aus genau diesem Toolbar-Plus.
+/// Damit kommen Halten-Blase, Scroll-Minimieren
 /// (`.tabBarMinimizeBehavior(.onScrollDown)`) und das geteilte Glas vom
-/// SYSTEM, nicht aus einer Nachbildung. Die App-eigene Suche bleibt oben
-/// rechts — am Such-Tab hängt bewusst KEIN
-/// `.searchable`, es erscheint dort also nie ein Suchfeld.
+/// SYSTEM, nicht aus einer Nachbildung.
 ///
 /// Unter iOS 26 (17–25) bleibt die selbstgebaute Leiste als Fallback:
 /// linksbündige Glas-Kapsel für Habits und Mehr plus der + rechts in der
@@ -48,9 +46,9 @@ struct ContentView: View {
     /// belegt, dass ein Cover wirklich da ist und ein `onDismiss` schuldet.
     @State private var createCover = CreateCoverPresentation()
     @State private var syncStatus = ""
-    /// Auswahl der Bereiche. In der nativen Tableiste wird `.create` im
+    /// Auswahl der Bereiche. In der nativen Tableiste wird `.search` im
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
-    /// öffnet die Anlegen-Seite.
+    /// öffnet das Suchfeld.
     @State private var nativeTab: AppTab = .habits
     @State private var showReminderSetup = false
     /// Mehr-Unterziele aus Deep-Links auf dem Fallback vor iOS 26.
@@ -108,7 +106,7 @@ struct ContentView: View {
     /// Zusammenziehen = ein Morph statt zweier Blenden. (Nur Fallback-Leiste.)
     @Namespace private var glassNamespace
     /// Namensraum der Anlegen-Zoom-Transition: die Anlegen-Seite wächst aus
-    /// dem Anlegen-Kreis der Leiste unten (iOS 18+).
+    /// dem Anlegen-Knopf (iOS 18+).
     @Namespace private var createZoomNamespace
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -171,7 +169,7 @@ struct ContentView: View {
             // Deshalb beides hier noch einmal, an EINER Stelle je Blatt.
             // ANLEGEN ist eine SEITE, kein Half-Sheet mehr — dasselbe Muster
             // wie „Mehr": ein fullScreenCover, das ab iOS 18 mit der
-            // Zoom-Transition aus dem Anlegen-Kreis der Leiste wächst und
+            // Zoom-Transition aus dem Anlegen-Knopf wächst und
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
             .fullScreenCover(isPresented: $showAdd,
                              onDismiss: deliverPendingCreateDismissalRoute) {
@@ -243,14 +241,9 @@ struct ContentView: View {
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
-                // Der Such-Rollen-Tab IST der Anlegen-Knopf: die Auswahl wird
-                // sofort zurückgenommen und stattdessen das Blatt geöffnet.
-                // Bei offener Nacharbeiten-Karte passiert BEWUSST nichts —
-                // dieselbe Sperre wie `allowsHitTesting` an der
-                // Fallback-Leiste.
-                guard tab == .create else { return }
-                nativeTab = old == .create ? .habits : old
-                if backfill == nil { showAdd = true }
+                guard tab == .search else { return }
+                nativeTab = old == .search ? .habits : old
+                if backfill == nil { openSearch(origin: .toolbar) }
             }
             .onChange(of: searchFieldFocused) { _, focused in
                 trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior)")
@@ -401,8 +394,8 @@ struct ContentView: View {
             // Das systemeigene Tab-Element uebernimmt den lokalisierten Namen.
             // SwiftUI bietet am Tab selbst keinen Modifier-Pfad fuer einen
             // expliziten Identifier; iOS 26 exponiert daher nur diesen Namen.
-            Tab(CreateAccessibility.label, systemImage: "plus",
-                value: AppTab.create, role: .search) {
+            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .search) {
                 // Nie sichtbar: die Auswahl wird im selben Umlauf
                 // zurückgenommen (siehe onChange). Trotzdem kein leeres
                 // Weiß, falls doch je ein Bild durchrutscht.
@@ -410,13 +403,9 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        // Der unsichtbare Anker über dem System-Anlegen-Kreis — Quelle der
-        // Zoom-Transition der Anlegen-Seite. Am TabView-Rahmen verankert
-        // (der reicht bis zur Bildschirmkante, die Leiste liegt darin).
-        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
     }
 
-    /// iOS 27: echte Inhalts-Tabs plus nativer prominenter Anlegen-Tab.
+    /// iOS 27: echte Inhalts-Tabs plus nativer prominenter Such-Tab.
     @available(iOS 27, *)
     @ViewBuilder
     private var splitShell: some View {
@@ -430,13 +419,12 @@ struct ContentView: View {
                 value: AppTab.more) {
                 moreTabContent
             }
-            Tab(CreateAccessibility.label, systemImage: "plus",
-                value: AppTab.create, role: .prominent) {
+            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .prominent) {
                 Color(.systemGroupedBackground).ignoresSafeArea()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
         #else
         // SDK 26 cannot name `TabRole.prominent`. Keep this fallback fully
         // native as well; shipping with SDK 27 automatically selects the
@@ -448,13 +436,12 @@ struct ContentView: View {
             Tab(String(localized: "Mehr"), systemImage: "ellipsis", value: AppTab.more) {
                 moreTabContent
             }
-            Tab(CreateAccessibility.label, systemImage: "plus",
-                value: AppTab.create, role: .search) {
+            Tab(String(localized: "Habits durchsuchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .search) {
                 Color(.systemGroupedBackground).ignoresSafeArea()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
         #endif
     }
 
@@ -537,8 +524,7 @@ struct ContentView: View {
     /// (EditHabitSheet bringt seinen eigenen NavigationStack samt
     /// Sichern-Knopf mit), jetzt als volle Seite mit X oben links
     /// (`asPage`). Ziel der Zoom-Transition: sie wächst aus dem
-    /// Anlegen-Kreis der Leiste (siehe `createZoomAnchor` bzw. der
-    /// Fallback-`addButton`) und schrumpft dorthin zurück.
+    /// Anlegen-Knopf und schrumpft dorthin zurück.
     private var createPage: some View {
         EditHabitSheet(store: store, asPage: true)
             .themed(store)
@@ -547,51 +533,6 @@ struct ContentView: View {
     }
 
     private static let createZoomID = "create-circle"
-
-    /// Quelle der Anlegen-Zoom-Transition auf iOS 26 (auf iOS 27 sitzt sie
-    /// direkt auf dem eigenen Kreis, siehe `CreateCircle`):
-    ///
-    /// Der Anlegen-Kreis ist dort das SYSTEMGEZEICHNETE Such-Rollen-Element
-    /// der nativen TabView; an ihm selbst gibt es keinen Modifier-Pfad für
-    /// `matchedTransitionSource`. Deshalb liegt hier ein unsichtbarer,
-    /// nicht treffbarer Anker exakt ÜBER dem Kreis — als Overlay am
-    /// TabView-Rahmen (der bis zur Bildschirmkante reicht), unten rechts
-    /// verankert und mit nachgemessenen Abständen positioniert.
-    ///
-    /// Der Kreis WANDERT beim Scroll-Minimieren (`.onScrollDown`): kleiner
-    /// und näher an der Kante. Der Anker folgt über `collapsed` — dieselbe
-    /// Scroll-Entscheidung, die auch die Karten verdichtet, läuft praktisch
-    /// synchron mit dem System-Minimieren (beide feuern auf den ersten
-    /// Zentimeter Abwärts-Scroll). Die Maße sind am Simulator nachgemessen
-    /// (Geräte-Punkte, Abstand von rechter/unterer Kante).
-    @available(iOS 26, *)
-    private var createZoomAnchor: some View {
-        let d: CGFloat = collapsed ? CreateAnchor.miniDiameter : CreateAnchor.diameter
-        return Circle()
-            // Praktisch unsichtbar, aber NICHT `.clear`: eine komplett
-            // transparente Quelle wird vom Transitionssystem verworfen und
-            // der Zoom fiele auf die Bildschirmmitte zurück (nachgemessen).
-            .fill(Color(.systemBackground).opacity(0.02))
-            .frame(width: d, height: d)
-            .modifier(MoreZoomSource(id: Self.createZoomID,
-                                     namespace: createZoomNamespace))
-            .padding(.trailing, collapsed ? CreateAnchor.miniTrailing : CreateAnchor.trailing)
-            .padding(.bottom, collapsed ? CreateAnchor.miniBottom : CreateAnchor.bottom)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    /// Nachgemessene Lage des System-Anlegen-Kreises (Geräte-Punkte,
-    /// Abstand von rechter/unterer Bildschirmkante). Beim Minimieren
-    /// schrumpft der Kreis um seinen MITTELPUNKT — der bleibt, wo er ist.
-    private enum CreateAnchor {
-        static let diameter: CGFloat = 61
-        static let trailing: CGFloat = 21
-        static let bottom: CGFloat = 21
-        static let miniDiameter: CGFloat = 47
-        static let miniTrailing: CGFloat = 28
-        static let miniBottom: CGFloat = 28
-    }
 
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
@@ -721,6 +662,7 @@ struct ContentView: View {
                                   mounted: searchPresentationArmed,
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
+                .toolbar { createToolbarItem }
         } else {
             habitList
                 // Der große Titel steht seit den Statistik-Karten IN der
@@ -766,18 +708,21 @@ struct ContentView: View {
                         }
                         .accessibilityIdentifier("habit-management")
                     }
-                    if #unavailable(iOS 26) {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                openSearch(origin: .toolbar)
-                            } label: {
-                                Image(systemName: "magnifyingglass")
-                            }
-                            .accessibilityLabel(String(localized: "Habits durchsuchen"))
-                            .accessibilityIdentifier("open-search")
-                        }
-                    }
+                    createToolbarItem
                 }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var createToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showAdd = true } label: {
+                Image(systemName: "plus")
+            }
+            .modifier(MoreZoomSource(id: Self.createZoomID,
+                                     namespace: createZoomNamespace))
+            .accessibilityLabel(CreateAccessibility.label)
+            .accessibilityIdentifier(CreateAccessibility.identifier)
         }
     }
 
@@ -901,13 +846,27 @@ struct ContentView: View {
                                   bottom: 0,
                                   trailing: Theme.Metrics.gutter))
         .swipeActions(edge: .leading,
-                      allowsFullSwipe: swipes.leading?.allowsFullSwipe ?? false) {
+                      allowsFullSwipe: true) {
+            swipeButton(primarySwipe(for: habit), habit: habit)
             if let action = swipes.leading { swipeButton(action, habit: habit) }
         }
         .swipeActions(edge: .trailing,
-                      allowsFullSwipe: swipes.trailing?.allowsFullSwipe ?? false) {
+                      allowsFullSwipe: true) {
+            swipeButton(secondarySwipe(for: habit), habit: habit)
             if let action = swipes.trailing { swipeButton(action, habit: habit) }
         }
+    }
+
+    private func primarySwipe(for habit: Habit) -> EffectiveSwipeAction {
+        switch habit.kind {
+        case .checkbox: return EffectiveSwipeAction(operation: .done)
+        case .quantity: return EffectiveSwipeAction(operation: .increment)
+        case .yesNo: return EffectiveSwipeAction(operation: .yes)
+        }
+    }
+
+    private func secondarySwipe(for habit: Habit) -> EffectiveSwipeAction {
+        EffectiveSwipeAction(operation: habit.kind == .yesNo ? .no : .reset)
     }
 
     @ViewBuilder
@@ -924,6 +883,7 @@ struct ContentView: View {
             }
         } label: {
             Label(label.title, systemImage: label.symbol)
+                .frame(maxHeight: .infinity)
         }
         .tint(label.tint)
         .accessibilityLabel(label.title)
@@ -2357,12 +2317,12 @@ private struct SearchableHidden: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if mounted, #available(iOS 26, *) {
+        if mounted, isPresented, #available(iOS 26, *) {
             content
                 .searchable(text: $text,
                             isPresented: $isPresented,
                             prompt: Text(prompt))
-                .searchToolbarBehavior(automaticBehavior ? .automatic : .minimize)
+                .searchToolbarBehavior(.automatic)
                 .searchFocused(focus)
         } else if isPresented {
             let base = content

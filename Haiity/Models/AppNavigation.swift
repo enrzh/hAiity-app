@@ -4,6 +4,7 @@ enum AppTab: Hashable {
     case habits
     case more
     case create
+    case search
 }
 
 struct AppTabLayerState: Equatable {

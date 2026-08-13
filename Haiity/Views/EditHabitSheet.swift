@@ -1,11 +1,10 @@
 import SwiftUI
 
 /// Anlegen/Bearbeiten. ANLEGEN kommt als eigene SEITE (fullScreenCover, aus
-/// dem Anlegen-Kreis der Leiste gezoomt — siehe ContentView), BEARBEITEN
+/// dem Toolbar-Plus gezoomt — siehe ContentView), BEARBEITEN
 /// bleibt das Half-Sheet an der Karte. Es fragt NICHTS mehr nach
-/// Benachrichtigungen: die eigene Erinnerung je Habit ist weg, erinnert wird
-/// zentral über die Tages- und die Wochenzusammenfassung (Mehr →
-/// Einstellungen, siehe `Reminders`).
+/// Die Uhrzeit im Zeitraum steuert zugleich die konkrete Habit-Erinnerung;
+/// Tages- und Wochenzusammenfassungen bleiben zusätzliche globale Hinweise.
 ///
 /// Das Herz ist der Regel-Editor: Häufigkeit × Intervall, dazu die feine
 /// Regel (Wochentage, Tag im Monat, n-ter Wochentag), das Startdatum und die
@@ -76,7 +75,6 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("habit-emoji")
                 }
                 recurrenceSection
-                timeSection
                 durationSection
                 kindSection
                 colorSection
@@ -183,6 +181,14 @@ struct EditHabitSheet: View {
                 DatePicker(String(localized: "Beginn"), selection: $draft.start,
                            displayedComponents: .date)
                     .accessibilityIdentifier("start-date")
+            }
+
+            Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
+                .accessibilityIdentifier("time-toggle")
+            if draft.hasTime {
+                DatePicker(String(localized: "Zeit"), selection: $draft.time,
+                           displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("habit-time")
             }
         } header: {
             Text(String(localized: "Zeitraum"))
@@ -319,23 +325,6 @@ struct EditHabitSheet: View {
                 }
             }
             .accessibilityIdentifier("month-weekday")
-        }
-    }
-
-    // MARK: – Uhrzeit
-    //
-    // Die Terminzeit ist zugleich die Erinnerungszeit. Ein einziger Wert
-    // hält Karte, Wiederholungsbeschreibung und Benachrichtigung konsistent.
-
-    private var timeSection: some View {
-        Section {
-            Toggle(String(localized: "Erinnerung"), isOn: $draft.hasTime)
-                .accessibilityIdentifier("time-toggle")
-            if draft.hasTime {
-                DatePicker(String(localized: "Zeit"), selection: $draft.time,
-                           displayedComponents: .hourAndMinute)
-                    .accessibilityIdentifier("habit-time")
-            }
         }
     }
 
@@ -487,14 +476,15 @@ struct EditHabitSheet: View {
                 get: { swipeActions != nil },
                 set: { enabled in
                     swipeActions = enabled
-                        ? SwipeActionsOverride(leading: .primary, trailing: .secondary)
+                        ? SwipeActionsOverride(leading: SwipeActionChoice.none,
+                                               trailing: SwipeActionChoice.none)
                         : nil
                 }))
             .accessibilityIdentifier("habit-swipe-override-toggle")
 
             if swipeActions != nil {
                 Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
-                    ForEach(SwipeActionChoice.allCases) { choice in
+                    ForEach([SwipeActionChoice.archive, .none]) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -502,7 +492,7 @@ struct EditHabitSheet: View {
                 .accessibilityIdentifier("habit-swipe-leading-picker")
 
                 Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
-                    ForEach(SwipeActionChoice.allCases) { choice in
+                    ForEach([SwipeActionChoice.archive, .none]) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -511,18 +501,16 @@ struct EditHabitSheet: View {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
-        } footer: {
-            Text(String(localized: "Ohne eigene Auswahl gelten die Einstellungen in Mehr."))
         }
     }
 
     private var swipeLeadingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { swipeActions?.leading ?? .primary },
+        Binding(get: { swipeActions?.leading == .archive ? .archive : .none },
                 set: { swipeActions?.leading = $0 })
     }
 
     private var swipeTrailingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { swipeActions?.trailing ?? .secondary },
+        Binding(get: { swipeActions?.trailing == .archive ? .archive : .none },
                 set: { swipeActions?.trailing = $0 })
     }
 

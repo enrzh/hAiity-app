@@ -9,19 +9,26 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
     }
 
-    func testHeldGraphUsesReliableNativePreviewAndKeepsEditorAction() throws {
+    func testHeldGraphUsesTappablePreviewSheet() throws {
         let source = try habitCardSource()
-        XCTAssertTrue(source.contains(".contextMenu {"))
-        XCTAssertTrue(source.contains("} preview: {"))
+        XCTAssertTrue(source.contains(".onLongPressGesture"))
+        XCTAssertTrue(source.contains("graphPreviewSheet"))
         XCTAssertTrue(source.contains("habitPreview"))
-        XCTAssertFalse(source.contains(".onLongPressGesture"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit-preview\")"))
     }
 
     func testLongPressMenuKeepsEditAction() throws {
         let habitActions = try habitActionsSource()
-        XCTAssertTrue(habitActions.contains("Button(action: onEdit)"))
+        XCTAssertTrue(habitActions.contains("requestGraphPreviewAction(.edit)"))
         XCTAssertTrue(habitActions.contains("Label(String(localized: \"Bearbeiten\"), systemImage: \"pencil\")"))
         XCTAssertTrue(habitActions.contains(".accessibilityIdentifier(\"edit-habit\")"))
+    }
+
+    func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {
+        let actions = try habitActionsSource()
+        XCTAssertFalse(actions.contains("onMarkDone"))
+        XCTAssertFalse(actions.contains("onAnswer"))
+        XCTAssertFalse(actions.contains("onClear"))
     }
 
     private func habitCardSource() throws -> String {

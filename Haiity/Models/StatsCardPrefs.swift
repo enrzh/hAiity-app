@@ -314,33 +314,20 @@ struct EffectiveSwipeActions: Equatable, Sendable {
 }
 
 extension ViewPreferences {
-    /// Die einzige Leseschnittstelle fuer Listen: globaler Schalter, optional
-    /// pro Habit ueberschrieben, und erst dann an dessen Art gebunden.
+    /// Settings contribute optional EXTRA actions. The type-aware primary
+    /// and reverse actions are always supplied by ContentView.
     func effectiveSwipeActions(for habit: Habit) -> EffectiveSwipeActions {
         guard swipeActions.enabled else { return .disabled }
         let override = habit.swipeActions
         return EffectiveSwipeActions(
-            leading: effectiveAction(override?.leading ?? swipeActions.leading, for: habit),
-            trailing: effectiveAction(override?.trailing ?? swipeActions.trailing, for: habit))
+            leading: extraAction(override?.leading ?? swipeActions.leading),
+            trailing: extraAction(override?.trailing ?? swipeActions.trailing))
     }
 
-    private func effectiveAction(_ choice: SwipeActionChoice, for habit: Habit) -> EffectiveSwipeAction? {
+    private func extraAction(_ choice: SwipeActionChoice) -> EffectiveSwipeAction? {
         switch choice {
-        case .none:
-            return nil
-        case .archive:
-            return EffectiveSwipeAction(operation: .archive)
-        case .primary:
-            switch habit.kind {
-            case .checkbox: return EffectiveSwipeAction(operation: .done)
-            case .quantity: return EffectiveSwipeAction(operation: .increment)
-            case .yesNo: return EffectiveSwipeAction(operation: .yes)
-            }
-        case .secondary:
-            switch habit.kind {
-            case .checkbox, .quantity: return EffectiveSwipeAction(operation: .reset)
-            case .yesNo: return EffectiveSwipeAction(operation: .no)
-            }
+        case .archive: return EffectiveSwipeAction(operation: .archive)
+        case .none, .primary, .secondary: return nil
         }
     }
 }

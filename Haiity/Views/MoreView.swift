@@ -232,7 +232,7 @@ struct MoreView: View, Equatable {
 
             if statsCards.preferences.swipeActions.enabled {
                 Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
-                    ForEach(SwipeActionChoice.allCases) { choice in
+                    ForEach([SwipeActionChoice.archive, .none]) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -240,7 +240,7 @@ struct MoreView: View, Equatable {
                 .accessibilityIdentifier("swipe-leading-picker")
 
                 Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
-                    ForEach(SwipeActionChoice.allCases) { choice in
+                    ForEach([SwipeActionChoice.archive, .none]) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
@@ -249,18 +249,16 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
-        } footer: {
-            Text(String(localized: "Standardaktion bedeutet Erledigt, +1 oder Ja. Zurücksetzen bedeutet Zurücksetzen oder Nein. Archivieren verlangt immer einen Tap."))
         }
     }
 
     private var swipeLeadingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { statsCards.preferences.swipeActions.leading },
+        Binding(get: { statsCards.preferences.swipeActions.leading == .archive ? .archive : .none },
                 set: { choice in statsCards.update { $0.swipeActions.leading = choice } })
     }
 
     private var swipeTrailingBinding: Binding<SwipeActionChoice> {
-        Binding(get: { statsCards.preferences.swipeActions.trailing },
+        Binding(get: { statsCards.preferences.swipeActions.trailing == .archive ? .archive : .none },
                 set: { choice in statsCards.update { $0.swipeActions.trailing = choice } })
     }
 

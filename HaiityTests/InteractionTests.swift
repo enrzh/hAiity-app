@@ -261,15 +261,24 @@ final class SwipeActionsTests: XCTestCase {
     func testDefaultActionsAreTypeAware() {
         let prefs = ViewPreferences()
 
-        XCTAssertEqual(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).leading?.operation, .done)
-        XCTAssertEqual(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).trailing?.operation, .reset)
+        XCTAssertNil(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).leading)
+        XCTAssertNil(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).trailing)
 
         let quantity = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
-        XCTAssertEqual(prefs.effectiveSwipeActions(for: quantity).leading?.operation, .increment)
+        XCTAssertNil(prefs.effectiveSwipeActions(for: quantity).leading)
 
         let yesNo = Habit(name: "Kein Zucker", kind: .yesNo)
-        XCTAssertEqual(prefs.effectiveSwipeActions(for: yesNo).leading?.operation, .yes)
-        XCTAssertEqual(prefs.effectiveSwipeActions(for: yesNo).trailing?.operation, .no)
+        XCTAssertNil(prefs.effectiveSwipeActions(for: yesNo).leading)
+        XCTAssertNil(prefs.effectiveSwipeActions(for: yesNo).trailing)
+    }
+
+    func testContentViewAlwaysEmitsCoreSwipeActionsBeforeOptionalExtras() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("swipeButton(primarySwipe(for: habit), habit: habit)"))
+        XCTAssertTrue(source.contains("swipeButton(secondarySwipe(for: habit), habit: habit)"))
+        XCTAssertTrue(source.contains(".frame(maxHeight: .infinity)"))
     }
 
     func testDisabledActionsAreNotExposed() {

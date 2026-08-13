@@ -28,6 +28,10 @@ import SwiftUI
 /// Ohne den Vergleich reißt jede `ContentView`-Auswertung (Tafel auf/zu,
 /// Toast, Sync-Pille) alle sichtbaren Karten mit.
 struct HabitCard: View, Equatable {
+    private enum GraphPreviewAction {
+        case backfill, session, edit, archive
+    }
+
     static func == (a: HabitCard, b: HabitCard) -> Bool {
         a.habit == b.habit && a.collapsed == b.collapsed
     }
@@ -65,6 +69,8 @@ struct HabitCard: View, Equatable {
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
+    @State private var showingGraphPreview = false
+    @State private var graphPreviewAction: GraphPreviewAction?
     private static let doneID = "done"
 
     private var today: String { DayKey.today() }
@@ -131,9 +137,9 @@ struct HabitCard: View, Equatable {
     /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
     /// — dieselbe Fläche, die die Vorschau auch zeigt.
     ///
-    /// Der Tipp auf eine EINZELNE Zelle überlebt das: `contextMenu` erkennt
-    /// den langen Druck und lässt kurze Tipps zu seinen Kindern durch (die
-    /// Zellen haben ihre eigenen `onTapGesture` in `ContributionGrid`). Er
+    /// Der Tipp auf eine EINZELNE Zelle überlebt das: die Langdruck-Geste
+    /// lässt kurze Tipps zu ihren Kindern durch (die Zellen haben ihre
+    /// eigenen `onTapGesture` in `ContributionGrid`). Er
     /// WÄHLT den Tag aus und öffnet die Nacharbeiten-Karte — er schreibt
     /// nicht.
     private var grid: some View {
@@ -153,10 +159,15 @@ struct HabitCard: View, Equatable {
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            .contextMenu {
-                habitActions
-            } preview: {
-                habitPreview
+            .onLongPressGesture(minimumDuration: 0.45) {
+                Theme.Haptics.check()
+                showingGraphPreview = true
+            }
+            .sheet(isPresented: $showingGraphPreview,
+                   onDismiss: performGraphPreviewAction) {
+                graphPreviewSheet
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-grid")
@@ -246,9 +257,31 @@ struct HabitCard: View, Equatable {
         // Standardpalette zurück und leuchtete grün, während dieselben
         // Zellen zwei Millimeter daneben blau sind.
         .environment(\.palettes, palettes)
-        .onAppear { Theme.Haptics.check() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-preview")
+    }
+
+    private var graphPreviewSheet: some View {
+        VStack(spacing: Theme.Metrics.gutter) {
+            Button { requestGraphPreviewAction(.edit) } label: {
+                habitPreview
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Bearbeiten"))
+            .accessibilityIdentifier("edit-habit-preview")
+
+            Divider()
+            Menu {
+                habitActions
+            } label: {
+                Label(String(localized: "Weitere Aktionen"), systemImage: "ellipsis.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.vertical, Theme.Metrics.gutter)
+        .environment(\.palettes, palettes)
     }
 
     /// Die Aktionen UNTER der Vorschau. Sie tragen dieselben Kennungen wie
@@ -257,49 +290,7 @@ struct HabitCard: View, Equatable {
     /// sein wie direkt auf der Zeile.
     @ViewBuilder
     private var habitActions: some View {
-        if habit.kind == .yesNo {
-            // Die Frage bekommt BEIDE Antworten — sonst wäre der lange Druck
-            // der einzige Ort der App, an dem man nur zustimmen kann.
-            Button(action: { onAnswer(true) }) {
-                Label(String(localized: "Ja"), systemImage: "checkmark")
-            }
-            .accessibilityIdentifier("check-today")
-            Button(action: { onAnswer(false) }) {
-                Label(String(localized: "Nein"), systemImage: "xmark")
-            }
-            .accessibilityIdentifier("decline-today")
-            if habit.isAnswered(today) {
-                Button(action: onClear) {
-                    Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
-                }
-                .accessibilityIdentifier("revert-today")
-            }
-        } else if doneToday, habit.recurrence.target == nil {
-            Button(action: onClear) {
-                Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
-            }
-            .accessibilityIdentifier("check-today")
-        } else {
-            Button(action: onMarkDone) {
-                Label(String(localized: "Erledigt"), systemImage: "checkmark")
-            }
-            .accessibilityIdentifier("check-today")
-            // Mengenziele zählen hoch; das Zurücksetzen des Tages steht
-            // deshalb zusätzlich daneben, sobald es etwas zurückzusetzen gibt.
-            if habit.recurrence.target != nil, (habit.log[today] ?? 0) > 0 {
-                Button(action: onClear) {
-                    Label(String(localized: "Rückgängig"), systemImage: "arrow.uturn.backward")
-                }
-                .accessibilityIdentifier("revert-today")
-            }
-        }
-        // Nacharbeiten steht DIREKT unter den Heute-Aktionen: es ist
-        // dasselbe Tun, nur an einem anderen Tag. Der Tipp auf eine
-        // Rasterzelle öffnet dieselbe Karte — dieser Punkt ist der Weg
-        // dorthin für alle, die nicht auf ein 10-pt-Quadrat zielen wollen
-        // (und der einzige, den VoiceOver anbietet: das Raster ist EIN
-        // Element mit einer Zusammenfassung, keine 371 Knöpfe).
-        Button(action: onBackfill) {
+        Button { requestGraphPreviewAction(.backfill) } label: {
             Label(String(localized: "Nacharbeiten"), systemImage: "calendar.badge.plus")
         }
         .accessibilityIdentifier("backfill-habit")
@@ -309,15 +300,15 @@ struct HabitCard: View, Equatable {
         // Fertig-Knopf hakt den Tag über denselben Trichter ab wie alles
         // andere. Direkt am Manager statt als Closure aus ContentView — die
         // Session hat keinen UI-Zustand, den die Liste kennen müsste.
-        Button(action: { HabitSessionManager.shared.start(habit: habit) }) {
+        Button { requestGraphPreviewAction(.session) } label: {
             Label(String(localized: "Session starten"), systemImage: "timer")
         }
         .accessibilityIdentifier("start-session")
-        Button(action: onEdit) {
+        Button { requestGraphPreviewAction(.edit) } label: {
             Label(String(localized: "Bearbeiten"), systemImage: "pencil")
         }
         .accessibilityIdentifier("edit-habit")
-        Button(action: onArchive) {
+        Button { requestGraphPreviewAction(.archive) } label: {
             Label(String(localized: "Archivieren"), systemImage: "archivebox")
         }
         .accessibilityIdentifier("archive-habit")
@@ -328,6 +319,22 @@ struct HabitCard: View, Equatable {
             Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
         }
         .accessibilityIdentifier("share-habit")
+    }
+
+    private func requestGraphPreviewAction(_ action: GraphPreviewAction) {
+        graphPreviewAction = action
+        showingGraphPreview = false
+    }
+
+    private func performGraphPreviewAction() {
+        guard let action = graphPreviewAction else { return }
+        graphPreviewAction = nil
+        switch action {
+        case .backfill: onBackfill()
+        case .session: HabitSessionManager.shared.start(habit: habit)
+        case .edit: onEdit()
+        case .archive: onArchive()
+        }
     }
 
     // MARK: – Kopf auf nacktem Grund
@@ -363,16 +370,9 @@ struct HabitCard: View, Equatable {
 
     /// **Warum der Kopf einen langen Druck schluckt.**
     ///
-    /// Das Kontextmenü hängt am RASTER (siehe `grid`) — in einer `List` hilft
-    /// das allein aber nichts: SwiftUI hebt ein `contextMenu` aus dem
-    /// Zeileninhalt auf die ZELLE, und die ist die ganze Zeile. Nachgemessen:
-    /// ein langer Druck auf den Namen öffnete das Menü weiterhin, obwohl der
-    /// Modifier zwei Ebenen tiefer sitzt.
-    ///
-    /// Ein eigener Langdruck HINTER dem Kopf gewinnt die Erkennung gegen die
-    /// Zelle (der tiefere Erkenner hat Vorrang) und tut NICHTS. Damit bleibt
-    /// die Geste dem Raster vorbehalten — dem Bauteil, das die Vorschau auch
-    /// zeigt.
+    /// Ein eigener Langdruck HINTER dem Kopf gewinnt die Erkennung und tut
+    /// nichts. Damit bleibt die Geste dem Raster vorbehalten — dem Bauteil,
+    /// das die Vorschau auch zeigt.
     private var longPressSink: some View {
         Color.clear
             .contentShape(Rectangle())
