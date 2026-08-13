@@ -107,7 +107,7 @@ final class ReminderUpcomingTests: XCTestCase {
     // MARK: – Eigene Habit-Erinnerungen
 
     func testHabitPlansAreConcreteRecurrenceAwareAndSkipCompletedDays() {
-        var habit = Habit(name: "Lesen", emoji: "📚", reminderMinutes: 18 * 60 + 15,
+        var habit = Habit(name: "Lesen", emoji: "📚", timeMinutes: 18 * 60 + 15,
                           recurrence: .weekdays([2]))
         habit.log["2026-08-10"] = 1
 
@@ -121,6 +121,11 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertEqual(plans.first?.title, "📚 Lesen")
         XCTAssertEqual(plans.first?.body, "Zeit für Lesen")
         XCTAssertFalse(plans.first?.repeats ?? true)
+    }
+
+    func testHabitPlansKeepLegacyReminderAsFallback() {
+        let habit = Habit(name: "Alt", reminderMinutes: 18 * 60, recurrence: .daily)
+        XCTAssertFalse(Reminders.habitPlans(habits: [habit], now: now, calendar: calendar).isEmpty)
     }
 
     func testHabitPlansSuppressArchivedAndTodayAlreadyCompleted() {

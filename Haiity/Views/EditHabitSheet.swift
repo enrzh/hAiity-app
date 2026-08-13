@@ -60,8 +60,6 @@ struct EditHabitSheet: View {
     /// „limitless" (sie zählt nur hoch).
     @State private var hasDuration = false
     @State private var durationMinutes = EditHabitSheet.defaultDuration
-    @State private var hasReminder = false
-    @State private var reminderMinutes = EditHabitSheet.defaultReminderMinutes
     /// nil = globale Wischbelegung. Nur beim Bearbeiten sichtbar, denn ein
     /// neues Habit soll mit der globalen, nachvollziehbaren Regel starten.
     @State private var swipeActions: SwipeActionsOverride?
@@ -79,7 +77,6 @@ struct EditHabitSheet: View {
                 }
                 recurrenceSection
                 timeSection
-                reminderSection
                 durationSection
                 kindSection
                 colorSection
@@ -135,7 +132,7 @@ struct EditHabitSheet: View {
         // aber beim nächsten Umschalten auf „Menge" aus dem Nichts wieder
         // aufträte.
         .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
-        .onChange(of: hasReminder) { _, enabled in
+        .onChange(of: draft.hasTime) { _, enabled in
             guard enabled else { return }
             Task { _ = await Reminders.ensurePermission() }
         }
@@ -327,22 +324,18 @@ struct EditHabitSheet: View {
 
     // MARK: – Uhrzeit
     //
-    // Eine EIGENSCHAFT des Termins, keine Benachrichtigung: „Laufen um 07:30"
-    // steht im Satz der Regel und auf der Karte, es klingelt nichts. Deshalb
-    // hinter einem Schalter — die meisten Habits haben keine Uhrzeit, und ein
-    // Datumsrad, das immer da ist, sähe aus wie eine Pflichtangabe.
+    // Die Terminzeit ist zugleich die Erinnerungszeit. Ein einziger Wert
+    // hält Karte, Wiederholungsbeschreibung und Benachrichtigung konsistent.
 
     private var timeSection: some View {
         Section {
-            Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
+            Toggle(String(localized: "Erinnerung"), isOn: $draft.hasTime)
                 .accessibilityIdentifier("time-toggle")
             if draft.hasTime {
                 DatePicker(String(localized: "Zeit"), selection: $draft.time,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
             }
-        } footer: {
-            Text(String(localized: "Nur eine Angabe am Termin — sie erinnert nicht. Erinnerungen laufen über die Zusammenfassungen in „Mehr“."))
         }
     }
 
@@ -356,7 +349,6 @@ struct EditHabitSheet: View {
     /// Stufen statt eines freien Rads: eine Session-Dauer ist eine
     /// Größenordnung („eine halbe Stunde"), keine Sekundenangabe.
     static let defaultDuration = 30
-    static let defaultReminderMinutes = 20 * 60
     static let durationPresets = [5, 10, 15, 20, 30, 45, 60, 90, 120]
 
     /// Die Stufen, ggf. um einen BESTEHENDEN krummen Wert ergänzt (Import,
@@ -385,20 +377,6 @@ struct EditHabitSheet: View {
             }
         } footer: {
             Text(String(localized: "Eine Session (langer Druck auf die Karte → „Session starten“) läuft als Live-Aktivität mit. Mit Dauer zeigt sie den Fortschritt gegen den Plan, ohne zählt sie einfach hoch."))
-        }
-    }
-
-    private var reminderSection: some View {
-        Section {
-            Toggle(String(localized: "Erinnerung"), isOn: $hasReminder)
-                .accessibilityIdentifier("habit-reminder-toggle")
-            if hasReminder {
-                DatePicker(String(localized: "Uhrzeit"), selection: Binding(
-                    get: { Date(timeIntervalSinceReferenceDate: TimeInterval(reminderMinutes * 60)) },
-                    set: { reminderMinutes = max(0, min(24 * 60 - 1, Int($0.timeIntervalSinceReferenceDate / 60))) }
-                ), displayedComponents: .hourAndMinute)
-                .accessibilityIdentifier("habit-reminder-time")
-            }
         }
     }
 
@@ -556,7 +534,8 @@ struct EditHabitSheet: View {
         emoji = habit.emoji
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
-        draft = RecurrenceDraft(habit.recurrence, timeMinutes: habit.timeMinutes,
+        draft = RecurrenceDraft(habit.recurrence,
+                                timeMinutes: habit.timeMinutes ?? habit.reminderMinutes,
                                 calendar: calendar)
         habitPalette = habit.palette
         swipeActions = habit.swipeActions
@@ -565,16 +544,10 @@ struct EditHabitSheet: View {
             hasDuration = true
             durationMinutes = duration
         }
-        if let reminder = Habit.sanitizedMinutes(habit.reminderMinutes) {
-            hasReminder = true
-            reminderMinutes = reminder
-        }
     }
 
-    /// Sichern ist synchron — es gibt nichts mehr zu fragen. Die
-    /// Benachrichtigungs-Berechtigung hängt seit v5 ausschließlich an den
-    /// beiden Zusammenfassungen in „Mehr"; ein Habit anzulegen löst keinen
-    /// System-Dialog mehr aus.
+    /// Sichern bleibt synchron. Die Berechtigung wird beim Einschalten der
+    /// Erinnerung angefragt, nicht erst beim Schreiben des Habits.
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
@@ -585,9 +558,12 @@ struct EditHabitSheet: View {
         var habit = existing ?? Habit(name: trimmed, emoji: emoji)
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
-        habit.timeMinutes = draft.timeMinutes(calendar: calendar)
+        let notificationTime = draft.timeMinutes(calendar: calendar)
+        habit.timeMinutes = notificationTime
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil
-        habit.reminderMinutes = hasReminder ? Habit.sanitizedMinutes(reminderMinutes) : nil
+        // Keep the legacy key mirrored so older synced builds retain the
+        // notification while every current UI exposes only one time.
+        habit.reminderMinutes = notificationTime
         habit.recurrence = recurrence
         habit.palette = habitPalette
         habit.swipeActions = swipeActions

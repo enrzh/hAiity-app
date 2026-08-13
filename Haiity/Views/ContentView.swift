@@ -341,9 +341,9 @@ struct ContentView: View {
             .zIndex(state.zIndex)
     }
 
-    /// Ab iOS 26 die native Leiste — aber auf iOS 26 und iOS 27 aus
-    /// verschiedenen Teilen gebaut. Der Grund ist kein Geschmack, sondern
-    /// drei gemeldete Gerätefehler und eine Grenze der Werkzeugkette.
+    /// Ab iOS 26 ist die Leiste vollständig nativ. iOS 27 verwendet die
+    /// dafür vorgesehene prominente Rolle, damit Habits/Mehr links und
+    /// Anlegen separat rechts stehen.
     ///
     /// **iOS 26: der Such-Rollen-Trick.** Dort gibt es genau EINE Rolle, die
     /// ein Tab-Element aus der Kapsel löst und als eigenen Kreis rechts
@@ -365,30 +365,16 @@ struct ContentView: View {
     ///    (Zustands-Riss → das X brauchte zwei Tipps), und das Schließen der
     ///    Anlegen-Seite zog die Suche auf.
     ///
-    /// **Warum nicht einfach die richtige Rolle?** iOS 27 bringt sie mit:
+    /// iOS 27 bringt die richtige Rolle mit:
     /// `TabRole.prominent` — ein hervorgehobener Ablauf-Tab, der genau so
     /// abgesetzt rendert wie der Suchkreis, ohne irgendetwas mit der Suche zu
     /// tun zu haben (im iOS-27-Simulator nachgemessen: Leiste wieder geteilt,
-    /// `.searchable` wieder normal). Sie existiert aber NUR im SDK 27, und
-    /// hAiity wird mit dem RELEASE-Xcode gebaut, weil App Store Connect
-    /// Beta-SDK-Builds bei der Annahme zurückweist (siehe tools/release.sh).
+    /// `.searchable` wieder normal). Sie existiert aber NUR im SDK 27.
     /// Ein `if #available(iOS 27, *)`-Zweig hilft nicht: der Symbolzugriff
     /// wird beim ÜBERSETZEN aufgelöst und schlägt unter SDK 26 fehl.
-    ///
-    /// SOBALD ES EIN RELEASE-XCODE 27 GIBT: diesen Zweig durch
-    /// `Tab(..., role: .prominent)` ersetzen und `CreateCircle` löschen.
-    ///
-    /// **Bis dahin auf iOS 27: echte Inhalts-Tabs plus ein eigener Kreis.**
-    /// Ohne Such-Rolle kann kein Tab die Suche kapern. (Die Suche hat auf iOS 27
-    /// noch eine zweite, davon unabhängige Baustelle — siehe
-    /// `SearchableHidden`.) Der Kreis rechts ist dann allerdings
-    /// EIGENBAU — ein bewusster Abstrich gegenüber „so nativ wie möglich",
-    /// erzwungen vom SDK. Damit er trotzdem AUF DERSELBEN LINIE sitzt wie die
-    /// Kapsel, wird er NICHT gerechnet, sondern an der echten Leiste
-    /// AUSGEMESSEN (siehe `TabBarPlatters`): Sicherheitszonen-Arithmetik
-    /// ergibt auf Geräten mit Home-Indikator eine andere Grundlinie als ohne
-    /// (nachgemessen: 17 Pro Max gegen SE) — die gemessene Leiste stimmt
-    /// überall.
+    /// Der SDK-26-Zweig bleibt ebenfalls eine einzelne native TabView. Er
+    /// nutzt die dort einzig verfügbare abgesetzte Rolle und wird nicht mit
+    /// einer zweiten, selbstgebauten Leiste überlagert.
     @available(iOS 26, *)
     @ViewBuilder
     private var nativeShell: some View {
@@ -430,10 +416,7 @@ struct ContentView: View {
         .overlay(alignment: .bottomTrailing) { createZoomAnchor }
     }
 
-    /// iOS 27: zwei echte Tabs und der Anlegen-Kreis als eigenes Glasstück
-    /// auf der Linie der Leiste. Er ist zugleich die Quelle der Zoom-Transition, und
-    /// zwar in BEIDEN Leisten-Zuständen richtig: die Quelle sitzt auf dem
-    /// Kreis selbst, nicht auf einem Anker daneben.
+    /// iOS 27: echte Inhalts-Tabs plus nativer prominenter Anlegen-Tab.
     @available(iOS 27, *)
     @ViewBuilder
     private var splitShell: some View {
@@ -455,30 +438,24 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .overlay(alignment: .bottomTrailing) { createZoomAnchor }
         #else
+        // SDK 26 cannot name `TabRole.prominent`. Keep this fallback fully
+        // native as well; shipping with SDK 27 automatically selects the
+        // proper prominent layout above.
         TabView(selection: $nativeTab) {
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: AppTab.habits) { habitsTabContent }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) { moreTabContent }
-        }
-        .toolbarVisibility(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) { ios27SplitControls }
-        #endif
-    }
-
-    @available(iOS 27, *)
-    @ViewBuilder
-    private var ios27SplitControls: some View {
-        if !searching {
-            HStack(spacing: Theme.Metrics.gutter) {
-                switcher
-                Spacer(minLength: Theme.Metrics.gutter)
-                addButton
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2", value: AppTab.habits) {
+                habitsTabContent
             }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, Theme.Metrics.gap)
-            .allowsHitTesting(backfill == nil)
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis", value: AppTab.more) {
+                moreTabContent
+            }
+            Tab(CreateAccessibility.label, systemImage: "plus",
+                value: AppTab.create, role: .search) {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+            }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
+        #endif
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.

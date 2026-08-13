@@ -286,8 +286,8 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(shell.contains("TabView(selection: $nativeTab)"))
         XCTAssertTrue(shell.contains("value: AppTab.create, role: .prominent"))
         XCTAssertTrue(shell.contains("#if compiler(>=6.4)"))
-        XCTAssertTrue(shell.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
-        XCTAssertTrue(shell.contains("ios27SplitControls"))
+        XCTAssertFalse(shell.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
+        XCTAssertFalse(shell.contains("ios27SplitControls"))
     }
 
     private func sourceURL(_ path: String) -> URL {

@@ -39,10 +39,8 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Mitternacht. Das bestehende Feld bleibt unverändert codiert, damit
     /// ältere Dateien und Geräte den Wert weiterhin verlustfrei tragen.
     var reminderMinutes: Int?
-    /// Uhrzeit des Habits selbst, als Minuten seit Mitternacht; nil = ohne
-    /// Uhrzeit. Das ist eine EIGENSCHAFT des Termins („Laufen um 07:30"),
-    /// keine Benachrichtigung: sie klingelt nicht, sie steht im Satz der
-    /// Regel und auf der Karte.
+    /// Gemeinsame Termin- und Erinnerungszeit in Minuten seit Mitternacht;
+    /// nil = ohne Uhrzeit und ohne habit-spezifische Erinnerung.
     var timeMinutes: Int?
     var log: [String: Int]
     /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer

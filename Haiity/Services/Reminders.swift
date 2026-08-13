@@ -41,16 +41,9 @@ struct ReminderPlan: Equatable {
     var isOneShot: Bool { !repeats }
 }
 
-/// Die beiden Zusammenfassungen — und sonst nichts.
-///
-/// **Was hier einmal stand und bewusst weg ist:** die EIGENE Erinnerung je
-/// Habit (`plans(for:)`, ein Trigger pro Wochentag, Rückfallebene für
-/// „am letzten Freitag"). Zehn Habits waren zehn Weckrufe, und keiner davon
-/// wusste, ob der Tag schon erledigt war. Stattdessen fasst EINE Meldung am
-/// Tag zusammen, was offen ist, und eine am Ende der Woche, was gehalten
-/// wurde. `Habit.reminderMinutes` bleibt in der Datei stehen (siehe dort),
-/// wird aber nirgends mehr ausgewertet — und alte, noch anstehende
-/// Habit-Weckrufe räumt `reschedule` beim ersten Start weg.
+/// Plant tägliche und wöchentliche Zusammenfassungen sowie konkrete
+/// Erinnerungen für noch offene Habits. Habit-Erinnerungen werden nur für
+/// anstehende Termine vorausgeplant und nach jedem App-Start aktualisiert.
 enum Reminders {
     static let summaryId = "summary"
     static let weeklySummaryId = "summary-weekly"
@@ -190,7 +183,7 @@ enum Reminders {
         var plans: [ReminderPlan] = []
         let today = DayKey.key(for: now, calendar: calendar)
         for habit in habits where habit.archivedAt == nil {
-            guard let minutes = Habit.sanitizedMinutes(habit.reminderMinutes) else { continue }
+            guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
             var day = today
             for offset in 0...habitReminderDays + 1 {
                 if offset > 0 {
