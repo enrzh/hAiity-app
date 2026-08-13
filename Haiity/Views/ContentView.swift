@@ -1617,6 +1617,9 @@ struct ContentView: View {
         // Nur Debug: nach extern eingespielter data.json die Widget-Timeline
         // neu ziehen — sonst zeigt das Widget bis Mitternacht den alten Stand.
         if args.contains("-reload-widgets") { WidgetCenter.shared.reloadAllTimelines() }
+        // Nur Debug: den Einrichtungs-Bildschirm direkt zeigen — Klicks
+        // durch „Mehr" sind in der Sim-Automatisierung unzuverlässig.
+        if args.contains("-show-reminder-setup") { showReminderSetup = true }
         // Nur Debug: `-calendar-sync on|off` schaltet den Kalender-Spiegel
         // ohne UI — für die EventKit-Verifikation per Screenshot.
         if let c = args.firstIndex(of: "-calendar-sync"), c + 1 < args.count {
@@ -2818,21 +2821,11 @@ private struct CreateCircle: View {
 /// Deko fürs Empty-State: ein kleines zufälliges Contribution-Muster.
 private struct DemoGrid: View {
     let palette: PaletteStyle
-    @Environment(\.colorScheme) private var scheme
-    private let pattern: [Int] = (0..<48).map { _ in
-        Bool.random() && Bool.random() ? Int.random(in: 1...4) : 0
-    }
+    // Einmal je View-Identität gewürfelt — während des gestaffelten
+    // Auftritts darf das Muster nicht neu entstehen.
+    private let pattern: [Int] = MotifGrid.randomPattern()
 
     var body: some View {
-        let cols = Array(repeating: GridItem(.fixed(14), spacing: 3), count: 12)
-        LazyVGrid(columns: cols, spacing: 3) {
-            ForEach(Array(pattern.enumerated()), id: \.offset) { _, level in
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Theme.level(level, dark: scheme == .dark, palette: palette))
-                    .frame(height: 14)
-            }
-        }
-        .frame(width: 12 * 17)
-        .accessibilityHidden(true)
+        MotifGrid(pattern: pattern, palette: palette)
     }
 }

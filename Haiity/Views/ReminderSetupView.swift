@@ -3,12 +3,12 @@ import SwiftUI
 /// Der Einrichtungs-Bildschirm für Mitteilungen — einmal beim ersten Start,
 /// später erreichbar über Mehr → „Erinnerungen einrichten".
 ///
-/// Er spricht die Sprache der App: oben ein kleines Contribution-Muster in
-/// der aktiven Farbfamilie (dasselbe Motiv wie Raster und App-Icon), darunter
-/// je eine Karte pro Mitteilungsart mit ehrlichem Ein-Satz-Text. Die beiden
-/// Zusammenfassungen starten EINGESCHALTET — der große Knopf tut damit
-/// genau, was er verspricht. (Vorher stand der einzige Schalter versteckt
-/// auf AUS, und „Benachrichtigungen aktivieren" aktivierte: nichts.)
+/// Drei Seiten statt einer Wand: das Motiv (gestaffelt aufgebaut, wie im
+/// Leerzustand), die Zusammenfassungen mit ihren Schaltern, dann der große
+/// Knopf. Wischen und „Weiter" führen durch; „Jetzt nicht" steht auf JEDER
+/// Seite — ein Ausstieg, der erst auf der letzten Seite auftaucht, wäre
+/// ein dunkles Muster. Die beiden Zusammenfassungen starten EINGESCHALTET —
+/// der große Knopf tut damit genau, was er verspricht.
 ///
 /// Die System-Berechtigung wird weiterhin erst beim Tipp auf den großen
 /// Knopf angefragt — nie beim Start, nie beim bloßen Anschauen.
@@ -20,32 +20,20 @@ struct ReminderSetupView: View {
     @State private var dailyEnabled = true
     @State private var weeklyEnabled = true
     @State private var denied = false
-    @Environment(\.colorScheme) private var scheme
+    @State private var page = 0
+
+    private static let lastPage = 2
 
     private var accent: Color { Theme.accentText(store.paletteStyle) }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gutter) {
-                    hero
-                    summaryCard(symbol: "sun.max.fill",
-                                title: String(localized: "Tageszusammenfassung"),
-                                text: String(localized: "Abends in einem Satz: was erledigt ist und was noch offen steht."),
-                                isOn: $dailyEnabled,
-                                identifier: "setup-daily-toggle")
-                    summaryCard(symbol: "calendar",
-                                title: String(localized: "Wochenzusammenfassung"),
-                                text: String(localized: "Am Ende der Woche: wie viele Termine du gehalten hast."),
-                                isOn: $weeklyEnabled,
-                                identifier: "setup-weekly-toggle")
-                    habitReminderCard
-                    if denied {
-                        deniedHint
-                    }
-                }
-                .padding(Theme.Metrics.gutter)
+            TabView(selection: $page) {
+                introPage.tag(0)
+                summariesPage.tag(1)
+                startPage.tag(2)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .bottom) { footer }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(String(localized: "Erinnerungen"))
@@ -53,39 +41,66 @@ struct ReminderSetupView: View {
         }
     }
 
-    // MARK: – Held
+    // MARK: – Seiten
 
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            motifGrid
+    /// Jede Seite scrollt für sich — große Schriftgrade brauchen den Platz.
+    private func setupPage(@ViewBuilder content: () -> some View) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gutter) {
+                content()
+            }
+            .padding(Theme.Metrics.gutter)
+        }
+    }
+
+    private var introPage: some View {
+        setupPage {
+            MotifGrid(pattern: MotifGrid.brand,
+                      palette: store.paletteStyle, cellSize: 16)
                 .frame(maxWidth: .infinity)
+                .padding(.top, 8)
             Text(String(localized: "Dein Rhythmus"))
                 .font(.largeTitle.bold())
             Text(String(localized: "hAiity erinnert dich einmal am Tag an offene Habits und fasst deine Woche zusammen. Du bestimmst, ob und wann diese Hinweise kommen."))
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
-        .padding(.top, 8)
     }
 
-    /// Das Markenmotiv: ein kleines Raster in der Rampe der aktiven Farbe.
-    /// FEST gewürfelt (kein `random()`): ein Muster, das bei jedem Aufbau
-    /// anders aussieht, wirkt wie ein Ladefehler, nicht wie ein Motiv.
-    private var motifGrid: some View {
-        let pattern: [Int] = [0, 2, 1, 0, 3, 4, 2, 0, 1, 3, 0, 2,
-                              1, 0, 3, 2, 0, 1, 4, 3, 0, 2, 1, 0,
-                              2, 3, 0, 1, 4, 0, 2, 1, 3, 0, 4, 2]
-        let cols = Array(repeating: GridItem(.fixed(16), spacing: 3), count: 12)
-        return LazyVGrid(columns: cols, spacing: 3) {
-            ForEach(Array(pattern.enumerated()), id: \.offset) { _, level in
-                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                    .fill(Theme.level(level, dark: scheme == .dark,
-                                      palette: store.paletteStyle))
-                    .frame(height: 16)
+    private var summariesPage: some View {
+        setupPage {
+            Text(String(localized: "Zusammenfassungen"))
+                .font(.largeTitle.bold())
+                .padding(.top, 8)
+            Text(String(localized: "Abends und zum Wochenende — zwei kurze Hinweise, beide hier abwählbar."))
+                .font(.body)
+                .foregroundStyle(.secondary)
+            summaryCard(symbol: "sun.max.fill",
+                        title: String(localized: "Tageszusammenfassung"),
+                        text: String(localized: "Abends in einem Satz: was erledigt ist und was noch offen steht."),
+                        isOn: $dailyEnabled,
+                        identifier: "setup-daily-toggle")
+            summaryCard(symbol: "calendar",
+                        title: String(localized: "Wochenzusammenfassung"),
+                        text: String(localized: "Am Ende der Woche: wie viele Termine du gehalten hast."),
+                        isOn: $weeklyEnabled,
+                        identifier: "setup-weekly-toggle")
+        }
+    }
+
+    private var startPage: some View {
+        setupPage {
+            Text(String(localized: "Los geht's"))
+                .font(.largeTitle.bold())
+                .padding(.top, 8)
+            Text(String(localized: "Die System-Abfrage kommt erst mit dem großen Knopf — ohne dein Okay passiert nichts."))
+                .font(.body)
+                .foregroundStyle(.secondary)
+            habitReminderCard
+            if denied {
+                deniedHint
             }
         }
-        .frame(width: 12 * 19)
-        .accessibilityHidden(true)
     }
 
     // MARK: – Karten
@@ -170,16 +185,30 @@ struct ReminderSetupView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            Button {
-                enable()
-            } label: {
-                Label(String(localized: "Benachrichtigungen aktivieren"), systemImage: "bell")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 32)
+            pageDots
+            if page < Self.lastPage {
+                Button {
+                    withAnimation { page += 1 }
+                } label: {
+                    Text(String(localized: "Weiter"))
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accentFill(store.paletteStyle))
+                .accessibilityIdentifier("setup-next")
+            } else {
+                Button {
+                    enable()
+                } label: {
+                    Label(String(localized: "Benachrichtigungen aktivieren"), systemImage: "bell")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accentFill(store.paletteStyle))
+                .accessibilityIdentifier("enable-notifications")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accentFill(store.paletteStyle))
-            .accessibilityIdentifier("enable-notifications")
             Button(String(localized: "Jetzt nicht")) { finish() }
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("skip-notification-setup")
@@ -187,6 +216,21 @@ struct ReminderSetupView: View {
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
         .background(.bar)
+    }
+
+    /// Eigene Punkte statt der System-Punkte: die stehen sonst UNTER dem
+    /// Fuß und färben sich nicht nach der aktiven Palette.
+    private var pageDots: some View {
+        HStack(spacing: 7) {
+            ForEach(0...Self.lastPage, id: \.self) { i in
+                Circle()
+                    .fill(i == page ? Theme.accentFill(store.paletteStyle)
+                                    : Color(.systemFill))
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: page)
+        .accessibilityHidden(true)
     }
 
     private func enable() {
