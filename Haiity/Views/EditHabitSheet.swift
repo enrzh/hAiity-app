@@ -60,6 +60,8 @@ struct EditHabitSheet: View {
     /// „limitless" (sie zählt nur hoch).
     @State private var hasDuration = false
     @State private var durationMinutes = EditHabitSheet.defaultDuration
+    @State private var hasReminder = false
+    @State private var reminderMinutes = EditHabitSheet.defaultReminderMinutes
 
     private var calendar: Calendar { .current }
 
@@ -74,6 +76,7 @@ struct EditHabitSheet: View {
                 }
                 recurrenceSection
                 timeSection
+                reminderSection
                 durationSection
                 kindSection
                 colorSection
@@ -128,6 +131,10 @@ struct EditHabitSheet: View {
         // aber beim nächsten Umschalten auf „Menge" aus dem Nichts wieder
         // aufträte.
         .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
+        .onChange(of: hasReminder) { _, enabled in
+            guard enabled else { return }
+            Task { _ = await Reminders.ensurePermission() }
+        }
     }
 
     // MARK: – Zeitraum (Regel + Start)
@@ -345,6 +352,7 @@ struct EditHabitSheet: View {
     /// Stufen statt eines freien Rads: eine Session-Dauer ist eine
     /// Größenordnung („eine halbe Stunde"), keine Sekundenangabe.
     static let defaultDuration = 30
+    static let defaultReminderMinutes = 20 * 60
     static let durationPresets = [5, 10, 15, 20, 30, 45, 60, 90, 120]
 
     /// Die Stufen, ggf. um einen BESTEHENDEN krummen Wert ergänzt (Import,
@@ -373,6 +381,20 @@ struct EditHabitSheet: View {
             }
         } footer: {
             Text(String(localized: "Eine Session (langer Druck auf die Karte → „Session starten“) läuft als Live-Aktivität mit. Mit Dauer zeigt sie den Fortschritt gegen den Plan, ohne zählt sie einfach hoch."))
+        }
+    }
+
+    private var reminderSection: some View {
+        Section {
+            Toggle(String(localized: "Erinnerung"), isOn: $hasReminder)
+                .accessibilityIdentifier("habit-reminder-toggle")
+            if hasReminder {
+                DatePicker(String(localized: "Uhrzeit"), selection: Binding(
+                    get: { Date(timeIntervalSinceReferenceDate: TimeInterval(reminderMinutes * 60)) },
+                    set: { reminderMinutes = max(0, min(24 * 60 - 1, Int($0.timeIntervalSinceReferenceDate / 60))) }
+                ), displayedComponents: .hourAndMinute)
+                .accessibilityIdentifier("habit-reminder-time")
+            }
         }
     }
 
@@ -493,6 +515,10 @@ struct EditHabitSheet: View {
             hasDuration = true
             durationMinutes = duration
         }
+        if let reminder = Habit.sanitizedMinutes(habit.reminderMinutes) {
+            hasReminder = true
+            reminderMinutes = reminder
+        }
     }
 
     /// Sichern ist synchron — es gibt nichts mehr zu fragen. Die
@@ -511,6 +537,7 @@ struct EditHabitSheet: View {
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.timeMinutes = draft.timeMinutes(calendar: calendar)
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil
+        habit.reminderMinutes = hasReminder ? Habit.sanitizedMinutes(reminderMinutes) : nil
         habit.recurrence = recurrence
         habit.palette = habitPalette
         // Weg von Ja/Nein heißt auch: die Antworten mitnehmen. Ohne das
@@ -521,9 +548,6 @@ struct EditHabitSheet: View {
         habit.kind = Habit.resolvedKind(marker: kind.rawValue,
                                         log: habit.log,
                                         target: recurrence.target)
-        // `habit.reminderMinutes` bleibt unangetastet: es steht in Dateien
-        // ausgelieferter Versionen und soll dort auch stehen bleiben (siehe
-        // `Habit`). Ausgewertet wird es nicht mehr.
         if existing == nil { store.add(habit) } else { store.update(habit) }
         Theme.Haptics.success()
         dismiss()

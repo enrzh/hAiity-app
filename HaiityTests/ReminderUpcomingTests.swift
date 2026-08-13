@@ -103,6 +103,67 @@ final class ReminderUpcomingTests: XCTestCase {
     func testUpcomingTextIsNilWhenNothingIsDue() {
         XCTAssertNil(SummaryText.upcoming([]))
     }
+
+    // MARK: – Eigene Habit-Erinnerungen
+
+    func testHabitPlansAreConcreteRecurrenceAwareAndSkipCompletedDays() {
+        var habit = Habit(name: "Lesen", emoji: "📚", reminderMinutes: 18 * 60 + 15,
+                          recurrence: .weekdays([2]))
+        habit.log["2026-08-10"] = 1
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+
+        XCTAssertEqual(plans.map(\.identifier), [
+            Reminders.habitReminderIdentifier(habitID: habit.id, day: "2026-08-17")
+        ])
+        XCTAssertEqual(plans.first?.dateMatching.hour, 18)
+        XCTAssertEqual(plans.first?.dateMatching.minute, 15)
+        XCTAssertEqual(plans.first?.title, "📚 Lesen")
+        XCTAssertEqual(plans.first?.body, "Zeit für Lesen")
+        XCTAssertFalse(plans.first?.repeats ?? true)
+    }
+
+    func testHabitPlansSuppressArchivedAndTodayAlreadyCompleted() {
+        var archived = Habit(name: "Alt", reminderMinutes: 18 * 60)
+        archived.archivedAt = "2026-08-01"
+        var done = Habit(name: "Fertig", reminderMinutes: 18 * 60)
+        done.log["2026-08-09"] = 1
+
+        let plans = Reminders.habitPlans(habits: [archived, done], now: now, calendar: calendar)
+
+        XCTAssertFalse(plans.map(\.identifier).contains(
+            Reminders.habitReminderIdentifier(habitID: done.id, day: "2026-08-09")
+        ))
+        XCTAssertFalse(plans.contains { $0.identifier.contains(archived.id.uuidString) })
+    }
+
+    func testHabitReminderIdentifiersDoNotOverlapSummaryOrSessionIdentifiers() {
+        let habitID = UUID()
+        let identifier = Reminders.habitReminderIdentifier(habitID: habitID, day: "2026-08-10")
+        let session = HabitSession(id: UUID(), habitID: habitID, day: "2026-08-09",
+                                   startedAt: now, plannedMinutes: 30)
+
+        XCTAssertNotEqual(identifier, Reminders.summaryId)
+        XCTAssertNotEqual(identifier, Reminders.weeklySummaryId)
+        XCTAssertFalse(identifier.hasPrefix(Reminders.sessionMilestonePrefix))
+        XCTAssertNotEqual(Reminders.sessionMilestoneIdentifier(session), identifier)
+    }
+
+    func testSessionMilestoneUsesPlannedEndAndHasNoPlanWithoutDuration() {
+        let session = HabitSession(id: UUID(), habitID: UUID(), day: "2026-08-09",
+                                   startedAt: now, plannedMinutes: 30)
+        let plan = Reminders.sessionMilestonePlan(session, calendar: calendar)
+
+        XCTAssertEqual(plan?.identifier, Reminders.sessionMilestoneIdentifier(session))
+        XCTAssertEqual(plan?.dateMatching, calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute], from: now.addingTimeInterval(30 * 60)
+        ))
+        XCTAssertEqual(plan?.body, "Deine geplante Dauer ist erreicht.")
+        XCTAssertNil(Reminders.sessionMilestonePlan(
+            HabitSession(id: UUID(), habitID: UUID(), day: "2026-08-09", startedAt: now,
+                         plannedMinutes: nil), calendar: calendar
+        ))
+    }
 }
 
 /// Das App-Icon-Auswahlraster (v11): die pure Abbildung zwischen dem, was

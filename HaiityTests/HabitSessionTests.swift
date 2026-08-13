@@ -131,6 +131,61 @@ final class HabitSessionTests: XCTestCase {
         XCTAssertEqual(store.habits[0].minutes["2026-08-09"], 25)
     }
 
+    func testFinishPersistsExactRecordOnceAndIsIdempotent() {
+        let habit = Habit(name: "Lesen", durationMinutes: 30)
+        store.add(habit)
+        let session = HabitSession(id: UUID(), habitID: habit.id, day: "2026-08-09",
+                                   startedAt: date(10), plannedMinutes: 30)
+
+        HabitSessionCompletion.finish(store: store, session: session, now: date(25 * 60 + 10))
+        HabitSessionCompletion.finish(store: store, session: session, now: date(50 * 60 + 10))
+
+        XCTAssertEqual(store.sessionHistory, [
+            HabitSessionRecord(id: session.id, habitID: habit.id, day: "2026-08-09",
+                               startedAt: date(10), finishedAt: date(25 * 60 + 10),
+                               plannedMinutes: 30)
+        ])
+        XCTAssertEqual(store.habits[0].minutes["2026-08-09"], 25)
+    }
+
+    func testSessionHistoryDefaultsToEmptyAndMergesByStableID() throws {
+        let habit = Habit(name: "Lesen")
+        let oldPayload = HabitData(version: HabitData.currentVersion, updatedAt: 0,
+                                   summaryMinutes: nil, habits: [habit])
+        let decoded = try JSONDecoder().decode(HabitData.self,
+                                               from: JSONEncoder().encode(oldPayload))
+        XCTAssertTrue(decoded.sessionHistory.isEmpty)
+
+        let record = HabitSessionRecord(id: UUID(), habitID: habit.id, day: "2026-08-09",
+                                        startedAt: date(0), finishedAt: date(120),
+                                        plannedMinutes: 30)
+        store.add(habit)
+        store.merge(remote: HabitData(version: HabitData.currentVersion, updatedAt: 1,
+                                      summaryMinutes: nil, habits: [habit],
+                                      sessionHistory: [record]))
+        store.merge(remote: HabitData(version: HabitData.currentVersion, updatedAt: 2,
+                                      summaryMinutes: nil, habits: [habit],
+                                      sessionHistory: [record]))
+
+        XCTAssertEqual(store.sessionHistory, [record])
+        XCTAssertTrue(store.habits[0].minutes.isEmpty,
+                      "Importing exact records must not double-add legacy day totals.")
+    }
+
+    func testCancellingOrDiscardingStaleSessionCreatesNoHistory() {
+        let habit = Habit(name: "Lesen")
+        store.add(habit)
+        let session = HabitSession(id: UUID(), habitID: habit.id, day: "2026-08-09",
+                                   startedAt: date(0), plannedMinutes: 30)
+
+        HabitSessionCompletion.cancel(store: store, session: session)
+        HabitSessionCompletion.discardStale(store: store, session: session)
+
+        XCTAssertTrue(store.sessionHistory.isEmpty)
+        XCTAssertNil(store.habits[0].log["2026-08-09"])
+        XCTAssertNil(store.habits[0].minutes["2026-08-09"])
+    }
+
     func testFinishOnQuantityIncrementsAndOnYesNoAffirms() {
         let quantity = Habit(name: "Wasser", recurrence: .init(frequency: .daily, target: 3))
         var yesNo = Habit(name: "Kein Zucker?", kind: .yesNo)

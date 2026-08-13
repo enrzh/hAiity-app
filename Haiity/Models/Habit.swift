@@ -35,14 +35,9 @@ struct Habit: Codable, Identifiable, Equatable {
     var name: String
     var emoji: String
     var createdAt: String
-    /// **Nur noch Altlast.** Bis v4 war das die Uhrzeit der EIGENEN
-    /// Erinnerung dieses Habits. Die gibt es nicht mehr — erinnert wird
-    /// zentral über die Tages- und die Wochenzusammenfassung (siehe
-    /// `Reminders`). Das Feld bleibt trotzdem stehen und wird weiter gelesen
-    /// UND geschrieben: eine ausgelieferte Datei soll unverändert durch die
-    /// App laufen, ohne dass ein Schlüssel still verschwindet (kein
-    /// Versionssprung, kein Datenverlust auf einem zweiten Gerät, das noch
-    /// den alten Build fährt). Ausgewertet wird der Wert nirgends mehr.
+    /// Uhrzeit einer eigenen, konkreten Erinnerung in Minuten seit
+    /// Mitternacht. Das bestehende Feld bleibt unverändert codiert, damit
+    /// ältere Dateien und Geräte den Wert weiterhin verlustfrei tragen.
     var reminderMinutes: Int?
     /// Uhrzeit des Habits selbst, als Minuten seit Mitternacht; nil = ohne
     /// Uhrzeit. Das ist eine EIGENSCHAFT des Termins („Laufen um 07:30"),

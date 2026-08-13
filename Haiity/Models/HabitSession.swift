@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 /// Eine laufende Habit-Session: „ich mache das JETZT". Genau eine zur Zeit —
 /// wer eine neue startet, beendet damit die alte (siehe
@@ -7,6 +8,7 @@ import Foundation
 /// Live-Aktivität überlebt den Prozess ohnehin, der Zustand hier muss es
 /// auch.
 struct HabitSession: Codable, Equatable {
+    var id: UUID
     var habitID: UUID
     /// Der Tag, dem die Session gutgeschrieben wird — der Tag des STARTS.
     /// Eine Session über Mitternacht zählt für den Abend, an dem sie
@@ -18,6 +20,35 @@ struct HabitSession: Codable, Equatable {
     /// Eine Kopie und kein Durchgriff auf das Habit: die Live-Aktivität
     /// zeigt den Plan, gegen den gestartet wurde, auch wenn der Editor ihn
     /// zwischendurch ändert.
+    var plannedMinutes: Int?
+
+    init(id: UUID = UUID(), habitID: UUID, day: String, startedAt: Date,
+         plannedMinutes: Int?) {
+        self.id = id
+        self.habitID = habitID
+        self.day = day
+        self.startedAt = startedAt
+        self.plannedMinutes = Habit.sanitizedDuration(plannedMinutes)
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, habitID, day, startedAt, plannedMinutes }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        habitID = try c.decode(UUID.self, forKey: .habitID)
+        day = try c.decode(String.self, forKey: .day)
+        startedAt = try c.decode(Date.self, forKey: .startedAt)
+        plannedMinutes = Habit.sanitizedDuration(try c.decodeIfPresent(Int.self, forKey: .plannedMinutes))
+    }
+}
+
+struct HabitSessionRecord: Codable, Equatable, Identifiable {
+    var id: UUID
+    var habitID: UUID
+    var day: String
+    var startedAt: Date
+    var finishedAt: Date
     var plannedMinutes: Int?
 }
 
@@ -92,6 +123,14 @@ enum HabitSessionStorage {
     }
 }
 
+enum HabitSessionMilestoneControl {
+    static func cancel(_ session: HabitSession) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["session-milestone-\(session.id.uuidString)"]
+        )
+    }
+}
+
 /// Was das ENDE einer Session mit den Daten macht — pur und getestet,
 /// getrennt vom Intent (dasselbe Muster wie `CheckOffLogic`).
 enum HabitSessionCompletion {
@@ -101,9 +140,20 @@ enum HabitSessionCompletion {
     /// gutgeschriebenen Minuten.
     @discardableResult
     static func finish(store: HabitStore, session: HabitSession, now: Date = Date()) -> Int {
+        if let record = store.sessionHistory.first(where: { $0.id == session.id }) {
+            return HabitSessionMath.elapsedMinutes(startedAt: record.startedAt, endedAt: record.finishedAt)
+        }
         let minutes = HabitSessionMath.elapsedMinutes(startedAt: session.startedAt, endedAt: now)
+        store.addSessionRecord(HabitSessionRecord(id: session.id, habitID: session.habitID,
+                                                  day: session.day, startedAt: session.startedAt,
+                                                  finishedAt: now, plannedMinutes: session.plannedMinutes),
+                               persist: false)
         CheckOffLogic.apply(to: store, habitId: session.habitID, day: session.day)
         store.recordSessionMinutes(session.habitID, day: session.day, minutes: minutes)
         return minutes
     }
+
+    static func cancel(store: HabitStore, session: HabitSession) {}
+
+    static func discardStale(store: HabitStore, session: HabitSession) {}
 }

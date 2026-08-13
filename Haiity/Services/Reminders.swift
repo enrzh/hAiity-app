@@ -75,6 +75,17 @@ enum Reminders {
     /// aber sie liegen auf Geräten mit einem alten Build als anstehende
     /// Anfragen — ohne dieses Aufräumen klingelten sie ewig weiter.
     static let legacyHabitPrefix = "habit-"
+    static let habitReminderPrefix = "habit-reminder-"
+    static let sessionMilestonePrefix = "session-milestone-"
+    static let habitReminderDays = 7
+
+    static func habitReminderIdentifier(habitID: UUID, day: String) -> String {
+        "\(habitReminderPrefix)\(habitID.uuidString)-\(day)"
+    }
+
+    static func sessionMilestoneIdentifier(_ session: HabitSession) -> String {
+        "\(sessionMilestonePrefix)\(session.id.uuidString)"
+    }
 
     /// Wird beim Einschalten einer Zusammenfassung aufgerufen — der einzige
     /// Ort, der den System-Dialog auslösen darf. Liefert false bei Ablehnung.
@@ -174,6 +185,47 @@ enum Reminders {
         return plans
     }
 
+    static func habitPlans(habits: [Habit], now: Date = Date(),
+                           calendar: Calendar = .current) -> [ReminderPlan] {
+        var plans: [ReminderPlan] = []
+        let today = DayKey.key(for: now, calendar: calendar)
+        for habit in habits where habit.archivedAt == nil {
+            guard let minutes = Habit.sanitizedMinutes(habit.reminderMinutes) else { continue }
+            var day = today
+            for offset in 0...habitReminderDays + 1 {
+                if offset > 0 {
+                    guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+                    day = next
+                }
+                guard GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar),
+                      !habit.isDone(day), !habit.isAnswered(day),
+                      let date = DayKey.date(from: day, calendar: calendar)
+                else { continue }
+                var components = calendar.dateComponents([.year, .month, .day], from: date)
+                components.hour = minutes / 60
+                components.minute = minutes % 60
+                guard let fire = calendar.date(from: components), fire > now else { continue }
+                let label = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
+                plans.append(ReminderPlan(identifier: habitReminderIdentifier(habitID: habit.id, day: day),
+                                          title: label,
+                                          body: String(localized: "Zeit für \(habit.name)"),
+                                          dateMatching: components, repeats: false))
+            }
+        }
+        return plans
+    }
+
+    static func sessionMilestonePlan(_ session: HabitSession,
+                                     calendar: Calendar = .current) -> ReminderPlan? {
+        guard let end = HabitSessionMath.plannedEnd(startedAt: session.startedAt,
+                                                     plannedMinutes: session.plannedMinutes) else { return nil }
+        return ReminderPlan(identifier: sessionMilestoneIdentifier(session),
+                            title: String(localized: "Session-Ziel erreicht"),
+                            body: String(localized: "Deine geplante Dauer ist erreicht."),
+                            dateMatching: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: end),
+                            repeats: false)
+    }
+
     // MARK: – Ausführung
 
     /// Stellt die beiden Zusammenfassungen neu. Idempotent: erst alle eigenen
@@ -188,6 +240,7 @@ enum Reminders {
         let ours = pending.map(\.identifier).filter {
             $0 == summaryId || $0 == weeklySummaryId
                 || $0.hasPrefix(legacyHabitPrefix) || $0.hasPrefix(upcomingPrefix)
+                || $0.hasPrefix(habitReminderPrefix)
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
@@ -197,10 +250,24 @@ enum Reminders {
         var plans = [daily, weekly].compactMap { $0 }
         if let data = HabitStore.read(SharedStorage.dataURL()) {
             plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
+            plans += habitPlans(habits: data.habits)
         }
         for plan in plans {
             try? await center.add(request(plan))
         }
+    }
+
+    static func scheduleSessionMilestone(_ session: HabitSession) async {
+        guard let plan = sessionMilestonePlan(session) else { return }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
+        center.removePendingNotificationRequests(withIdentifiers: [plan.identifier])
+        try? await center.add(request(plan))
+    }
+
+    static func cancelSessionMilestone(_ session: HabitSession) {
+        HabitSessionMilestoneControl.cancel(session)
     }
 
     /// Eine Probemeldung in `seconds` Sekunden — der sichtbare Beweis, dass

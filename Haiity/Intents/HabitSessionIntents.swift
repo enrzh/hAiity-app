@@ -29,6 +29,7 @@ struct FinishHabitSessionIntent: LiveActivityIntent {
             let store = HabitStore(url: SharedStorage.dataURL())
             HabitSessionCompletion.finish(store: store, session: session)
             HabitSessionStorage.clear()
+            HabitSessionMilestoneControl.cancel(session)
         }
         await HabitSessionActivityControl.endAll()
         return .result()
@@ -44,6 +45,9 @@ struct CancelHabitSessionIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        if let session = HabitSessionStorage.load() {
+            HabitSessionMilestoneControl.cancel(session)
+        }
         HabitSessionStorage.clear()
         await HabitSessionActivityControl.endAll()
         return .result()

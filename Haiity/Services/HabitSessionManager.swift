@@ -24,6 +24,9 @@ final class HabitSessionManager {
     /// wer mitten in einer Session eine neue startet, hat die alte
     /// aufgegeben; „Fertig" ist der Knopf auf der Aktivität).
     func start(habit: Habit) {
+        if let previous = HabitSessionStorage.load() {
+            Reminders.cancelSessionMilestone(previous)
+        }
         let startedAt = Date()
         let session = HabitSession(habitID: habit.id,
                                    day: DayKey.today(),
@@ -35,6 +38,7 @@ final class HabitSessionManager {
         // Beenden nach dem Anfordern und riss die frische Aktivität mit.
         Task { [weak self] in
             await HabitSessionActivityControl.endAll()
+            await Reminders.scheduleSessionMilestone(session)
             self?.requestActivity(habit: habit, startedAt: startedAt)
         }
     }
@@ -83,6 +87,7 @@ final class HabitSessionManager {
         guard let session = HabitSessionStorage.load() else { return }
         if HabitSessionMath.isStale(startedAt: session.startedAt, now: now) {
             HabitSessionStorage.clear()
+            Reminders.cancelSessionMilestone(session)
             Task { await HabitSessionActivityControl.endAll() }
         }
     }

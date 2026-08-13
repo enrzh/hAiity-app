@@ -8,8 +8,7 @@ import SwiftUI
 /// **Keine tickenden Updates.** Die verstrichene Zeit rendert das System aus
 /// `Text(timerInterval:)` bzw. `ProgressView(timerInterval:)` selbst — die
 /// Anzeige läuft also auch, wenn App UND Extension längst suspendiert sind.
-/// Mit geplanter Dauer zählt die Uhr HERUNTER und der Balken füllt sich;
-/// ohne („limitless") zählt sie schlicht hoch.
+/// Die Uhr zählt immer hoch; mit geplanter Dauer ist nur der Balken begrenzt.
 ///
 /// Die Knöpfe feuern `LiveActivityIntent`s, deren `perform()` im App-Prozess
 /// läuft: „Fertig" hakt den Tag über den normalen Trichter ab und schreibt
@@ -75,14 +74,8 @@ private struct SessionTimerText: View {
     let context: ActivityViewContext<HabitActivityAttributes>
 
     var body: some View {
-        if let end = HabitSessionMath.plannedEnd(startedAt: context.state.startedAt,
-                                                 plannedMinutes: context.attributes.plannedMinutes) {
-            Text(timerInterval: context.state.startedAt...end, countsDown: true)
-                .multilineTextAlignment(.trailing)
-        } else {
-            Text(context.state.startedAt, style: .timer)
-                .multilineTextAlignment(.trailing)
-        }
+        Text(context.state.startedAt, style: .timer)
+            .multilineTextAlignment(.trailing)
     }
 }
 
