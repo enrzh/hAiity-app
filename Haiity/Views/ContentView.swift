@@ -46,6 +46,13 @@ struct ContentView: View {
     /// belegt, dass ein Cover wirklich da ist und ein `onDismiss` schuldet.
     @State private var createCover = CreateCoverPresentation()
     @State private var syncStatus = ""
+    /// Wann die App zuletzt aktiv wurde. In den ersten Sekunden danach wird
+    /// KEIN Sync-Fehler eingeblendet: CloudKit wirft beim Start und beim
+    /// Aufwachen routinemäßig kurzlebige Fehler, die sich selbst heilen —
+    /// eine Pille dafür ist Lärm (vom Gerät gemeldet: „split second of
+    /// icloud error"). Echte Fehler zeigen sich beim nächsten Abgleich nach
+    /// dem Fenster erneut und DANN sichtbar.
+    @State private var becameActiveAt = Date.distantPast
     /// Auswahl der Bereiche. In der nativen Tableiste wird `.search` im
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
     /// öffnet das Suchfeld.
@@ -195,6 +202,7 @@ struct ContentView: View {
             .task {
                 try? await Task.sleep(for: .milliseconds(250))
                 searchPresentationArmed = true
+                becameActiveAt = .now
                 await boot()
                 #if DEBUG
                 handleLaunchScreenArgument()
@@ -203,6 +211,7 @@ struct ContentView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    becameActiveAt = .now
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
@@ -1908,8 +1917,11 @@ struct ContentView: View {
             // auf (unten), und der Dauerzustand steht in „Mehr".
         } catch {
             cloudStatus.noteFailure(error)
-            // Nur echte Fehler stören beim Abhaken; „offline“ steht in „Mehr“.
-            if announce, !CloudSyncError.map(error).isTemporary {
+            // Nur echte Fehler stören beim Abhaken; „offline“ steht in „Mehr“
+            // — und in den ersten Sekunden nach Start/Aufwachen gar nichts
+            // (kurzlebige CloudKit-Aufwach-Fehler, siehe `becameActiveAt`).
+            if announce, !CloudSyncError.map(error).isTemporary,
+               Date.now.timeIntervalSince(becameActiveAt) > 8 {
                 await flash(error.localizedDescription)
             }
         }

@@ -99,8 +99,15 @@ enum CloudSyncError: LocalizedError, Equatable {
             return .unavailable((error as NSError).localizedDescription)
         }
         switch ck.code {
-        case .notAuthenticated, .accountTemporarilyUnavailable:
+        case .notAuthenticated:
             return .notSignedIn
+        // WÖRTLICH „vorübergehend": CloudKit meldet das routinemäßig in den
+        // ersten Momenten nach Start/Aufwachen und heilt sich selbst. Als
+        // „nicht angemeldet" gelesen, sprang der Status kurz auf „Nur auf
+        // diesem Gerät" und der Fehlertext blitzte als Pille auf (vom Gerät
+        // gemeldet). Es ist ein WARTE-Zustand, kein Konto-Zustand.
+        case .accountTemporarilyUnavailable:
+            return .unavailable(ck.localizedDescription)
         case .networkUnavailable, .networkFailure, .serviceUnavailable,
              .requestRateLimited, .zoneBusy, .operationCancelled:
             return .unavailable(ck.localizedDescription)

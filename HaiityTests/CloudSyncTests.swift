@@ -324,6 +324,16 @@ final class CloudSyncErrorTests: XCTestCase {
         XCTAssertEqual(CloudSyncError.map(CloudFixtures.ckError(.notAuthenticated)), .notSignedIn)
     }
 
+    /// WÖRTLICH „vorübergehend": der routinemäßige Aufwach-Fehler von
+    /// CloudKit ist ein Warte-Zustand — als „nicht angemeldet" gelesen,
+    /// sprang der Status beim Start kurz um und der Fehlertext blitzte als
+    /// Pille auf (vom Gerät gemeldet).
+    func testAccountTemporarilyUnavailableIsTemporaryNotSignedOut() {
+        let mapped = CloudSyncError.map(CloudFixtures.ckError(.accountTemporarilyUnavailable))
+        XCTAssertTrue(mapped.isTemporary)
+        XCTAssertNotEqual(mapped, .notSignedIn)
+    }
+
     func testNetworkErrorsAreTemporary() {
         for code in [CKError.Code.networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited] {
             XCTAssertTrue(CloudSyncError.map(CloudFixtures.ckError(code)).isTemporary,
