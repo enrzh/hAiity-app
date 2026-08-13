@@ -17,10 +17,13 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit-preview\")"))
     }
 
-    /// Die Vorschau enthält (im Raster) einen horizontalen ScrollView. Ohne
-    /// abgeschaltete Treffer frisst er den Tipp, bevor er den
-    /// Bearbeiten-Knopf erreicht — „Tippen auf den großen Graphen tut
-    /// nichts" war genau so vom Gerät gemeldet.
+    /// Die Vorschau enthält (im Raster) einen horizontalen ScrollView. Der
+    /// frisst Tipps — und ein Button, dessen ganzes Label die Treffer abgibt,
+    /// hat am Gerät gar keine Tipp-Fläche mehr (beide Bauarten sind als
+    /// „Tippen auf den großen Graphen tut nichts" vom Gerät gemeldet und
+    /// wieder ausgebaut). Der Vertrag: Vorschau ohne eigene Treffer, davor
+    /// eine EIGENE Schicht mit dem Tipp-Erkenner — im Simulator über den
+    /// Debug-Haken `-open-graph-preview` end-to-end nachgestellt.
     func testPreviewDoesNotSwallowTheEditTap() throws {
         let source = try habitCardSource()
         let start = try XCTUnwrap(source.range(of: "private var graphPreviewSheet"))
@@ -28,6 +31,9 @@ final class HabitCardInteractionSourceTests: XCTestCase {
                                              range: start.upperBound..<source.endIndex))
         let sheet = String(source[start.lowerBound..<end.lowerBound])
         XCTAssertTrue(sheet.contains(".allowsHitTesting(false)"))
+        XCTAssertTrue(sheet.contains(".onTapGesture { requestGraphPreviewAction(.edit) }"))
+        XCTAssertFalse(sheet.contains("Button { requestGraphPreviewAction(.edit) }"),
+                       "Knopf-Semantik um die Vorschau ist die kaputte Bauart")
     }
 
     func testLongPressMenuKeepsEditAction() throws {

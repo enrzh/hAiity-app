@@ -169,6 +169,9 @@ struct HabitCard: View, Equatable {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
+            #if DEBUG
+            .onAppear { claimDebugPreviewIfRequested() }
+            #endif
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-grid")
     }
@@ -263,18 +266,23 @@ struct HabitCard: View, Equatable {
 
     private var graphPreviewSheet: some View {
         VStack(spacing: Theme.Metrics.gutter) {
-            Button { requestGraphPreviewAction(.edit) } label: {
+            // KEIN Button: die Vorschau enthält (im Raster) einen
+            // horizontalen ScrollView, der Tipps frisst, bevor sie einen
+            // umgebenden Knopf erreichen — und ein Button, dessen ganzes
+            // Label die Treffer abgibt (`allowsHitTesting(false)`), hat am
+            // Gerät gar keine Tipp-Fläche mehr (beides „Tippen auf den
+            // großen Graphen tut nichts", vom Gerät gemeldet). Deshalb eine
+            // EIGENE Trefferschicht VOR der Vorschau: sie gewinnt jeden
+            // Treffer, ihr Tipp-Erkenner hängt an keiner Knopf-Semantik.
+            ZStack {
                 habitPreview
-                    // Die Vorschau enthält (im Raster) einen horizontalen
-                    // ScrollView — der frisst Tipps, bevor sie den Knopf
-                    // erreichen: genau das gemeldete „Tippen auf den großen
-                    // Graphen tut nichts". Die Vorschau ist zum ANSEHEN da
-                    // und braucht keine eigenen Treffer; ohne sie gehört
-                    // jeder Tipp auf der ganzen Fläche dem Bearbeiten-Knopf.
                     .allowsHitTesting(false)
+                Color.clear
                     .contentShape(Rectangle())
+                    .onTapGesture { requestGraphPreviewAction(.edit) }
             }
-            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel(String(localized: "Bearbeiten"))
             .accessibilityIdentifier("edit-habit-preview")
 
@@ -327,6 +335,23 @@ struct HabitCard: View, Equatable {
         }
         .accessibilityIdentifier("share-habit")
     }
+
+    #if DEBUG
+    /// Nur Debug: `-open-graph-preview` öffnet die Vorschau der ERSTEN
+    /// erscheinenden Karte. Der lange Druck ist mit synthetischer Eingabe im
+    /// Simulator nicht auslösbar — ohne diesen Haken wäre der
+    /// Tipp-auf-Vorschau-Pfad (die ScrollView-Treffer-Falle!) unprüfbar.
+    private static var debugPreviewClaimed = false
+
+    private func claimDebugPreviewIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-open-graph-preview"),
+              !Self.debugPreviewClaimed else { return }
+        Self.debugPreviewClaimed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            showingGraphPreview = true
+        }
+    }
+    #endif
 
     private func requestGraphPreviewAction(_ action: GraphPreviewAction) {
         graphPreviewAction = action
