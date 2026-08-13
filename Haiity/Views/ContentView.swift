@@ -44,10 +44,9 @@ struct ContentView: View {
     @State private var pushes = PushDebouncer()
     @State private var editing: Habit?
     @State private var showAdd = false
-    /// `showAdd` flips to false before the full-screen-cover transition has
-    /// completed. Keep this true until `onDismiss` so a newer route still
-    /// waits for the cover that remains visually above the app.
-    @State private var createCoverIsPresented = false
+    /// `showAdd` ist nur der Praesentationswunsch. Erst `createPage.onAppear`
+    /// belegt, dass ein Cover wirklich da ist und ein `onDismiss` schuldet.
+    @State private var createCover = CreateCoverPresentation()
     @State private var syncStatus = ""
     /// Auswahl der Bereiche. In der nativen Tableiste wird `.create` im
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
@@ -174,7 +173,9 @@ struct ContentView: View {
             // Zoom-Transition aus dem Anlegen-Kreis der Leiste wächst und
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
             .fullScreenCover(isPresented: $showAdd,
-                             onDismiss: deliverPendingCreateDismissalRoute) { createPage }
+                             onDismiss: deliverPendingCreateDismissalRoute) {
+                createPage.onAppear { createCoverDidPresent() }
+            }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
                     .themed(store)
@@ -226,7 +227,6 @@ struct ContentView: View {
             }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
-                if open { createCoverIsPresented = true }
                 // Der Zustandsmaschine melden: solange das Cover offen ist
                 // (und im Fenster nach dem Zufahren) kann keine ECHTE
                 // Lupen-Berührung eine Suche präsentieren.
@@ -1466,12 +1466,14 @@ struct ContentView: View {
         // A newer create route may have re-presented the cover while an older
         // dismissal callback was still queued. That callback must not mark
         // the newly presented cover as gone.
-        guard !showAdd else {
-            createCoverIsPresented = true
-            return
-        }
-        createCoverIsPresented = false
+        guard !showAdd else { return }
+        createCover.didDismiss()
         advancePendingRoute()
+    }
+
+    private func createCoverDidPresent() {
+        guard showAdd else { return }
+        createCover.didPresent()
     }
 
     private func presentMoreSheet(_ route: MoreRoute) {
@@ -1512,14 +1514,16 @@ struct ContentView: View {
 
     private func advance(_ route: RouteWork.Item) {
         let presentation = RoutePresentation(
-            create: showAdd ? .presented : createCoverIsPresented ? .dismissing : .absent,
+            create: createCover.phase(requested: showAdd),
             more: moreSheet != nil || morePageRoute != nil
                 ? .presented : moreSheetIsPresented ? .dismissing : .absent,
             morePage: presentedMoreDestination)
 
         switch routeWork.nextStep(for: route, presentation: presentation) {
         case .dismissCreate:
+            let waitsForOnDismiss = createCover.dismissalIsOwed
             showAdd = false
+            if !waitsForOnDismiss { advance(route) }
         case .dismissMore:
             let waitsForOnDismiss = moreSheetIsPresented
             dismissMoreSheet()

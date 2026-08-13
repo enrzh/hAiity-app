@@ -75,6 +75,66 @@ final class AppNavigationTests: XCTestCase {
                        .apply)
     }
 
+    func testRapidCreateToSearchCancelsBeforeContentPresentation() {
+        var work = RouteWork()
+        let cover = CreateCoverPresentation()
+        _ = work.begin(AppDestination.create.effect)
+        let search = work.begin(AppDestination.search.effect)
+
+        XCTAssertEqual(work.nextStep(for: search,
+                                     presentation: .init(create: cover.phase(requested: true))),
+                       .dismissCreate)
+        XCTAssertFalse(cover.dismissalIsOwed)
+        XCTAssertEqual(work.nextStep(for: search,
+                                     presentation: .init(create: cover.phase(requested: false))),
+                       .apply)
+    }
+
+    func testRapidCreateToStatsCancelsBeforeContentPresentation() {
+        var work = RouteWork()
+        let cover = CreateCoverPresentation()
+        _ = work.begin(AppDestination.create.effect)
+        let stats = work.begin(AppDestination.stats.effect)
+
+        XCTAssertEqual(work.nextStep(for: stats,
+                                     presentation: .init(create: cover.phase(requested: true))),
+                       .dismissCreate)
+        XCTAssertFalse(cover.dismissalIsOwed)
+        XCTAssertEqual(work.nextStep(for: stats,
+                                     presentation: .init(create: cover.phase(requested: false))),
+                       .apply)
+    }
+
+    func testLatestRouteWinsDuringRequestedCreateCancellation() {
+        var work = RouteWork()
+        let cover = CreateCoverPresentation()
+        _ = work.begin(AppDestination.create.effect)
+        let search = work.begin(AppDestination.search.effect)
+        let stats = work.begin(AppDestination.stats.effect)
+
+        XCTAssertNil(work.nextStep(for: search,
+                                   presentation: .init(create: cover.phase(requested: false))))
+        XCTAssertEqual(work.nextStep(for: stats,
+                                     presentation: .init(create: cover.phase(requested: false))),
+                       .apply)
+    }
+
+    func testCreateCoverSeparatesRequestFromActualPresentation() {
+        var cover = CreateCoverPresentation()
+
+        XCTAssertEqual(cover.phase(requested: true), .requested)
+        XCTAssertFalse(cover.dismissalIsOwed)
+
+        cover.didPresent()
+        XCTAssertEqual(cover.phase(requested: true), .presented)
+        XCTAssertEqual(cover.phase(requested: false), .dismissing)
+        XCTAssertTrue(cover.dismissalIsOwed)
+
+        cover.didDismiss()
+        XCTAssertEqual(cover.phase(requested: false), .absent)
+        XCTAssertFalse(cover.dismissalIsOwed)
+    }
+
     func testStatsToArchiveDismissesThenAppliesAfterMoreOnDismiss() {
         var work = RouteWork()
         let archive = work.begin(AppDestination.archive.effect)
@@ -171,6 +231,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("let waitsForOnDismiss = moreSheetIsPresented"))
         XCTAssertTrue(source.contains("if !waitsForOnDismiss"))
         XCTAssertTrue(source.contains("advance(route)"))
+    }
+
+    func testCreateRouteCanReplaceARequestedButNotPresentedCover() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("createPage.onAppear { createCoverDidPresent() }"))
+        XCTAssertTrue(source.contains("guard showAdd else { return }"))
+        XCTAssertTrue(source.contains("let waitsForOnDismiss = createCover.dismissalIsOwed"))
+        XCTAssertTrue(source.contains("if !waitsForOnDismiss { advance(route) }"))
+        XCTAssertTrue(source.contains("createCover.phase(requested: showAdd)"))
+        XCTAssertTrue(source.contains("chrome.searchFlow.coverChanged(open: open)"))
+        XCTAssertFalse(source.contains("if open { createCoverIsPresented = true }"))
     }
 
     func testCreateAccessibilityContractIsSharedAcrossCustomControls() throws {

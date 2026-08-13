@@ -89,3 +89,90 @@ Result: exit 0, no upload requested or performed.
 
 - Unit and source contracts deterministically cover coordinator decisions and SwiftUI structure, but no UI automation drives an interactive sheet swipe during a deep-link arrival. Both item-sheet hosts use the same lifecycle path, reducing platform divergence.
 - The iOS 26 system create Tab cannot receive explicit `create-habit` through the available SwiftUI Tab API. Its localized accessibility name is `Neuer Habit`; iOS 17-25 fallback and iOS 27 custom `CreateCircle` both expose `create-habit` exactly.
+
+## Create Pre-Presentation Re-Review
+
+### Finding
+
+At `4f4f534b60da0a30bc47371d580452623287b68b`, `createCoverIsPresented` was set by the `showAdd` request binding rather than actual cover content appearance. A rapid Create -> Search or Create -> Stats sequence could clear `showAdd` before SwiftUI presented content, then wait for an `onDismiss` callback that was not owed, stranding the latest `pendingRoute`.
+
+### RED Evidence
+
+The first test-first run added rapid Create -> Search, Create -> Stats, stale-generation, and source lifecycle contracts. It terminated with `** TEST FAILED **` because `CreateCoverPresentation` did not exist:
+
+```text
+Cannot find 'CreateCoverPresentation' in scope
+Testing failed
+** TEST FAILED **
+```
+
+After the initial model was added, a stricter lifecycle contract required request and actual presentation to be distinct. That run also terminated with `** TEST FAILED **`:
+
+```text
+Type 'RoutePresentationPhase' has no member 'requested'
+Testing failed
+** TEST FAILED **
+```
+
+### Implementation
+
+- `CreateCoverPresentation` now distinguishes `.requested`, `.presented`, `.dismissing`, and `.absent`.
+- `showAdd` remains the SwiftUI presentation request and still drives `chrome.searchFlow.coverChanged(open:)` unchanged.
+- Only `createPage.onAppear` calls `createCoverDidPresent()` and marks that `onDismiss` is owed.
+- A non-create route clearing a requested-but-not-presented cover captures `dismissalIsOwed == false`, clears `showAdd`, and immediately re-advances the same current route.
+- A visible cover captures `dismissalIsOwed == true` and waits for the real `onDismiss` before re-advancing.
+- Every advance still checks the `RouteWork.Item` generation; stale Create -> Search work cannot beat a newer Stats route.
+
+### GREEN Evidence
+
+All commands used release Xcode and simulator `876E667A-7321-41E1-9008-876B53FF9F71`, with bounded wrappers that did not time out:
+
+| Suite | Result |
+| --- | --- |
+| `AppNavigationTests` | 23 tests, 0 failures, `** TEST SUCCEEDED **` |
+| `SearchFlowTests` | 31 tests, 0 failures, `** TEST SUCCEEDED **` |
+| Full `HaiityTests` | 782 tests, 0 failures, `** TEST SUCCEEDED **` |
+
+`tools/release.sh` now uses the exact floor `MIN_TESTS=782`, recording the 5 added request/presentation contracts.
+
+### Release Evidence
+
+Command:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./tools/release.sh
+```
+
+Result: exit 0, no upload requested or performed.
+
+- Toolchain: release Xcode 26.6.
+- Project regeneration and iOS platform preflight passed.
+- Release gate executed exactly 782 tests with floor 782.
+- Archive created at `/tmp/haiity-release/Haiity.xcarchive`.
+- App and widget versions matched at `1.0.0 (23)`.
+- Top-level AppIcon, compiled primary icon, and all 5 alternate icons passed.
+- App and widget each carried 16 localized `.lproj` directories.
+- Debug seam checks passed: 4 guarded source literals, 0 unguarded, 15,952 dSYM symbols inspected, 2 Mach-O binaries inspected.
+- App and widget privacy manifests passed.
+- No-upload App Store export completed at `/tmp/haiity-release/export/Haiity.ipa`.
+
+### Final Stale-Appearance Audit
+
+The final parity audit against the More-sheet lifecycle found one narrower
+callback edge: SwiftUI could theoretically deliver `createPage.onAppear` after
+the request had already been cancelled. A new source assertion requiring a
+`showAdd` binding guard ran first and produced the intended RED result:
+
+```text
+testCreateRouteCanReplaceARequestedButNotPresentedCover: XCTAssertTrue failed
+Executed 23 tests, with 1 failure
+** TEST FAILED **
+```
+
+`createCoverDidPresent()` now ignores a stale appearance when `showAdd` is
+already false, matching `moreSheetDidPresent(_:)`'s binding guard. The bounded
+GREEN rerun completed 23 AppNavigationTests with 0 failures and terminal
+`** TEST SUCCEEDED **`. The subsequent SearchFlowTests rerun completed 31 tests
+with 0 failures, and the subsequent full HaiityTests rerun completed 782 tests
+with 0 failures; both ended with terminal `** TEST SUCCEEDED **`. No bounded
+test command reached its timeout.

@@ -37,6 +37,7 @@ struct AppRouteEffect: Equatable {
 
 enum RoutePresentationPhase: Equatable {
     case absent
+    case requested
     case presented
     case dismissing
 }
@@ -45,6 +46,23 @@ struct RoutePresentation: Equatable {
     var create: RoutePresentationPhase = .absent
     var more: RoutePresentationPhase = .absent
     var morePage: AppMoreDestination? = nil
+}
+
+struct CreateCoverPresentation: Equatable {
+    private(set) var dismissalIsOwed = false
+
+    func phase(requested: Bool) -> RoutePresentationPhase {
+        if requested { return dismissalIsOwed ? .presented : .requested }
+        return dismissalIsOwed ? .dismissing : .absent
+    }
+
+    mutating func didPresent() {
+        dismissalIsOwed = true
+    }
+
+    mutating func didDismiss() {
+        dismissalIsOwed = false
+    }
 }
 
 /// Identifies the latest accepted route. Delayed UI work keeps the token it
@@ -89,6 +107,7 @@ struct RouteWork {
 
         if !item.effect.opensCreate {
             switch presentation.create {
+            case .requested: return .dismissCreate
             case .presented: return .dismissCreate
             case .dismissing: return .waitForCreateDismissal
             case .absent: break
@@ -96,6 +115,8 @@ struct RouteWork {
         }
 
         switch presentation.more {
+        case .requested:
+            return .dismissMore
         case .presented:
             if item.effect.morePage == presentation.morePage,
                item.effect.morePage != nil {
