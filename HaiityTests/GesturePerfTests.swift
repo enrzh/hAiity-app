@@ -9,12 +9,25 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
     }
 
+    /// Der Langdruck läuft über einen UIKit-Erkenner (`HoldRecognizer`) am
+    /// ERSTEN UIScrollView-Vorfahren: `.onLongPressGesture` am Container
+    /// feuert in dieser Verschachtelung (List-Zelle, horizontale ScrollView
+    /// im Raster) schlicht nie — vom Gerät gemeldet, im Simulator
+    /// reproduziert und mit dem Erkenner end-to-end nachgestellt.
     func testHeldGraphUsesTappablePreviewSheet() throws {
         let source = try habitCardSource()
-        XCTAssertTrue(source.contains(".onLongPressGesture"))
+        XCTAssertTrue(source.contains("HoldRecognizer"))
+        XCTAssertTrue(source.contains("UILongPressGestureRecognizer"))
+        XCTAssertTrue(source.contains("if view is UIScrollView { break }"))
+        XCTAssertTrue(source.contains("r.cancelsTouchesInView = false"),
+                      "Zellen-Tipps müssen neben dem Halten am Leben bleiben")
         XCTAssertTrue(source.contains("graphPreviewSheet"))
         XCTAssertTrue(source.contains("habitPreview"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit-preview\")"))
+        // Die kaputte Bauart bleibt draußen: kein SwiftUI-Langdruck-AUFRUF
+        // mehr am Rasterkarten-Container (der Kopf-Schlucker nutzt
+        // `.gesture`; Kommentare dürfen den Namen weiter erklären).
+        XCTAssertFalse(source.contains(".onLongPressGesture(minimumDuration"))
     }
 
     /// Die Vorschau enthält (im Raster) einen horizontalen ScrollView. Der

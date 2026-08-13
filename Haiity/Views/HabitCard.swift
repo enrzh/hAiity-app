@@ -159,9 +159,18 @@ struct HabitCard: View, Equatable {
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            .onLongPressGesture(minimumDuration: 0.45) {
-                Theme.Haptics.check()
-                showingGraphPreview = true
+            // UIKit-Erkenner statt `.onLongPressGesture`: der SwiftUI-Lang-
+            // druck feuert in dieser Verschachtelung (List-Zelle, horizontale
+            // ScrollView im Raster) schlicht NIE — vom Gerät gemeldet und im
+            // Simulator reproduziert; dieselbe Erkenntnis steht seit v13 an
+            // `GridTap` („SpatialTapGesture feuert hier nicht"). Ein
+            // UILongPressGestureRecognizer am Container arbeitet mit dem
+            // Scroll-Pan zusammen, statt gegen ihn zu verlieren.
+            .background {
+                HoldRecognizer {
+                    Theme.Haptics.check()
+                    showingGraphPreview = true
+                }
             }
             .sheet(isPresented: $showingGraphPreview,
                    onDismiss: performGraphPreviewAction) {
@@ -669,4 +678,104 @@ struct HabitCard: View, Equatable {
     /// Die Uhrzeit des Habits — dieselbe Formatierung wie im Regel-Satz,
     /// damit „um 07:30" auf der Karte und im Editor gleich aussieht.
     private var timeText: String? { RecurrenceText.timeText(habit.timeMinutes) }
+}
+
+// MARK: – Der Halten-Erkenner
+
+/// Ein UIKit-Langdruck für die Rasterkarte.
+///
+/// **Warum UIKit.** `.onLongPressGesture` am Karten-Container feuert in
+/// dieser Verschachtelung — List-Zelle, darin eine horizontale ScrollView —
+/// schlicht nie (Gerät + Simulator; für Tipp-Gesten dokumentiert `GridTap`
+/// seit v13 dasselbe). Ein `UILongPressGestureRecognizer` ist der Mechanismus,
+/// mit dem UIKit-Apps genau das bauen (Halten auf Fotos-Raster im Scroller):
+/// er läuft per Delegat GLEICHZEITIG mit dem Scroll-Pan und bricht sauber ab,
+/// sobald der Finger zieht.
+///
+/// **Wie er hängt.** Die unsichtbare Trägeransicht bekommt vom `background`
+/// exakt den Rahmen der Karte. Der Erkenner selbst hängt am SwiftUI-Container
+/// darüber (nur dort kommen alle Berührungen vorbei) — gehandelt wird aber
+/// NUR, wenn der Druck innerhalb des eigenen Rahmens liegt. So können viele
+/// Karten im selben Container je ihren eigenen Erkenner tragen, ohne sich
+/// gegenseitig auszulösen, und der Kopf über der Karte bleibt frei.
+private struct HoldRecognizer: UIViewRepresentable {
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> HoldView { HoldView(action: action) }
+
+    func updateUIView(_ view: HoldView, context: Context) {
+        view.action = action
+    }
+
+    static func dismantleUIView(_ view: HoldView, coordinator: ()) {
+        view.detach()
+    }
+
+    final class HoldView: UIView, UIGestureRecognizerDelegate {
+        var action: () -> Void
+        private var recognizer: UILongPressGestureRecognizer?
+        private weak var host: UIView?
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            isHidden = true
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError() }
+
+        deinit { detach() }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // Zeilen-Recycling: raus aus dem Fenster -> Erkenner abhängen,
+            // wieder rein -> neu anhängen (der Container kann ein anderer sein).
+            guard window != nil else { detach(); return }
+            guard recognizer == nil else { return }
+            // Der eigene Wrapper ist ein GESCHWISTER des Karteninhalts —
+            // Berührungen auf der Karte laufen nie durch ihn (nachgemessen:
+            // der Erkenner am Wrapper hat nie gefeuert). Er muss an einen
+            // echten VORFAHREN. Die vertikale Liste (erster UIScrollView
+            // über uns) ist Vorfahre JEDER Karte; der Rahmen-Wächter in
+            // `fired` sorgt dafür, dass nur die gehaltene Karte reagiert.
+            var ancestor = superview
+            var container: UIView?
+            while let view = ancestor {
+                container = view
+                if view is UIScrollView { break }
+                ancestor = view.superview
+            }
+            guard let container else { return }
+            let r = UILongPressGestureRecognizer(target: self, action: #selector(fired))
+            r.minimumPressDuration = 0.45
+            r.cancelsTouchesInView = false
+            r.delegate = self
+            container.addGestureRecognizer(r)
+            recognizer = r
+            host = container
+            trace("hold: attached to \(String(describing: type(of: container))) frame=\(frame)")
+        }
+
+        func detach() {
+            if let recognizer { host?.removeGestureRecognizer(recognizer) }
+            recognizer = nil
+            host = nil
+        }
+
+        @objc private func fired(_ r: UILongPressGestureRecognizer) {
+            trace("hold: fired state=\(r.state.rawValue) loc=\(r.location(in: self)) bounds=\(bounds)")
+            guard r.state == .began else { return }
+            // Der Erkenner sieht den GANZEN Container — gehandelt wird nur
+            // über der eigenen Karte.
+            guard bounds.contains(r.location(in: self)) else { return }
+            action()
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
+        }
+    }
 }
