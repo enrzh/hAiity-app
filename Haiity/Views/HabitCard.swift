@@ -28,10 +28,6 @@ import SwiftUI
 /// Ohne den Vergleich reißt jede `ContentView`-Auswertung (Tafel auf/zu,
 /// Toast, Sync-Pille) alle sichtbaren Karten mit.
 struct HabitCard: View, Equatable {
-    private enum GraphPreviewAction {
-        case backfill, session, edit, archive
-    }
-
     static func == (a: HabitCard, b: HabitCard) -> Bool {
         a.habit == b.habit && a.collapsed == b.collapsed
     }
@@ -69,8 +65,6 @@ struct HabitCard: View, Equatable {
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
-    @State private var showingGraphPreview = false
-    @State private var graphPreviewAction: GraphPreviewAction?
     private static let doneID = "done"
 
     private var today: String { DayKey.today() }
@@ -159,28 +153,22 @@ struct HabitCard: View, Equatable {
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            // UIKit-Erkenner statt `.onLongPressGesture`: der SwiftUI-Lang-
-            // druck feuert in dieser Verschachtelung (List-Zelle, horizontale
-            // ScrollView im Raster) schlicht NIE — vom Gerät gemeldet und im
-            // Simulator reproduziert; dieselbe Erkenntnis steht seit v13 an
-            // `GridTap` („SpatialTapGesture feuert hier nicht"). Ein
-            // UILongPressGestureRecognizer am Container arbeitet mit dem
-            // Scroll-Pan zusammen, statt gegen ihn zu verlieren.
+            // Der Halten-Popup ist das SYSTEM-Kontextmenü (dieselbe
+            // Mechanik wie das Halten auf einem Link): Anheben der Karte,
+            // große Vorschau, Menü darunter — und ein Tipp auf die Vorschau
+            // COMMITTET zu Bearbeiten. SwiftUI kommt hier zweimal nicht
+            // weiter: `.onLongPressGesture` feuert in dieser Verschachtelung
+            // nie (List-Zelle, horizontale ScrollView im Raster), und
+            // `.contextMenu(preview:)` kennt keinen Vorschau-Tipp. Deshalb
+            // die UIKit-Interaktion selbst, angehängt an die Zelle (siehe
+            // GraphContextMenu).
             .background {
-                HoldRecognizer {
-                    Theme.Haptics.check()
-                    showingGraphPreview = true
-                }
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 preview: { AnyView(habitPreview) },
+                                 actions: menuActions,
+                                 commit: onEdit)
             }
-            .sheet(isPresented: $showingGraphPreview,
-                   onDismiss: performGraphPreviewAction) {
-                graphPreviewSheet
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-            }
-            #if DEBUG
-            .onAppear { claimDebugPreviewIfRequested() }
-            #endif
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-grid")
     }
@@ -273,109 +261,44 @@ struct HabitCard: View, Equatable {
         .accessibilityIdentifier("habit-preview")
     }
 
-    private var graphPreviewSheet: some View {
-        VStack(spacing: Theme.Metrics.gutter) {
-            // KEIN Button: die Vorschau enthält (im Raster) einen
-            // horizontalen ScrollView, der Tipps frisst, bevor sie einen
-            // umgebenden Knopf erreichen — und ein Button, dessen ganzes
-            // Label die Treffer abgibt (`allowsHitTesting(false)`), hat am
-            // Gerät gar keine Tipp-Fläche mehr (beides „Tippen auf den
-            // großen Graphen tut nichts", vom Gerät gemeldet). Deshalb eine
-            // EIGENE Trefferschicht VOR der Vorschau: sie gewinnt jeden
-            // Treffer, ihr Tipp-Erkenner hängt an keiner Knopf-Semantik.
-            ZStack {
-                habitPreview
-                    .allowsHitTesting(false)
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { requestGraphPreviewAction(.edit) }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(String(localized: "Bearbeiten"))
-            .accessibilityIdentifier("edit-habit-preview")
-
-            Divider()
-            Menu {
-                habitActions
-            } label: {
-                Label(String(localized: "Weitere Aktionen"), systemImage: "ellipsis.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.vertical, Theme.Metrics.gutter)
-        .environment(\.palettes, palettes)
+    /// Die Einträge UNTER der System-Vorschau. Was über den langen Druck
+    /// erreichbar ist, bleibt inhaltlich dasselbe wie zuvor im Blatt:
+    /// Nacharbeiten, Session, Bearbeiten, Archivieren, Teilen.
+    private var menuActions: [GraphMenuAction] {
+        [GraphMenuAction(title: String(localized: "Nacharbeiten"),
+                         symbol: "calendar.badge.plus",
+                         handler: onBackfill),
+         // Session: „ich mache das JETZT" — startet die Live-Aktivität.
+         // Direkt am Manager statt als Closure aus ContentView — die Session
+         // hat keinen UI-Zustand, den die Liste kennen müsste.
+         GraphMenuAction(title: String(localized: "Session starten"),
+                         symbol: "timer",
+                         handler: { HabitSessionManager.shared.start(habit: habit) }),
+         GraphMenuAction(title: String(localized: "Bearbeiten"),
+                         symbol: "pencil",
+                         handler: onEdit),
+         GraphMenuAction(title: String(localized: "Archivieren"),
+                         symbol: "archivebox",
+                         handler: onArchive),
+         GraphMenuAction(title: String(localized: "Als Bild teilen"),
+                         symbol: "square.and.arrow.up",
+                         handler: shareCard)]
     }
 
-    /// Die Aktionen UNTER der Vorschau. Sie tragen dieselben Kennungen wie
-    /// die Knöpfe auf der Karte (`check-today`, `edit-habit`) — was über den
-    /// langen Druck erreichbar ist, muss unter demselben Namen erreichbar
-    /// sein wie direkt auf der Zeile.
-    @ViewBuilder
-    private var habitActions: some View {
-        Button { requestGraphPreviewAction(.backfill) } label: {
-            Label(String(localized: "Nacharbeiten"), systemImage: "calendar.badge.plus")
-        }
-        .accessibilityIdentifier("backfill-habit")
-        // Session: „ich mache das JETZT" — startet die Live-Aktivität mit
-        // laufender Zeit (und Fortschritt gegen die geplante Dauer, wenn es
-        // eine gibt). Beendet wird auf der Aktivität selbst; deren
-        // Fertig-Knopf hakt den Tag über denselben Trichter ab wie alles
-        // andere. Direkt am Manager statt als Closure aus ContentView — die
-        // Session hat keinen UI-Zustand, den die Liste kennen müsste.
-        Button { requestGraphPreviewAction(.session) } label: {
-            Label(String(localized: "Session starten"), systemImage: "timer")
-        }
-        .accessibilityIdentifier("start-session")
-        Button { requestGraphPreviewAction(.edit) } label: {
-            Label(String(localized: "Bearbeiten"), systemImage: "pencil")
-        }
-        .accessibilityIdentifier("edit-habit")
-        Button { requestGraphPreviewAction(.archive) } label: {
-            Label(String(localized: "Archivieren"), systemImage: "archivebox")
-        }
-        .accessibilityIdentifier("archive-habit")
-        ShareLink(item: HabitShareImage(habit: habit,
-                                        dark: scheme == .dark,
-                                        palette: palettes.style(for: habit)),
-                  preview: SharePreview(habit.name)) {
-            Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
-        }
-        .accessibilityIdentifier("share-habit")
-    }
-
-    #if DEBUG
-    /// Nur Debug: `-open-graph-preview` öffnet die Vorschau der ERSTEN
-    /// erscheinenden Karte. Der lange Druck ist mit synthetischer Eingabe im
-    /// Simulator nicht auslösbar — ohne diesen Haken wäre der
-    /// Tipp-auf-Vorschau-Pfad (die ScrollView-Treffer-Falle!) unprüfbar.
-    private static var debugPreviewClaimed = false
-
-    private func claimDebugPreviewIfRequested() {
-        guard ProcessInfo.processInfo.arguments.contains("-open-graph-preview"),
-              !Self.debugPreviewClaimed else { return }
-        Self.debugPreviewClaimed = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            showingGraphPreview = true
-        }
-    }
-    #endif
-
-    private func requestGraphPreviewAction(_ action: GraphPreviewAction) {
-        graphPreviewAction = action
-        showingGraphPreview = false
-    }
-
-    private func performGraphPreviewAction() {
-        guard let action = graphPreviewAction else { return }
-        graphPreviewAction = nil
-        switch action {
-        case .backfill: onBackfill()
-        case .session: HabitSessionManager.shared.start(habit: habit)
-        case .edit: onEdit()
-        case .archive: onArchive()
-        }
+    /// Teilen aus einem UIMenu: das fertige Kartenbild in das System-Blatt.
+    /// (ShareLink lebt in SwiftUI-Menüs — in einem UIMenu präsentieren wir
+    /// das Activity-Blatt selbst, über dem obersten Controller.)
+    private func shareCard() {
+        guard let image = ShareCard.render(habit: habit,
+                                           scheme: scheme == .dark ? .dark : .light,
+                                           palette: palettes.style(for: habit)) else { return }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard var top = (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?
+            .keyWindow?.rootViewController else { return }
+        while let presented = top.presentedViewController { top = presented }
+        top.present(UIActivityViewController(activityItems: [image],
+                                             applicationActivities: nil),
+                    animated: true)
     }
 
     // MARK: – Kopf auf nacktem Grund
@@ -680,44 +603,74 @@ struct HabitCard: View, Equatable {
     private var timeText: String? { RecurrenceText.timeText(habit.timeMinutes) }
 }
 
-// MARK: – Der Halten-Erkenner
+// MARK: – Das Halten-Menü
 
-/// Ein UIKit-Langdruck für die Rasterkarte.
+/// Das System-Kontextmenü für die Rasterkarte — dieselbe Anhebe-Mechanik
+/// wie beim Halten auf einem Link: Karte hebt sich, große Vorschau, Menü
+/// darunter, Tipp auf die Vorschau COMMITTET (öffnet Bearbeiten).
 ///
-/// **Warum UIKit.** `.onLongPressGesture` am Karten-Container feuert in
-/// dieser Verschachtelung — List-Zelle, darin eine horizontale ScrollView —
-/// schlicht nie (Gerät + Simulator; für Tipp-Gesten dokumentiert `GridTap`
-/// seit v13 dasselbe). Ein `UILongPressGestureRecognizer` ist der Mechanismus,
-/// mit dem UIKit-Apps genau das bauen (Halten auf Fotos-Raster im Scroller):
-/// er läuft per Delegat GLEICHZEITIG mit dem Scroll-Pan und bricht sauber ab,
-/// sobald der Finger zieht.
+/// **Warum UIKit.** Zwei SwiftUI-Wege scheitern hier nacheinander:
+/// `.onLongPressGesture` feuert in dieser Verschachtelung (List-Zelle,
+/// horizontale ScrollView im Raster) schlicht nie, und `.contextMenu`
+/// kennt keinen Vorschau-Tipp (`willPerformPreviewAction` hat kein
+/// SwiftUI-Gegenstück). `UIContextMenuInteraction` ist exakt die Engine,
+/// die auch Safari für Links benutzt.
 ///
-/// **Wie er hängt.** Die unsichtbare Trägeransicht bekommt vom `background`
-/// exakt den Rahmen der Karte. Der Erkenner selbst hängt am SwiftUI-Container
-/// darüber (nur dort kommen alle Berührungen vorbei) — gehandelt wird aber
-/// NUR, wenn der Druck innerhalb des eigenen Rahmens liegt. So können viele
-/// Karten im selben Container je ihren eigenen Erkenner tragen, ohne sich
-/// gegenseitig auszulösen, und der Kopf über der Karte bleibt frei.
-private struct HoldRecognizer: UIViewRepresentable {
-    let action: () -> Void
+/// **Wie es hängt.** Die unsichtbare Trägeransicht bekommt vom `background`
+/// exakt den Kartenrahmen. Die Interaktion selbst hängt an der ZELLE (bzw.
+/// dem ersten Scroll-Vorfahren): der eigene Wrapper ist nur ein GESCHWISTER
+/// des Karteninhalts, durch ihn läuft keine Berührung (nachgemessen — die
+/// Halten-Erkenner-Vorstufe am Wrapper hat nie gefeuert). Ausgelöst wird
+/// nur über dem eigenen Rahmen; das Anheben ist per `visiblePath` exakt auf
+/// die abgerundete Karte beschnitten.
+private struct GraphMenuAction {
+    let title: String
+    let symbol: String
+    let handler: () -> Void
+}
 
-    func makeUIView(context: Context) -> HoldView { HoldView(action: action) }
+private struct GraphContextMenu: UIViewRepresentable {
+    let cardRadius: CGFloat
+    let previewWidth: CGFloat
+    let preview: () -> AnyView
+    let actions: [GraphMenuAction]
+    let commit: () -> Void
 
-    func updateUIView(_ view: HoldView, context: Context) {
-        view.action = action
+    func makeUIView(context: Context) -> MenuHost {
+        MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
+                 preview: preview, actions: actions, commit: commit)
     }
 
-    static func dismantleUIView(_ view: HoldView, coordinator: ()) {
+    func updateUIView(_ view: MenuHost, context: Context) {
+        view.cardRadius = cardRadius
+        view.previewWidth = previewWidth
+        view.preview = preview
+        view.actions = actions
+        view.commit = commit
+    }
+
+    static func dismantleUIView(_ view: MenuHost, coordinator: ()) {
         view.detach()
     }
 
-    final class HoldView: UIView, UIGestureRecognizerDelegate {
-        var action: () -> Void
-        private var recognizer: UILongPressGestureRecognizer?
+    final class MenuHost: UIView, UIContextMenuInteractionDelegate {
+        var cardRadius: CGFloat
+        var previewWidth: CGFloat
+        var preview: () -> AnyView
+        var actions: [GraphMenuAction]
+        var commit: () -> Void
+        private var interaction: UIContextMenuInteraction?
         private weak var host: UIView?
 
-        init(action: @escaping () -> Void) {
-            self.action = action
+        init(cardRadius: CGFloat, previewWidth: CGFloat,
+             preview: @escaping () -> AnyView,
+             actions: [GraphMenuAction],
+             commit: @escaping () -> Void) {
+            self.cardRadius = cardRadius
+            self.previewWidth = previewWidth
+            self.preview = preview
+            self.actions = actions
+            self.commit = commit
             super.init(frame: .zero)
             isUserInteractionEnabled = false
             isHidden = true
@@ -730,52 +683,91 @@ private struct HoldRecognizer: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            // Zeilen-Recycling: raus aus dem Fenster -> Erkenner abhängen,
-            // wieder rein -> neu anhängen (der Container kann ein anderer sein).
+            // Zeilen-Recycling: raus aus dem Fenster -> Interaktion abhängen,
+            // wieder rein -> neu anhängen (die Zelle kann eine andere sein).
             guard window != nil else { detach(); return }
-            guard recognizer == nil else { return }
-            // Der eigene Wrapper ist ein GESCHWISTER des Karteninhalts —
-            // Berührungen auf der Karte laufen nie durch ihn (nachgemessen:
-            // der Erkenner am Wrapper hat nie gefeuert). Er muss an einen
-            // echten VORFAHREN. Die vertikale Liste (erster UIScrollView
-            // über uns) ist Vorfahre JEDER Karte; der Rahmen-Wächter in
-            // `fired` sorgt dafür, dass nur die gehaltene Karte reagiert.
+            guard interaction == nil else { return }
             var ancestor = superview
             var container: UIView?
             while let view = ancestor {
                 container = view
-                if view is UIScrollView { break }
+                if view is UICollectionViewCell || view is UITableViewCell
+                    || view is UIScrollView { break }
                 ancestor = view.superview
             }
             guard let container else { return }
-            let r = UILongPressGestureRecognizer(target: self, action: #selector(fired))
-            r.minimumPressDuration = 0.45
-            r.cancelsTouchesInView = false
-            r.delegate = self
-            container.addGestureRecognizer(r)
-            recognizer = r
+            let interaction = UIContextMenuInteraction(delegate: self)
+            container.addInteraction(interaction)
+            self.interaction = interaction
             host = container
-            trace("hold: attached to \(String(describing: type(of: container))) frame=\(frame)")
+            trace("menu: attached to \(String(describing: type(of: container)))")
         }
 
         func detach() {
-            if let recognizer { host?.removeGestureRecognizer(recognizer) }
-            recognizer = nil
+            if let interaction { host?.removeInteraction(interaction) }
+            interaction = nil
             host = nil
         }
 
-        @objc private func fired(_ r: UILongPressGestureRecognizer) {
-            trace("hold: fired state=\(r.state.rawValue) loc=\(r.location(in: self)) bounds=\(bounds)")
-            guard r.state == .began else { return }
-            // Der Erkenner sieht den GANZEN Container — gehandelt wird nur
-            // über der eigenen Karte.
-            guard bounds.contains(r.location(in: self)) else { return }
-            action()
+        // Ausgelöst wird nur ÜBER der Karte — der Kopf darüber bleibt frei
+        // (er ist eine Werkzeugleiste, siehe `longPressSink`).
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    configurationForMenuAtLocation location: CGPoint)
+            -> UIContextMenuConfiguration? {
+            guard let view = interaction.view else { return nil }
+            let local = view.convert(location, to: self)
+            trace("menu: config? loc=\(local) bounds=\(bounds)")
+            guard bounds.contains(local) else { return nil }
+            let width = previewWidth
+            let makePreview = preview
+            let actions = actions
+            return UIContextMenuConfiguration(identifier: nil, previewProvider: {
+                let controller = UIHostingController(rootView: makePreview())
+                controller.view.backgroundColor = .clear
+                controller.preferredContentSize = controller.sizeThatFits(
+                    in: CGSize(width: width, height: 10_000))
+                return controller
+            }, actionProvider: { _ in
+                UIMenu(children: actions.map { action in
+                    UIAction(title: action.title,
+                             image: UIImage(systemName: action.symbol)) { _ in
+                        action.handler()
+                    }
+                })
+            })
         }
 
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            true
+        /// Der Tipp AUF die Vorschau — das Commit, wie das Öffnen eines
+        /// gehaltenen Links. Erst nach der Abbau-Animation handeln, sonst
+        /// kollidiert das Bearbeiten-Blatt mit dem zufahrenden Menü.
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+                                    animator: UIContextMenuInteractionCommitAnimating) {
+            let commit = commit
+            animator.preferredCommitStyle = .dismiss
+            animator.addCompletion { commit() }
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration)
+            -> UITargetedPreview? {
+            targetedPreview(for: interaction)
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration)
+            -> UITargetedPreview? {
+            targetedPreview(for: interaction)
+        }
+
+        /// Angehoben wird NUR die Karte: der Schnappschuss der Zelle, per
+        /// `visiblePath` auf die abgerundete Rasterfläche beschnitten.
+        private func targetedPreview(for interaction: UIContextMenuInteraction) -> UITargetedPreview? {
+            guard let container = interaction.view, window != nil else { return nil }
+            let parameters = UIPreviewParameters()
+            parameters.visiblePath = UIBezierPath(roundedRect: convert(bounds, to: container),
+                                                  cornerRadius: cardRadius)
+            return UITargetedPreview(view: container, parameters: parameters)
         }
     }
 }

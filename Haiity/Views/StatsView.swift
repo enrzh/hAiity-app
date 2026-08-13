@@ -65,17 +65,16 @@ struct StatsView: View {
     /// Vereinigtes Raster + Heute-Ring. EIN VoiceOver-Element mit einem Satz
     /// — die Mini-Zellen einzeln wären eine Zumutung.
     private func heroCard(_ snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.cardPadding) {
+            HStack(alignment: .center) {
                 Text(String(localized: "Jahres-Puls"))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .kerning(0.6)
                 Spacer(minLength: 8)
                 if snapshot.streak > 0 {
-                    (Text(Image(systemName: "flame.fill")) +
-                     Text(verbatim: " \(snapshot.streak)"))
-                        .font(.footnote.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(accent)
+                    streakChip(snapshot.streak)
                 }
             }
             HStack(spacing: Theme.Metrics.cardPadding) {
@@ -83,7 +82,7 @@ struct StatsView: View {
                 Spacer(minLength: 0)
                 progressRing(done: snapshot.todayDone,
                              total: snapshot.todayTotal,
-                             size: 56, line: 6)
+                             size: 60, line: 6)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -123,19 +122,23 @@ struct StatsView: View {
         }
     }
 
-    /// Gemeinsame Form: Titelzeile klein und sekundär, darunter die eine
-    /// große Zahl bzw. Grafik — jede Kachel EIN Element für VoiceOver.
+    /// Gemeinsame Form: KAPITÄLCHEN-Titel oben, Inhalt darunter, ein fester
+    /// Mindest-Kasten — vier Kacheln, EINE Silhouette. Jede Kachel ist für
+    /// VoiceOver EIN Element mit einem Satz.
     private func tile(_ title: String, identifier: String, value: String,
                       @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .kerning(0.6)
+            Spacer(minLength: Theme.Metrics.gap)
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                          style: .continuous))
@@ -145,21 +148,44 @@ struct StatsView: View {
         .accessibilityIdentifier(identifier)
     }
 
+    /// Die Serie als Kapsel-Chip — dieselbe Form im Held und je Habit, damit
+    /// „Serie" überall gleich aussieht.
+    private func streakChip(_ streak: Int, palette: PaletteStyle? = nil) -> some View {
+        let style = palette ?? palettes.style
+        let text = Theme.accentText(style)
+        return HStack(spacing: 3) {
+            Image(systemName: streak > 0 ? "flame.fill" : "flame")
+                .font(.caption2.weight(.semibold))
+            Text(verbatim: "\(streak)")
+                .font(.caption.weight(.bold).monospacedDigit())
+        }
+        .foregroundStyle(streak > 0 ? AnyShapeStyle(text) : AnyShapeStyle(.secondary))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(streak > 0
+                    ? AnyShapeStyle(Theme.accent(style).opacity(0.14))
+                    : AnyShapeStyle(Color(.tertiarySystemFill)),
+                    in: Capsule())
+        .accessibilityHidden(true)
+    }
+
     private func streakTile(_ snapshot: StatsEngine.Snapshot) -> some View {
         tile(String(localized: "Serie"),
              identifier: "stats-card-streakFlame",
              value: String(localized: "Gesamt-Serie \(snapshot.streak) Tage, beste Serie \(snapshot.bestStreak).")) {
-            HStack(alignment: .lastTextBaseline, spacing: 6) {
-                Image(systemName: snapshot.streak > 0 ? "flame.fill" : "flame")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(flameColor(snapshot.streak))
-                Text(verbatim: "\(snapshot.streak)")
-                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: snapshot.streak > 0 ? "flame.fill" : "flame")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(flameColor(snapshot.streak))
+                    Text(verbatim: "\(snapshot.streak)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+                Text(String(localized: "Best: \(snapshot.bestStreak)"))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
-            Text(String(localized: "Best: \(snapshot.bestStreak)"))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -170,8 +196,8 @@ struct StatsView: View {
                     value: total == 0
                         ? String(localized: "Heute ist nichts fällig")
                         : String(localized: "\(done) von \(total) erledigt")) {
-            HStack(spacing: Theme.Metrics.gap) {
-                segmentedRing(done: done, total: total, size: 44, line: 5)
+            HStack(spacing: Theme.Metrics.cardPadding) {
+                segmentedRing(done: done, total: total, size: 46, line: 5)
                 VStack(alignment: .leading, spacing: 2) {
                     if total == 0 {
                         Text(String(localized: "Heute ist nichts fällig"))
@@ -180,12 +206,17 @@ struct StatsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text(verbatim: "\(done)/\(total)")
-                            .font(.title3.weight(.bold).monospacedDigit())
+                            .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
+                            .contentTransition(.numericText())
                         if done == total {
                             Label(String(localized: "Alles erledigt"),
                                   systemImage: "checkmark.seal.fill")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(accent)
+                        } else {
+                            Text(String(localized: "\(done) von \(total) erledigt"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -197,17 +228,19 @@ struct StatsView: View {
         tile(String(localized: "Woche"),
              identifier: "stats-card-weekMomentum",
              value: momentumSentence(snapshot)) {
-            sparkline(snapshot.last7)
-                .frame(height: 26)
-            HStack(spacing: 4) {
-                Image(systemName: trendSymbol(snapshot))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(trendColor(snapshot))
-                Text(momentumSentence(snapshot))
-                    .font(.caption2.weight(.medium))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                sparkline(snapshot.last7)
+                    .frame(height: 30)
+                HStack(spacing: 4) {
+                    Image(systemName: trendSymbol(snapshot))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(trendColor(snapshot))
+                    Text(momentumSentence(snapshot))
+                        .font(.caption2.weight(.medium))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -216,14 +249,17 @@ struct StatsView: View {
         tile(String(localized: "Gesamt"),
              identifier: "stats-card-totals",
              value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(store.habits))") {
-            Text(verbatim: "\(StatsMath.totalCheckIns(store.habits))")
-                .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-            Text(String(localized: "Check-ins gesamt"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(String(localized: "Aktive Habits") + ": " + "\(store.activeHabits.count)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "\(StatsMath.totalCheckIns(store.habits))")
+                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                    .contentTransition(.numericText())
+                Text(String(localized: "Check-ins gesamt"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(String(localized: "Aktive Habits") + " · " + "\(store.activeHabits.count)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
@@ -318,19 +354,33 @@ struct StatsView: View {
 
     /// Sieben Punkte, 0…1, als eine Linie. Reines Zeichnen — die Werte
     /// stehen fertig im Schnappschuss.
+    /// Sieben Punkte, 0…1: Linie mit weicher Fläche darunter — die Fläche
+    /// gibt der Linie Gewicht, ohne eine zweite Farbe einzuführen.
     private func sparkline(_ values: [Double]) -> some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             let step = values.count > 1 ? w / CGFloat(values.count - 1) : w
-            Path { path in
-                for (i, value) in values.enumerated() {
-                    let point = CGPoint(x: CGFloat(i) * step,
-                                        y: h - CGFloat(value) * (h - 4) - 2)
+            let points = values.enumerated().map { i, value in
+                CGPoint(x: CGFloat(i) * step, y: h - CGFloat(value) * (h - 4) - 2)
+            }
+            let line = Path { path in
+                for (i, point) in points.enumerated() {
                     if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
                 }
             }
-            .stroke(accent, style: StrokeStyle(lineWidth: 2,
-                                               lineCap: .round, lineJoin: .round))
+            ZStack {
+                if let first = points.first, let last = points.last {
+                    var area = line
+                    let _ = area.addLine(to: CGPoint(x: last.x, y: h))
+                    let _ = area.addLine(to: CGPoint(x: first.x, y: h))
+                    let _ = area.closeSubpath()
+                    area.fill(LinearGradient(colors: [Theme.accent(palettes.style).opacity(0.22),
+                                                      Theme.accent(palettes.style).opacity(0.02)],
+                                             startPoint: .top, endPoint: .bottom))
+                }
+                line.stroke(accent, style: StrokeStyle(lineWidth: 2,
+                                                       lineCap: .round, lineJoin: .round))
+            }
         }
         .accessibilityHidden(true)
     }
@@ -357,6 +407,11 @@ private struct StatsCardChrome: ViewModifier {
 
 private struct StatsRow: View {
     let habit: Habit
+    @Environment(\.palettes) private var palettes
+
+    /// Die Farbfamilie DIESES Habits — Balken und Chip sprechen dieselbe
+    /// Sprache wie sein Raster nebenan.
+    private var style: PaletteStyle { palettes.style(for: habit) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -366,9 +421,7 @@ private struct StatsRow: View {
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Spacer()
-                Text("🔥 \(GoalEngine.streak(habit: habit))")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                rowStreakChip(GoalEngine.streak(habit: habit))
             }
             HStack(alignment: .top, spacing: 16) {
                 completionCell(days: 30)
@@ -390,9 +443,29 @@ private struct StatsRow: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             }
-            MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12))
+            MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12),
+                      style: style)
         }
         .accessibilityIdentifier("stats-row")
+    }
+
+    private func rowStreakChip(_ streak: Int) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: streak > 0 ? "flame.fill" : "flame")
+                .font(.caption2.weight(.semibold))
+            Text(verbatim: "\(streak)")
+                .font(.caption.weight(.bold).monospacedDigit())
+        }
+        .foregroundStyle(streak > 0
+                         ? AnyShapeStyle(Theme.accentText(style))
+                         : AnyShapeStyle(.secondary))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(streak > 0
+                    ? AnyShapeStyle(Theme.accent(style).opacity(0.14))
+                    : AnyShapeStyle(Color(.tertiarySystemFill)),
+                    in: Capsule())
+        .accessibilityLabel(String(localized: "Serie: \(streak) Tage"))
     }
 
     private func completionCell(days: Int) -> some View {
@@ -411,14 +484,14 @@ private struct StatsRow: View {
 /// stärksten Monat — bewusst ohne Beschriftung, ein Mini-Sparkline.
 private struct MonthBars: View {
     let counts: [Int]
-    @Environment(\.palettes) private var palettes
+    let style: PaletteStyle
 
     var body: some View {
         let peak = max(counts.max() ?? 0, 1)
         HStack(alignment: .bottom, spacing: 5) {
             ForEach(Array(counts.enumerated()), id: \.offset) { _, count in
                 Capsule()
-                    .fill(count > 0 ? Theme.accent(palettes.style) : Color(.tertiarySystemFill))
+                    .fill(count > 0 ? Theme.accent(style) : Color(.tertiarySystemFill))
                     .frame(width: 5, height: max(4, 34 * CGFloat(count) / CGFloat(peak)))
             }
         }

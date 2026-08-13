@@ -9,51 +9,45 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
     }
 
-    /// Der Langdruck läuft über einen UIKit-Erkenner (`HoldRecognizer`) am
-    /// ERSTEN UIScrollView-Vorfahren: `.onLongPressGesture` am Container
-    /// feuert in dieser Verschachtelung (List-Zelle, horizontale ScrollView
-    /// im Raster) schlicht nie — vom Gerät gemeldet, im Simulator
-    /// reproduziert und mit dem Erkenner end-to-end nachgestellt.
-    func testHeldGraphUsesTappablePreviewSheet() throws {
+    /// Der Halten-Popup ist das SYSTEM-Kontextmenü (UIContextMenuInteraction
+    /// — dieselbe Engine wie das Halten auf einem Link): SwiftUI-Langdruck
+    /// und SwiftUI-contextMenu scheitern hier beide (Gesten feuern in der
+    /// List-Zelle-mit-ScrollView-Verschachtelung nicht bzw. es gibt keinen
+    /// Vorschau-Tipp). Die Interaktion hängt an der ZELLE — der eigene
+    /// Wrapper ist nur ein Geschwister des Karteninhalts und sieht keine
+    /// Berührungen (nachgemessen).
+    func testHeldGraphShowsTheSystemContextMenu() throws {
         let source = try habitCardSource()
-        XCTAssertTrue(source.contains("HoldRecognizer"))
-        XCTAssertTrue(source.contains("UILongPressGestureRecognizer"))
-        XCTAssertTrue(source.contains("if view is UIScrollView { break }"))
-        XCTAssertTrue(source.contains("r.cancelsTouchesInView = false"),
-                      "Zellen-Tipps müssen neben dem Halten am Leben bleiben")
-        XCTAssertTrue(source.contains("graphPreviewSheet"))
+        XCTAssertTrue(source.contains("UIContextMenuInteraction"))
+        XCTAssertTrue(source.contains("GraphContextMenu"))
+        XCTAssertTrue(source.contains("if view is UICollectionViewCell || view is UITableViewCell"))
+        // Angehoben wird NUR die Karte (visiblePath), nicht die ganze Zeile.
+        XCTAssertTrue(source.contains("visiblePath"))
         XCTAssertTrue(source.contains("habitPreview"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit-preview\")"))
-        // Die kaputte Bauart bleibt draußen: kein SwiftUI-Langdruck-AUFRUF
-        // mehr am Rasterkarten-Container (der Kopf-Schlucker nutzt
-        // `.gesture`; Kommentare dürfen den Namen weiter erklären).
+        // Die kaputten Bauarten bleiben draußen (Aufrufformen, keine
+        // Kommentare: die dürfen `.contextMenu(preview:)` weiter erklären).
         XCTAssertFalse(source.contains(".onLongPressGesture(minimumDuration"))
+        XCTAssertFalse(source.contains(".contextMenu {"))
+        XCTAssertFalse(source.contains(".contextMenu(menuItems"))
+        XCTAssertFalse(source.contains("showingGraphPreview"))
     }
 
-    /// Die Vorschau enthält (im Raster) einen horizontalen ScrollView. Der
-    /// frisst Tipps — und ein Button, dessen ganzes Label die Treffer abgibt,
-    /// hat am Gerät gar keine Tipp-Fläche mehr (beide Bauarten sind als
-    /// „Tippen auf den großen Graphen tut nichts" vom Gerät gemeldet und
-    /// wieder ausgebaut). Der Vertrag: Vorschau ohne eigene Treffer, davor
-    /// eine EIGENE Schicht mit dem Tipp-Erkenner — im Simulator über den
-    /// Debug-Haken `-open-graph-preview` end-to-end nachgestellt.
-    func testPreviewDoesNotSwallowTheEditTap() throws {
+    /// Der Tipp AUF die Vorschau committet zu Bearbeiten — wie das Öffnen
+    /// eines gehaltenen Links; gehandelt wird erst NACH der Abbau-Animation.
+    func testPreviewTapCommitsToEdit() throws {
         let source = try habitCardSource()
-        let start = try XCTUnwrap(source.range(of: "private var graphPreviewSheet"))
-        let end = try XCTUnwrap(source.range(of: "private var habitActions",
-                                             range: start.upperBound..<source.endIndex))
-        let sheet = String(source[start.lowerBound..<end.lowerBound])
-        XCTAssertTrue(sheet.contains(".allowsHitTesting(false)"))
-        XCTAssertTrue(sheet.contains(".onTapGesture { requestGraphPreviewAction(.edit) }"))
-        XCTAssertFalse(sheet.contains("Button { requestGraphPreviewAction(.edit) }"),
-                       "Knopf-Semantik um die Vorschau ist die kaputte Bauart")
+        XCTAssertTrue(source.contains("willPerformPreviewActionForMenuWith"))
+        XCTAssertTrue(source.contains("animator.addCompletion { commit() }"))
+        XCTAssertTrue(source.contains("commit: onEdit"))
     }
 
     func testLongPressMenuKeepsEditAction() throws {
         let habitActions = try habitActionsSource()
-        XCTAssertTrue(habitActions.contains("requestGraphPreviewAction(.edit)"))
-        XCTAssertTrue(habitActions.contains("Label(String(localized: \"Bearbeiten\"), systemImage: \"pencil\")"))
-        XCTAssertTrue(habitActions.contains(".accessibilityIdentifier(\"edit-habit\")"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Bearbeiten\")"))
+        XCTAssertTrue(habitActions.contains("handler: onEdit"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Nacharbeiten\")"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Archivieren\")"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Als Bild teilen\")"))
     }
 
     func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {
@@ -73,7 +67,7 @@ final class HabitCardInteractionSourceTests: XCTestCase {
 
     private func habitActionsSource() throws -> String {
         let source = try habitCardSource()
-        let startMarker = "private var habitActions: some View {"
+        let startMarker = "private var menuActions: [GraphMenuAction] {"
         let endMarker = "    // MARK: – Kopf auf nacktem Grund"
         guard let start = source.range(of: startMarker),
               let end = source.range(of: endMarker, range: start.upperBound..<source.endIndex) else {
