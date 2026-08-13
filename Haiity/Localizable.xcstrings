@@ -11178,6 +11178,106 @@
         }
       }
     },
+    "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الوصول إلى التقويم معطّل في إعدادات iOS. اسمح به هناك وسيعمل التقويم."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS সেটিংসে ক্যালেন্ডার অ্যাক্সেস বন্ধ আছে। সেখানে অনুমতি দিন, তাহলে ক্যালেন্ডার কাজ করবে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendar access is disabled in iOS Settings. Allow it there, and the calendar will work."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El acceso al calendario está desactivado en Ajustes de iOS. Actívalo allí y el calendario funcionará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'accès au calendrier est désactivé dans Réglages iOS. Autorise-le là-bas et le calendrier fonctionnera."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS सेटिंग्स में कैलेंडर एक्सेस बंद है। वहाँ अनुमति दें, फिर कैलेंडर काम करेगा।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Akses kalender dinonaktifkan di Pengaturan iOS. Izinkan di sana, maka kalender akan berfungsi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'accesso al calendario è disattivato nelle Impostazioni iOS. Consentilo lì e il calendario funzionerà."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーへのアクセスがiOS設定で無効になっています。設定で許可すると使えるようになります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS 설정에서 캘린더 접근이 꺼져 있습니다. 설정에서 허용하면 캘린더가 작동합니다."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O acesso ao calendário está desativado nos Ajustes do iOS. Permita lá e o calendário funcionará."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступ к календарю отключён в настройках iOS. Разрешите его там, и календарь заработает."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takvim erişimi iOS Ayarları'nda kapalı. Orada izin ver, takvim çalışacaktır."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS سیٹنگز میں کیلنڈر تک رسائی غیر فعال ہے۔ وہاں اجازت دیں، پھر کیلنڈر کام کرے گا۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền truy cập lịch bị tắt trong Cài đặt iOS. Cho phép ở đó thì lịch sẽ hoạt động."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历访问已在 iOS 设置中停用。在设置中允许后即可使用。"
+          }
+        }
+      }
+    },
     "Der wievielte": {
       "localizations": {
         "ar": {
@@ -17190,6 +17290,106 @@
         }
       }
     },
+    "Habits im Kalender": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "العادات في التقويم"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ক্যালেন্ডারে অভ্যাস"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habits in Calendar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos en el calendario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habitudes dans le calendrier"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कैलेंडर में आदतें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kebiasaan di Kalender"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abitudini nel calendario"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーに習慣を表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캘린더에 습관 표시"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos no calendário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привычки в календаре"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takvimde Alışkanlıklar"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیلنڈر میں عادات"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thói quen trong Lịch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历中的习惯"
+          }
+        }
+      }
+    },
     "Hakt einen Habit für heute ab bzw. zählt ihn eins hoch.": {
       "localizations": {
         "ar": {
@@ -20998,6 +21198,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "创建一个，开始填格子——每坚持一天，就会点亮一格。"
+          }
+        }
+      }
+    },
+    "Legt einen eigenen hAiity-Kalender an und trägt dort die Termine deiner Habits ein — sichtbar in Apple Kalender und, je nach Standardkonto, in Google Kalender. Deine übrigen Kalender bleiben unberührt.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يُنشئ تقويم hAiity خاصًا ويُدرج فيه مواعيد عاداتك — يظهر في تقويم Apple وبحسب الحساب الافتراضي في تقويم Google. تبقى تقاويمك الأخرى دون تغيير."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "একটি আলাদা hAiity ক্যালেন্ডার তৈরি করে সেখানে অভ্যাসের সময়সূচি যোগ করে — Apple ক্যালেন্ডারে দেখা যায়, ডিফল্ট অ্যাকাউন্ট অনুযায়ী Google ক্যালেন্ডারেও। আপনার অন্য ক্যালেন্ডার অপরিবর্তিত থাকে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates a dedicated hAiity calendar and adds your habits' schedules to it — visible in Apple Calendar and, depending on your default account, in Google Calendar. Your other calendars stay untouched."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea un calendario hAiity propio y añade allí los horarios de tus hábitos: visible en Calendario de Apple y, según tu cuenta predeterminada, en Google Calendar. Tus demás calendarios no se tocan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crée un calendrier hAiity dédié et y inscrit les rendez-vous de tes habitudes — visible dans Calendrier d'Apple et, selon ton compte par défaut, dans Google Agenda. Tes autres calendriers restent intacts."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक अलग hAiity कैलेंडर बनाता है और उसमें आपकी आदतों के समय जोड़ता है — Apple कैलेंडर में दिखता है और डिफ़ॉल्ट खाते के अनुसार Google कैलेंडर में भी। आपके बाकी कैलेंडर अछूते रहते हैं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuat kalender hAiity khusus dan menambahkan jadwal kebiasaanmu ke sana — terlihat di Kalender Apple dan, tergantung akun default, di Google Kalender. Kalender lainmu tidak tersentuh."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea un calendario hAiity dedicato e vi inserisce gli impegni delle tue abitudini — visibile in Calendario di Apple e, a seconda dell'account predefinito, in Google Calendar. Gli altri tuoi calendari restano intatti."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "専用のhAiityカレンダーを作成し、習慣の予定を登録します。Appleカレンダーに表示され、デフォルトアカウントによってはGoogleカレンダーにも表示されます。ほかのカレンダーには触れません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전용 hAiity 캘린더를 만들어 습관 일정을 기록합니다. Apple 캘린더에 표시되며 기본 계정에 따라 Google 캘린더에도 표시됩니다. 다른 캘린더는 건드리지 않습니다."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cria um calendário hAiity próprio e adiciona lá os horários dos seus hábitos — visível no Calendário da Apple e, conforme a conta padrão, no Google Agenda. Seus outros calendários permanecem intocados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Создаёт отдельный календарь hAiity и вносит туда расписание привычек — он виден в Календаре Apple и, в зависимости от учётной записи по умолчанию, в Google Календаре. Остальные календари не затрагиваются."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özel bir hAiity takvimi oluşturur ve alışkanlıklarının programını oraya işler — Apple Takvim'de, varsayılan hesabına göre Google Takvim'de de görünür. Diğer takvimlerine dokunulmaz."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ایک الگ hAiity کیلنڈر بناتا ہے اور اس میں آپ کی عادات کے اوقات درج کرتا ہے — Apple کیلنڈر میں نظر آتا ہے اور ڈیفالٹ اکاؤنٹ کے مطابق Google کیلنڈر میں بھی۔ آپ کے باقی کیلنڈر جوں کے توں رہتے ہیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo một lịch hAiity riêng và ghi lịch trình thói quen của bạn vào đó — hiển thị trong Lịch Apple và, tùy tài khoản mặc định, trong Google Calendar. Các lịch khác của bạn không bị ảnh hưởng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建一个专属的 hAiity 日历并写入习惯的日程——在 Apple 日历中可见；如默认账户为 Google，也会显示在 Google 日历中。你的其他日历不受影响。"
           }
         }
       }

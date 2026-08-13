@@ -41,6 +41,7 @@ struct MoreView: View, Equatable {
     @State private var showImporter = false
     @State private var importMessage: String?
     @State private var summaryDenied = false
+    @State private var calendarDenied = false
     @State private var weeklyDenied = false
     @State private var testMessage: String?
     @State private var showReminderSetup = false
@@ -75,6 +76,8 @@ struct MoreView: View, Equatable {
 
             compactModeSection
             swipeActionsSection
+
+            calendarSection
 
             dailySummarySection
             weeklySummarySection
@@ -243,6 +246,59 @@ struct MoreView: View, Equatable {
     // Malen-Modus ist auf Nutzerwunsch entfernt, die Karte arbeitet immer
     // im Auswählen-Modus. Der alte App-Group-Schlüssel „backfillMode" wird
     // schlicht nicht mehr gelesen.
+
+    // MARK: – Kalender
+    //
+    // EIN Schalter: die Habits mit Termin erscheinen in einem eigenen
+    // hAiity-Kalender — und damit in Apple Kalender und (wenn das
+    // Standardkonto ein Google-Konto ist) auch in Google Kalender. Der
+    // Schalter ist GERÄTELOKAL (jedes Gerät entscheidet selbst); die
+    // Berechtigung wird nur beim aktiven Einschalten erfragt.
+
+    private var calendarSection: some View {
+        Section {
+            Toggle(isOn: calendarBinding) {
+                Label(String(localized: "Habits im Kalender"), systemImage: "calendar.badge.plus")
+            }
+            .accessibilityIdentifier("calendar-sync-toggle")
+            if calendarDenied {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button(String(localized: "iOS-Einstellungen öffnen")) {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier("open-calendar-settings")
+                }
+            }
+        } footer: {
+            Text(String(localized: "Legt einen eigenen hAiity-Kalender an und trägt dort die Termine deiner Habits ein — sichtbar in Apple Kalender und, je nach Standardkonto, in Google Kalender. Deine übrigen Kalender bleiben unberührt."))
+        }
+    }
+
+    private var calendarBinding: Binding<Bool> {
+        Binding(
+            get: { CalendarSync.isEnabled },
+            set: { on in
+                guard on else {
+                    CalendarSync.disable()
+                    return
+                }
+                Task {
+                    let granted = await CalendarSync.requestAccess()
+                    await MainActor.run {
+                        calendarDenied = !granted
+                        guard granted else { return }
+                        CalendarSync.isEnabled = true
+                        CalendarSync.reconcile(habits: store.habits)
+                    }
+                }
+            })
+    }
 
     // MARK: – Darstellung
     //

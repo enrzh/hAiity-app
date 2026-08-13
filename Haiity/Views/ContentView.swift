@@ -1617,6 +1617,21 @@ struct ContentView: View {
         // Nur Debug: nach extern eingespielter data.json die Widget-Timeline
         // neu ziehen — sonst zeigt das Widget bis Mitternacht den alten Stand.
         if args.contains("-reload-widgets") { WidgetCenter.shared.reloadAllTimelines() }
+        // Nur Debug: `-calendar-sync on|off` schaltet den Kalender-Spiegel
+        // ohne UI — für die EventKit-Verifikation per Screenshot.
+        if let c = args.firstIndex(of: "-calendar-sync"), c + 1 < args.count {
+            let mode = args[c + 1]
+            Task { @MainActor in
+                if mode == "off" {
+                    CalendarSync.disable()
+                    trace("calsync: debug hook disabled")
+                } else if await CalendarSync.requestAccess() {
+                    CalendarSync.isEnabled = true
+                    CalendarSync.reconcile(habits: store.habits)
+                    trace("calsync: debug hook enabled")
+                }
+            }
+        }
         guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count,
               let url = URL(string: "haiity://\(args[i + 1])") else { return }
         // Kurz warten: `searchable(isPresented:)` schluckt ein `true`, das
@@ -1826,6 +1841,9 @@ struct ContentView: View {
         store.onChange = {
             schedulePush()
             Task { await rescheduleReminders() }
+            // Kalender-Spiegel nachziehen (No-op ohne Schalter/Zugriff;
+            // ohne `validate`, damit Check-ins EventKit gar nicht anfassen).
+            CalendarSync.reconcile(habits: store.habits, validate: false)
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
@@ -1835,6 +1853,7 @@ struct ContentView: View {
         }
         store.setViewPreferences(viewPreferences.preferences)
         await rescheduleReminders()
+        CalendarSync.reconcile(habits: store.habits)
         await syncNow(announce: false)
         if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
             showReminderSetup = true
