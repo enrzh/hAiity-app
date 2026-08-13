@@ -113,114 +113,44 @@ final class BackfillBoundsTests: GridTestCase {
     }
 }
 
-// MARK: – Die reservierte Höhe des Kalenderblatts
+// MARK: – Die Höhe des sichtbaren Kalenderblatts
 
-/// Die Karte darf nach dem Erscheinen NICHT mehr ihre Größe ändern.
-///
-/// Der grafische `DatePicker` meldet seine Höhe in zwei Schritten (beim ersten
-/// Layout fehlt eine Wochenzeile, die richtige Höhe kommt Millisekunden später
-/// nach) — die Karte wuchs mit und sprang sichtbar. `Backfill.calendarHeight`
-/// ist die Reserve, die das verhindert; hier stehen die auf dem Gerät
-/// GEMESSENEN Endhöhen, gegen die sie halten muss.
 final class BackfillCalendarHeightTests: XCTestCase {
-    /// Nachgemessen (Innenmaß der Karte 328 pt): Endhöhe des Kalenderblatts
-    /// je Schriftfaktor — Gerät UND Simulator, denn genau ZWISCHEN den drei
-    /// ursprünglichen Gerätepunkten lag der Fehler: `UIFontMetrics` skaliert
-    /// den Kopf des Blatts in STUFEN, die alte Gerade `67 + 27·Faktor` lag
-    /// bei xLarge/xxLarge darunter, und die Karte wuchs nach dem Öffnen
-    /// sichtbar nach („sometimes when the popup … gets opened, the calendar
-    /// resizes"). Jede Zeile hier ist ein realer Messpunkt, den die Reserve
-    /// abdecken MUSS.
-    /// Die Faktoren sind die GEMESSENEN (`@ScaledMetric` 100 / 100), nicht
-    /// die Verhältnisse der Body-Grade aus der Schrifttabelle —
-    /// `UIFontMetrics` skaliert große Werte flacher (xxLarge: Tabelle 1,235,
-    /// gemessen 1,1833), und die Reserve bekommt zur Laufzeit den
-    /// gemessenen Wert.
-    private let measured: [(scale: CGFloat, height: CGFloat)] = [
-        (0.824, 370.0),    // xSmall (Gerät)
-        (0.8633, 372.0),   // xSmall (Simulator)
-        (0.9100, 373.0),   // small (Simulator)
-        (0.9533, 374.0),   // medium (Simulator)
-        (1.0, 374.7),      // large, Standard (Gerät)
-        (1.0, 376.0),      // large, Standard (Simulator)
-        (1.0900, 379.7),   // xLarge (Simulator) — alte Reserve 378: zu knapp
-        (1.1833, 384.3),   // xxLarge (Simulator) — alte Reserve 381: zu knapp
-        (1.3167, 384.3),   // xxxLarge (Simulator)
-        (1.353, 384.3),    // xxxLarge (Gerät — dieselbe Stufe)
-    ]
-
-    func testReserveCoversTheMeasuredHeights() {
-        for case let (scale, height) in measured {
-            let reserved = Backfill.calendarHeight(width: 328, typeScale: scale)
-            XCTAssertGreaterThanOrEqual(reserved, height,
-                                        "Reserve zu knapp bei Faktor \(scale)")
-        }
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.firstWeekday = 2
+        return calendar
     }
 
-    /// Zu VIEL Reserve ist auch ein Fehler: dann steht unter dem Kalender ein
-    /// leerer Streifen. Höchstens ein paar Punkte darüber. (Wo Gerät und
-    /// Simulator verschieden messen, zählt für die Verschwendung der größere
-    /// Messwert der Stufe — deshalb je Faktor gegen das Maximum geprüft.)
-    func testReserveIsNotWasteful() {
-        let maxPerScale = Dictionary(grouping: measured, by: \.scale)
-            .mapValues { $0.map(\.height).max()! }
-        for (scale, height) in maxPerScale {
-            let reserved = Backfill.calendarHeight(width: 328, typeScale: scale)
-            XCTAssertLessThanOrEqual(reserved - height, 4,
-                                     "Reserve zu großzügig bei Faktor \(scale)")
-        }
+    private func date(_ year: Int, _ month: Int, _ day: Int = 1) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day))!
     }
 
-    /// Die Stufen zwischen den Messpunkten dürfen nie wieder unter die
-    /// Hüllkurve rutschen: zwischen zwei benachbarten Messpunkten darf die
-    /// Reserve nirgends KLEINER sein als am linken UND als der rechte
-    /// Messwert verlangt — sonst gäbe es wieder eine Schriftgröße, bei der
-    /// die Karte nach dem Öffnen wächst. Monotonie deckt genau das ab.
-    func testReserveIsMonotoneInTypeScale() {
-        var previous = Backfill.calendarHeight(width: 328, typeScale: 0.5)
-        for step in stride(from: 0.52, through: 2.0, by: 0.02) {
-            let next = Backfill.calendarHeight(width: 328, typeScale: step)
-            XCTAssertGreaterThanOrEqual(next, previous, "Reserve fällt bei Faktor \(step)")
-            previous = next
-        }
+    func testWeekRowsMatchTheVisibleMonth() {
+        XCTAssertEqual(Backfill.calendarWeekRows(containing: date(2021, 2), calendar: calendar), 4)
+        XCTAssertEqual(Backfill.calendarWeekRows(containing: date(2026, 8), calendar: calendar), 6)
     }
 
-    /// Ein Monat mit SECHS Wochenzeilen (z. B. August 2026, Montag zuerst)
-    /// muss in dieselbe Reserve passen wie einer mit fünf: der Kalender hält
-    /// die Blatthöhe über die Monate konstant (nachgemessen beim Blättern
-    /// April bis August 2026, keine Höhenänderung) — die Reserve ist von
-    /// vornherein auf sechs Zeilen gerechnet. Wer die 6 in der Formel je
-    /// durch eine „echte Zeilenzahl des Monats" ersetzt, bricht hier.
-    func testReserveAssumesSixWeekRows() {
+    func testHeightTracksTheVisibleMonthWeekRows() {
         let width: CGFloat = 328
-        let sixRows = 6 * width / 7
-        XCTAssertGreaterThanOrEqual(Backfill.calendarHeight(width: width),
-                                    sixRows,
-                                    "Reserve deckt keine sechs Wochenzeilen mehr")
+        let fourRows = Backfill.calendarHeight(width: width, weekRows: 4)
+        let sixRows = Backfill.calendarHeight(width: width, weekRows: 6)
+
+        XCTAssertLessThan(fourRows, sixRows)
+        XCTAssertEqual(sixRows - fourRows, 2 * width / 7, accuracy: 1)
     }
 
-    /// Eine schmalere Karte heißt schmalere Spalten und damit ein flacheres
-    /// Blatt — sechs Zeilen, jede so hoch wie eine Spalte breit ist.
-    func testNarrowerCardReservesLess() {
-        let wide = Backfill.calendarHeight(width: 328)
-        let narrow = Backfill.calendarHeight(width: 311)   // iPhone SE
-        XCTAssertLessThan(narrow, wide)
-        XCTAssertEqual(wide - narrow, (6 * (328 - 311) / 7), accuracy: 1.5)
+    func testHeightPreservesDynamicTypeFallback() {
+        let width: CGFloat = 328
+        XCTAssertGreaterThan(Backfill.calendarHeight(width: width, weekRows: 5, typeScale: 1.353),
+                             Backfill.calendarHeight(width: width, weekRows: 5, typeScale: 0.824))
     }
 
-    func testLargerTypeReservesMore() {
-        XCTAssertGreaterThan(Backfill.calendarHeight(width: 328, typeScale: 1.353),
-                             Backfill.calendarHeight(width: 328, typeScale: 0.824))
-    }
-
-    /// Entartete Eingaben dürfen die Karte nicht zerlegen.
-    func testDegenerateInputsStayFinite() {
-        XCTAssertGreaterThan(Backfill.calendarHeight(width: 0, typeScale: 0), 0)
-        XCTAssertGreaterThan(Backfill.calendarHeight(width: -50, typeScale: -3), 0)
-        // Ausreißer nach oben werden geklemmt, sonst reserviert eine kaputte
-        // Umgebung eine bildschirmhohe leere Fläche.
-        XCTAssertEqual(Backfill.calendarHeight(width: 328, typeScale: 99),
-                       Backfill.calendarHeight(width: 328, typeScale: 2))
+    func testHeightClampsInvalidInputs() {
+        XCTAssertGreaterThan(Backfill.calendarHeight(width: 0, weekRows: 0, typeScale: 0), 0)
+        XCTAssertEqual(Backfill.calendarHeight(width: 328, weekRows: 99, typeScale: 99),
+                       Backfill.calendarHeight(width: 328, weekRows: 6, typeScale: 2))
     }
 
     /// Das Innenmaß der Karte, aus dem die Reserve fällt: gedeckelt auf 360,

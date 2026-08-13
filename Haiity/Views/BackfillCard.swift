@@ -50,12 +50,10 @@ struct BackfillCard: View {
     @State private var dates: Set<DateComponents> = []
     /// Stand des Mengen-Stellers. 0 = noch nicht angefasst -> Tagesziel.
     @State private var amount = 0
-    /// Sperrklinke für die Höhe des Kalenders. `MultiDatePicker` misst sich
-    /// nach dem ersten Layout noch einmal und wird dabei ein paar Punkte
-    /// NIEDRIGER (nachgemessen: 554 -> 551,3 pt) — die Karte zuckte mit. Die
-    /// größte je gesehene Höhe bleibt als Mindesthöhe stehen; das Blatt sitzt
-    /// oben bündig, und die Karte steht still.
-    @State private var multiHeight: CGFloat = 0
+    /// Der Monat, den `UICalendarView` gerade zeigt. Nur dessen
+    /// Navigations-Delegate ändert ihn; Auswahl und Dekorationen lassen die
+    /// Höhe der Karte deshalb unverändert.
+    @State private var visibleMonth = Date()
 
     @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -210,10 +208,12 @@ struct BackfillCard: View {
         return UIScreen.main.bounds.width
     }
 
-    /// Die Höhe, die das Kalenderblatt VORAB bekommt — der Kern der
-    /// Ruhig-Stehen-Zusage, siehe `Backfill.calendarHeight`.
+    /// Die Höhe folgt den tatsächlich sichtbaren vier bis sechs Wochenreihen.
+    /// Die Kopfzeilen behalten die Dynamic-Type-Reserve in `Backfill`.
     private var calendarHeight: CGFloat {
         Backfill.calendarHeight(width: Self.contentWidth(window: Self.windowWidth()),
+                                weekRows: Backfill.calendarWeekRows(containing: visibleMonth,
+                                                                    calendar: calendar),
                                 typeScale: typeScale / 100)
     }
 
@@ -221,26 +221,17 @@ struct BackfillCard: View {
     /// `Backfill` — die Zukunft ist damit gar nicht erst antippbar, und der
     /// älteste wählbare Tag ist derselbe, den auch das Raster noch zeigt.
     ///
-    /// **Die Höhe wird RESERVIERT, nicht abgewartet** (`calendarHeight`), und
-    /// die Sperrklinke `multiHeight` hält die größte je gemessene Höhe fest —
-    /// zusammen steht die Karte vom ersten Bild an auf ihrem Endmaß.
+    /// Der Kalender meldet nur beim Blättern seinen sichtbaren Monat zurück.
+    /// Dadurch ändert die Karte ihre Höhe genau dann, nicht bei Auswahl oder
+    /// beim Neuladen von Dekorationen.
     private var picker: some View {
         BackfillCalendar(dates: $dates,
                          habit: habit,
                          style: palettes.style(for: habit),
                          range: Backfill.dateRange(habit: habit, calendar: calendar),
-                         calendar: calendar)
-            // Oben bündig in der eigenen Reserve, und die wächst nur: misst
-            // der Picker sich nach dem ersten Layout kleiner, hält die
-            // Sperrklinke die Karte auf ihrem Maß.
-            .frame(minHeight: max(multiHeight, calendarHeight), alignment: .top)
-            .background(GeometryReader { g in
-                Color.clear
-                    .onAppear { multiHeight = max(multiHeight, g.size.height) }
-                    .onChange(of: g.size.height) { _, h in
-                        multiHeight = max(multiHeight, h)
-                    }
-            })
+                         calendar: calendar,
+                         onVisibleMonthChange: { visibleMonth = $0 })
+            .frame(height: calendarHeight, alignment: .top)
             .accessibilityIdentifier("backfill-date-picker")
     }
 
@@ -446,6 +437,7 @@ private struct BackfillCalendar: UIViewRepresentable {
     let style: PaletteStyle
     let range: ClosedRange<Date>
     let calendar: Calendar
+    let onVisibleMonthChange: (Date) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -458,8 +450,8 @@ private struct BackfillCalendar: UIViewRepresentable {
         let selection = UICalendarSelectionMultiDate(delegate: context.coordinator)
         selection.setSelectedDates(Array(dates), animated: false)
         view.selectionBehavior = selection
-        // Die Karte reserviert die Höhe selbst (siehe `calendarHeight`);
-        // das Blatt soll sich der Breite fügen, nicht die Karte sprengen.
+        // Die Karte gibt die Höhe des sichtbaren Monats vor; das Blatt fügt
+        // sich dieser Breite und Höhe, statt die Karte selbst zu vermessen.
         view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.accessibilityIdentifier = "backfill-date-picker"
@@ -547,6 +539,12 @@ private struct BackfillCalendar: UIViewRepresentable {
                                blue: CGFloat(hex & 0xFF) / 255,
                                alpha: 1)
             }
+        }
+
+        func calendarView(_ calendarView: UICalendarView,
+                          didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
+            guard let date = parent.calendar.date(from: calendarView.visibleDateComponents) else { return }
+            parent.onVisibleMonthChange(date)
         }
 
         /// Beide Richtungen schreiben DIESELBE Wahrheit zurück: den ganzen

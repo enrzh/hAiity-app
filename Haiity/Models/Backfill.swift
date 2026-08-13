@@ -19,54 +19,40 @@ enum Backfill {
 
     // MARK: – Maße des Kalenderblatts
 
-    /// Wie hoch das Kalenderblatt (`DatePicker`, grafisch) im Voraus
-    /// RESERVIERT bekommt.
+    /// Die Zahl der Wochenzeilen, die der sichtbare Monat im Kalender belegt.
+    /// Die Wochen folgen der Konfiguration des übergebenen Kalenders, damit
+    /// Montag- und Sonntag-beginnende Kalender dieselbe Rechnung wie
+    /// `UICalendarView` verwenden.
+    static func calendarWeekRows(containing date: Date, calendar: Calendar = .current) -> Int {
+        guard let month = calendar.dateInterval(of: .month, for: date),
+              let firstWeek = calendar.dateInterval(of: .weekOfYear, for: month.start),
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: month.end),
+              let lastWeek = calendar.dateInterval(of: .weekOfYear, for: lastDay)
+        else { return 6 }
+
+        var rows = 0
+        var weekStart = firstWeek.start
+        while weekStart <= lastWeek.start, rows < 6 {
+            rows += 1
+            guard let next = calendar.date(byAdding: .weekOfYear, value: 1, to: weekStart) else {
+                return 6
+            }
+            weekStart = next
+        }
+        return min(6, max(4, rows))
+    }
+
+    /// Höhe für genau die Wochenzeilen des sichtbaren Monats. Monatstitel
+    /// und Wochentagskopf behalten die bewährte Dynamic-Type-Hüllkurve; nur
+    /// das Raster wächst oder schrumpft beim Blättern zwischen vier und sechs
+    /// Reihen.
     ///
-    /// **Warum es diese Rechnung gibt.** Der grafische `DatePicker` ist ein
-    /// `UIDatePicker` und meldet seine Höhe in ZWEI Schritten: beim ersten
-    /// Layout fehlt genau eine Wochenzeile, die richtige Höhe kommt 6 bis
-    /// 100 ms später nach (nachgemessen auf dem Gerät: 324 pt, dann 374,7 pt
-    /// bei 328 pt Breite). Die Karte wächst mit ihrem Inhalt — sie stand
-    /// damit einen Sekundenbruchteil 50 pt zu niedrig und sprang dann auf ihr
-    /// Endmaß. Wer die Höhe vorher weiß, muss nicht darauf warten.
-    ///
-    /// **Die Rechnung ist eine ENTSCHEIDUNG, keine Vorhersage.** Ein
-    /// Monatsblatt ist sechs Wochenzeilen hoch (der Kalender hält die Zahl
-    /// fest, damit das Blatt beim Blättern nicht springt), und eine Zeile ist
-    /// so hoch wie eine Spalte breit ist — sieben Spalten auf die Breite.
-    /// Darüber sitzen Monatszeile und Wochentagskopf; die wachsen mit der
-    /// Schrift, das Raster nicht. Angesetzt wird die Reserve als
-    /// MINDESTHÖHE: fällt sie einmal zu knapp aus, wächst das Blatt wie
-    /// vorher weiter, statt abgeschnitten zu werden.
-    ///
-    /// **Der Kopf wächst in STUFEN, nicht linear.** Die erste Fassung dieser
-    /// Rechnung setzte den Kopf als `67 + 27·Faktor` an — eine Gerade durch
-    /// drei Messpunkte (xSmall, Standard, xxxLarge). Zwischen den Punkten
-    /// liegt die Wahrheit aber DRÜBER: `UIFontMetrics` skaliert die
-    /// Kopfzeilen des `UIDatePicker` stufig, und bei xLarge/xxLarge stand das
-    /// Blatt 1,7 bzw. 3,3 pt über der Geraden (nachgemessen im Simulator,
-    /// Breite 328 pt: 379,7 bzw. 384,3 pt gegen 378 bzw. 381 pt Reserve).
-    /// Die Karte wuchs GENAU DANN nach dem Öffnen — das „manchmal" aus der
-    /// Rückmeldung war die Schriftgröße. Jetzt ist die Reserve eine
-    /// HÜLLKURVE über allen Messpunkten: unterhalb des Standards eine flache
-    /// Gerade, darüber eine steile, gedeckelt am xxLarge/xxxLarge-Plateau.
-    ///
-    /// **Der Faktor hier ist der GEMESSENE** (`@ScaledMetric` 100, geteilt
-    /// durch 100) — nicht das Verhältnis der Body-Schriftgrade aus der
-    /// Tabelle. `UIFontMetrics` skaliert große Ausgangswerte flacher: bei
-    /// xxLarge steht in der Schrifttabelle 21/17 = 1,235, gemessen kommen
-    /// 1,1833 an. Wer die Kurve gegen die Tabellenwerte eicht, liegt bei
-    /// den echten Eingaben wieder daneben.
-    ///
-    /// Nachgemessen (Breite 328 pt), Endhöhe des Blatts je GEMESSENEM
-    /// Faktor:
-    ///   Gerät:     370,0 / 374,7 / 384,3   bei 0,824 / 1,0 / 1,353
-    ///   Simulator: 372 / 373 / 374 / 376 / 379,7 / 384,3 / 384,3
-    ///     bei 0,8633 / 0,9100 / 0,9533 / 1,0 / 1,0900 / 1,1833 / 1,3167
-    /// — die Hüllkurve liegt überall bis zu vier Punkte darüber und
-    /// nirgends darunter.
-    static func calendarHeight(width: CGFloat, typeScale: CGFloat = 1) -> CGFloat {
-        let rows = 6 * max(0, width) / 7
+    /// Der Skalierungsfaktor stammt aus `@ScaledMetric` relativ zu `.body`.
+    /// Er hält den nativen Monats- und Wochentagskopf auch in größeren
+    /// Dynamic-Type-Größen innerhalb der Karte; bei noch größeren
+    /// Accessibility-Größen übernimmt der bestehende Scroll-Fallback.
+    static func calendarHeight(width: CGFloat, weekRows: Int, typeScale: CGFloat = 1) -> CGFloat {
+        let rows = CGFloat(min(6, max(4, weekRows))) * max(0, width) / 7
         // Auf einen vernünftigen Bereich geklemmt: eine Schriftskala von 0
         // oder 5 gibt es nicht, und ein Ausreißer soll die Karte nicht
         // zerlegen.
