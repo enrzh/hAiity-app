@@ -26,8 +26,33 @@ struct StatsView: View {
     private var accent: Color { Theme.accentText(palettes.style) }
 
     var body: some View {
+        if store.activeHabits.isEmpty {
+            emptyState
+        } else {
+            statsList
+        }
+    }
+
+    /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            RampSwatch(style: palettes.style, dark: dark, size: 16)
+            Text(String(localized: "Noch keine Habits"))
+                .font(.title3.bold())
+            Text(String(localized: "Leg einen an und fang an, Quadrate zu füllen — jeder Tag, an dem du dranbleibst, färbt eine Zelle."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(String(localized: "Statistik"))
+    }
+
+    private var statsList: some View {
         let snapshot = StatsEngine.snapshot(habits: store.activeHabits)
-        List {
+        return List {
             Section {
                 heroCard(snapshot)
                     .modifier(StatsCardChrome())
@@ -169,6 +194,7 @@ struct StatsView: View {
                 .font(.caption2.weight(.semibold))
             Text(verbatim: "\(streak)")
                 .font(.caption.weight(.bold).monospacedDigit())
+                .contentTransition(.numericText())
         }
         .foregroundStyle(streak > 0 ? AnyShapeStyle(text) : AnyShapeStyle(.secondary))
         .padding(.horizontal, 8)
@@ -448,6 +474,7 @@ private struct StatsRow: View {
                 .font(.caption2.weight(.semibold))
             Text(verbatim: "\(streak)")
                 .font(.caption.weight(.bold).monospacedDigit())
+                .contentTransition(.numericText())
         }
         .foregroundStyle(streak > 0
                          ? AnyShapeStyle(Theme.accentText(style))
@@ -482,10 +509,14 @@ private struct MonthBars: View {
     var body: some View {
         let peak = max(counts.max() ?? 0, 1)
         HStack(alignment: .bottom, spacing: 5) {
+            // Leere Monate: ein leiser 3-pt-Punkt statt der 4-pt-Kapsel in
+            // Tertiär — zwölf gleich hohe „Mini-Balken" lasen sich wie eine
+            // kaputte Anzeige, nicht wie „nichts passiert".
             ForEach(Array(counts.enumerated()), id: \.offset) { _, count in
                 Capsule()
-                    .fill(count > 0 ? Theme.accent(style) : Color(.tertiarySystemFill))
-                    .frame(width: 5, height: max(4, 34 * CGFloat(count) / CGFloat(peak)))
+                    .fill(count > 0 ? Theme.accent(style) : Color(.quaternarySystemFill))
+                    .frame(width: 5, height: count > 0
+                           ? max(6, 34 * CGFloat(count) / CGFloat(peak)) : 3)
             }
         }
         .frame(height: 36, alignment: .bottom)

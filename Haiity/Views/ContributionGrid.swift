@@ -95,53 +95,58 @@ struct ContributionGrid: View, Equatable {
             ContributionGrid.labelWidth(GridCalendar.label(for: mark), scale: labelScale / 100)
         }
 
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 3) {
                     if showsMonthLabels {
                         monthRow(marks, width: contentWidth)
                     }
-                    HStack(alignment: .top, spacing: m.gap) {
-                        ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
-                            VStack(spacing: m.gap) {
-                                ForEach(0..<GridCalendar.rows, id: \.self) { r in
-                                    cell(key: column[r],
-                                         level: snapshot.levels[wi][r],
-                                         today: snapshot.today,
-                                         size: m.cell)
-                                }
-                            }
-                            .id(wi)
-                        }
-                    }
-                    // EIN Tipp-Erkenner für alle 371 Zellen statt einer je
-                    // Zelle. Der Unterschied ist gemessen, nicht geraten:
-                    // jede Zelle mit eigenem `onTapGesture` bringt ihren
-                    // eigenen UIKit-Erkenner mit, und der Aufbau eines
-                    // Rasters beim Hereinscrollen einer Karte kostete damit
-                    // sichtbar Bilder. Getroffen wird über die Geometrie —
-                    // dieselbe Rechnung, aus der die Zellen gezeichnet
-                    // werden — und die Tippbarkeits-Regel bleibt Zeichen für
-                    // Zeichen `GridCalendar.isTappable`.
-                    .contentShape(Rectangle())
-                    .modifier(GridTap(enabled: interactive && onSelectDay != nil) { location in
-                        guard let key = GridCalendar.hitKey(location: location,
-                                                            keys: snapshot.keys,
-                                                            cell: m.cell,
-                                                            gap: m.gap),
-                              GridCalendar.isTappable(key: key,
-                                                      interactive: interactive,
-                                                      today: snapshot.today) else { return }
-                        // Auswahl-Haptik, nicht die des Abhakens: hier wird
-                        // nichts bestätigt, hier wird etwas ausgewählt.
-                        Theme.Haptics.select()
-                        onSelectDay?(key)
-                    })
+                    // EIN Canvas statt 371 Einzel-Ansichten. Der Unterschied
+                    // ist gemessen, nicht geraten: mit einer Shape-Ansicht je
+                    // Zelle trug jede Karte ~371 lebende Views — der Aufbau
+                    // einer Liste, eines Tabs oder eines Suchtreffers
+                    // multiplizierte das mit der Kartenzahl (FrameProbe:
+                    // ~0,5 s Erst-Aufbau des Such-Tabs). Gezeichnet wird aus
+                    // EXAKT derselben Geometrie, aus der auch der
+                    // Tipp-Treffer gerechnet wird.
+                    cellCanvas(snapshot: snapshot, cell: m.cell, gap: m.gap,
+                               width: contentWidth)
+                        .id(Self.gridID)
+                        // EIN Tipp-Erkenner für alle 371 Zellen. Getroffen
+                        // wird über die Geometrie — die Tippbarkeits-Regel
+                        // bleibt Zeichen für Zeichen `GridCalendar.isTappable`.
+                        .contentShape(Rectangle())
+                        .modifier(GridTap(enabled: interactive && onSelectDay != nil) { location in
+                            guard let key = GridCalendar.hitKey(location: location,
+                                                                keys: snapshot.keys,
+                                                                cell: m.cell,
+                                                                gap: m.gap),
+                                  GridCalendar.isTappable(key: key,
+                                                          interactive: interactive,
+                                                          today: snapshot.today) else { return }
+                            // Auswahl-Haptik, nicht die des Abhakens: hier
+                            // wird nichts bestätigt, hier wird ausgewählt.
+                            Theme.Haptics.select()
+                            onSelectDay?(key)
+                        })
                 }
                 .padding(.vertical, 2)
+        }
+        // Startet AN der rechten Kante — heute — statt nach dem Aufbau
+        // dorthin zu scrollen: das alte `scrollTo` je Karte zwang beim
+        // Listen-/Tab-Aufbau acht breite ScrollViews zu doppeltem Layout
+        // (mitgemessen im Such-Tab-Aufbau).
+        .defaultScrollAnchor(.trailing)
+        .background(widthReader)
+        // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
+        // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
+        // im Raster zeigt, bekommt die eine kleine Bewegung. Bei „Bewegung
+        // reduzieren" bleibt nur der Farbwechsel der Zelle.
+        .onChange(of: habit.log[DayKey.today()]) { _, _ in
+            guard interactive, !reduceMotion else { return }
+            checkPulse = true
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.55).delay(0.02)) {
+                checkPulse = false
             }
-            .background(widthReader)
-            .onAppear { scrollToToday(proxy) }
         }
         // Chronologie wird nie gespiegelt — auch nicht in ar/ur.
         .environment(\.layoutDirection, .leftToRight)
@@ -188,23 +193,85 @@ struct ContributionGrid: View, Equatable {
 
     private static let labelWidthCache = Locked([String: CGFloat]())
 
-    @ViewBuilder
-    private func cell(key: String?, level: Int, today: String, size: CGFloat) -> some View {
-        GridCell(color: Theme.level(level,
-                                    dark: scheme == .dark,
-                                    palette: palettes.style(for: habit)),
-                 size: size)
-            // Zukunft: gedimmt und ohne Tipp-Wirkung (siehe isTappable im
-            // gemeinsamen Erkenner). Die Regel bleibt Zeichen für Zeichen
-            // dieselbe wie früher — geändert hat sich nur, WO sie geprüft
-            // wird.
-            .opacity(key == nil ? 0.35 : 1)
-            .overlay {
-                if key == today {
-                    RoundedRectangle(cornerRadius: GridCell.radius, style: .continuous)
-                        .strokeBorder(.primary, lineWidth: 1.2)
+    /// Anker fürs Scroll-zu-heute: das Canvas selbst; `anchor: .trailing`
+    /// bringt seine rechte Kante — heute — ins Bild.
+    private static let gridID = "grid-canvas"
+
+    /// Läuft der Abhak-Puls gerade? (Ring um die Heute-Zelle, kurz.)
+    @State private var checkPulse = false
+
+    private func cellCanvas(snapshot: GridCalendar.Snapshot,
+                            cell: CGFloat, gap: CGFloat,
+                            width: CGFloat) -> some View {
+        let pitch = cell + gap
+        let height = CGFloat(GridCalendar.rows) * pitch - gap
+        let style = palettes.style(for: habit)
+        let dark = scheme == .dark
+        // Heute-Zelle für Rahmen und Puls: letzte Spalte, Zeile aus dem
+        // Schnappschuss.
+        let todayRect: CGRect? = snapshot.keys.last
+            .flatMap { $0.firstIndex(of: snapshot.today) }
+            .map { row in CGRect(x: CGFloat(snapshot.keys.count - 1) * pitch,
+                                 y: CGFloat(row) * pitch,
+                                 width: cell, height: cell) }
+        return Canvas { context, _ in
+            // Farben EINMAL je Stufe auflösen, nicht je Zelle: 371 dynamische
+            // Color-Auflösungen und 371 Continuous-Bezier-Pfade machten den
+            // Aufbau TEURER als die alten Einzel-Views (FrameProbe: ~1 s
+            // Such-Tab-Aufbau). Ein Pfad je STUFE, per Translation
+            // wiederverwendet, und schlichte runde Ecken — bei 2 pt Radius
+            // vom Continuous-Profil nicht zu unterscheiden.
+            var shading: [Int: GraphicsContext.Shading] = [:]
+            var dimmedShading: [Int: GraphicsContext.Shading] = [:]
+            let cellPath = Path(roundedRect: CGRect(x: 0, y: 0, width: cell, height: cell),
+                                cornerRadius: GridCell.radius)
+            for (wi, column) in snapshot.keys.enumerated() {
+                for row in 0..<GridCalendar.rows {
+                    let level = snapshot.levels[wi][row]
+                    let future = column[row] == nil
+                    // Zukunft: gedimmt und ohne Tipp-Wirkung (isTappable im
+                    // gemeinsamen Erkenner). Die Regel bleibt dieselbe —
+                    // geändert hat sich nur, WO sie gezeichnet wird.
+                    let fill: GraphicsContext.Shading
+                    if future {
+                        if dimmedShading[level] == nil {
+                            dimmedShading[level] = .color(
+                                Theme.level(level, dark: dark, palette: style).opacity(0.35))
+                        }
+                        fill = dimmedShading[level]!
+                    } else {
+                        if shading[level] == nil {
+                            shading[level] = .color(
+                                Theme.level(level, dark: dark, palette: style))
+                        }
+                        fill = shading[level]!
+                    }
+                    var cellContext = context
+                    cellContext.translateBy(x: CGFloat(wi) * pitch,
+                                            y: CGFloat(row) * pitch)
+                    cellContext.fill(cellPath, with: fill)
                 }
             }
+            if let todayRect {
+                context.stroke(Path(roundedRect: todayRect.insetBy(dx: 0.6, dy: 0.6),
+                                    cornerRadius: GridCell.radius),
+                               with: .color(.primary), lineWidth: 1.2)
+            }
+        }
+        .frame(width: max(width, 0), height: height)
+        // Der Puls liegt ÜBER dem Canvas — das Canvas selbst animiert
+        // nicht (es zeichnet Zustände, keine Übergänge).
+        .overlay(alignment: .topLeading) {
+            if let todayRect {
+                RoundedRectangle(cornerRadius: GridCell.radius, style: .continuous)
+                    .strokeBorder(Theme.accentText(style), lineWidth: 1.4)
+                    .frame(width: todayRect.width, height: todayRect.height)
+                    .offset(x: todayRect.minX, y: todayRect.minY)
+                    .scaleEffect(checkPulse ? 1.9 : 1)
+                    .opacity(checkPulse ? 0.9 : 0)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     /// Misst die Breite, die dem Raster zur Verfügung steht — daraus fällt
@@ -216,17 +283,6 @@ struct ContributionGrid: View, Equatable {
         }
         .onPreferenceChange(GridWidthKey.self) { width in
             if abs(width - available) > 0.5 { available = width }
-        }
-    }
-
-    private func scrollToToday(_ proxy: ScrollViewProxy) {
-        guard weeks > 0 else { return }
-        if reduceMotion {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { proxy.scrollTo(weeks - 1, anchor: .trailing) }
-        } else {
-            proxy.scrollTo(weeks - 1, anchor: .trailing)
         }
     }
 

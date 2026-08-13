@@ -158,7 +158,10 @@ struct HabitCard: View, Equatable {
                         Color.clear
                             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                                            style: .continuous))
-                            .onTapGesture { snapReveal(to: 0) }
+                            .onTapGesture {
+                                Theme.Haptics.select()
+                                snapReveal(to: 0)
+                            }
                             .offset(x: revealOffset * mirror)
                     }
                 }
@@ -245,10 +248,15 @@ struct HabitCard: View, Equatable {
             cardWidth: revealCardWidth)
         switch resting {
         case .closed:
+            // Nur wenn wirklich etwas ZU ging, gibt es den Tick — ein
+            // abgebrochener Mini-Zug ist kein Ereignis.
+            if revealStart != 0 { Theme.Haptics.select() }
             snapReveal(to: 0)
         case .leading:
+            if revealStart == 0 { Theme.Haptics.select() }
             snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count))
         case .trailing:
+            if revealStart == 0 { Theme.Haptics.select() }
             snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count))
         case .commitLeading:
             commitReveal(leadingSwipe.first)

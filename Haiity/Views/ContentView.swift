@@ -669,12 +669,13 @@ struct ContentView: View {
                 .toolbar { createToolbarItem }
         } else {
             habitList
-                // Der große Titel steht seit den Statistik-Karten IN der
-                // Liste (`titleRow`) — nur so kann etwas ÜBER ihm scrollen.
-                // Die Navigationsleiste bleibt (Suche, Blob), aber ohne
-                // eigenen Titel: zwei „Habits" übereinander wären keins.
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
+                // Wieder der ECHTE große Titel: die Statistik-Karten, die
+                // einst ÜBER ihm scrollen mussten, wohnen im eigenen Tab —
+                // damit gehört „Habits" der Navigationsleiste und bekommt
+                // das native Einklappen beim Scrollen zurück (der
+                // Zeilen-Titel blieb beim Scrollen einfach stehen und ließ
+                // eine leere Glasleiste zurück).
+                .navigationTitle("Habits")
                 .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
@@ -736,7 +737,6 @@ struct ContentView: View {
 
     private var habitList: some View {
         List {
-            titleRow
             if habitsTabSource.isEmpty {
                 ContentUnavailableView.search(text: search)
                     .listRowSeparator(.hidden)
@@ -785,24 +785,9 @@ struct ContentView: View {
     // Statistik-Tab umgezogen (siehe StatsView) — die Habit-Liste beginnt
     // wieder mit ihrem Titel.
 
-    /// Der große „Habits"-Titel als LISTENZEILE — die Navigationsleiste
-    /// trägt keinen mehr (siehe `habitsScreen`), sonst könnten die Karten
-    /// nicht darüber stehen. Trägt Messfühler 0: die Zeile ist immer da und
-    /// damit der stabile Listenanker.
-    private var titleRow: some View {
-        Text(String(localized: "Habits"))
-            .font(.largeTitle.bold())
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityAddTraits(.isHeader)
-            .background(rowProbe(0))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
-                                      leading: Theme.Metrics.gutter,
-                                      bottom: 2,
-                                      trailing: Theme.Metrics.gutter))
-            .accessibilityIdentifier("habits-title")
-    }
+    // Der Zeilen-Titel („Habits" als Listenzeile) ist Geschichte: er
+    // existierte nur, damit die Statistik-Karten über ihm scrollen konnten.
+    // Messfühler 0 entfiel mit ihm; die Zeilen behalten ihre Indizes ab 1.
 
     private func row(for habit: Habit, index: Int, inSearchTab: Bool = false) -> some View {
         #if DEBUG
@@ -1106,7 +1091,7 @@ struct ContentView: View {
     /// gefilterte Liste): Bildmitte — das alte Verhalten, nie etwas
     /// Schlechteres.
     private func backfillAnchor(for habit: Habit) -> UnitPoint {
-        guard let index = filteredHabits.firstIndex(where: { $0.id == habit.id }),
+        guard let index = habitsTabSource.firstIndex(where: { $0.id == habit.id }),
               let rowTop = chrome.rowFrames[index + 1] else { return .center }
         let height = Self.windowHeight()
         guard height > 0 else { return .center }
