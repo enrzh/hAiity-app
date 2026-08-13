@@ -19,7 +19,7 @@ final class SearchFlowTests: XCTestCase {
     private func t(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
 
     func testToolbarSearchKeepsTheNativeMinimizedField() {
-        XCTAssertTrue(SearchOpenOrigin.toolbar.requiresAutomaticToolbarBehavior)
+        XCTAssertFalse(SearchOpenOrigin.toolbar.requiresAutomaticToolbarBehavior)
         XCTAssertTrue(SearchOpenOrigin.deepLink.requiresAutomaticToolbarBehavior)
     }
 

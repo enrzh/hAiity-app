@@ -79,6 +79,7 @@ struct ContentView: View {
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
+    @State private var searchPresentationArmed = false
     @FocusState private var searchFieldFocused: Bool
     /// Solange WAHR, arbeitet `.searchable` mit `.searchToolbarBehavior(.automatic)`
     /// statt `.minimize` — nötig für jede PROGRAMMATISCHE Präsentation
@@ -202,6 +203,8 @@ struct ContentView: View {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
             }
             .task {
+                try? await Task.sleep(for: .milliseconds(250))
+                searchPresentationArmed = true
                 await boot()
                 #if DEBUG
                 handleLaunchScreenArgument()
@@ -271,6 +274,11 @@ struct ContentView: View {
             .onChange(of: searching) { _, open in
                 trace("searching=\(open) focus=\(searchFieldFocused) showAdd=\(showAdd) auto=\(searchNeedsAutomaticBehavior) tab=\(nativeTab)")
                 if open {
+                    guard searchPresentationArmed else {
+                        searching = false
+                        searchFieldFocused = false
+                        return
+                    }
                     // JEDES `true` läuft durch die Zustandsmaschine: die
                     // System-Lupe ist willkommen, Nachzügler (Re-Present
                     // mitten im Zuklappen, verspätete Such-Aktivierung des
@@ -427,7 +435,9 @@ struct ContentView: View {
     /// zwar in BEIDEN Leisten-Zuständen richtig: die Quelle sitzt auf dem
     /// Kreis selbst, nicht auf einem Anker daneben.
     @available(iOS 27, *)
+    @ViewBuilder
     private var splitShell: some View {
+        #if compiler(>=6.4)
         TabView(selection: $nativeTab) {
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                 value: AppTab.habits) {
@@ -437,25 +447,37 @@ struct ContentView: View {
                 value: AppTab.more) {
                 moreTabContent
             }
+            Tab(CreateAccessibility.label, systemImage: "plus",
+                value: AppTab.create, role: .prominent) {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+            }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .overlay {
-            CreateCircle(reduceMotion: reduceMotion,
-                         // Kein eigener Sichtbarkeits-Schalter: der Kreis
-                         // gehört zur Leiste und ist genau dann da, wenn die
-                         // Leiste da ist (auf iOS 26 bleibt der System-Kreis
-                         // bei offener Suche ebenfalls stehen). Was hier
-                         // durchgereicht wird, ist nur ein ANLASS, neu zu
-                         // messen: ändert sich einer dieser Zustände, kann
-                         // die Leiste gerade gekommen oder gegangen sein.
-                         remeasureOn: [searching, showAdd],
-                         zoomID: Self.createZoomID,
-                         zoomNamespace: createZoomNamespace) {
-                // Dieselbe Sperre wie an der Fallback-Leiste und im
-                // `onChange(of: nativeTab)`: bei offener Nacharbeiten-Karte
-                // legt ein Fehlgriff nichts hinter ihr an.
-                if backfill == nil { showAdd = true }
+        .overlay(alignment: .bottomTrailing) { createZoomAnchor }
+        #else
+        TabView(selection: $nativeTab) {
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                value: AppTab.habits) { habitsTabContent }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) { moreTabContent }
+        }
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { ios27SplitControls }
+        #endif
+    }
+
+    @available(iOS 27, *)
+    @ViewBuilder
+    private var ios27SplitControls: some View {
+        if !searching {
+            HStack(spacing: Theme.Metrics.gutter) {
+                switcher
+                Spacer(minLength: Theme.Metrics.gutter)
+                addButton
             }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, Theme.Metrics.gap)
+            .allowsHitTesting(backfill == nil)
         }
     }
 
@@ -716,6 +738,12 @@ struct ContentView: View {
         if store.activeHabits.isEmpty {
             emptyState
                 .navigationTitle("Habits")
+                .searchableHidden(text: $search,
+                                  isPresented: $searching,
+                                  focus: $searchFieldFocused,
+                                  mounted: searchPresentationArmed,
+                                  automaticBehavior: searchNeedsAutomaticBehavior,
+                                  prompt: String(localized: "Habits durchsuchen"))
         } else {
             habitList
                 // Der große Titel steht seit den Statistik-Karten IN der
@@ -728,6 +756,7 @@ struct ContentView: View {
                 .searchableHidden(text: $search,
                                   isPresented: $searching,
                                   focus: $searchFieldFocused,
+                                  mounted: searchPresentationArmed,
                                   automaticBehavior: searchNeedsAutomaticBehavior,
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
@@ -760,14 +789,16 @@ struct ContentView: View {
                         }
                         .accessibilityIdentifier("habit-management")
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            openSearch(origin: .toolbar)
-                        } label: {
-                            Image(systemName: "magnifyingglass")
+                    if #unavailable(iOS 26) {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                openSearch(origin: .toolbar)
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                            }
+                            .accessibilityLabel(String(localized: "Habits durchsuchen"))
+                            .accessibilityIdentifier("open-search")
                         }
-                        .accessibilityLabel(String(localized: "Habits durchsuchen"))
-                        .accessibilityIdentifier("open-search")
                     }
                 }
         }
@@ -1959,7 +1990,7 @@ enum SearchOpenOrigin: CustomStringConvertible {
     case toolbar
     case deepLink
 
-    var requiresAutomaticToolbarBehavior: Bool { true }
+    var requiresAutomaticToolbarBehavior: Bool { self == .deepLink }
 
     var description: String {
         switch self {
@@ -2343,29 +2374,29 @@ private struct SearchableHidden: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
     let focus: FocusState<Bool>.Binding
+    let mounted: Bool
     let automaticBehavior: Bool
     let prompt: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if isPresented {
-            if #available(iOS 26, *) {
-                content
+        if mounted, #available(iOS 26, *) {
+            content
                 .searchable(text: $text,
                             isPresented: $isPresented,
                             prompt: Text(prompt))
+                .searchToolbarBehavior(automaticBehavior ? .automatic : .minimize)
                 .searchFocused(focus)
+        } else if isPresented {
+            let base = content
+                .searchable(text: $text,
+                            isPresented: $isPresented,
+                            placement: .navigationBarDrawer(displayMode: .always),
+                            prompt: Text(prompt))
+            if #available(iOS 18, *) {
+                base.searchFocused(focus)
             } else {
-                let base = content
-                    .searchable(text: $text,
-                                isPresented: $isPresented,
-                                placement: .navigationBarDrawer(displayMode: .always),
-                                prompt: Text(prompt))
-                if #available(iOS 18, *) {
-                    base.searchFocused(focus)
-                } else {
-                    base
-                }
+                base
             }
         } else {
             content
@@ -2377,10 +2408,12 @@ private extension View {
     func searchableHidden(text: Binding<String>,
                           isPresented: Binding<Bool>,
                           focus: FocusState<Bool>.Binding,
+                          mounted: Bool,
                           automaticBehavior: Bool,
                           prompt: String) -> some View {
         modifier(SearchableHidden(text: text, isPresented: isPresented,
                                   focus: focus,
+                                  mounted: mounted,
                                   automaticBehavior: automaticBehavior,
                                   prompt: prompt))
     }

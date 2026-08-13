@@ -274,7 +274,20 @@ final class AppNavigationTests: XCTestCase {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let marker = "accessibilityIdentifier(\"open-search\")"
         XCTAssertEqual(source.components(separatedBy: marker).count - 1, 1)
-        XCTAssertFalse(source.contains("if #unavailable(iOS 26) {\n                        ToolbarItem(placement: .topBarTrailing)"))
+        XCTAssertTrue(source.contains("if #unavailable(iOS 26) {\n                        ToolbarItem(placement: .topBarTrailing)"))
+        XCTAssertTrue(source.contains("@State private var searchPresentationArmed = false"))
+    }
+
+    func testIOS27NavigationIsLeadingWithCreateTrailing() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let start = try XCTUnwrap(source.range(of: "private var splitShell: some View"))
+        let end = try XCTUnwrap(source.range(of: "private var habitsTabContent", range: start.upperBound..<source.endIndex))
+        let shell = String(source[start.lowerBound..<end.lowerBound])
+        XCTAssertTrue(shell.contains("TabView(selection: $nativeTab)"))
+        XCTAssertTrue(shell.contains("value: AppTab.create, role: .prominent"))
+        XCTAssertTrue(shell.contains("#if compiler(>=6.4)"))
+        XCTAssertTrue(shell.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
+        XCTAssertTrue(shell.contains("ios27SplitControls"))
     }
 
     private func sourceURL(_ path: String) -> URL {
