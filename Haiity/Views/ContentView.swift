@@ -248,7 +248,7 @@ struct ContentView: View {
                 guard old == .search, tab != .search else { return }
                 if searching { searching = false }
                 searchFieldFocused = false
-                search = ""
+                clearSearchTextAfterCollapse()
             }
             .onChange(of: searchFieldFocused) { _, focused in
                 trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd)")
@@ -297,6 +297,7 @@ struct ContentView: View {
                 // Feld sofort wieder (X → Kreis → Leiste klappt wieder auf).
                 if !open {
                     searchFieldFocused = false
+                    clearSearchTextAfterCollapse()
                 }
             }
     }
@@ -598,7 +599,30 @@ struct ContentView: View {
         // gefiltert, ohne dass noch ein Suchfeld zu sehen wäre, in dem man
         // das ablesen oder rückgängig machen könnte. Genau ein Zustand, in
         // dem Habits verschwunden aussehen.
-        search = ""
+        clearSearchTextAfterCollapse()
+    }
+
+    /// Der Suchbegriff leert sich erst NACH der Zuklapp-Animation — und
+    /// ohne Übergang.
+    ///
+    /// Sofortiges Leeren fiel mitten in das Zuklappen: `search` filtert
+    /// BEIDE montierten Listen (Habits-Tab UND Such-Tab), und das animierte
+    /// Zurückfluten aller Zeilen — jede ein 371-Zellen-Raster — riss die
+    /// Animation auf 22 Bilder je Sekunde mit einem 650-ms-Stand
+    /// (FrameProbe, iOS-27-Simulator; vom Gerät als „dropping fps"
+    /// gemeldet). Verzögert und ohne Animation ist das Auffüllen reine
+    /// Buchhaltung hinter einer bereits ruhigen Oberfläche.
+    private func clearSearchTextAfterCollapse() {
+        guard !search.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            // Wieder offen (oder längst geleert): nichts anfassen — sonst
+            // frisst der Nachzügler eine frisch getippte Suche.
+            guard !searching else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { search = "" }
+        }
     }
 
     /// Aus dem Such-Tab heraus zu Nacharbeiten: erst zurück zu Habits (dort
@@ -690,15 +714,26 @@ struct ContentView: View {
         }
     }
 
+    /// Was der HABITS-Tab zeigt. Ab iOS 26 IMMER alles: die Suche wohnt im
+    /// eigenen Such-Tab, und ein `search`, das nebenbei auch diese Liste
+    /// filtert, hieß: jeder Tastendruck und jedes Leeren baut BEIDE
+    /// montierten Listen um — gemessen der halbe „dropping fps"-Ruckler
+    /// beim Tippen und Schließen. Nur der Fallback vor iOS 26 (Such-Drawer
+    /// AUF der Habit-Liste) filtert hier weiter.
+    private var habitsTabSource: [Habit] {
+        if #available(iOS 26, *) { return store.activeHabits }
+        return filteredHabits
+    }
+
     private var habitList: some View {
         List {
             titleRow
-            if filteredHabits.isEmpty {
+            if habitsTabSource.isEmpty {
                 ContentUnavailableView.search(text: search)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             } else {
-                ForEach(Array(filteredHabits.enumerated()), id: \.element.id) { index, habit in
+                ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
                     // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
                     // da und damit der stabile Anker der Scroll-Messung).
                     row(for: habit, index: index + 1)
