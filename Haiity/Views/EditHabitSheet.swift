@@ -60,6 +60,9 @@ struct EditHabitSheet: View {
     /// „limitless" (sie zählt nur hoch).
     @State private var hasDuration = false
     @State private var durationMinutes = EditHabitSheet.defaultDuration
+    /// nil = globale Wischbelegung. Nur beim Bearbeiten sichtbar, denn ein
+    /// neues Habit soll mit der globalen, nachvollziehbaren Regel starten.
+    @State private var swipeActions: SwipeActionsOverride?
     @State private var hasReminder = false
     @State private var reminderMinutes = EditHabitSheet.defaultReminderMinutes
 
@@ -81,6 +84,7 @@ struct EditHabitSheet: View {
                 kindSection
                 colorSection
                 if let habit = existing {
+                    swipeActionsSection
                     Section {
                         ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
                                   preview: SharePreview(habit.name)) {
@@ -499,6 +503,51 @@ struct EditHabitSheet: View {
         }
     }
 
+    private var swipeActionsSection: some View {
+        Section {
+            Toggle(String(localized: "Eigene Wischaktionen"), isOn: Binding(
+                get: { swipeActions != nil },
+                set: { enabled in
+                    swipeActions = enabled
+                        ? SwipeActionsOverride(leading: .primary, trailing: .secondary)
+                        : nil
+                }))
+            .accessibilityIdentifier("habit-swipe-override-toggle")
+
+            if swipeActions != nil {
+                Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
+                    ForEach(SwipeActionChoice.allCases) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("habit-swipe-leading-picker")
+
+                Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
+                    ForEach(SwipeActionChoice.allCases) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("habit-swipe-trailing-picker")
+            }
+        } header: {
+            Text(String(localized: "Wischaktionen"))
+        } footer: {
+            Text(String(localized: "Ohne eigene Auswahl gelten die Einstellungen in Mehr."))
+        }
+    }
+
+    private var swipeLeadingBinding: Binding<SwipeActionChoice> {
+        Binding(get: { swipeActions?.leading ?? .primary },
+                set: { swipeActions?.leading = $0 })
+    }
+
+    private var swipeTrailingBinding: Binding<SwipeActionChoice> {
+        Binding(get: { swipeActions?.trailing ?? .secondary },
+                set: { swipeActions?.trailing = $0 })
+    }
+
     // MARK: – Laden / Sichern
 
     private func load() {
@@ -510,6 +559,7 @@ struct EditHabitSheet: View {
         draft = RecurrenceDraft(habit.recurrence, timeMinutes: habit.timeMinutes,
                                 calendar: calendar)
         habitPalette = habit.palette
+        swipeActions = habit.swipeActions
         kind = habit.kind
         if let duration = habit.durationMinutes {
             hasDuration = true
@@ -540,6 +590,7 @@ struct EditHabitSheet: View {
         habit.reminderMinutes = hasReminder ? Habit.sanitizedMinutes(reminderMinutes) : nil
         habit.recurrence = recurrence
         habit.palette = habitPalette
+        habit.swipeActions = swipeActions
         // Weg von Ja/Nein heißt auch: die Antworten mitnehmen. Ohne das
         // stünde die Umstellung bis zum nächsten Start und wäre danach
         // wieder da — die Selbstheilung liest die Antwort-Codes und macht

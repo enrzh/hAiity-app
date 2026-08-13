@@ -10,6 +10,9 @@ final class StatsCardPrefsTests: XCTestCase {
 
         XCTAssertFalse(prefs.compactMode)
         XCTAssertEqual(prefs.statsCards.active, [.yearPulse])
+        XCTAssertTrue(prefs.swipeActions.enabled)
+        XCTAssertEqual(prefs.swipeActions.leading, .primary)
+        XCTAssertEqual(prefs.swipeActions.trailing, .secondary)
     }
 
     func testViewPreferencesStorePersistsCompactModeAndCards() {
@@ -24,6 +27,20 @@ final class StatsCardPrefsTests: XCTestCase {
         let reloaded = ViewPreferencesStore(defaults: defaults)
         XCTAssertTrue(reloaded.compactMode)
         XCTAssertEqual(reloaded.statsCards.active, [.yearPulse, .streakFlame])
+    }
+
+    func testViewPreferencesStorePersistsSwipeActions() {
+        let suite = "ViewPreferencesStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.update { $0.swipeActions = SwipeActionsPreferences(enabled: false,
+                                                                   leading: .archive,
+                                                                   trailing: .none) }
+
+        XCTAssertEqual(ViewPreferencesStore(defaults: defaults).preferences.swipeActions,
+                       SwipeActionsPreferences(enabled: false, leading: .archive, trailing: .none))
     }
 
     func testNewerRemotePreferencesReplaceLocalPreferences() {

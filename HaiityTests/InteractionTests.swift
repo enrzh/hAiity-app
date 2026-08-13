@@ -246,11 +246,7 @@ final class UndoToastStateTests: XCTestCase {
     }
 }
 
-/// Die Wischgesten sind weg (lange drücken statt wischen). Was bleibt, ist
-/// die Pflicht, Dateien aus der Zeit davor NICHT kaputtzumachen: sie tragen
-/// `leadingSwipe`/`trailingSwipe` weiterhin, und ein Build, der daran
-/// scheitert, verlöre beim nächsten Speichern die ganzen Check-ins.
-final class LegacySwipeKeyTests: XCTestCase {
+final class SwipeActionsTests: XCTestCase {
     private var url: URL!
 
     override func setUp() {
@@ -262,7 +258,58 @@ final class LegacySwipeKeyTests: XCTestCase {
         try? FileManager.default.removeItem(at: url)
     }
 
-    func testOldFilesWithSwipeKeysStillDecode() throws {
+    func testDefaultActionsAreTypeAware() {
+        let prefs = ViewPreferences()
+
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).leading?.operation, .done)
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")).trailing?.operation, .reset)
+
+        let quantity = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: quantity).leading?.operation, .increment)
+
+        let yesNo = Habit(name: "Kein Zucker", kind: .yesNo)
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: yesNo).leading?.operation, .yes)
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: yesNo).trailing?.operation, .no)
+    }
+
+    func testDisabledActionsAreNotExposed() {
+        var prefs = ViewPreferences()
+        prefs.swipeActions.enabled = false
+
+        XCTAssertEqual(prefs.effectiveSwipeActions(for: Habit(name: "Lesen")), .disabled)
+    }
+
+    func testHabitOverrideWinsOverGlobalSides() {
+        var habit = Habit(name: "Lesen")
+        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .none)
+
+        let effective = ViewPreferences().effectiveSwipeActions(for: habit)
+        XCTAssertEqual(effective.leading?.operation, .archive)
+        XCTAssertNil(effective.trailing)
+    }
+
+    func testArchiveIsNeverEligibleForFullSwipe() {
+        let archive = EffectiveSwipeAction(operation: .archive)
+
+        XCTAssertFalse(archive.allowsFullSwipe)
+    }
+
+    func testCurrentSwipeConfigurationRoundTrips() throws {
+        var habit = Habit(name: "Lesen")
+        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .none)
+        let data = HabitData(version: 2, updatedAt: 1, summaryMinutes: nil, habits: [habit],
+                             viewPreferences: ViewPreferences(
+                                swipeActions: SwipeActionsPreferences(enabled: false,
+                                                                      leading: .archive,
+                                                                      trailing: .primary)))
+
+        let decoded = try JSONDecoder().decode(HabitData.self, from: JSONEncoder().encode(data))
+        XCTAssertEqual(decoded.viewPreferences.swipeActions,
+                       SwipeActionsPreferences(enabled: false, leading: .archive, trailing: .primary))
+        XCTAssertEqual(decoded.habits[0].swipeActions, habit.swipeActions)
+    }
+
+    func testLegacyFilesWithRootSwipeKeysDecodeToDefaults() throws {
         let raw = Data(#"""
         {"version":2,"updatedAt":1,
          "habits":[{"id":"3F2504E0-4F89-11D3-9A0C-0305E82C3301","name":"Lesen",
@@ -270,22 +317,27 @@ final class LegacySwipeKeyTests: XCTestCase {
          "leadingSwipe":"teleport","trailingSwipe":"revert"}
         """#.utf8)
         let data = try JSONDecoder().decode(HabitData.self, from: raw)
-        // Die Schlüssel sind unbekannt geworden und werden übergangen —
-        // alles andere kommt vollständig an.
+        // Frühe Builds legten die Schlüssel an der Wurzel ab. Auch kaputte
+        // Werte dürfen das neue Format nicht beeinflussen.
         XCTAssertEqual(data.habits.count, 1)
         XCTAssertEqual(data.habits.first?.name, "Lesen")
         XCTAssertEqual(data.habits.first?.log["2026-08-01"], 1)
+        XCTAssertEqual(data.viewPreferences.swipeActions, SwipeActionsPreferences())
     }
 
-    func testSwipeKeysAreNoLongerWritten() throws {
-        let store = HabitStore(url: url)
-        store.add(Habit(name: "Lesen"))
-        let json = String(data: try XCTUnwrap(store.exportJSON()), encoding: .utf8) ?? ""
-        XCTAssertFalse(json.contains("leadingSwipe"))
-        XCTAssertFalse(json.contains("trailingSwipe"))
+    func testLegacyRootSwipeKeysMigrateRecognizedValues() throws {
+        let raw = Data(#"""
+        {"version":2,"updatedAt":1,"habits":[],
+         "leadingSwipe":"done","trailingSwipe":"archive"}
+        """#.utf8)
+
+        let data = try JSONDecoder().decode(HabitData.self, from: raw)
+
+        XCTAssertEqual(data.viewPreferences.swipeActions,
+                       SwipeActionsPreferences(leading: .primary, trailing: .archive))
     }
 
-    func testDroppingTheKeysIsNoVersionBump() throws {
+    func testAddingSwipeConfigurationIsNoVersionBump() throws {
         // Konvention des Projekts: der v2-Build von gestern muss die Datei
         // weiter lesen können. Ein Sprung auf 3 würde ihn aussperren.
         let store = HabitStore(url: url)
@@ -294,10 +346,7 @@ final class LegacySwipeKeyTests: XCTestCase {
         XCTAssertEqual(HabitData.currentVersion, 2)
     }
 
-    func testLegacyFileSurvivesARoundTrip() throws {
-        // Der teure Fall: alte Datei lesen, etwas ändern, zurückschreiben.
-        // Verloren gehen darf dabei NUR die Einstellung, die es nicht mehr
-        // gibt.
+    func testLegacyFileRoundTripWritesCurrentSwipeConfiguration() throws {
         try Data(#"""
         {"version":2,"updatedAt":1,"habits":[],"palette":"violet",
          "leadingSwipe":"edit","trailingSwipe":"none"}
@@ -307,5 +356,8 @@ final class LegacySwipeKeyTests: XCTestCase {
         let reopened = HabitStore(url: url)
         XCTAssertEqual(reopened.palette, .builtin(.violet))
         XCTAssertEqual(reopened.habits.map(\.name), ["Sport"])
+        XCTAssertTrue(reopened.data.viewPreferences.swipeActions.enabled)
+        XCTAssertEqual(reopened.data.viewPreferences.swipeActions.leading, .primary)
+        XCTAssertEqual(reopened.data.viewPreferences.swipeActions.trailing, .secondary)
     }
 }

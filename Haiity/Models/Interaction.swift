@@ -2,18 +2,14 @@ import Foundation
 
 // MARK: – Aktionen an einer Habit-Zeile
 //
-// FRÜHER standen hier belegbare Wischgesten (`SwipeAction`, plus zwei Picker
-// in „Mehr"). Beides ist ersatzlos weg: eine Zeile hat jetzt EINEN Weg zu
-// ihren Aktionen — langes Drücken öffnet die Karte als Vorschau mit dem
-// vergrößerten Raster und den Aktionen darunter (HabitCard). Das ist
-// sichtbar statt versteckt, zeigt VORHER, welches Habit gemeint ist, und
-// braucht keine Einstellung, die erklärt, was ein Wisch tut.
+// Wischaktionen werden als semantische Haupt-/Nebenaktion in
+// `ViewPreferences` gespeichert und erst fuer die Art des Habits aufgeloest
+// (siehe `effectiveSwipeActions(for:)`). Die Liste braucht dadurch keine
+// Sonderfaelle fuer Checkbox, Menge und Ja/Nein.
 //
-// Alte data.json-Dateien tragen weiterhin `leadingSwipe`/`trailingSwipe`.
-// Die Schlüssel werden beim Lesen IGNORIERT (siehe HabitData.CodingKeys) —
-// unbekannte Schlüssel sind für Codable kein Fehler, die Datei bleibt also
-// lesbar und verliert nichts ausser einer Einstellung, die es nicht mehr
-// gibt.
+// Alte data.json-Dateien tragen `leadingSwipe`/`trailingSwipe` an der
+// Wurzel. `HabitData` migriert die bekannten Werte beim Lesen und faellt bei
+// alten Bearbeiten-/unbekannten Werten auf die sicheren Standardseiten zurueck.
 
 // MARK: – Rückgängig-Toast
 

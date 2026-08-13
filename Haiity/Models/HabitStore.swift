@@ -22,7 +22,6 @@ struct HabitData: Codable {
     /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
     var weeklySummaryWeekday: Int
     var habits: [Habit]
-    var sessionHistory: [HabitSessionRecord]
     /// Hell/Dunkel/System. Liegt HIER und nicht in UserDefaults, damit die
     /// Einstellung denselben Weg nimmt wie alles andere (Export, Import,
     /// iCloud-Spiegel) — ein neues Gerät sieht sofort dieselbe App.
@@ -57,8 +56,7 @@ struct HabitData: Codable {
          matchAppIcon: Bool = true,
          weeklySummaryMinutes: Int? = nil,
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
-         viewPreferences: ViewPreferences = ViewPreferences(),
-         sessionHistory: [HabitSessionRecord] = []) {
+         viewPreferences: ViewPreferences = ViewPreferences()) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
@@ -66,7 +64,6 @@ struct HabitData: Codable {
         self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
             ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
-        self.sessionHistory = sessionHistory
         self.appearance = appearance
         self.palette = palette
         self.customPalettes = customPalettes
@@ -92,6 +89,9 @@ extension HabitData {
         // überliest die beiden Schlüssel, also braucht es dafür keinen
         // Versionssprung (der ihn aussperren würde).
         case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences, sessionHistory
+        // Nur zum Einlesen alter Wurzel-Einstellungen; encode schreibt sie
+        // nie wieder, weil die neue Konfiguration in viewPreferences liegt.
+        case leadingSwipe, trailingSwipe
     }
 
     /// Akzeptiert Version 1 und 2; alles andere ist keine hAiity-Datei und
@@ -112,7 +112,6 @@ extension HabitData {
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
         habits = try c.decodeIfPresent([Habit].self, forKey: .habits) ?? []
-        sessionHistory = (try? c.decodeIfPresent([HabitSessionRecord].self, forKey: .sessionHistory)) ?? []
         // Fehlt / unbekannt -> Standard. Eine Datei aus einer neueren
         // Version mit "palette":"neon" verliert nur die Farbe, nicht die
         // Check-ins.
@@ -125,7 +124,16 @@ extension HabitData {
         // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
         customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
-        viewPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) ?? ViewPreferences()
+        if let savedPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) {
+            viewPreferences = savedPreferences
+        } else {
+            viewPreferences = ViewPreferences(
+                swipeActions: SwipeActionsPreferences(
+                    leading: Self.migratedSwipeChoice(
+                        try c.decodeIfPresent(String.self, forKey: .leadingSwipe), fallback: .primary),
+                    trailing: Self.migratedSwipeChoice(
+                        try c.decodeIfPresent(String.self, forKey: .trailingSwipe), fallback: .secondary)))
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -141,7 +149,6 @@ extension HabitData {
             try c.encode(weeklySummaryWeekday, forKey: .weeklySummaryWeekday)
         }
         try c.encode(habits, forKey: .habits)
-        if !sessionHistory.isEmpty { try c.encode(sessionHistory, forKey: .sessionHistory) }
         // Standards bleiben implizit — eine unveränderte Installation
         // schreibt exakt dieselbe Datei wie vor dem Theming.
         if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
@@ -149,6 +156,19 @@ extension HabitData {
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
         if viewPreferences != ViewPreferences() { try c.encode(viewPreferences, forKey: .viewPreferences) }
+    }
+
+    /// Die frueheren Wurzel-Schluessel stehen fuer dieselben Nutzerabsichten.
+    /// "edit" hat keine sichere Entsprechung als Sofortaktion und faellt wie
+    /// unbekannte Werte auf die jeweilige neue Standardseite zurueck.
+    private static func migratedSwipeChoice(_ raw: String?, fallback: SwipeActionChoice) -> SwipeActionChoice {
+        switch raw {
+        case "done": return .primary
+        case "revert": return .secondary
+        case "archive": return .archive
+        case "none": return .none
+        default: return fallback
+        }
     }
 }
 
@@ -196,7 +216,6 @@ final class HabitStore {
 
     /// ALLE Habits, auch archivierte (Export, Sync, Archiv-Ansicht).
     var habits: [Habit] { data.habits }
-    var sessionHistory: [HabitSessionRecord] { data.sessionHistory }
 
     /// Nicht archivierte Habits — Hauptliste, Summary, Widget.
     var activeHabits: [Habit] { data.habits.filter { $0.archivedAt == nil } }
@@ -302,7 +321,6 @@ final class HabitStore {
 
     func remove(_ id: UUID) {
         data.habits.removeAll { $0.id == id }
-        data.sessionHistory.removeAll { $0.habitID == id }
         persist()
     }
 
@@ -373,12 +391,6 @@ final class HabitStore {
         guard data.habits[i].minutes[day] != merged else { return }
         data.habits[i].minutes[day] = merged
         persist()
-    }
-
-    func addSessionRecord(_ record: HabitSessionRecord, persist shouldPersist: Bool = true) {
-        guard !data.sessionHistory.contains(where: { $0.id == record.id }) else { return }
-        data.sessionHistory.append(record)
-        if shouldPersist { persist() }
     }
 
     /// Entfernt den Tageseintrag komplett.
@@ -641,8 +653,6 @@ final class HabitStore {
         let localIds = Set(data.habits.map(\.id))
         merged.append(contentsOf: remote.habits.filter { !localIds.contains($0.id) }.compactMap { byId[$0.id] })
         data.habits = merged
-        let localRecordIDs = Set(data.sessionHistory.map(\.id))
-        data.sessionHistory += remote.sessionHistory.filter { !localRecordIDs.contains($0.id) }
         if remoteNewer, remote.summaryMinutes != nil { data.summaryMinutes = remote.summaryMinutes }
         if remoteNewer, remote.weeklySummaryMinutes != nil {
             data.weeklySummaryMinutes = remote.weeklySummaryMinutes

@@ -120,13 +120,41 @@ struct ViewPreferences: Codable, Equatable {
     var updatedAt: TimeInterval
     var statsCards: StatsCardPrefs
     var compactMode: Bool
+    /// Globale Wischgesten. Die Auswahl ist absichtlich semantisch
+    /// (Haupt-/Nebenaktion), damit sie bei jeder Habit-Art richtig bleibt.
+    var swipeActions: SwipeActionsPreferences
 
     init(updatedAt: TimeInterval = 0,
          statsCards: StatsCardPrefs = StatsCardPrefs(),
-         compactMode: Bool = false) {
+         compactMode: Bool = false,
+         swipeActions: SwipeActionsPreferences = SwipeActionsPreferences()) {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
+        self.swipeActions = swipeActions
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case updatedAt, statsCards, compactMode, swipeActions
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
+        statsCards = try c.decodeIfPresent(StatsCardPrefs.self, forKey: .statsCards) ?? StatsCardPrefs()
+        compactMode = try c.decodeIfPresent(Bool.self, forKey: .compactMode) ?? false
+        swipeActions = try c.decodeIfPresent(SwipeActionsPreferences.self, forKey: .swipeActions)
+            ?? SwipeActionsPreferences()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encode(statsCards, forKey: .statsCards)
+        try c.encode(compactMode, forKey: .compactMode)
+        if swipeActions != SwipeActionsPreferences() {
+            try c.encode(swipeActions, forKey: .swipeActions)
+        }
     }
 
     static func load(from defaults: UserDefaults) -> ViewPreferences {
@@ -193,7 +221,10 @@ final class ViewPreferencesStore {
     func update(_ body: (inout ViewPreferences) -> Void) {
         var next = preferences
         body(&next)
-        guard next.statsCards != preferences.statsCards || next.compactMode != preferences.compactMode else { return }
+        guard next.statsCards != preferences.statsCards
+                || next.compactMode != preferences.compactMode
+                || next.swipeActions != preferences.swipeActions
+        else { return }
         next.updatedAt = Date().timeIntervalSince1970
         preferences = next
     }
@@ -211,3 +242,105 @@ final class ViewPreferencesStore {
 }
 
 typealias StatsCardStore = ViewPreferencesStore
+
+// MARK: - Wischaktionen
+
+/// Die Wahl in den Einstellungen. Haupt- und Nebenaktion werden erst mit
+/// einer Habit-Art zu einer konkreten Operation aufgeloest.
+enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
+    case primary, secondary, archive, none
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .primary: return String(localized: "Standardaktion")
+        case .secondary: return String(localized: "Zurücksetzen")
+        case .archive: return String(localized: "Archivieren")
+        case .none: return String(localized: "Keine Aktion")
+        }
+    }
+}
+
+struct SwipeActionsPreferences: Codable, Equatable, Sendable {
+    var enabled: Bool
+    var leading: SwipeActionChoice
+    var trailing: SwipeActionChoice
+
+    init(enabled: Bool = true,
+         leading: SwipeActionChoice = .primary,
+         trailing: SwipeActionChoice = .secondary) {
+        self.enabled = enabled
+        self.leading = leading
+        self.trailing = trailing
+    }
+
+    private enum CodingKeys: String, CodingKey { case enabled, leading, trailing }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        leading = (try c.decodeIfPresent(String.self, forKey: .leading))
+            .flatMap(SwipeActionChoice.init(rawValue:)) ?? .primary
+        trailing = (try c.decodeIfPresent(String.self, forKey: .trailing))
+            .flatMap(SwipeActionChoice.init(rawValue:)) ?? .secondary
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encode(leading.rawValue, forKey: .leading)
+        try c.encode(trailing.rawValue, forKey: .trailing)
+    }
+}
+
+/// Eine konkrete Aktion, die `ContentView` direkt in ein `swipeActions`-
+/// Element uebersetzen kann. Archivieren bleibt immer ein gezielter Tap.
+enum SwipeOperation: String, Equatable, Sendable {
+    case done, reset, increment, yes, no, archive
+}
+
+struct EffectiveSwipeAction: Equatable, Sendable {
+    let operation: SwipeOperation
+
+    var allowsFullSwipe: Bool { operation != .archive }
+}
+
+struct EffectiveSwipeActions: Equatable, Sendable {
+    var leading: EffectiveSwipeAction?
+    var trailing: EffectiveSwipeAction?
+
+    static let disabled = EffectiveSwipeActions(leading: nil, trailing: nil)
+}
+
+extension ViewPreferences {
+    /// Die einzige Leseschnittstelle fuer Listen: globaler Schalter, optional
+    /// pro Habit ueberschrieben, und erst dann an dessen Art gebunden.
+    func effectiveSwipeActions(for habit: Habit) -> EffectiveSwipeActions {
+        guard swipeActions.enabled else { return .disabled }
+        let override = habit.swipeActions
+        return EffectiveSwipeActions(
+            leading: effectiveAction(override?.leading ?? swipeActions.leading, for: habit),
+            trailing: effectiveAction(override?.trailing ?? swipeActions.trailing, for: habit))
+    }
+
+    private func effectiveAction(_ choice: SwipeActionChoice, for habit: Habit) -> EffectiveSwipeAction? {
+        switch choice {
+        case .none:
+            return nil
+        case .archive:
+            return EffectiveSwipeAction(operation: .archive)
+        case .primary:
+            switch habit.kind {
+            case .checkbox: return EffectiveSwipeAction(operation: .done)
+            case .quantity: return EffectiveSwipeAction(operation: .increment)
+            case .yesNo: return EffectiveSwipeAction(operation: .yes)
+            }
+        case .secondary:
+            switch habit.kind {
+            case .checkbox, .quantity: return EffectiveSwipeAction(operation: .reset)
+            case .yesNo: return EffectiveSwipeAction(operation: .no)
+            }
+        }
+    }
+}

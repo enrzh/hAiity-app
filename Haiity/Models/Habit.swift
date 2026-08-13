@@ -35,9 +35,14 @@ struct Habit: Codable, Identifiable, Equatable {
     var name: String
     var emoji: String
     var createdAt: String
-    /// Uhrzeit einer eigenen, konkreten Erinnerung in Minuten seit
-    /// Mitternacht. Das bestehende Feld bleibt unverändert codiert, damit
-    /// ältere Dateien und Geräte den Wert weiterhin verlustfrei tragen.
+    /// **Nur noch Altlast.** Bis v4 war das die Uhrzeit der EIGENEN
+    /// Erinnerung dieses Habits. Die gibt es nicht mehr — erinnert wird
+    /// zentral über die Tages- und die Wochenzusammenfassung (siehe
+    /// `Reminders`). Das Feld bleibt trotzdem stehen und wird weiter gelesen
+    /// UND geschrieben: eine ausgelieferte Datei soll unverändert durch die
+    /// App laufen, ohne dass ein Schlüssel still verschwindet (kein
+    /// Versionssprung, kein Datenverlust auf einem zweiten Gerät, das noch
+    /// den alten Build fährt). Ausgewertet wird der Wert nirgends mehr.
     var reminderMinutes: Int?
     /// Uhrzeit des Habits selbst, als Minuten seit Mitternacht; nil = ohne
     /// Uhrzeit. Das ist eine EIGENSCHAFT des Termins („Laufen um 07:30"),
@@ -82,6 +87,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// dieses. Zeigt entweder auf eine eingebaute Familie oder auf eine
     /// eigene Farbe des Nutzers.
     var palette: PaletteRef?
+    /// nil = globale Wischaktion verwenden. Ein gesetzter Wert ersetzt beide
+    /// Seiten, damit "keine Aktion" eine bewusste lokale Entscheidung ist.
+    var swipeActions: SwipeActionsOverride?
     /// Die Art des Habits. **Der einzige Wert, der hier etwas entscheidet,
     /// ist `.yesNo`** — `.checkbox` und `.quantity` fallen wie bisher aus
     /// `recurrence.target` und werden beim Anlegen wie beim Lesen
@@ -108,6 +116,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.archivedAt = nil
         self.recurrence = recurrence
         self.palette = nil
+        self.swipeActions = nil
         self.kind = Habit.resolvedKind(marker: kind.rawValue, log: [:],
                                        target: recurrence.target)
     }
@@ -136,7 +145,7 @@ extension Habit {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette
+        case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -200,6 +209,7 @@ extension Habit {
         // älterer Build beim nächsten Speichern das ganze Habit.
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
             .flatMap(PaletteRef.init(rawValue:))
+        swipeActions = try c.decodeIfPresent(SwipeActionsOverride.self, forKey: .swipeActions)
         // ZULETZT, weil die Antworten im Log darüber mitentscheiden — ein
         // von einem älteren Build weggeschriebener Marker heilt sich daran.
         kind = Habit.resolvedKind(marker: try c.decodeIfPresent(String.self, forKey: .kind),
@@ -228,11 +238,41 @@ extension Habit {
         try c.encodeIfPresent(durationMinutes, forKey: .durationMinutes)
         if !minutes.isEmpty { try c.encode(minutes, forKey: .minutes) }
         try c.encodeIfPresent(palette?.rawValue, forKey: .palette)
+        try c.encodeIfPresent(swipeActions, forKey: .swipeActions)
         // Wie überall: der Standard bleibt implizit. Geschrieben wird der
         // Marker nur für die eine Art, die man ihm nicht ansieht — Checkbox
         // und Menge fallen weiter aus `goal.target`, und eine Datei ohne
         // Ja/Nein-Habits sieht Byte für Byte aus wie vorher.
         if kind == .yesNo { try c.encode(kind.rawValue, forKey: .kind) }
+    }
+}
+
+/// Optionale lokale Belegung beider Wischseiten. Fehlt der Wert, bleibt die
+/// globale Konfiguration wirksam; ungueltige gespeicherte Werte fallen auf
+/// die jeweilige globale Seite zurueck.
+struct SwipeActionsOverride: Codable, Equatable, Sendable {
+    var leading: SwipeActionChoice?
+    var trailing: SwipeActionChoice?
+
+    init(leading: SwipeActionChoice?, trailing: SwipeActionChoice?) {
+        self.leading = leading
+        self.trailing = trailing
+    }
+
+    private enum CodingKeys: String, CodingKey { case leading, trailing }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        leading = (try c.decodeIfPresent(String.self, forKey: .leading))
+            .flatMap(SwipeActionChoice.init(rawValue:))
+        trailing = (try c.decodeIfPresent(String.self, forKey: .trailing))
+            .flatMap(SwipeActionChoice.init(rawValue:))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(leading?.rawValue, forKey: .leading)
+        try c.encodeIfPresent(trailing?.rawValue, forKey: .trailing)
     }
 }
 

@@ -75,6 +75,7 @@ struct MoreView: View, Equatable {
 
             statsCardsSection
             compactModeSection
+            swipeActionsSection
 
             dailySummarySection
             weeklySummarySection
@@ -218,6 +219,49 @@ struct MoreView: View, Equatable {
     private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
         Binding(get: { statsCards.prefs.isActive(card) },
                 set: { statsCards.setStatsCard(card, active: $0) })
+    }
+
+    private var swipeActionsSection: some View {
+        Section {
+            Toggle(String(localized: "Wischaktionen"), isOn: Binding(
+                get: { statsCards.preferences.swipeActions.enabled },
+                set: { enabled in
+                    statsCards.update { $0.swipeActions.enabled = enabled }
+                }))
+            .accessibilityIdentifier("swipe-actions-toggle")
+
+            if statsCards.preferences.swipeActions.enabled {
+                Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
+                    ForEach(SwipeActionChoice.allCases) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("swipe-leading-picker")
+
+                Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
+                    ForEach(SwipeActionChoice.allCases) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("swipe-trailing-picker")
+            }
+        } header: {
+            Text(String(localized: "Wischaktionen"))
+        } footer: {
+            Text(String(localized: "Standardaktion bedeutet Erledigt, +1 oder Ja. Zurücksetzen bedeutet Zurücksetzen oder Nein. Archivieren verlangt immer einen Tap."))
+        }
+    }
+
+    private var swipeLeadingBinding: Binding<SwipeActionChoice> {
+        Binding(get: { statsCards.preferences.swipeActions.leading },
+                set: { choice in statsCards.update { $0.swipeActions.leading = choice } })
+    }
+
+    private var swipeTrailingBinding: Binding<SwipeActionChoice> {
+        Binding(get: { statsCards.preferences.swipeActions.trailing },
+                set: { choice in statsCards.update { $0.swipeActions.trailing = choice } })
     }
 
     // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der
