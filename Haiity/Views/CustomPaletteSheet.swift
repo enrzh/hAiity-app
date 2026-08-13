@@ -28,10 +28,15 @@ struct CustomPaletteSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    HueTileGrid(selected: base) { color = Theme.color($0) }
+                        .padding(.vertical, 4)
+                        .accessibilityIdentifier("custom-palette-tiles")
                     ColorPicker(selection: $color, supportsOpacity: false) {
-                        Label(String(localized: "Grundfarbe"), systemImage: "eyedropper")
+                        Label(String(localized: "Feinabstimmung"), systemImage: "eyedropper")
                     }
                     .accessibilityIdentifier("custom-palette-color")
+                } header: {
+                    Text(String(localized: "Grundfarbe"))
                 } footer: {
                     Text(String(localized: "Eine Farbe genügt — die fünf Stufen des Rasters rechnet hAiity daraus."))
                 }
@@ -73,16 +78,21 @@ struct CustomPaletteSheet: View {
         }
     }
 
-    /// Eine Vorschauzeile: Beschriftung plus die fünf ECHTEN Rasterzellen.
-    /// `RampSwatch` bekommt das Schema als Wert (nicht aus der Umgebung),
-    /// sonst könnte hier nur das gerade eingestellte gezeigt werden.
+    /// Eine Vorschauzeile: Beschriftung plus das Markenmotiv als ECHTES
+    /// Mini-Raster auf seiner Karte — man sieht das Jahresraster, nicht
+    /// eine abstrakte Stufenreihe. Das Schema kommt als erzwungene Umgebung,
+    /// damit beide Zeilen unabhängig vom gerade aktiven Schema stimmen.
     private func preview(_ title: String, dark: Bool) -> some View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(width: 56, alignment: .leading)
-            RampSwatch(style: style, dark: dark)
+            MotifGrid(pattern: MotifGrid.brand, palette: style, cellSize: 10)
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .padding(8)
+                .background(Theme.color(PaletteGenerator.cardHex(dark: dark)),
+                            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)

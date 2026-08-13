@@ -49,6 +49,9 @@ struct MoreView: View, Equatable {
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
     @State private var currentIconName: String?
     @State private var iconChangeFailed = false
+    /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
+    /// Vorschau sofort zeigt, dass frei gewählt und ehrlich gerundet wird.
+    @State private var freeIconColor: Color = Theme.color(0x0F766E)
     // Eigene Farben: anlegen, bearbeiten, umbenennen, löschen.
     @State private var creatingPalette = false
     @State private var editingPalette: CustomPalette?
@@ -132,6 +135,15 @@ struct MoreView: View, Equatable {
         // ContentView).
         .sheet(isPresented: $creatingPalette) {
             CustomPaletteSheet(store: store).themed(store)
+        }
+        .onAppear {
+            #if DEBUG
+            // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
+            // Liste sind in der Sim-Automatisierung unzuverlässig.
+            if ProcessInfo.processInfo.arguments.contains("-show-custom-palette") {
+                creatingPalette = true
+            }
+            #endif
         }
         .sheet(item: $editingPalette) { palette in
             CustomPaletteSheet(store: store, existing: palette).themed(store)
@@ -334,7 +346,7 @@ struct MoreView: View, Equatable {
         } header: {
             Text(String(localized: "Darstellung"))
         } footer: {
-            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. Für eigene Farben nimmt das Icon die nächstliegende der sechs eingebauten. Tippst du unten selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus."))
+            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. iOS kann nur mitgelieferte Icons setzen — hAiity bringt 18 mit; eine frei gewählte Farbe bekommt das nächstliegende davon. Tippst du oben selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus."))
         }
     }
 
@@ -347,27 +359,40 @@ struct MoreView: View, Equatable {
     // (Grün ist das Primär-Icon), was sich als „deaktiviert" las.
 
     private var iconGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 12)], spacing: 12) {
-            ForEach(GraphPalette.allCases) { palette in
-                iconCell(palette)
+        VStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 12)], spacing: 12) {
+                ForEach(GraphPalette.allCases) { palette in
+                    iconCell(named: AppIcons.name(for: palette),
+                             style: palette.style,
+                             label: palette.displayName,
+                             identifier: "app-icon-\(palette.rawValue)")
+                }
+                ForEach(AppIcons.hues) { hue in
+                    iconCell(named: hue.name,
+                             style: hue.style,
+                             label: String(localized: "Farbton \(hue.degrees)°"),
+                             identifier: "app-icon-h\(hue.degrees)")
+                }
             }
+            freeIconColorRow
         }
         .padding(.vertical, 4)
         .onAppear { currentIconName = UIApplication.shared.alternateIconName }
     }
 
-    /// Welche Familie gerade auf dem Homescreen liegt — mit Automatik die
-    /// aus der Graph-Farbe hergeleitete, sonst das zuletzt gesetzte Icon.
-    private var selectedIconPalette: GraphPalette {
+    /// Welches Icon gerade auf dem Homescreen liegt — mit Automatik das aus
+    /// der Graph-Farbe hergeleitete, sonst das zuletzt gesetzte.
+    private var selectedIconName: String? {
         store.matchAppIcon
-            ? AppIcons.iconPalette(for: store.palettes.global, customs: store.palettes.customs)
-            : AppIcons.palette(forIconName: currentIconName)
+            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            : currentIconName
     }
 
-    private func iconCell(_ palette: GraphPalette) -> some View {
-        let selected = selectedIconPalette == palette
+    private func iconCell(named name: String?, style: PaletteStyle,
+                          label: String, identifier: String) -> some View {
+        let selected = selectedIconName == name
         return Button {
-            chooseIcon(palette)
+            chooseIcon(named: name)
         } label: {
             VStack(spacing: 4) {
                 // Gezeichnet statt aus dem Katalog geladen: die
@@ -375,7 +400,7 @@ struct MoreView: View, Equatable {
                 // `UIImage(named:)` findet .appiconset-Bilder nicht
                 // zuverlässig (im Simulator gar nicht). Die Miniatur baut
                 // das Icon-Motiv nach — dunkle Kachel, Raster in der Rampe.
-                iconThumbnail(palette)
+                iconThumbnail(style: style)
                     .frame(width: 48, height: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .overlay(
@@ -391,14 +416,43 @@ struct MoreView: View, Equatable {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(palette.displayName)
+        .accessibilityLabel(label)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("app-icon-\(palette.rawValue)")
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// Freie Farbe: das Farbrad wählt, die Miniatur daneben zeigt EHRLICH
+    /// das eingebaute Icon, das daraus wird (iOS kann nur mitgelieferte
+    /// Icons setzen), und „Anwenden" setzt genau dieses.
+    private var freeIconColorRow: some View {
+        HStack(spacing: 12) {
+            ColorPicker(selection: $freeIconColor, supportsOpacity: false) {
+                Label(String(localized: "Eigene Icon-Farbe"), systemImage: "paintpalette")
+                    .font(.subheadline)
+            }
+            .accessibilityIdentifier("icon-color-picker")
+            .frame(maxWidth: .infinity)
+            iconThumbnail(style: AppIcons.style(forIconName: snappedFreeIconName))
+                .frame(width: 30, height: 30)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .accessibilityHidden(true)
+            Button(String(localized: "Anwenden")) {
+                chooseIcon(named: snappedFreeIconName)
+            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.bordered)
+            .tint(Theme.accentFill(palettes.style))
+            .accessibilityIdentifier("icon-color-apply")
+        }
+    }
+
+    private var snappedFreeIconName: String? {
+        AppIcons.iconName(forBase: Theme.hex(from: freeIconColor))
     }
 
     /// Das Icon-Motiv als Miniatur: dunkle Kachel, darauf ein 2×2-Raster in
     /// den Stufen der Familie — dieselbe Rampe wie im Jahresraster.
-    private func iconThumbnail(_ palette: GraphPalette) -> some View {
+    private func iconThumbnail(style: PaletteStyle) -> some View {
         ZStack {
             Color(red: 0.09, green: 0.11, blue: 0.10)
             VStack(spacing: 3) {
@@ -407,7 +461,7 @@ struct MoreView: View, Equatable {
                         ForEach(0..<2, id: \.self) { col in
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(Theme.level([2, 4, 3, 1][row * 2 + col],
-                                                  dark: true, palette: palette.style))
+                                                  dark: true, palette: style))
                                 .frame(width: 14, height: 14)
                         }
                     }
@@ -417,16 +471,16 @@ struct MoreView: View, Equatable {
     }
 
     /// Manuelle Wahl: Automatik aus, Icon setzen, Ergebnis zurückmelden.
-    private func chooseIcon(_ palette: GraphPalette) {
+    private func chooseIcon(named name: String?) {
         store.matchAppIcon = false
         Task {
-            let ok = await AppIcons.set(palette)
+            let ok = await AppIcons.set(name)
             await MainActor.run {
                 iconChangeFailed = !ok
                 // Nicht zurücklesen: `alternateIconName` hinkt der Animation
                 // des System-Dialogs hinterher, und die Markierung stünde
                 // einen Moment auf dem falschen Icon.
-                currentIconName = ok ? AppIcons.name(for: palette)
+                currentIconName = ok ? name
                                      : UIApplication.shared.alternateIconName
             }
         }

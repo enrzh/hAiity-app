@@ -619,57 +619,74 @@ final class CustomPaletteMergeTests: XCTestCase {
 
 // MARK: – App-Icon
 
-/// Alternative Icons gibt es nur für die sechs eingebauten Familien. Eine
-/// eigene Farbe bekommt deshalb das Icon mit dem NÄCHSTEN Farbton — siehe die
-/// Begründung in AppIcons.
+/// iOS kann nur MITGELIEFERTE Icons setzen. Eine freie Farbe bekommt deshalb
+/// das nächstliegende der 18 eingebauten — fünf Palettenakzente plus zwölf
+/// Farbton-Icons alle 30° — siehe die Begründung in AppIcons.
 final class CustomPaletteIconTests: XCTestCase {
     func testBuiltinRefsKeepTheirOwnIcon() {
         for palette in GraphPalette.allCases {
-            XCTAssertEqual(AppIcons.iconPalette(for: .builtin(palette), customs: []), palette)
+            XCTAssertEqual(AppIcons.iconName(for: .builtin(palette), customs: []),
+                           AppIcons.name(for: palette))
         }
     }
 
-    func testCustomPaletteTakesTheNearestHue() {
-        let cases: [(UInt32, GraphPalette)] = [
-            (0x1B5E20, .green),     // Dunkelgrün
-            (0x123A9C, .blue),      // Marineblau
-            (0x6A0DAD, .violet),    // Lila
-            (0xC97A00, .amber),     // Ocker
-            (0xE0407A, .rose),      // Pink
-        ]
-        for (base, expected) in cases {
-            XCTAssertEqual(AppIcons.nearest(base: base), expected,
-                           String(format: "#%06X", base))
+    /// Der exakte Akzent einer eingebauten Palette landet als freie Farbe
+    /// wieder auf GENAU deren Icon — die Anker schlagen sich nicht
+    /// gegenseitig tot.
+    func testBuiltinAccentsRoundTripThroughTheFreeColorPath() {
+        for palette in GraphPalette.allCases where palette != .gray {
+            XCTAssertEqual(AppIcons.iconName(forBase: palette.accentHex),
+                           AppIcons.name(for: palette), palette.rawValue)
         }
     }
 
-    func testAchromaticCustomPaletteTakesTheMonochromeIcon() {
-        for base: UInt32 in [0xFFFFFF, 0x000000, 0x808080] {
-            XCTAssertEqual(AppIcons.nearest(base: base), .gray, String(format: "#%06X", base))
-        }
-    }
-
-    func testCustomRefResolvesThroughTheBook() {
-        // Ziegelrot liegt im OKLCH-Farbton bei ~37° und damit näher an Rosé
-        // (~15°) als an Bernstein (~70°) — genau die Rechnung, die hier
-        // festgehalten wird.
-        let mine = CustomPalette(name: "Ziegel", base: 0xB4432A)
-        XCTAssertEqual(AppIcons.iconPalette(for: .custom(mine.id), customs: [mine]), .rose)
-        // Gelöscht: das Standard-Icon, nicht das zuletzt gesetzte.
-        XCTAssertEqual(AppIcons.iconPalette(for: .custom(UUID()), customs: [mine]), .default)
-    }
-
-    /// Jede eigene Farbe landet auf einem Icon, das es wirklich gibt.
-    func testEveryCustomPaletteMapsToARealIcon() {
+    /// Mit Ankern alle 30° liegt JEDE bunte Farbe höchstens ~15° neben
+    /// ihrem Icon — die Eigenschaft, nicht einzelne Zufallsfälle.
+    func testEveryHueLandsWithinFifteenDegreesOfItsIcon() {
         for hue in stride(from: 0, to: 360, by: 5) {
             let color = UIColor(hue: CGFloat(hue) / 360, saturation: 0.7, brightness: 0.7, alpha: 1)
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             color.getRed(&r, green: &g, blue: &b, alpha: &a)
             let base = (UInt32(r * 255) << 16) | (UInt32(g * 255) << 8) | UInt32(b * 255)
-            let palette = AppIcons.nearest(base: base)
-            if let name = AppIcons.name(for: palette) {
+            guard let baseHue = PaletteGenerator.hueDegrees(base) else { continue }
+
+            let name = AppIcons.iconName(forBase: base)
+            if let name {
                 XCTAssertTrue(AppIcons.alternateNames.contains(name), "\(name) ist kein echtes Icon")
             }
+            let iconHue: Double? = AppIcons.hues.first { $0.name == name }.map { Double($0.degrees) }
+                ?? GraphPalette.allCases.first { AppIcons.name(for: $0) == name }
+                    .flatMap { PaletteGenerator.hueDegrees($0.accentHex) }
+            let dist = iconHue.map { min(abs($0 - baseHue), 360 - abs($0 - baseHue)) }
+            XCTAssertNotNil(dist)
+            XCTAssertLessThanOrEqual(dist ?? 999, 16, String(format: "#%06X (H%.0f)", base, baseHue))
+        }
+    }
+
+    func testAchromaticCustomPaletteTakesTheMonochromeIcon() {
+        for base: UInt32 in [0xFFFFFF, 0x000000, 0x808080] {
+            XCTAssertEqual(AppIcons.iconName(forBase: base), "AppIcon-Gray",
+                           String(format: "#%06X", base))
+        }
+    }
+
+    func testCustomRefResolvesThroughTheBook() {
+        let mine = CustomPalette(name: "Petrol", base: 0x0F766E)
+        let resolved = AppIcons.iconName(for: .custom(mine.id), customs: [mine])
+        XCTAssertEqual(resolved, AppIcons.iconName(forBase: 0x0F766E))
+        XCTAssertNotNil(resolved)
+        // Gelöschter Verweis: das Primär-Icon, nicht das zuletzt gesetzte.
+        XCTAssertNil(AppIcons.iconName(for: .custom(UUID()), customs: [mine]))
+    }
+
+    /// Die Miniatur im Auswahlraster malt mit derselben Basis, aus der der
+    /// Generator das Icon gerechnet hat — für jeden Farbton-Anker.
+    func testEveryHueIconHasAChromaticBaseNearItsNominalHue() {
+        for hue in AppIcons.hues {
+            let deg = PaletteGenerator.hueDegrees(hue.base)
+            XCTAssertNotNil(deg, hue.name)
+            let dist = deg.map { min(abs($0 - Double(hue.degrees)), 360 - abs($0 - Double(hue.degrees))) }
+            XCTAssertLessThanOrEqual(dist ?? 999, 12, hue.name)
         }
     }
 }

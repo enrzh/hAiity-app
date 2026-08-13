@@ -249,30 +249,36 @@ final class ReminderUpcomingTests: XCTestCase {
     }
 }
 
-/// Das App-Icon-Auswahlraster (v11): die pure Abbildung zwischen dem, was
-/// iOS als `alternateIconName` meldet, und der Familie, die im Raster
-/// markiert wird.
+/// Das App-Icon-Auswahlraster (v11, seit v22 namensbasiert): die pure
+/// Abbildung zwischen dem, was iOS als `alternateIconName` meldet, und der
+/// Miniatur-Farbtafel, mit der die Zelle im Raster gemalt wird.
 final class AppIconPickerTests: XCTestCase {
-    func testIconNameRoundTripsForEveryPalette() {
+    func testStyleRoundTripsForEveryPalette() {
         for palette in GraphPalette.allCases {
-            XCTAssertEqual(AppIcons.palette(forIconName: AppIcons.name(for: palette)), palette)
+            XCTAssertEqual(AppIcons.style(forIconName: AppIcons.name(for: palette)),
+                           palette.style, palette.rawValue)
         }
     }
 
-    func testUnknownIconNameFallsBackToDefault() {
-        XCTAssertEqual(AppIcons.palette(forIconName: "AppIcon-Petrol"), .default)
+    func testStyleRoundTripsForEveryHueIcon() {
+        for hue in AppIcons.hues {
+            XCTAssertEqual(AppIcons.style(forIconName: hue.name), hue.style, hue.name)
+        }
     }
 
-    func testNilMeansThePrimaryGreenIcon() {
-        XCTAssertEqual(AppIcons.palette(forIconName: nil), .green)
+    func testUnknownIconNameFallsBackToTheGreenStyle() {
+        // Kaputter Stand oder künftiges Icon: die Miniatur malt Grün, weil
+        // nil ohnehin „Primär-Icon" heißt.
+        XCTAssertEqual(AppIcons.style(forIconName: "AppIcon-Petrol"), GraphPalette.green.style)
+        XCTAssertEqual(AppIcons.style(forIconName: nil), GraphPalette.green.style)
     }
 
-    func testEveryPaletteHasAThumbnailAssetName() {
-        // Das Raster lädt die Icons per UIImage(named:) — der Name des
-        // Primär-Icons ist "AppIcon", alle anderen ihr Katalogname.
-        XCTAssertEqual(AppIcons.assetName(for: .green), "AppIcon")
-        for palette in GraphPalette.allCases where palette != .green {
-            XCTAssertEqual(AppIcons.assetName(for: palette), AppIcons.name(for: palette))
+    func testHueIconNamesFollowTheCatalogPattern() {
+        XCTAssertEqual(AppIcons.hues.count, 12)
+        XCTAssertEqual(AppIcons.hues.map(\.degrees), Array(stride(from: 0, to: 360, by: 30)))
+        for hue in AppIcons.hues {
+            XCTAssertTrue(hue.name.hasPrefix("AppIcon-H"), hue.name)
+            XCTAssertEqual(hue.name.count, "AppIcon-H000".count, hue.name)
         }
     }
 }

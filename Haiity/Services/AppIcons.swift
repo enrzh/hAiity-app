@@ -37,64 +37,82 @@ enum AppIcons {
         }
     }
 
+    /// Ein frei wählbarer Icon-Farbton: alle 30° einer, damit jede im
+    /// Farbrad gewählte Farbe höchstens ~15° neben einem echten Icon liegt.
+    /// `base` ist die Farbe, aus der der Generator die Rampe des Icons
+    /// gerechnet hat — die Miniatur im Auswahlraster rechnet mit DERSELBEN
+    /// Basis, deshalb können Vorschau und Homescreen nicht auseinanderlaufen.
+    struct IconHue: Identifiable, Equatable, Sendable {
+        let degrees: Int
+        let base: UInt32
+        var name: String { String(format: "AppIcon-H%03d", degrees) }
+        var id: Int { degrees }
+        var style: PaletteStyle { PaletteGenerator.style(base: base) }
+    }
+
+    /// Die zwölf Farbton-Icons (Basen: OKLCH-nächste sRGB-Farbe zur
+    /// mittleren Helligkeit/Chromatik der eingebauten Akzente — dieselben
+    /// Werte stehen als Rampen in aiity-web/scripts/make-icons.swift).
+    static let hues: [IconHue] = [
+        IconHue(degrees: 0,   base: 0xD2427B),
+        IconHue(degrees: 30,  base: 0xD84836),
+        IconHue(degrees: 60,  base: 0xC06900),
+        IconHue(degrees: 90,  base: 0x9F7E00),
+        IconHue(degrees: 120, base: 0x789000),
+        IconHue(degrees: 150, base: 0x009C42),
+        IconHue(degrees: 180, base: 0x009984),
+        IconHue(degrees: 210, base: 0x0096A8),
+        IconHue(degrees: 240, base: 0x008ACF),
+        IconHue(degrees: 270, base: 0x5775ED),
+        IconHue(degrees: 300, base: 0x9360DB),
+        IconHue(degrees: 330, base: 0xBA4EB4),
+    ]
+
     /// Alle Katalognamen, die `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`
     /// kennen muss — Quelle für den Test, der project.yml gegen den Code hält.
     static var alternateNames: [String] {
-        GraphPalette.allCases.compactMap { name(for: $0) }
+        GraphPalette.allCases.compactMap { name(for: $0) } + hues.map(\.name)
     }
 
-    /// Welche EINGEBAUTE Familie ein Verweis auf dem Homescreen vertritt.
-    /// Eingebaute vertreten sich selbst; eine eigene Farbe die mit dem
-    /// nächsten Farbton. Rein und ohne UIKit, damit es prüfbar ist.
-    static func iconPalette(for ref: PaletteRef, customs: [CustomPalette]) -> GraphPalette {
+    /// Freie Farbe → Katalogname des nächstliegenden eingebauten Icons
+    /// (nil = Primär-Grün). Unbunt bekommt Monochrom; sonst entscheidet der
+    /// kürzeste Weg auf dem Farbtonkreis über ALLE 18 Anker — die fünf
+    /// Palettenakzente und die zwölf Farbton-Icons.
+    static func iconName(forBase base: UInt32) -> String? {
+        guard let hue = PaletteGenerator.hueDegrees(base) else { return name(for: .gray) }
+        func dist(_ h: Double) -> Double { let raw = abs(h - hue); return min(raw, 360 - raw) }
+        var candidates: [(name: String?, dist: Double)] = GraphPalette.allCases.compactMap {
+            guard let h = PaletteGenerator.hueDegrees($0.accentHex) else { return nil }
+            return (name(for: $0), dist(h))
+        }
+        candidates += hues.map { ($0.name, dist(Double($0.degrees))) }
+        return candidates.min { $0.dist < $1.dist }?.name ?? nil
+    }
+
+    /// Die Farbtafel, mit der die Miniatur eines Icons zu malen ist.
+    static func style(forIconName name: String?) -> PaletteStyle {
+        if let palette = GraphPalette.allCases.first(where: { self.name(for: $0) == name }) {
+            return palette.style
+        }
+        return hues.first { $0.name == name }?.style ?? GraphPalette.green.style
+    }
+
+    /// Welches Icon die Kopplung „Icon folgt der Graph-Farbe" setzt:
+    /// eingebaute Paletten ihr eigenes, eine eigene Farbe das nächste der 18.
+    static func iconName(for ref: PaletteRef, customs: [CustomPalette]) -> String? {
         switch ref {
-        case .builtin(let palette):
-            return palette
+        case .builtin(let palette): return name(for: palette)
         case .custom(let id):
-            guard let base = customs.first(where: { $0.id == id })?.base else { return .default }
-            return nearest(base: base)
+            guard let base = customs.first(where: { $0.id == id })?.base else { return nil }
+            return iconName(forBase: base)
         }
-    }
-
-    /// Nächstliegende eingebaute Familie zu einer freien Farbe.
-    static func nearest(base: UInt32) -> GraphPalette {
-        // Kein Farbton -> Monochrom. Ein Grau dem Grün zuzuordnen, nur weil
-        // atan2(0, 0) zufällig 0 ergibt, wäre ein Rechenartefakt.
-        guard let hue = PaletteGenerator.hueDegrees(base) else { return .gray }
-        let candidates = GraphPalette.allCases.compactMap { palette -> (GraphPalette, Double)? in
-            guard let h = PaletteGenerator.hueDegrees(palette.accentHex) else { return nil }
-            let raw = abs(h - hue)
-            return (palette, min(raw, 360 - raw))   // Farbton ist ein Kreis
-        }
-        return candidates.min { $0.1 < $1.1 }?.0 ?? .default
-    }
-
-    /// Umkehrung von `name(for:)` — aus dem, was iOS als
-    /// `alternateIconName` meldet, wird die Familie fürs Auswahlraster.
-    /// Unbekannte Namen (kaputter Stand, künftige Icons) fallen auf Grün
-    /// zurück, weil nil dort ohnehin „Primär-Icon" heißt.
-    static func palette(forIconName name: String?) -> GraphPalette {
-        GraphPalette.allCases.first { self.name(for: $0) == name } ?? .default
-    }
-
-    /// Anzeigename des Bildes im Auswahlraster. Dank
-    /// `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` liegen alle
-    /// .appiconset auch als benannte Bilder in Assets.car — `UIImage(named:)`
-    /// findet sie ohne lose PNGs.
-    static func assetName(for palette: GraphPalette) -> String {
-        name(for: palette) ?? "AppIcon"
     }
 
     @MainActor
     static func apply(_ book: PaletteBook) async {
-        await apply(iconPalette(for: book.global, customs: book.customs))
-    }
-
-    @MainActor
-    static func apply(_ palette: GraphPalette) async {
         // Fehler bewusst geschluckt: ein fehlgeschlagener Icon-Wechsel ist
         // kosmetisch und darf die Farbumstellung nicht zurückrollen.
-        _ = await set(palette)
+        _ = await set(iconName(for: book.global, customs: book.customs))
     }
 
     /// Wie `apply`, aber mit Antwort — das Auswahlraster in „Mehr" sagt dem
@@ -102,10 +120,9 @@ enum AppIcons {
     /// dieses Schweigen las sich auf dem Gerät als „ist deaktiviert").
     @MainActor
     @discardableResult
-    static func set(_ palette: GraphPalette) async -> Bool {
+    static func set(_ wanted: String?) async -> Bool {
         let app = UIApplication.shared
         guard app.supportsAlternateIcons else { return false }
-        let wanted = name(for: palette)
         guard app.alternateIconName != wanted else { return true }
         do { try await app.setAlternateIconName(wanted); return true }
         catch { return false }

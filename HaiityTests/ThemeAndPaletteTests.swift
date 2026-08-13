@@ -352,7 +352,10 @@ final class AppIconTests: XCTestCase {
         let names = GraphPalette.allCases.compactMap { AppIcons.name(for: $0) }
         XCTAssertEqual(names.count, GraphPalette.allCases.count - 1)
         XCTAssertEqual(Set(names).count, names.count, "doppelte Icon-Namen")
-        XCTAssertEqual(Set(names), Set(AppIcons.alternateNames))
+        // Die Alternates sind Paletten-Icons PLUS die zwölf Farbton-Icons.
+        XCTAssertEqual(Set(AppIcons.alternateNames),
+                       Set(names).union(AppIcons.hues.map(\.name)))
+        XCTAssertEqual(AppIcons.alternateNames.count, 17, "5 Paletten + 12 Farbtöne")
     }
 
     /// Der eigentliche Nachweis: actool hat die Icons wirklich ins Bundle

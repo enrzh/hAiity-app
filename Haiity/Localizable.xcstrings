@@ -8172,6 +8172,106 @@
         }
       }
     },
+    "Anwenden": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تطبيق"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "প্রয়োগ করুন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplicar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appliquer"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लागू करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terapkan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applica"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適用"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "적용"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplicar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Применить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygula"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لاگو کریں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áp dụng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
     "App-Icon anpassen": {
       "localizations": {
         "ar": {
@@ -9478,102 +9578,102 @@
         }
       }
     },
-    "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. Für eigene Farben nimmt das Icon die nächstliegende der sechs eingebauten. Tippst du unten selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus.": {
+    "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. iOS kann nur mitgelieferte Icons setzen — hAiity bringt 18 mit; eine frei gewählte Farbe bekommt das nächstliegende davon. Tippst du oben selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus.": {
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يسأل iOS مرة واحدة بإيجاز عند تغيير أيقونة التطبيق. وللألوان الخاصة تأخذ الأيقونة أقرب لون من الستة المدمجة. انقر على أيقونة بالأسفل لاختيارها بنفسك — تبقى ثابتة ويتوقف التكييف التلقائي."
+            "value": "عند تكيّف أيقونة التطبيق يسأل iOS مرة واحدة بإيجاز. لا يستطيع iOS تعيين سوى الأيقونات المرفقة — يأتي hAiity بثمانية عشر؛ واللون الحر يحصل على الأقرب. اضغط أيقونة بالأعلى بنفسك فتثبت — وينطفئ التكيّف التلقائي."
           }
         },
         "bn": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Icon বদলানোর সময় iOS একবার সংক্ষেপে জিজ্ঞাসা করে। নিজের রঙের ক্ষেত্রে আইকন ছয়টি অন্তর্নির্মিত রঙের মধ্যে নিকটতমটি নেয়। নিচে কোনো আইকনে ট্যাপ করে নিজে বাছুন — সেটি স্থির থাকে এবং স্বয়ংক্রিয় মেলানো বন্ধ হয়ে যায়।"
+            "value": "অ্যাপ আইকন মানিয়ে নিলে iOS একবার সংক্ষেপে জিজ্ঞেস করে। iOS কেবল সঙ্গে থাকা আইকনই সেট করতে পারে — hAiity-তে ১৮টি আছে; স্বাধীনভাবে বাছা রং সবচেয়ে কাছেরটি পায়। উপরে নিজে একটি আইকন ছুঁলে সেটি স্থির থাকে — স্বয়ংক্রিয় মিল বন্ধ হয়।"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS asks once briefly when the App-Icon changes. For custom colors the icon uses the closest of the six built-in ones. Tap an icon below to pick it yourself — it stays fixed and the automatic matching turns off."
+            "value": "When the app icon adapts, iOS asks once briefly. iOS can only set bundled icons — hAiity ships 18; a freely picked color gets the closest one. Tap an icon above yourself and it stays fixed — automatic matching turns off."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS pregunta una vez brevemente al cambiar el App-Icon. Para colores propios, el icono usa el más parecido de los seis integrados. Toca un icono abajo para elegirlo tú mismo: se queda fijo y el ajuste automático se desactiva."
+            "value": "Al adaptar el icono, iOS pregunta brevemente una vez. iOS solo puede usar iconos incluidos: hAiity trae 18; un color libre recibe el más cercano. Si tocas un icono arriba, queda fijo y la adaptación automática se desactiva."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS demande une fois brièvement quand l’App-Icon change. Pour les couleurs personnalisées, l’icône prend la plus proche des six intégrées. Touche une icône en dessous pour la choisir toi-même — elle reste fixe et l’ajustement automatique se désactive."
+            "value": "Quand l'icône s'adapte, iOS demande brièvement une fois. iOS ne peut définir que des icônes intégrées — hAiity en embarque 18 ; une couleur libre reçoit la plus proche. Touche une icône ci-dessus et elle reste fixe — l'adaptation automatique se désactive."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Icon बदलते समय iOS एक बार संक्षेप में पूछता है। अपने रंगों के लिए आइकन छह अंतर्निर्मित रंगों में से सबसे नज़दीकी लेता है। नीचे किसी आइकन पर टैप करके खुद चुनें — वह स्थिर रहता है और स्वचालित मिलान बंद हो जाता है।"
+            "value": "ऐप आइकन बदलते समय iOS एक बार संक्षेप में पूछता है। iOS केवल साथ आए आइकन ही सेट कर सकता है — hAiity में 18 हैं; स्वतंत्र चुना रंग सबसे नज़दीकी पाता है। ऊपर खुद कोई आइकन छूने पर वह स्थिर रहता है — स्वचालित मिलान बंद हो जाता है।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS bertanya sekali sebentar saat App-Icon berubah. Untuk warna sendiri, ikonnya memakai yang paling dekat dari enam warna bawaan. Ketuk ikon di bawah untuk memilih sendiri — ikon itu tetap dan penyesuaian otomatis mati."
+            "value": "Saat ikon menyesuaikan, iOS bertanya sekali. iOS hanya bisa memakai ikon bawaan — hAiity membawa 18; warna bebas mendapat yang terdekat. Ketuk sendiri ikon di atas dan ia tetap — penyesuaian otomatis mati."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS chiede una volta brevemente quando cambia l’App-Icon. Per i colori personalizzati l’icona usa il più vicino dei sei integrati. Tocca un’icona qui sotto per sceglierla tu — resta fissa e l’adattamento automatico si disattiva."
+            "value": "Quando l'icona si adatta, iOS chiede brevemente una volta. iOS può impostare solo icone incluse — hAiity ne porta 18; un colore libero riceve la più vicina. Tocca un'icona qui sopra e resta fissa — l'adattamento automatico si spegne."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Iconを変えるとき、iOSが一度だけ短く確認します。独自の色の場合は、内蔵の6色のうち最も近いものが使われます。 下のアイコンをタップして自分で選ぶと固定され、自動調整はオフになります。"
+            "value": "アイコン変更時にiOSが一度だけ確認します。iOSは同梱アイコンしか設定できません — hAiityは18種を同梱し、自由に選んだ色には最も近いものが使われます。上のアイコンを自分でタップすると固定され、自動調整はオフになります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Icon을 바꿀 때 iOS가 한 번 짧게 물어봐요. 직접 만든 색은 기본 여섯 색 중 가장 가까운 것을 써요. 아래에서 아이콘을 직접 탭해 고르면 그대로 고정되고 자동 맞추기는 꺼져요."
+            "value": "앱 아이콘이 바뀔 때 iOS가 한 번 짧게 묻습니다. iOS는 내장 아이콘만 설정할 수 있습니다 — hAiity는 18개를 제공하며, 자유롭게 고른 색은 가장 가까운 것을 받습니다. 위에서 직접 아이콘을 탭하면 고정되고 자동 맞춤은 꺼집니다."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "O iOS pergunta uma vez rapidamente quando o App-Icon muda. Para cores próprias, o ícone usa a mais próxima das seis integradas. Toque num ícone abaixo para escolher você mesmo — ele fica fixo e o ajuste automático desliga."
+            "value": "Ao adaptar o ícone, o iOS pergunta uma vez. O iOS só define ícones incluídos — o hAiity traz 18; uma cor livre recebe o mais próximo. Toque você mesmo num ícone acima e ele fica fixo — a adaptação automática desliga."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "При смене App-Icon iOS один раз коротко спросит. Для своих цветов иконка берёт ближайший из шести встроенных. Нажми на значок внизу, чтобы выбрать его самому — он закрепится, а автоматическая подстройка выключится."
+            "value": "При смене значка iOS один раз коротко спросит. iOS ставит только встроенные значки — в hAiity их 18; свободно выбранный цвет получает ближайший. Нажми значок выше сам — он закрепится, а автоподбор выключится."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Icon değişirken iOS bir kez kısaca sorar. Kendi renklerin için ikon, yerleşik altı renkten en yakınını alır. Aşağıdan bir simgeye dokunup kendin seç — sabit kalır ve otomatik eşleştirme kapanır."
+            "value": "Simge uyarlanırken iOS bir kez kısaca sorar. iOS yalnızca paketli simgeleri ayarlayabilir — hAiity 18 tane getirir; serbest seçilen renk en yakınını alır. Yukarıdan kendin bir simgeye dokunursan sabit kalır — otomatik uyum kapanır."
           }
         },
         "ur": {
           "stringUnit": {
             "state": "translated",
-            "value": "App-Icon بدلتے وقت iOS ایک بار مختصراً پوچھتا ہے۔ اپنے رنگوں کے لیے آئیکن چھ بلٹ اِن رنگوں میں سے قریب ترین لیتا ہے۔ نیچے کسی آئیکن پر تھپتھپا کر خود چنیں — وہ مستقل رہتا ہے اور خودکار مطابقت بند ہو جاتی ہے۔"
+            "value": "ایپ آئیکن بدلتے وقت iOS ایک بار مختصر پوچھتا ہے۔ iOS صرف ساتھ دیے گئے آئیکن سیٹ کر سکتا ہے — hAiity میں 18 ہیں؛ آزادانہ چنا رنگ قریب ترین پاتا ہے۔ اوپر خود کوئی آئیکن چھوئیں تو وہ قائم رہتا ہے — خودکار مطابقت بند ہو جاتی ہے۔"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS sẽ hỏi ngắn một lần khi App-Icon đổi. Với màu riêng, biểu tượng lấy màu gần nhất trong sáu màu có sẵn. Chạm vào một biểu tượng bên dưới để tự chọn — nó giữ nguyên và tự động khớp sẽ tắt."
+            "value": "Khi biểu tượng thay đổi, iOS hỏi ngắn một lần. iOS chỉ đặt được biểu tượng đóng gói sẵn — hAiity mang theo 18; màu tự chọn nhận cái gần nhất. Tự chạm một biểu tượng ở trên thì nó cố định — tự động khớp sẽ tắt."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更换 App-Icon 时，iOS 会简短询问一次。自定义颜色会取六种内置颜色中最接近的一种。 在下方自选一个图标后它将保持不变——自动匹配随之关闭。"
+            "value": "更换应用图标时 iOS 会简短询问一次。iOS 只能设置内置图标——hAiity 自带 18 个；自由选择的颜色会得到最接近的一个。自己点按上方的图标则固定不变——自动匹配随之关闭。"
           }
         }
       }
@@ -12778,6 +12878,106 @@
         }
       }
     },
+    "Eigene Icon-Farbe": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لون أيقونة مخصص"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "নিজস্ব আইকন রং"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom icon color"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color de icono propio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleur d'icône personnalisée"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपना आइकन रंग"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna ikon sendiri"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colore icona personalizzato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アイコンの自由な色"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나만의 아이콘 색"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor de ícone personalizada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свой цвет значка"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özel simge rengi"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اپنا آئیکن رنگ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu biểu tượng riêng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定图标颜色"
+          }
+        }
+      }
+    },
     "Ein Habit auf dem Sperrbildschirm.": {
       "localizations": {
         "ar": {
@@ -15280,6 +15480,306 @@
           "stringUnit": {
             "state": "translated",
             "value": "重命名颜色"
+          }
+        }
+      }
+    },
+    "Farbton %lld°": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "درجة اللون %lld°"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "হিউ %lld°"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue %lld°"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tono %lld°"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teinte %lld°"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रंगत %lld°"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rona %lld°"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonalità %lld°"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相 %lld°"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상 %lld°"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matiz %lld°"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оттенок %lld°"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton %lld°"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رنگت %lld°"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tông màu %lld°"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相 %lld°"
+          }
+        }
+      }
+    },
+    "Farbton %lld°, %@": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "درجة اللون %lld°، %@"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "হিউ %lld°, %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue %lld°, %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tono %lld°, %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teinte %lld°, %@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रंगत %lld°, %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rona %lld°, %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonalità %lld°, %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相 %lld°、%@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상 %lld°, %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matiz %lld°, %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оттенок %lld°, %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton %lld°, %@"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رنگت %lld°، %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tông màu %lld°, %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相 %lld°，%@"
+          }
+        }
+      }
+    },
+    "Feinabstimmung": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ضبط دقيق"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সূক্ষ্ম সমন্বয়"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine-tune"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuste fino"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglage fin"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बारीक समायोजन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penyesuaian halus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regolazione fine"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微調整"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미세 조정"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuste fino"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Точная настройка"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İnce ayar"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "باریک ایڈجسٹمنٹ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tinh chỉnh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微调"
           }
         }
       }
@@ -32814,6 +33314,106 @@
         }
       }
     },
+    "hell": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فاتح"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "হালকা"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "light"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claro"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "clair"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हल्का"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "terang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chiaro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明るい"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "밝게"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claro"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "светлый"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "açık"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ہلکا"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sáng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅"
+          }
+        }
+      }
+    },
     "iCloud aktiv": {
       "localizations": {
         "ar": {
@@ -34020,6 +34620,106 @@
         }
       }
     },
+    "mittel": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "متوسط"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "মাঝারি"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "medium"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "medio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "moyen"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मध्यम"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sedang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "medio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中間"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "중간"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "médio"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "средний"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "orta"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "درمیانہ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vừa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中"
+          }
+        }
+      }
+    },
     "recurrence.date.dayInMonth": {
       "comment": "Tag + Monatsname einer Jahresregel: „15. März“",
       "extractionState": "extracted_with_value",
@@ -34448,6 +35148,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@个%2$@"
+          }
+        }
+      }
+    },
+    "tief": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "داكن"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "গাঢ়"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deep"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profundo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profond"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "गहरा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pekat"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profondo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深い"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "진하게"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "profundo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "глубокий"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "koyu"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "گہرا"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "đậm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深"
           }
         }
       }
