@@ -281,7 +281,7 @@ final class SwipeActionsTests: XCTestCase {
 
     func testHabitOverrideWinsOverGlobalSides() {
         var habit = Habit(name: "Lesen")
-        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .none)
+        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .some(.none))
 
         let effective = ViewPreferences().effectiveSwipeActions(for: habit)
         XCTAssertEqual(effective.leading?.operation, .archive)
@@ -296,7 +296,7 @@ final class SwipeActionsTests: XCTestCase {
 
     func testCurrentSwipeConfigurationRoundTrips() throws {
         var habit = Habit(name: "Lesen")
-        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .none)
+        habit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .some(.none))
         let data = HabitData(version: 2, updatedAt: 1, summaryMinutes: nil, habits: [habit],
                              viewPreferences: ViewPreferences(
                                 swipeActions: SwipeActionsPreferences(enabled: false,

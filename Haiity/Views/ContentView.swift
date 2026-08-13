@@ -732,20 +732,42 @@ struct ContentView: View {
                                   prompt: String(localized: "Habits durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        EditButton()
+                        Menu {
+                            Button {
+                                withAnimation {
+                                    editMode = editMode == .active ? .inactive : .active
+                                }
+                            } label: {
+                                Label(editMode == .active
+                                      ? String(localized: "Sortieren beenden")
+                                      : String(localized: "Habits sortieren"),
+                                      systemImage: "arrow.up.arrow.down")
+                            }
                             .disabled(!search.isEmpty)
                             .accessibilityIdentifier("reorder-habits")
-                    }
-                    if #unavailable(iOS 26) {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                openSearch(origin: .toolbar)
-                            } label: {
-                                Image(systemName: "magnifyingglass")
+
+                            Button { presentMoreSheet(.stats) } label: {
+                                Label(String(localized: "Statistik"), systemImage: "chart.bar")
                             }
-                            .accessibilityLabel(String(localized: "Habits durchsuchen"))
-                            .accessibilityIdentifier("open-search")
+                            .accessibilityIdentifier("open-stats")
+
+                            Button { presentMoreSheet(.archive) } label: {
+                                Label(String(localized: "Archiv"), systemImage: "archivebox")
+                            }
+                            .accessibilityIdentifier("open-archive")
+                        } label: {
+                            Label(String(localized: "Bearbeiten"), systemImage: "ellipsis")
                         }
+                        .accessibilityIdentifier("habit-management")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            openSearch(origin: .toolbar)
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .accessibilityLabel(String(localized: "Habits durchsuchen"))
+                        .accessibilityIdentifier("open-search")
                     }
                 }
         }
@@ -841,6 +863,7 @@ struct ContentView: View {
         #if DEBUG
         FrameProbe.shared.mark("row")
         #endif
+        let swipes = viewPreferences.preferences.effectiveSwipeActions(for: habit)
         return HabitCard(
             habit: habit,
             collapsed: collapsed,
@@ -869,11 +892,45 @@ struct ContentView: View {
                                   leading: Theme.Metrics.gutter,
                                   bottom: 0,
                                   trailing: Theme.Metrics.gutter))
-        // KEINE Wischgesten mehr — weder hier noch als Einstellung. Alle
-        // Aktionen einer Zeile hängen am langen Druck (HabitCard): die
-        // Vorschau zeigt das vergrößerte Raster, die Aktionen stehen
-        // darunter und sind beschriftet. Ein Wisch war unsichtbar, an beiden
-        // Kanten verschieden belegt und musste in „Mehr" erklärt werden.
+        .swipeActions(edge: .leading,
+                      allowsFullSwipe: swipes.leading?.allowsFullSwipe ?? false) {
+            if let action = swipes.leading { swipeButton(action, habit: habit) }
+        }
+        .swipeActions(edge: .trailing,
+                      allowsFullSwipe: swipes.trailing?.allowsFullSwipe ?? false) {
+            if let action = swipes.trailing { swipeButton(action, habit: habit) }
+        }
+    }
+
+    @ViewBuilder
+    private func swipeButton(_ action: EffectiveSwipeAction, habit: Habit) -> some View {
+        let label = swipeLabel(action.operation)
+        Button {
+            switch action.operation {
+            case .done: markDone(habit)
+            case .reset: revert(habit)
+            case .increment: increment(habit)
+            case .yes: answer(habit, yes: true)
+            case .no: answer(habit, yes: false)
+            case .archive: store.archive(habit.id)
+            }
+        } label: {
+            Label(label.title, systemImage: label.symbol)
+        }
+        .tint(label.tint)
+        .accessibilityLabel(label.title)
+    }
+
+    private func swipeLabel(_ operation: SwipeOperation)
+        -> (title: String, symbol: String, tint: Color) {
+        switch operation {
+        case .done: return (String(localized: "Erledigt"), "checkmark", .green)
+        case .reset: return (String(localized: "Zurücksetzen"), "arrow.uturn.backward", .gray)
+        case .increment: return (String(localized: "+1"), "plus", .green)
+        case .yes: return (String(localized: "Ja"), "checkmark", .green)
+        case .no: return (String(localized: "Nein"), "xmark", .red)
+        case .archive: return (String(localized: "Archivieren"), "archivebox", .orange)
+        }
     }
 
     // MARK: – Check-in mit Rückgängig
@@ -1902,7 +1959,7 @@ enum SearchOpenOrigin: CustomStringConvertible {
     case toolbar
     case deepLink
 
-    var requiresAutomaticToolbarBehavior: Bool { self == .deepLink }
+    var requiresAutomaticToolbarBehavior: Bool { true }
 
     var description: String {
         switch self {
@@ -2289,41 +2346,26 @@ private struct SearchableHidden: ViewModifier {
     let automaticBehavior: Bool
     let prompt: String
 
-    /// Nur iOS 26 lässt das System die minimierte Suche stellen. Zwei
-    /// Verfügbarkeits-Prüfungen dürfen nicht in EINE Bedingung (Swift lässt
-    /// `#available` und `#unavailable` nicht zusammen stehen), deshalb hier.
-    private var usesSystemMinimizedSearch: Bool {
-        if #unavailable(iOS 26) { return false }
-        return true
-    }
-
     @ViewBuilder
     func body(content: Content) -> some View {
-        if usesSystemMinimizedSearch, #available(iOS 26, *) {
-            // `.minimize` nur im RUHEZUSTAND: es liefert die native Lupe samt
-            // System-Aufklapp-Animation, verschluckt aber JEDE programmatische
-            // Präsentation (isPresented wie searchFocused, auch verzögert —
-            // empirisch geprüft). Der Deep-Link setzt
-            // deshalb `isPresented` und der Modifier wechselt im selben
-            // Umlauf auf `.automatic`, wo das Binding normal präsentiert.
-            content
+        if isPresented {
+            if #available(iOS 26, *) {
+                content
                 .searchable(text: $text,
                             isPresented: $isPresented,
                             prompt: Text(prompt))
-                .searchToolbarBehavior(automaticBehavior ? .automatic : .minimize)
                 .searchFocused(focus)
-        } else if isPresented {
-            let base = content
-                .searchable(text: $text,
-                            isPresented: $isPresented,
-                            placement: .navigationBarDrawer(displayMode: .always),
-                            prompt: Text(prompt))
-            // searchFocused gibt es erst ab iOS 18; darunter reicht der
-            // isPresented-Binding.
-            if #available(iOS 18, *) {
-                base.searchFocused(focus)
             } else {
-                base
+                let base = content
+                    .searchable(text: $text,
+                                isPresented: $isPresented,
+                                placement: .navigationBarDrawer(displayMode: .always),
+                                prompt: Text(prompt))
+                if #available(iOS 18, *) {
+                    base.searchFocused(focus)
+                } else {
+                    base
+                }
             }
         } else {
             content

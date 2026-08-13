@@ -89,8 +89,8 @@ say "Unit tests"
 # Navigation/Karten-Umbau: 12 neue Navigations-, Layout- und Interaktionstests.
 # Final-Review-Fix: 8 Navigations-/Lifecycle-Vertraege hinzugekommen.
 # Create-Cover-Nachpruefung: 5 Request-/Praesentationsvertraege hinzugekommen.
-# Boden: 769 + 8 + 5 = 782.
-MIN_TESTS=782
+# Boden: 782 + 12 neue Kalender-, Reminder-, Session- und Swipe-Vertraege = 794.
+MIN_TESTS=794
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

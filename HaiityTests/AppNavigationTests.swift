@@ -259,8 +259,22 @@ final class AppNavigationTests: XCTestCase {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("@State private var editMode: EditMode = .inactive"))
         XCTAssertTrue(source.contains(".environment(\\.editMode, $editMode)"))
-        XCTAssertTrue(source.contains("EditButton()"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
         XCTAssertTrue(source.contains(".onMove(perform: search.isEmpty"))
+    }
+
+    func testHabitToolbarKeepsManagementDestinationsReachable() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-management\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-stats\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))
+    }
+
+    func testSearchUsesOneExplicitToolbarCommand() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let marker = "accessibilityIdentifier(\"open-search\")"
+        XCTAssertEqual(source.components(separatedBy: marker).count - 1, 1)
+        XCTAssertFalse(source.contains("if #unavailable(iOS 26) {\n                        ToolbarItem(placement: .topBarTrailing)"))
     }
 
     private func sourceURL(_ path: String) -> URL {

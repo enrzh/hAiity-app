@@ -60,11 +60,11 @@ struct EditHabitSheet: View {
     /// „limitless" (sie zählt nur hoch).
     @State private var hasDuration = false
     @State private var durationMinutes = EditHabitSheet.defaultDuration
+    @State private var hasReminder = false
+    @State private var reminderMinutes = EditHabitSheet.defaultReminderMinutes
     /// nil = globale Wischbelegung. Nur beim Bearbeiten sichtbar, denn ein
     /// neues Habit soll mit der globalen, nachvollziehbaren Regel starten.
     @State private var swipeActions: SwipeActionsOverride?
-    @State private var hasReminder = false
-    @State private var reminderMinutes = EditHabitSheet.defaultReminderMinutes
 
     private var calendar: Calendar { .current }
 
