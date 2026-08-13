@@ -272,13 +272,19 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertNil(prefs.effectiveSwipeActions(for: yesNo).trailing)
     }
 
+    /// Die Zeile baut ihre KARTENHOHEN Aufzieh-Aktionen selbst (SwipeReveal)
+    /// — kein `.swipeActions` mehr: dessen System-Knöpfe sind auf hohen
+    /// Zeilen fixe Kapseln, und über dem Raster feuerte der System-Wischer
+    /// gar nicht. Die feste, artgerechte Erst-Aktion steht IMMER vor den
+    /// Extras aus den Einstellungen.
     func testContentViewAlwaysEmitsCoreSwipeActionsBeforeOptionalExtras() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("swipeButton(primarySwipe(for: habit), habit: habit)"))
-        XCTAssertTrue(source.contains("swipeButton(secondarySwipe(for: habit), habit: habit)"))
-        XCTAssertTrue(source.contains(".frame(maxHeight: .infinity)"))
+        XCTAssertTrue(source.contains("var leading = [revealAction(primarySwipe(for: habit), habit: habit)]"))
+        XCTAssertTrue(source.contains("var trailing = [revealAction(secondarySwipe(for: habit), habit: habit)]"))
+        XCTAssertTrue(source.contains("leading.append(revealAction(extra, habit: habit))"))
+        XCTAssertFalse(source.contains(".swipeActions(edge:"))
     }
 
     func testDisabledActionsAreNotExposed() {

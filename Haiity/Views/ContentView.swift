@@ -764,7 +764,7 @@ struct ContentView: View {
         #if DEBUG
         FrameProbe.shared.mark("row")
         #endif
-        let swipes = viewPreferences.preferences.effectiveSwipeActions(for: habit)
+        let reveal = revealActions(for: habit)
         return HabitCard(
             habit: habit,
             collapsed: collapsed,
@@ -786,7 +786,9 @@ struct ContentView: View {
             onMarkDone: { markDone(habit) },
             onEdit: { editing = habit },
             onArchive: { store.archive(habit.id) },
-            onAnswer: { answer(habit, yes: $0) }
+            onAnswer: { answer(habit, yes: $0) },
+            leadingSwipe: reveal.leading,
+            trailingSwipe: reveal.trailing
         )
         // `.equatable()`: siehe HabitCard. Ohne das baut jeder Tafel-/Toast-
         // Umbau alle sichtbaren Karten neu — gemessen der halbe Ruckler.
@@ -804,16 +806,30 @@ struct ContentView: View {
                                   leading: Theme.Metrics.gutter,
                                   bottom: 0,
                                   trailing: Theme.Metrics.gutter))
-        .swipeActions(edge: .leading,
-                      allowsFullSwipe: true) {
-            swipeButton(primarySwipe(for: habit), habit: habit)
-            if let action = swipes.leading { swipeButton(action, habit: habit) }
-        }
-        .swipeActions(edge: .trailing,
-                      allowsFullSwipe: true) {
-            swipeButton(secondarySwipe(for: habit), habit: habit)
-            if let action = swipes.trailing { swipeButton(action, habit: habit) }
-        }
+    }
+
+    /// Die Wisch-Aktionen als KARTENHOHE eigene Knöpfe (siehe SwipeReveal in
+    /// HabitCard) statt `.swipeActions`: die System-Knöpfe sind auf hohen
+    /// Zeilen fixe Kapseln (nachgemessen, nicht beeinflussbar) — neben einer
+    /// Rasterkarte wirkten sie verloren, und über dem Raster feuerte der
+    /// System-Wischer gar nicht erst (die horizontale ScrollView gewann).
+    /// Erste Aktion je Seite bleibt die FESTE, artgerechte; die Extras aus
+    /// den Einstellungen folgen dahinter.
+    private func revealActions(for habit: Habit) -> (leading: [RevealAction], trailing: [RevealAction]) {
+        let swipes = viewPreferences.preferences.effectiveSwipeActions(for: habit)
+        var leading = [revealAction(primarySwipe(for: habit), habit: habit)]
+        if let extra = swipes.leading { leading.append(revealAction(extra, habit: habit)) }
+        var trailing = [revealAction(secondarySwipe(for: habit), habit: habit)]
+        if let extra = swipes.trailing { trailing.append(revealAction(extra, habit: habit)) }
+        return (leading, trailing)
+    }
+
+    private func revealAction(_ action: EffectiveSwipeAction, habit: Habit) -> RevealAction {
+        let label = swipeLabel(action.operation)
+        return RevealAction(operation: action.operation,
+                            title: label.title,
+                            symbol: label.symbol,
+                            tint: label.tint) { perform(action.operation, on: habit) }
     }
 
     private func primarySwipe(for habit: Habit) -> EffectiveSwipeAction {
@@ -828,33 +844,18 @@ struct ContentView: View {
         EffectiveSwipeAction(operation: habit.kind == .yesNo ? .no : .reset)
     }
 
-    @ViewBuilder
-    private func swipeButton(_ action: EffectiveSwipeAction, habit: Habit) -> some View {
-        let label = swipeLabel(action.operation)
-        Button {
-            switch action.operation {
-            case .done: markDone(habit)
-            case .reset: revert(habit)
-            case .increment: increment(habit)
-            case .yes: answer(habit, yes: true)
-            case .no: answer(habit, yes: false)
-            case .archive: store.archive(habit.id)
-            case .backfill: openBackfill(habit, day: DayKey.today(), afterMenu: false)
-            case .session: HabitSessionManager.shared.start(habit: habit)
-            case .edit: editing = habit
-            }
-        } label: {
-            // Zur Höhe: iOS 26 zeichnet Wisch-Knöpfe als SYSTEM-Kapseln
-            // fester Größe (wie Mail/Podcasts). Frames am Label sind wirkungslos
-            // — der Inhalt wird zu Titel+Symbol plattgedrückt (nachgemessen:
-            // minHeight 260 und ein voller Zeilenhintergrund ändern nichts).
-            // Kartenhohe Knöpfe hießen: das komplette native Wisch-Verhalten
-            // (Haptik, Voll-Wisch, RTL, VoiceOver) selbst nachbauen.
-            Label(label.title, systemImage: label.symbol)
-                .frame(maxHeight: .infinity)
+    private func perform(_ operation: SwipeOperation, on habit: Habit) {
+        switch operation {
+        case .done: markDone(habit)
+        case .reset: revert(habit)
+        case .increment: increment(habit)
+        case .yes: answer(habit, yes: true)
+        case .no: answer(habit, yes: false)
+        case .archive: store.archive(habit.id)
+        case .backfill: openBackfill(habit, day: DayKey.today(), afterMenu: false)
+        case .session: HabitSessionManager.shared.start(habit: habit)
+        case .edit: editing = habit
         }
-        .tint(label.tint)
-        .accessibilityLabel(label.title)
     }
 
     private func swipeLabel(_ operation: SwipeOperation)

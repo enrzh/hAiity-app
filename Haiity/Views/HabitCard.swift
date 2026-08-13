@@ -30,6 +30,7 @@ import SwiftUI
 struct HabitCard: View, Equatable {
     static func == (a: HabitCard, b: HabitCard) -> Bool {
         a.habit == b.habit && a.collapsed == b.collapsed
+            && a.leadingSwipe == b.leadingSwipe && a.trailingSwipe == b.trailingSwipe
     }
 
     let habit: Habit
@@ -58,14 +59,28 @@ struct HabitCard: View, Equatable {
     /// Standardwert ganz am Ende, damit Vorschauen und Tests die Karte ohne
     /// diesen Weg bauen können.
     var onAnswer: (Bool) -> Void = { _ in }
+    /// Die Wisch-Aktionen hinter der Karte — kartenhoch, selbst aufgezogen
+    /// (die System-Wischknöpfe sind auf hohen Zeilen fixe Kapseln, siehe
+    /// SwipeReveal). Erste Aktion je Seite = die feste; Voll-Wisch löst sie
+    /// aus.
+    var leadingSwipe: [RevealAction] = []
+    var trailingSwipe: [RevealAction] = []
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.layoutDirection) private var layoutDirection
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
     private static let doneID = "done"
+    /// Aufzieh-Zustand der Karte (semantisch: positiv = leading offen) und
+    /// die Startlage des laufenden Zugs. Lebt in der Karte — Zellen-Recycling
+    /// setzt ihn zurück, genau richtig.
+    @State private var revealOffset: CGFloat = 0
+    @State private var revealStart: CGFloat = 0
+    /// Breite der Karte, für die Voll-Wisch-Schwelle (gemessen, nicht geraten).
+    @State private var revealCardWidth: CGFloat = 0
 
     private var today: String { DayKey.today() }
     private var doneToday: Bool { GoalEngine.dayCounts(habit: habit, day: today) }
@@ -98,14 +113,16 @@ struct HabitCard: View, Equatable {
         #endif
         return VStack(alignment: .leading, spacing: innerGap) {
             header
-                // Der Schlucker liegt HINTER dem Kopf, nicht darüber: die
-                // Knöpfe darin (Heute-Pille) sind gezeichnete
-                // Geschwister WEITER VORN und bekommen ihre Tipps zuerst.
-                // Ein Overlay — oder eine Geste auf dem Kopf selbst — nimmt
-                // sie ihnen weg (nachgemessen: die Pille reagierte dann
-                // nicht mehr).
-                .background { longPressSink }
-            grid
+            revealingGrid
+        }
+        // Der Zug für das Aufziehen deckt die GANZE Zeile (Kopf + Karte):
+        // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
+        // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
+        .background {
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { revealStart = revealOffset },
+                           changed: revealChanged,
+                           ended: revealEnded)
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
@@ -118,6 +135,140 @@ struct HabitCard: View, Equatable {
         // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
+    }
+
+    // MARK: – Aufziehen: kartenhohe Wisch-Knöpfe
+
+    /// Karte über Knöpfen: die Knöpfe stehen HINTER der Karte in derselben
+    /// Schachtel (und sind damit exakt kartenhoch); die Karte schiebt sich
+    /// beim Ziehen zur Seite und legt sie frei. Der Kopf darüber bleibt
+    /// stehen — die Knöpfe gehören zur Karte, nicht zur Zeile.
+    private var revealingGrid: some View {
+        ZStack {
+            if revealOffset != 0 {
+                revealButtons
+            }
+            grid
+                .offset(x: revealOffset * mirror)
+                // Offen ist die Karte MODAL für sich selbst: ein Tipp auf
+                // sie schließt nur (kein Zellen-Schreiben hinter offenen
+                // Knöpfen).
+                .overlay {
+                    if revealOffset != 0 {
+                        Color.clear
+                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                           style: .continuous))
+                            .onTapGesture { snapReveal(to: 0) }
+                            .offset(x: revealOffset * mirror)
+                    }
+                }
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            revealCardWidth = width
+        }
+        .accessibilityRevealActions(leadingSwipe + trailingSwipe)
+    }
+
+    /// Rechts-nach-links-Spiegel für den SCHIRM-Versatz — die Semantik
+    /// (leading positiv) bleibt davon unberührt.
+    private var mirror: CGFloat { layoutDirection == .rightToLeft ? -1 : 1 }
+
+    @ViewBuilder
+    private var revealButtons: some View {
+        let leadingOpen = revealOffset > 0
+        let actions = leadingOpen ? leadingSwipe : trailingSwipe
+        let exposed = abs(revealOffset)
+        let resting = SwipeReveal.revealWidth(count: actions.count)
+        HStack(spacing: SwipeReveal.buttonGap) {
+            ForEach(actions) { action in
+                revealButton(action)
+            }
+        }
+        // Die Knöpfe folgen der Kante, hinter der sie wohnen, und wachsen
+        // mit dem Gummiband leicht mit — nichts „steht" hinter der Karte.
+        .frame(maxWidth: .infinity, maxHeight: .infinity,
+               alignment: leadingOpen ? .leading : .trailing)
+        .opacity(min(1, exposed / max(resting * 0.6, 1)))
+        .scaleEffect(min(1, 0.9 + 0.1 * exposed / max(resting, 1)),
+                     anchor: leadingOpen ? .leading : .trailing)
+    }
+
+    private func revealButton(_ action: RevealAction) -> some View {
+        Button {
+            snapReveal(to: 0)
+            action.handler()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: action.symbol)
+                    .font(.title3.weight(.semibold))
+                Text(action.title)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .frame(width: SwipeReveal.buttonWidth)
+            .frame(maxHeight: .infinity)
+            .background(action.tint,
+                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                             style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(action.title)
+    }
+
+    private func revealShouldBegin(towardTrailing: Bool, horizontal: Bool,
+                                   overGrid: Bool, gridAtTrailingEnd: Bool) -> Bool {
+        SwipeReveal.canBegin(towardTrailing: towardTrailing,
+                             horizontalIntent: horizontal,
+                             open: revealOffset != 0,
+                             hasLeading: !leadingSwipe.isEmpty,
+                             hasTrailing: !trailingSwipe.isEmpty,
+                             overGrid: overGrid,
+                             gridAtTrailingEnd: gridAtTrailingEnd)
+    }
+
+    private func revealChanged(_ translation: CGFloat) {
+        revealOffset = SwipeReveal.offset(
+            start: revealStart, translation: translation,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+    }
+
+    private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
+        let resting = SwipeReveal.resting(
+            pull: revealStart + translation, velocity: velocity,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count),
+            cardWidth: revealCardWidth)
+        switch resting {
+        case .closed:
+            snapReveal(to: 0)
+        case .leading:
+            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count))
+        case .trailing:
+            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count))
+        case .commitLeading:
+            commitReveal(leadingSwipe.first)
+        case .commitTrailing:
+            commitReveal(trailingSwipe.first)
+        }
+    }
+
+    /// Voll-Wisch: die feste Erst-Aktion, mit Haptik — und die Karte
+    /// schnappt zurück (die Aktion zeigt sich selbst: Pille, Toast, Raster).
+    private func commitReveal(_ action: RevealAction?) {
+        Theme.Haptics.check()
+        snapReveal(to: 0)
+        action?.handler()
+    }
+
+    private func snapReveal(to target: CGFloat) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            revealOffset = target
+        }
     }
 
     // MARK: – Raster in der Fläche
@@ -251,7 +402,14 @@ struct HabitCard: View, Equatable {
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
-        .background(Color(.secondarySystemGroupedBackground))
+        // Die Vorschau steht im Menü-Fenster auf dem ABGEDUNKELTEN Inhalt.
+        // Die Basisfläche der Karten (#1C1C1E) säuft dort im Dunkelmodus ab
+        // (vom Gerät gemeldet: „kaum sichtbar") — deshalb die ANGEHOBENE
+        // Stufe (#2C2C2E), dieselbe, die das System für erhöhte Flächen wie
+        // Blätter und Menü-Teller benutzt. Hell bleibt alles wie gehabt.
+        .background(Color(scheme == .dark
+                          ? .tertiarySystemBackground
+                          : .secondarySystemGroupedBackground))
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
         // der Zeile nicht: ohne diese Zeile fiel das Raster darin auf die
         // Standardpalette zurück und leuchtete grün, während dieselben
@@ -332,17 +490,13 @@ struct HabitCard: View, Equatable {
         }
     }
 
-    /// **Warum der Kopf einen langen Druck schluckt.**
-    ///
-    /// Ein eigener Langdruck HINTER dem Kopf gewinnt die Erkennung und tut
-    /// nichts. Damit bleibt die Geste dem Raster vorbehalten — dem Bauteil,
-    /// das die Vorschau auch zeigt.
-    private var longPressSink: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .gesture(LongPressGesture(minimumDuration: 0.22).onEnded { _ in })
-            .accessibilityHidden(true)
-    }
+    // Hier stand der Kopf-„Schlucker" (ein LongPressGesture hinter dem
+    // Kopf). Er stammt aus der Zeit, in der das Halten-Menü selbst eine
+    // SwiftUI-Geste am Raster war und der Kopf sie fernhalten musste. Das
+    // Menü prüft seinen Ort inzwischen SELBST (GraphContextMenu, nur über
+    // der Karte) — und die tote SwiftUI-Geste hat obendrein den
+    // Aufzieh-Zug vom Kopf ferngehalten (nachgemessen: Züge, die auf dem
+    // Kopf begannen, erreichten den Zellen-Pan nie).
 
     /// Name zuerst, Nebendaten dahinter — auf DERSELBEN Schriftgrundlinie,
     /// nicht auf gleicher Kastenmitte. Deshalb `.firstTextBaseline` und
@@ -768,6 +922,42 @@ private struct GraphContextMenu: UIViewRepresentable {
             parameters.visiblePath = UIBezierPath(roundedRect: convert(bounds, to: container),
                                                   cornerRadius: cardRadius)
             return UITargetedPreview(view: container, parameters: parameters)
+        }
+    }
+}
+
+// MARK: – Wisch-Aktionen (Daten)
+
+/// Eine kartenhohe Wisch-Aktion. `Equatable` über das SICHTBARE (Titel,
+/// Zeichen, Operation) — der Handler ist Verhalten und bei jedem Aufbau
+/// frisch.
+struct RevealAction: Identifiable, Equatable {
+    let operation: SwipeOperation
+    let title: String
+    let symbol: String
+    let tint: Color
+    let handler: () -> Void
+
+    var id: String { operation.rawValue }
+
+    static func == (a: RevealAction, b: RevealAction) -> Bool {
+        a.operation == b.operation && a.title == b.title && a.symbol == b.symbol
+    }
+}
+
+private extension View {
+    /// VoiceOver kann die eigene Aufzieh-Geste nicht ausführen — jede
+    /// Wisch-Aktion steht deshalb als benannte Aktion an der Karte.
+    @ViewBuilder
+    func accessibilityRevealActions(_ actions: [RevealAction]) -> some View {
+        if actions.isEmpty {
+            self
+        } else {
+            accessibilityActions {
+                ForEach(actions) { action in
+                    Button(action.title) { action.handler() }
+                }
+            }
         }
     }
 }
