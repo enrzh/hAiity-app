@@ -65,6 +65,7 @@ struct HabitCard: View, Equatable {
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
+    @State private var showsHabitPreview = false
     private static let doneID = "done"
 
     private var today: String { DayKey.today() }
@@ -153,14 +154,13 @@ struct HabitCard: View, Equatable {
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            // LANGER DRUCK: statt einer unsichtbaren Wischbelegung, die man
-            // sich merken muss, eine VORSCHAU mit dem vergrößerten Raster und
-            // darunter die Aktionen, beschriftet. Das System liefert dafür
-            // die Standardanimation (Herausschälen) und die Haptik.
-            .contextMenu {
-                habitActions
-            } preview: {
-                habitPreview
+            .onLongPressGesture(minimumDuration: 0.45) {
+                Theme.Haptics.check()
+                showsHabitPreview = true
+            }
+            .popover(isPresented: $showsHabitPreview, attachmentAnchor: .rect(.bounds)) {
+                interactiveHabitPreview
+                    .presentationCompactAdaptation(.popover)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-grid")
@@ -250,12 +250,30 @@ struct HabitCard: View, Equatable {
         // Standardpalette zurück und leuchtete grün, während dieselben
         // Zellen zwei Millimeter daneben blau sind.
         .environment(\.palettes, palettes)
-        // Der einzige verlässliche Aufhänger dafür, dass die Vorschau WIRKLICH
-        // aufgegangen ist — das System sagt es sonst nicht. Dieselbe kurze
-        // Rückmeldung wie beim Abhaken.
-        .onAppear { Theme.Haptics.check() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-preview")
+    }
+
+    private var interactiveHabitPreview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: openEditorFromPreview) {
+                habitPreview
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Bearbeiten"))
+            .accessibilityIdentifier("preview-edit-habit")
+
+            Divider()
+            habitActions
+                .buttonStyle(.borderless)
+        }
+        .padding(.bottom, 12)
+    }
+
+    private func openEditorFromPreview() {
+        showsHabitPreview = false
+        DispatchQueue.main.async { onEdit() }
     }
 
     /// Die Aktionen UNTER der Vorschau. Sie tragen dieselben Kennungen wie

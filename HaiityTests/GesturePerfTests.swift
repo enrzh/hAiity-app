@@ -9,6 +9,15 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
     }
 
+    func testHeldGraphPreviewIsInteractiveAndOpensHabitEditor() throws {
+        let source = try habitCardSource()
+        XCTAssertTrue(source.contains("@State private var showsHabitPreview = false"))
+        XCTAssertTrue(source.contains(".onLongPressGesture"))
+        XCTAssertTrue(source.contains(".popover(isPresented: $showsHabitPreview"))
+        XCTAssertTrue(source.contains("openEditorFromPreview()"))
+        XCTAssertFalse(source.contains(".contextMenu {"))
+    }
+
     func testLongPressMenuKeepsEditAction() throws {
         let habitActions = try habitActionsSource()
         XCTAssertTrue(habitActions.contains("Button(action: onEdit)"))
