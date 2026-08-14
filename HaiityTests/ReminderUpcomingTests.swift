@@ -67,6 +67,15 @@ final class ReminderUpcomingTests: XCTestCase {
                                                    now: now, calendar: calendar).isEmpty)
     }
 
+    func testUpcomingSummaryExcludesReminderItems() {
+        let reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             recurrence: .daily)
+        XCTAssertTrue(Reminders.upcomingDailyPlans(minutes: 20 * 60,
+                                                   habits: [reminder],
+                                                   now: now,
+                                                   calendar: calendar).isEmpty)
+    }
+
     func testDisabledOrInvalidTimeSchedulesNothing() {
         let habits = [habit("Laufen", .daily)]
         XCTAssertTrue(Reminders.upcomingDailyPlans(minutes: nil, habits: habits,
@@ -126,6 +135,25 @@ final class ReminderUpcomingTests: XCTestCase {
     func testHabitPlansKeepLegacyReminderAsFallback() {
         let habit = Habit(name: "Alt", reminderMinutes: 18 * 60, recurrence: .daily)
         XCTAssertFalse(Reminders.habitPlans(habits: [habit], now: now, calendar: calendar).isEmpty)
+    }
+
+    func testReminderItemGetsTheSamePerItemNotificationSchedule() {
+        let tracked = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                            recurrence: .weekdays([2, 4]))
+        let reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             timeMinutes: 18 * 60, recurrence: .weekdays([2, 4]))
+
+        let trackedPlans = Reminders.habitPlans(habits: [tracked], now: now,
+                                                calendar: calendar)
+        let reminderPlans = Reminders.habitPlans(habits: [reminder], now: now,
+                                                 calendar: calendar)
+
+        XCTAssertEqual(reminderPlans.map(\.dateMatching), trackedPlans.map(\.dateMatching))
+        XCTAssertEqual(reminderPlans.map(\.repeats), trackedPlans.map(\.repeats))
+        XCTAssertEqual(reminderPlans.count, trackedPlans.count)
+        XCTAssertTrue(reminderPlans.allSatisfy {
+            $0.identifier.contains(reminder.id.uuidString) && $0.body.contains(reminder.name)
+        })
     }
 
     func testHabitPlansSuppressArchivedAndTodayAlreadyCompleted() {

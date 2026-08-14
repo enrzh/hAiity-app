@@ -176,7 +176,7 @@ enum Reminders {
                                    now: Date = Date(),
                                    calendar: Calendar = .current) -> [ReminderPlan] {
         guard let minutes, (0..<24 * 60).contains(minutes) else { return [] }
-        let active = habits.filter { $0.archivedAt == nil }
+        let active = habits.filter { $0.archivedAt == nil && $0.isTrackedHabit }
         guard !active.isEmpty else { return [] }
         var plans: [ReminderPlan] = []
         let today = DayKey.key(for: now, calendar: calendar)
