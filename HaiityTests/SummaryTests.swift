@@ -159,6 +159,17 @@ final class SummaryStatusTests: XCTestCase {
         XCTAssertTrue(s.dailyStatus(today, calendar: calendar).isEmpty)
     }
 
+    func testReminderItemsAreNotInDailyOrWeeklySummaries() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.log[today] = 1
+        let s = store([habit("Lesen", .daily), reminder])
+
+        XCTAssertEqual(s.dailyStatus(today, calendar: calendar).missing, ["Lesen"])
+        XCTAssertEqual(s.dailyStatus(today, calendar: calendar).total, 1)
+        XCTAssertEqual(s.weeklyStatus(today, calendar: calendar).missing, ["Lesen"])
+        XCTAssertEqual(s.weeklyStatus(today, calendar: calendar).total, 7)
+    }
+
     /// Mengenziele zählen erst ab dem Ziel als erledigt — dieselbe Semantik
     /// wie im Raster.
     func testQuantityHabitCountsOnlyAtItsTarget() {

@@ -56,6 +56,19 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertNil(WidgetLogic.resolve(habits: [], selected: nil))
     }
 
+    func testWidgetsExcludeReminderItems() {
+        var reminder = named("Tabletten", log: [today: 1])
+        reminder.itemType = .reminder
+        let tracked = named("Lesen")
+
+        XCTAssertEqual(WidgetLogic.resolve(habits: [reminder, tracked], selected: reminder.id)?.id,
+                       tracked.id)
+        XCTAssertEqual(WidgetLogic.progress(habits: [reminder, tracked],
+                                            today: today, calendar: cal).due, 1)
+        XCTAssertEqual(WidgetLogic.roster([reminder, tracked], limit: 3).visible.map(\.name),
+                       ["Lesen"])
+    }
+
     // MARK: – Die Empfehlung: wer steht drin, wenn nichts eingestellt ist?
 
     /// Nicht der erste der Liste, sondern der mit der LÄNGSTEN laufenden

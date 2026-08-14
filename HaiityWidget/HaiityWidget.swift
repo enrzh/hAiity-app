@@ -16,7 +16,7 @@ enum WidgetData {
     static func entry(selected: UUID? = nil, date: Date = .now) -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
         return HaiityEntry(date: date,
-                           habits: data?.habits.filter { $0.archivedAt == nil } ?? [],
+                           habits: data?.habits.filter { $0.archivedAt == nil && $0.isTrackedHabit } ?? [],
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
                            selected: selected)

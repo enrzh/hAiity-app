@@ -67,6 +67,21 @@ final class ProGateTests: XCTestCase {
                       "archivierte Habits dürfen den Platz nicht belegen")
     }
 
+    func testRemindersDoNotCountTowardTheHabitLimit() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        store.add(Habit(name: "A"))
+        store.add(Habit(name: "B"))
+        store.add(Habit(name: "Tabletten", itemType: .reminder))
+
+        XCTAssertEqual(store.activeHabits.count, 3)
+        XCTAssertEqual(store.activeTrackedHabits.count, 2)
+        XCTAssertTrue(ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count,
+                                          unlocked: false))
+    }
+
     /// Trivial, und trotzdem festgenagelt: `mayUseProFeature` ist die
     /// Berechtigung selbst — keine Ansicht darf hier eine zweite Bedingung
     /// hineinverhandeln.
@@ -175,7 +190,7 @@ final class ProGateTests: XCTestCase {
     func testGate1EveryCreatePathRunsThroughTheOneGuard() throws {
         let content = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(content.contains("private func requestCreate()"))
-        XCTAssertTrue(content.contains("ProGate.mayAddHabit(activeCount: store.activeHabits.count"),
+        XCTAssertTrue(content.contains("ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count"),
                       "das Gate muss die AKTIVEN zählen — archivierte belegen keinen Platz")
         XCTAssertTrue(content.contains("unlocked: Pro.isUnlocked"))
         XCTAssertTrue(content.contains("paywall = .habits"))

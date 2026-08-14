@@ -477,7 +477,7 @@ final class HabitStore {
     /// ausdrücklich mit Nein beantwortet hat, wäre keine Erinnerung, sondern
     /// eine Nachfrage.
     func openToday(_ today: String = DayKey.today()) -> [Habit] {
-        activeHabits.filter {
+        activeTrackedHabits.filter {
             GoalEngine.isScheduled(habit: $0, day: today)
                 && !$0.isDone(today) && !$0.isAnswered(today)
         }
@@ -503,7 +503,7 @@ final class HabitStore {
                      calendar: Calendar = .current) -> SummaryStatus {
         var done = 0, total = 0
         var missing: [String] = []
-        for habit in activeHabits
+        for habit in activeTrackedHabits
         where GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) {
             total += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) {
@@ -541,7 +541,7 @@ final class HabitStore {
         let dueThrough = fullWeek ? max(lastDay, today) : today
         var done = 0, total = 0
         var missing: [String] = []
-        for habit in activeHabits {
+        for habit in activeTrackedHabits {
             let schedule = habit.recurrence.schedule(calendar: calendar)
             var due = 0, met = 0
             if let times = habit.recurrence.timesPerPeriod {

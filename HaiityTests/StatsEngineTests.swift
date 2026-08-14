@@ -279,6 +279,21 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(snap.perHabit.first?.current, 5)
     }
 
+    func testSnapshotExcludesReminderItems() {
+        var tracked = habit("Lesen", log: [wednesday: 1])
+        tracked.createdAt = wednesday
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.createdAt = wednesday
+        reminder.log[wednesday] = 1
+
+        let snap = StatsEngine.snapshot(habits: [tracked, reminder],
+                                        today: wednesday, calendar: cal)
+
+        XCTAssertEqual(snap.todayDone, 1)
+        XCTAssertEqual(snap.todayTotal, 1)
+        XCTAssertEqual(snap.perHabit.map(\.name), ["Lesen"])
+    }
+
     /// Reine Nein-Tage tragen die Verneinungsstufe statt leer zu bleiben —
     /// wer täglich antwortet (auch mit Nein), sieht einen Puls. Ein
     /// zählender Tag GEWINNT gegen ein Nein desselben Tages.

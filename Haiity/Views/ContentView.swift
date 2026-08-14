@@ -617,7 +617,7 @@ struct ContentView: View {
     /// zurückholt, importiert oder über iCloud mehr als drei aktive Habits
     /// bekommt, behält sie und kann sie voll benutzen (siehe ProGate).
     private func requestCreate() {
-        guard ProGate.mayAddHabit(activeCount: store.activeHabits.count,
+        guard ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count,
                                   unlocked: Pro.isUnlocked) else {
             paywall = .habits
             return
@@ -1886,7 +1886,7 @@ struct ContentView: View {
     @MainActor
     private func dumpWidgets() {
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
-        let live = HaiityEntry(date: .now, habits: store.activeHabits, palettes: store.palettes)
+        let live = HaiityEntry(date: .now, habits: store.activeTrackedHabits, palettes: store.palettes)
         let entry = live.habits.isEmpty ? HaiityEntry.demo : live
 
         for scheme in [ColorScheme.light, .dark] {
@@ -2043,7 +2043,7 @@ struct ContentView: View {
     /// Teilen-Blatt zu klicken.
     @MainActor
     private func dumpShareCards() {
-        guard let habit = store.activeHabits.first else { return }
+        guard let habit = store.activeTrackedHabits.first else { return }
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for scheme in [ColorScheme.light, .dark] {
             guard let png = ShareCard.render(habit: habit, scheme: scheme, palette: store.palettes.style(for: habit))?.pngData() else { continue }

@@ -74,7 +74,7 @@ enum WidgetLogic {
                         selected: UUID?,
                         today: String = DayKey.today(),
                         calendar: Calendar = .current) -> Habit? {
-        let active = habits.filter { $0.archivedAt == nil }
+        let active = habits.filter { $0.archivedAt == nil && $0.isTrackedHabit }
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
         return recommended(habits: active, today: today, calendar: calendar)
     }
@@ -97,7 +97,7 @@ enum WidgetLogic {
                             today: String = DayKey.today(),
                             calendar: Calendar = .current) -> Habit? {
         var best: (habit: Habit, streak: Int)?
-        for habit in habits where habit.archivedAt == nil {
+        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
             let streak = habit.streak(today: today, calendar: calendar)
             if best == nil || streak > best!.streak { best = (habit, streak) }
         }
@@ -167,7 +167,7 @@ enum WidgetLogic {
                          today: String = DayKey.today(),
                          calendar: Calendar = .current) -> DayProgress {
         var due = 0, met = 0
-        for habit in habits where habit.archivedAt == nil {
+        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
             guard GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) else { continue }
             due += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) { met += 1 }
@@ -181,7 +181,7 @@ enum WidgetLogic {
     /// Reihenfolge bleibt die der Liste — eine Übersicht, die ihre Zeilen
     /// selbst umsortiert, ist beim nächsten Blick eine andere Übersicht.
     static func roster(_ habits: [Habit], limit: Int) -> (visible: [Habit], overflow: Int) {
-        let active = habits.filter { $0.archivedAt == nil }
+        let active = habits.filter { $0.archivedAt == nil && $0.isTrackedHabit }
         guard limit > 0 else { return ([], active.count) }
         return (Array(active.prefix(limit)), max(0, active.count - limit))
     }

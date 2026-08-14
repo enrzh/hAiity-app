@@ -41,7 +41,7 @@ struct StatsView: View {
 
     var body: some View {
         Group {
-            if store.activeHabits.isEmpty {
+            if store.activeTrackedHabits.isEmpty {
                 emptyState
             } else {
                 statsList
@@ -74,7 +74,7 @@ struct StatsView: View {
     }
 
     private var statsList: some View {
-        let snapshot = StatsEngine.snapshot(habits: store.activeHabits)
+        let snapshot = StatsEngine.snapshot(habits: store.activeTrackedHabits)
         return List {
             Section {
                 heroCard(snapshot)
@@ -93,7 +93,7 @@ struct StatsView: View {
                 // eine kaputte Zeile. Die Daten bleiben unangetastet — hier
                 // wird nur nicht gezeichnet.
                 if unlocked {
-                    ForEach(store.activeHabits) { habit in
+                    ForEach(store.activeTrackedHabits) { habit in
                         StatsRow(habit: habit)
                             .modifier(StatsCardChrome())
                     }
@@ -102,7 +102,7 @@ struct StatsView: View {
                         .modifier(StatsCardChrome())
                 }
             } header: {
-                if !store.activeHabits.isEmpty {
+                if !store.activeTrackedHabits.isEmpty {
                     Text(String(localized: "Je Habit"))
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -398,15 +398,15 @@ struct StatsView: View {
     private func totalsTile(_ snapshot: StatsEngine.Snapshot) -> some View {
         tile(String(localized: "Gesamt"),
              identifier: "stats-card-totals",
-             value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(store.habits))") {
+             value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(store.habits.filter(\.isTrackedHabit)))") {
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "\(StatsMath.totalCheckIns(store.habits))")
+                Text(verbatim: "\(StatsMath.totalCheckIns(store.habits.filter(\.isTrackedHabit)))")
                     .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                     .contentTransition(.numericText())
                 Text(String(localized: "Check-ins gesamt"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(String(localized: "Aktive Habits") + " · " + "\(store.activeHabits.count)")
+                Text(String(localized: "Aktive Habits") + " · " + "\(store.activeTrackedHabits.count)")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }

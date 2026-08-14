@@ -26,6 +26,10 @@ import Foundation
 /// übergibt) heißt schlicht: Serie 0.
 enum StatsEngine {
 
+    private static func tracked(_ items: [Habit]) -> [Habit] {
+        items.filter(\.isTrackedHabit)
+    }
+
     // MARK: – Bausteine
 
     /// Erfüllte von fälligen Habits in einem Fenster (Tag oder Woche).
@@ -50,7 +54,7 @@ enum StatsEngine {
     static func dailyCompletion(habits: [Habit], day: String,
                                 calendar: Calendar = .current) -> DayCompletion {
         var done = 0, total = 0
-        for habit in habits where GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar) {
+        for habit in tracked(habits) where GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar) {
             total += 1
             if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) { done += 1 }
         }
@@ -154,6 +158,7 @@ enum StatsEngine {
     static func overallStreak(habits: [Habit],
                               today: String = DayKey.today(),
                               calendar: Calendar = .current) -> Int {
+        let habits = tracked(habits)
         guard !habits.isEmpty,
               let lower = lowerBound(habits, today: today, calendar: calendar) else { return 0 }
         let judges = habits.map { Judge(habit: $0, today: today, calendar: calendar) }
@@ -177,6 +182,7 @@ enum StatsEngine {
     static func bestOverallStreak(habits: [Habit],
                                   today: String = DayKey.today(),
                                   calendar: Calendar = .current) -> Int {
+        let habits = tracked(habits)
         guard !habits.isEmpty else { return 0 }
         let days = habits.flatMap { $0.validDays(today: today, calendar: calendar) }
         guard let oldest = days.min(), let newest = days.max() else { return 0 }
@@ -214,7 +220,7 @@ enum StatsEngine {
         guard firstDay <= lastDay else { return DayCompletion(done: 0, total: 0) }
 
         var done = 0, total = 0
-        for habit in habits {
+        for habit in tracked(habits) {
             let schedule = habit.recurrence.schedule(calendar: calendar)
             var due = 0, met = 0
             if let times = habit.recurrence.timesPerPeriod {
@@ -305,7 +311,7 @@ enum StatsEngine {
         let keys = GridCalendar.keys(weeks: weeks, today: today, calendar: calendar)
         var counts: [String: Int] = [:]
         var declined: Set<String> = []
-        for habit in habits {
+        for habit in tracked(habits) {
             for day in habit.validDays(today: today, calendar: calendar) {
                 if GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar) {
                     counts[day, default: 0] += 1
@@ -362,6 +368,7 @@ enum StatsEngine {
     static func snapshot(habits: [Habit],
                          today: String = DayKey.today(),
                          calendar: Calendar = .current) -> Snapshot {
+        let habits = tracked(habits)
         lock.lock()
         if let key = cachedKey, let snap = cachedSnapshot,
            key.habits == habits, key.today == today,
