@@ -20,5 +20,40 @@ struct HaiityShortcuts: AppShortcutsProvider {
             shortTitle: "Habit abhaken",
             systemImageName: "checkmark.square"
         )
+        AppShortcut(
+            intent: DeclineHabitIntent(),
+            phrases: [
+                "\(.applicationName) \(\.$habit) heute nicht",
+                "\(\.$habit) in \(.applicationName) nicht geschafft",
+                "Notiere Nein für \(\.$habit) in \(.applicationName)",
+                "Decline \(\.$habit) in \(.applicationName)",
+                "Mark \(\.$habit) as missed in \(.applicationName)"
+            ],
+            shortTitle: "Nein notieren",
+            systemImageName: "xmark.square"
+        )
+        AppShortcut(
+            intent: HabitStatusIntent(),
+            phrases: [
+                "Wie steht es heute in \(.applicationName)",
+                "\(.applicationName) Tagesstand",
+                "Was ist in \(.applicationName) noch offen",
+                "What's left in \(.applicationName) today",
+                "How am I doing in \(.applicationName)"
+            ],
+            shortTitle: "Tagesstand",
+            systemImageName: "checklist"
+        )
+        AppShortcut(
+            intent: HabitStreakIntent(),
+            phrases: [
+                "Wie lang ist meine Serie für \(\.$habit) in \(.applicationName)",
+                "\(.applicationName) Serie von \(\.$habit)",
+                "What's my \(\.$habit) streak in \(.applicationName)",
+                "Streak for \(\.$habit) in \(.applicationName)"
+            ],
+            shortTitle: "Serie abfragen",
+            systemImageName: "flame"
+        )
     }
 }

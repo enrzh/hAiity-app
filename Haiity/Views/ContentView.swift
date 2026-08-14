@@ -84,6 +84,9 @@ struct ContentView: View {
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
+    /// Wohin die zugeklappte Suche zurückkehrt — der zuletzt gewählte
+    /// echte Bereich (nie `.search` selbst).
+    @State private var lastNonSearchTab: AppTab = .habits
     @State private var searchPresentationArmed = false
     @FocusState private var searchFieldFocused: Bool
     /// Der native EditButton schaltet die Griffleisten der Habit-Liste ein.
@@ -242,6 +245,9 @@ struct ContentView: View {
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
+                // Wohin das Zuklappen der Suche zurückkehrt: der letzte
+                // echte Bereich, nicht stur „Habits".
+                if tab != .search { lastNonSearchTab = tab }
                 // Der Such-Tab ist ein ECHTES Ziel (siehe nativeShell) — die
                 // Auswahl bleibt stehen. Beim Betreten klappt das Feld auf
                 // und die Tastatur kommt mit (das Fotos-Verhalten: EIN Tipp
@@ -307,6 +313,15 @@ struct ContentView: View {
                 if !open {
                     searchFieldFocused = false
                     clearSearchTextAfterCollapse()
+                    // Zuklappen heißt VERLASSEN: zurück auf den vorherigen
+                    // Bereich, damit die Leiste in den Such-KREIS
+                    // zurückschrumpft — auf dem Such-Tab stehen zu bleiben
+                    // ließe das Feld als leere Leiste liegen. Routen (Deep-
+                    // Links) setzen ihr Ziel gleich danach selbst; der kurze
+                    // Zwischenschritt stört sie nicht.
+                    if nativeTab == .search {
+                        withAnimation { nativeTab = lastNonSearchTab }
+                    }
                 }
             }
     }

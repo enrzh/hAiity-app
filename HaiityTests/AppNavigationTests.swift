@@ -281,10 +281,17 @@ final class AppNavigationTests: XCTestCase {
         // Der Such-Tab traegt sein EIGENES searchable (Fotos-Muster) …
         XCTAssertTrue(source.contains("private var searchTabContent: some View"))
         XCTAssertTrue(source.contains(".searchFocused($searchFieldFocused)"))
-        // … seine Auswahl BLEIBT stehen (kein Zurückspringen auf den
-        // vorherigen Tab mehr); das Betreten fokussiert nur noch das Feld.
+        // … seine Auswahl BLEIBT stehen, solange die Suche OFFEN ist (kein
+        // Zurückspringen beim Betreten — der v15-Käfer); das Betreten
+        // fokussiert nur noch das Feld.
         XCTAssertFalse(source.contains("nativeTab = old == .search ? .habits : old"))
         XCTAssertTrue(source.contains("@State private var searchPresentationArmed = false"))
+        // ZUKLAPPEN dagegen heißt verlassen: X kehrt auf den zuletzt
+        // gewählten echten Bereich zurück, damit die Leiste in den
+        // Such-KREIS zurückschrumpft, statt als leere Leiste liegen zu
+        // bleiben (v24).
+        XCTAssertTrue(source.contains("if tab != .search { lastNonSearchTab = tab }"))
+        XCTAssertTrue(source.contains("withAnimation { nativeTab = lastNonSearchTab }"))
     }
 
     func testSingleNativeShellWithoutCompilerGates() throws {
