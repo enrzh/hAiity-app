@@ -19,6 +19,12 @@ struct HabitData: Codable {
     var summaryMinutes: Int?
     /// Wochenzusammenfassung; nil = aus.
     var weeklySummaryMinutes: Int?
+    /// Tägliche Motivationsnachricht; nil = aus (die Voreinstellung). Ein
+    /// eigener Schalter neben `summaryMinutes`: die Zusammenfassung trägt
+    /// ZAHLEN, die Motivation trägt einen Satz — wer das eine will, will
+    /// nicht zwangsläufig das andere, und beide dürfen zu verschiedenen
+    /// Uhrzeiten kommen.
+    var motivationMinutes: Int?
     /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
     var weeklySummaryWeekday: Int
     var habits: [Habit]
@@ -58,11 +64,13 @@ struct HabitData: Codable {
          weeklySummaryMinutes: Int? = nil,
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
          viewPreferences: ViewPreferences = ViewPreferences(),
-         sessionHistory: [HabitSessionRecord] = []) {
+         sessionHistory: [HabitSessionRecord] = [],
+         motivationMinutes: Int? = nil) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
         self.weeklySummaryMinutes = weeklySummaryMinutes
+        self.motivationMinutes = motivationMinutes
         self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
             ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
@@ -92,6 +100,9 @@ extension HabitData {
         // überliest die beiden Schlüssel, also braucht es dafür keinen
         // Versionssprung (der ihn aussperren würde).
         case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences, sessionHistory
+        // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
+        // sie überliest den Schlüssel, kein Versionssprung nötig.
+        case motivationMinutes
         // Nur zum Einlesen alter Wurzel-Einstellungen; encode schreibt sie
         // nie wieder, weil die neue Konfiguration in viewPreferences liegt.
         case leadingSwipe, trailingSwipe
@@ -111,6 +122,8 @@ extension HabitData {
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
         summaryMinutes = try c.decodeIfPresent(Int.self, forKey: .summaryMinutes)
         weeklySummaryMinutes = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryMinutes)
+        // Fehlt der Schlüssel (jede Datei vor dieser Fassung): nil = aus.
+        motivationMinutes = try c.decodeIfPresent(Int.self, forKey: .motivationMinutes)
         let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
@@ -146,6 +159,7 @@ extension HabitData {
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
         try c.encodeIfPresent(weeklySummaryMinutes, forKey: .weeklySummaryMinutes)
+        try c.encodeIfPresent(motivationMinutes, forKey: .motivationMinutes)
         // Der Wochentag steht nur da, wenn die Wochenzusammenfassung
         // überhaupt läuft — sonst wäre er eine Einstellung ohne Wirkung in
         // jeder Datei.
@@ -234,6 +248,14 @@ final class HabitStore {
     var weeklySummaryMinutes: Int? {
         get { data.weeklySummaryMinutes }
         set { data.weeklySummaryMinutes = newValue; persist() }
+    }
+
+    /// Uhrzeit der Motivationsnachricht; nil = aus. `persist()` schreibt und
+    /// meldet über `onChange` — daran hängt die Neuplanung, also stellt schon
+    /// das Setzen der Uhrzeit die Wecker um (siehe `Reminders.reschedule`).
+    var motivationMinutes: Int? {
+        get { data.motivationMinutes }
+        set { data.motivationMinutes = newValue; persist() }
     }
 
     var weeklySummaryWeekday: Int {
@@ -682,6 +704,15 @@ final class HabitStore {
         if remoteNewer, remote.weeklySummaryMinutes != nil {
             data.weeklySummaryMinutes = remote.weeklySummaryMinutes
             data.weeklySummaryWeekday = remote.weeklySummaryWeekday
+        }
+        // GENAU derselbe Weg wie bei den beiden Zusammenfassungen, mit
+        // derselben bewussten Schieflage: eine EINGESCHALTETE Uhrzeit vom
+        // neueren Gerät gewinnt, ein dortiges AUSSCHALTEN (nil) reist nicht
+        // mit. „nil" heißt hier „nichts gesetzt" und nicht „ausgeschaltet" —
+        // sonst würde ein Gerät, das die Einstellung nie gesehen hat, sie
+        // beim ersten Abgleich auf dem anderen löschen.
+        if remoteNewer, remote.motivationMinutes != nil {
+            data.motivationMinutes = remote.motivationMinutes
         }
         // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
         // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",

@@ -56,6 +56,7 @@ struct MoreView: View, Equatable {
     @State private var summaryDenied = false
     @State private var calendarDenied = false
     @State private var weeklyDenied = false
+    @State private var motivationDenied = false
     @State private var showReminderSetup = false
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
@@ -123,6 +124,7 @@ struct MoreView: View, Equatable {
 
             dailySummarySection
             weeklySummarySection
+            motivationSection
             // „Test-Mitteilung" stand hier. Sie ist Diagnose, keine
             // Einstellung — und wohnt jetzt im Entwicklerbereich
             // (DeveloperView), wortgleich und mit derselben Kennung.
@@ -1027,14 +1029,12 @@ struct MoreView: View, Equatable {
         .accessibilityIdentifier("icloud-status")
     }
 
-    // MARK: – Die beiden Zusammenfassungen
+    // MARK: – Mitteilungen
     //
-    // Sie sind der EINZIGE Ort in der App, an dem Benachrichtigungen
-    // vorkommen — seit v5 auch der einzige, der die Berechtigung auslösen
-    // darf. Vorher hatte jeder Habit seine eigene Erinnerung; zehn Habits
-    // waren zehn Weckrufe, und keiner wusste, ob der Tag schon erledigt war.
-    // Jetzt fasst EINE Meldung am Tag zusammen, was offen ist, und eine am
-    // Ende der Woche, was gehalten wurde (siehe `SummaryText`).
+    // Tages- und Wochenzusammenfassung tragen den Stand, die Motivation
+    // einen ruhigen Satz aus dem lokalen Vorrat. Alle drei bleiben getrennt:
+    // wer Zahlen will, will nicht automatisch einen Gedanken dazu — und
+    // jede Meldung darf zu ihrer eigenen Uhrzeit kommen.
     //
     // Das Berechtigungs-Gate bleibt exakt wie gehabt: gefragt wird NUR beim
     // aktiven Einschalten, nie beim Start.
@@ -1081,9 +1081,27 @@ struct MoreView: View, Equatable {
         }
     }
 
+    private var motivationSection: some View {
+        Section {
+            Toggle(isOn: motivationEnabled) {
+                Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
+            }
+            .accessibilityIdentifier("motivation-toggle")
+            if store.motivationMinutes != nil {
+                DatePicker(String(localized: "Uhrzeit"),
+                           selection: motivationTime,
+                           displayedComponents: .hourAndMinute)
+                    .accessibilityIdentifier("motivation-time")
+            }
+            if motivationDenied { permissionHint }
+        } footer: {
+            Text(String(localized: "Jeden Tag ein anderer kurzer Gedanke aus deinem Raster — ruhig, ohne Druck."))
+        }
+    }
+
     private var permissionHint: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert. Dort einschalten, dann klappt die Zusammenfassung."))
+            Text(String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert."))
                 .font(.caption)
                 .foregroundStyle(.orange)
             // Der direkte Sprung statt einer Wegbeschreibung: iOS öffnet die
@@ -1110,6 +1128,7 @@ struct MoreView: View, Equatable {
     /// noch etwas nachholen kann.
     private static let defaultDailyMinutes = 20 * 60
     private static let defaultWeeklyMinutes = 18 * 60
+    private static let defaultMotivationMinutes = 8 * 60
 
     private var dailyEnabled: Binding<Bool> {
         Binding(
@@ -1144,6 +1163,23 @@ struct MoreView: View, Equatable {
             })
     }
 
+    private var motivationEnabled: Binding<Bool> {
+        Binding(
+            get: { store.motivationMinutes != nil },
+            set: { on in
+                guard on else { store.motivationMinutes = nil; return }
+                askThen { granted in
+                    if granted {
+                        store.motivationMinutes = store.motivationMinutes
+                            ?? Self.defaultMotivationMinutes
+                        motivationDenied = false
+                    } else {
+                        motivationDenied = true
+                    }
+                }
+            })
+    }
+
     /// Das Gate an EINER Stelle: fragen, dann auf dem Hauptthread entscheiden.
     private func askThen(_ body: @escaping @MainActor (Bool) -> Void) {
         Task {
@@ -1160,6 +1196,11 @@ struct MoreView: View, Equatable {
     private var weeklyTime: Binding<Date> {
         timeBinding(get: { store.weeklySummaryMinutes ?? Self.defaultWeeklyMinutes },
                     set: { store.weeklySummaryMinutes = $0 })
+    }
+
+    private var motivationTime: Binding<Date> {
+        timeBinding(get: { store.motivationMinutes ?? Self.defaultMotivationMinutes },
+                    set: { store.motivationMinutes = $0 })
     }
 
     private var weeklyWeekday: Binding<Int> {

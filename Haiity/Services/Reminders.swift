@@ -41,9 +41,10 @@ struct ReminderPlan: Equatable {
     var isOneShot: Bool { !repeats }
 }
 
-/// Plant tägliche und wöchentliche Zusammenfassungen sowie konkrete
-/// Erinnerungen für noch offene Habits. Habit-Erinnerungen werden nur für
-/// anstehende Termine vorausgeplant und nach jedem App-Start aktualisiert.
+/// Plant tägliche und wöchentliche Zusammenfassungen, tägliche Motivation
+/// sowie konkrete Erinnerungen für noch offene Habits. Habit-Erinnerungen
+/// werden nur für anstehende Termine vorausgeplant und nach jedem App-Start
+/// aktualisiert.
 enum Reminders {
     static let summaryId = "summary"
     static let weeklySummaryId = "summary-weekly"
@@ -60,6 +61,20 @@ enum Reminders {
     /// bewusst keinen.
     static let upcomingPrefix = "summary-day-"
     static let upcomingDays = 7
+
+    /// Präfix der täglichen Motivationsnachricht — eine Anfrage JE TAG.
+    ///
+    /// Warum nicht eine wiederholende: ein `UNCalendarNotificationTrigger`
+    /// mit `repeats: true` trägt seinen Text für immer. Der Vorrat wechselt
+    /// aber täglich (`Motivation.message`), also stünde ein Jahr lang
+    /// derselbe Satz auf dem Sperrbildschirm — genau der Fehler, den die
+    /// Tageszusammenfassung schon einmal hatte. Deshalb je Tag ein eigener
+    /// einmaliger Wecker, `motivationDays` im Voraus, bei jedem
+    /// `reschedule` neu gestellt.
+    static let motivationPrefix = "motivation-"
+    static let motivationDays = 7
+
+    static func motivationId(day: String) -> String { motivationPrefix + day }
 
     /// Kennung der Test-Mitteilung (Mehr → Über → Entwickler → „Test-Mitteilung").
     /// Sie steht nicht mehr in den Einstellungen: sie ist Diagnose, keine
@@ -186,6 +201,47 @@ enum Reminders {
         return plans
     }
 
+    /// Die Motivationsnachricht: für heute und die nächsten Tage je ein
+    /// einmaliger Wecker zur eingestellten Uhrzeit mit dem Satz DIESES
+    /// Tages. Pur — der Name kommt als Argument herein, damit ein Test die
+    /// Anrede prüfen kann, ohne die Defaults des Geräts anzufassen.
+    ///
+    /// Heute ist mit dabei, anders als bei `upcomingDailyPlans`: dort deckt
+    /// `dailySummaryPlan` den heutigen Tag mit dem ECHTEN Stand ab, hier
+    /// gibt es keinen Stand — nur den Satz. Ist die Uhrzeit für heute
+    /// vorbei, fällt der Tag über `fire > now` von selbst heraus.
+    static func motivationPlans(minutes: Int?,
+                                name: String?,
+                                days: Int = motivationDays,
+                                now: Date = Date(),
+                                calendar: Calendar = .current) -> [ReminderPlan] {
+        guard let minutes, (0..<24 * 60).contains(minutes), days > 0 else { return [] }
+        var plans: [ReminderPlan] = []
+        var day = DayKey.key(for: now, calendar: calendar)
+        for offset in 0 ..< days {
+            if offset > 0 {
+                guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+                day = next
+            }
+            guard let date = DayKey.date(from: day, calendar: calendar) else { continue }
+            var c = calendar.dateComponents([.year, .month, .day], from: date)
+            c.hour = minutes / 60
+            c.minute = minutes % 60
+            // `fire > now` wirft den heutigen Tag heraus, wenn die Uhrzeit
+            // schon vorbei ist. `date(from:)` kann bei einer übersprungenen
+            // Stunde (Zeitumstellung) nil liefern — dann fällt genau dieser
+            // Tag aus, statt dass die ganze Reihe abbricht.
+            guard let fire = calendar.date(from: c), fire > now else { continue }
+            let message = Motivation.message(name: name, today: day)
+            plans.append(ReminderPlan(identifier: motivationId(day: day),
+                                      title: message.title,
+                                      body: message.body,
+                                      dateMatching: c,
+                                      repeats: false))
+        }
+        return plans
+    }
+
     /// Verdient dieser Tag eine Erinnerung an dieses Habit?
     ///
     /// Feste Regeln: der Terminplan entscheidet. Flexible Regeln („n× pro
@@ -211,24 +267,39 @@ enum Reminders {
                                            calendar: calendar)
     }
 
-    /// Feste Anfragen neben den Habit-Weckrufen: Tages-Zusammenfassung,
-    /// Wochen-Zusammenfassung, bis zu `upcomingDays` Voraus-Wecker, ein
-    /// Session-Meilenstein, eine Test-Mitteilung — plus Luft. iOS deckelt
-    /// bei 64 ANSTEHENDEN Anfragen und wirft den Überhang stumm weg.
+    /// Feste Anfragen neben den Habit-Weckrufen: Tages-Zusammenfassung (1),
+    /// Wochen-Zusammenfassung (1), bis zu `upcomingDays` Voraus-Wecker (7),
+    /// ein Session-Meilenstein (1), eine Test-Mitteilung (1), der Glückwunsch
+    /// zum perfekten Tag (1) und zwei Anfragen Luft — macht 14. Nur wenn die
+    /// Motivation eingeschaltet ist, kommen bis zu `motivationDays` weitere
+    /// Anfragen dazu. iOS deckelt bei 64 ANSTEHENDEN Anfragen und wirft den
+    /// Überhang stumm weg.
     static let pendingBudget = 64
-    static let fixedRequestEstimate = upcomingDays + 7
+    private static let baseFixedRequestEstimate = upcomingDays + 7
+
+    static func fixedRequestEstimate(reservingMotivation: Bool) -> Int {
+        baseFixedRequestEstimate + (reservingMotivation ? motivationDays : 0)
+    }
+
+    static func habitRequestBudget(reservingMotivation: Bool) -> Int {
+        pendingBudget - fixedRequestEstimate(reservingMotivation: reservingMotivation)
+    }
 
     /// Wie viele Tage je Habit vorausgeplant werden dürfen, ohne das
-    /// 64er-Budget zu sprengen: bei 1–5 Habits mit Uhrzeit die vollen
-    /// `habitReminderDays`, darüber entsprechend weniger — lieber ein
-    /// kürzeres Fenster für alle als ein stummes für die letzten.
-    static func reminderWindow(timedHabitCount: Int) -> Int {
+    /// 64er-Budget zu sprengen. Mit Motivation passen bei 1–4 Habits mit
+    /// Uhrzeit die vollen `habitReminderDays`, ohne sie bei 1–5; darüber
+    /// entsprechend weniger — lieber ein kürzeres Fenster für alle als ein
+    /// stummes für die letzten.
+    static func reminderWindow(timedHabitCount: Int,
+                               reservingMotivation: Bool = false) -> Int {
         guard timedHabitCount > 0 else { return habitReminderDays }
-        let available = max(1, (pendingBudget - fixedRequestEstimate) / timedHabitCount)
+        let available = max(1, habitRequestBudget(reservingMotivation: reservingMotivation)
+                            / timedHabitCount)
         return min(habitReminderDays, available)
     }
 
-    static func habitPlans(habits: [Habit], now: Date = Date(),
+    static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
+                           now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
         let today = DayKey.key(for: now, calendar: calendar)
@@ -236,11 +307,20 @@ enum Reminders {
             $0.archivedAt == nil
                 && Habit.sanitizedMinutes($0.timeMinutes ?? $0.reminderMinutes) != nil
         }
-        let window = reminderWindow(timedHabitCount: timed.count)
-        for habit in timed {
+        let budget = habitRequestBudget(reservingMotivation: reservingMotivation)
+        let window = reminderWindow(timedHabitCount: timed.count,
+                                    reservingMotivation: reservingMotivation)
+        // Das Fenster allein reicht als Deckel NICHT: es kann nicht unter
+        // einen Tag fallen, also ergäben 50 Habits mit Uhrzeit 50 Anfragen —
+        // mehr, als den Habits zusteht. Ab hier zählt zusätzlich die
+        // GESAMTZAHL. Abgeschnitten wird am Ende der Liste; ohne diese Zeile
+        // schnitte iOS selbst ab, nur stumm und ohne zu sagen, wo.
+        outer: for habit in timed {
+            guard plans.count < budget else { break outer }
             guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
             var day = today
             for offset in 0..<window {
+                guard plans.count < budget else { break outer }
                 if offset > 0 {
                     guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
                     day = next
@@ -279,9 +359,9 @@ enum Reminders {
 
     // MARK: – Ausführung
 
-    /// Stellt die beiden Zusammenfassungen neu. Idempotent: erst alle eigenen
-    /// Pending-Requests entfernen (die alten Habit-Weckrufe eingeschlossen),
-    /// dann setzen.
+    /// Stellt Zusammenfassungen, Motivation und Habit-Weckrufe neu.
+    /// Idempotent: erst alle eigenen Pending-Requests entfernen (die alten
+    /// Habit-Weckrufe eingeschlossen), dann setzen.
     static func reschedule(daily: ReminderPlan?, weekly: ReminderPlan?) async {
         let center = UNUserNotificationCenter.current()
 
@@ -290,10 +370,14 @@ enum Reminders {
         // liegen lassen — sonst klingelt nach dem Wieder-Einschalten ein
         // längst archiviertes Habit weiter.
         let pending = await center.pendingNotificationRequests()
+        // Die Motivations-Kennungen gehören zu „unseren": nur weil sie hier
+        // stehen, verschwinden sie beim AUSSCHALTEN wieder (dann plant der
+        // Durchlauf unten keine neuen) und beim UMSTELLEN der Uhrzeit werden
+        // sie auf die neue Zeit gesetzt, statt doppelt zu klingeln.
         let ours = pending.map(\.identifier).filter {
             $0 == summaryId || $0 == weeklySummaryId
                 || $0.hasPrefix(legacyHabitPrefix) || $0.hasPrefix(upcomingPrefix)
-                || $0.hasPrefix(habitReminderPrefix)
+                || $0.hasPrefix(habitReminderPrefix) || $0.hasPrefix(motivationPrefix)
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
@@ -306,7 +390,13 @@ enum Reminders {
         var plans = [daily, weekly].compactMap { $0 }
         if let data = HabitStore.read(SharedStorage.dataURL()) {
             plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
-            plans += habitPlans(habits: data.habits)
+            // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
+            // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
+            // nicht die Nachricht von morgen früh.
+            plans += motivationPlans(minutes: data.motivationMinutes,
+                                     name: PersonalName.effective)
+            plans += habitPlans(habits: data.habits,
+                                reservingMotivation: data.motivationMinutes != nil)
         }
         for plan in plans {
             try? await center.add(request(plan))

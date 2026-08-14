@@ -2092,9 +2092,10 @@ struct ContentView: View {
         }
     }
 
-    /// Die beiden Zusammenfassungen neu stellen. Sie tragen ZAHLEN, also
-    /// müssen sie nach jeder Änderung am Store neu gerechnet werden — genau
-    /// dafür hängt das hier an `store.onChange` und am Aktivwerden.
+    /// Alle Mitteilungen neu stellen. Die Zusammenfassungen tragen ZAHLEN und
+    /// müssen nach jeder Änderung am Store neu gerechnet werden; Motivation
+    /// und Habit-Weckrufe lesen im selben Lauf ihre Einstellungen von Platte.
+    /// Darum hängt das hier an `store.onChange` und am Aktivwerden.
     private func rescheduleReminders() async {
         let calendar = Calendar.current
         let today = DayKey.today(calendar: calendar)

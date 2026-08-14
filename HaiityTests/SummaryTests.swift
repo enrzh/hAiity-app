@@ -408,4 +408,59 @@ final class SummarySettingsTests: XCTestCase {
         XCTAssertEqual(s.weeklySummaryMinutes, 17 * 60)
         XCTAssertEqual(s.weeklySummaryWeekday, 3)
     }
+
+    // MARK: – Die Motivationsnachricht: derselbe Weg wie summaryMinutes
+
+    func testMotivationSettingRoundTripsThroughTheFile() {
+        let s = store()
+        XCTAssertNil(s.motivationMinutes, "Voreinstellung ist AUS")
+        s.motivationMinutes = 8 * 60
+        XCTAssertEqual(HabitStore(url: s.url).motivationMinutes, 8 * 60)
+        s.motivationMinutes = nil
+        XCTAssertNil(HabitStore(url: s.url).motivationMinutes)
+    }
+
+    /// Der Schlüssel steht nur in der Datei, wenn die Nachricht läuft — und
+    /// eine Datei aus einem Build ohne ihn lädt unverändert weiter.
+    func testMotivationKeyIsAdditiveAndOptional() throws {
+        var data = HabitData(version: 2, updatedAt: 1, summaryMinutes: nil, habits: [])
+        let off = String(data: try JSONEncoder().encode(data), encoding: .utf8) ?? ""
+        XCTAssertFalse(off.contains("motivationMinutes"))
+        data.motivationMinutes = 8 * 60
+        let on = String(data: try JSONEncoder().encode(data), encoding: .utf8) ?? ""
+        XCTAssertTrue(on.contains("motivationMinutes"))
+
+        let old = Data(#"{"version":2,"updatedAt":1,"summaryMinutes":1200,"habits":[]}"#.utf8)
+        let decoded = try JSONDecoder().decode(HabitData.self, from: old)
+        XCTAssertNil(decoded.motivationMinutes)
+        XCTAssertEqual(decoded.summaryMinutes, 1200)
+    }
+
+    /// Merge: exakt die Regel von `summaryMinutes`. Das neuere Gerät gibt
+    /// eine EINGESCHALTETE Uhrzeit vor — sein nil bedeutet „nichts gesetzt"
+    /// und löscht die Einstellung hier nicht.
+    func testMergeFollowsTheSummaryMinutesRule() {
+        let newer = Date().timeIntervalSince1970 + 999
+
+        let s = store()
+        var remote = HabitData(version: 2, updatedAt: newer, summaryMinutes: nil, habits: [])
+        remote.motivationMinutes = 7 * 60 + 30
+        s.merge(remote: remote)
+        XCTAssertEqual(s.motivationMinutes, 7 * 60 + 30)
+
+        // Neuer, aber ohne Wert: der lokale Stand bleibt stehen.
+        let keeps = store()
+        keeps.motivationMinutes = 8 * 60
+        keeps.merge(remote: HabitData(version: 2, updatedAt: newer,
+                                      summaryMinutes: nil, habits: []))
+        XCTAssertEqual(keeps.motivationMinutes, 8 * 60)
+
+        // Älter, mit Wert: verliert.
+        let older = store()
+        older.motivationMinutes = 8 * 60
+        var stale = HabitData(version: 2, updatedAt: 0, summaryMinutes: nil, habits: [])
+        stale.motivationMinutes = 21 * 60
+        older.merge(remote: stale)
+        XCTAssertEqual(older.motivationMinutes, 8 * 60)
+    }
 }

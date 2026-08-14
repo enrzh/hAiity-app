@@ -208,16 +208,132 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertEqual(days.count, 8)
     }
 
-    /// Das 64er-Budget des Systems läuft nicht mehr stumm über: ab sechs
+    /// Das 64er-Budget des Systems läuft nicht mehr stumm über: ab fünf
     /// Habits mit Uhrzeit schrumpft das Voraus-Fenster, statt dass iOS die
     /// hintersten Anfragen wegwirft.
+    ///
+    /// Die Grenze wanderte von sechs auf fünf, als die sieben
+    /// Motivationsnachrichten in die feste Rechnung kamen: den Habits
+    /// bleiben seither 43 statt 50 Anfragen.
     func testReminderWindowShrinksWithManyTimedHabits() {
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 0), 9)
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 1), 9)
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 5), 9)
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 6), 8)
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 10), 5)
-        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 64), 1)
+        XCTAssertEqual(Reminders.habitRequestBudget(reservingMotivation: true), 43)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 0,
+                                                reservingMotivation: true), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 1,
+                                                reservingMotivation: true), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 4,
+                                                reservingMotivation: true), 9)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 5,
+                                                reservingMotivation: true), 8)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 6,
+                                                reservingMotivation: true), 7)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 10,
+                                                reservingMotivation: true), 4)
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 64,
+                                                reservingMotivation: true), 1)
+    }
+
+    func testDisabledMotivationDoesNotReduceTheExistingHabitWindow() {
+        XCTAssertEqual(Reminders.reminderWindow(timedHabitCount: 5), 9,
+                       "an opt-in feature must not consume slots while disabled")
+    }
+
+    /// Der Deckel als RECHNUNG, nicht als Zuversicht: für jede Anzahl von
+    /// Habits mit Uhrzeit muss die Gesamtzahl anstehender Anfragen unter 64
+    /// bleiben — feste Anfragen plus Habit-Wecker.
+    ///
+    /// Das Fenster allein genügt dafür nicht: es fällt nie unter einen Tag,
+    /// also ergäben 50 Habits ohne den zusätzlichen Gesamt-Deckel in
+    /// `habitPlans` genau 50 Anfragen und damit 69 insgesamt. Genau diese
+    /// Lücke hält der Test zu.
+    func testWorstCaseRequestCountStaysUnderTheSystemLimit() {
+        for reservingMotivation in [false, true] {
+            let fixed = Reminders.fixedRequestEstimate(
+                reservingMotivation: reservingMotivation)
+            let budget = Reminders.habitRequestBudget(
+                reservingMotivation: reservingMotivation)
+            for count in 0...80 {
+                let habits = (0..<count).map {
+                    Habit(name: "H\($0)", timeMinutes: 20 * 60, recurrence: .daily)
+                }
+                let habitRequests = Reminders.habitPlans(
+                    habits: habits, reservingMotivation: reservingMotivation,
+                    now: now, calendar: calendar).count
+                XCTAssertLessThanOrEqual(habitRequests, budget,
+                                         "\(count) Habits mit Uhrzeit")
+                XCTAssertLessThanOrEqual(habitRequests + fixed,
+                                         Reminders.pendingBudget,
+                                         "\(count) Habits mit Uhrzeit")
+            }
+        }
+    }
+
+    // MARK: – Die tägliche Motivationsnachricht
+
+    /// Eine Anfrage JE TAG, keine wiederholende: nur so trägt jeder Tag
+    /// seinen eigenen Satz. Heute ist mit dabei, solange die Uhrzeit noch
+    /// bevorsteht (Fixture: 12:00, Nachricht um 20:00).
+    func testMotivationPlansOnePerDayWithFullDates() {
+        let plans = Reminders.motivationPlans(minutes: 20 * 60, name: nil,
+                                              now: now, calendar: calendar)
+        XCTAssertEqual(plans.count, Reminders.motivationDays)
+        XCTAssertEqual(plans.first?.identifier, Reminders.motivationId(day: "2026-08-09"))
+        XCTAssertEqual(plans.last?.identifier, Reminders.motivationId(day: "2026-08-15"))
+        for plan in plans {
+            XCTAssertFalse(plan.repeats, "wiederholend zeigte ewig denselben Satz")
+            XCTAssertNotNil(plan.dateMatching.year, "einmaliger Wecker braucht das volle Datum")
+            XCTAssertEqual(plan.dateMatching.hour, 20)
+            XCTAssertEqual(plan.dateMatching.minute, 0)
+            XCTAssertFalse(plan.body.isEmpty)
+            XCTAssertFalse(plan.title.contains("%@"), "Platzhalter darf nie sichtbar werden")
+        }
+        // Der Vorrat ist der Grund für die Tagesanfragen: die Sätze der
+        // sieben Tage dürfen nicht alle gleich sein.
+        XCTAssertGreaterThan(Set(plans.map(\.body)).count, 1)
+    }
+
+    /// Der Tag, dessen Uhrzeit vorbei ist, fällt heraus — sonst stellte die
+    /// App einen Wecker in die Vergangenheit, den iOS sofort verwirft.
+    func testMotivationSkipsTodayWhenTheTimeHasPassed() {
+        let plans = Reminders.motivationPlans(minutes: 9 * 60, name: nil,
+                                              now: now, calendar: calendar)
+        XCTAssertEqual(plans.count, Reminders.motivationDays - 1)
+        XCTAssertEqual(plans.first?.identifier, Reminders.motivationId(day: "2026-08-10"))
+    }
+
+    /// Aus = keine einzige Anfrage; kaputte Uhrzeiten ebenso.
+    func testMotivationDisabledOrInvalidPlansNothing() {
+        XCTAssertTrue(Reminders.motivationPlans(minutes: nil, name: "Mo",
+                                                now: now, calendar: calendar).isEmpty)
+        XCTAssertTrue(Reminders.motivationPlans(minutes: -1, name: "Mo",
+                                                now: now, calendar: calendar).isEmpty)
+        XCTAssertTrue(Reminders.motivationPlans(minutes: 24 * 60, name: "Mo",
+                                                now: now, calendar: calendar).isEmpty)
+        XCTAssertTrue(Reminders.motivationPlans(minutes: 20 * 60, name: "Mo", days: 0,
+                                                now: now, calendar: calendar).isEmpty)
+    }
+
+    /// Mit Namen die %@-Fassung, ohne die neutrale — und die Zeile bleibt
+    /// in beiden Fällen dieselbe, weil nur die Anrede den Namen kennt.
+    func testMotivationUsesTheNameOnlyInTheTitle() {
+        let withName = Reminders.motivationPlans(minutes: 20 * 60, name: "Mo",
+                                                 now: now, calendar: calendar)
+        let without = Reminders.motivationPlans(minutes: 20 * 60, name: nil,
+                                                now: now, calendar: calendar)
+        XCTAssertEqual(withName.map(\.body), without.map(\.body))
+        XCTAssertEqual(withName.map(\.identifier), without.map(\.identifier))
+        XCTAssertTrue(withName.allSatisfy { $0.title.contains("Mo") })
+        XCTAssertTrue(without.allSatisfy { !$0.title.contains("%@") })
+    }
+
+    /// Die Kennung trägt den Tag — daran hängt sowohl das Ersetzen beim
+    /// Umstellen der Uhrzeit als auch das Aufräumen beim Ausschalten.
+    func testMotivationIdentifiersCarryTheDayAndSharePrefix() {
+        XCTAssertEqual(Reminders.motivationId(day: "2026-08-09"), "motivation-2026-08-09")
+        let plans = Reminders.motivationPlans(minutes: 20 * 60, name: nil,
+                                              now: now, calendar: calendar)
+        XCTAssertTrue(plans.allSatisfy { $0.identifier.hasPrefix(Reminders.motivationPrefix) })
+        XCTAssertEqual(Set(plans.map(\.identifier)).count, plans.count, "keine Kennung doppelt")
     }
 
     // MARK: – v16: die Wochenmeldung fällt nicht mehr aus

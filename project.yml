@@ -130,6 +130,10 @@ targets:
       # müssen deshalb im Extension-Prozess vorliegen.
       - path: Haiity/Models/Celebration.swift
       - path: Haiity/Models/PersonalName.swift
+      # Aus demselben Grund der Motivationsvorrat: Reminders.reschedule
+      # plant die Tagesnachrichten und wird aus dieser Extension heraus
+      # übersetzt — ohne die Datei fehlt hier schlicht der Typ.
+      - path: Haiity/Models/Motivation.swift
       # Live-Aktivität: geteilter Attribut-Typ, Session-Logik/Ablage und die
       # Intents der Knöpfe — die Extension braucht die TYPEN, perform()
       # läuft im App-Prozess.
