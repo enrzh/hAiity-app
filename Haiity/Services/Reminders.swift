@@ -336,6 +336,37 @@ enum Reminders {
                                         calendar: calendar) {
             try? await center.add(request(daily))
         }
+        // Auch der Widget-Check-in kann den Tag vollmachen.
+        await celebrateIfPerfectDay(store: store, now: now, calendar: calendar)
+    }
+
+    /// Der Glückwunsch zum perfekten Tag — nach JEDEM Check-in geprüft
+    /// (App wie Widget), gefeuert höchstens einmal je Tag. Der Merker wird
+    /// VOR dem Planen gesetzt: zwei schnelle Check-ins hintereinander
+    /// dürfen nicht beide feuern.
+    static func celebrateIfPerfectDay(store: HabitStore,
+                                      now: Date = Date(),
+                                      calendar: Calendar = .current) async {
+        let today = DayKey.key(for: now, calendar: calendar)
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        guard Celebration.shouldCelebrate(status: store.dailyStatus(today, calendar: calendar),
+                                          today: today,
+                                          lastCelebrated: defaults.string(forKey: Celebration.celebratedKey))
+        else { return }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
+        defaults.set(today, forKey: Celebration.celebratedKey)
+
+        let message = Celebration.message(name: PersonalName.effective, today: today)
+        let content = UNMutableNotificationContent()
+        content.title = message.title
+        content.body = message.body
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        try? await center.add(UNNotificationRequest(identifier: "celebration-\(today)",
+                                                    content: content,
+                                                    trigger: trigger))
     }
 
     static func scheduleSessionMilestone(_ session: HabitSession) async {

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AuthenticationServices
 
 /// Bildschirmartige Unterziele des Mehr-Bereichs — wertbasiert, damit
 /// Deep-Links (haiity://stats, haiity://archive) direkt hinspringen können.
@@ -49,6 +50,10 @@ struct MoreView: View, Equatable {
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
     @State private var currentIconName: String?
     @State private var iconChangeFailed = false
+    @State private var aliasDraft = ""
+    @State private var storedAppleName: String?
+    @State private var appleSignInCameBackEmpty = false
+    @Environment(\.colorScheme) private var colorScheme
     /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
     /// Vorschau sofort zeigt, dass frei gewählt und ehrlich gerundet wird.
     @State private var freeIconColor: Color = Theme.color(0x0F766E)
@@ -81,6 +86,8 @@ struct MoreView: View, Equatable {
             swipeActionsSection
 
             calendarSection
+
+            personalSection
 
             dailySummarySection
             weeklySummarySection
@@ -289,6 +296,91 @@ struct MoreView: View, Equatable {
             }
         } footer: {
             Text(String(localized: "Legt einen eigenen hAiity-Kalender an und trägt dort die Termine deiner Habits ein — sichtbar in Apple Kalender und, je nach Standardkonto, in Google Kalender. Deine übrigen Kalender bleiben unberührt."))
+        }
+    }
+
+    // MARK: – Anrede
+    //
+    // Der Name macht Mitteilungen persönlich („Stark, Mo!") — mehr nicht.
+    // Zwei Quellen: der Alias (geht IMMER, kein Konto nötig) und optional
+    // der Vorname aus der Apple-Anmeldung; der Alias gewinnt. Apple liefert
+    // den Namen nur bei der ERSTEN Anmeldung — schlägt das fehl oder kommt
+    // leer zurück, sagt die Zeile das ehrlich, statt still nichts zu tun.
+
+    private var personalSection: some View {
+        Section {
+            TextField(String(localized: "Alias"),
+                      text: aliasBinding,
+                      prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("personal-alias")
+            if let appleName = storedAppleName {
+                HStack {
+                    Label(String(format: String(localized: "Angemeldet als %@"), appleName),
+                          systemImage: "person.crop.circle.badge.checkmark")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(String(localized: "Entfernen")) {
+                        PersonalName.appleName = nil
+                        storedAppleName = nil
+                    }
+                    .font(.subheadline)
+                    .accessibilityIdentifier("apple-name-remove")
+                }
+            } else {
+                SignInWithAppleButton(.signIn) { request in
+                    // Nur der Name — keine E-Mail, kein Konto, kein Server.
+                    request.requestedScopes = [.fullName]
+                } onCompletion: { result in
+                    handleAppleSignIn(result)
+                }
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                .frame(height: 40)
+                .accessibilityIdentifier("apple-signin")
+                if appleSignInCameBackEmpty {
+                    Text(String(localized: "Apple nennt den Vornamen nur bei der allerersten Anmeldung. Kein Problem — trag einfach einen Alias ein."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        } header: {
+            Text(String(localized: "Anrede"))
+        } footer: {
+            Text(String(localized: "Für persönlichere Mitteilungen, etwa den Glückwunsch zum perfekten Tag. Der Name bleibt auf dem Gerät. Anmelden ist optional — ein Alias genügt immer und gewinnt gegen den Apple-Namen."))
+        }
+        .onAppear {
+            aliasDraft = PersonalName.alias ?? ""
+            storedAppleName = PersonalName.appleName
+        }
+    }
+
+    private var aliasBinding: Binding<String> {
+        Binding(get: { aliasDraft },
+                set: { value in
+                    aliasDraft = value
+                    PersonalName.alias = value
+                })
+    }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        guard case .success(let auth) = result,
+              let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
+            // Abbruch/Fehler: kein Banner, keine Strafe — der Alias bleibt
+            // der immer offene Weg.
+            return
+        }
+        let formatter = PersonNameComponentsFormatter()
+        let name = credential.fullName?.givenName
+            ?? credential.fullName.map { formatter.string(from: $0) }
+        if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            PersonalName.appleName = name
+            storedAppleName = PersonalName.appleName
+            appleSignInCameBackEmpty = false
+            Theme.Haptics.success()
+        } else {
+            appleSignInCameBackEmpty = true
         }
     }
 

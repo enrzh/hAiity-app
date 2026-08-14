@@ -100,4 +100,15 @@ final class CalendarEventPlanTests: XCTestCase {
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, c)
     }
+
+    /// Kalendereinträge sind NUR Bild: erinnern tut hAiity selbst — ein
+    /// Termin mit eigenem Wecker wäre der zweite Alarm für denselben Habit.
+    func testCalendarEventsCarryNoAlarms() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        XCTAssertTrue(source.contains("event.alarms = nil"))
+        XCTAssertFalse(source.contains("EKAlarm"), "kein Wecker am Termin")
+        XCTAssertFalse(source.contains("addAlarm"), "kein Wecker am Termin")
+    }
 }

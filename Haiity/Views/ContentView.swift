@@ -1620,6 +1620,15 @@ struct ContentView: View {
         // Nur Debug: den Einrichtungs-Bildschirm direkt zeigen — Klicks
         // durch „Mehr" sind in der Sim-Automatisierung unzuverlässig.
         if args.contains("-show-reminder-setup") { showReminderSetup = true }
+        // Nur Debug: Glückwunsch-Merker löschen bzw. Alias setzen — `simctl
+        // defaults write` schreibt an den App-Group-Defaults VORBEI.
+        if args.contains("-reset-celebration") {
+            (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+                .removeObject(forKey: Celebration.celebratedKey)
+        }
+        if let a = args.firstIndex(of: "-set-alias"), a + 1 < args.count {
+            PersonalName.alias = args[a + 1]
+        }
         // Nur Debug: `-calendar-sync on|off` schaltet den Kalender-Spiegel
         // ohne UI — für die EventKit-Verifikation per Screenshot.
         if let c = args.firstIndex(of: "-calendar-sync"), c + 1 < args.count {
@@ -1844,6 +1853,8 @@ struct ContentView: View {
         store.onChange = {
             schedulePush()
             Task { await rescheduleReminders() }
+            // Glückwunsch, wenn dieser Check-in den Tag vollgemacht hat.
+            Task { await Reminders.celebrateIfPerfectDay(store: store) }
             // Kalender-Spiegel nachziehen (No-op ohne Schalter/Zugriff;
             // ohne `validate`, damit Check-ins EventKit gar nicht anfassen).
             CalendarSync.reconcile(habits: store.habits, validate: false)

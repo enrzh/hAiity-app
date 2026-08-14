@@ -25,5 +25,14 @@
 	<array>
 		<string>CloudKit</string>
 	</array>
+	<!--
+	  Anmelden mit Apple — optional, nur für den VORNAMEN in persönlichen
+	  Mitteilungen (siehe PersonalName). Kein Backend: das Identitäts-Token
+	  wird nicht einmal angeschaut.
+	-->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

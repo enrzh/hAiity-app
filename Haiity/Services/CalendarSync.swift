@@ -310,6 +310,10 @@ enum CalendarSync {
             event.endDate = day
         }
         event.recurrenceRules = [recurrenceRule(for: plan)]
+        // BEWUSST ohne Hinweiston: erinnern tut hAiity selbst (Reminders);
+        // der Kalendereintrag ist nur das Bild des Tages. Zwei Wecker für
+        // denselben Habit wären Lärm.
+        event.alarms = nil
         do {
             try store.save(event, span: .futureEvents, commit: true)
             trace("calsync: saved '\(plan.title)' id=\(event.eventIdentifier ?? "nil")")
