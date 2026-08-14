@@ -27,7 +27,7 @@ enum MoreRoute: Hashable, Identifiable {
 struct MoreView: View, Equatable {
     static func == (a: MoreView, b: MoreView) -> Bool {
         a.store === b.store && a.cloudStatus === b.cloudStatus
-            && a.statsCards === b.statsCards
+            && a.statsCards === b.statsCards && a.routeToken == b.routeToken
     }
 
     let store: HabitStore
@@ -38,6 +38,11 @@ struct MoreView: View, Equatable {
     let statsCards: StatsCardStore
     /// Ein seitenartiges Ziel öffnen (Statistik, Archiv, Über).
     let onOpen: (MoreRoute) -> Void
+    /// Zählt die eingetroffenen Deep-Links (siehe ContentView). Ein Link ist
+    /// eine Absage an das, was gerade offen ist: der Tab wechselt unter dem
+    /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
+    /// Kaufseite sitzen, die zu einem Bereich gehört, den er verlassen hat.
+    var routeToken: Int = 0
 
     @State private var showImporter = false
     @State private var importMessage: String?
@@ -63,7 +68,22 @@ struct MoreView: View, Equatable {
     @State private var renamingPalette: CustomPalette?
     @State private var renameText = ""
     @State private var deletingPalette: CustomPalette?
+    /// Das Kaufblatt: `nil` heisst geschlossen. Der Kontext bestimmt nur die
+    /// Kopfzeile — vier Zeilen dieser Seite können es öffnen.
+    @State private var paywall: PaywallContext?
+    /// Die Absicht, die das Kaufblatt unterbrochen hat — gesetzt NUR, wenn
+    /// der Kauf wirklich vorliegt. Sie wird beim Zufahren des Blatts
+    /// ausgeführt: bezahlen und dann vor demselben Schloss stehen ist der
+    /// Moment, in dem sich ein Kauf wie ein Fehler anfühlt.
+    @State private var purchased: PaywallContext?
     @Environment(\.palettes) private var palettes
+
+    /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
+    /// `ProStatus`). Bewusst KEIN gespiegelter Zustand: der Kauf kann von
+    /// einem anderen Blatt, einem anderen Gerät oder aus einer bestätigten
+    /// Familien-Kaufanfrage kommen, und dann müssen die Schlösser hier
+    /// trotzdem aufgehen.
+    private var unlocked: Bool { Pro.isUnlocked }
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
@@ -78,6 +98,8 @@ struct MoreView: View, Equatable {
             } footer: {
                 Text(String(localized: "Deine Habits liegen auf diesem Gerät. Ist es bei iCloud angemeldet, spiegelt hAiity sie zusätzlich in deine private iCloud — nichts einzurichten, kein Konto bei uns, kein Server bei uns."))
             }
+
+            proSection
 
             appearanceSection
             paletteSection
@@ -154,6 +176,17 @@ struct MoreView: View, Equatable {
         }
         .sheet(item: $editingPalette) { palette in
             CustomPaletteSheet(store: store, existing: palette).themed(store)
+        }
+        .sheet(item: $paywall, onDismiss: resumeAfterPurchase) { context in
+            PaywallView(context: context, store: store,
+                        onUnlocked: { purchased = context })
+                .themed(store)
+        }
+        // Ein Deep-Link gewinnt gegen jedes offene Kaufblatt: der Tab
+        // wechselt darunter, also darf es nicht darüber liegen bleiben.
+        .onChange(of: routeToken) { _, _ in
+            purchased = nil
+            paywall = nil
         }
         .fullScreenCover(isPresented: $showReminderSetup) {
             ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
@@ -266,6 +299,84 @@ struct MoreView: View, Equatable {
     // im Auswählen-Modus. Der alte App-Group-Schlüssel „backfillMode" wird
     // schlicht nicht mehr gelesen.
 
+    // MARK: – hAiity Pro
+    //
+    // Steht direkt unter dem iCloud-Status und spricht dessen Sprache:
+    // Symbolkachel, Titel, ein Satz. Und unmittelbar DARUNTER stehen die drei
+    // Zeilen, die davon abhängen (Icon per Farbrad, eigene Farbe, Kalender) —
+    // wer hier kauft, sieht das Ergebnis, ohne zu scrollen.
+    //
+    // Der Markenname bleibt unübersetzt (`verbatim`): er steht in keinem
+    // Katalog und darf in keiner Sprache anders heissen.
+
+    @ViewBuilder
+    private var proSection: some View {
+        Section {
+            if unlocked {
+                // Kein Kaufknopf für etwas, das schon gekauft ist — und keine
+                // Zeile, die ins Leere tippt. Nur der Dank.
+                proRow(symbol: "checkmark.seal.fill",
+                       detail: String(localized: "Freigeschaltet. Danke."),
+                       highlighted: true)
+                    .accessibilityIdentifier("pro-status")
+            } else {
+                Button {
+                    paywall = .settings
+                } label: {
+                    HStack(spacing: Theme.Metrics.gap) {
+                        proRow(symbol: "lock",
+                               detail: String(localized: "Unbegrenzte Habits, eigene Farben, Kalender und volle Statistik."),
+                               highlighted: false)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("open-paywall")
+            }
+        } footer: {
+            Text(String(localized: "Einmal kaufen. Kein Abo, kein Konto, kein Server."))
+        }
+    }
+
+    /// Dieselbe Form wie die iCloud-Zeile darüber — zwei Statuszeilen
+    /// untereinander, die sich unterscheiden, lesen sich wie ein Bruch.
+    private func proRow(symbol: String, detail: String, highlighted: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(highlighted ? AnyShapeStyle(Theme.accentFill(palettes.style))
+                                        : AnyShapeStyle(Color.secondary),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "hAiity Pro")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(highlighted ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                                 : AnyShapeStyle(HierarchicalShapeStyle.primary))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Das eine Schloss-Zeichen gegateter Zeilen. Es sagt VOR dem Tippen, was
+    /// passiert — ein Schalter, der wortlos zurückspringt, wirkt kaputt.
+    private var proLock: some View {
+        Image(systemName: "lock")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+    }
+
     // MARK: – Kalender
     //
     // EIN Schalter: die Habits mit Termin erscheinen in einem eigenen
@@ -277,7 +388,17 @@ struct MoreView: View, Equatable {
     private var calendarSection: some View {
         Section {
             Toggle(isOn: calendarBinding) {
-                Label(String(localized: "Habits im Kalender"), systemImage: "calendar.badge.plus")
+                HStack {
+                    Label(String(localized: "Habits im Kalender"), systemImage: "calendar.badge.plus")
+                    // Das Schloss meint das EINschalten. Läuft der Spiegel
+                    // bereits (Erstattung, Bestandsgerät), wäre es eine
+                    // Falschaussage neben einem Schalter, der an ist — und
+                    // VoiceOver läse „Nur mit hAiity Pro, Schalter, ein".
+                    if !unlocked && !CalendarSync.isEnabled {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        proLock
+                    }
+                }
             }
             .accessibilityIdentifier("calendar-sync-toggle")
             if calendarDenied {
@@ -390,6 +511,16 @@ struct MoreView: View, Equatable {
             set: { on in
                 guard on else {
                     CalendarSync.disable()
+                    return
+                }
+                // AUSschalten bleibt immer frei — auch nach einer Erstattung
+                // darf niemand mit einem Schalter zurückbleiben, den er nicht
+                // mehr umlegen kann. Nur das EINschalten ist Pro, und es fragt
+                // dann gar nicht erst nach dem Kalender-Zugriff: eine
+                // Berechtigung für eine Funktion, die danach doch nicht läuft,
+                // ist eine Frage unter falschem Vorwand.
+                guard ProGate.mayUseProFeature(unlocked: unlocked) else {
+                    paywall = .calendar
                     return
                 }
                 Task {
@@ -528,6 +659,16 @@ struct MoreView: View, Equatable {
                 .frame(width: 30, height: 30)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityHidden(true)
+            freeIconColorAction
+        }
+    }
+
+    /// Gegated ist nur das SETZEN. Farbrad und ehrliche Vorschau bleiben —
+    /// wer sehen will, welches der 18 Icons aus seiner Farbe würde, soll das
+    /// sehen dürfen; die 18 Kacheln darüber sind ohnehin frei.
+    @ViewBuilder
+    private var freeIconColorAction: some View {
+        if unlocked {
             Button(String(localized: "Anwenden")) {
                 chooseIcon(named: snappedFreeIconName)
             }
@@ -535,6 +676,19 @@ struct MoreView: View, Equatable {
             .buttonStyle(.bordered)
             .tint(Theme.accentFill(palettes.style))
             .accessibilityIdentifier("icon-color-apply")
+        } else {
+            Button {
+                paywall = .icon
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "lock")
+                    Text(verbatim: "Pro")
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+            .accessibilityIdentifier("icon-color-pro")
         }
     }
 
@@ -632,9 +786,16 @@ struct MoreView: View, Equatable {
                 }
             }
             Button {
-                creatingPalette = true
+                requestCustomPalette()
             } label: {
-                Label(String(localized: "Eigene Farbe …"), systemImage: "plus.circle")
+                HStack {
+                    Label(String(localized: "Eigene Farbe …"), systemImage: "plus.circle")
+                    if !unlocked {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        proLock
+                    }
+                }
+                .contentShape(Rectangle())
             }
             .foregroundStyle(.primary)
             .accessibilityIdentifier("palette-add-custom")
@@ -650,6 +811,41 @@ struct MoreView: View, Equatable {
     private var deleteQuestion: String {
         guard let palette = deletingPalette else { return "" }
         return String(localized: "„\(palette.displayName)“ wird noch benutzt. Löschen?")
+    }
+
+    /// Eigene Farben ANLEGEN ist Pro — der Bestand nicht: vorhandene eigene
+    /// Farben bleiben wählbar, umbenennbar, bearbeitbar und löschbar. Bezahlt
+    /// wird das Neue, nie das Vorhandene.
+    private func requestCustomPalette() {
+        guard ProGate.mayUseProFeature(unlocked: unlocked) else {
+            paywall = .palette
+            return
+        }
+        creatingPalette = true
+    }
+
+    /// Was nach einem erfolgreichen Kauf weiterläuft. Erst beim ZUFAHREN des
+    /// Blatts: eine zweite Präsentation, die im Abgang der ersten startet,
+    /// schluckt iOS.
+    ///
+    /// `.settings` steht bewusst nicht hier — diese Zeile hat nichts
+    /// unterbrochen, die Seite zeigt den Kauf jetzt einfach als
+    /// freigeschaltet. `.habits` und `.stats` gehören anderen Bildschirmen.
+    private func resumeAfterPurchase() {
+        guard let intent = purchased else { return }
+        purchased = nil
+        switch intent {
+        case .calendar:
+            // Über die Bindung, nicht daran vorbei: sie ist der EINE Weg,
+            // der das Gate prüft und danach den Kalender-Zugriff erfragt.
+            calendarBinding.wrappedValue = true
+        case .palette:
+            creatingPalette = true
+        case .icon:
+            chooseIcon(named: snappedFreeIconName)
+        case .habits, .stats, .settings:
+            break
+        }
     }
 
     private func requestDelete(_ palette: CustomPalette) {

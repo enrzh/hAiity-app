@@ -119,6 +119,59 @@ final class AppNavigationTests: XCTestCase {
                        .apply)
     }
 
+    /// Das Kaufblatt ist die oberste Präsentation und wird von KEINER Route
+    /// gewollt. Bleibt es stehen, wechselt der Bereich darunter und der
+    /// Nutzer sitzt auf einer Kaufseite fest, die zu seinem Tipp nicht mehr
+    /// gehört (im Simulator reproduziert: `haiity://new` → Kaufblatt,
+    /// danach `haiity://stats` → Blatt blieb).
+    func testEveryRouteDismissesAnOpenPaywallFirst() {
+        let destinations: [AppDestination] = [.habits, .more, .stats, .archive,
+                                              .search, .create]
+
+        for destination in destinations {
+            var work = RouteWork()
+            let route = work.begin(destination.effect)
+
+            XCTAssertEqual(work.nextStep(for: route,
+                                         presentation: .init(paywall: .presented)),
+                           .dismissPaywall,
+                           "\(destination) must dismiss the paywall first")
+            XCTAssertEqual(work.nextStep(for: route,
+                                         presentation: .init(paywall: .dismissing)),
+                           .waitForPaywallDismissal,
+                           "\(destination) must wait for the paywall onDismiss")
+            // Ist es weg, geht die Route ihren gewohnten Weg weiter.
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
+        }
+    }
+
+    /// Das Kaufblatt gewinnt gegen das Anlege-Cover UND gegen die
+    /// Mehr-Seite: es liegt über beiden.
+    func testPaywallIsDismissedBeforeCoverAndMoreSheet() {
+        var work = RouteWork()
+        let route = work.begin(AppDestination.stats.effect)
+
+        XCTAssertEqual(work.nextStep(for: route,
+                                     presentation: .init(create: .presented,
+                                                         paywall: .presented,
+                                                         more: .presented,
+                                                         morePage: .archive)),
+                       .dismissPaywall)
+    }
+
+    func testPaywallSheetIsWiredIntoTheRouteStateMachine() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("onDismiss: deliverPendingPaywallDismissalRoute"))
+        XCTAssertTrue(source.contains(".onAppear { paywallDidPresent(context) }"))
+        XCTAssertTrue(source.contains("let waitsForOnDismiss = paywallIsPresented"))
+        // Die Bereiche mit EIGENEM Kaufblatt räumen es am Routen-Zähler weg.
+        XCTAssertTrue(source.contains("routeToken &+= 1"))
+        for host in ["Haiity/Views/MoreView.swift", "Haiity/Views/StatsView.swift"] {
+            let text = try String(contentsOf: sourceURL(host))
+            XCTAssertTrue(text.contains(".onChange(of: routeToken)"), host)
+        }
+    }
+
     func testCreateCoverSeparatesRequestFromActualPresentation() {
         var cover = CreateCoverPresentation()
 

@@ -17,6 +17,13 @@ import SwiftUI
 /// memoisiert — eine `body`-Auswertung kostet den Gleichheitsvergleich.
 struct StatsView: View {
     let store: HabitStore
+    /// Zählt die eingetroffenen Deep-Links (siehe ContentView). Ein Link ist
+    /// eine Absage an das, was gerade offen ist: der Tab wechselt unter dem
+    /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
+    /// Kaufseite sitzen, die zu einem Bereich gehört, den er verlassen hat.
+    var routeToken: Int = 0
+    /// Das Kaufblatt: `nil` heisst geschlossen.
+    @State private var paywall: PaywallContext?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -25,12 +32,28 @@ struct StatsView: View {
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
+    /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
+    /// `ProStatus`). Der Kauf muss NICHT hier passieren: er kann über die
+    /// vierte Habit, über die Einstellungen, auf einem anderen Gerät oder
+    /// als bestätigte Familien-Kaufanfrage kommen. Genau dann darf die
+    /// Statistik nicht gesperrt stehen bleiben.
+    private var unlocked: Bool { Pro.isUnlocked }
+
     var body: some View {
-        if store.activeHabits.isEmpty {
-            emptyState
-        } else {
-            statsList
+        Group {
+            if store.activeHabits.isEmpty {
+                emptyState
+            } else {
+                statsList
+            }
         }
+        .sheet(item: $paywall) { context in
+            // Hier gibt es nichts fortzusetzen: die Seite selbst IST das
+            // Ziel und entsperrt sich mit dem Kauf.
+            PaywallView(context: context, store: store, onUnlocked: {})
+                .themed(store)
+        }
+        .onChange(of: routeToken) { _, _ in paywall = nil }
     }
 
     /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
@@ -65,8 +88,17 @@ struct StatsView: View {
                                               trailing: Theme.Metrics.gutter))
             }
             Section {
-                ForEach(store.activeHabits) { habit in
-                    StatsRow(habit: habit)
+                // Der Schnitt liegt auf der SEKTION, nicht mitten in einer
+                // Karte: eine halbe Zeile („Quoten ja, Balken nein") wäre
+                // eine kaputte Zeile. Die Daten bleiben unangetastet — hier
+                // wird nur nicht gezeichnet.
+                if unlocked {
+                    ForEach(store.activeHabits) { habit in
+                        StatsRow(habit: habit)
+                            .modifier(StatsCardChrome())
+                    }
+                } else {
+                    perHabitLockCard
                         .modifier(StatsCardChrome())
                 }
             } header: {
@@ -108,12 +140,93 @@ struct StatsView: View {
                     streakChip(snapshot.streak)
                 }
             }
-            mergedGrid(snapshot.mergedLevels)
+            pulse(snapshot)
         }
+        .contentShape(Rectangle())
+        .onTapGesture { if !unlocked { paywall = .stats } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Jahres-Puls"))
-        .accessibilityValue(String(localized: "Alle Habits zusammen: heute \(snapshot.todayDone) von \(snapshot.todayTotal) erledigt, Gesamt-Serie \(snapshot.streak) Tage."))
+        .accessibilityValue(pulseValue(snapshot))
         .accessibilityIdentifier("stats-card-yearPulse")
+        .accessibilityAddTraits(unlocked ? [] : .isButton)
+        .accessibilityAction { if !unlocked { paywall = .stats } }
+    }
+
+    /// Frei ist die KARTE (Titel und Serien-Chip), Pro ist das Ablesen des
+    /// Rasters. Bewusst das ECHTE Raster, nur unscharf: ein erfundener
+    /// Platzhalter wäre eine Behauptung über Daten, die längst da sind.
+    /// Gerechnet und gespeichert wird unverändert weiter.
+    @ViewBuilder
+    private func pulse(_ snapshot: StatsEngine.Snapshot) -> some View {
+        if unlocked {
+            mergedGrid(snapshot.mergedLevels)
+        } else {
+            mergedGrid(snapshot.mergedLevels)
+                .blur(radius: 5)
+                .clipped()
+                .overlay { pulseLockChip }
+                // Der Tipp gehört der ganzen Karte, nicht dem Raster —
+                // sonst hätte die Karte zwei Trefferzonen mit demselben Ziel.
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var pulseLockChip: some View {
+        Label(String(localized: "Nur mit hAiity Pro"), systemImage: "lock")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
+            .accessibilityHidden(true)
+    }
+
+    private func pulseValue(_ snapshot: StatsEngine.Snapshot) -> String {
+        guard unlocked else {
+            // Der Serien-Chip steht auch gesperrt scharf auf der Karte. Ihn
+            // durch „Nur mit hAiity Pro" zu ERSETZEN hiesse, dieselbe Karte
+            // sagt Sehenden und Hörenden Unterschiedliches — gesperrt ist
+            // das Raster, nicht die Serie.
+            let locked = String(localized: "Nur mit hAiity Pro")
+            guard snapshot.streak > 0 else { return locked }
+            return String(localized: "Serie: \(snapshot.streak) Tage") + ". " + locked
+        }
+        return String(localized: "Alle Habits zusammen: heute \(snapshot.todayDone) von \(snapshot.todayTotal) erledigt, Gesamt-Serie \(snapshot.streak) Tage.")
+    }
+
+    /// Statt der Zeilen EINE Karte in derselben Form — kein Banner, keine
+    /// zweite Farbe, kein Ausrufezeichen. Sie NENNT, was fehlt, statt zu
+    /// rufen, dass etwas fehlt.
+    private var perHabitLockCard: some View {
+        Button {
+            paywall = .stats
+        } label: {
+            HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+                Image(systemName: "lock")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 36, height: 36)
+                    .background(Theme.accent(palettes.style).opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(String(localized: "Je Habit im Detail"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(String(localized: "Quoten über 30, 90 und 365 Tage, beste Serie, Gesamtzahl und zwölf Monats-Balken — für jeden Habit einzeln."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(String(localized: "Mit hAiity Pro freischalten"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(accent)
+                        .padding(.top, 2)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("stats-pro-lock")
     }
 
     /// Gemessene Kartenbreite fürs Puls-Raster — feste SPALTENZAHL, die

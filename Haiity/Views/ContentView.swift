@@ -45,6 +45,22 @@ struct ContentView: View {
     /// `showAdd` ist nur der Praesentationswunsch. Erst `createPage.onAppear`
     /// belegt, dass ein Cover wirklich da ist und ein `onDismiss` schuldet.
     @State private var createCover = CreateCoverPresentation()
+    /// Das Kaufblatt: EIN optionaler Zustand statt Flagge plus Kontext, die
+    /// auseinanderlaufen können. `nil` heisst geschlossen; der Kontext ändert
+    /// nur die Kopfzeile, nie das Angebot.
+    @State private var paywall: PaywallContext?
+    /// Bleibt bis zum `onDismiss` des Kaufblatts wahr — dieselbe
+    /// Buchführung wie beim Mehr-Blatt: erst danach darf eine Route ihre
+    /// eigene Präsentation starten.
+    @State private var paywallIsPresented = false
+    /// Die Absicht, die das Kaufblatt unterbrochen hat — gesetzt NUR, wenn
+    /// der Kauf wirklich vorliegt.
+    @State private var purchasedIntent: PaywallContext?
+    /// Zählt eingetroffene Deep-Links. Die Bereiche, die ihr eigenes
+    /// Kaufblatt halten (Mehr, Statistik), räumen es daran weg: ein Link
+    /// wechselt den Bereich DARUNTER, und ein stehen gelassenes Blatt wäre
+    /// eine Sackgasse.
+    @State private var routeToken = 0
     @State private var syncStatus = ""
     /// Wann die App zuletzt aktiv wurde. In den ersten Sekunden danach wird
     /// KEIN Sync-Fehler eingeblendet: CloudKit wirft beim Start und beim
@@ -176,6 +192,22 @@ struct ContentView: View {
             .fullScreenCover(isPresented: $showAdd,
                              onDismiss: deliverPendingCreateDismissalRoute) {
                 createPage.onAppear { createCoverDidPresent() }
+            }
+            // Das Kaufblatt hängt hier oben, weil das Limit an VIER Stellen
+            // zuschlagen kann (Toolbar-+, Leerzustand, Fallback-Chrom,
+            // Deep-Link). Ein Blatt je Einstieg wären vier Wege, es zu
+            // verlieren — und vier Stellen, an denen es anders aussieht.
+            //
+            // Es hängt MIT in der Routen-Zustandsmaschine (onDismiss →
+            // advancePendingRoute): ein Deep-Link, der eintrifft, während es
+            // offen steht, schaltet sonst den Bereich darunter um und lässt
+            // den Nutzer auf der Kaufseite sitzen.
+            .sheet(item: $paywall,
+                   onDismiss: deliverPendingPaywallDismissalRoute) { context in
+                PaywallView(context: context, store: store,
+                            onUnlocked: { purchasedIntent = context })
+                    .themed(store)
+                    .onAppear { paywallDidPresent(context) }
             }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
@@ -411,7 +443,7 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var statsTabContent: some View {
         NavigationStack {
-            StatsView(store: store)
+            StatsView(store: store, routeToken: routeToken)
         }
     }
 
@@ -486,7 +518,8 @@ struct ContentView: View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
-                     onOpen: presentMoreSheet)
+                     onOpen: presentMoreSheet,
+                     routeToken: routeToken)
                 .navigationTitle(String(localized: "Mehr"))
         }
         .sheet(item: $morePageRoute,
@@ -509,14 +542,15 @@ struct ContentView: View {
         NavigationStack {
             MoreView(store: store, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
-                     onOpen: presentMoreSheet)
+                     onOpen: presentMoreSheet,
+                     routeToken: routeToken)
                 .navigationTitle(String(localized: "Mehr"))
         }
     }
 
     private var fallbackStatsContent: some View {
         NavigationStack {
-            StatsView(store: store)
+            StatsView(store: store, routeToken: routeToken)
         }
     }
 
@@ -553,6 +587,24 @@ struct ContentView: View {
     }
 
     private static let createZoomID = "create-circle"
+
+    /// Der EINE Weg zum Anlegen — alle vier Einstiege laufen hier durch:
+    /// Toolbar-+, Leerzustand, Fallback-Chrom und der Deep-Link
+    /// `haiity://create`. Ein zweiter Weg zum Cover wäre ein zweiter Weg am
+    /// Limit vorbei, und daran hängt der einzige harte Unterschied zwischen
+    /// frei und Pro.
+    ///
+    /// Gegated wird die ABSICHT, nie der Bestand: wer aus dem Archiv
+    /// zurückholt, importiert oder über iCloud mehr als drei aktive Habits
+    /// bekommt, behält sie und kann sie voll benutzen (siehe ProGate).
+    private func requestCreate() {
+        guard ProGate.mayAddHabit(activeCount: store.activeHabits.count,
+                                  unlocked: Pro.isUnlocked) else {
+            paywall = .habits
+            return
+        }
+        showAdd = true
+    }
 
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
@@ -729,7 +781,7 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button { showAdd = true } label: {
+            Button { requestCreate() } label: {
                 Image(systemName: "plus")
             }
             .modifier(MoreZoomSource(id: Self.createZoomID,
@@ -1204,7 +1256,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             Button {
-                showAdd = true
+                requestCreate()
             } label: {
                 Text(String(localized: "Ersten Habit anlegen"))
                     .font(.subheadline.weight(.semibold))
@@ -1390,7 +1442,7 @@ struct ContentView: View {
     /// dass zwei verschieden große Knöpfe gegeneinander blenden.
     private var addButton: some View {
         Button {
-            showAdd = true
+            requestCreate()
         } label: {
             glyph("plus")
                 // Aufgenommen im gemeinsamen Blob gibt es keine eingefärbte
@@ -1496,6 +1548,11 @@ struct ContentView: View {
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
         routePresentationTask?.cancel()
+        // Die Bereiche mit eigenem Kaufblatt (Mehr, Statistik) räumen es an
+        // diesem Zähler weg. Das Blatt DIESES Bildschirms läuft dagegen
+        // durch die Zustandsmaschine — nur sie weiß, wann das Zufahren
+        // abgeschlossen ist.
+        routeToken &+= 1
         let route = routeWork.begin(effect)
         pendingRoute = route
         if !effect.opensSearch {
@@ -1510,6 +1567,36 @@ struct ContentView: View {
             search = ""
         }
         advance(route)
+    }
+
+    private func paywallDidPresent(_ context: PaywallContext) {
+        guard paywall == context else { return }
+        paywallIsPresented = true
+    }
+
+    /// Zufahren heisst: entweder war ein Deep-Link der Grund (dann gewinnt
+    /// er), oder der Kauf ist durch und die unterbrochene Handlung läuft
+    /// weiter. Beides erst HIER — eine Präsentation, die im Abgang der
+    /// vorigen startet, schluckt iOS.
+    private func deliverPendingPaywallDismissalRoute() {
+        guard paywall == nil else { return }
+        paywallIsPresented = false
+        if pendingRoute == nil {
+            resumeAfterPurchase()
+        } else {
+            purchasedIntent = nil
+        }
+        advancePendingRoute()
+    }
+
+    /// Nach dem Kauf weiterlaufen, statt den Nutzer vor derselben Wand
+    /// abzusetzen. Hier zählt nur `.habits`: die übrigen Kontexte gehören
+    /// den Einstellungen (siehe MoreView) oder entsperren sich selbst.
+    private func resumeAfterPurchase() {
+        guard let intent = purchasedIntent else { return }
+        purchasedIntent = nil
+        // Wieder durch dasselbe Tor — es lässt jetzt durch.
+        if intent == .habits { requestCreate() }
     }
 
     private func deliverPendingCreateDismissalRoute() {
@@ -1565,11 +1652,19 @@ struct ContentView: View {
     private func advance(_ route: RouteWork.Item) {
         let presentation = RoutePresentation(
             create: createCover.phase(requested: showAdd),
+            paywall: paywall != nil
+                ? .presented : paywallIsPresented ? .dismissing : .absent,
             more: moreSheet != nil || morePageRoute != nil
                 ? .presented : moreSheetIsPresented ? .dismissing : .absent,
             morePage: presentedMoreDestination)
 
         switch routeWork.nextStep(for: route, presentation: presentation) {
+        case .dismissPaywall:
+            let waitsForOnDismiss = paywallIsPresented
+            paywall = nil
+            if !waitsForOnDismiss { advance(route) }
+        case .waitForPaywallDismissal:
+            break
         case .dismissCreate:
             let waitsForOnDismiss = createCover.dismissalIsOwed
             showAdd = false
@@ -1604,7 +1699,10 @@ struct ContentView: View {
             } else if route.effect.opensSearch {
                 openSearch(origin: .deepLink, routeGeneration: route.generation)
             } else if route.effect.opensCreate {
-                showAdd = true
+                // Auch der Deep-Link ist ein Anlege-Einstieg und muss durch
+                // dasselbe Tor: sonst wäre `haiity://create` die Abkürzung,
+                // mit der das Limit gar nicht erst gefragt wird.
+                requestCreate()
             }
         }
     }
@@ -1643,6 +1741,15 @@ struct ContentView: View {
         }
         if let a = args.firstIndex(of: "-set-alias"), a + 1 < args.count {
             PersonalName.alias = args[a + 1]
+        }
+        // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
+        // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand
+        // fest (siehe Pro.setDebugUnlocked): dieser Aufruf steht NACH
+        // `await boot()`, der dort gestartete Bestandsabgleich antwortet aber
+        // später und würde ihn sonst wieder wegräumen.
+        if let p = args.firstIndex(of: "-pro"), p + 1 < args.count {
+            Pro.setDebugUnlocked(args[p + 1] != "off")
+            trace("pro: debug hook \(args[p + 1])")
         }
         // Nur Debug: `-calendar-sync on|off` schaltet den Kalender-Spiegel
         // ohne UI — für die EventKit-Verifikation per Screenshot.
@@ -1865,6 +1972,12 @@ struct ContentView: View {
 
     private func boot() async {
         HaiityShortcuts.updateAppShortcutParameters()
+        // Kauf-Zustand: der Lauscher zuerst (er muss stehen, BEVOR StoreKit
+        // eine ausstehende Transaktion meldet — sonst geht sie verloren), der
+        // Bestandsabgleich nebenher. Beides bewusst ohne `await`: die Gates
+        // lesen den lokalen Merker, keine Ansicht wartet auf das Netz.
+        Pro.startTransactionListener()
+        Task { await Pro.refresh() }
         store.onChange = {
             schedulePush()
             Task { await rescheduleReminders() }

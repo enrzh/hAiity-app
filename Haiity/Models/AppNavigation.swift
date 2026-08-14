@@ -45,6 +45,11 @@ enum RoutePresentationPhase: Equatable {
 
 struct RoutePresentation: Equatable {
     var create: RoutePresentationPhase = .absent
+    /// Das Kaufblatt. KEINE Route öffnet es — es ist immer nur im Weg, und
+    /// zwar als oberste Präsentation: ein Deep-Link, der es stehen lässt,
+    /// schaltet den Bereich darunter um und sperrt den Nutzer auf einer
+    /// Kaufseite ein, die zu seinem Tipp gar nicht mehr gehört.
+    var paywall: RoutePresentationPhase = .absent
     var more: RoutePresentationPhase = .absent
     var morePage: AppMoreDestination? = nil
 }
@@ -75,6 +80,8 @@ struct RouteWork {
     }
 
     enum Step: Equatable {
+        case dismissPaywall
+        case waitForPaywallDismissal
         case dismissCreate
         case waitForCreateDismissal
         case dismissMore
@@ -105,6 +112,13 @@ struct RouteWork {
 
     func nextStep(for item: Item, presentation: RoutePresentation) -> Step? {
         guard isCurrent(item) else { return nil }
+
+        // Zuerst das Kaufblatt: es liegt über allem, und keine Route will es.
+        switch presentation.paywall {
+        case .requested, .presented: return .dismissPaywall
+        case .dismissing: return .waitForPaywallDismissal
+        case .absent: break
+        }
 
         if !item.effect.opensCreate {
             switch presentation.create {

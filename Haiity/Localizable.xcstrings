@@ -8572,6 +8572,106 @@
         }
       }
     },
+    "Alles freischalten — mit einem einzigen Kauf.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتح كل شيء — بعملية شراء واحدة."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সবকিছু খুলুন — একটিমাত্র কেনায়।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock everything — with a single purchase."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloquéalo todo — con una sola compra."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout débloquer — avec un seul achat."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सब कुछ खोलें — बस एक ख़रीद से।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka semuanya — dengan sekali beli."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sblocca tutto — con un solo acquisto."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてを解放 — 一度きりの購入で。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전부 열기 — 단 한 번의 구입으로."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloqueie tudo — com uma única compra."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть всё — одной покупкой."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her şeyi aç — tek bir satın alımla."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سب کچھ کھولیں — صرف ایک خریداری سے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở khóa mọi thứ — chỉ với một lần mua."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁全部——只需购买一次。"
+          }
+        }
+      }
+    },
     "Alles von heute ist erledigt — das Raster leuchtet.": {
       "localizations": {
         "ar": {
@@ -10578,6 +10678,106 @@
         }
       }
     },
+    "Auf diesem Konto liegt kein früherer Kauf von hAiity Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يوجد على هذا الحساب شراء سابق لـ hAiity Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "এই অ্যাকাউন্টে hAiity Pro-র আগের কোনো কেনা নেই।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There’s no earlier hAiity Pro purchase on this account."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En esta cuenta no hay ninguna compra anterior de hAiity Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun achat antérieur de hAiity Pro sur ce compte."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस अकाउंट पर hAiity Pro की कोई पिछली ख़रीद नहीं है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ada pembelian hAiity Pro sebelumnya di akun ini."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su questo account non risulta alcun acquisto precedente di hAiity Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントにhAiity Proの過去の購入はありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 계정에는 이전에 구입한 hAiity Pro가 없어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há nenhuma compra anterior do hAiity Pro nesta conta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этом аккаунте нет более ранней покупки hAiity Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu hesapta daha önce yapılmış bir hAiity Pro satın alımı yok."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اس اکاؤنٹ پر hAiity Pro کی کوئی پچھلی خریداری نہیں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tài khoản này chưa từng mua hAiity Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个账号上没有此前的 hAiity Pro 购买记录。"
+          }
+        }
+      }
+    },
     "Ausgewählt": {
       "localizations": {
         "ar": {
@@ -12378,6 +12578,106 @@
         }
       }
     },
+    "Das App-Icon per Farbrad setzen? Das ist Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ضبط أيقونة التطبيق عبر عجلة الألوان؟ هذا في Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কালার হুইল দিয়ে App-Icon বসাবেন? সেটা Pro-তে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set the app icon from a color wheel? That’s Pro."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Elegir el icono de la app con la rueda de color? Eso es Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Définir l’icône de l’app via la roue chromatique ? C’est Pro."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कलर व्हील से App-Icon सेट करना? वह Pro में है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menyetel App-Icon lewat roda warna? Itu Pro."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostare l’icona dell’app dalla ruota dei colori? Quello è Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カラーホイールでApp-Iconを設定？それはProです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상환으로 App-Icon 설정? 그건 Pro예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definir o ícone do app pela roda de cores? Isso é Pro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать значок приложения через цветовой круг? Это Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama simgesini renk çarkıyla ayarlamak mı? O Pro’da."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کلر وہیل سے App-Icon سیٹ کرنا؟ وہ Pro میں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt biểu tượng ứng dụng bằng vòng màu? Đó là Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想用色轮设置 App-Icon？那是 Pro。"
+          }
+        }
+      }
+    },
     "Das war stark": {
       "localizations": {
         "ar": {
@@ -13178,6 +13478,106 @@
         }
       }
     },
+    "Der App Store hat gerade nicht geantwortet. Prüf deine Verbindung und versuch es noch einmal.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يستجب App Store الآن. تحقّق من اتصالك وحاول مرة أخرى."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store এইমাত্র সাড়া দেয়নি। আপনার সংযোগ দেখে নিয়ে আবার চেষ্টা করুন।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The App Store didn’t respond just now. Check your connection and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El App Store no ha respondido ahora mismo. Comprueba tu conexión e inténtalo otra vez."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’App Store n’a pas répondu à l’instant. Vérifie ta connexion et réessaie."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store ने अभी जवाब नहीं दिया। अपना कनेक्शन जाँचें और दोबारा कोशिश करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store barusan tidak merespons. Periksa koneksimu dan coba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’App Store non ha risposto in questo momento. Controlla la connessione e riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Storeから応答がありませんでした。接続を確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store가 방금 응답하지 않았어요. 연결을 확인하고 다시 시도해 주세요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A App Store não respondeu agora. Verifique sua conexão e tente de novo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store сейчас не ответил. Проверь соединение и попробуй ещё раз."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store şu anda yanıt vermedi. Bağlantını kontrol edip yeniden dene."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store نے ابھی جواب نہیں دیا۔ اپنا کنکشن جانچیں اور دوبارہ کوشش کریں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store vừa không phản hồi. Hãy kiểm tra kết nối và thử lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store 刚才没有响应。请检查网络连接后再试一次。"
+          }
+        }
+      }
+    },
     "Der Habit stellt eine Frage („Kein Zucker?“). Jeder Tag wird mit Ja oder Nein beantwortet — ein Nein ist etwas anderes als ein unbeantworteter Tag und bricht die Serie.": {
       "localizations": {
         "ar": {
@@ -13474,6 +13874,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "日历访问已在 iOS 设置中停用。在设置中允许后即可使用。"
+          }
+        }
+      }
+    },
+    "Der Kauf ist nicht durchgegangen. Es wurde nichts berechnet — du kannst es gleich noch einmal versuchen.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم تتم عملية الشراء. لم يُخصم شيء — يمكنك المحاولة مجددًا على الفور."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কেনাটা সম্পন্ন হয়নি। কিছু চার্জ হয়নি — আপনি এখনই আবার চেষ্টা করতে পারেন।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The purchase didn’t go through. Nothing was charged — you can try again right away."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La compra no se realizó. No se cobró nada — puedes intentarlo otra vez ahora mismo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’achat n’a pas abouti. Rien n’a été débité — tu peux réessayer tout de suite."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ख़रीद पूरी नहीं हुई। कुछ भी शुल्क नहीं लिया गया — आप अभी दोबारा कोशिश कर सकते हैं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pembelian tidak berhasil. Tidak ada yang ditagih — kamu bisa langsung coba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’acquisto non è andato a buon fine. Non è stato addebitato nulla — puoi riprovare subito."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入は成立しませんでした。請求はありません — すぐにもう一度お試しいただけます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구입이 이뤄지지 않았어요. 청구된 것은 없어요 — 바로 다시 시도해도 돼요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A compra não foi concluída. Nada foi cobrado — você pode tentar de novo agora mesmo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покупка не прошла. Ничего не списано — можешь сразу попробовать ещё раз."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satın alma gerçekleşmedi. Hiçbir ücret alınmadı — hemen tekrar deneyebilirsin."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خریداری مکمل نہیں ہو سکی۔ کچھ وصول نہیں کیا گیا — آپ ابھی دوبارہ کوشش کر سکتے ہیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giao dịch mua chưa thành công. Không có khoản nào bị tính — bạn có thể thử lại ngay."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "购买没有完成。没有扣款——可以马上再试一次。"
           }
         }
       }
@@ -13874,6 +14374,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "本周走势，与上周对比。"
+          }
+        }
+      }
+    },
+    "Die ganze Statistik? Das ist Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الإحصاءات كاملةً؟ هذا في Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পুরো পরিসংখ্যান? সেটা Pro-তে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The full stats? That’s Pro."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Las estadísticas completas? Eso es Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes les statistiques ? C’est Pro."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पूरे आँकड़े? वह Pro में है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik lengkap? Itu Pro."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutte le statistiche? Quello è Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統計をすべて？それはProです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "통계 전부? 그건 Pro예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As estatísticas completas? Isso é Pro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вся статистика? Это Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstatistiklerin tamamı mı? O Pro’da."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مکمل اعداد و شمار؟ وہ Pro میں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toàn bộ thống kê? Đó là Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想看全部统计？那是 Pro。"
           }
         }
       }
@@ -14774,6 +15374,206 @@
           "stringUnit": {
             "state": "translated",
             "value": "自定义颜色 …"
+          }
+        }
+      }
+    },
+    "Eigene Farben": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ألوان خاصة"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "নিজের রং"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom colors"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colores propios"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleurs personnalisées"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने रंग"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna sendiri"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colori personalizzati"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "独自の色"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "직접 만든 색"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cores próprias"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свои цвета"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi renklerin"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اپنے رنگ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu riêng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义颜色"
+          }
+        }
+      }
+    },
+    "Eigene Farben? Das ist Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ألوان خاصة؟ هذا في Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "নিজের রং? সেটা Pro-তে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom colors? That’s Pro."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Colores propios? Eso es Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des couleurs personnalisées ? C’est Pro."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने रंग? वह Pro में है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna sendiri? Itu Pro."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colori personalizzati? Quello è Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "独自の色を？それはProです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "직접 만든 색? 그건 Pro예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cores próprias? Isso é Pro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свои цвета? Это Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi renklerin mi? O Pro’da."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اپنے رنگ؟ وہ Pro میں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu riêng? Đó là Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想要自定义颜色？那是 Pro。"
           }
         }
       }
@@ -15974,6 +16774,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "每周一次：你按时完成了多少次安排——以及哪些习惯落后了。"
+          }
+        }
+      }
+    },
+    "Einmal kaufen. Kein Abo, kein Konto, kein Server.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تشتري مرة واحدة. لا اشتراك ولا حساب ولا خادم."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "একবারই কিনুন। কোনো সাবস্ক্রিপশন নেই, অ্যাকাউন্ট নেই, সার্ভার নেই।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buy once. No subscription, no account, no server."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una compra y ya. Sin suscripción, sin cuenta, sin servidor."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un achat, une seule fois. Pas d’abonnement, pas de compte, pas de serveur."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक बार ख़रीदें। कोई सदस्यता नहीं, कोई अकाउंट नहीं, कोई सर्वर नहीं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beli sekali. Tanpa langganan, tanpa akun, tanpa server."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si compra una volta. Nessun abbonamento, nessun account, nessun server."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入は一度きり。サブスクリプションも、アカウントも、サーバーもありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "한 번만 구입하면 끝. 구독도, 계정도, 서버도 없어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compra única. Sem assinatura, sem conta, sem servidor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покупаешь один раз. Ни подписки, ни аккаунта, ни сервера."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir kez satın al. Abonelik yok, hesap yok, sunucu yok."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ایک بار خریدیں۔ کوئی سبسکرپشن نہیں، کوئی اکاؤنٹ نہیں، کوئی سرور نہیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mua một lần. Không thuê bao, không tài khoản, không máy chủ."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次买断。没有订阅，没有账号，没有服务器。"
           }
         }
       }
@@ -18084,6 +18984,106 @@
         }
       }
     },
+    "Freigeschaltet. Danke.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم الفتح. شكرًا لك."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "খুলে গেছে। ধন্যবাদ।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked. Thank you."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloqueado. Gracias."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Débloqué. Merci."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "खुल गया। धन्यवाद।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terbuka. Terima kasih."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sbloccato. Grazie."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解放されました。ありがとうございます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "열렸어요. 고맙습니다."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloqueado. Obrigado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыто. Спасибо."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açıldı. Teşekkürler."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کھل گیا۔ شکریہ۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã mở khóa. Cảm ơn bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已解锁。谢谢你。"
+          }
+        }
+      }
+    },
     "Fünfter": {
       "localizations": {
         "ar": {
@@ -18180,6 +19180,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "第五个"
+          }
+        }
+      }
+    },
+    "Für %@ kaufen": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اشترِ مقابل %@"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ দিয়ে কিনুন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buy for %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprar por %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acheter pour %@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ में ख़रीदें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beli seharga %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acquista per %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@で購入"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 구입"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprar por %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Купить за %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ile satın al"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ میں خریدیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mua với giá %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 %@ 购买"
           }
         }
       }
@@ -20590,6 +21690,106 @@
         }
       }
     },
+    "Habits im Kalender? Das ist Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "العادات في التقويم؟ هذا في Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ক্যালেন্ডারে অভ্যাস? সেটা Pro-তে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habits in Calendar? That’s Pro."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Hábitos en el calendario? Eso es Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des habitudes dans le calendrier ? C’est Pro."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कैलेंडर में आदतें? वह Pro में है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kebiasaan di Kalender? Itu Pro."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abitudini nel calendario? Quello è Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーに習慣を？それはProです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캘린더에 습관을? 그건 Pro예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos no calendário? Isso é Pro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привычки в календаре? Это Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takvimde alışkanlıklar mı? O Pro’da."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیلنڈر میں عادات؟ وہ Pro میں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thói quen trong Lịch? Đó là Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想把习惯放进日历？那是 Pro。"
+          }
+        }
+      }
+    },
     "Hakt einen Habit für heute ab bzw. zählt ihn eins hoch.": {
       "localizations": {
         "ar": {
@@ -22096,6 +23296,106 @@
         }
       }
     },
+    "Icon per Farbrad": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أيقونة عبر عجلة الألوان"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কালার হুইল থেকে আইকন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icon from a color wheel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icono con rueda de color"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icône via la roue chromatique"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कलर व्हील से आइकन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikon lewat roda warna"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icona dalla ruota dei colori"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カラーホイールでアイコン"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상환으로 아이콘 선택"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ícone pela roda de cores"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Значок через цветовой круг"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renk çarkıyla simge"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کلر وہیل سے آئیکن"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biểu tượng qua vòng màu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用色轮选图标"
+          }
+        }
+      }
+    },
     "Import fehlgeschlagen: %@": {
       "localizations": {
         "ar": {
@@ -22892,6 +24192,206 @@
           "stringUnit": {
             "state": "translated",
             "value": "按习惯"
+          }
+        }
+      }
+    },
+    "Je Habit im Detail": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لكل عادة بالتفصيل"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "প্রতি অভ্যাস, বিস্তারিত"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per habit, in detail"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por hábito, en detalle"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par habitude, en détail"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "प्रति आदत, विस्तार से"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per kebiasaan, secara rinci"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per abitudine, nel dettaglio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "習慣ごとの詳細"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "습관별 상세"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por hábito, em detalhe"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По привычкам — подробно"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alışkanlık başına ayrıntılı"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فی عادت، تفصیل سے"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chi tiết theo thói quen"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按习惯看细节"
+          }
+        }
+      }
+    },
+    "Jede Auswertung im Detail statt nur der Kacheln der Übersicht.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "كل تحليل بتفاصيله، لا مربعات النظرة العامة وحدها."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "শুধু সারসংক্ষেপের টাইল নয়, প্রতিটি বিশ্লেষণ বিস্তারিতভাবে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every analysis in detail instead of only the overview tiles."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada análisis en detalle, no solo los recuadros del resumen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque analyse en détail, pas seulement les tuiles de la vue d’ensemble."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिर्फ़ अवलोकन की टाइलें नहीं, हर विश्लेषण विस्तार से।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setiap analisis secara rinci, bukan cuma petak ringkasan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ogni analisi nel dettaglio, non solo i riquadri della panoramica."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "概要のタイルだけでなく、すべての分析を詳しく。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개요 타일만이 아니라 모든 분석을 자세히."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada análise em detalhe, não só os blocos do resumo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каждый разбор в подробностях, а не только плитки обзора."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her değerlendirme ayrıntısıyla, sadece genel bakıştaki kutucuklar değil."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "صرف خلاصے کی ٹائلیں نہیں، ہر تجزیہ تفصیل سے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mọi phân tích đều chi tiết, không chỉ các ô tổng quan."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每一项分析都能看细节，而不只是概览里的方块。"
           }
         }
       }
@@ -23902,6 +25402,106 @@
         }
       }
     },
+    "Kalender-Spiegel": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مرآة التقويم"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ক্যালেন্ডার মিরর"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendar mirror"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espejo del calendario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Miroir du calendrier"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कैलेंडर मिरर"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cermin kalender"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Specchio del calendario"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーへのミラー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캘린더 미러"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espelho do calendário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зеркало в календаре"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takvim yansıması"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیلنڈر کی نقل"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao trong Lịch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历镜像"
+          }
+        }
+      }
+    },
     "Kein Eintrag": {
       "localizations": {
         "ar": {
@@ -23998,6 +25598,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "无记录"
+          }
+        }
+      }
+    },
+    "Kein Kauf abgeschlossen, nichts berechnet. Eine wartende Kaufanfrage schaltet sich von selbst frei, sobald sie bestätigt ist.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم تكتمل أي عملية شراء ولم يُخصم شيء. وطلب الشراء المعلّق يُفتح من تلقاء نفسه بمجرد الموافقة عليه."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কোনো কেনা সম্পন্ন হয়নি, কিছু চার্জও হয়নি। অপেক্ষমাণ কেনার অনুরোধ অনুমোদিত হলেই নিজে থেকে খুলে যাবে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No purchase completed, nothing charged. A pending purchase request unlocks by itself as soon as it’s approved."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se completó ninguna compra ni se cobró nada. Una solicitud de compra pendiente se desbloquea sola en cuanto la aprueban."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun achat effectué, rien n’a été débité. Une demande d’achat en attente se débloque d’elle-même dès qu’elle est approuvée."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कोई ख़रीद पूरी नहीं हुई, कुछ भी शुल्क नहीं लिया गया। लंबित ख़रीद अनुरोध मंज़ूर होते ही अपने आप खुल जाता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ada pembelian yang selesai, tidak ada yang ditagih. Permintaan pembelian yang menunggu akan terbuka sendiri begitu disetujui."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun acquisto completato, nessun addebito. Una richiesta d’acquisto in attesa si sblocca da sola non appena viene approvata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入は完了しておらず、請求もありません。承認待ちの購入リクエストは、承認された時点で自動的に解放されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구입이 완료되지 않았고 청구된 것도 없어요. 대기 중인 구입 요청은 승인되는 즉시 저절로 열려요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhuma compra concluída, nada foi cobrado. Um pedido de compra pendente se desbloqueia sozinho assim que for aprovado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покупка не завершена, ничего не списано. Ожидающий запрос на покупку откроет доступ сам, как только его подтвердят."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satın alma tamamlanmadı, hiçbir ücret alınmadı. Bekleyen bir satın alma isteği onaylandığı anda kendiliğinden açılır."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کوئی خریداری مکمل نہیں ہوئی، کچھ وصول بھی نہیں کیا گیا۔ زیرِ التوا خریداری کی درخواست منظور ہوتے ہی خود بخود کھل جاتی ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa hoàn tất giao dịch nào, không có khoản nào bị tính. Yêu cầu mua đang chờ sẽ tự mở khóa ngay khi được duyệt."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有完成购买，也没有扣款。等待中的购买请求一经批准就会自动解锁。"
           }
         }
       }
@@ -24702,6 +26402,106 @@
         }
       }
     },
+    "Käufe wiederherstellen": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "استعادة المشتريات"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কেনাকাটা পুনরুদ্ধার করুন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore purchases"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurar compras"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurer les achats"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ख़रीदारी पुनर्स्थापित करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulihkan pembelian"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ripristina acquisti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入を復元"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구입 복원"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurar compras"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановить покупки"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satın alımları geri yükle"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خریداریاں بحال کریں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khôi phục giao dịch mua"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复购买项目"
+          }
+        }
+      }
+    },
     "Leeren": {
       "localizations": {
         "ar": {
@@ -24898,6 +26698,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "创建一个，开始填格子——每坚持一天，就会点亮一格。"
+          }
+        }
+      }
+    },
+    "Leg so viele an, wie dein Tag hergibt — ohne Pro sind es drei aktive.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أنشئ منها بقدر ما يتّسع له يومك — بدون Pro ثلاث عادات نشطة."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "আপনার দিন যত ধরে, তত তৈরি করুন — Pro ছাড়া তিনটি সক্রিয় অভ্যাস।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create as many as your day can hold — without Pro it’s three active ones."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea tantos como te dé el día — sin Pro son tres activos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crées-en autant que ta journée le permet — sans Pro, c’est trois actives."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जितनी आपका दिन सँभाल ले, उतनी बनाएँ — Pro के बिना तीन सक्रिय आदतें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buat sebanyak yang harimu sanggup — tanpa Pro ada tiga yang aktif."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creane quante ne regge la tua giornata — senza Pro sono tre attive."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一日に収まるだけ作れます。Proなしではアクティブな習慣は3つまでです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하루가 감당하는 만큼 만들 수 있어요. Pro가 없으면 진행 중인 습관은 셋까지예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crie quantos o seu dia aguentar — sem o Pro são três ativos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Создавай столько, сколько выдержит твой день — без Pro активных три."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Günün kaldırdığı kadar oluştur — Pro olmadan üç etkin alışkanlık."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جتنی آپ کا دن سنبھال لے، اتنی بنائیں — Pro کے بغیر تین فعال عادات۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo bao nhiêu tùy sức ngày của bạn — không có Pro thì là ba thói quen đang theo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一天装得下多少就建多少——没有 Pro 时为三个活跃习惯。"
           }
         }
       }
@@ -25802,6 +27702,106 @@
         }
       }
     },
+    "Mehr als drei Habits? Das ist Pro.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أكثر من ثلاث عادات؟ هذا في Pro."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "তিনটির বেশি অভ্যাস? সেটা Pro-তে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More than three habits? That’s Pro."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Más de tres hábitos? Eso es Pro."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus de trois habitudes ? C’est Pro."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "तीन से ज़्यादा आदतें? वह Pro में है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lebih dari tiga kebiasaan? Itu Pro."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Più di tre abitudini? Quello è Pro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "習慣を3つより多く？それはProです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "습관을 셋보다 많이? 그건 Pro예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mais de três hábitos? Isso é Pro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше трёх привычек? Это Pro."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üçten fazla alışkanlık mı? O Pro’da."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تین سے زیادہ عادات؟ وہ Pro میں ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hơn ba thói quen? Đó là Pro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想要超过三个习惯？那是 Pro。"
+          }
+        }
+      }
+    },
     "Mehr schließen": {
       "localizations": {
         "ar": {
@@ -26402,6 +28402,106 @@
         }
       }
     },
+    "Misch dir eigene Paletten aus einer Grundfarbe, für die App und für einzelne Habits.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "امزج لوحات ألوانك الخاصة من لون أساسي واحد، للتطبيق ولعادات بعينها."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "একটি মূল রং থেকে নিজের প্যালেট বানান — অ্যাপের জন্য এবং আলাদা অভ্যাসের জন্য।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mix your own palettes from a base color, for the app and for individual habits."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea tus propias paletas a partir de un color base, para la app y para hábitos concretos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compose tes propres palettes à partir d’une couleur de base, pour l’app et pour certaines habitudes."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक आधार रंग से अपने पैलेट बनाएँ — ऐप के लिए और अलग-अलग आदतों के लिए।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Racik palet sendiri dari satu warna dasar, untuk aplikasi dan untuk kebiasaan tertentu."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea le tue tavolozze da un colore base, per l’app e per le singole abitudini."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基準色ひとつから独自のパレットを作れます。アプリ全体にも、個々の習慣にも。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기준색 하나로 나만의 팔레트를 만들어 앱 전체에도, 습관 하나하나에도 쓸 수 있어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monte suas próprias paletas a partir de uma cor base, para o app e para hábitos específicos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собирай свои палитры из базового цвета — для приложения и для отдельных привычек."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir ana renkten kendi paletlerini karıştır, hem uygulama hem tek tek alışkanlıklar için."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ایک بنیادی رنگ سے اپنے پیلیٹ بنائیں — ایپ کے لیے اور الگ الگ عادات کے لیے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pha bảng màu riêng từ một màu nền, cho ứng dụng và cho từng thói quen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用一个基色调出自己的调色板，可用于整个 App，也可用于单个习惯。"
+          }
+        }
+      }
+    },
     "Mit Ja beantworten": {
       "localizations": {
         "ar": {
@@ -26498,6 +28598,206 @@
           "stringUnit": {
             "state": "translated",
             "value": "回答是"
+          }
+        }
+      }
+    },
+    "Mit der Familienfreigabe gilt der Kauf für deine ganze Familiengruppe.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مع المشاركة العائلية يسري الشراء على مجموعة عائلتك كلها."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ফ্যামিলি শেয়ারিং থাকলে এই কেনা আপনার পুরো পরিবার গ্রুপে প্রযোজ্য।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With Family Sharing the purchase covers your whole family group."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con la función En Familia, la compra vale para todo tu grupo familiar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avec le partage familial, l’achat vaut pour tout ton groupe familial."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ैमिली शेयरिंग के साथ यह ख़रीद आपके पूरे परिवार समूह पर लागू होती है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dengan Berbagi Keluarga, pembelian berlaku untuk seluruh grup keluargamu."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con In famiglia, l’acquisto vale per tutto il tuo gruppo familiare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファミリー共有なら、購入はファミリーグループ全員に適用されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가족 공유를 쓰면 구입이 가족 그룹 전체에 적용돼요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com o Compartilhamento Familiar, a compra vale para todo o seu grupo familiar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С Семейным доступом покупка действует для всей твоей семейной группы."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aile Paylaşımı ile satın alma tüm aile grubun için geçerli olur."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فیملی شیئرنگ کے ساتھ یہ خریداری آپ کے پورے فیملی گروپ پر لاگو ہوتی ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Với Chia sẻ gia đình, giao dịch mua áp dụng cho cả nhóm gia đình của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用家人共享时，这次购买对整个家庭群组都有效。"
+          }
+        }
+      }
+    },
+    "Mit hAiity Pro freischalten": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتحها مع hAiity Pro"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro দিয়ে খুলুন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with hAiity Pro"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloquear con hAiity Pro"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Débloquer avec hAiity Pro"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro से खोलें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka dengan hAiity Pro"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sblocca con hAiity Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Proで解放する"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro로 열기"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloquear com o hAiity Pro"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть с hAiity Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro ile aç"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro سے کھولیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở khóa với hAiity Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 hAiity Pro 解锁"
           }
         }
       }
@@ -28702,6 +31002,106 @@
         }
       }
     },
+    "Nur mit hAiity Pro": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مع hAiity Pro فقط"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "শুধু hAiity Pro-তে"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only with hAiity Pro"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo con hAiity Pro"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uniquement avec hAiity Pro"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिर्फ़ hAiity Pro के साथ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hanya dengan hAiity Pro"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo con hAiity Pro"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Proのみ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity Pro 전용"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só com o hAiity Pro"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только с hAiity Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca hAiity Pro ile"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "صرف hAiity Pro کے ساتھ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ có với hAiity Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅限 hAiity Pro"
+          }
+        }
+      }
+    },
     "Ohne Startdatum gilt die Regel für die ganze Historie — so bleiben Quoten und Serien älterer Habits unverändert.": {
       "localizations": {
         "ar": {
@@ -29002,6 +31402,206 @@
         }
       }
     },
+    "Preis nicht verfügbar": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "السعر غير متاح"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "দাম পাওয়া যাচ্ছে না"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Price unavailable"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precio no disponible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prix indisponible"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "क़ीमत उपलब्ध नहीं"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harga tidak tersedia"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prezzo non disponibile"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "価格を取得できません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가격을 가져오지 못했어요"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preço indisponível"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цена недоступна"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fiyat alınamadı"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قیمت دستیاب نہیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không lấy được giá"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法获取价格"
+          }
+        }
+      }
+    },
+    "Preis wird geladen": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جارٍ تحميل السعر"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "দাম লোড হচ্ছে"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading price"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando el precio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement du prix"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "क़ीमत लोड हो रही है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memuat harga"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caricamento del prezzo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "価格を読み込み中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가격 불러오는 중"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carregando o preço"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем цену"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fiyat yükleniyor"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قیمت لوڈ ہو رہی ہے"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải giá"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载价格"
+          }
+        }
+      }
+    },
     "Prüft, ob Mitteilungen von hAiity ankommen.": {
       "localizations": {
         "ar": {
@@ -29098,6 +31698,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "检查 hAiity 的通知能否送达。"
+          }
+        }
+      }
+    },
+    "Quoten über 30, 90 und 365 Tage, beste Serie, Gesamtzahl und zwölf Monats-Balken — für jeden Habit einzeln.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نسب 30 و90 و365 يومًا، وأفضل سلسلة، والعدد الإجمالي، واثنا عشر عمودًا شهريًا — لكل عادة على حدة."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "৩০, ৯০ ও ৩৬৫ দিনের হার, সেরা স্ট্রিক, মোট সংখ্যা আর বারো মাসের বার — প্রতিটি অভ্যাসের জন্য আলাদা করে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rates over 30, 90 and 365 days, best streak, total count and twelve monthly bars — for each habit on its own."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Porcentajes de 30, 90 y 365 días, mejor racha, total y doce barras mensuales — para cada hábito por separado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taux sur 30, 90 et 365 jours, meilleure série, total et douze barres mensuelles — pour chaque habitude séparément."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30, 90 और 365 दिनों की दरें, सर्वश्रेष्ठ स्ट्रीक, कुल संख्या और बारह मासिक बार — हर आदत के लिए अलग-अलग।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rasio 30, 90, dan 365 hari, rentetan terbaik, jumlah total, dan dua belas batang bulanan — untuk tiap kebiasaan secara terpisah."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Percentuali su 30, 90 e 365 giorni, serie migliore, totale e dodici barre mensili — per ogni abitudine singolarmente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30日・90日・365日の達成率、最高記録、合計、そして12か月分のバー — 習慣ごとに個別に。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30일, 90일, 365일 달성률, 최고 기록, 총합, 그리고 열두 달치 막대 — 습관마다 따로."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taxas de 30, 90 e 365 dias, melhor sequência, total e doze barras mensais — para cada hábito separadamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показатели за 30, 90 и 365 дней, лучшая серия, общее число и двенадцать месячных столбиков — для каждой привычки отдельно."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30, 90 ve 365 günlük oranlar, en iyi seri, toplam sayı ve on iki aylık çubuk — her alışkanlık için ayrı ayrı."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30، 90 اور 365 دن کی شرحیں، بہترین سلسلہ، کل تعداد اور بارہ ماہانہ بار — ہر عادت کے لیے الگ الگ۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tỉ lệ trong 30, 90 và 365 ngày, chuỗi tốt nhất, tổng số và mười hai cột theo tháng — riêng cho từng thói quen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 天、90 天和 365 天的完成率，最佳连续、总次数，以及十二个月度柱状图——每个习惯单独呈现。"
           }
         }
       }
@@ -31408,6 +34108,106 @@
         }
       }
     },
+    "Stell die Farbe am Rad ein — hAiity setzt das nächstliegende seiner 18 mitgelieferten Icons. Ohne Pro wählst du direkt aus den 18 Kacheln.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اضبط اللون على العجلة — يطبّق hAiity أقرب أيقونة من أيقوناته الـ18 المضمّنة. بدون Pro تختار مباشرةً من المربّعات الـ18."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "চাকায় রং বেছে নিন — hAiity তার সঙ্গে থাকা ১৮টি আইকনের মধ্যে সবচেয়ে কাছেরটি বসায়। Pro ছাড়াও আপনি সরাসরি ১৮টি টাইল থেকে বেছে নিতে পারেন।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set the color on the wheel — hAiity applies the closest of its 18 bundled icons. Without Pro you pick from the 18 tiles directly."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajusta el color en la rueda: hAiity aplica el más cercano de sus 18 iconos incluidos. Sin Pro eliges directamente entre los 18 mosaicos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglez la couleur sur la roue — hAiity applique la plus proche de ses 18 icônes fournies. Sans Pro, vous choisissez directement parmi les 18 vignettes."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कलर व्हील पर रंग चुनें — hAiity अपने 18 शामिल आइकनों में से सबसे नज़दीकी लगा देता है। Pro के बिना आप सीधे 18 टाइलों में से चुनते हैं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atur warna di roda — hAiity memasang ikon terdekat dari 18 ikon bawaannya. Tanpa Pro kamu memilih langsung dari 18 kotak."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regola il colore sulla ruota: hAiity applica la più vicina delle sue 18 icone incluse. Senza Pro scegli direttamente tra i 18 riquadri."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カラーホイールで色を選ぶと、hAiity は同梱の 18 個のアイコンから最も近いものを設定します。Pro なしでも 18 個のタイルから直接選べます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상환에서 색을 고르면 hAiity가 기본 제공되는 18개 아이콘 중 가장 가까운 것을 적용해요. Pro 없이도 18개 타일에서 직접 고를 수 있어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuste a cor na roda — o hAiity aplica o mais próximo dos seus 18 ícones incluídos. Sem o Pro, você escolhe diretamente entre os 18 blocos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите цвет на круге — hAiity поставит ближайший из своих 18 встроенных значков. Без Pro вы выбираете прямо из 18 плиток."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rengi çarkta ayarla — hAiity, 18 yerleşik simgesinden en yakınını uygular. Pro olmadan 18 karodan doğrudan seçersin."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رنگ وہیل پر منتخب کریں — hAiity اپنے 18 شامل آئیکنز میں سے قریب ترین لگا دیتا ہے۔ Pro کے بغیر آپ براہِ راست 18 ٹائلوں میں سے چنتے ہیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉnh màu trên vòng màu — hAiity đặt biểu tượng gần nhất trong 18 biểu tượng có sẵn. Không có Pro, bạn chọn trực tiếp từ 18 ô."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在色轮上选色 — hAiity 会套用自带 18 个图标中最接近的一个。没有 Pro 也能直接从 18 个方块中选。"
+          }
+        }
+      }
+    },
     "Streak-Flamme": {
       "localizations": {
         "ar": {
@@ -32808,6 +35608,106 @@
         }
       }
     },
+    "Trägt die Termine deiner Habits in einen eigenen hAiity-Kalender ein.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يُدرج مواعيد عاداتك في تقويم hAiity خاص."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "আপনার অভ্যাসের সময়সূচি একটি আলাদা hAiity ক্যালেন্ডারে যোগ করে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds your habits’ schedules to a dedicated hAiity calendar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añade los horarios de tus hábitos a un calendario hAiity propio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inscrit les rendez-vous de tes habitudes dans un calendrier hAiity dédié."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपकी आदतों के समय एक अलग hAiity कैलेंडर में जोड़ता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan jadwal kebiasaanmu ke kalender hAiity khusus."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inserisce gli impegni delle tue abitudini in un calendario hAiity dedicato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "習慣の予定を専用のhAiityカレンダーに登録します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "습관 일정을 전용 hAiity 캘린더에 기록합니다."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adiciona os horários dos seus hábitos a um calendário hAiity próprio."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вносит расписание твоих привычек в отдельный календарь hAiity."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alışkanlıklarının programını özel bir hAiity takvimine işler."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "آپ کی عادات کے اوقات ایک الگ hAiity کیلنڈر میں درج کرتا ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghi lịch trình thói quen của bạn vào một lịch hAiity riêng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把习惯的日程写入专属的 hAiity 日历。"
+          }
+        }
+      }
+    },
     "Täglich": {
       "localizations": {
         "ar": {
@@ -33308,6 +36208,206 @@
         }
       }
     },
+    "Unbegrenzte Habits": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عادات بلا حدود"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সীমাহীন অভ্যাস"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlimited habits"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos ilimitados"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habitudes illimitées"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "असीमित आदतें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kebiasaan tanpa batas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abitudini illimitate"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "習慣は無制限"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "습관 무제한"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos ilimitados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привычки без ограничений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sınırsız alışkanlık"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لامحدود عادات"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thói quen không giới hạn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "习惯不限数量"
+          }
+        }
+      }
+    },
+    "Unbegrenzte Habits, eigene Farben, Kalender und volle Statistik.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عادات بلا حدود، وألوان خاصة، وتقويم، وإحصاءات كاملة."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সীমাহীন অভ্যাস, নিজের রং, ক্যালেন্ডার আর পূর্ণ পরিসংখ্যান।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlimited habits, custom colors, calendar and full stats."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos ilimitados, colores propios, calendario y estadísticas completas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habitudes illimitées, couleurs personnalisées, calendrier et statistiques complètes."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "असीमित आदतें, अपने रंग, कैलेंडर और पूरे आँकड़े।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kebiasaan tanpa batas, warna sendiri, kalender, dan statistik lengkap."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abitudini illimitate, colori personalizzati, calendario e statistiche complete."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無制限の習慣、独自の色、カレンダー、そして統計のすべて。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무제한 습관, 직접 만든 색, 캘린더, 통계 전체."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hábitos ilimitados, cores próprias, calendário e estatísticas completas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привычки без ограничений, свои цвета, календарь и полная статистика."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sınırsız alışkanlık, kendi renklerin, takvim ve tüm istatistikler."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لامحدود عادات، اپنے رنگ، کیلنڈر اور مکمل اعداد و شمار۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thói quen không giới hạn, màu riêng, lịch và thống kê đầy đủ."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无限习惯、自定义颜色、日历，以及完整统计。"
+          }
+        }
+      }
+    },
     "Unbekannter iCloud-Fehler.": {
       "localizations": {
         "ar": {
@@ -33804,6 +36904,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "整行点亮，%@"
+          }
+        }
+      }
+    },
+    "Volle Statistik": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الإحصاءات الكاملة"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পূর্ণ পরিসংখ্যান"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full stats"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estadísticas completas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiques complètes"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पूरे आँकड़े"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik lengkap"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiche complete"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統計のすべて"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "통계 전체"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estatísticas completas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полная статистика"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm istatistikler"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مکمل اعداد و شمار"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thống kê đầy đủ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整统计"
           }
         }
       }
@@ -35810,6 +39010,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "每周总结"
+          }
+        }
+      }
+    },
+    "Wähl die Farbe des App-Icons frei statt aus der Liste der Paletten.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اختر لون أيقونة التطبيق بحرية بدلًا من قائمة لوحات الألوان."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon-এর রং প্যালেটের তালিকা থেকে নয়, নিজের ইচ্ছেমতো বেছে নিন।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick the app icon’s color freely instead of from the list of palettes."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige libremente el color del icono de la app en vez de tomarlo de la lista de paletas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisis librement la couleur de l’icône de l’app au lieu de la prendre dans la liste des palettes."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon का रंग पैलेट की सूची से नहीं, बल्कि आज़ादी से चुनें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pilih warna App-Icon dengan bebas, bukan dari daftar palet."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli liberamente il colore dell’icona dell’app invece di prenderlo dall’elenco delle tavolozze."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Iconの色をパレット一覧からではなく、自由に選べます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon 색을 팔레트 목록이 아니라 자유롭게 고를 수 있어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escolha livremente a cor do ícone do app em vez de pegar da lista de paletas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбирай цвет App-Icon свободно, а не из списка палитр."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon’un rengini palet listesinden değil, serbestçe seç."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon کا رنگ پیلیٹ کی فہرست سے نہیں، آزادانہ چنیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn màu App-Icon tùy ý thay vì lấy từ danh sách bảng màu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Icon 的颜色可以自由选择，而不必从调色板列表里挑。"
           }
         }
       }

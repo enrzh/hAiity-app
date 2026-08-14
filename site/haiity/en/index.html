@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hAiity — habits, GitHub style</title>
+<meta name="description" content="hAiity is an iPhone habit tracker that draws every habit as a GitHub-style contribution graph. No account, no server, no tracking — buy once, no subscription.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='6' y='6' width='40' height='40' rx='9' fill='%2339d353'/%3E%3Crect x='54' y='6' width='40' height='40' rx='9' fill='%2326a641'/%3E%3Crect x='6' y='54' width='40' height='40' rx='9' fill='%23006d32'/%3E%3Crect x='54' y='54' width='40' height='40' rx='9' fill='%230e4429'/%3E%3C/svg%3E" type="image/svg+xml">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  color-scheme:dark light;
+  --bg:#0d1117;--panel:#161b22;--panel-2:#11161d;--border:#30363d;
+  --fg:#e6edf3;--muted:#8d96a0;--accent:#2ea043;--accent-fg:#ffffff;
+  --l0:#161b22;--l1:#0e4429;--l2:#006d32;--l3:#26a641;--l4:#39d353;
+  --hair:rgba(255,255,255,.06);
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#ffffff;--panel:#f6f8fa;--panel-2:#ffffff;--border:#d1d9e0;
+    --fg:#1f2328;--muted:#59636e;--accent:#1a7f37;
+    --l0:#eff2f5;--l1:#9be9a8;--l2:#40c463;--l3:#30a14e;--l4:#216e39;
+    --hair:rgba(0,0,0,.05);
+  }
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  min-height:100dvh;display:flex;flex-direction:column;
+}
+.wrap{width:100%;max-width:720px;margin:0 auto;padding:0 20px}
+a{color:var(--fg)}
+a:hover{color:var(--accent)}
+
+/* Kopf: Wortmarke links, Sprachwechsel rechts. */
+header.top{border-bottom:1px solid var(--border);padding:14px 0;position:sticky;top:0;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);z-index:5}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;font-weight:600;letter-spacing:-.01em}
+.brand svg{display:block;border-radius:7px}
+.bar nav{display:flex;gap:14px;font-size:14px;color:var(--muted)}
+.bar nav a{color:var(--muted);text-decoration:none}
+.bar nav a:hover{color:var(--fg)}
+
+main{flex:1;padding:0 0 8px}
+
+/* Held: Zeile, Satz, Raster. */
+.hero{padding:52px 0 34px;text-align:center}
+.hero h1{font-size:clamp(38px,10vw,60px);line-height:1.05;margin:0 0 12px;letter-spacing:-.03em}
+.hero .pitch{font-size:clamp(17px,4.4vw,20px);color:var(--muted);margin:0 auto;max-width:30em}
+.graph{margin:30px auto 26px;max-width:430px}
+.graph svg{width:100%;height:auto;display:block}
+.cell{stroke:var(--hair);stroke-width:1}
+.l0{fill:var(--l0)}.l1{fill:var(--l1)}.l2{fill:var(--l2)}.l3{fill:var(--l3)}.l4{fill:var(--l4)}
+.chips .l0{background:var(--l0)}.chips .l1{background:var(--l1)}.chips .l2{background:var(--l2)}.chips .l3{background:var(--l3)}.chips .l4{background:var(--l4)}
+
+.cta-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.cta{display:inline-block;text-decoration:none;font-weight:600;font-size:15px;
+  padding:11px 20px;border-radius:10px;border:1px solid var(--accent);
+  background:var(--accent);color:var(--accent-fg)}
+.cta.ghost{background:transparent;border-color:var(--border);color:var(--fg)}
+.cta[aria-disabled="true"]{opacity:.8}
+.cta-note{color:var(--muted);font-size:13px;margin:12px 0 0}
+
+/* Kacheln: die drei Kernpunkte. */
+.tiles{display:grid;gap:14px;padding:10px 0 44px}
+@media (min-width:720px){.tiles{grid-template-columns:repeat(3,1fr)}}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 18px 20px}
+.tile .chips{display:flex;gap:4px;margin-bottom:12px}
+.tile .chips i{width:12px;height:12px;border-radius:3px;display:block}
+.tile h2{font-size:17px;margin:0 0 6px;letter-spacing:-.01em}
+.tile p{margin:0;color:var(--muted);font-size:14.5px}
+.tile p + p{margin-top:8px}
+.tile b{color:var(--fg);font-weight:600}
+
+/* Dokumentseite. */
+.doc{padding:34px 0 44px}
+.doc h1{font-size:clamp(28px,7vw,36px);margin:0 0 6px;letter-spacing:-.02em}
+.doc .meta{color:var(--muted);font-size:14px;margin:0 0 24px}
+.doc h2{font-size:18px;margin:30px 0 8px;letter-spacing:-.01em}
+.doc p,.doc li{color:var(--fg);font-size:15.5px}
+.doc ul{padding-left:20px;margin:8px 0}
+.doc li{margin:4px 0}
+.doc a{color:var(--accent)}
+.tldr{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--l3);
+  border-radius:12px;padding:16px 18px;margin:0 0 8px;font-size:15.5px}
+.back{margin-top:34px;font-size:15px}
+
+footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(safe-area-inset-bottom));
+  color:var(--muted);font-size:13.5px}
+.foot-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.foot a{color:var(--muted)}
+.foot nav{display:flex;flex-wrap:wrap;gap:14px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true"><rect x="6" y="6" width="40" height="40" rx="10" fill="#39d353"/><rect x="54" y="6" width="40" height="40" rx="10" fill="#26a641"/><rect x="6" y="54" width="40" height="40" rx="10" fill="#006d32"/><rect x="54" y="54" width="40" height="40" rx="10" fill="#0e4429"/></svg><span>hAiity</span></a>
+    <nav><a href="privacy.html">Privacy</a><a href="../index.html" hreflang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <h1>hAiity</h1>
+      <p class="pitch">A habit tracker for iPhone that draws every habit as a contribution
+        graph — GitHub style, for your life: check in, paint a square.</p>
+      <div class="graph">
+        <svg viewBox="0 0 330 78" role="img" aria-label="Contribution grid with filled days">
+      <rect class="cell l1" x="0" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l0" x="28" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="56" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="84" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l1" x="112" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="140" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="168" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l0" x="196" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="224" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="252" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="280" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="308" y="0" width="22" height="22" rx="5"/>
+      <rect class="cell l0" x="0" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="28" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="56" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="84" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="112" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="140" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l1" x="168" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="196" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="224" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="252" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="280" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l1" x="308" y="28" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="0" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l1" x="28" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l0" x="56" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="84" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="112" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="140" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="168" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="196" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l2" x="224" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l1" x="252" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l3" x="280" y="56" width="22" height="22" rx="5"/>
+      <rect class="cell l4" x="308" y="56" width="22" height="22" rx="5"/>
+    </svg>
+      </div>
+      <!-- Placeholder: drop in the real links once the TestFlight beta and the App Store listing exist. -->
+      <div class="cta-row">
+        <a class="cta" href="#testflight" aria-disabled="true">TestFlight — link coming</a>
+        <a class="cta ghost" href="#appstore" aria-disabled="true">App Store — link coming</a>
+      </div>
+      <p class="cta-note">iOS 17 or later. German first, plus 16 more languages.</p>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="tiles">
+      <article class="tile">
+        <div class="chips" aria-hidden="true"><i class="l4"></i><i class="l3"></i><i class="l2"></i><i class="l1"></i></div>
+        <h2>No account, no server</h2>
+        <p>Your habits live <b>on your device</b> — and, if your iPhone is signed into
+          iCloud, in <b>your own</b> private iCloud as well. Nothing to set up, no sign-in
+          inside the app, no server of ours anywhere in the path.</p>
+        <p>No tracking, no analytics SDKs, no ads. Export as JSON whenever you like.</p>
+      </article>
+      <article class="tile">
+        <div class="chips" aria-hidden="true"><i class="l2"></i><i class="l4"></i><i class="l3"></i><i class="l4"></i></div>
+        <h2>Calendar, widgets, Siri</h2>
+        <p>If you want it, hAiity writes your habits as events into a hAiity calendar of
+          its own. Widgets keep the graph on your home screen, and “Hey Siri, hAiity”
+          checks a habit off without opening the app.</p>
+        <p>Reminders are scheduled by the device itself — local, no push server.</p>
+      </article>
+      <article class="tile">
+        <div class="chips" aria-hidden="true"><i class="l1"></i><i class="l2"></i><i class="l4"></i><i class="l4"></i></div>
+        <h2>Buy once, no subscription</h2>
+        <p>Three active habits are free, including all 18 icons, notifications, Siri,
+          the celebration and export. <b>hAiity Pro</b> unlocks unlimited habits, custom
+          colours, the app icon from a colour wheel, the calendar mirror and the full
+          statistics.</p>
+        <p><b>Buy once. No subscription, no account, no server.</b> Family Sharing included.</p>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <p style="margin:0">hAiity — habits, GitHub style</p>
+    <nav><a href="privacy.html">Privacy</a><a href="https://github.com/enrzh/hAiity" rel="noopener">Source</a><a href="https://aiity.de" rel="noopener">aiity</a><a href="mailto:leemojix@gmail.com">leemojix@gmail.com</a></nav>
+  </div>
+</footer>
+
+</body>
+</html>

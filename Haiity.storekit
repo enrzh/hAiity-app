@@ -1,0 +1,46 @@
+{
+  "identifier" : "A7F3C21D",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : true,
+      "internalID" : "5C90E4B1",
+      "localizations" : [
+        {
+          "description" : "Unbegrenzte Habits, eigene Farben, Kalender-Spiegel und die volle Statistik. Einmal kaufen. Kein Abo, kein Konto, kein Server.",
+          "displayName" : "hAiity Pro",
+          "locale" : "de_DE"
+        },
+        {
+          "description" : "Unlimited habits, custom colours, calendar mirror and the full statistics. Buy once. No subscription, no account, no server.",
+          "displayName" : "hAiity Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.aiity.haiity.pro",
+      "referenceName" : "hAiity Pro",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "H8FW6W6K2D",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "de_DE",
+    "_storefront" : "DEU",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
