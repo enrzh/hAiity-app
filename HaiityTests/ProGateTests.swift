@@ -352,7 +352,7 @@ final class ProGateTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(more.contains("onDismiss: resumeAfterPurchase"))
         XCTAssertTrue(more.contains("onUnlocked: { purchased = context }"))
-        for resumed in ["calendarBinding.wrappedValue = true",
+        for resumed in ["calendarBinding(for: pendingCalendarItemType).wrappedValue = true",
                         "creatingPalette = true",
                         "chooseIcon(named: snappedFreeIconName)"] {
             XCTAssertTrue(more.contains(resumed), resumed)
@@ -365,7 +365,7 @@ final class ProGateTests: XCTestCase {
     /// ein".
     func testCalendarLockYieldsWhileTheMirrorIsRunning() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("if !unlocked && !CalendarSync.isEnabled {"))
+        XCTAssertTrue(more.contains("if !unlocked && !enabled {"))
     }
 
     /// (c) **NIEMALS-Regel: Export und Import bleiben frei.** Die eigenen

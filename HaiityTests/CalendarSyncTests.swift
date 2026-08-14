@@ -1,6 +1,67 @@
 import XCTest
 @testable import Haiity
 
+final class CalendarSyncSelectionTests: XCTestCase {
+    private var defaults: UserDefaults!
+    private var suiteName = ""
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "CalendarSyncSelectionTests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        super.tearDown()
+    }
+
+    func testLegacyEnabledMigratesToHabitsOnly() {
+        defaults.set(true, forKey: CalendarSyncPreferences.legacyEnabledKey)
+        XCTAssertEqual(CalendarSyncPreferences.selection(in: defaults),
+                       CalendarSyncSelection(habits: true, reminders: false))
+    }
+
+    func testLegacyDisabledMigratesToBothOff() {
+        defaults.set(false, forKey: CalendarSyncPreferences.legacyEnabledKey)
+        XCTAssertEqual(CalendarSyncPreferences.selection(in: defaults),
+                       CalendarSyncSelection(habits: false, reminders: false))
+    }
+
+    func testAllSelectionCombinationsIncludeTheExpectedItemTypes() {
+        let habit = Habit(name: "Lesen")
+        let reminder = Habit(name: "Tabletten", itemType: .reminder)
+
+        for habits in [false, true] {
+            for reminders in [false, true] {
+                let selection = CalendarSyncSelection(habits: habits, reminders: reminders)
+                XCTAssertEqual(selection.includes(habit), habits)
+                XCTAssertEqual(selection.includes(reminder), reminders)
+            }
+        }
+    }
+
+    func testNewKeysOverrideLegacyPreference() {
+        defaults.set(true, forKey: CalendarSyncPreferences.legacyEnabledKey)
+        defaults.set(false, forKey: CalendarSyncPreferences.habitsEnabledKey)
+        defaults.set(true, forKey: CalendarSyncPreferences.remindersEnabledKey)
+
+        XCTAssertEqual(CalendarSyncPreferences.selection(in: defaults),
+                       CalendarSyncSelection(habits: false, reminders: true))
+    }
+
+    func testMoreScreenExposesIndependentCalendarToggles() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        XCTAssertTrue(source.contains("calendar-sync-habits-toggle"))
+        XCTAssertTrue(source.contains("calendar-sync-reminders-toggle"))
+        XCTAssertTrue(source.contains("CalendarSync.syncHabits"))
+        XCTAssertTrue(source.contains("CalendarSync.syncReminders"))
+    }
+}
+
 /// Die Abbildung Habit -> Kalender-Termin (`CalendarEventPlan`) — pur, ohne
 /// EventKit: welche Habits einen Termin bekommen, wann er beginnt, wie er
 /// sich wiederholt und wann er endet.

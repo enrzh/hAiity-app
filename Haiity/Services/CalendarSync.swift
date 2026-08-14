@@ -1,6 +1,30 @@
 import Foundation
 import EventKit
 
+struct CalendarSyncSelection: Equatable {
+    var habits: Bool
+    var reminders: Bool
+
+    func includes(_ item: Habit) -> Bool {
+        item.isReminder ? reminders : habits
+    }
+}
+
+enum CalendarSyncPreferences {
+    static let legacyEnabledKey = "calendarSyncEnabled"
+    static let habitsEnabledKey = "calendarSyncHabitsEnabled"
+    static let remindersEnabledKey = "calendarSyncRemindersEnabled"
+
+    static func selection(in defaults: UserDefaults) -> CalendarSyncSelection {
+        let habits = defaults.object(forKey: habitsEnabledKey) == nil
+            ? defaults.bool(forKey: legacyEnabledKey)
+            : defaults.bool(forKey: habitsEnabledKey)
+        return CalendarSyncSelection(
+            habits: habits,
+            reminders: defaults.bool(forKey: remindersEnabledKey))
+    }
+}
+
 // MARK: – Der Plan (pur)
 
 /// Ein Habit als Kalender-Termin — die REGELN pur und ohne EventKit, damit
@@ -140,7 +164,9 @@ struct CalendarEventPlan: Equatable {
 /// Gerät, und jedes Gerät entscheidet selbst, ob es den Kalender führt.
 @MainActor
 enum CalendarSync {
-    static let enabledKey = "calendarSyncEnabled"
+    static let enabledKey = CalendarSyncPreferences.legacyEnabledKey
+    static let habitsEnabledKey = CalendarSyncPreferences.habitsEnabledKey
+    static let remindersEnabledKey = CalendarSyncPreferences.remindersEnabledKey
     static let calendarKey = "calendarSyncCalendar"
     static let mapKey = "calendarSyncEvents"
     static let fingerprintKey = "calendarSyncFingerprints"
@@ -152,9 +178,22 @@ enum CalendarSync {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
     }
 
+    static var syncHabits: Bool {
+        get { CalendarSyncPreferences.selection(in: defaults).habits }
+        set { defaults.set(newValue, forKey: habitsEnabledKey) }
+    }
+
+    static var syncReminders: Bool {
+        get { CalendarSyncPreferences.selection(in: defaults).reminders }
+        set { defaults.set(newValue, forKey: remindersEnabledKey) }
+    }
+
     static var isEnabled: Bool {
-        get { defaults.bool(forKey: enabledKey) }
-        set { defaults.set(newValue, forKey: enabledKey) }
+        get { syncHabits || syncReminders }
+        set {
+            syncHabits = newValue
+            if !newValue { syncReminders = false }
+        }
     }
 
     /// Der eine Ort, der den System-Dialog auslösen darf — beim aktiven
@@ -202,7 +241,8 @@ enum CalendarSync {
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
         var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]
 
-        let active = habits.filter { $0.archivedAt == nil }
+        let selection = CalendarSyncSelection(habits: syncHabits, reminders: syncReminders)
+        let active = habits.filter { $0.archivedAt == nil && selection.includes($0) }
         let plans = active.compactMap { habit in
             CalendarEventPlan(habit: habit).map { (habit.id.uuidString, $0) }
         }
@@ -255,7 +295,8 @@ enum CalendarSync {
     /// Der (leere) Kalender bleibt stehen — ihn löschen hieße, bei jedem
     /// Umschalten das Konto umzupflügen.
     static func disable() {
-        isEnabled = false
+        syncHabits = false
+        syncReminders = false
         guard hasAccess else { return }
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
         var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]

@@ -21878,6 +21878,106 @@
         }
       }
     },
+    "Erinnerungen im Kalender": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التذكيرات في التقويم"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ক্যালেন্ডারে রিমাইন্ডার"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminders in Calendar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recordatorios en Calendario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rappels dans Calendrier"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कैलेंडर में रिमाइंडर"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pengingat di Kalender"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Promemoria in Calendario"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーのリマインダー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캘린더의 미리 알림"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lembretes no Calendário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напоминания в Календаре"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takvimde hatırlatıcılar"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیلنڈر میں یاد دہانیاں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời nhắc trong Lịch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历中的提醒"
+          }
+        }
+      }
+    },
     "Erledigt": {
       "localizations": {
         "ar": {
@@ -33602,102 +33702,102 @@
         }
       }
     },
-    "Legt einen eigenen hAiity-Kalender an und trägt dort die Termine deiner Habits ein — sichtbar in Apple Kalender und, je nach Standardkonto, in Google Kalender. Deine übrigen Kalender bleiben unberührt.": {
+    "Legt einen eigenen hAiity-Kalender an und trägt dort die gewählten Habits und Erinnerungen ein. Deine übrigen Kalender bleiben unberührt.": {
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يُنشئ تقويم hAiity خاصًا ويُدرج فيه مواعيد عاداتك — يظهر في تقويم Apple وبحسب الحساب الافتراضي في تقويم Google. تبقى تقاويمك الأخرى دون تغيير."
+            "value": "يُنشئ تقويم hAiity خاصًا ويضيف إليه العادات والتذكيرات المحددة. تبقى تقاويمك الأخرى دون تغيير."
           }
         },
         "bn": {
           "stringUnit": {
             "state": "translated",
-            "value": "একটি আলাদা hAiity ক্যালেন্ডার তৈরি করে সেখানে অভ্যাসের সময়সূচি যোগ করে — Apple ক্যালেন্ডারে দেখা যায়, ডিফল্ট অ্যাকাউন্ট অনুযায়ী Google ক্যালেন্ডারেও। আপনার অন্য ক্যালেন্ডার অপরিবর্তিত থাকে।"
+            "value": "একটি আলাদা hAiity ক্যালেন্ডার তৈরি করে এবং নির্বাচিত অভ্যাস ও রিমাইন্ডার যোগ করে। আপনার অন্য ক্যালেন্ডার অপরিবর্তিত থাকে।"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Creates a dedicated hAiity calendar and adds your habits' schedules to it — visible in Apple Calendar and, depending on your default account, in Google Calendar. Your other calendars stay untouched."
+            "value": "Creates a dedicated hAiity calendar and adds the selected habits and reminders. Your other calendars stay untouched."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Crea un calendario hAiity propio y añade allí los horarios de tus hábitos: visible en Calendario de Apple y, según tu cuenta predeterminada, en Google Calendar. Tus demás calendarios no se tocan."
+            "value": "Crea un calendario hAiity propio y añade los hábitos y recordatorios seleccionados. Tus demás calendarios no se tocan."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Crée un calendrier hAiity dédié et y inscrit les rendez-vous de tes habitudes — visible dans Calendrier d'Apple et, selon ton compte par défaut, dans Google Agenda. Tes autres calendriers restent intacts."
+            "value": "Crée un calendrier hAiity dédié et y ajoute les habitudes et rappels sélectionnés. Tes autres calendriers restent intacts."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "एक अलग hAiity कैलेंडर बनाता है और उसमें आपकी आदतों के समय जोड़ता है — Apple कैलेंडर में दिखता है और डिफ़ॉल्ट खाते के अनुसार Google कैलेंडर में भी। आपके बाकी कैलेंडर अछूते रहते हैं।"
+            "value": "एक अलग hAiity कैलेंडर बनाता है और चुनी गई आदतें व रिमाइंडर जोड़ता है। आपके बाकी कैलेंडर अछूते रहते हैं।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Membuat kalender hAiity khusus dan menambahkan jadwal kebiasaanmu ke sana — terlihat di Kalender Apple dan, tergantung akun default, di Google Kalender. Kalender lainmu tidak tersentuh."
+            "value": "Membuat kalender hAiity khusus dan menambahkan kebiasaan serta pengingat yang dipilih. Kalender lainmu tidak tersentuh."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Crea un calendario hAiity dedicato e vi inserisce gli impegni delle tue abitudini — visibile in Calendario di Apple e, a seconda dell'account predefinito, in Google Calendar. Gli altri tuoi calendari restano intatti."
+            "value": "Crea un calendario hAiity dedicato e aggiunge le abitudini e i promemoria selezionati. Gli altri calendari restano intatti."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "専用のhAiityカレンダーを作成し、習慣の予定を登録します。Appleカレンダーに表示され、デフォルトアカウントによってはGoogleカレンダーにも表示されます。ほかのカレンダーには触れません。"
+            "value": "専用のhAiityカレンダーを作成し、選択した習慣とリマインダーを追加します。ほかのカレンダーには触れません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전용 hAiity 캘린더를 만들어 습관 일정을 기록합니다. Apple 캘린더에 표시되며 기본 계정에 따라 Google 캘린더에도 표시됩니다. 다른 캘린더는 건드리지 않습니다."
+            "value": "전용 hAiity 캘린더를 만들어 선택한 습관과 미리 알림을 추가합니다. 다른 캘린더는 건드리지 않습니다."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cria um calendário hAiity próprio e adiciona lá os horários dos seus hábitos — visível no Calendário da Apple e, conforme a conta padrão, no Google Agenda. Seus outros calendários permanecem intocados."
+            "value": "Cria um calendário hAiity próprio e adiciona os hábitos e lembretes selecionados. Seus outros calendários permanecem intocados."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Создаёт отдельный календарь hAiity и вносит туда расписание привычек — он виден в Календаре Apple и, в зависимости от учётной записи по умолчанию, в Google Календаре. Остальные календари не затрагиваются."
+            "value": "Создаёт отдельный календарь hAiity и добавляет выбранные привычки и напоминания. Остальные календари не затрагиваются."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Özel bir hAiity takvimi oluşturur ve alışkanlıklarının programını oraya işler — Apple Takvim'de, varsayılan hesabına göre Google Takvim'de de görünür. Diğer takvimlerine dokunulmaz."
+            "value": "Özel bir hAiity takvimi oluşturur ve seçilen alışkanlıklarla hatırlatıcıları ekler. Diğer takvimlerine dokunulmaz."
           }
         },
         "ur": {
           "stringUnit": {
             "state": "translated",
-            "value": "ایک الگ hAiity کیلنڈر بناتا ہے اور اس میں آپ کی عادات کے اوقات درج کرتا ہے — Apple کیلنڈر میں نظر آتا ہے اور ڈیفالٹ اکاؤنٹ کے مطابق Google کیلنڈر میں بھی۔ آپ کے باقی کیلنڈر جوں کے توں رہتے ہیں۔"
+            "value": "ایک الگ hAiity کیلنڈر بناتا ہے اور منتخب عادات اور یاد دہانیاں شامل کرتا ہے۔ آپ کے باقی کیلنڈر جوں کے توں رہتے ہیں۔"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tạo một lịch hAiity riêng và ghi lịch trình thói quen của bạn vào đó — hiển thị trong Lịch Apple và, tùy tài khoản mặc định, trong Google Calendar. Các lịch khác của bạn không bị ảnh hưởng."
+            "value": "Tạo một lịch hAiity riêng và thêm các thói quen cùng lời nhắc đã chọn. Các lịch khác của bạn không bị ảnh hưởng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "创建一个专属的 hAiity 日历并写入习惯的日程——在 Apple 日历中可见；如默认账户为 Google，也会显示在 Google 日历中。你的其他日历不受影响。"
+            "value": "创建一个专属的 hAiity 日历，并添加所选习惯和提醒。你的其他日历不受影响。"
           }
         }
       }

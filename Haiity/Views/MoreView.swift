@@ -87,6 +87,7 @@ struct MoreView: View, Equatable {
     /// ausgeführt: bezahlen und dann vor demselben Schloss stehen ist der
     /// Moment, in dem sich ein Kauf wie ein Fehler anfühlt.
     @State private var purchased: PaywallContext?
+    @State private var pendingCalendarItemType: HabitItemType = .habit
     @Environment(\.palettes) private var palettes
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
@@ -431,7 +432,7 @@ struct MoreView: View, Equatable {
 
     // MARK: – Kalender
     //
-    // EIN Schalter: die Habits mit Termin erscheinen in einem eigenen
+    // Zwei Auswahlen: Habits und Erinnerungen mit Termin erscheinen in einem eigenen
     // hAiity-Kalender — und damit in Apple Kalender und (wenn das
     // Standardkonto ein Google-Konto ist) auch in Google Kalender. Der
     // Schalter ist GERÄTELOKAL (jedes Gerät entscheidet selbst); die
@@ -439,20 +440,12 @@ struct MoreView: View, Equatable {
 
     private var calendarSection: some View {
         Section {
-            Toggle(isOn: calendarBinding) {
-                HStack {
-                    Label(String(localized: "Habits im Kalender"), systemImage: "calendar.badge.plus")
-                    // Das Schloss meint das EINschalten. Läuft der Spiegel
-                    // bereits (Erstattung, Bestandsgerät), wäre es eine
-                    // Falschaussage neben einem Schalter, der an ist — und
-                    // VoiceOver läse „Nur mit hAiity Pro, Schalter, ein".
-                    if !unlocked && !CalendarSync.isEnabled {
-                        Spacer(minLength: Theme.Metrics.gap)
-                        proLock
-                    }
-                }
-            }
-            .accessibilityIdentifier("calendar-sync-toggle")
+            calendarToggle(type: .habit,
+                           title: String(localized: "Habits im Kalender"),
+                           identifier: "calendar-sync-habits-toggle")
+            calendarToggle(type: .reminder,
+                           title: String(localized: "Erinnerungen im Kalender"),
+                           identifier: "calendar-sync-reminders-toggle")
             if calendarDenied {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
@@ -468,8 +461,24 @@ struct MoreView: View, Equatable {
                 }
             }
         } footer: {
-            Text(String(localized: "Legt einen eigenen hAiity-Kalender an und trägt dort die Termine deiner Habits ein — sichtbar in Apple Kalender und, je nach Standardkonto, in Google Kalender. Deine übrigen Kalender bleiben unberührt."))
+            Text(String(localized: "Legt einen eigenen hAiity-Kalender an und trägt dort die gewählten Habits und Erinnerungen ein. Deine übrigen Kalender bleiben unberührt."))
         }
+    }
+
+    private func calendarToggle(type: HabitItemType,
+                                title: String,
+                                identifier: String) -> some View {
+        Toggle(isOn: calendarBinding(for: type)) {
+            HStack {
+                Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
+                let enabled = type == .habit ? CalendarSync.syncHabits : CalendarSync.syncReminders
+                if !unlocked && !enabled {
+                    Spacer(minLength: Theme.Metrics.gap)
+                    proLock
+                }
+            }
+        }
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: – Anrede
@@ -568,12 +577,15 @@ struct MoreView: View, Equatable {
         }
     }
 
-    private var calendarBinding: Binding<Bool> {
+    private func calendarBinding(for type: HabitItemType) -> Binding<Bool> {
         Binding(
-            get: { CalendarSync.isEnabled },
+            get: { type == .habit ? CalendarSync.syncHabits : CalendarSync.syncReminders },
             set: { on in
                 guard on else {
-                    CalendarSync.disable()
+                    if type == .habit { CalendarSync.syncHabits = false }
+                    else { CalendarSync.syncReminders = false }
+                    if CalendarSync.isEnabled { CalendarSync.reconcile(habits: store.habits) }
+                    else { CalendarSync.disable() }
                     return
                 }
                 // AUSschalten bleibt immer frei — auch nach einer Erstattung
@@ -583,6 +595,7 @@ struct MoreView: View, Equatable {
                 // Berechtigung für eine Funktion, die danach doch nicht läuft,
                 // ist eine Frage unter falschem Vorwand.
                 guard ProGate.mayUseProFeature(unlocked: unlocked) else {
+                    pendingCalendarItemType = type
                     paywall = .calendar
                     return
                 }
@@ -591,7 +604,8 @@ struct MoreView: View, Equatable {
                     await MainActor.run {
                         calendarDenied = !granted
                         guard granted else { return }
-                        CalendarSync.isEnabled = true
+                        if type == .habit { CalendarSync.syncHabits = true }
+                        else { CalendarSync.syncReminders = true }
                         CalendarSync.reconcile(habits: store.habits)
                     }
                 }
@@ -901,7 +915,7 @@ struct MoreView: View, Equatable {
         case .calendar:
             // Über die Bindung, nicht daran vorbei: sie ist der EINE Weg,
             // der das Gate prüft und danach den Kalender-Zugriff erfragt.
-            calendarBinding.wrappedValue = true
+            calendarBinding(for: pendingCalendarItemType).wrappedValue = true
         case .palette:
             creatingPalette = true
         case .icon:
