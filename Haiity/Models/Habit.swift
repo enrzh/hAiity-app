@@ -24,6 +24,11 @@ enum HabitKind: String, Codable, CaseIterable, Sendable {
     }
 }
 
+enum HabitItemType: String, Codable, CaseIterable, Sendable {
+    case habit
+    case reminder
+}
+
 /// Ein Habit ist ein Jahr aus Quadraten. `log` hält Check-ins als lokale
 /// Tagesschlüssel ("2026-08-09") — nie UTC, sonst rutscht ein
 /// Abend-Check-in auf morgen. Log-Werte sind Zähler: 1 für Checkbox-Habits,
@@ -34,6 +39,7 @@ struct Habit: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
     var emoji: String
+    var itemType: HabitItemType
     var createdAt: String
     /// Uhrzeit einer eigenen, konkreten Erinnerung in Minuten seit
     /// Mitternacht. Das bestehende Feld bleibt unverändert codiert, damit
@@ -90,8 +96,12 @@ struct Habit: Codable, Identifiable, Equatable {
     /// gespeichertes Mengenziel bedeutungslos: die Art gewinnt.
     var kind: HabitKind
 
+    var isReminder: Bool { itemType == .reminder }
+    var isTrackedHabit: Bool { itemType == .habit }
+
     init(name: String,
          emoji: String = "",
+         itemType: HabitItemType = .habit,
          reminderMinutes: Int? = nil,
          timeMinutes: Int? = nil,
          recurrence: Recurrence = .daily,
@@ -100,6 +110,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
+        self.itemType = itemType
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
@@ -138,7 +149,7 @@ extension Habit {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette, swipeActions
+        case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -171,6 +182,7 @@ extension Habit {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         emoji = try c.decodeIfPresent(String.self, forKey: .emoji) ?? ""
+        itemType = (try? c.decode(HabitItemType.self, forKey: .itemType)) ?? .habit
         createdAt = try c.decode(String.self, forKey: .createdAt)
         // Weiter tolerant gelesen, obwohl nichts mehr damit geplant wird —
         // eine Datei mit `reminderMinutes` muss vollständig durchlaufen
@@ -215,6 +227,7 @@ extension Habit {
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
         try c.encode(emoji, forKey: .emoji)
+        if itemType != .habit { try c.encode(itemType, forKey: .itemType) }
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)

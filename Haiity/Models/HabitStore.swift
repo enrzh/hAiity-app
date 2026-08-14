@@ -239,6 +239,8 @@ final class HabitStore {
 
     /// Nicht archivierte Habits — Hauptliste, Summary, Widget.
     var activeHabits: [Habit] { data.habits.filter { $0.archivedAt == nil } }
+    var activeTrackedHabits: [Habit] { activeHabits.filter(\.isTrackedHabit) }
+    var activeReminders: [Habit] { activeHabits.filter(\.isReminder) }
 
     var summaryMinutes: Int? {
         get { data.summaryMinutes }
@@ -673,6 +675,7 @@ final class HabitStore {
                 if remoteNewer {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
+                    lh.itemType = rh.itemType
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
                     lh.recurrence = rh.recurrence

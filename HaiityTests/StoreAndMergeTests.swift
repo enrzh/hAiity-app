@@ -304,6 +304,37 @@ final class StoreV2Tests: XCTestCase {
         XCTAssertNil(store.habits[1].archivedAt)
     }
 
+    func testActiveItemsPartitionWithoutChangingCombinedOrder() {
+        store.add(Habit(name: "Lesen"))
+        store.add(Habit(name: "Tabletten", itemType: .reminder))
+        store.add(Habit(name: "Sport"))
+
+        XCTAssertEqual(store.activeHabits.map(\.name), ["Lesen", "Tabletten", "Sport"])
+        XCTAssertEqual(store.activeTrackedHabits.map(\.name), ["Lesen", "Sport"])
+        XCTAssertEqual(store.activeReminders.map(\.name), ["Tabletten"])
+    }
+
+    func testNewerMetadataChangesItemTypeAndTieKeepsLocalType() {
+        let local = Habit(name: "Tabletten")
+        store.add(local)
+
+        var remoteHabit = local
+        remoteHabit.itemType = .reminder
+        store.merge(remote: HabitData(version: 2,
+                                      updatedAt: Date().timeIntervalSince1970 + 999,
+                                      summaryMinutes: nil,
+                                      habits: [remoteHabit]))
+        XCTAssertEqual(store.habits[0].itemType, .reminder)
+
+        var tied = remoteHabit
+        tied.itemType = .habit
+        store.merge(remote: HabitData(version: 2,
+                                      updatedAt: store.data.updatedAt,
+                                      summaryMinutes: nil,
+                                      habits: [tied]))
+        XCTAssertEqual(store.habits[0].itemType, .reminder)
+    }
+
     // MARK: – Version 2 auf der Platte
 
     func testPersistWritesVersionTwo() throws {

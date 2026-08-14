@@ -384,6 +384,7 @@ final class ModelV2CodableTests: XCTestCase {
         XCTAssertNil(h.recurrence.target)
         XCTAssertNil(h.archivedAt)
         XCTAssertEqual(h.log["2026-08-02"], 1)
+        XCTAssertEqual(h.itemType, .habit)
     }
 
     func testHabitWithRecurrenceRoundTrips() throws {
@@ -404,6 +405,21 @@ final class ModelV2CodableTests: XCTestCase {
         let obj = try XCTUnwrap(try JSONSerialization.jsonObject(with: raw) as? [String: Any])
         XCTAssertNil(obj["goal"])
         XCTAssertNil(obj["archivedAt"])
+        XCTAssertNil(obj["itemType"])
+    }
+
+    func testReminderItemTypeRoundTripsAndUnknownValueFallsBackToHabit() throws {
+        let reminder = Habit(name: "Tabletten", itemType: .reminder)
+        let raw = try JSONEncoder().encode(reminder)
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: raw).itemType,
+                       .reminder)
+
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        object["itemType"] = "future-item-type"
+        let unknown = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: unknown).itemType,
+                       .habit)
     }
 
     func testUnknownCadenceFallsBackToDaily() throws {
