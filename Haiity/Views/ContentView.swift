@@ -617,11 +617,6 @@ struct ContentView: View {
     /// zurückholt, importiert oder über iCloud mehr als drei aktive Habits
     /// bekommt, behält sie und kann sie voll benutzen (siehe ProGate).
     private func requestCreate() {
-        guard ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count,
-                                  unlocked: Pro.isUnlocked) else {
-            paywall = .habits
-            return
-        }
         showAdd = true
     }
 

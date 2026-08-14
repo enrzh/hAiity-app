@@ -189,20 +189,19 @@ final class ProGateTests: XCTestCase {
     /// Screenshot findet.
     func testGate1EveryCreatePathRunsThroughTheOneGuard() throws {
         let content = try source("Haiity/Views/ContentView.swift")
+        let editor = try source("Haiity/Views/EditHabitSheet.swift")
         XCTAssertTrue(content.contains("private func requestCreate()"))
-        XCTAssertTrue(content.contains("ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count"),
-                      "das Gate muss die AKTIVEN zählen — archivierte belegen keinen Platz")
-        XCTAssertTrue(content.contains("unlocked: Pro.isUnlocked"))
-        XCTAssertTrue(content.contains("paywall = .habits"))
+        XCTAssertFalse(content.contains("ProGate.mayAddHabit(activeCount:"),
+                       "der Typ steht erst im Editor fest; der Einstieg darf Erinnerungen nicht blockieren")
+        XCTAssertTrue(editor.contains("existing == nil && itemType == .habit"))
+        XCTAssertTrue(editor.contains("ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count"),
+                      "nur neue getrackte Habits zählen am Sicherungspunkt")
+        XCTAssertTrue(editor.contains("unlocked: Pro.isUnlocked"))
+        XCTAssertTrue(editor.contains("paywall = .habits"))
 
         let assignments = content.components(separatedBy: "showAdd = true").count - 1
         XCTAssertEqual(assignments, 1,
                        "das Anlege-Cover darf nur aus requestCreate() aufgehen")
-        // …und dieses eine Vorkommen steht hinter dem Wächter, nicht davor.
-        let guardRange = try XCTUnwrap(content.range(of: "guard ProGate.mayAddHabit"))
-        let setRange = try XCTUnwrap(content.range(of: "showAdd = true"))
-        XCTAssertTrue(guardRange.upperBound < setRange.lowerBound,
-                      "showAdd wird gesetzt, BEVOR das Limit geprüft ist")
     }
 
     /// (b) **Gate 2 — eigene Farben.** Gegated ist das ANLEGEN, nie der
@@ -330,7 +329,7 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(pro.contains("final class ProStatus"))
         XCTAssertTrue(pro.contains("return ProStatus.shared.unlocked"))
         for file in ["Haiity/Views/MoreView.swift", "Haiity/Views/StatsView.swift",
-                     "Haiity/Views/PaywallView.swift", "Haiity/Views/ContentView.swift"] {
+                     "Haiity/Views/PaywallView.swift", "Haiity/Views/EditHabitSheet.swift"] {
             let text = try source(file)
             XCTAssertTrue(text.contains("Pro.isUnlocked"), file)
             XCTAssertFalse(text.contains("ProStatus.shared"),

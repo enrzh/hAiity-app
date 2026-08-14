@@ -44,6 +44,8 @@ struct EditHabitSheet: View {
 
     @State private var name = ""
     @State private var emoji = ""
+    @State private var itemType: HabitItemType = .habit
+    @State private var paywall: PaywallContext?
 
     /// Die ganze Regel als EIN Wert.
     @State private var draft = RecurrenceDraft()
@@ -69,6 +71,13 @@ struct EditHabitSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker(String(localized: "Art"), selection: $itemType) {
+                        Text(String(localized: "Habit")).tag(HabitItemType.habit)
+                        Text(String(localized: "Erinnerung")).tag(HabitItemType.reminder)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("item-type-picker")
+
                     TextField(String(localized: "Name (z. B. 20 Minuten lesen)"), text: $name)
                         .accessibilityIdentifier("habit-name")
                     TextField(String(localized: "Emoji (optional)"), text: $emoji)
@@ -81,9 +90,11 @@ struct EditHabitSheet: View {
                 if let habit = existing {
                     swipeActionsSection
                     Section {
-                        ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
-                                  preview: SharePreview(habit.name)) {
-                            Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
+                        if habit.isTrackedHabit {
+                            ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
+                                      preview: SharePreview(habit.name)) {
+                                Label(String(localized: "Als Bild teilen"), systemImage: "square.and.arrow.up")
+                            }
                         }
                         Button {
                             store.archive(habit.id)
@@ -120,6 +131,11 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("save-habit")
                 }
             }
+        }
+        .sheet(item: $paywall) { context in
+            PaywallView(context: context, store: store,
+                        onUnlocked: { save(skipGate: true) })
+                .themed(store)
         }
         .onAppear { load() }
         .onChange(of: draft.frequency) { _, _ in draft.normalize(calendar: calendar) }
@@ -528,6 +544,7 @@ struct EditHabitSheet: View {
         guard let habit = existing else { return }
         name = habit.name
         emoji = habit.emoji
+        itemType = habit.itemType
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
         draft = RecurrenceDraft(habit.recurrence,
@@ -544,9 +561,15 @@ struct EditHabitSheet: View {
 
     /// Sichern bleibt synchron. Die Berechtigung wird beim Einschalten der
     /// Erinnerung angefragt, nicht erst beim Schreiben des Habits.
-    private func save() {
+    private func save(skipGate: Bool = false) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        if !skipGate, existing == nil && itemType == .habit,
+           !ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count,
+                                unlocked: Pro.isUnlocked) {
+            paywall = .habits
+            return
+        }
         // Bewusst OHNE `normalize`: die Grenzen zieht der Init der Regel
         // ohnehin, und eine bewusst leere Wochentagsmenge soll leer bleiben.
         let recurrence = draft.recurrence(calendar: calendar)
@@ -554,6 +577,7 @@ struct EditHabitSheet: View {
         var habit = existing ?? Habit(name: trimmed, emoji: emoji)
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
+        habit.itemType = itemType
         let notificationTime = draft.timeMinutes(calendar: calendar)
         habit.timeMinutes = notificationTime
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil
