@@ -74,6 +74,13 @@ struct ContentView: View {
     /// öffnet das Suchfeld.
     @State private var nativeTab: AppTab = .habits
     @State private var showReminderSetup = false
+    /// Das Melde-Blatt (Schütteln). Es hängt hier oben, weil die Geste überall
+    /// gilt — sie gehört keinem Bereich, sondern der App.
+    @State private var showFeedback = false
+    /// Wann das Melde-Blatt zuletzt zuging. Ein Schütteln endet oft mit einem
+    /// Nachschütteln (die Hand hört später auf als der Kopf) — ohne diese
+    /// Ruhezeit spränge das eben geschlossene Blatt sofort wieder auf.
+    @State private var feedbackClosedAt = Date.distantPast
     /// Mehr-Unterziele aus Deep-Links auf dem Fallback vor iOS 26.
     @State private var moreSheet: MoreRoute?
     /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
@@ -234,6 +241,14 @@ struct ContentView: View {
             }
             .fullScreenCover(isPresented: $showReminderSetup) {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
+            }
+            // Schütteln meldet einen Fehler — für JEDEN Nutzer, nicht nur für
+            // den Entwickler. Die Geste hängt an der Wurzel, weil sie überall
+            // gilt; ob daraus ein Blatt wird, entscheidet `handleShake()`.
+            .onShake { handleShake() }
+            .sheet(isPresented: $showFeedback,
+                   onDismiss: { feedbackClosedAt = .now }) {
+                FeedbackSheet(store: store, cloudStatus: cloudStatus).themed(store)
             }
             .task {
                 try? await Task.sleep(for: .milliseconds(250))
@@ -615,8 +630,75 @@ struct ContentView: View {
         switch route {
         case .archive: ArchiveView(store: store)
         case .about: AboutView()
-        case .developer: DeveloperView(store: store, cloudStatus: cloudStatus)
+        // Der Riegel steht an der SEITE, nicht nur an der Klinke: die Zeile in
+        // „Über" ist zwar der einzige Weg hierher, aber eine Freischaltung
+        // überlebt App-Updates — und ab dem Build, in dem die Kennung des
+        // Besitzers eingetragen ist, darf ein fremdes Gerät diese Seite auch
+        // dann nicht mehr aufbauen, wenn es sie in der Bootstrap-Runde
+        // freigeschaltet hat (siehe `DeveloperAccess.isAvailable`).
+        case .developer:
+            if DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID) {
+                DeveloperView(store: store, cloudStatus: cloudStatus)
+            }
         }
+    }
+
+    // MARK: – Schütteln meldet einen Fehler
+
+    /// Wie lange nach dem Zufahren des Melde-Blatts ein Schütteln nicht zählt.
+    ///
+    /// Zwei Sekunden sind die Zeit, die eine Hand braucht, um nach dem
+    /// Schütteln zur Ruhe zu kommen — und die iOS braucht, um das Blatt
+    /// wegzuanimieren. Kürzer, und das eben geschlossene Blatt käme durch das
+    /// Nachwippen sofort zurück.
+    private static let shakeQuietWindow: TimeInterval = 2
+
+    /// Ein Schütteln — und die drei Gründe, aus denen daraus NICHTS wird.
+    ///
+    /// **Warum die Prüfungen hier stehen und nicht im Baustein.** `onShake`
+    /// meldet nur, DASS geschüttelt wurde (siehe `ShakeDetector`). Ob ein
+    /// Blatt aufgehen darf, weiß allein diese Ansicht: ihr gehören alle
+    /// Präsentationen.
+    ///
+    /// **Warum ein offenes Blatt zählt.** iOS präsentiert kein zweites Blatt
+    /// über einem, das gerade aufgeht — der Versuch verschluckt es
+    /// stillschweigend, und danach steht ein `showFeedback = true`, zu dem es
+    /// keine Ansicht gibt. Wer im Kaufblatt schüttelt, bekommt deshalb
+    /// nichts; das ist ehrlicher als ein Blatt, das nur manchmal kommt.
+    ///
+    /// **Warum die Antwort `Bool` ist.** Sie sagt dem Melder, ob die Geste
+    /// verbraucht wurde. Nur dann wird sie aus der Antwortkette genommen;
+    /// sonst gehört sie wieder iOS und darf dort das Rückgängig-Schütteln
+    /// auslösen (siehe `ShakeDetector`).
+    @discardableResult
+    private func handleShake() -> Bool {
+        guard ShakeToReport.isEnabled else { return false }
+        guard !isPresentingModally else { return false }
+        guard Date.now.timeIntervalSince(feedbackClosedAt) >= Self.shakeQuietWindow else {
+            return false
+        }
+        showFeedback = true
+        return true
+    }
+
+    /// Steht gerade irgendetwas über der Liste?
+    ///
+    /// Zwei Quellen, und die zweite ist die wichtigere:
+    ///  * Die Zustände DIESER Ansicht — sie stehen schon, bevor iOS überhaupt
+    ///    zu präsentieren beginnt, und schliessen das Fenster zwischen „Blatt
+    ///    angefordert" und „Blatt liegt oben".
+    ///  * `ModalPresentation.isPresenting` — alles ANDERE. Diese Ansicht kennt
+    ///    nur ihre eigenen Präsentationen; die Blätter von „Mehr" (Farbe
+    ///    anlegen, Umbenennen, Kaufblatt, Dateiwähler), das Kaufblatt der
+    ///    Statistik und die Teilen-Blätter der Karten hängen tiefer im Baum.
+    ///    Ohne diese Frage setzte ein Schütteln über einem von ihnen ein
+    ///    `showFeedback = true`, das iOS verschluckt — und weil `showFeedback`
+    ///    danach stehen bliebe, wäre die Geste für den Rest der Sitzung tot.
+    private var isPresentingModally: Bool {
+        showFeedback || showAdd || showReminderSetup
+            || paywall != nil || editing != nil
+            || moreSheet != nil || morePageRoute != nil
+            || ModalPresentation.isPresenting
     }
 
     // MARK: – Habits-Bereich

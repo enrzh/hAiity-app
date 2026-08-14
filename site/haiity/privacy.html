@@ -116,22 +116,25 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       <b>Kurz gesagt:</b> hAiity hat keinen eigenen Server und kein Konto. Deine Habits
       liegen auf deinem Gerät und — wenn du bei iCloud angemeldet bist — in deiner
       eigenen privaten iCloud-Datenbank. Wir erheben nichts, wir sehen nichts, wir
-      tracken nicht. Es gibt keine Analyse-SDKs und keine Werbung.
+      tracken nicht. Es gibt keine Analyse-SDKs und keine Werbung. Bei uns kommt nur
+      an, was du selbst abschickst — eine Fehlermeldung etwa (Abschnitt 9).
     </div>
 
     <h2>1. Verantwortlich und Kontakt</h2>
     <p>hAiity ist ein privates, nicht-kommerzielles Projekt einer Privatperson und Teil
       der <a href="https://aiity.de" rel="noopener">aiity</a>-Familie. Fragen zum
-      Datenschutz gehen an <a href="mailto:leemojix@gmail.com">leemojix@gmail.com</a>;
+      Datenschutz gehen an <a href="mailto:getaiityapp+hAiity@gmail.com">getaiityapp+hAiity@gmail.com</a>;
       die vollständigen Anbieterangaben stehen im
       <a href="https://aiity.de/impressum" rel="noopener">Impressum auf aiity.de</a>.</p>
 
     <h2>2. Keine Konten, keine Tracker</h2>
-    <p>Es gibt keine Registrierung und keinen Login. Die App sendet uns keine
-      Nutzungsstatistiken, keine Telemetrie und keine Absturzberichte. Es findet kein
-      Tracking statt, es sind keine Analyse- oder Werbe-SDKs eingebaut, und es werden
-      keine Daten an Dritte verkauft oder weitergegeben. Das Privacy-Manifest der App
-      meldet entsprechend „kein Tracking, keine erhobenen Datenarten“.</p>
+    <p>Es gibt keine Registrierung und keinen Login. Die App sendet von sich aus nichts
+      an uns: keine Nutzungsstatistiken, keine Telemetrie, keine automatischen
+      Absturzberichte. Es findet kein Tracking statt, es sind keine Analyse- oder
+      Werbe-SDKs eingebaut, und es werden keine Daten an Dritte verkauft oder
+      weitergegeben. Das Privacy-Manifest der App meldet entsprechend „kein Tracking,
+      keine erhobenen Datenarten“. Den einen Weg zu uns öffnest du selbst: die
+      freiwillige Fehlermeldung in Abschnitt 9.</p>
 
     <h2>3. Wo deine Daten liegen</h2>
     <p>Alles, was du in hAiity anlegst — Habits, Namen, Icons, Farben, Häkchen,
@@ -166,6 +169,13 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       Gerät und wird nirgendwohin übertragen; ein Konto entsteht dadurch nicht. Ein
       selbst eingetragener Alias tut dasselbe, ganz ohne Anmeldung, und du kannst den
       Namen jederzeit wieder löschen.</p>
+    <p>Neben dem Vornamen legt die App die <b>undurchsichtige Kennung</b> ab, die Apple
+      bei dieser Anmeldung mitgibt (eine Zeichenfolge wie <code>001234.abcd…</code>, die
+      Apple je Entwickler und Apple-ID vergibt; ein Name lässt sich daraus nicht
+      ablesen). Sie bleibt auf dem Gerät, wird nirgendwohin übertragen und steht auch
+      nicht in einer Fehlermeldung. Sie beantwortet genau eine Frage: ob dies das Gerät
+      des Entwicklers ist, auf dem der versteckte Diagnosebereich der App aufgeht.
+      Entfernst du den Namen, wird sie mit gelöscht.</p>
 
     <h2>7. Siri und Kurzbefehle</h2>
     <p>Die Kurzbefehle von hAiity laufen auf dem Gerät und arbeiten mit derselben
@@ -178,9 +188,24 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       nur ein Schalter „freigeschaltet“ lokal gespeichert. „Wiederherstellen“ fragt
       diesen Kauf erneut bei Apple ab.</p>
 
-    <h2>9. Export und Teilen</h2>
+    <h2>9. Export, Teilen und Fehler melden</h2>
     <p>Der JSON-Export und die Teilen-Karte verlassen dein Gerät nur, wenn du sie selbst
       verschickst — und dann genau dorthin, wohin du sie schickst.</p>
+    <p>Dasselbe gilt für die <b>Fehlermeldung</b>: Schüttelst du das iPhone, öffnet
+      hAiity ein Formular. Du schreibst hinein, was passiert ist, und siehst darunter
+      <b>vollständig aufklappbar den technischen Text</b>, der mitgehen würde — App-
+      und iOS-Version, Build, Gerätemodell (etwa <code>iPhone18,2</code>), Anzahl der
+      Habits, Häkchen und geplanten Mitteilungen, Dateigröße, iCloud- und
+      Kalender-Zustand, Kaufstatus. Habit-Namen, Notizen, Emojis, Werte, dein Name oder
+      Alias sind darin nicht enthalten; die App kann sie technisch gar nicht in diesen
+      Bericht schreiben. Abgeschickt wird nichts automatisch: Der Text landet im
+      Mail-Fenster deines Geräts (oder, ohne Mail-Konto, im Teilen-Dialog), und du
+      tippst selbst auf Senden — mit deiner eigenen Absenderadresse, die wir dadurch
+      sehen. Die Meldung geht an
+      <a href="mailto:getaiityapp+hAiity@gmail.com">getaiityapp+hAiity@gmail.com</a> und
+      wird nur benutzt, um den Fehler zu verstehen und dir gegebenenfalls zu antworten.
+      Willst du gar nicht gefragt werden: „Mehr“ → <b>Schütteln zum Melden</b>
+      ausschalten (auch direkt im Formular möglich).</p>
 
     <h2>10. Diese Website</h2>
     <p>Diese Seite ist statisch, setzt keine Cookies und lädt keine externen Schriften,
@@ -196,7 +221,9 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       (Art. 77). In der Praxis gilt: Wir speichern keine personenbezogenen Daten von
       dir und können deshalb weder Auskunft geben noch etwas löschen — wir haben es
       schlicht nicht. Deine Daten liegen auf deinem Gerät und in deiner eigenen iCloud;
-      beides kontrollierst du selbst.</p>
+      beides kontrollierst du selbst. Die einzige Ausnahme ist eine Fehlermeldung, die
+      du uns selbst geschickt hast (Abschnitt 9): Sie liegt dann als E-Mail in unserem
+      Postfach. Schreib uns, und wir löschen sie.</p>
 
     <h2>12. Änderungen</h2>
     <p>Ändert sich die Funktionsweise der App, wird diese Erklärung angepasst.
@@ -210,7 +237,7 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
 <footer class="foot">
   <div class="wrap foot-row">
     <p style="margin:0">hAiity — Gewohnheiten, GitHub-Stil</p>
-    <nav><a href="index.html">Startseite</a><a href="https://aiity.de" rel="noopener">aiity</a><a href="mailto:leemojix@gmail.com">leemojix@gmail.com</a></nav>
+    <nav><a href="index.html">Startseite</a><a href="https://aiity.de" rel="noopener">aiity</a><a href="mailto:getaiityapp+hAiity@gmail.com">getaiityapp+hAiity@gmail.com</a></nav>
   </div>
 </footer>
 

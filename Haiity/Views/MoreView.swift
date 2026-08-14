@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import AuthenticationServices
@@ -62,6 +63,10 @@ struct MoreView: View, Equatable {
     @State private var iconChangeFailed = false
     @State private var aliasDraft = ""
     @State private var storedAppleName: String?
+    /// Gespiegelt statt bei jedem Rumpf gelesen: `ShakeToReport` ist eine
+    /// stumme Ablage, keine beobachtbare Quelle — ohne diesen Zustand spränge
+    /// der Schalter nach dem Umlegen optisch zurück.
+    @State private var shakeToReport = true
     @State private var appleSignInCameBackEmpty = false
     @Environment(\.colorScheme) private var colorScheme
     /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
@@ -159,6 +164,8 @@ struct MoreView: View, Equatable {
             } footer: {
                 Text(String(localized: "Import führt zusammen — kein Check-in geht verloren."))
             }
+
+            shakeToReportSection
 
             Section {
                 pageRow(.about, title: String(localized: "Über & Datenschutz"),
@@ -306,6 +313,42 @@ struct MoreView: View, Equatable {
     // im Auswählen-Modus. Der alte App-Group-Schlüssel „backfillMode" wird
     // schlicht nicht mehr gelesen.
 
+    // MARK: – Schütteln zum Melden
+
+    /// Der zweite Ort für DENSELBEN Schalter — der erste steht im Melde-Blatt
+    /// („Beim Schütteln nicht mehr fragen").
+    ///
+    /// **Warum beide denselben Schlüssel schreiben.** Zwei Ablagen wären zwei
+    /// Wahrheiten: hier stünde „ein", während das Blatt sich abgeschaltet
+    /// hätte. Geschrieben wird deshalb nur über `ShakeToReport` (siehe dort).
+    ///
+    /// **Warum die Zeile hier unten steht** und nicht bei den Mitteilungen:
+    /// Melden ist keine Erinnerung. Zwischen die beiden Zusammenfassungen
+    /// gesetzt, läse sie sich wie eine dritte Sorte Benachrichtigung.
+    /// **Warum der Spiegel zusätzlich auf die Mitteilung hört.** „Mehr" liegt
+    /// UNTER dem Melde-Blatt und bleibt dabei sichtbar: Schaltet dort jemand
+    /// „nicht mehr fragen", fährt das Blatt zu — und `onAppear` feuert nicht,
+    /// weil diese Seite nie weg war. Der Schalter zeigte weiter „ein", während
+    /// die Ablage längst „aus" sagt. Genau die zwei Wahrheiten, die der eine
+    /// Schlüssel verhindern soll.
+    private var shakeToReportSection: some View {
+        Section {
+            Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
+                get: { shakeToReport },
+                set: { on in
+                    shakeToReport = on
+                    ShakeToReport.isEnabled = on
+                }))
+            .accessibilityIdentifier("shake-to-report-toggle")
+        } footer: {
+            Text(String(localized: "Schüttle das iPhone, wenn etwas nicht stimmt: hAiity fragt dann, was passiert ist. Was mitgeht, siehst du vorher — deine Beschreibung und technische Angaben ohne Habit-Namen."))
+        }
+        .onAppear { shakeToReport = ShakeToReport.isEnabled }
+        .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
+            shakeToReport = ShakeToReport.isEnabled
+        }
+    }
+
     // MARK: – hAiity Pro
     //
     // Steht direkt unter dem iCloud-Status und spricht dessen Sprache:
@@ -452,6 +495,11 @@ struct MoreView: View, Equatable {
                     Spacer()
                     Button(String(localized: "Entfernen")) {
                         PersonalName.appleName = nil
+                        // Die Kennung kam aus DEMSELBEN Anmeldevorgang und
+                        // geht mit ihm: „Entfernen" heißt abmelden, und was
+                        // dann noch läge, wäre ein Rest einer Anmeldung, die
+                        // der Nutzer gerade zurückgenommen hat.
+                        PersonalName.appleUserID = nil
                         storedAppleName = nil
                     }
                     .font(.subheadline)
@@ -502,6 +550,12 @@ struct MoreView: View, Equatable {
         let formatter = PersonNameComponentsFormatter()
         let name = credential.fullName?.givenName
             ?? credential.fullName.map { formatter.string(from: $0) }
+        // Die undurchsichtige Kennung IMMER mitnehmen — auch wenn Apple
+        // keinen Vornamen liefert (das tut es nur bei der allerersten
+        // Anmeldung). Sie ist der einzige Weg, dieses Gerät später als das
+        // des Besitzers zu erkennen (siehe `DeveloperAccess.isOwnerDevice`),
+        // und sie hängt nicht daran, ob ein Name dabei war.
+        PersonalName.appleUserID = credential.user
         if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
             PersonalName.appleName = name
             storedAppleName = PersonalName.appleName
@@ -1169,7 +1223,12 @@ struct AboutView: View {
     /// Gespiegelt statt bei jedem Rumpf gelesen — beim Zurückkehren von der
     /// Entwicklerseite (dort kann man sie wieder ausblenden) frischt
     /// `onAppear` den Stand auf.
-    @State private var developerUnlocked = false
+    ///
+    /// **„Erreichbar" ist mehr als „freigeschaltet".** Gefragt wird beides auf
+    /// einmal (`DeveloperAccess.isAvailable`): Die Freischaltung liegt
+    /// dauerhaft in den Defaults, das Gerät kann aber trotzdem nicht mehr das
+    /// des Besitzers sein — dann verschwindet die Zeile wieder.
+    @State private var developerAvailable = false
 
     var body: some View {
         List {
@@ -1183,12 +1242,15 @@ struct AboutView: View {
             }
             Section {
                 versionRow
-                if developerUnlocked { developerRow }
+                if developerAvailable { developerRow }
             }
         }
         .navigationTitle(String(localized: "Über"))
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { developerUnlocked = DeveloperAccess.isUnlocked }
+        .onAppear {
+            developerAvailable = DeveloperAccess.isAvailable(
+                storedAppleUserID: PersonalName.appleUserID)
+        }
     }
 
     /// Die Tür. Sie sieht aus wie eine Fußzeile und ist eine: die Version
@@ -1223,12 +1285,26 @@ struct AboutView: View {
     /// Ein Tipp weiter. Gerechnet wird in `DeveloperAccess`; hier steht nur,
     /// was die ANSICHT damit tut — den einen Schreibvorgang und den Stups,
     /// der das Aufgehen der Tür spürbar macht.
+    ///
+    /// **Auf fremden Geräten passiert NICHTS.** Kein Countdown, keine
+    /// Zählung, kein Stups — die Zeile bleibt eine Versionszeile. Eine Tür,
+    /// die sich einen Spalt bewegt, verrät, dass sie eine ist; und der
+    /// Countdown „Noch 3 Tipps …" wäre die Anleitung gleich dazu. Wem die Tür
+    /// gehört, entscheidet `DeveloperAccess.isOwnerDevice` — solange dort
+    /// keine Kennung eingebaut ist, gilt das für jedes Gerät (Bootstrap,
+    /// siehe `DeveloperAccess.ownerAppleUserID`).
     private func tapVersion() {
+        guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID) else {
+            return
+        }
         let step = DeveloperAccess.next(taps: taps)
         taps = step.taps
         guard step.unlocked else { return }
         DeveloperAccess.isUnlocked = true
-        developerUnlocked = true
+        // Ohne Nachfrage: Der Riegel oben hat gerade bestätigt, dass dieses
+        // Gerät dem Besitzer gehört — ein zweiter Aufruf derselben Regel im
+        // selben Atemzug wäre nur eine Wiederholung.
+        developerAvailable = true
         Theme.Haptics.success()
     }
 }

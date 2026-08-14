@@ -331,6 +331,34 @@ final class DiagnosticsTests: XCTestCase {
         }
     }
 
+    /// **Der Kalendertitel ist der einzige Wert, den ein Mensch tippen kann —
+    /// und er geht nicht roh hinaus.** iOS lässt jeden Kalender in der
+    /// Kalender-App umbenennen. Aus „hAiity" wird dann „Enricos Gewohnheiten
+    /// 🌱": ein Name und ein Zeichen, also genau das, was dieser Bericht laut
+    /// seinem eigenen Versprechen nicht trägt. Die Auskunft bleibt trotzdem
+    /// vollständig — gefragt ist nie, WIE er heisst, sondern ob es noch der
+    /// von hAiity angelegte ist.
+    func testTheCalendarTitleNeverLeavesTheDeviceAsFreeText() {
+        XCTAssertEqual(DiagnosticsReport.calendarTitleToken(CalendarSync.calendarTitle),
+                       CalendarSync.calendarTitle, "der unveränderte Kalender ist eine Auskunft")
+        XCTAssertEqual(DiagnosticsReport.calendarTitleToken("  hAiity  "),
+                       CalendarSync.calendarTitle, "Leerraum ist keine Umbenennung")
+        for renamed in ["Enricos Gewohnheiten 🌱", "hAiity (alt)", "HAIITY", "Gewohnheiten"] {
+            XCTAssertEqual(DiagnosticsReport.calendarTitleToken(renamed), "renamed",
+                           "der getippte Name geht mit hinaus: \(renamed)")
+        }
+        // Kein Kalender bleibt kein Kalender: `n/a` ist die dritte Antwort.
+        XCTAssertNil(DiagnosticsReport.calendarTitleToken(nil))
+        XCTAssertNil(DiagnosticsReport.calendarTitleToken("   "))
+
+        var facts = DiagnosticsFacts()
+        facts.calendarTitle = "Enricos Gewohnheiten 🌱"
+        let report = DiagnosticsReport.text(facts)
+        XCTAssertTrue(report.contains("calendar.title: renamed"))
+        XCTAssertFalse(report.contains("Enricos"), "der Name steht im Bericht")
+        XCTAssertFalse(report.contains("🌱"), "das Zeichen steht im Bericht")
+    }
+
     /// **Aus dem App-Group-Pfad kommt nur sein letzter Teil.** Auf dem iPhone
     /// ist der ganze Pfad harmlos — im Simulator und unter „iPhone Apps on
     /// Mac" beginnt derselbe Pfad aber im HEIMATVERZEICHNIS, und der Kurzname
@@ -354,30 +382,48 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertNil(DiagnosticsFacts.containerToken(""))
         XCTAssertNil(DiagnosticsFacts.containerToken("/"))
 
-        // Und die Seite reicht den rohen Pfad gar nicht erst durch.
-        let developer = try source("Haiity/Views/DeveloperView.swift")
-        XCTAssertTrue(developer.contains(
+        // Und das Sammeln reicht den rohen Pfad gar nicht erst durch. (Es
+        // steht seit dem Melde-Blatt im Modell: zwei Oberflächen brauchen
+        // denselben Stand, siehe `DiagnosticsCollector`.)
+        let collector = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(collector.contains(
             "facts.appGroupContainer = DiagnosticsFacts.containerToken("))
-        XCTAssertFalse(developer.contains("facts.appGroupContainer = FileManager"))
+        XCTAssertFalse(collector.contains("facts.appGroupContainer = FileManager"))
     }
 
-    /// **Die Ansicht fasst die Quellen nicht an, an denen Namen liegen.**
-    /// `DiagnosticsFacts` kann keinen Namen tragen — aber die Seite selbst
+    /// **Weder Seite noch Sammler fassen die Quellen an, an denen Namen
+    /// liegen.** `DiagnosticsFacts` kann keinen Namen tragen — aber die Seite
     /// könnte ihn anzeigen, und der nächste Mensch schriebe ihn dann „nur
     /// kurz" in den Bericht. Besonders scharf ist `.content`: Titel und Text
     /// einer geplanten Mitteilung lauten „Zeit für <Habit-Name>", und
     /// `UNNotificationRequest.content` ist der einzige Weg dorthin.
+    ///
+    /// **Warum das Verbot auf `PersonalName` genauer geworden ist.** Die
+    /// Entwicklerseite zeigt seit der Melde-Runde die Apple-KENNUNG dieses
+    /// Geräts (`PersonalName.appleUserID`) — der Besitzer kann sie sonst nicht
+    /// ablesen, und ohne sie ist `DeveloperAccess.ownerAppleUserID` nicht
+    /// einzutragen. Eine undurchsichtige Zeichenfolge, die Apple je
+    /// (Entwicklerteam, Apple-ID) vergibt, ist kein Name: aus ihr lässt sich
+    /// kein Mensch ablesen, und sie steht auch NICHT im Bericht. Verboten
+    /// bleiben deshalb genau die Zugriffe, die einen Namen liefern.
     func testDeveloperViewNeverReadsNamesEmojisOrNotificationText() throws {
-        let developer = try source("Haiity/Views/DeveloperView.swift")
-        for leak in [".name", ".emoji", "PersonalName", ".content",
-                     "log.values", "Celebration"] {
-            XCTAssertFalse(developer.contains(leak),
-                           "die Entwicklerseite liest \(leak) — das trägt einen Namen")
+        let files = ["Haiity/Views/DeveloperView.swift", "Haiity/Models/Diagnostics.swift"]
+        for file in files {
+            let text = try source(file)
+            for leak in [".name", ".emoji", ".content", "log.values", "Celebration",
+                         "PersonalName.effective", "PersonalName.alias",
+                         "PersonalName.appleName", "PersonalName.resolve"] {
+                XCTAssertFalse(text.contains(leak),
+                               "\(file) liest \(leak) — das trägt einen Namen")
+            }
         }
-        // Was sie stattdessen liest: Kennung, Anzahl, ältester Schlüssel.
-        XCTAssertTrue(developer.contains("request.identifier"))
-        XCTAssertTrue(developer.contains("$1.log.count"), "vom Log darf nur die ANZAHL kommen")
-        XCTAssertTrue(developer.contains("$0.log.keys"), "vom Log darf nur der SCHLÜSSEL kommen")
+        // Was der Sammler stattdessen liest: Kennung, Anzahl, ältester
+        // Schlüssel.
+        let collector = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(collector.contains("request.identifier"))
+        XCTAssertTrue(collector.contains("$1.log.count"), "vom Log darf nur die ANZAHL kommen")
+        XCTAssertTrue(collector.contains("$0.log.keys"), "vom Log darf nur der SCHLÜSSEL kommen")
+        let developer = try source("Haiity/Views/DeveloperView.swift")
         XCTAssertTrue(developer.contains("DiagnosticsReport.text(facts)"),
                       "kopiert werden darf nur der geprüfte Bericht")
     }
@@ -430,8 +476,10 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(more.contains("DeveloperAccess.hint(for: taps)"))
         XCTAssertTrue(more.contains("DeveloperAccess.next(taps: taps)"))
         XCTAssertTrue(more.contains("Theme.Haptics.success()"))
-        // Die Zeile „Entwickler" erscheint nur nach dem Aufschließen.
-        XCTAssertTrue(more.contains("if developerUnlocked"))
+        // Die Zeile „Entwickler" erscheint nur, wenn die Seite auf DIESEM
+        // Gerät erreichbar ist — aufgeschlossen UND dem Besitzer gehörend
+        // (siehe `FeedbackTests`, die beide Hälften einzeln festnagelt).
+        XCTAssertTrue(more.contains("if developerAvailable"))
         // Genau EIN Schreibpunkt, und er schließt auf statt zu.
         XCTAssertEqual(more.components(separatedBy: "DeveloperAccess.isUnlocked = true").count - 1, 1)
         XCTAssertFalse(more.contains("DeveloperAccess.isUnlocked = false"),
@@ -443,7 +491,11 @@ final class DiagnosticsTests: XCTestCase {
     func testDeveloperViewCarriesTheContractIdentifiers() throws {
         let developer = try source("Haiity/Views/DeveloperView.swift")
         for id in ["\"test-notification\"", "\"copy-diagnostics\"",
-                   "\"reload-widgets\"", "\"lock-developer\""] {
+                   "\"reload-widgets\"", "\"lock-developer\"",
+                   // Ohne diese Zeile bliebe der Schlüssel für die
+                   // Besitzer-Bindung hinter der Tür eingesperrt: Apple zeigt
+                   // die Kennung nirgends an.
+                   "\"copy-apple-user-id\""] {
             XCTAssertTrue(developer.contains(id), "Kennung fehlt: \(id)")
         }
         XCTAssertTrue(developer.contains("Reminders.scheduleTest()"),
@@ -465,7 +517,7 @@ final class DiagnosticsTests: XCTestCase {
     func testTheFactsAreShownBeforeTheStoreAnswers() throws {
         let developer = try source("Haiity/Views/DeveloperView.swift")
         let published = try XCTUnwrap(developer.range(of: "collected = gathered"))
-        let price = try XCTUnwrap(developer.range(of: "await Pro.product()"))
+        let price = try XCTUnwrap(developer.range(of: "await DiagnosticsCollector.price()"))
         XCTAssertTrue(published.upperBound < price.lowerBound,
                       "der Preis aus dem Netz hält den ganzen Stand auf")
 
@@ -488,8 +540,10 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(DiagnosticsReport.text(facts)
             .contains("report.collected: 2026-08-14T18:41:00Z"))
 
+        XCTAssertTrue(try source("Haiity/Models/Diagnostics.swift")
+            .contains("facts.collectedAt = .now"))
+
         let developer = try source("Haiity/Views/DeveloperView.swift")
-        XCTAssertTrue(developer.contains("gathered.collectedAt = .now"))
         let scheduled = try XCTUnwrap(developer.range(of: "Reminders.scheduleTest()"))
         let buttonEnd = try XCTUnwrap(
             developer.range(of: #"accessibilityIdentifier("test-notification")"#))
@@ -521,9 +575,9 @@ final class DiagnosticsTests: XCTestCase {
     /// und nach dem Umbenennen. Ausgerechnet der Wert, wegen dem jemand diese
     /// Seite öffnet, wäre damit unfälschbar.
     func testTheCalendarTitleIsReadFromTheDeviceNotAsserted() throws {
-        let developer = try source("Haiity/Views/DeveloperView.swift")
-        XCTAssertTrue(developer.contains("facts.calendarTitle = CalendarSync.activeCalendarTitle"))
-        XCTAssertFalse(developer.contains("facts.calendarTitle = CalendarSync.calendarTitle"),
+        let collector = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(collector.contains("facts.calendarTitle = CalendarSync.activeCalendarTitle"))
+        XCTAssertFalse(collector.contains("facts.calendarTitle = CalendarSync.calendarTitle"),
                        "die Konstante meldet einen Kalender, den es nicht geben muss")
 
         let sync = try source("Haiity/Services/CalendarSync.swift")
@@ -577,11 +631,22 @@ final class DiagnosticsTests: XCTestCase {
 
     /// (c) Die Freischaltung rechnet pur und schreibt an genau einer Stelle —
     /// und zwar in `UserDefaults.standard`, nicht in die App-Group.
+    ///
+    /// **Warum die App-Group-Prüfung auf den Türbereich zeigt.** In derselben
+    /// Datei wohnt seit der Melde-Runde auch `DiagnosticsCollector`, und der
+    /// MUSS in den geteilten Topf greifen: dort liegen Container und
+    /// Kalender-Zuordnung, und genau die berichtet er. Der Satz, um den es
+    /// hier geht, gilt der Tür: eine Freischaltung im geteilten Topf läge im
+    /// selben Behälter wie Kauf- und Kalenderzustand und wäre später schwerer
+    /// wieder loszuwerden.
     func testDeveloperAccessStaysPureAndAppLocal() throws {
         let diagnostics = try source("Haiity/Models/Diagnostics.swift")
         XCTAssertTrue(diagnostics.contains("UserDefaults.standard.bool(forKey: unlockedKey)"))
         XCTAssertTrue(diagnostics.contains("UserDefaults.standard.set(newValue, forKey: unlockedKey)"))
-        XCTAssertFalse(diagnostics.contains("SharedStorage.appGroup"),
+        let doorStart = try XCTUnwrap(diagnostics.range(of: "enum DeveloperAccess"))
+        let doorEnd = try XCTUnwrap(diagnostics.range(of: "struct DiagnosticsFacts"))
+        let door = diagnostics[doorStart.lowerBound..<doorEnd.lowerBound]
+        XCTAssertFalse(door.contains("SharedStorage.appGroup"),
                        "die Freischaltung gehört nicht in den geteilten Topf")
         // Weder `hint` noch `next` fassen eine Ablage an — sonst wäre die
         // Fortschaltung nicht ohne Zustand prüfbar.
@@ -612,8 +677,9 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(more.contains("case archive, about, developer"))
 
         let content = try source("Haiity/Views/ContentView.swift")
-        XCTAssertTrue(content.contains("case .developer: DeveloperView(store: store, cloudStatus: cloudStatus)"),
-                      "die Route führt nirgendwohin")
+        XCTAssertTrue(content.contains("case .developer:"), "die Route führt nirgendwohin")
+        XCTAssertTrue(content.contains("DeveloperView(store: store, cloudStatus: cloudStatus)"),
+                      "die Route zeigt auf keine Seite")
         XCTAssertTrue(content.contains("case .about, .developer: nil"),
                       "die Seite darf kein Deep-Link-Ziel bedienen")
         XCTAssertFalse(content.contains("\"developer\""),

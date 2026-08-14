@@ -14,6 +14,7 @@ import Foundation
 enum PersonalName {
     static let aliasKey = "personalAlias"
     static let appleNameKey = "personalAppleName"
+    static let appleUserIDKey = "personalAppleUserID"
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -27,6 +28,28 @@ enum PersonalName {
     static var appleName: String? {
         get { defaults.string(forKey: appleNameKey) }
         set { store(newValue, forKey: appleNameKey) }
+    }
+
+    /// Die undurchsichtige Kennung derselben Apple-Anmeldung
+    /// (`ASAuthorizationAppleIDCredential.user`).
+    ///
+    /// **Warum sie neben dem Vornamen wohnt.** Sie kommt aus DEMSELBEN
+    /// Anmeldevorgang und geht mit ihm — wer den Apple-Namen entfernt, meldet
+    /// sich ab, und dann darf auch die Kennung nicht zurückbleiben.
+    ///
+    /// **Warum sie kein Name ist.** Apple vergibt sie stabil je
+    /// (Entwicklerteam, Apple-ID) und sonst nirgends: eine Zeichenfolge wie
+    /// `001234.abcd…`, aus der niemand einen Menschen ablesen kann. Sie
+    /// beantwortet genau EINE Frage — ist das das Gerät des Besitzers
+    /// (`DeveloperAccess.isOwnerDevice`)? — und verlässt das Gerät nie.
+    ///
+    /// **Warum trotzdem hier und nicht im Schlüsselbund.** Sie schützt keinen
+    /// Zugang zu fremden Daten; sie entscheidet nur, ob eine Seite mit
+    /// technischen Zahlen dieses Geräts erreichbar ist. Für diese Frage ist
+    /// die App-Group-Ablage der ehrliche Ort: sie geht mit der App wieder weg.
+    static var appleUserID: String? {
+        get { defaults.string(forKey: appleUserIDKey) }
+        set { store(newValue, forKey: appleUserIDKey) }
     }
 
     /// Was in der Mitteilung steht: Alias vor Apple-Namen, leer = nichts.

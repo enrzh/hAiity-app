@@ -10172,6 +10172,106 @@
         }
       }
     },
+    "Apple-Kennung dieses Geräts": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معرّف Apple لهذا الجهاز"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "এই ডিভাইসের Apple শনাক্তকারী"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple identifier of this device"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador de Apple de este dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifiant Apple de cet appareil"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस डिवाइस का Apple पहचानकर्ता"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penanda Apple perangkat ini"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificatore Apple di questo dispositivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このデバイスの Apple 識別子"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기기의 Apple 식별자"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador Apple deste dispositivo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идентификатор Apple этого устройства"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu cihazın Apple kimliği"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اس ڈیوائس کی Apple شناخت"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Định danh Apple của thiết bị này"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本设备的 Apple 标识"
+          }
+        }
+      }
+    },
     "Archiv": {
       "localizations": {
         "ar": {
@@ -11778,6 +11878,106 @@
         }
       }
     },
+    "Beim Schütteln nicht mehr fragen": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا تسأل عند الهز مرة أخرى"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ঝাঁকালে আর জিজ্ঞেস করবেন না"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop asking when I shake"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No volver a preguntar al agitar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne plus demander en secouant"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हिलाने पर दोबारा न पूछें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jangan tanya lagi saat diguncang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non chiedere più quando scuoto il telefono"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "振っても今後は聞かない"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "흔들 때 다시 묻지 않기"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não perguntar mais ao sacudir"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше не спрашивать при встряхивании"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sallayınca bir daha sorma"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ہلانے پر دوبارہ نہ پوچھیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đừng hỏi lại khi lắc"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摇动时不再询问"
+          }
+        }
+      }
+    },
     "Benachrichtigungen aktivieren": {
       "localizations": {
         "ar": {
@@ -12274,6 +12474,306 @@
           "stringUnit": {
             "state": "translated",
             "value": "琥珀色"
+          }
+        }
+      }
+    },
+    "Beschreibe kurz, was du gemacht hast und was dann geschah — je genauer, desto eher lässt sich der Fehler nachstellen.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "صف باختصار ما فعلته وما حدث بعده — كلما كان الوصف أدق، صار تكرار المشكلة أسهل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সংক্ষেপে লিখুন আপনি কী করেছিলেন আর তারপর কী হয়েছিল — যত নির্দিষ্ট, সমস্যা তত সহজে ধরা যায়।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe briefly what you did and what happened next — the more precise, the easier the problem is to reproduce."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe brevemente qué hiciste y qué ocurrió después — cuanto más preciso, más fácil será reproducir el fallo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décris brièvement ce que tu as fait et ce qui s’est passé ensuite — plus c’est précis, plus le problème est facile à reproduire."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "संक्षेप में लिखें कि आपने क्या किया और फिर क्या हुआ — जितना सटीक, समस्या दोहराना उतना आसान।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceritakan singkat apa yang kamu lakukan dan apa yang terjadi — makin detail, makin mudah masalahnya ditiru."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descrivi in breve che cosa hai fatto e che cosa è successo dopo — più sei preciso, più è facile riprodurre il problema."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何をしたときに何が起きたかを短く書いてください。具体的なほど再現しやすくなります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무엇을 하다가 어떤 일이 생겼는지 짧게 적어 주세요. 구체적일수록 문제를 재현하기 쉬워요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descreva rapidamente o que você fez e o que aconteceu depois — quanto mais preciso, mais fácil reproduzir o problema."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опишите коротко, что вы делали и что произошло потом — чем точнее, тем легче воспроизвести ошибку."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne yaptığını ve sonra ne olduğunu kısaca anlat — ne kadar net olursa, hatayı yeniden oluşturmak o kadar kolay."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مختصر لکھیں کہ آپ نے کیا کیا اور پھر کیا ہوا — جتنا واضح ہوگا، مسئلہ دہرانا اتنا آسان ہوگا۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mô tả ngắn gọn bạn đã làm gì và chuyện gì xảy ra sau đó — càng cụ thể thì lỗi càng dễ tái hiện."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简单描述你做了什么、随后发生了什么——越具体，问题越容易复现。"
+          }
+        }
+      }
+    },
+    "Beschreibung verwerfen und nicht mehr fragen?": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هل تريد تجاهل الوصف وعدم السؤال مرة أخرى؟"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "বর্ণনা বাতিল করে আর জিজ্ঞাসা না করা হবে?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard the description and stop asking?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Descartar la descripción y no volver a preguntar?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer la description et ne plus demander ?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विवरण हटाएँ और दोबारा न पूछें?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buang deskripsi dan jangan tanya lagi?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminare la descrizione e non chiedere più?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入力した内容を破棄して、今後は尋ねないようにしますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작성한 설명을 버리고 다시 묻지 않을까요?"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar a descrição e não perguntar mais?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить описание и больше не спрашивать?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açıklama silinsin ve bir daha sorulmasın mı?"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تفصیل ضائع کر کے دوبارہ نہ پوچھا جائے؟"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bỏ phần mô tả và không hỏi nữa?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放弃已写的描述，并不再询问？"
+          }
+        }
+      }
+    },
+    "Besitzer": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "المالك"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "মালিক"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owner"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Propietario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Propriétaire"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मालिक"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pemilik"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proprietario"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有者"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "소유자"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proprietário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Владелец"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sahibi"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مالک"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chủ sở hữu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有者"
           }
         }
       }
@@ -14478,6 +14978,106 @@
         }
       }
     },
+    "Der Schalter dafür bleibt in Mehr — dort lässt sich das Schütteln jederzeit wieder einschalten.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يبقى المفتاح في المزيد — يمكنك تشغيل الهز من هناك في أي وقت."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সুইচটি আরও-তে থাকে — সেখান থেকে ঝাঁকানো যেকোনো সময় আবার চালু করা যায়।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The switch stays in More — you can turn shaking back on there at any time."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El interruptor sigue en Más — allí puedes volver a activar el agitado cuando quieras."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le réglage reste dans Plus — tu peux y réactiver le secouement à tout moment."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्विच अधिक में रहता है — वहाँ से हिलाने की सुविधा कभी भी दोबारा चालू कर सकते हैं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sakelarnya tetap ada di Lainnya — kamu bisa menyalakannya lagi kapan saja."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’interruttore resta in Altro — lì puoi riattivare lo scuotimento quando vuoi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スイッチは「その他」に残ります。いつでもそこで振る操作を再びオンにできます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스위치는 더 보기에 남아 있어요. 언제든 거기서 흔들기를 다시 켤 수 있어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O botão continua em Mais — lá você pode reativar o sacudir quando quiser."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переключатель остаётся в разделе «Ещё» — там встряхивание можно снова включить в любой момент."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahtar Daha fazla bölümünde kalır — sallamayı istediğin zaman oradan yeniden açabilirsin."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سوئچ مزید میں موجود رہتا ہے — وہاں سے ہلانے کی سہولت کبھی بھی دوبارہ آن کی جا سکتی ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công tắc vẫn nằm trong Thêm — bạn có thể bật lại việc lắc bất cứ lúc nào."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开关仍在「更多」中——你随时可以在那里重新打开摇动。"
+          }
+        }
+      }
+    },
     "Der kopierte Text enthält keine Habit-Namen, keine Emojis und keine Werte — nur Zahlen, Zustände und technische Kennungen.": {
       "localizations": {
         "ar": {
@@ -14574,6 +15174,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制的文本不含习惯名称、Emoji 和记录值——只有数字、状态和技术标识。"
+          }
+        }
+      }
+    },
+    "Der mitgeschickte Text enthält keine Habit-Namen, keine Emojis und keine Werte — nur Zahlen, Zustände und technische Kennungen.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "النص المُرسَل لا يحتوي على أسماء العادات ولا إيموجي ولا قيم — أرقام وحالات ومعرّفات تقنية فقط."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পাঠানো টেক্সটে অভ্যাসের নাম, ইমোজি বা মান থাকে না — শুধু সংখ্যা, অবস্থা আর কারিগরি শনাক্তকারী।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The text that is sent contains no habit names, no emoji and no values — only numbers, states and technical identifiers."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto enviado no contiene nombres de hábitos, ni emojis, ni valores — solo números, estados e identificadores técnicos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le texte envoyé ne contient aucun nom d’habitude, aucun émoji et aucune valeur — seulement des nombres, des états et des identifiants techniques."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भेजे जाने वाले टेक्स्ट में आदतों के नाम, इमोजी और मान नहीं होते — सिर्फ़ संख्याएँ, स्थितियाँ और तकनीकी पहचानकर्ता।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teks yang dikirim tidak memuat nama kebiasaan, emoji, atau nilai — hanya angka, status, dan penanda teknis."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il testo inviato non contiene nomi di abitudini, né emoji, né valori — solo numeri, stati e identificatori tecnici."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信されるテキストに習慣の名前、絵文字、記録の値は含まれません。数値と状態、技術的な識別子だけです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보내는 텍스트에는 습관 이름도, 이모지도, 기록 값도 없어요 — 숫자와 상태, 기술적 식별자뿐이에요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O texto enviado não contém nomes de hábitos, nem emojis, nem valores — só números, estados e identificadores técnicos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправляемый текст не содержит названий привычек, эмодзи и значений — только числа, состояния и технические идентификаторы."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderilen metinde alışkanlık adları, emojiler ve değerler yok — yalnızca sayılar, durumlar ve teknik kimlikler."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بھیجے جانے والے متن میں عادات کے نام، ایموجی یا اقدار نہیں ہوتیں — صرف اعداد، حالتیں اور تکنیکی شناختیں۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Văn bản được gửi không chứa tên thói quen, emoji hay giá trị — chỉ có số, trạng thái và định danh kỹ thuật."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送的文本不含习惯名称、Emoji 和记录值——只有数字、状态和技术标识。"
           }
         }
       }
@@ -14974,6 +15674,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "iCloud 里的数据来自更新的版本，不会被覆盖。"
+          }
+        }
+      }
+    },
+    "Die Kennung stammt aus der Apple-Anmeldung unter Anrede in Mehr. Trägt der Entwickler sie fest in die App ein, öffnet die versteckte Tür nur noch auf seinem Gerät.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يأتي المعرّف من تسجيل الدخول بحساب Apple ضمن الاسم في المزيد. وإذا أدرجه المطوّر في التطبيق، فلن ينفتح الباب المخفي إلا على جهازه."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "শনাক্তকারীটি আরও-এর সম্বোধন অংশে Apple দিয়ে সাইন ইন করার সময় আসে। ডেভেলপার এটি অ্যাপে বসিয়ে দিলে লুকানো দরজা কেবল তাঁর ডিভাইসেই খুলবে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The identifier comes from signing in with Apple under Name in More. Once the developer builds it into the app, the hidden door only opens on their device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El identificador procede del inicio de sesión con Apple en Tratamiento, dentro de Más. Si el desarrollador lo integra en la app, la puerta oculta solo se abre en su dispositivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’identifiant provient de la connexion avec Apple sous Prénom, dans Plus. Si le développeur l’intègre à l’app, la porte cachée ne s’ouvre plus que sur son appareil."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह पहचानकर्ता अधिक में संबोधन के नीचे Apple साइन इन से आता है। डेवलपर इसे ऐप में तय कर दे, तो छिपा दरवाज़ा सिर्फ़ उसके डिवाइस पर खुलेगा।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penanda ini berasal dari masuk dengan Apple di bagian Sapaan dalam Lainnya. Kalau pengembang menanamkannya di app, pintu tersembunyi hanya terbuka di perangkatnya."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’identificatore viene dall’accesso con Apple in Nome, dentro Altro. Se lo sviluppatore lo inserisce nell’app, la porta nascosta si apre solo sul suo dispositivo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この識別子は「その他」の「呼び名」での Apple サインインから得られます。開発者がアプリに埋め込むと、隠し扉は開発者のデバイスでしか開きません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 식별자는 더 보기의 호칭에서 Apple로 로그인할 때 생겨요. 개발자가 앱에 새겨 넣으면 숨은 문은 그 기기에서만 열려요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O identificador vem do login com a Apple em Nome, dentro de Mais. Se o desenvolvedor o embutir no app, a porta escondida só abre no dispositivo dele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идентификатор берётся из входа через Apple в разделе «Обращение» в «Ещё». Если разработчик впишет его в приложение, скрытая дверь будет открываться только на его устройстве."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimlik, Daha fazla bölümündeki Hitap altında Apple ile oturum açmadan gelir. Geliştirici bunu uygulamaya sabitlerse, gizli kapı yalnızca kendi cihazında açılır."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یہ شناخت مزید میں نام کے تحت Apple سائن اِن سے آتی ہے۔ ڈیویلپر اسے ایپ میں طے کر دے تو چھپا دروازہ صرف اُس کی ڈیوائس پر کھلے گا۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Định danh này đến từ việc đăng nhập bằng Apple ở mục Xưng hô trong Thêm. Nếu nhà phát triển gắn cố định vào ứng dụng, cánh cửa ẩn chỉ mở trên thiết bị của họ."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该标识来自「更多」中「称呼」里的 Apple 登录。开发者一旦把它写进 App，隐藏入口就只在他的设备上打开。"
           }
         }
       }
@@ -15674,6 +16474,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "本周：完成 %lld%%"
+          }
+        }
+      }
+    },
+    "Diese technischen Angaben werden mitgeschickt": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تُرسل هذه المعلومات التقنية مع الرسالة"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "এই কারিগরি তথ্য সঙ্গে যাবে"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These technical details are sent along"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos datos técnicos se envían con el mensaje"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces informations techniques sont envoyées avec"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ये तकनीकी जानकारी साथ भेजी जाती है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data teknis ini ikut terkirim"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questi dati tecnici vengono inviati insieme"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以下の技術情報も一緒に送られます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기술 정보도 함께 보내요"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estes dados técnicos vão junto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эти технические данные будут отправлены"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu teknik bilgiler birlikte gönderilir"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یہ تکنیکی معلومات ساتھ بھیجی جاتی ہیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Những thông tin kỹ thuật này sẽ được gửi kèm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些技术信息会一并发送"
           }
         }
       }
@@ -19684,6 +20584,106 @@
         }
       }
     },
+    "Fehler melden": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الإبلاغ عن مشكلة"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সমস্যা জানান"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a problem"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de un problema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler un problème"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "समस्या की रिपोर्ट करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laporkan masalah"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un problema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題を報告"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문제 신고"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar um problema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о проблеме"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sorun bildir"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مسئلہ رپورٹ کریں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Báo lỗi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告问题"
+          }
+        }
+      }
+    },
     "Feinabstimmung": {
       "localizations": {
         "ar": {
@@ -20780,6 +21780,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "整页"
+          }
+        }
+      }
+    },
+    "Geht an %@.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يُرسل إلى %@."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@-এ যাবে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goes to %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se envía a %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé à %@."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ पर जाता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dikirim ke %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viene inviato a %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宛先は %@ です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(으)로 보내요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vai para %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправится на %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ adresine gider."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ پر جاتا ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi tới %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送至 %@。"
           }
         }
       }
@@ -27902,6 +29002,206 @@
         }
       }
     },
+    "Kennung kopieren": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نسخ المعرّف"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "শনাক্তকারী কপি করুন"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy identifier"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar el identificador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier l’identifiant"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पहचानकर्ता कॉपी करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salin penanda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia l’identificatore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "識別子をコピー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "식별자 복사"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar o identificador"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать идентификатор"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimliği kopyala"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شناخت کاپی کریں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép định danh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制标识"
+          }
+        }
+      }
+    },
+    "Kennung kopiert.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم نسخ المعرّف."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "শনাক্তকারী কপি হয়েছে।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifier copied."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador copiado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifiant copié."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पहचानकर्ता कॉपी हो गया।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penanda disalin."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificatore copiato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "識別子をコピーしました。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "식별자를 복사했어요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador copiado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идентификатор скопирован."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimlik kopyalandı."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شناخت کاپی ہو گئی۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã sao chép định danh."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制标识。"
+          }
+        }
+      }
+    },
     "Klein": {
       "localizations": {
         "ar": {
@@ -32402,6 +33702,106 @@
         }
       }
     },
+    "Nicht angemeldet": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم تسجيل الدخول"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সাইন ইন করা নেই"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not signed in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin sesión iniciada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non connecté"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "साइन इन नहीं हैं"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum masuk"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non connesso"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインしていません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인하지 않음"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não conectado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход не выполнен"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum açılmadı"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سائن اِن نہیں ہیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa đăng nhập"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未登录"
+          }
+        }
+      }
+    },
     "Nicht ausgewählt": {
       "localizations": {
         "ar": {
@@ -35004,6 +36404,306 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭"
+          }
+        }
+      }
+    },
+    "Schütteln zum Melden": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الهز للإبلاغ"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "জানাতে ঝাঁকান"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shake to report"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agitar para informar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secouer pour signaler"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रिपोर्ट के लिए हिलाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guncang untuk melapor"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scuoti per segnalare"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "振って報告"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "흔들어 신고"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sacudir para relatar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встряхнуть, чтобы сообщить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirmek için salla"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رپورٹ کے لیے ہلائیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lắc để báo lỗi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摇动以报告"
+          }
+        }
+      }
+    },
+    "Schüttle das iPhone, wenn etwas nicht stimmt: hAiity fragt dann, was passiert ist. Was mitgeht, siehst du vorher — deine Beschreibung und technische Angaben ohne Habit-Namen.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هزّ الـ iPhone عندما لا يعمل شيء ما: عندها يفتح hAiity بلاغًا عن المشكلة. ترى مسبقًا ما سيُرسل — وصفك ومعلومات تقنية بلا أسماء عادات."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কিছু ঠিকঠাক না চললে iPhone ঝাঁকান: hAiity তখন একটি সমস্যার রিপোর্ট খোলে। কী যাচ্ছে তা আগেই দেখতে পান — আপনার বর্ণনা আর অভ্যাসের নাম ছাড়া কারিগরি তথ্য।"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shake the iPhone when something is wrong: hAiity then opens a problem report. You see beforehand what goes along — your description and technical details without habit names."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agita el iPhone cuando algo no funcione: hAiity abrirá un informe de fallo. Antes ves lo que se envía — tu descripción y datos técnicos sin nombres de hábitos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secoue l’iPhone quand quelque chose cloche : hAiity ouvre alors un signalement. Tu vois d’abord ce qui part — ta description et des informations techniques sans noms d’habitudes."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कुछ गड़बड़ हो तो iPhone हिलाएँ: hAiity समस्या की रिपोर्ट खोल देगा। क्या भेजा जाएगा, यह पहले दिखता है — आपका विवरण और आदतों के नाम के बिना तकनीकी जानकारी।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guncang iPhone kalau ada yang tidak beres: hAiity membuka laporan masalah. Kamu melihat dulu apa yang ikut terkirim — deskripsimu dan data teknis tanpa nama kebiasaan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scuoti l’iPhone quando qualcosa non va: hAiity apre una segnalazione. Prima vedi che cosa parte — la tua descrizione e dati tecnici senza nomi di abitudini."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "うまくいかないときは iPhone を振ってください。hAiity が問題の報告を開きます。送られる内容は事前に確認できます。あなたの説明と、習慣の名前を含まない技術情報です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "뭔가 잘못됐을 때 iPhone을 흔들어 보세요. hAiity가 문제 신고를 열어요. 무엇이 함께 가는지 미리 보여줘요 — 당신의 설명과 습관 이름이 없는 기술 정보예요."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sacuda o iPhone quando algo não funcionar: o hAiity abre um relato de problema. Você vê antes o que vai junto — sua descrição e dados técnicos sem nomes de hábitos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встряхните iPhone, если что-то не так: hAiity откроет сообщение об ошибке. Вы заранее видите, что уйдёт — ваше описание и технические данные без названий привычек."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir şey ters gittiğinde iPhone’u salla: hAiity bir hata bildirimi açar. Neyin gideceğini önceden görürsün — açıklaman ve alışkanlık adları içermeyen teknik bilgiler."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کچھ ٹھیک نہ چل رہا ہو تو iPhone ہلائیں: hAiity مسئلے کی رپورٹ کھول دیتا ہے۔ کیا بھیجا جائے گا، یہ پہلے دکھتا ہے — آپ کی تفصیل اور عادات کے ناموں کے بغیر تکنیکی معلومات۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lắc iPhone khi có gì đó không ổn: hAiity sẽ mở một báo lỗi. Bạn thấy trước những gì được gửi — mô tả của bạn và thông tin kỹ thuật không có tên thói quen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遇到问题时摇一摇 iPhone：hAiity 会打开一份问题报告。发送内容你可以先看到——你的描述，以及不含习惯名称的技术信息。"
+          }
+        }
+      }
+    },
+    "Senden": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إرسال"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পাঠান"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भेजें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kirim"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보내기"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönder"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بھیجیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送"
           }
         }
       }
@@ -39108,6 +40808,106 @@
         }
       }
     },
+    "Verwerfen und nicht mehr fragen": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تجاهل وعدم السؤال"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "বাতিল করে আর জিজ্ঞাসা নয়"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard and stop asking"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar y no volver a preguntar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer et ne plus demander"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हटाएँ और न पूछें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buang dan jangan tanya lagi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimina e non chiedere più"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "破棄して尋ねない"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버리고 묻지 않기"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar e não perguntar mais"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить и не спрашивать"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sil ve bir daha sorma"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ضائع کریں اور نہ پوچھیں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bỏ và không hỏi nữa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放弃并不再询问"
+          }
+        }
+      }
+    },
     "Vierter": {
       "localizations": {
         "ar": {
@@ -40010,6 +41810,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日待办——逐段显示。"
+          }
+        }
+      }
+    },
+    "Was ist passiert?": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ماذا حدث؟"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "কী হয়েছিল?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What happened?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Qué ha pasado?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Que s’est-il passé ?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "क्या हुआ?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apa yang terjadi?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Che cosa è successo?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何が起きましたか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무슨 일이 있었나요?"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que aconteceu?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что случилось?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne oldu?"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیا ہوا؟"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyện gì đã xảy ra?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发生了什么？"
           }
         }
       }
@@ -41110,6 +43010,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢复"
+          }
+        }
+      }
+    },
+    "Wird gesammelt …": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يجري الجمع …"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সংগ্রহ করা হচ্ছে …"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collecting …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recopilando …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collecte en cours …"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इकट्ठा किया जा रहा है …"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengumpulkan …"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raccolta in corso …"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "収集中 …"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "수집 중 …"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coletando …"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собираем …"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toplanıyor …"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جمع کیا جا رہا ہے …"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang thu thập …"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在收集 …"
           }
         }
       }

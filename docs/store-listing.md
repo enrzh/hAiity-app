@@ -290,7 +290,7 @@ gelten nicht als vom Entwickler erfasst.
 | Kategorie | Antwort | Warum |
 | --- | --- | --- |
 | Contact Info — Name | **Not Collected** | Vorname aus optionaler Apple-Anmeldung bzw. frei getippter Alias, nur für die Anrede in Mitteilungen. Liegt in den App-Group-Defaults, verlässt das Gerät nie. |
-| Contact Info — E-Mail, Telefon, Adresse, sonstige | **Not Collected** | Wird nie erfragt. Das Apple-Identitäts-Token wird nicht einmal ausgewertet. |
+| Contact Info — E-Mail, Telefon, Adresse, sonstige | **Not Collected** | Wird nie erfragt und nie ausgelesen. Aus der Apple-Anmeldung wird neben dem Vornamen nur die undurchsichtige Kennung (`ASAuthorizationAppleIDCredential.user`) gerätelokal abgelegt — sie entscheidet ausschließlich, ob der versteckte Entwicklerbereich auf diesem Gerät aufgeht, und verlässt das Gerät nie. Schickt ein Nutzer von sich aus eine Fehlermeldung (Schütteln → Formular → sein eigenes Mail-Programm), sehen wir dabei seine Absenderadresse; das ist seine Mail an uns, keine Erhebung durch die App (Apples Ausnahme für nutzerinitiierte Support-/Fehlermeldungen). |
 | Health & Fitness | **Not Collected** | Kein HealthKit, keine Health-Berechtigung im Entitlement. Habit-Namen kann der Nutzer frei wählen, sie bleiben auf dem Gerät. |
 | Financial Info | **Not Collected** | Zahlung läuft vollständig über Apples In-App-Kauf; die App sieht keine Zahlungsdaten. |
 | Location | **Not Collected** | Keine Standort-API, kein `NSLocation…UsageDescription`. |
@@ -303,7 +303,7 @@ gelten nicht als vom Entwickler erfasst.
 | Identifiers — User ID, Device ID | **Not Collected** | Keine Konten, keine IDFA/IDFV-Nutzung, kein Analytics-SDK. Habit-UUIDs sind gerätelokal und identifizieren keine Person. |
 | Purchases — Kaufhistorie | **Not Collected** | Der Berechtigungsstatus kommt von StoreKit und wird nur lokal in den App-Group-Defaults zwischengespeichert (`proUnlocked`). Kein Quittungs-Server. |
 | Usage Data — Produktinteraktion, Werbedaten, sonstige | **Not Collected** | Keine Telemetrie. |
-| Diagnostics — Crash-, Performance-, sonstige Diagnosedaten | **Not Collected** | Kein Crash-SDK. Was Apple selbst über die Systemeinstellungen sammelt, ist Apples Erhebung, nicht unsere. |
+| Diagnostics — Crash-, Performance-, sonstige Diagnosedaten | **Not Collected** | Kein Crash-SDK, keine automatische Übertragung. Schüttelt der Nutzer das Gerät, öffnet die App ein Formular: seine Beschreibung plus ein vollständig einsehbarer, aufklappbarer Diagnosetext (Version, Build, Gerätemodell, iOS, Zähler, Zustände — bauartbedingt ohne Habit-Namen, Emojis, Werte und Namen). Abgeschickt wird er vom Nutzer selbst über `MFMailComposeViewController` bzw. das System-Teilen-Blatt, jederzeit abschaltbar („Mehr → Schütteln zum Melden", Standard EIN). Das fällt unter Apples Ausnahme für **nutzerinitiierte Fehler- und Supportmeldungen**: optional, sichtbar, nicht mit einem Konto verknüpft, kein Tracking, keine Werbung. Was Apple selbst über die Systemeinstellungen sammelt, ist Apples Erhebung, nicht unsere. |
 | Other Data | **Not Collected** | — |
 
 **Tracking:** „Verwendest du Daten zur Nachverfolgung?“ → **Nein**. Kein

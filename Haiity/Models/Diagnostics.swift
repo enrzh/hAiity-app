@@ -1,5 +1,8 @@
 import Darwin
 import Foundation
+import StoreKit
+import UIKit
+import UserNotifications
 
 /// Version, Build und Bundle-Kennung — an EINER Stelle abgelesen.
 ///
@@ -92,6 +95,66 @@ enum DeveloperAccess {
         let raised = max(0, taps) + 1
         guard raised >= tapsRequired else { return (raised, false) }
         return (0, true)
+    }
+
+    // MARK: – Wem die Tür gehört
+
+    /// Die Apple-Kennung des Besitzers — eingebaut, nicht einstellbar.
+    ///
+    /// **Was hier stünde.** `ASAuthorizationAppleIDCredential.user`: eine
+    /// undurchsichtige Zeichenfolge, die Apple stabil je (Entwicklerteam,
+    /// Apple-ID) vergibt. Sie ist kein Name und lässt sich nicht zurückrechnen.
+    ///
+    /// **Warum sie gerade `nil` ist.** Sie ist noch nicht bekannt. Der
+    /// Besitzer meldet sich in „Mehr" mit Apple an, liest die Kennung auf der
+    /// Entwicklerseite ab (Zeile „Apple-Kennung dieses Geräts", Kopier-Knopf)
+    /// und trägt sie hier als Zeichenkette ein — ab dem nächsten Build öffnet
+    /// die versteckte Tür nur noch auf seinem Gerät. Bis dahin gilt die
+    /// Bootstrap-Regel unten, sonst gäbe es keinen Weg, an die Kennung zu
+    /// kommen: eine Tür, deren Schlüssel hinter der Tür liegt.
+    ///
+    /// **Warum eine Konstante und keine Einstellung.** Ein Wert, den das Gerät
+    /// selbst setzen kann, ist kein Schloss — er wäre nur eine zweite Klinke.
+    static let ownerAppleUserID: String? = nil
+
+    /// Ist der Entwicklerbereich auf DIESEM Gerät erreichbar?
+    ///
+    /// Zwei Bedingungen, und die zweite wird JEDES MAL neu gestellt, nicht nur
+    /// beim Aufschliessen: Die Freischaltung liegt dauerhaft in den Defaults
+    /// und überlebt App-Updates. Wer in der Bootstrap-Runde sieben Mal getippt
+    /// hat, behielte die Seite sonst auch dann, wenn `ownerAppleUserID` im
+    /// nächsten Build eingetragen ist und nicht zu ihm passt. Eine
+    /// Freischaltung ist ein Zustand, kein Besitztitel — und eine Tür, die
+    /// einmal aufging, bleibt deswegen nicht seine.
+    ///
+    /// Gefragt werden muss das an JEDER Stelle, die zur Seite führt: an der
+    /// Zeile in „Über" und an der Seite selbst. Ein Riegel nur an der Klinke
+    /// ist einer an der falschen Stelle.
+    static func isAvailable(storedAppleUserID: String?) -> Bool {
+        isUnlocked && isOwnerDevice(storedAppleUserID: storedAppleUserID)
+    }
+
+    /// Gehört DIESES Gerät dem Besitzer?
+    ///
+    /// Rein und prüfbar: der Aufrufer reicht `PersonalName.appleUserID`
+    /// herein, hier wird nur verglichen.
+    ///
+    /// Zwei Regeln, beide bewusst:
+    ///  * Ist `ownerAppleUserID` nicht gesetzt (Bootstrap), ist die Antwort
+    ///    `true` — die Tür arbeitet wie bisher, sonst käme niemand je an die
+    ///    Kennung, die man eintragen müsste.
+    ///  * Ist sie gesetzt, zählt NUR exakte Gleichheit. Keine gespeicherte
+    ///    Kennung (nicht angemeldet) heißt `false`: „vielleicht der Besitzer"
+    ///    ist bei einer Tür keine Antwort.
+    ///
+    /// Leerraum zählt auf beiden Seiten nicht — eine Kennung aus Leerzeichen
+    /// ist keine.
+    static func isOwnerDevice(storedAppleUserID: String?) -> Bool {
+        let owner = ownerAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let owner, !owner.isEmpty else { return true }
+        let stored = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let stored, !stored.isEmpty else { return false }
+        return stored == owner
     }
 }
 
@@ -311,8 +374,30 @@ enum DiagnosticsReport {
 
     private static func calendarLines(_ facts: DiagnosticsFacts) -> [String] {
         [line("calendar.enabled", facts.calendarEnabled),
-         line("calendar.title", facts.calendarTitle),
+         line("calendar.title", calendarTitleToken(facts.calendarTitle)),
          line("calendar.events", facts.calendarEvents)]
+    }
+
+    /// Was von einem umbenannten Kalender im Bericht übrig bleibt.
+    ///
+    /// **Warum der Titel nicht roh hinausgeht.** Er ist der einzige Wert im
+    /// ganzen Bericht, den ein Mensch frei tippen kann: iOS lässt jeden
+    /// Kalender in der Kalender-App umbenennen. Aus „hAiity" wird dann
+    /// „Enricos Gewohnheiten 🌱" — ein Name und ein Zeichen, also genau das,
+    /// was dieser Bericht laut seinem eigenen Versprechen NICHT trägt. Und
+    /// dieses Versprechen ist kein Text im Blatt, sondern die Bauart: was
+    /// nicht hinausgeht, kann nichts verraten.
+    ///
+    /// **Warum die Auskunft trotzdem vollständig bleibt.** Gefragt ist nie,
+    /// WIE der Kalender heisst, sondern ob es noch der von hAiity angelegte
+    /// ist — ein umbenannter wird beim nächsten Anlegen nicht wiedergefunden
+    /// (siehe `CalendarSync`). `hAiity` heisst „unverändert", `renamed` heisst
+    /// „umbenannt", `n/a` heisst „keiner da". Drei Antworten auf drei Fragen,
+    /// und keine davon braucht den Namen selbst.
+    static func calendarTitleToken(_ title: String?) -> String? {
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed == CalendarSync.calendarTitle ? trimmed : "renamed"
     }
 
     private static func proLines(_ facts: DiagnosticsFacts) -> [String] {
@@ -344,5 +429,188 @@ enum DiagnosticsReport {
 
     private static func line(_ key: String, _ value: Date?) -> String {
         line(key, value.map { timestamp($0) })
+    }
+}
+
+/// Das Einsammeln — an EINER Stelle, für ZWEI Oberflächen.
+///
+/// **Warum das nicht mehr in der Entwicklerseite steht.** Seit dem
+/// Melde-Blatt (Schütteln) gibt es zwei Orte, die denselben Stand brauchen:
+/// die Seite, die ihn ANZEIGT, und das Blatt, das ihn VERSCHICKT. Zweimal
+/// derselbe Sammelcode wären zwei Listen, die auseinanderlaufen — und die
+/// Datenschutzregel („keine Habit-Namen, keine Zeichen, keine Werte") wäre
+/// zweimal zu prüfen statt einmal. Genau eine dieser beiden Kopien würde
+/// beim nächsten neuen Feld vergessen.
+///
+/// **Warum trotzdem hier und nicht in einem Dienst.** Was gesammelt wird,
+/// steht in `DiagnosticsFacts`; wie es zu Text wird, in `DiagnosticsReport`.
+/// Das Sammeln gehört dazwischen und damit in dieselbe Datei — es ist die
+/// Antwort auf die Frage, die beide Typen offen lassen: woher kommen die
+/// Werte.
+///
+/// **Datenschutz.** Es wird ausschließlich befüllt, was `DiagnosticsFacts`
+/// tragen kann: Zahlen, Zustände, technische Kennungen. Aus einer geplanten
+/// Mitteilung kommt NUR `identifier` und der Zeitpunkt — Titel und Text
+/// tragen den Habit-Namen und werden hier nicht einmal angefasst.
+@MainActor
+enum DiagnosticsCollector {
+    /// Der eine Zustand, aus dem die App selbst nicht mehr herausfindet —
+    /// als Konstante, damit Anzeige und Bericht nicht auseinanderlaufen.
+    static let deniedToken = "denied"
+
+    /// Alles, was auf DIESEM Gerät sofort abzulesen ist.
+    ///
+    /// **Warum der Preis nicht dabei ist.** Alles hier ist gerätelokal und
+    /// ohne Wartezeit da: Dateiattribute, Defaults, der Mitteilungsdienst.
+    /// `Pro.product()` dagegen fragt den App Store und läuft ohne Netz bis in
+    /// den Zeitablauf der URL-Sitzung. Hinge der ganze Stand an dieser einen
+    /// Zeile, zeigte die Entwicklerseite minutenlang nichts und das
+    /// Melde-Blatt einen leeren Anhang — ausgerechnet in der Lage, in der
+    /// jemand einen Fehler meldet: auf einem Gerät ohne Netz. Deshalb ist der
+    /// Preis ein eigener Schritt (`price()`), den jede Oberfläche selbst
+    /// entscheidet.
+    static func local(store: HabitStore, cloudStatus: CloudSyncStatus) async -> DiagnosticsFacts {
+        var facts = DiagnosticsFacts()
+        // Ganz zuerst: alles Folgende ist eine Aussage über DIESEN Moment.
+        facts.collectedAt = .now
+        fillApp(&facts)
+        fillData(&facts, store: store)
+        facts.cloudStatus = cloudToken(cloudStatus.state)
+        await fillNotifications(&facts)
+        fillCalendar(&facts)
+        fillPro(&facts)
+        return facts
+    }
+
+    /// Der Preis aus dem App Store — der einzige Wert, der über das Netz geht.
+    static func price() async -> String? {
+        await Pro.product()?.displayPrice
+    }
+
+    private static func fillApp(_ facts: inout DiagnosticsFacts) {
+        facts.appVersion = AppBuildInfo.version
+        facts.build = AppBuildInfo.build
+        facts.bundleID = AppBuildInfo.bundleID
+        facts.configuration = DiagnosticsFacts.currentConfiguration
+        facts.systemVersion = UIDevice.current.systemVersion
+        facts.deviceModel = DiagnosticsFacts.hardwareModel()
+    }
+
+    private static func fillData(_ facts: inout DiagnosticsFacts, store: HabitStore) {
+        let habits = store.habits
+        facts.activeHabits = habits.filter { $0.archivedAt == nil }.count
+        facts.archivedHabits = habits.filter { $0.archivedAt != nil }.count
+        // Nur die ANZAHL und der älteste Schlüssel: was an einem Tag steht,
+        // geht einen Bericht nichts an.
+        facts.logEntries = habits.reduce(0) { $0 + $1.log.count }
+        facts.oldestLogDay = habits.flatMap { $0.log.keys }.min()
+        let attributes = try? FileManager.default.attributesOfItem(atPath: store.url.path)
+        facts.dataFileBytes = (attributes?[.size] as? NSNumber)?.intValue
+        facts.dataFileModified = attributes?[.modificationDate] as? Date
+        // Nur der letzte Pfadteil (siehe `containerToken`): der ganze Pfad
+        // fängt im Simulator und unter „iPhone Apps on Mac" im
+        // Heimatverzeichnis an und trüge den Kontonamen in einen fremden
+        // Ticket-Thread.
+        let container = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: SharedStorage.appGroup)?.path
+        facts.appGroupContainer = DiagnosticsFacts.containerToken(container)
+    }
+
+    private static func fillNotifications(_ facts: inout DiagnosticsFacts) async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        facts.notificationAuthorization = authorizationToken(settings.authorizationStatus)
+        let pending = await center.pendingNotificationRequests()
+        facts.pendingNotifications = pending.count
+        facts.nextNotifications = upcoming(pending)
+    }
+
+    private static func fillCalendar(_ facts: inout DiagnosticsFacts) {
+        facts.calendarEnabled = CalendarSync.isEnabled
+        // GELESEN, nicht behauptet: `CalendarSync.calendarTitle` ist die
+        // Konstante, mit der ein Kalender angelegt wird — sie stünde auch
+        // dann hier, wenn es gar keinen gibt. `activeCalendarTitle` schlägt
+        // die gemerkte Kennung nach; `n/a` heißt dann „kein Kalender", und
+        // genau deswegen öffnet jemand diese Seite.
+        facts.calendarTitle = CalendarSync.activeCalendarTitle
+        // Die Zuordnung Habit → Serie liegt in den App-Group-Defaults; hier
+        // interessiert nur, WIE VIELE Habits gespiegelt sind. Die Karte
+        // bleibt stehen, wenn der Nutzer den Kalenderzugriff entzieht — der
+        // dann fehlende Titel (`n/a`) ist das Zeichen dafür, dass die Zahl
+        // von gestern ist.
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup)
+        let map = defaults?.dictionary(forKey: CalendarSync.mapKey) as? [String: String]
+        facts.calendarEvents = map?.count ?? 0
+    }
+
+    /// Nur der gerätelokale Kaufzustand — der Preis kommt über `price()`.
+    private static func fillPro(_ facts: inout DiagnosticsFacts) {
+        facts.proUnlocked = Pro.isUnlocked
+        facts.proProductID = Pro.productID
+    }
+
+    // MARK: – Übersetzungen in technische Kürzel
+    //
+    // Die Anzeige spricht die Sprache des Geräts, die WERTE hier bleiben
+    // englische Kennungen: sie stehen so auch im kopierten Bericht, und wer
+    // ihn liest, sucht nach „denied", nicht nach „abgelehnt".
+
+    /// Der Zustand als Kürzel — und bei den beiden Störfällen zusätzlich der
+    /// Satz, den das System dazu geliefert hat.
+    ///
+    /// **Warum hier eine übersetzte Stelle bleibt.** Das KÜRZEL steht vorn
+    /// und ist immer ASCII (`waiting`, `failed`) — danach lässt sich sortieren
+    /// und vergleichen. Der angehängte Satz kommt aus CloudKit
+    /// (`localizedDescription`) und spricht die Sprache des Geräts. Er bleibt
+    /// trotzdem drin, weil er der EINZIGE Weg ist, „iCloud-Speicher voll" von
+    /// „Netz weg" zu unterscheiden; ihn wegzuwerfen machte aus zwei sehr
+    /// verschiedenen Fehlerberichten denselben. Eine Zeile in einer fremden
+    /// Sprache ist übersetzbar — eine fehlende Ursache nicht.
+    private static func cloudToken(_ state: CloudState) -> String {
+        switch state {
+        case .active(let date):
+            guard let date else { return "active" }
+            return "active \(DiagnosticsReport.timestamp(date))"
+        case .signedOut: return "signedOut"
+        case .waiting(let reason): return "waiting: \(reason)"
+        case .failed(let message): return "failed: \(message)"
+        }
+    }
+
+    private static func authorizationToken(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "notDetermined"
+        case .denied: return deniedToken
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+
+    /// Die nächsten Wecker, früheste zuerst.
+    ///
+    /// Aus jeder Anfrage kommt AUSSCHLIESSLICH `identifier` und der nächste
+    /// Zeitpunkt. Wecker ohne bestimmbaren Zeitpunkt (Ortsauslöser gibt es
+    /// hier nicht, aber die API kennt sie) fallen heraus, statt mit einem
+    /// erfundenen Datum dazustehen.
+    private static func upcoming(_ requests: [UNNotificationRequest]) -> [(id: String, date: Date)] {
+        var entries: [(id: String, date: Date)] = []
+        for request in requests {
+            guard let date = fireDate(request.trigger) else { continue }
+            entries.append((id: request.identifier, date: date))
+        }
+        entries.sort { $0.date < $1.date }
+        return Array(entries.prefix(DiagnosticsReport.maxNextNotifications))
+    }
+
+    private static func fireDate(_ trigger: UNNotificationTrigger?) -> Date? {
+        if let calendar = trigger as? UNCalendarNotificationTrigger {
+            return calendar.nextTriggerDate()
+        }
+        if let interval = trigger as? UNTimeIntervalNotificationTrigger {
+            return interval.nextTriggerDate()
+        }
+        return nil
     }
 }
