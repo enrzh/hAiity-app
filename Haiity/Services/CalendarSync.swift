@@ -172,6 +172,22 @@ enum CalendarSync {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
+    /// Der Titel des Kalenders, den hAiity WIRKLICH führt — oder `nil`.
+    ///
+    /// **Warum nicht `calendarTitle`.** Das ist die Konstante, MIT der ein
+    /// Kalender angelegt wird: Sie stünde auch dann da, wenn `ensureCalendar()`
+    /// mangels Quelle gar keinen anlegen konnte, wenn der Zugriff fehlt oder
+    /// wenn der Nutzer ihn in der Kalender-App umbenannt hat. Für die
+    /// Diagnose („meine Habits stehen nicht im Kalender") wäre genau das der
+    /// unfälschbare Wert — die Frage bliebe unbeantwortet.
+    ///
+    /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
+    /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
+    static var activeCalendarTitle: String? {
+        guard hasAccess, let id = defaults.string(forKey: calendarKey) else { return nil }
+        return store.calendar(withIdentifier: id)?.title
+    }
+
     /// Alles abgleichen: fehlende Termine anlegen, veränderte neu schreiben,
     /// verwaiste entfernen. Idempotent; ohne Schalter oder Zugriff ein No-op
     /// (beim AUSschalten räumt `disable()` auf).

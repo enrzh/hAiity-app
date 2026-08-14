@@ -61,7 +61,9 @@ enum Reminders {
     static let upcomingPrefix = "summary-day-"
     static let upcomingDays = 7
 
-    /// Kennung der Test-Mitteilung (Mehr → „Test-Mitteilung").
+    /// Kennung der Test-Mitteilung (Mehr → Über → Entwickler → „Test-Mitteilung").
+    /// Sie steht nicht mehr in den Einstellungen: sie ist Diagnose, keine
+    /// Einstellung, und wohnt darum hinter der versteckten Tür.
     static let testId = "summary-test"
 
     /// Präfix der bis v4 gestellten Habit-Weckrufe. Es gibt sie nicht mehr,

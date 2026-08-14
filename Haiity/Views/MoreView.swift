@@ -6,8 +6,14 @@ import AuthenticationServices
 /// Deep-Links (haiity://stats, haiity://archive) direkt hinspringen können.
 /// `Identifiable`, weil sie als `.sheet(item:)` präsentiert werden: in der
 /// Tafel über der Leiste ist für eine eigene Seite kein Platz.
+/// `developer` ist kein Deep-Link-Ziel und steht in keiner Liste: dorthin
+/// führt nur die versteckte Tür in `AboutView` (sieben Tipps auf die
+/// Versionszeile), und zwar als SCHUB im Blatt darüber — ein zweites Blatt
+/// aus einem offenen Blatt heraus verschluckt iOS. Als Route zählt sie
+/// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
+/// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about
+    case archive, about, developer
 
     var id: Self { self }
 }
@@ -49,7 +55,6 @@ struct MoreView: View, Equatable {
     @State private var summaryDenied = false
     @State private var calendarDenied = false
     @State private var weeklyDenied = false
-    @State private var testMessage: String?
     @State private var showReminderSetup = false
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
@@ -113,7 +118,9 @@ struct MoreView: View, Equatable {
 
             dailySummarySection
             weeklySummarySection
-            testNotificationSection
+            // „Test-Mitteilung" stand hier. Sie ist Diagnose, keine
+            // Einstellung — und wohnt jetzt im Entwicklerbereich
+            // (DeveloperView), wortgleich und mit derselben Kennung.
             Section {
                 Button { showReminderSetup = true } label: {
                     Label(String(localized: "Erinnerungen einrichten"), systemImage: "bell")
@@ -1037,36 +1044,6 @@ struct MoreView: View, Equatable {
         }
     }
 
-    /// Der sichtbare Beweis, dass die Kette bis zum Banner reicht — eine
-    /// echte, über den normalen Weg geplante Mitteilung in zehn Sekunden.
-    private var testNotificationSection: some View {
-        Section {
-            Button {
-                testMessage = nil
-                Task {
-                    let ok = await Reminders.scheduleTest()
-                    await MainActor.run {
-                        testMessage = ok
-                            ? String(localized: "Kommt in 10 Sekunden — auch bei geöffneter App.")
-                            : String(localized: "Benachrichtigungen sind in den iOS-Einstellungen deaktiviert.")
-                        summaryDenied = !ok
-                    }
-                }
-            } label: {
-                Label(String(localized: "Test-Mitteilung"), systemImage: "bell.badge")
-            }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("test-notification")
-            if let testMessage {
-                Text(testMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } footer: {
-            Text(String(localized: "Prüft, ob Mitteilungen von hAiity ankommen."))
-        }
-    }
-
     /// Wochentage in der Reihenfolge des Nutzerkalenders (Mo … So in
     /// Deutschland, So … Sa in den USA).
     private var orderedWeekdays: [Int] {
@@ -1182,8 +1159,18 @@ struct HabitExport: Transferable {
     }
 }
 
-/// Kurz und ehrlich: das Kein-Server-Prinzip.
+/// Kurz und ehrlich: das Kein-Server-Prinzip — und ganz unten die
+/// Versionszeile, hinter der die versteckte Tür zum Entwicklerbereich sitzt.
 struct AboutView: View {
+    /// Bereits getätigte Tipps auf die Versionszeile. Bewusst NICHT
+    /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
+    /// überleben (siehe `DeveloperAccess`).
+    @State private var taps = 0
+    /// Gespiegelt statt bei jedem Rumpf gelesen — beim Zurückkehren von der
+    /// Entwicklerseite (dort kann man sie wieder ausblenden) frischt
+    /// `onAppear` den Stand auf.
+    @State private var developerUnlocked = false
+
     var body: some View {
         List {
             Section(String(localized: "Über hAiity")) {
@@ -1194,8 +1181,54 @@ struct AboutView: View {
                 Text(String(localized: "hAiity hat keinen Server. Deine Daten liegen auf diesem Gerät — und, wenn du bei iCloud angemeldet bist, zusätzlich in deiner eigenen privaten iCloud. Wir sehen sie nie. Keine Analyse, kein Tracking, keine Konten."))
                     .font(.subheadline)
             }
+            Section {
+                versionRow
+                if developerUnlocked { developerRow }
+            }
         }
         .navigationTitle(String(localized: "Über"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { developerUnlocked = DeveloperAccess.isUnlocked }
+    }
+
+    /// Die Tür. Sie sieht aus wie eine Fußzeile und ist eine: die Version
+    /// gehört ohnehin in jede Meldung. Erst ab dem vierten Tipp verrät der
+    /// Countdown, dass da etwas ist — vorher wäre sie keine versteckte Tür.
+    private var versionRow: some View {
+        Button {
+            tapVersion()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: AppBuildInfo.versionLine)
+                if let hint = DeveloperAccess.hint(for: taps) {
+                    Text(hint)
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("app-version")
+    }
+
+    private var developerRow: some View {
+        NavigationLink(value: MoreRoute.developer) {
+            Label(String(localized: "Entwickler"), systemImage: "hammer")
+        }
+        .accessibilityIdentifier("open-developer")
+    }
+
+    /// Ein Tipp weiter. Gerechnet wird in `DeveloperAccess`; hier steht nur,
+    /// was die ANSICHT damit tut — den einen Schreibvorgang und den Stups,
+    /// der das Aufgehen der Tür spürbar macht.
+    private func tapVersion() {
+        let step = DeveloperAccess.next(taps: taps)
+        taps = step.taps
+        guard step.unlocked else { return }
+        DeveloperAccess.isUnlocked = true
+        developerUnlocked = true
+        Theme.Haptics.success()
     }
 }

@@ -221,6 +221,7 @@ struct ContentView: View {
                    onDismiss: deliverPendingMoreDismissalRoute) { route in
                 NavigationStack {
                     moreDestination(route)
+                        .navigationDestination(for: MoreRoute.self, destination: moreDestination)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button(String(localized: "Fertig")) { dismissMoreSheet() }
@@ -526,6 +527,9 @@ struct ContentView: View {
                onDismiss: deliverPendingMoreDismissalRoute) { route in
             NavigationStack {
                 moreDestination(route)
+                    // Die versteckte Tür in „Über" SCHIEBT den
+                    // Entwicklerbereich in dieses Blatt (siehe MoreRoute).
+                    .navigationDestination(for: MoreRoute.self, destination: moreDestination)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button(String(localized: "Fertig")) { dismissMoreSheet() }
@@ -611,6 +615,7 @@ struct ContentView: View {
         switch route {
         case .archive: ArchiveView(store: store)
         case .about: AboutView()
+        case .developer: DeveloperView(store: store, cloudStatus: cloudStatus)
         }
     }
 
@@ -1707,10 +1712,13 @@ struct ContentView: View {
         }
     }
 
+    /// Welches Deep-Link-Ziel dieses Blatt bedient. `about` und `developer`
+    /// bedienen keins — kein Link führt dorthin, und die Routen-Maschine darf
+    /// sie deshalb jederzeit wegräumen.
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about: nil
+        case .about, .developer: nil
         }
     }
 
