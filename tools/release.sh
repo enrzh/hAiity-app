@@ -197,11 +197,21 @@ ok "AppIcon present in Assets.car"
 # einzige Stelle, die CFBundleAlternateIcons erzeugt — fehlt ein Name in
 # ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES, scheitert der Icon-Wechsel
 # stillschweigend erst auf dem Gerät.
+# [0-9] gehört ins Muster: die Farbton-Icons heißen AppIcon-H000… — mit
+# [A-Za-z]* allein fielen sie still aus Zählung UND Assets.car-Prüfung
+# (Build 42: Gate meldete 5, das Bundle trug korrekt 17).
 ALT_NAMES=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundleAlternateIcons" \
-            "$APP/Info.plist" 2>/dev/null | sed -n 's/^ *\(AppIcon-[A-Za-z]*\) = Dict {/\1/p')
+            "$APP/Info.plist" 2>/dev/null | sed -n 's/^ *\(AppIcon-[A-Za-z0-9]*\) = Dict {/\1/p')
 [[ -n "$ALT_NAMES" ]] || fail "no CFBundleAlternateIcons in the app Info.plist —
     the palette-matched icons will never appear.
     Fix: ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in project.yml."
+# project.yml ist die Quelle: jedes dort versprochene Icon muss im BUNDLE
+# angekommen sein — in beide Richtungen.
+WANTED=$(sed -n 's/.*ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "\(.*\)"/\1/p' project.yml | tr ' ' '\n' | sort)
+FOUND=$(echo "$ALT_NAMES" | tr ' ' '\n' | sort)
+[[ "$WANTED" == "$FOUND" ]] || fail "alternate icons drifted:
+    project.yml: $(echo $WANTED)
+    bundle:      $(echo $FOUND)"
 for alt in $ALT_NAMES; do
   xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q "\"$alt\"" \
     || fail "$alt is declared but missing from Assets.car."
