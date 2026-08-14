@@ -479,7 +479,7 @@ struct ContentView: View {
             .navigationTitle(String(localized: "Suchen"))
             .searchable(text: $search,
                         isPresented: $searching,
-                        prompt: Text(String(localized: "Habits durchsuchen")))
+                        prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
             .searchFocused($searchFieldFocused)
         }
         // Rückgängig-Toast und Sync-Pille auch hier: ein Wisch in den
@@ -814,7 +814,7 @@ struct ContentView: View {
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
-                                    prompt: String(localized: "Habits durchsuchen"))
+                                    prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar { createToolbarItem }
         } else {
             habitList
@@ -829,7 +829,7 @@ struct ContentView: View {
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
-                                    prompt: String(localized: "Habits durchsuchen"))
+                                    prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
@@ -938,52 +938,56 @@ struct ContentView: View {
     // existierte nur, damit die Statistik-Karten über ihm scrollen konnten.
     // Messfühler 0 entfiel mit ihm; die Zeilen behalten ihre Indizes ab 1.
 
+    @ViewBuilder
     private func row(for habit: Habit, index: Int, inSearchTab: Bool = false) -> some View {
         #if DEBUG
-        FrameProbe.shared.mark("row")
+        let _ = FrameProbe.shared.mark("row")
         #endif
-        let reveal = revealActions(for: habit)
-        return HabitCard(
-            habit: habit,
-            collapsed: collapsed,
-            onToggleDay: { toggleDay(habit, day: $0) },
-            // Zellentipp: nur AUSWÄHLEN. Die Karte kommt sofort — hier ist
-            // kein Menü, das erst zugehen müsste. Aus dem SUCH-Tab führt der
-            // Weg erst zurück zu Habits: die Nacharbeiten-Karte wohnt dort
-            // (Overlay samt Anker-Messung), nicht über den Suchtreffern.
-            onSelectDay: { day in
-                if inSearchTab { redirectBackfillFromSearch(habit, day: day) }
-                else { openBackfill(habit, day: day, afterMenu: false) }
-            },
-            onBackfill: {
-                if inSearchTab { redirectBackfillFromSearch(habit, day: DayKey.today()) }
-                else { openBackfill(habit, day: DayKey.today(), afterMenu: true) }
-            },
-            onIncrement: { increment(habit) },
-            onClear: { revert(habit) },
-            onMarkDone: { markDone(habit) },
-            onEdit: { editing = habit },
-            onArchive: { store.archive(habit.id) },
-            onAnswer: { answer(habit, yes: $0) },
-            leadingSwipe: reveal.leading,
-            trailingSwipe: reveal.trailing
-        )
-        // `.equatable()`: siehe HabitCard. Ohne das baut jeder Tafel-/Toast-
-        // Umbau alle sichtbaren Karten neu — gemessen der halbe Ruckler.
-        .equatable()
-        // Die Messfühler gehören ausschließlich der Habits-Liste: zwei
-        // montierte Listen, die in DASSELBE rowFrames schreiben, überschrieben
-        // sich sonst gegenseitig die Anker.
-        .background { if !inSearchTab { rowProbe(index) } }
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        // NUR die Seitenränder. Die vertikalen Abstände sitzen in der Karte
-        // selbst, weil sie sich beim Zusammenziehen mitverkleinern müssen —
-        // ein `listRowInsets` springt dabei, ein Padding wird animiert.
-        .listRowInsets(EdgeInsets(top: 0,
-                                  leading: Theme.Metrics.gutter,
-                                  bottom: 0,
-                                  trailing: Theme.Metrics.gutter))
+        switch ItemPresentation.forItem(habit) {
+        case .reminderRow:
+            ReminderRow(habit: habit,
+                        onToggle: { toggleDay(habit, day: DayKey.today()) },
+                        onEdit: { editing = habit },
+                        onArchive: { store.archive(habit.id) })
+                .equatable()
+                .background { if !inSearchTab { rowProbe(index) } }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0,
+                                          leading: Theme.Metrics.gutter,
+                                          bottom: Theme.Metrics.gap,
+                                          trailing: Theme.Metrics.gutter))
+        case .habitCard:
+            let reveal = revealActions(for: habit)
+            HabitCard(
+                habit: habit,
+                collapsed: collapsed,
+                onToggleDay: { toggleDay(habit, day: $0) },
+                onSelectDay: { day in
+                    if inSearchTab { redirectBackfillFromSearch(habit, day: day) }
+                    else { openBackfill(habit, day: day, afterMenu: false) }
+                },
+                onBackfill: {
+                    if inSearchTab { redirectBackfillFromSearch(habit, day: DayKey.today()) }
+                    else { openBackfill(habit, day: DayKey.today(), afterMenu: true) }
+                },
+                onIncrement: { increment(habit) },
+                onClear: { revert(habit) },
+                onMarkDone: { markDone(habit) },
+                onEdit: { editing = habit },
+                onArchive: { store.archive(habit.id) },
+                onAnswer: { answer(habit, yes: $0) },
+                leadingSwipe: reveal.leading,
+                trailingSwipe: reveal.trailing)
+                .equatable()
+                .background { if !inSearchTab { rowProbe(index) } }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0,
+                                          leading: Theme.Metrics.gutter,
+                                          bottom: 0,
+                                          trailing: Theme.Metrics.gutter))
+        }
     }
 
     /// Die Wisch-Aktionen als KARTENHOHE eigene Knöpfe (siehe SwipeReveal in

@@ -2,6 +2,27 @@ import XCTest
 @testable import Haiity
 
 final class ReminderItemTests: XCTestCase {
+    func testPresentationPolicyUsesCompactRowsOnlyForReminders() {
+        XCTAssertEqual(ItemPresentation.forItem(Habit(name: "Lesen")), .habitCard)
+        XCTAssertEqual(ItemPresentation.forItem(Habit(name: "Tabletten", itemType: .reminder)),
+                       .reminderRow)
+    }
+
+    func testReminderRowHasNoGraphOrSessionFeatures() throws {
+        let source = try source("Haiity/Views/ReminderRow.swift")
+        for forbidden in ["ContributionGrid", "Backfill", "HabitSessionManager", "ShareLink"] {
+            XCTAssertFalse(source.contains(forbidden), forbidden)
+        }
+        XCTAssertTrue(source.contains("reminder-check-"))
+    }
+
+    func testCombinedListBranchesByItemTypeWithoutFilteringReminders() throws {
+        let source = try source("Haiity/Views/ContentView.swift")
+        XCTAssertTrue(source.contains("ItemPresentation.forItem(habit)"))
+        XCTAssertTrue(source.contains("ReminderRow("))
+        XCTAssertTrue(source.contains("let active = store.activeHabits"))
+    }
+
     func testEditorOffersAndPersistsItemType() throws {
         let source = try editorSource()
 
@@ -31,9 +52,13 @@ final class ReminderItemTests: XCTestCase {
     }
 
     private func editorSource() throws -> String {
+        try source("Haiity/Views/EditHabitSheet.swift")
+    }
+
+    private func source(_ relative: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        return try String(contentsOf: root.appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
+        return try String(contentsOf: root.appendingPathComponent(relative))
     }
 }
