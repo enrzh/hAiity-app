@@ -125,12 +125,14 @@ final class CelebrationTests: XCTestCase {
         XCTAssertTrue(yml.contains("Haiity/Models/PersonalName.swift"))
     }
 
-    /// Anmelden ist optional, verlangt NUR den Namen — und der Alias bleibt
-    /// immer offen.
-    func testSignInAsksOnlyForTheName() throws {
+    /// Die Apple-Anmeldung fragt Name und E-Mail: der Name personalisiert,
+    /// die verifizierte E-Mail erkennt ausschließlich das Entwicklerkonto.
+    func testSignInAsksForNameAndOwnerEmail() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("request.requestedScopes = [.fullName]"))
-        XCTAssertFalse(more.contains(".email"), "keine E-Mail anfragen")
+        XCTAssertTrue(more.contains("request.requestedScopes = [.fullName, .email]"))
+        XCTAssertTrue(more.contains("if storedAppleEmail == nil"),
+                      "existing name-only sign-ins must be offered owner verification")
+        XCTAssertTrue(more.contains("storedAppleEmail = PersonalName.appleEmail"))
         for id in ["\"personal-alias\"", "\"apple-signin\"", "\"apple-name-remove\""] {
             XCTAssertTrue(more.contains(id), id)
         }

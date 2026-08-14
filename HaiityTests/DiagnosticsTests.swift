@@ -491,7 +491,7 @@ final class DiagnosticsTests: XCTestCase {
     func testDeveloperViewCarriesTheContractIdentifiers() throws {
         let developer = try source("Haiity/Views/DeveloperView.swift")
         for id in ["\"test-notification\"", "\"copy-diagnostics\"",
-                   "\"reload-widgets\"", "\"lock-developer\"",
+                   "\"reload-widgets\"",
                    // Ohne diese Zeile bliebe der Schlüssel für die
                    // Besitzer-Bindung hinter der Tür eingesperrt: Apple zeigt
                    // die Kennung nirgends an.
@@ -502,8 +502,7 @@ final class DiagnosticsTests: XCTestCase {
                       "die verschobene Test-Mitteilung muss dieselbe Sache tun")
         XCTAssertTrue(developer.contains("UIPasteboard.general.string = DiagnosticsReport.text(facts)"))
         XCTAssertTrue(developer.contains("WidgetCenter.shared.reloadAllTimelines()"))
-        // Der Riegel: genau einmal, und er sperrt.
-        XCTAssertEqual(developer.components(separatedBy: "DeveloperAccess.isUnlocked = false").count - 1, 1)
+        XCTAssertFalse(developer.contains("DeveloperAccess.isUnlocked = false"))
         XCTAssertFalse(developer.contains("DeveloperAccess.isUnlocked = true"))
     }
 
@@ -680,7 +679,7 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(content.contains("case .developer:"), "die Route führt nirgendwohin")
         XCTAssertTrue(content.contains("DeveloperView(store: store, cloudStatus: cloudStatus)"),
                       "die Route zeigt auf keine Seite")
-        XCTAssertTrue(content.contains("case .about, .developer: nil"),
+        XCTAssertTrue(content.contains("case .about, .developer, .appearance, .habitBehavior: nil"),
                       "die Seite darf kein Deep-Link-Ziel bedienen")
         XCTAssertFalse(content.contains("\"developer\""),
                        "ein Deep-Link auf den Entwicklerbereich hebelt die versteckte Tür aus")

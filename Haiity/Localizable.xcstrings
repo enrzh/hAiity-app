@@ -4,6 +4,16 @@
     "": {
       "shouldTranslate": false
     },
+    "Import & Export": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import & Export"
+          }
+        }
+      }
+    },
     " um %@": {
       "localizations": {
         "ar": {

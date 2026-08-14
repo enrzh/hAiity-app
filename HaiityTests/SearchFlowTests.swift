@@ -18,6 +18,15 @@ final class SearchFlowTests: XCTestCase {
 
     private func t(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
 
+    func testSearchDismissalDoesNotAnimateTabSelectionWithGlassCollapse() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+        XCTAssertFalse(source.contains("withAnimation { nativeTab = lastNonSearchTab }"))
+        XCTAssertTrue(source.contains("returnFromSearchAfterCollapse()"))
+        XCTAssertTrue(source.contains("transaction.disablesAnimations = true"))
+    }
+
     // Der frühere Verhaltens-Umschalter (`.automatic` nur für Deep-Links)
     // ist mit dem echten Such-Tab gegenstandslos: es gibt nur noch EIN
     // `.searchable`, und es wohnt am Such-Tab selbst.

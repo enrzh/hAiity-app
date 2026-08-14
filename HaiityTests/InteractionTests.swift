@@ -284,7 +284,10 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertTrue(source.contains("var leading = [revealAction(primarySwipe(for: habit), habit: habit)]"))
         XCTAssertTrue(source.contains("var trailing = [revealAction(secondarySwipe(for: habit), habit: habit)]"))
         XCTAssertTrue(source.contains("leading.append(revealAction(extra, habit: habit))"))
-        XCTAssertFalse(source.contains(".swipeActions(edge:"))
+        let habitStart = try XCTUnwrap(source.range(of: "case .habitCard:"))
+        let revealStart = try XCTUnwrap(source.range(of: "private func revealActions(for habit:"))
+        XCTAssertFalse(source[habitStart.lowerBound..<revealStart.lowerBound]
+            .contains(".swipeActions(edge:"))
     }
 
     func testDisabledActionsAreNotExposed() {

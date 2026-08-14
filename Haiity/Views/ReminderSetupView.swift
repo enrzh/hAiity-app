@@ -61,7 +61,7 @@ struct ReminderSetupView: View {
                 .padding(.top, 8)
             Text(String(localized: "Dein Rhythmus"))
                 .font(.largeTitle.bold())
-            Text(String(localized: "hAiity erinnert dich einmal am Tag an offene Habits und fasst deine Woche zusammen. Du bestimmst, ob und wann diese Hinweise kommen."))
+            Text(String(localized: "Wähle deine Zusammenfassungen."))
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
@@ -72,17 +72,14 @@ struct ReminderSetupView: View {
             Text(String(localized: "Zusammenfassungen"))
                 .font(.largeTitle.bold())
                 .padding(.top, 8)
-            Text(String(localized: "Abends und zum Wochenende — zwei kurze Hinweise, beide hier abwählbar."))
-                .font(.body)
-                .foregroundStyle(.secondary)
             summaryCard(symbol: "sun.max.fill",
                         title: String(localized: "Tageszusammenfassung"),
-                        text: String(localized: "Abends in einem Satz: was erledigt ist und was noch offen steht."),
+                        text: String(localized: "Erledigt und offen."),
                         isOn: $dailyEnabled,
                         identifier: "setup-daily-toggle")
             summaryCard(symbol: "calendar",
                         title: String(localized: "Wochenzusammenfassung"),
-                        text: String(localized: "Am Ende der Woche: wie viele Termine du gehalten hast."),
+                        text: String(localized: "Deine Woche in Zahlen."),
                         isOn: $weeklyEnabled,
                         identifier: "setup-weekly-toggle")
         }
@@ -93,7 +90,7 @@ struct ReminderSetupView: View {
             Text(String(localized: "Los geht's"))
                 .font(.largeTitle.bold())
                 .padding(.top, 8)
-            Text(String(localized: "Die System-Abfrage kommt erst mit dem großen Knopf — ohne dein Okay passiert nichts."))
+            Text(String(localized: "Du entscheidest, ob hAiity Mitteilungen senden darf."))
                 .font(.body)
                 .foregroundStyle(.secondary)
             habitReminderCard
@@ -136,7 +133,7 @@ struct ReminderSetupView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(String(localized: "Habit-Erinnerungen"))
                         .font(.subheadline.weight(.semibold))
-                    Text(String(localized: "Eine feste Uhrzeit je Habit — stellst du beim Anlegen oder Bearbeiten ein."))
+                    Text(String(localized: "Die Uhrzeit stellst du direkt am Eintrag ein."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

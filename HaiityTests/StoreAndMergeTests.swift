@@ -370,6 +370,27 @@ final class ReminderGateTests: XCTestCase {
     func testDeniedRefuses() {
         XCTAssertEqual(ReminderGate.decision(for: .denied), .refuse)
     }
+
+    func testGlobalOptOutSuppressesEveryPermissionPrompt() {
+        XCTAssertEqual(ReminderGate.decision(for: .notDetermined, promptsSuppressed: true),
+                       .refuse)
+        XCTAssertEqual(ReminderGate.decision(for: .denied, promptsSuppressed: true),
+                       .refuse)
+        XCTAssertEqual(ReminderGate.decision(for: .authorized, promptsSuppressed: true),
+                       .post)
+    }
+
+    func testNotificationPromptPreferencePersistsInInjectedDefaults() {
+        let suite = "NotificationPromptPreferenceTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(NotificationPromptPreference.isSuppressed(in: defaults))
+        NotificationPromptPreference.setSuppressed(true, in: defaults)
+        XCTAssertTrue(NotificationPromptPreference.isSuppressed(in: defaults))
+        NotificationPromptPreference.setSuppressed(false, in: defaults)
+        XCTAssertFalse(NotificationPromptPreference.isSuppressed(in: defaults))
+    }
 }
 
 final class ReminderSetupTests: XCTestCase {
@@ -381,5 +402,3 @@ final class ReminderSetupTests: XCTestCase {
         XCTAssertFalse(ReminderSetup.shouldPresent(completed: true))
     }
 }
-
-extension ReminderGate.Decision: Equatable {}

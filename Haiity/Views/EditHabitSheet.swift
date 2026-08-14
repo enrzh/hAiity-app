@@ -64,6 +64,7 @@ struct EditHabitSheet: View {
     /// nil = globale Wischbelegung. Nur beim Bearbeiten sichtbar, denn ein
     /// neues Habit soll mit der globalen, nachvollziehbaren Regel starten.
     @State private var swipeActions: SwipeActionsOverride?
+    @State private var notificationDenied = false
 
     private var calendar: Calendar { .current }
 
@@ -104,8 +105,6 @@ struct EditHabitSheet: View {
                         }
                         .foregroundStyle(.primary)
                         .accessibilityIdentifier("archive-habit")
-                    } footer: {
-                        Text(String(localized: "Archivieren erhält die Historie. Endgültig löschen kannst du im Archiv (Mehr → Archiv)."))
                     }
                 }
             }
@@ -148,7 +147,22 @@ struct EditHabitSheet: View {
         .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
         .onChange(of: draft.hasTime) { _, enabled in
             guard enabled else { return }
-            Task { _ = await Reminders.ensurePermission() }
+            Task {
+                let granted = await Reminders.ensurePermission()
+                guard !granted, !NotificationPromptPreference.isSuppressed else { return }
+                await MainActor.run { notificationDenied = true }
+            }
+        }
+        .alert(String(localized: "Mitteilungen aktivieren"),
+               isPresented: $notificationDenied) {
+            Button(String(localized: "iOS-Einstellungen öffnen")) {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button(String(localized: "Nicht jetzt"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "Erlaube Mitteilungen, damit hAiity dich zur gewählten Zeit erinnert."))
         }
     }
 
@@ -210,11 +224,11 @@ struct EditHabitSheet: View {
             Text(String(localized: "Zeitraum"))
         } footer: {
             if draft.frequency == .weekly, !draft.flexible, draft.weekdays.isEmpty {
-                Text(String(localized: "Ohne gewählten Wochentag steht nie ein Termin an. Check-ins zählen trotzdem."))
+                Text(String(localized: "Ohne Wochentag gibt es keinen Termin."))
             } else if draft.flexible {
-                Text(String(localized: "Dieser Habit zählt pro Periode — welche Tage es werden, entscheidest du. Ein fester Tag ist dann nur eine Verabredung; ein Check-in an einem anderen Tag zählt genauso."))
+                Text(String(localized: "Check-ins zählen in der gesamten Periode."))
             } else if !draft.hasStart {
-                Text(String(localized: "Ohne Startdatum gilt die Regel für die ganze Historie — so bleiben Quoten und Serien älterer Habits unverändert."))
+                Text(String(localized: "Ohne Startdatum gilt die Regel rückwirkend."))
             }
         }
     }
@@ -381,7 +395,7 @@ struct EditHabitSheet: View {
                 .accessibilityIdentifier("duration-minutes")
             }
         } footer: {
-            Text(String(localized: "Eine Session (langer Druck auf die Karte → „Session starten“) läuft als Live-Aktivität mit. Mit Dauer zeigt sie den Fortschritt gegen den Plan, ohne zählt sie einfach hoch."))
+            Text(String(localized: "Mit Dauer zeigt die Live-Aktivität deinen Fortschritt."))
         }
     }
 
@@ -418,7 +432,7 @@ struct EditHabitSheet: View {
             case .quantity:
                 Text(String(localized: "Ein Tag zählt, sobald das Ziel erreicht ist."))
             case .yesNo:
-                Text(String(localized: "Der Habit stellt eine Frage („Kein Zucker?“). Jeder Tag wird mit Ja oder Nein beantwortet — ein Nein ist etwas anderes als ein unbeantworteter Tag und bricht die Serie."))
+                Text(String(localized: "Jeder Tag wird mit Ja oder Nein beantwortet."))
             }
         }
     }
@@ -482,7 +496,7 @@ struct EditHabitSheet: View {
         } header: {
             Text(String(localized: "Farbe"))
         } footer: {
-            Text(String(localized: "„Wie App“ nimmt die Farbe aus den Einstellungen. Eine eigene Farbe gilt nur für das Raster dieses Habits."))
+            Text(String(localized: "Eine eigene Farbe gilt nur für diesen Eintrag."))
         }
     }
 
@@ -518,7 +532,7 @@ struct EditHabitSheet: View {
         } header: {
             Text(String(localized: "Wischaktionen"))
         } footer: {
-            Text(String(localized: "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten. Hier wählst du, was als zweiter Knopf dahinter erscheint."))
+            Text(String(localized: "Wähle zusätzliche Wischaktionen."))
         }
     }
 

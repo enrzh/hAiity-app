@@ -116,8 +116,6 @@ struct FeedbackSheet: View {
                       axis: .vertical)
                 .lineLimit(4...10)
                 .accessibilityIdentifier("feedback-description")
-        } footer: {
-            Text(String(localized: "Beschreibe kurz, was du gemacht hast und was dann geschah — je genauer, desto eher lässt sich der Fehler nachstellen."))
         }
     }
 
@@ -143,8 +141,6 @@ struct FeedbackSheet: View {
                     .font(.subheadline)
             }
             .accessibilityIdentifier("feedback-diagnostics")
-        } footer: {
-            Text(String(localized: "Der mitgeschickte Text enthält keine Habit-Namen, keine Emojis und keine Werte — nur Zahlen, Zustände und technische Kennungen."))
         }
     }
 
@@ -162,10 +158,6 @@ struct FeedbackSheet: View {
             // ohne Version und Gerät ist eine Frage ohne Zeitpunkt.
             .disabled(!isCollected)
             .accessibilityIdentifier("feedback-send")
-        } footer: {
-            // Die Adresse steht sichtbar da: sie ist der Rückfallweg, wenn
-            // auf diesem Gerät gar kein Mail-Konto eingerichtet ist.
-            Text(String(format: String(localized: "Geht an %@."), FeedbackMail.recipient))
         }
     }
 
@@ -193,8 +185,6 @@ struct FeedbackSheet: View {
                 asksBeforeMuting = true
             }
             .accessibilityIdentifier("feedback-disable-shake")
-        } footer: {
-            Text(String(localized: "Der Schalter dafür bleibt in Mehr — dort lässt sich das Schütteln jederzeit wieder einschalten."))
         }
         .confirmationDialog(String(localized: "Beschreibung verwerfen und nicht mehr fragen?"),
                             isPresented: $asksBeforeMuting,

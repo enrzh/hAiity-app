@@ -10,6 +10,10 @@ struct CalendarSyncSelection: Equatable {
     }
 }
 
+enum CalendarFeatureGate {
+    static func canEnable(unlocked: Bool) -> Bool { unlocked }
+}
+
 enum CalendarSyncPreferences {
     static let legacyEnabledKey = "calendarSyncEnabled"
     static let habitsEnabledKey = "calendarSyncHabitsEnabled"

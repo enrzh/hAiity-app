@@ -16,7 +16,7 @@ struct ArchiveView: View {
                 ContentUnavailableView(
                     String(localized: "Archiv ist leer"),
                     systemImage: "archivebox",
-                    description: Text(String(localized: "Archivierte Habits behalten ihre Historie und tauchen hier auf.")))
+                    description: Text(String(localized: "Hier erscheinen archivierte Einträge.")))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             } else {

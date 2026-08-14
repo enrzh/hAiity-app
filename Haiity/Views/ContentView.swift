@@ -368,7 +368,7 @@ struct ContentView: View {
                     // Links) setzen ihr Ziel gleich danach selbst; der kurze
                     // Zwischenschritt stört sie nicht.
                     if nativeTab == .search {
-                        withAnimation { nativeTab = lastNonSearchTab }
+                        returnFromSearchAfterCollapse()
                     }
                 }
             }
@@ -625,14 +625,19 @@ struct ContentView: View {
         switch route {
         case .archive: ArchiveView(store: store)
         case .about: AboutView()
-        // Der Riegel steht an der SEITE, nicht nur an der Klinke: die Zeile in
-        // „Über" ist zwar der einzige Weg hierher, aber eine Freischaltung
-        // überlebt App-Updates — und ab dem Build, in dem die Kennung des
-        // Besitzers eingetragen ist, darf ein fremdes Gerät diese Seite auch
-        // dann nicht mehr aufbauen, wenn es sie in der Bootstrap-Runde
-        // freigeschaltet hat (siehe `DeveloperAccess.isAvailable`).
+        case .appearance:
+            MoreView(store: store, cloudStatus: cloudStatus,
+                     statsCards: viewPreferences, onOpen: presentMoreSheet,
+                     routeToken: routeToken, screen: .appearance)
+        case .habitBehavior:
+            MoreView(store: store, cloudStatus: cloudStatus,
+                     statsCards: viewPreferences, onOpen: presentMoreSheet,
+                     routeToken: routeToken, screen: .habitBehavior)
+        // Check ownership at the destination too, not only at the row that
+        // opens it. A stale local flag must never build this page.
         case .developer:
-            if DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID) {
+            if DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,
+                                           storedAppleEmail: PersonalName.appleEmail) {
                 DeveloperView(store: store, cloudStatus: cloudStatus)
             }
         }
@@ -780,6 +785,20 @@ struct ContentView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { search = "" }
+        }
+    }
+
+    /// Let the native search field finish shrinking into its own tab item
+    /// before changing the selected tab. Animating both operations in one
+    /// transaction makes iOS 27 briefly interpolate a detached glass circle
+    /// through the content area.
+    private func returnFromSearchAfterCollapse() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(420))
+            guard !searching, nativeTab == .search else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { nativeTab = lastNonSearchTab }
         }
     }
 
@@ -950,6 +969,23 @@ struct ContentView: View {
                         onEdit: { editing = habit },
                         onArchive: { store.archive(habit.id) })
                 .equatable()
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        markDone(habit)
+                    } label: {
+                        Label(String(localized: "Erledigt"), systemImage: "checkmark")
+                    }
+                    .tint(.green)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button {
+                        revert(habit)
+                    } label: {
+                        Label(String(localized: "Zurücksetzen"),
+                              systemImage: "arrow.uturn.backward")
+                    }
+                    .tint(.gray)
+                }
                 .background { if !inSearchTab { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -1336,7 +1372,7 @@ struct ContentView: View {
             DemoGrid(palette: store.paletteStyle)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
-            Text(String(localized: "Leg einen an und fang an, Quadrate zu füllen — jeder Tag, an dem du dranbleibst, färbt eine Zelle."))
+            Text(String(localized: "Lege deinen ersten Eintrag an."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -1799,7 +1835,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer: nil
+        case .about, .developer, .appearance, .habitBehavior: nil
         }
     }
 

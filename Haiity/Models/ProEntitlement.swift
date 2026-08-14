@@ -101,7 +101,10 @@ enum Pro {
         #if DEBUG
         if let debugOverride { return debugOverride }
         #endif
-        return ProStatus.shared.unlocked
+        return DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: PersonalName.appleUserID,
+            storedAppleEmail: PersonalName.appleEmail
+        ) || ProStatus.shared.unlocked
     }
 
     /// Der eine Schreibpunkt. Alles, was StoreKit erfährt, landet hier —

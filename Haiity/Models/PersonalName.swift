@@ -9,12 +9,13 @@ import Foundation
 /// Der Name wohnt in den App-Group-Defaults, nicht in data.json: er ist
 /// Geräte-Kosmetik, kein Habit-Datum — und der Widget-Prozess (Check-in
 /// über den Widget-Knopf kann den perfekten Tag auslösen) liest ihn über
-/// dieselbe Suite. Er verlässt das Gerät nie; die Apple-Anmeldung wird
-/// ausschließlich benutzt, um den Vornamen EINMAL zu erfahren.
+/// dieselbe Suite. Er verlässt das Gerät nie. Die Apple-Anmeldung liefert
+/// außerdem die verifizierte Adresse, mit der das Besitzerkonto erkannt wird.
 enum PersonalName {
     static let aliasKey = "personalAlias"
     static let appleNameKey = "personalAppleName"
     static let appleUserIDKey = "personalAppleUserID"
+    static let appleEmailKey = "personalAppleEmail"
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -50,6 +51,13 @@ enum PersonalName {
     static var appleUserID: String? {
         get { defaults.string(forKey: appleUserIDKey) }
         set { store(newValue, forKey: appleUserIDKey) }
+    }
+
+    /// The verified address returned by Sign in with Apple. It is kept only
+    /// to recognize the built-in owner account on this device.
+    static var appleEmail: String? {
+        get { defaults.string(forKey: appleEmailKey) }
+        set { store(newValue?.lowercased(), forKey: appleEmailKey) }
     }
 
     /// Was in der Mitteilung steht: Alias vor Apple-Namen, leer = nichts.

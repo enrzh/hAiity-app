@@ -38,7 +38,7 @@ struct CustomPaletteSheet: View {
                 } header: {
                     Text(String(localized: "Grundfarbe"))
                 } footer: {
-                    Text(String(localized: "Eine Farbe genügt — die fünf Stufen des Rasters rechnet hAiity daraus."))
+                    Text(String(localized: "hAiity erzeugt daraus alle Rasterstufen."))
                 }
 
                 Section {

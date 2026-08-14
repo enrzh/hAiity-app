@@ -60,6 +60,17 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("CalendarSync.syncHabits"))
         XCTAssertTrue(source.contains("CalendarSync.syncReminders"))
     }
+
+    func testEveryCalendarEnablePathRequiresPro() throws {
+        XCTAssertFalse(CalendarFeatureGate.canEnable(unlocked: false))
+        XCTAssertTrue(CalendarFeatureGate.canEnable(unlocked: true))
+
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        XCTAssertTrue(source.contains("guard CalendarFeatureGate.canEnable(unlocked: unlocked)"))
+        XCTAssertTrue(source.contains("paywall = .calendar"))
+    }
 }
 
 /// Die Abbildung Habit -> Kalender-Termin (`CalendarEventPlan`) — pur, ohne

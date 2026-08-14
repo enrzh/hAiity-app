@@ -361,7 +361,7 @@ struct HabitCard: View, Equatable {
     /// iPad wäre die Vorschau damit breiter als das Fenster, in dem sie
     /// steht. Nur wenn gar keine Szene erreichbar ist, fällt es auf den
     /// Bildschirm zurück.
-    private static func windowWidth() -> CGFloat {
+    static func windowWidth() -> CGFloat {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
         if let width = scene?.keyWindow?.bounds.width, width > 0 { return width }
@@ -785,13 +785,13 @@ struct HabitCard: View, Equatable {
 /// Halten-Erkenner-Vorstufe am Wrapper hat nie gefeuert). Ausgelöst wird
 /// nur über dem eigenen Rahmen; das Anheben ist per `visiblePath` exakt auf
 /// die abgerundete Karte beschnitten.
-private struct GraphMenuAction {
+struct GraphMenuAction {
     let title: String
     let symbol: String
     let handler: () -> Void
 }
 
-private struct GraphContextMenu: UIViewRepresentable {
+struct GraphContextMenu: UIViewRepresentable {
     let cardRadius: CGFloat
     let previewWidth: CGFloat
     let preview: () -> AnyView

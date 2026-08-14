@@ -16,6 +16,25 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertTrue(source.contains("reminder-check-"))
     }
 
+    func testReminderUsesFullWidthTappableContextPreview() throws {
+        let source = try source("Haiity/Views/ReminderRow.swift")
+        XCTAssertTrue(source.contains("GraphContextMenu("))
+        XCTAssertTrue(source.contains("previewWidth:"))
+        XCTAssertTrue(source.contains("commit: onEdit"))
+        XCTAssertFalse(source.contains(".contextMenu {"))
+    }
+
+    func testReminderHasFixedDoneAndRevertSwipeActions() throws {
+        let source = try source("Haiity/Views/ContentView.swift")
+        let reminder = try XCTUnwrap(source.range(of: "case .reminderRow:"))
+        let habit = try XCTUnwrap(source.range(of: "case .habitCard:"))
+        let branch = source[reminder.lowerBound..<habit.lowerBound]
+        XCTAssertTrue(branch.contains(".swipeActions(edge: .leading, allowsFullSwipe: true)"))
+        XCTAssertTrue(branch.contains("markDone(habit)"))
+        XCTAssertTrue(branch.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
+        XCTAssertTrue(branch.contains("revert(habit)"))
+    }
+
     func testCombinedListBranchesByItemTypeWithoutFilteringReminders() throws {
         let source = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(source.contains("ItemPresentation.forItem(habit)"))

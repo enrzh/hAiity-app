@@ -62,7 +62,7 @@ struct StatsView: View {
             RampSwatch(style: palettes.style, dark: dark, size: 16)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
-            Text(String(localized: "Leg einen an und fang an, Quadrate zu füllen — jeder Tag, an dem du dranbleibst, färbt eine Zelle."))
+            Text(String(localized: "Lege deinen ersten Eintrag an."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -211,7 +211,7 @@ struct StatsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(String(localized: "Je Habit im Detail"))
                         .font(.subheadline.weight(.semibold))
-                    Text(String(localized: "Quoten über 30, 90 und 365 Tage, beste Serie, Gesamtzahl und zwölf Monats-Balken — für jeden Habit einzeln."))
+                    Text(String(localized: "Details für jedes Habit."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

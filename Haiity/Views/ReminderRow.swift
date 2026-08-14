@@ -19,7 +19,22 @@ struct ReminderRow: View, Equatable {
         lhs.habit == rhs.habit
     }
 
+    private var previewWidth: CGFloat {
+        HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
+    }
+
     var body: some View {
+        rowContent
+            .background {
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 preview: { AnyView(reminderPreview) },
+                                 actions: menuActions,
+                                 commit: onEdit)
+            }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: Theme.Metrics.gap) {
             HStack(spacing: Theme.Metrics.gap) {
                 if habit.emoji.isEmpty {
@@ -65,9 +80,20 @@ struct ReminderRow: View, Equatable {
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                          style: .continuous))
-        .contextMenu {
-            Button(String(localized: "Bearbeiten"), action: onEdit)
-            Button(String(localized: "Archivieren"), role: .destructive, action: onArchive)
-        }
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                       style: .continuous))
+    }
+
+    private var reminderPreview: some View {
+        rowContent
+            .frame(width: previewWidth)
+            .accessibilityIdentifier("reminder-preview")
+    }
+
+    private var menuActions: [GraphMenuAction] {
+        [GraphMenuAction(title: String(localized: "Bearbeiten"),
+                         symbol: "pencil", handler: onEdit),
+         GraphMenuAction(title: String(localized: "Archivieren"),
+                         symbol: "archivebox", handler: onArchive)]
     }
 }

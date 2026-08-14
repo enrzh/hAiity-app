@@ -49,8 +49,8 @@ final class FeedbackTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(sheet.contains("ShakeToReport.isEnabled = false"),
                       "das Blatt kann sich nicht abschalten")
-        XCTAssertTrue(more.contains("ShakeToReport.isEnabled = on"),
-                      "der Schalter in Mehr schreibt nicht")
+        XCTAssertTrue(more.contains("ShakeToReport.isEnabled = enabled"),
+                      "der Schalter in Über & Datenschutz schreibt nicht")
         for view in [sheet, more] {
             XCTAssertFalse(view.contains("shakeToReport\""),
                            "eine Ansicht schreibt am gemeinsamen Schlüssel vorbei")
@@ -172,18 +172,15 @@ final class FeedbackTests: XCTestCase {
 
     // MARK: – Wem die Tür gehört: reine Logik
 
-    /// **Bootstrap.** Solange keine Kennung eingebaut ist, öffnet die Tür wie
-    /// bisher — sonst läge der Schlüssel hinter der Tür: die Kennung ist nur
-    /// AUF der Entwicklerseite abzulesen.
-    func testWithoutABuiltInOwnerEveryDeviceMayOpenTheDoor() {
-        XCTAssertNil(DeveloperAccess.ownerAppleUserID,
-                     "ist die Kennung eingetragen, gilt der Bootstrap-Zweig nicht mehr")
-        // Solange die Konstante leer ist, ist die gespeicherte Kennung
-        // GLEICHGÜLTIG — auch die krummen Fälle, die es sonst gar nicht gibt:
-        // nicht angemeldet, leer, nur Leerraum, fremde Kennung.
-        for stored in [nil, "", "   ", "001234.abcd", "999999.zzzz"] as [String?] {
-            XCTAssertTrue(DeveloperAccess.isOwnerDevice(storedAppleUserID: stored),
-                          "der Bootstrap-Zweig hält nicht für: \(stored ?? "nil")")
+    func testOnlyTheBuiltInOwnerEmailIdentifiesTheDeveloper() {
+        XCTAssertEqual(DeveloperAccess.ownerAppleEmail, "xianjie.zhan@icloud.com")
+        XCTAssertTrue(DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: nil, storedAppleEmail: " xianjie.zhan@icloud.com "))
+        XCTAssertTrue(DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: nil, storedAppleEmail: "XIANJIE.ZHAN@ICLOUD.COM"))
+        for email in [nil, "", "other@icloud.com"] as [String?] {
+            XCTAssertFalse(DeveloperAccess.isOwnerDevice(
+                storedAppleUserID: nil, storedAppleEmail: email))
         }
     }
 
@@ -195,8 +192,8 @@ final class FeedbackTests: XCTestCase {
     /// Zeichenfolge — an ihr ist nichts zu deuten, nur zu vergleichen.
     func testTheOwnerRuleNeverComparesLoosely() throws {
         let diagnostics = try source("Haiity/Models/Diagnostics.swift")
-        XCTAssertTrue(diagnostics.contains("static let ownerAppleUserID: String? = nil"),
-                      "die Kennung des Besitzers ist noch nicht bekannt — sie steht auf nil")
+        XCTAssertTrue(diagnostics.contains(
+            "static let ownerAppleEmail = \"xianjie.zhan@icloud.com\""))
 
         // Nur der Vergleichspfad, und darin nur der CODE: die Kommentare
         // erklären ja gerade, warum es das lose Prüfen NICHT gibt.
@@ -207,13 +204,11 @@ final class FeedbackTests: XCTestCase {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
 
-        for loose in ["hasPrefix", "hasSuffix", "contains", "lowercased", "uppercased",
+        for loose in ["hasPrefix", "hasSuffix", "contains", "uppercased",
                       "caseInsensitive", "localizedStandard", "compare(", "range(of:",
                       "prefix(", "suffix(", "~="] {
             XCTAssertFalse(code.contains(loose), "unscharfer Vergleich im Schloss: \(loose)")
         }
-        XCTAssertEqual(code.components(separatedBy: "==").count - 1, 1,
-                       "genau EIN Vergleich — jeder weitere ist eine zweite Regel")
     }
 
     /// **Und wenn sie eingetragen IST, zählt nur exakte Gleichheit.** Das
@@ -227,13 +222,9 @@ final class FeedbackTests: XCTestCase {
         let start = try XCTUnwrap(diagnostics.range(of: "static func isOwnerDevice"))
         let end = try XCTUnwrap(diagnostics.range(of: "/// Alles, was der Entwicklerbereich"))
         let rule = diagnostics[start.lowerBound..<end.lowerBound]
-        XCTAssertTrue(rule.contains("guard let owner, !owner.isEmpty else { return true }"),
-                      "ohne den Bootstrap-Zweig käme niemand an die Kennung")
-        XCTAssertTrue(rule.contains("guard let stored, !stored.isEmpty else { return false }"),
-                      "vielleicht der Besitzer ist bei einer Tür keine Antwort")
-        XCTAssertTrue(rule.contains("return stored == owner"))
-        XCTAssertEqual(rule.components(separatedBy: "trimmingCharacters").count - 1, 2,
-                       "Leerraum muss auf BEIDEN Seiten wegfallen")
+        XCTAssertTrue(rule.contains("storedAppleEmail"))
+        XCTAssertTrue(rule.contains("ownerAppleEmail"))
+        XCTAssertTrue(rule.contains("lowercased()"), "E-Mail-Adressen sind nicht groß/klein-sensitiv")
     }
 
     /// Die Kennung wohnt neben dem Vornamen, kommt aus demselben Vorgang —
@@ -251,6 +242,18 @@ final class FeedbackTests: XCTestCase {
         PersonalName.appleUserID = "001234.abcd"
         PersonalName.appleUserID = nil
         XCTAssertNil(PersonalName.appleUserID)
+    }
+
+    func testTheAppleEmailIsStoredTrimmedAndClearedWhenEmpty() {
+        let defaults = appGroupDefaults()
+        let before = defaults.object(forKey: PersonalName.appleEmailKey)
+        defer { restore(before, forKey: PersonalName.appleEmailKey, in: defaults) }
+
+        XCTAssertEqual(PersonalName.appleEmailKey, "personalAppleEmail")
+        PersonalName.appleEmail = "  XIANJIE.ZHAN@ICLOUD.COM  "
+        XCTAssertEqual(PersonalName.appleEmail, "xianjie.zhan@icloud.com")
+        PersonalName.appleEmail = "   "
+        XCTAssertNil(PersonalName.appleEmail)
     }
 
     // MARK: – Quell-Verträge: die Geste
@@ -430,18 +433,13 @@ final class FeedbackTests: XCTestCase {
 
     // MARK: – Quell-Verträge: Mehr und die Tür
 
-    /// Der Schalter steht in „Mehr" — mit erklärendem Fuß, und NICHT zwischen
-    /// den beiden Zusammenfassungen: Melden ist keine Erinnerung.
-    func testMoreViewCarriesTheShakeSwitchOutsideTheNotificationSections() throws {
+    func testAboutCarriesTheShakeSwitchOutsideNotificationSettings() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(more.contains("\"shake-to-report-toggle\""))
-        XCTAssertTrue(more.contains("shakeToReportSection"))
-        let section = try XCTUnwrap(more.range(of: "shakeToReportSection\n"))
-        let daily = try XCTUnwrap(more.range(of: "dailySummarySection\n"))
-        let weekly = try XCTUnwrap(more.range(of: "weeklySummarySection\n"))
-        XCTAssertFalse(daily.upperBound < section.lowerBound
-                       && section.upperBound < weekly.lowerBound,
-                       "der Schalter steht zwischen den Mitteilungs-Abschnitten")
+        let about = try XCTUnwrap(more.range(of: "struct AboutView"))
+        let shake = try XCTUnwrap(more.range(of: "\"shake-to-report-toggle\""))
+        XCTAssertLessThan(about.lowerBound, shake.lowerBound)
+        XCTAssertFalse(more.contains("private var shakeToReportSection"))
     }
 
     /// **Abmelden nimmt die Kennung mit.** Sie kam aus demselben Vorgang wie
@@ -453,10 +451,13 @@ final class FeedbackTests: XCTestCase {
         let after = more[remove.upperBound...]
         XCTAssertTrue(after.prefix(400).contains("PersonalName.appleUserID = nil"),
                       "der Entfernen-Knopf lässt die Kennung liegen")
+        XCTAssertTrue(after.prefix(500).contains("PersonalName.appleEmail = nil"),
+                      "der Entfernen-Knopf lässt die Besitzer-E-Mail liegen")
         // Und beim Anmelden wird sie IMMER mitgenommen — Apple nennt den
         // Vornamen nur bei der allerersten Anmeldung, die Kennung aber jedes
         // Mal.
         XCTAssertTrue(more.contains("PersonalName.appleUserID = credential.user"))
+        XCTAssertTrue(more.contains("PersonalName.appleEmail = credential.email"))
     }
 
     /// **Auf fremden Geräten bewegt sich die Tür nicht.** Kein Countdown,
@@ -469,7 +470,8 @@ final class FeedbackTests: XCTestCase {
         let next = try XCTUnwrap(more.range(of: "let step = DeveloperAccess.next(taps: taps)"))
         let guardText = more[tap.upperBound..<next.lowerBound]
         XCTAssertTrue(guardText.contains(
-            "guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID)"),
+            "guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID,\n"
+            + "                                                  storedAppleEmail: PersonalName.appleEmail)"),
                       "die Prüfung muss VOR der Zählung stehen")
         XCTAssertTrue(guardText.contains("return"))
     }
@@ -482,16 +484,19 @@ final class FeedbackTests: XCTestCase {
     /// zu ihm passt. Gefragt wird deshalb an JEDER Stelle, die zur Seite
     /// führt: an der Zeile in „Über" und an der Seite selbst.
     func testTheDeveloperPageIsGatedByOwnershipAndNotOnlyByTheTapCount() throws {
-        // Die Regel selbst: ohne Freischaltung nie, mit Freischaltung nur auf
-        // dem Gerät des Besitzers (in dieser Runde: jedes, siehe Bootstrap).
+        // Das verifizierte Besitzerkonto ist immer Entwickler; der alte
+        // versteckte Merker ist dafür nicht mehr Voraussetzung.
         let before = DeveloperAccess.isUnlocked
         defer { DeveloperAccess.isUnlocked = before }
 
         DeveloperAccess.isUnlocked = false
-        XCTAssertFalse(DeveloperAccess.isAvailable(storedAppleUserID: nil))
-        XCTAssertFalse(DeveloperAccess.isAvailable(storedAppleUserID: "001234.abcd"))
+        XCTAssertTrue(DeveloperAccess.isAvailable(
+            storedAppleUserID: nil, storedAppleEmail: "xianjie.zhan@icloud.com"))
+        XCTAssertFalse(DeveloperAccess.isAvailable(
+            storedAppleUserID: nil, storedAppleEmail: "other@icloud.com"))
         DeveloperAccess.isUnlocked = true
-        XCTAssertTrue(DeveloperAccess.isAvailable(storedAppleUserID: "001234.abcd"))
+        XCTAssertFalse(DeveloperAccess.isAvailable(
+            storedAppleUserID: "001234.abcd", storedAppleEmail: "other@icloud.com"))
 
         // Und beide Wege fragen sie — die Zeile UND die Seite.
         let more = try source("Haiity/Views/MoreView.swift")
@@ -505,8 +510,77 @@ final class FeedbackTests: XCTestCase {
         let route = try XCTUnwrap(content.range(of: "case .developer:"))
         let page = try XCTUnwrap(content.range(of: "DeveloperView(store: store, cloudStatus: cloudStatus)"))
         XCTAssertTrue(content[route.upperBound..<page.lowerBound]
-            .contains("DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID)"),
+            .contains("DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,\n"
+                      + "                                           storedAppleEmail: PersonalName.appleEmail)"),
                       "die Seite baut sich auf, ohne nach dem Besitzer zu fragen")
+    }
+
+    func testFeedbackDoesNotShowTheRecipientAddress() throws {
+        let sheet = try source("Haiity/Views/FeedbackSheet.swift")
+        let start = try XCTUnwrap(sheet.range(of: "private var sendSection"))
+        let end = try XCTUnwrap(sheet.range(of: "// MARK: – (4)"))
+        XCTAssertFalse(sheet[start.lowerBound..<end.lowerBound].contains("FeedbackMail.recipient"))
+        XCTAssertFalse(sheet.contains("Geht an %@."))
+    }
+
+    func testMoreKeepsCloudStatusInDeveloperToolsAndUsesConciseSettings() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertFalse(more.contains("iCloudRow"))
+        XCTAssertFalse(more.contains("icloud-status"))
+        for verbose in ["Verdichtet die Habit-Liste und die untere Navigation dauerhaft.",
+                        "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten.",
+                        "Schüttle das iPhone, wenn etwas nicht stimmt:",
+                        "Beim Anpassen des App-Icons fragt iOS einmal kurz nach."] {
+            XCTAssertFalse(more.contains(verbose), verbose)
+        }
+        XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
+    }
+
+    func testOwnerDeveloperAccessHasNoNonWorkingHideControl() throws {
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+        XCTAssertFalse(developer.contains("lockSection"))
+        XCTAssertFalse(developer.contains("DeveloperAccess.isUnlocked = false"))
+    }
+
+    func testMoreUsesRequestedPageOrderAndDedicatedSettingsScreens() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        for route in ["case archive, about, developer, appearance, habitBehavior",
+                      "case .appearance:", "case .habitBehavior:",
+                      "Darstellung", "Habit-Verhalten"] {
+            XCTAssertTrue(more.contains(route), route)
+        }
+
+        let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
+        let main = more[body.lowerBound..<end.lowerBound]
+        let ordered = ["proSection", "personalSection", "MoreRoute.appearance",
+                       "MoreRoute.habitBehavior", "notificationOptOutSection",
+                       "dailySummarySection", "weeklySummarySection", "motivationSection",
+                       "MoreRoute.archive", "Setup wiederholen", "MoreRoute.about"]
+        var cursor = main.startIndex
+        for marker in ordered {
+            let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)
+            cursor = range.upperBound
+        }
+
+        let appearanceStart = try XCTUnwrap(
+            more.range(of: "private var appearanceSettings: some View"))
+        let behaviorStart = try XCTUnwrap(
+            more.range(of: "private var habitBehaviorSettings: some View"))
+        let appearance = more[appearanceStart.lowerBound..<behaviorStart.lowerBound]
+        XCTAssertTrue(appearance.contains("compactModeSection"))
+        let behavior = more[behaviorStart.lowerBound...]
+        XCTAssertFalse(behavior.prefix(250).contains("compactModeSection"))
+    }
+
+    func testMovedSettingsHaveOneVisibleHome() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+        XCTAssertTrue(more.contains("AboutView"))
+        XCTAssertTrue(more.contains("shake-to-report-toggle"))
+        XCTAssertFalse(more.contains("private var shakeToReportSection"))
+        XCTAssertTrue(developer.contains("export-data"))
+        XCTAssertTrue(developer.contains("import-data"))
     }
 
     /// **Der Knopf unter „Senden" wirft nichts unbemerkt weg.** „Beim

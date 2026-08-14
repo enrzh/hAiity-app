@@ -344,7 +344,8 @@ final class AppNavigationTests: XCTestCase {
         // Such-KREIS zurückschrumpft, statt als leere Leiste liegen zu
         // bleiben (v24).
         XCTAssertTrue(source.contains("if tab != .search { lastNonSearchTab = tab }"))
-        XCTAssertTrue(source.contains("withAnimation { nativeTab = lastNonSearchTab }"))
+        XCTAssertTrue(source.contains("returnFromSearchAfterCollapse()"))
+        XCTAssertFalse(source.contains("withAnimation { nativeTab = lastNonSearchTab }"))
     }
 
     func testSingleNativeShellWithoutCompilerGates() throws {

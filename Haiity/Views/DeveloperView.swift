@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 import WidgetKit
 
 /// Der Entwicklerbereich: was diese Installation über sich selbst weiß.
@@ -26,7 +27,6 @@ struct DeveloperView: View {
     /// Nur Anzeige — die Seite prüft nichts nach und heilt nichts.
     let cloudStatus: CloudSyncStatus
 
-    @Environment(\.dismiss) private var dismiss
     /// Der eingesammelte Stand — `nil`, solange nichts gesammelt ist.
     ///
     /// **Warum optional und nicht einfach ein leerer Stand.** Ein leerer
@@ -52,6 +52,8 @@ struct DeveloperView: View {
     /// jedem Rumpf gefragt: sie ändert sich nur in „Mehr", und diese Seite
     /// wird beim Zurückkommen ohnehin neu aufgebaut.
     @State private var appleUserID: String?
+    @State private var showImporter = false
+    @State private var importMessage: String?
 
     /// Was angezeigt und kopiert wird. Vor dem Sammeln der leere Stand —
     /// jede ZAHL daraus wird von `count`/`yesNo`/`shortDate` zu `n/a`.
@@ -67,14 +69,17 @@ struct DeveloperView: View {
             notificationSection
             calendarSection
             proSection
+            dataTransferSection
             actionSection
             ownerSection
-            lockSection
         }
         .navigationTitle(String(localized: "Entwickler"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
+            handleImport(result)
+        }
     }
 
     // MARK: – (1) App
@@ -150,8 +155,6 @@ struct DeveloperView: View {
             if testFailed || isNotificationAccessDenied { notificationSettingsLink }
         } header: {
             sectionHeader(String(localized: "Mitteilungen"), symbol: "bell")
-        } footer: {
-            Text(String(localized: "Prüft, ob Mitteilungen von hAiity ankommen."))
         }
     }
 
@@ -239,6 +242,33 @@ struct DeveloperView: View {
 
     // MARK: – (7) Aktionen
 
+    private var dataTransferSection: some View {
+        Section {
+            ShareLink(item: HabitExport(data: store.exportJSON() ?? Data()),
+                      preview: SharePreview(String(localized: "hAiity-Export"))) {
+                Label(String(localized: "Exportieren"), systemImage: "square.and.arrow.up")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("export-data")
+
+            Button {
+                showImporter = true
+            } label: {
+                Label(String(localized: "Importieren"), systemImage: "square.and.arrow.down")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("import-data")
+
+            if let importMessage {
+                Text(importMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            sectionHeader(String(localized: "Import & Export"), symbol: "arrow.up.arrow.down")
+        }
+    }
+
     private var actionSection: some View {
         Section {
             Button {
@@ -279,8 +309,6 @@ struct DeveloperView: View {
             }
         } header: {
             sectionHeader(String(localized: "Aktionen"), symbol: "wrench.and.screwdriver")
-        } footer: {
-            Text(String(localized: "Der kopierte Text enthält keine Habit-Namen, keine Emojis und keine Werte — nur Zahlen, Zustände und technische Kennungen."))
         }
     }
 
@@ -322,23 +350,23 @@ struct DeveloperView: View {
             }
         } header: {
             sectionHeader(String(localized: "Besitzer"), symbol: "person.badge.key")
-        } footer: {
-            Text(String(localized: "Die Kennung stammt aus der Apple-Anmeldung unter Anrede in Mehr. Trägt der Entwickler sie fest in die App ein, öffnet die versteckte Tür nur noch auf seinem Gerät."))
         }
     }
 
-    private var lockSection: some View {
-        Section {
-            Button {
-                DeveloperAccess.isUnlocked = false
-                dismiss()
-            } label: {
-                Label(String(localized: "Entwicklerbereich ausblenden"), systemImage: "lock")
+    private func handleImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .failure(let error):
+            importMessage = error.localizedDescription
+        case .success(let url):
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try store.importJSON(Data(contentsOf: url))
+                importMessage = String(localized: "Import zusammengeführt.")
+                Task { await collect() }
+            } catch {
+                importMessage = String(localized: "Import fehlgeschlagen: \(error.localizedDescription)")
             }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("lock-developer")
-        } footer: {
-            Text(String(localized: "Die Seite verschwindet. Sieben Tipps auf die Versionszeile in Über holen sie zurück."))
         }
     }
 

@@ -14,9 +14,21 @@ import AuthenticationServices
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer
+    case archive, about, developer, appearance, habitBehavior
 
     var id: Self { self }
+}
+
+enum MoreScreen: Equatable {
+    case main, appearance, habitBehavior
+
+    var title: String {
+        switch self {
+        case .main: String(localized: "Mehr")
+        case .appearance: String(localized: "Darstellung")
+        case .habitBehavior: String(localized: "Habit-Verhalten")
+        }
+    }
 }
 
 /// "Mehr": iCloud-Status, Darstellung, Graph-Farbe, die beiden
@@ -35,6 +47,7 @@ struct MoreView: View, Equatable {
     static func == (a: MoreView, b: MoreView) -> Bool {
         a.store === b.store && a.cloudStatus === b.cloudStatus
             && a.statsCards === b.statsCards && a.routeToken == b.routeToken
+            && a.screen == b.screen
     }
 
     let store: HabitStore
@@ -50,13 +63,13 @@ struct MoreView: View, Equatable {
     /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
     /// Kaufseite sitzen, die zu einem Bereich gehört, den er verlassen hat.
     var routeToken: Int = 0
+    var screen: MoreScreen = .main
 
-    @State private var showImporter = false
-    @State private var importMessage: String?
     @State private var summaryDenied = false
     @State private var calendarDenied = false
     @State private var weeklyDenied = false
     @State private var motivationDenied = false
+    @State private var notificationPromptsSuppressed = NotificationPromptPreference.isSuppressed
     @State private var showReminderSetup = false
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
@@ -64,10 +77,7 @@ struct MoreView: View, Equatable {
     @State private var iconChangeFailed = false
     @State private var aliasDraft = ""
     @State private var storedAppleName: String?
-    /// Gespiegelt statt bei jedem Rumpf gelesen: `ShakeToReport` ist eine
-    /// stumme Ablage, keine beobachtbare Quelle — ohne diesen Zustand spränge
-    /// der Schalter nach dem Umlegen optisch zurück.
-    @State private var shakeToReport = true
+    @State private var storedAppleEmail: String?
     @State private var appleSignInCameBackEmpty = false
     @Environment(\.colorScheme) private var colorScheme
     /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
@@ -103,79 +113,15 @@ struct MoreView: View, Equatable {
         #if DEBUG
         FrameProbe.shared.mark("MoreView.body")
         #endif
-        return List {
-            Group {
-            Section {
-                iCloudRow
-            } footer: {
-                Text(String(localized: "Deine Habits liegen auf diesem Gerät. Ist es bei iCloud angemeldet, spiegelt hAiity sie zusätzlich in deine private iCloud — nichts einzurichten, kein Konto bei uns, kein Server bei uns."))
-            }
-
-            proSection
-
-            appearanceSection
-            paletteSection
-
-            compactModeSection
-            swipeActionsSection
-
-            calendarSection
-
-            personalSection
-
-            dailySummarySection
-            weeklySummarySection
-            motivationSection
-            // „Test-Mitteilung" stand hier. Sie ist Diagnose, keine
-            // Einstellung — und wohnt jetzt im Entwicklerbereich
-            // (DeveloperView), wortgleich und mit derselben Kennung.
-            Section {
-                Button { showReminderSetup = true } label: {
-                    Label(String(localized: "Erinnerungen einrichten"), systemImage: "bell")
-                }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("open-reminder-setup")
-            }
-
-            Section {
-                pageRow(.archive, title: String(localized: "Archiv"),
-                        symbol: "archivebox", identifier: "open-archive",
-                        badge: archivedCount > 0 ? "\(archivedCount)" : nil)
-            }
-
-            Section {
-                ShareLink(item: HabitExport(data: store.exportJSON() ?? Data()),
-                          preview: SharePreview(String(localized: "hAiity-Export"))) {
-                    Label(String(localized: "Exportieren"), systemImage: "square.and.arrow.up")
-                }
-                // ShareLink zieht sich sonst den Tint und leuchtet grün,
-                // während "Importieren" daneben neutral bleibt.
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("export-data")
-                Button {
-                    showImporter = true
-                } label: {
-                    Label(String(localized: "Importieren"), systemImage: "square.and.arrow.down")
-                }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("import-data")
-                if let importMessage {
-                    Text(importMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } footer: {
-                Text(String(localized: "Import führt zusammen — kein Check-in geht verloren."))
-            }
-
-            shakeToReportSection
-
-            Section {
-                pageRow(.about, title: String(localized: "Über & Datenschutz"),
-                        symbol: "lock.shield", identifier: "open-about")
-            }
+        return Group {
+            switch screen {
+            case .main: mainSettings
+            case .appearance: appearanceSettings
+            case .habitBehavior: habitBehaviorSettings
             }
         }
+        .navigationTitle(screen.title)
+        .navigationBarTitleDisplayMode(.inline)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -183,6 +129,7 @@ struct MoreView: View, Equatable {
             CustomPaletteSheet(store: store).themed(store)
         }
         .onAppear {
+            notificationPromptsSuppressed = NotificationPromptPreference.isSuppressed
             #if DEBUG
             // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
             // Liste sind in der Sim-Automatisierung unzuverlässig.
@@ -233,15 +180,60 @@ struct MoreView: View, Equatable {
         } message: {
             Text(String(localized: "Alles, was diese Farbe benutzt, fällt auf die Standardfarbe zurück."))
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
-            handleImport(result)
-        }
         // Das App-Icon folgt der GLOBALEN Farbe — egal ob sie umgestellt oder
         // die aktive eigene Farbe umgefärbt wurde. Eine Stelle statt einer
         // Wiederholung an jedem Schreibvorgang.
         .onChange(of: store.palettes) { _, book in
             guard store.matchAppIcon else { return }
             Task { await AppIcons.apply(book) }
+        }
+    }
+
+    private var mainSettings: some View {
+        List {
+            proSection
+            personalSection
+            Section {
+                pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
+                        symbol: "paintpalette", identifier: "open-appearance")
+                pageRow(MoreRoute.habitBehavior, title: String(localized: "Habit-Verhalten"),
+                        symbol: "hand.draw", identifier: "open-habit-behavior")
+            }
+            notificationOptOutSection
+            dailySummarySection
+            weeklySummarySection
+            motivationSection
+            Section {
+                pageRow(MoreRoute.archive, title: String(localized: "Archiv"),
+                        symbol: "archivebox", identifier: "open-archive",
+                        badge: archivedCount > 0 ? "\(archivedCount)" : nil)
+            }
+            Section {
+                Button { showReminderSetup = true } label: {
+                    Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
+                }
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("open-reminder-setup")
+            }
+            Section {
+                pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
+                        symbol: "lock.shield", identifier: "open-about")
+            }
+        }
+    }
+
+    private var appearanceSettings: some View {
+        List {
+            appearanceSection
+            paletteSection
+            compactModeSection
+        }
+    }
+
+    private var habitBehaviorSettings: some View {
+        List {
+            swipeActionsSection
+            calendarSection
         }
     }
 
@@ -257,8 +249,6 @@ struct MoreView: View, Equatable {
                 get: { statsCards.compactMode },
                 set: { statsCards.compactMode = $0 }))
             .accessibilityIdentifier("compact-mode-toggle")
-        } footer: {
-            Text(String(localized: "Verdichtet die Habit-Liste und die untere Navigation dauerhaft."))
         }
     }
 
@@ -290,8 +280,6 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
-        } footer: {
-            Text(String(localized: "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten. Hier wählst du, was als zweiter Knopf dahinter erscheint."))
         }
     }
 
@@ -315,42 +303,6 @@ struct MoreView: View, Equatable {
     // Malen-Modus ist auf Nutzerwunsch entfernt, die Karte arbeitet immer
     // im Auswählen-Modus. Der alte App-Group-Schlüssel „backfillMode" wird
     // schlicht nicht mehr gelesen.
-
-    // MARK: – Schütteln zum Melden
-
-    /// Der zweite Ort für DENSELBEN Schalter — der erste steht im Melde-Blatt
-    /// („Beim Schütteln nicht mehr fragen").
-    ///
-    /// **Warum beide denselben Schlüssel schreiben.** Zwei Ablagen wären zwei
-    /// Wahrheiten: hier stünde „ein", während das Blatt sich abgeschaltet
-    /// hätte. Geschrieben wird deshalb nur über `ShakeToReport` (siehe dort).
-    ///
-    /// **Warum die Zeile hier unten steht** und nicht bei den Mitteilungen:
-    /// Melden ist keine Erinnerung. Zwischen die beiden Zusammenfassungen
-    /// gesetzt, läse sie sich wie eine dritte Sorte Benachrichtigung.
-    /// **Warum der Spiegel zusätzlich auf die Mitteilung hört.** „Mehr" liegt
-    /// UNTER dem Melde-Blatt und bleibt dabei sichtbar: Schaltet dort jemand
-    /// „nicht mehr fragen", fährt das Blatt zu — und `onAppear` feuert nicht,
-    /// weil diese Seite nie weg war. Der Schalter zeigte weiter „ein", während
-    /// die Ablage längst „aus" sagt. Genau die zwei Wahrheiten, die der eine
-    /// Schlüssel verhindern soll.
-    private var shakeToReportSection: some View {
-        Section {
-            Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
-                get: { shakeToReport },
-                set: { on in
-                    shakeToReport = on
-                    ShakeToReport.isEnabled = on
-                }))
-            .accessibilityIdentifier("shake-to-report-toggle")
-        } footer: {
-            Text(String(localized: "Schüttle das iPhone, wenn etwas nicht stimmt: hAiity fragt dann, was passiert ist. Was mitgeht, siehst du vorher — deine Beschreibung und technische Angaben ohne Habit-Namen."))
-        }
-        .onAppear { shakeToReport = ShakeToReport.isEnabled }
-        .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
-            shakeToReport = ShakeToReport.isEnabled
-        }
-    }
 
     // MARK: – hAiity Pro
     //
@@ -378,7 +330,7 @@ struct MoreView: View, Equatable {
                 } label: {
                     HStack(spacing: Theme.Metrics.gap) {
                         proRow(symbol: "lock",
-                               detail: String(localized: "Unbegrenzte Habits, eigene Farben, Kalender und volle Statistik."),
+                               detail: String(localized: "Mehr Habits, Farben, Kalender und Statistik."),
                                highlighted: false)
                         Image(systemName: "chevron.right")
                             .font(.footnote.weight(.semibold))
@@ -389,8 +341,6 @@ struct MoreView: View, Equatable {
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("open-paywall")
             }
-        } footer: {
-            Text(String(localized: "Einmal kaufen. Kein Abo, kein Konto, kein Server."))
         }
     }
 
@@ -460,8 +410,6 @@ struct MoreView: View, Equatable {
                     .accessibilityIdentifier("open-calendar-settings")
                 }
             }
-        } footer: {
-            Text(String(localized: "Legt einen eigenen hAiity-Kalender an und trägt dort die gewählten Habits und Erinnerungen ein. Deine übrigen Kalender bleiben unberührt."))
         }
     }
 
@@ -511,36 +459,43 @@ struct MoreView: View, Equatable {
                         // dann noch läge, wäre ein Rest einer Anmeldung, die
                         // der Nutzer gerade zurückgenommen hat.
                         PersonalName.appleUserID = nil
+                        PersonalName.appleEmail = nil
                         storedAppleName = nil
+                        storedAppleEmail = nil
                     }
                     .font(.subheadline)
                     .accessibilityIdentifier("apple-name-remove")
                 }
-            } else {
-                SignInWithAppleButton(.signIn) { request in
-                    // Nur der Name — keine E-Mail, kein Konto, kein Server.
-                    request.requestedScopes = [.fullName]
-                } onCompletion: { result in
-                    handleAppleSignIn(result)
+                if storedAppleEmail == nil {
+                    appleSignInButton
                 }
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                .frame(height: 40)
-                .accessibilityIdentifier("apple-signin")
+            } else {
+                appleSignInButton
                 if appleSignInCameBackEmpty {
-                    Text(String(localized: "Apple nennt den Vornamen nur bei der allerersten Anmeldung. Kein Problem — trag einfach einen Alias ein."))
+                    Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
             }
         } header: {
             Text(String(localized: "Anrede"))
-        } footer: {
-            Text(String(localized: "Für persönlichere Mitteilungen, etwa den Glückwunsch zum perfekten Tag. Der Name bleibt auf dem Gerät. Anmelden ist optional — ein Alias genügt immer und gewinnt gegen den Apple-Namen."))
         }
         .onAppear {
             aliasDraft = PersonalName.alias ?? ""
             storedAppleName = PersonalName.appleName
+            storedAppleEmail = PersonalName.appleEmail
         }
+    }
+
+    private var appleSignInButton: some View {
+        SignInWithAppleButton(.signIn) { request in
+            request.requestedScopes = [.fullName, .email]
+        } onCompletion: { result in
+            handleAppleSignIn(result)
+        }
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+        .frame(height: 40)
+        .accessibilityIdentifier("apple-signin")
     }
 
     private var aliasBinding: Binding<String> {
@@ -567,6 +522,8 @@ struct MoreView: View, Equatable {
         // des Besitzers zu erkennen (siehe `DeveloperAccess.isOwnerDevice`),
         // und sie hängt nicht daran, ob ein Name dabei war.
         PersonalName.appleUserID = credential.user
+        PersonalName.appleEmail = credential.email
+        storedAppleEmail = PersonalName.appleEmail
         if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
             PersonalName.appleName = name
             storedAppleName = PersonalName.appleName
@@ -594,7 +551,7 @@ struct MoreView: View, Equatable {
                 // dann gar nicht erst nach dem Kalender-Zugriff: eine
                 // Berechtigung für eine Funktion, die danach doch nicht läuft,
                 // ist eine Frage unter falschem Vorwand.
-                guard ProGate.mayUseProFeature(unlocked: unlocked) else {
+                guard CalendarFeatureGate.canEnable(unlocked: unlocked) else {
                     pendingCalendarItemType = type
                     paywall = .calendar
                     return
@@ -645,8 +602,6 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Darstellung"))
-        } footer: {
-            Text(String(localized: "Beim Anpassen des App-Icons fragt iOS einmal kurz nach. iOS kann nur mitgelieferte Icons setzen — hAiity bringt 18 mit; eine frei gewählte Farbe bekommt das nächstliegende davon. Tippst du oben selbst ein Icon an, bleibt es fest — die automatische Anpassung geht dabei aus."))
         }
     }
 
@@ -878,8 +833,6 @@ struct MoreView: View, Equatable {
             .accessibilityIdentifier("palette-add-custom")
         } header: {
             Text(String(localized: "Graph-Farbe"))
-        } footer: {
-            Text(String(localized: "Gilt für alle Habits; einzelne Habits können beim Bearbeiten eine eigene Farbe bekommen. Bei eigenen Farben wählst du eine Grundfarbe — die fünf Stufen rechnet hAiity daraus. Streichen oder lange drücken: umbenennen, bearbeiten, löschen."))
         }
     }
 
@@ -1006,43 +959,6 @@ struct MoreView: View, Equatable {
             })
     }
 
-    // MARK: – iCloud-Zeile
-    //
-    // KEIN Knopf, kein Blatt, kein Einrichten: es gibt nichts zu verbinden.
-    // Die Zeile ist reiner Status und sagt in jedem Zustand die Wahrheit —
-    // „aktiv“, „nur auf diesem Gerät“ (nicht angemeldet), „warten“ (offline)
-    // oder der echte Fehlertext. Nur der aktive Zustand trägt die
-    // Markenfarbe; alles andere bleibt sekundär, damit ein Problem nicht wie
-    // ein Erfolg aussieht.
-
-    private var iCloudRow: some View {
-        let state = cloudStatus.state
-        let ok: Bool = { if case .active = state { return true }; return false }()
-        return HStack(spacing: 12) {
-            Image(systemName: state.systemImage)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(ok ? AnyShapeStyle(Theme.accentFill(palettes.style))
-                               : AnyShapeStyle(Color.secondary),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(ok ? AnyShapeStyle(Theme.accentText(palettes.style))
-                                        : AnyShapeStyle(HierarchicalShapeStyle.primary))
-                Text(state.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("icloud-status")
-    }
-
     // MARK: – Mitteilungen
     //
     // Tages- und Wochenzusammenfassung tragen den Stand, die Motivation
@@ -1053,11 +969,34 @@ struct MoreView: View, Equatable {
     // Das Berechtigungs-Gate bleibt exakt wie gehabt: gefragt wird NUR beim
     // aktiven Einschalten, nie beim Start.
 
+    private var notificationOptOutSection: some View {
+        Section {
+            Toggle(String(localized: "Ich brauche wirklich keine Mitteilungen"),
+                   isOn: Binding(
+                    get: { notificationPromptsSuppressed },
+                    set: { suppressed in
+                        notificationPromptsSuppressed = suppressed
+                        NotificationPromptPreference.isSuppressed = suppressed
+                        guard suppressed else { return }
+                        store.summaryMinutes = nil
+                        store.weeklySummaryMinutes = nil
+                        store.motivationMinutes = nil
+                        summaryDenied = false
+                        weeklyDenied = false
+                        motivationDenied = false
+                    }))
+                .accessibilityIdentifier("suppress-notification-prompts-toggle")
+        } header: {
+            Text(String(localized: "Mitteilungen"))
+        }
+    }
+
     private var dailySummarySection: some View {
         Section {
             Toggle(isOn: dailyEnabled) {
                 Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
             }
+            .disabled(notificationPromptsSuppressed)
             .accessibilityIdentifier("summary-toggle")
             if store.summaryMinutes != nil {
                 DatePicker(String(localized: "Uhrzeit"),
@@ -1066,8 +1005,6 @@ struct MoreView: View, Equatable {
                     .accessibilityIdentifier("summary-time")
             }
             if summaryDenied { permissionHint }
-        } footer: {
-            Text(String(localized: "Einmal am Tag: wie viel von heute erledigt ist und was noch offen steht. Gezählt wird nur, was heute laut Regel ansteht."))
         }
     }
 
@@ -1076,6 +1013,7 @@ struct MoreView: View, Equatable {
             Toggle(isOn: weeklyEnabled) {
                 Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
             }
+            .disabled(notificationPromptsSuppressed)
             .accessibilityIdentifier("weekly-summary-toggle")
             if store.weeklySummaryMinutes != nil {
                 Picker(String(localized: "Wochentag"), selection: weeklyWeekday) {
@@ -1090,8 +1028,6 @@ struct MoreView: View, Equatable {
                     .accessibilityIdentifier("weekly-summary-time")
             }
             if weeklyDenied { permissionHint }
-        } footer: {
-            Text(String(localized: "Einmal in der Woche: wie viele der fälligen Termine du gehalten hast — und welche Habits zurückliegen."))
         }
     }
 
@@ -1100,6 +1036,7 @@ struct MoreView: View, Equatable {
             Toggle(isOn: motivationEnabled) {
                 Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
             }
+            .disabled(notificationPromptsSuppressed)
             .accessibilityIdentifier("motivation-toggle")
             if store.motivationMinutes != nil {
                 DatePicker(String(localized: "Uhrzeit"),
@@ -1108,8 +1045,6 @@ struct MoreView: View, Equatable {
                     .accessibilityIdentifier("motivation-time")
             }
             if motivationDenied { permissionHint }
-        } footer: {
-            Text(String(localized: "Jeden Tag ein anderer kurzer Gedanke aus deinem Raster — ruhig, ohne Druck."))
         }
     }
 
@@ -1238,24 +1173,6 @@ struct MoreView: View, Equatable {
             })
     }
 
-    // MARK: – Import
-
-    private func handleImport(_ result: Result<URL, Error>) {
-        switch result {
-        case .failure(let error):
-            importMessage = error.localizedDescription
-        case .success(let url):
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            do {
-                let raw = try Data(contentsOf: url)
-                try store.importJSON(raw)
-                importMessage = String(localized: "Import zusammengeführt.")
-            } catch {
-                importMessage = String(localized: "Import fehlgeschlagen: \(error.localizedDescription)")
-            }
-        }
-    }
 }
 
 /// Export als teilbare JSON-Datei — die Daten entstehen erst beim Teilen.
@@ -1275,25 +1192,29 @@ struct AboutView: View {
     /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
     /// überleben (siehe `DeveloperAccess`).
     @State private var taps = 0
-    /// Gespiegelt statt bei jedem Rumpf gelesen — beim Zurückkehren von der
-    /// Entwicklerseite (dort kann man sie wieder ausblenden) frischt
-    /// `onAppear` den Stand auf.
-    ///
-    /// **„Erreichbar" ist mehr als „freigeschaltet".** Gefragt wird beides auf
-    /// einmal (`DeveloperAccess.isAvailable`): Die Freischaltung liegt
-    /// dauerhaft in den Defaults, das Gerät kann aber trotzdem nicht mehr das
-    /// des Besitzers sein — dann verschwindet die Zeile wieder.
+    /// Refreshed on appearance because Sign in with Apple may establish the
+    /// owner identity while More is already alive below this page.
     @State private var developerAvailable = false
+    @State private var shakeToReport = ShakeToReport.isEnabled
 
     var body: some View {
         List {
             Section(String(localized: "Über hAiity")) {
-                Text(String(localized: "hAiity füllt Quadrate: jeder Tag, an dem du dranbleibst, färbt eine Zelle — wie ein Contribution-Graph für dein Leben."))
+                Text(String(localized: "Dein Alltag als Contribution-Graph."))
                     .font(.subheadline)
             }
             Section(String(localized: "Datenschutz")) {
-                Text(String(localized: "hAiity hat keinen Server. Deine Daten liegen auf diesem Gerät — und, wenn du bei iCloud angemeldet bist, zusätzlich in deiner eigenen privaten iCloud. Wir sehen sie nie. Keine Analyse, kein Tracking, keine Konten."))
+                Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
                     .font(.subheadline)
+            }
+            Section {
+                Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
+                    get: { shakeToReport },
+                    set: { enabled in
+                        shakeToReport = enabled
+                        ShakeToReport.isEnabled = enabled
+                    }))
+                    .accessibilityIdentifier("shake-to-report-toggle")
             }
             Section {
                 versionRow
@@ -1303,8 +1224,13 @@ struct AboutView: View {
         .navigationTitle(String(localized: "Über"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            shakeToReport = ShakeToReport.isEnabled
             developerAvailable = DeveloperAccess.isAvailable(
-                storedAppleUserID: PersonalName.appleUserID)
+                storedAppleUserID: PersonalName.appleUserID,
+                storedAppleEmail: PersonalName.appleEmail)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
+            shakeToReport = ShakeToReport.isEnabled
         }
     }
 
@@ -1345,11 +1271,10 @@ struct AboutView: View {
     /// Zählung, kein Stups — die Zeile bleibt eine Versionszeile. Eine Tür,
     /// die sich einen Spalt bewegt, verrät, dass sie eine ist; und der
     /// Countdown „Noch 3 Tipps …" wäre die Anleitung gleich dazu. Wem die Tür
-    /// gehört, entscheidet `DeveloperAccess.isOwnerDevice` — solange dort
-    /// keine Kennung eingebaut ist, gilt das für jedes Gerät (Bootstrap,
-    /// siehe `DeveloperAccess.ownerAppleUserID`).
+    /// gehört, entscheidet `DeveloperAccess.isOwnerDevice`.
     private func tapVersion() {
-        guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID) else {
+        guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID,
+                                                  storedAppleEmail: PersonalName.appleEmail) else {
             return
         }
         let step = DeveloperAccess.next(taps: taps)

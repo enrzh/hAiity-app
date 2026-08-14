@@ -278,8 +278,7 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(more.contains("\"open-paywall\""))
         XCTAssertTrue(more.contains("\"pro-status\""))
         XCTAssertTrue(more.contains("paywall = .settings"))
-        XCTAssertTrue(more.contains("Einmal kaufen. Kein Abo, kein Konto, kein Server."),
-                      "der Kernsatz steht auch unter der Sektion")
+        XCTAssertTrue(more.contains("Mehr Habits, Farben, Kalender und Statistik."))
         // Kein zweiter Kaufknopf für etwas, das schon gekauft ist.
         XCTAssertTrue(more.contains("Freigeschaltet. Danke."))
     }
@@ -327,7 +326,9 @@ final class ProGateTests: XCTestCase {
         let pro = try source("Haiity/Models/ProEntitlement.swift")
         XCTAssertTrue(pro.contains("@Observable"))
         XCTAssertTrue(pro.contains("final class ProStatus"))
-        XCTAssertTrue(pro.contains("return ProStatus.shared.unlocked"))
+        XCTAssertTrue(pro.contains("DeveloperAccess.isOwnerDevice("),
+                      "das verifizierte Entwicklerkonto muss Pro immer behalten")
+        XCTAssertTrue(pro.contains("|| ProStatus.shared.unlocked"))
         for file in ["Haiity/Views/MoreView.swift", "Haiity/Views/StatsView.swift",
                      "Haiity/Views/PaywallView.swift", "Haiity/Views/EditHabitSheet.swift"] {
             let text = try source(file)
@@ -373,14 +374,16 @@ final class ProGateTests: XCTestCase {
     /// für Ablehnung. Geprüft wird der Abschnitt selbst, nicht die Datei:
     /// irgendwo in MoreView steht „paywall" natürlich.
     func testExportAndImportStayFree() throws {
+        let developer = try source("Haiity/Views/DeveloperView.swift")
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("\"export-data\""))
-        XCTAssertTrue(more.contains("\"import-data\""))
+        XCTAssertTrue(developer.contains("\"export-data\""))
+        XCTAssertTrue(developer.contains("\"import-data\""))
 
-        let start = try XCTUnwrap(more.range(of: "ShareLink(item: HabitExport"))
-        let end = try XCTUnwrap(more.range(of: "Import führt zusammen"))
+        let start = try XCTUnwrap(developer.range(of: "private var dataTransferSection"))
+        let end = try XCTUnwrap(developer.range(of: "private var actionSection",
+                                                range: start.upperBound..<developer.endIndex))
         XCTAssertTrue(start.lowerBound < end.lowerBound)
-        let section = String(more[start.lowerBound..<end.lowerBound])
+        let section = String(developer[start.lowerBound..<end.lowerBound])
         for forbidden in ["ProGate", "Pro.isUnlocked", "paywall", "proLock", "unlocked"] {
             XCTAssertFalse(section.contains(forbidden),
                            "Export/Import darf niemals gegated sein — gefunden: \(forbidden)")

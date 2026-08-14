@@ -99,39 +99,18 @@ enum DeveloperAccess {
 
     // MARK: – Wem die Tür gehört
 
-    /// Die Apple-Kennung des Besitzers — eingebaut, nicht einstellbar.
-    ///
-    /// **Was hier stünde.** `ASAuthorizationAppleIDCredential.user`: eine
-    /// undurchsichtige Zeichenfolge, die Apple stabil je (Entwicklerteam,
-    /// Apple-ID) vergibt. Sie ist kein Name und lässt sich nicht zurückrechnen.
-    ///
-    /// **Warum sie gerade `nil` ist.** Sie ist noch nicht bekannt. Der
-    /// Besitzer meldet sich in „Mehr" mit Apple an, liest die Kennung auf der
-    /// Entwicklerseite ab (Zeile „Apple-Kennung dieses Geräts", Kopier-Knopf)
-    /// und trägt sie hier als Zeichenkette ein — ab dem nächsten Build öffnet
-    /// die versteckte Tür nur noch auf seinem Gerät. Bis dahin gilt die
-    /// Bootstrap-Regel unten, sonst gäbe es keinen Weg, an die Kennung zu
-    /// kommen: eine Tür, deren Schlüssel hinter der Tür liegt.
-    ///
-    /// **Warum eine Konstante und keine Einstellung.** Ein Wert, den das Gerät
-    /// selbst setzen kann, ist kein Schloss — er wäre nur eine zweite Klinke.
+    /// Built-in owner identity. The opaque Apple user ID can replace the
+    /// email comparison later once it is known.
     static let ownerAppleUserID: String? = nil
+    static let ownerAppleEmail = "xianjie.zhan@icloud.com"
 
     /// Ist der Entwicklerbereich auf DIESEM Gerät erreichbar?
     ///
-    /// Zwei Bedingungen, und die zweite wird JEDES MAL neu gestellt, nicht nur
-    /// beim Aufschliessen: Die Freischaltung liegt dauerhaft in den Defaults
-    /// und überlebt App-Updates. Wer in der Bootstrap-Runde sieben Mal getippt
-    /// hat, behielte die Seite sonst auch dann, wenn `ownerAppleUserID` im
-    /// nächsten Build eingetragen ist und nicht zu ihm passt. Eine
-    /// Freischaltung ist ein Zustand, kein Besitztitel — und eine Tür, die
-    /// einmal aufging, bleibt deswegen nicht seine.
-    ///
-    /// Gefragt werden muss das an JEDER Stelle, die zur Seite führt: an der
-    /// Zeile in „Über" und an der Seite selbst. Ein Riegel nur an der Klinke
-    /// ist einer an der falschen Stelle.
-    static func isAvailable(storedAppleUserID: String?) -> Bool {
-        isUnlocked && isOwnerDevice(storedAppleUserID: storedAppleUserID)
+    /// The verified owner identity is checked at both navigation boundaries,
+    /// so a stale local developer flag cannot grant access to another account.
+    static func isAvailable(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
+        isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                      storedAppleEmail: storedAppleEmail)
     }
 
     /// Gehört DIESES Gerät dem Besitzer?
@@ -139,22 +118,15 @@ enum DeveloperAccess {
     /// Rein und prüfbar: der Aufrufer reicht `PersonalName.appleUserID`
     /// herein, hier wird nur verglichen.
     ///
-    /// Zwei Regeln, beide bewusst:
-    ///  * Ist `ownerAppleUserID` nicht gesetzt (Bootstrap), ist die Antwort
-    ///    `true` — die Tür arbeitet wie bisher, sonst käme niemand je an die
-    ///    Kennung, die man eintragen müsste.
-    ///  * Ist sie gesetzt, zählt NUR exakte Gleichheit. Keine gespeicherte
-    ///    Kennung (nicht angemeldet) heißt `false`: „vielleicht der Besitzer"
-    ///    ist bei einer Tür keine Antwort.
-    ///
-    /// Leerraum zählt auf beiden Seiten nicht — eine Kennung aus Leerzeichen
-    /// ist keine.
-    static func isOwnerDevice(storedAppleUserID: String?) -> Bool {
-        let owner = ownerAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let owner, !owner.isEmpty else { return true }
-        let stored = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let stored, !stored.isEmpty else { return false }
-        return stored == owner
+    static func isOwnerDevice(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
+        let storedID = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ownerID = ownerAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let ownerID, !ownerID.isEmpty, storedID == ownerID { return true }
+
+        let storedEmail = storedAppleEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return storedEmail == ownerAppleEmail.lowercased()
     }
 }
 

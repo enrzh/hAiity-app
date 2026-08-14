@@ -4,15 +4,38 @@ import UserNotifications
 /// Benachrichtigungs-Politik (aus aiity übernommen): gefragt wird NUR, wenn
 /// der Nutzer gerade aktiv eine Erinnerung einschaltet. Nie beim Start.
 enum ReminderGate {
-    enum Decision { case post, ask, refuse }
+    enum Decision: Equatable { case post, ask, refuse }
 
-    static func decision(for status: UNAuthorizationStatus) -> Decision {
+    static func decision(for status: UNAuthorizationStatus,
+                         promptsSuppressed: Bool = false) -> Decision {
         switch status {
         case .authorized, .provisional, .ephemeral: return .post
+        case _ where promptsSuppressed: return .refuse
         case .notDetermined: return .ask
         case .denied: return .refuse
         @unknown default: return .refuse
         }
+    }
+}
+
+enum NotificationPromptPreference {
+    static let suppressedKey = "notificationPromptsSuppressed"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+    }
+
+    static var isSuppressed: Bool {
+        get { isSuppressed(in: defaults) }
+        set { setSuppressed(newValue, in: defaults) }
+    }
+
+    static func isSuppressed(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: suppressedKey)
+    }
+
+    static func setSuppressed(_ suppressed: Bool, in defaults: UserDefaults) {
+        defaults.set(suppressed, forKey: suppressedKey)
     }
 }
 
@@ -107,7 +130,8 @@ enum Reminders {
     static func ensurePermission() async -> Bool {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        switch ReminderGate.decision(for: settings.authorizationStatus) {
+        switch ReminderGate.decision(for: settings.authorizationStatus,
+                                     promptsSuppressed: NotificationPromptPreference.isSuppressed) {
         case .post: return true
         case .refuse: return false
         case .ask:
