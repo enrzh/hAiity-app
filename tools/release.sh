@@ -92,7 +92,8 @@ say "Unit tests"
 # Boden: 797 + tappbare Vorschau + feste Wischaktionen = 799.
 # Build 46 plus combined Habits/Erinnerungen coverage = 1012.
 # More hierarchy, notification opt-out, calendar gate, search and reminder UI = 1020.
-MIN_TESTS=1020
+# Repeat Sign in with Apple owner recovery = 1022.
+MIN_TESTS=1022
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

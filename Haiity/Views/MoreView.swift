@@ -521,8 +521,16 @@ struct MoreView: View, Equatable {
         // Anmeldung). Sie ist der einzige Weg, dieses Gerät später als das
         // des Besitzers zu erkennen (siehe `DeveloperAccess.isOwnerDevice`),
         // und sie hängt nicht daran, ob ein Name dabei war.
+        let existingUserID = PersonalName.appleUserID
+        let resolvedEmail = AppleSignInIdentity.resolvedEmail(
+            credentialEmail: credential.email,
+            identityToken: credential.identityToken,
+            existingEmail: PersonalName.appleEmail,
+            existingUserID: existingUserID,
+            userID: credential.user,
+            audience: Bundle.main.bundleIdentifier ?? "com.aiity.haiity")
         PersonalName.appleUserID = credential.user
-        PersonalName.appleEmail = credential.email
+        PersonalName.appleEmail = resolvedEmail
         storedAppleEmail = PersonalName.appleEmail
         if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
             PersonalName.appleName = name

@@ -1,5 +1,61 @@
 import Foundation
 
+enum AppleSignInIdentity {
+    static func resolvedEmail(credentialEmail: String?,
+                              identityToken: Data?,
+                              existingEmail: String?,
+                              existingUserID: String?,
+                              userID: String,
+                              audience: String) -> String? {
+        if let email = normalized(credentialEmail) { return email }
+        if let email = verifiedTokenEmail(identityToken, userID: userID, audience: audience) {
+            return email
+        }
+        guard normalized(existingUserID) == normalized(userID) else { return nil }
+        return normalized(existingEmail)
+    }
+
+    private static func verifiedTokenEmail(_ token: Data?,
+                                           userID: String,
+                                           audience: String) -> String? {
+        guard let token,
+              let jwt = String(data: token, encoding: .utf8) else { return nil }
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              let payloadData = decodeBase64URL(String(parts[1])),
+              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              payload["iss"] as? String == "https://appleid.apple.com",
+              payload["sub"] as? String == userID,
+              audienceMatches(payload["aud"], expected: audience),
+              emailIsVerified(payload["email_verified"])
+        else { return nil }
+        return normalized(payload["email"] as? String)
+    }
+
+    private static func decodeBase64URL(_ value: String) -> Data? {
+        var base64 = value.replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        return Data(base64Encoded: base64)
+    }
+
+    private static func audienceMatches(_ claim: Any?, expected: String) -> Bool {
+        if let claim = claim as? String { return claim == expected }
+        return (claim as? [String])?.contains(expected) == true
+    }
+
+    private static func emailIsVerified(_ claim: Any?) -> Bool {
+        if let claim = claim as? Bool { return claim }
+        return (claim as? String)?.lowercased() == "true"
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+}
+
 /// Der Name für persönliche Mitteilungen — und NUR dafür.
 ///
 /// Zwei Quellen: ein frei eingetragener Alias (geht immer, kein Konto

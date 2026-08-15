@@ -256,6 +256,41 @@ final class FeedbackTests: XCTestCase {
         XCTAssertNil(PersonalName.appleEmail)
     }
 
+    func testRepeatAppleLoginRecoversTheVerifiedEmailFromTheIdentityToken() throws {
+        let token = try appleIdentityToken(
+            email: "XIANJIE.ZHAN@ICLOUD.COM",
+            subject: "owner-apple-user",
+            audience: "com.aiity.haiity")
+
+        XCTAssertEqual(AppleSignInIdentity.resolvedEmail(
+            credentialEmail: nil,
+            identityToken: token,
+            existingEmail: nil,
+            existingUserID: nil,
+            userID: "owner-apple-user",
+            audience: "com.aiity.haiity"),
+            "xianjie.zhan@icloud.com")
+    }
+
+    func testRepeatAppleLoginNeverErasesAnExistingVerifiedEmail() {
+        XCTAssertEqual(AppleSignInIdentity.resolvedEmail(
+            credentialEmail: nil,
+            identityToken: nil,
+            existingEmail: "xianjie.zhan@icloud.com",
+            existingUserID: "owner-apple-user",
+            userID: "owner-apple-user",
+            audience: "com.aiity.haiity"),
+            "xianjie.zhan@icloud.com")
+
+        XCTAssertNil(AppleSignInIdentity.resolvedEmail(
+            credentialEmail: nil,
+            identityToken: nil,
+            existingEmail: "xianjie.zhan@icloud.com",
+            existingUserID: "different-apple-user",
+            userID: "owner-apple-user",
+            audience: "com.aiity.haiity"))
+    }
+
     // MARK: – Quell-Verträge: die Geste
 
     /// **Die System-Geste, kein eigener Schwellwert.** iOS erkennt ein
@@ -457,7 +492,8 @@ final class FeedbackTests: XCTestCase {
         // Vornamen nur bei der allerersten Anmeldung, die Kennung aber jedes
         // Mal.
         XCTAssertTrue(more.contains("PersonalName.appleUserID = credential.user"))
-        XCTAssertTrue(more.contains("PersonalName.appleEmail = credential.email"))
+        XCTAssertTrue(more.contains("identityToken: credential.identityToken"))
+        XCTAssertTrue(more.contains("PersonalName.appleEmail = resolvedEmail"))
     }
 
     /// **Auf fremden Geräten bewegt sich die Tür nicht.** Kein Countdown,
@@ -675,6 +711,24 @@ final class FeedbackTests: XCTestCase {
             .appendingPathComponent("Haiity/Localizable.xcstrings"))
         let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         return try XCTUnwrap(json["strings"] as? [String: Any])
+    }
+
+    private func appleIdentityToken(email: String,
+                                    subject: String,
+                                    audience: String) throws -> Data {
+        let payload: [String: Any] = [
+            "iss": "https://appleid.apple.com",
+            "aud": audience,
+            "sub": subject,
+            "email": email,
+            "email_verified": true
+        ]
+        let json = try JSONSerialization.data(withJSONObject: payload)
+        let encoded = json.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return Data("header.\(encoded).signature".utf8)
     }
 
     /// Alle deutschen Schlüssel einer Quelldatei (Muster `DiagnosticsTests`).
