@@ -77,8 +77,10 @@ struct MoreView: View, Equatable {
     @State private var iconChangeFailed = false
     @State private var aliasDraft = ""
     @State private var storedAppleName: String?
+    @State private var storedAppleUserID: String?
     @State private var storedAppleEmail: String?
     @State private var appleSignInCameBackEmpty = false
+    @State private var appleIdentityCopied = false
     @Environment(\.colorScheme) private var colorScheme
     /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
     /// Vorschau sofort zeigt, dass frei gewählt und ehrlich gerundet wird.
@@ -443,6 +445,8 @@ struct MoreView: View, Equatable {
                       text: aliasBinding,
                       prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
                 .textInputAutocapitalization(.words)
+                .textContentType(.nickname)
+                .submitLabel(.done)
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("personal-alias")
             if let appleName = storedAppleName {
@@ -461,6 +465,7 @@ struct MoreView: View, Equatable {
                         PersonalName.appleUserID = nil
                         PersonalName.appleEmail = nil
                         storedAppleName = nil
+                        storedAppleUserID = nil
                         storedAppleEmail = nil
                     }
                     .font(.subheadline)
@@ -477,12 +482,26 @@ struct MoreView: View, Equatable {
                         .foregroundStyle(.orange)
                 }
             }
+            if let storedAppleUserID,
+               !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                                              storedAppleEmail: storedAppleEmail) {
+                Button {
+                    UIPasteboard.general.string = storedAppleUserID
+                    appleIdentityCopied = true
+                    Theme.Haptics.success()
+                } label: {
+                    Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
+                          systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
+                }
+                .accessibilityIdentifier("copy-unrecognized-apple-user-id")
+            }
         } header: {
             Text(String(localized: "Anrede"))
         }
         .onAppear {
             aliasDraft = PersonalName.alias ?? ""
             storedAppleName = PersonalName.appleName
+            storedAppleUserID = PersonalName.appleUserID
             storedAppleEmail = PersonalName.appleEmail
         }
     }
@@ -514,7 +533,7 @@ struct MoreView: View, Equatable {
             return
         }
         let formatter = PersonNameComponentsFormatter()
-        let name = credential.fullName?.givenName
+        let credentialName = credential.fullName?.givenName
             ?? credential.fullName.map { formatter.string(from: $0) }
         // Die undurchsichtige Kennung IMMER mitnehmen — auch wenn Apple
         // keinen Vornamen liefert (das tut es nur bei der allerersten
@@ -522,6 +541,11 @@ struct MoreView: View, Equatable {
         // des Besitzers zu erkennen (siehe `DeveloperAccess.isOwnerDevice`),
         // und sie hängt nicht daran, ob ein Name dabei war.
         let existingUserID = PersonalName.appleUserID
+        let resolvedName = AppleSignInIdentity.resolvedName(
+            credentialName: credentialName,
+            existingName: PersonalName.appleName,
+            existingUserID: existingUserID,
+            userID: credential.user)
         let resolvedEmail = AppleSignInIdentity.resolvedEmail(
             credentialEmail: credential.email,
             identityToken: credential.identityToken,
@@ -531,10 +555,15 @@ struct MoreView: View, Equatable {
             audience: Bundle.main.bundleIdentifier ?? "com.aiity.haiity")
         PersonalName.appleUserID = credential.user
         PersonalName.appleEmail = resolvedEmail
+        storedAppleUserID = PersonalName.appleUserID
         storedAppleEmail = PersonalName.appleEmail
-        if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
-            PersonalName.appleName = name
+        if let resolvedName {
+            PersonalName.appleName = resolvedName
             storedAppleName = PersonalName.appleName
+            if PersonalName.alias == nil {
+                PersonalName.alias = resolvedName
+                aliasDraft = resolvedName
+            }
             appleSignInCameBackEmpty = false
             Theme.Haptics.success()
         } else {

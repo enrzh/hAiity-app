@@ -1,6 +1,15 @@
 import Foundation
 
 enum AppleSignInIdentity {
+    static func resolvedName(credentialName: String?,
+                             existingName: String?,
+                             existingUserID: String?,
+                             userID: String) -> String? {
+        if let name = trimmed(credentialName) { return name }
+        guard trimmed(existingUserID) == trimmed(userID) else { return nil }
+        return trimmed(existingName)
+    }
+
     static func resolvedEmail(credentialEmail: String?,
                               identityToken: Data?,
                               existingEmail: String?,
@@ -50,7 +59,11 @@ enum AppleSignInIdentity {
     }
 
     private static func normalized(_ value: String?) -> String? {
-        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        trimmed(value)?.lowercased()
+    }
+
+    private static func trimmed(_ value: String?) -> String? {
+        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let value, !value.isEmpty else { return nil }
         return value
     }

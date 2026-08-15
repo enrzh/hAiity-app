@@ -291,6 +291,41 @@ final class FeedbackTests: XCTestCase {
             audience: "com.aiity.haiity"))
     }
 
+    func testRepeatAppleLoginPreservesTheNameOnlyForTheSameAppleAccount() {
+        XCTAssertEqual(AppleSignInIdentity.resolvedName(
+            credentialName: nil,
+            existingName: " Enrico ",
+            existingUserID: "owner-apple-user",
+            userID: "owner-apple-user"),
+            "Enrico")
+
+        XCTAssertNil(AppleSignInIdentity.resolvedName(
+            credentialName: nil,
+            existingName: "Enrico",
+            existingUserID: "different-apple-user",
+            userID: "owner-apple-user"))
+    }
+
+    func testAppleSignInPrefillsTheEditableAliasFromANewAppleName() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("let resolvedName = AppleSignInIdentity.resolvedName("))
+        XCTAssertTrue(more.contains("if PersonalName.alias == nil"))
+        XCTAssertTrue(more.contains("PersonalName.alias = resolvedName"))
+        XCTAssertTrue(more.contains("aliasDraft = resolvedName"))
+        XCTAssertTrue(more.contains("text: aliasBinding"))
+        XCTAssertTrue(more.contains("PersonalName.alias = value"))
+    }
+
+    func testUnrecognizedAppleAccountCanCopyItsStableIdentifierFromTheAccountSection() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("storedAppleUserID = PersonalName.appleUserID"))
+        XCTAssertTrue(more.contains("!DeveloperAccess.isOwnerDevice("))
+        XCTAssertTrue(more.contains("UIPasteboard.general.string = storedAppleUserID"))
+        XCTAssertTrue(more.contains("accessibilityIdentifier(\"copy-unrecognized-apple-user-id\")"))
+    }
+
     // MARK: – Quell-Verträge: die Geste
 
     /// **Die System-Geste, kein eigener Schwellwert.** iOS erkennt ein
