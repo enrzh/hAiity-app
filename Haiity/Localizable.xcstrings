@@ -31332,6 +31332,26 @@
         }
       }
     },
+    "Im Kalender": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "في التقويم" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "ক্যালেন্ডারে" } },
+        "en": { "stringUnit": { "state": "translated", "value": "In Calendar" } },
+        "es": { "stringUnit": { "state": "translated", "value": "En el calendario" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Dans le calendrier" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "कैलेंडर में" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Di Kalender" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Nel calendario" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "カレンダーに表示" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "캘린더에 표시" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "No calendário" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "В календаре" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Takvimde" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "کیلنڈر میں" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Trong Lịch" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示在日历中" } }
+      }
+    },
     "Kalender": {
       "localizations": {
         "ar": {

@@ -45,6 +45,7 @@ struct EditHabitSheet: View {
     @State private var name = ""
     @State private var emoji = ""
     @State private var itemType: HabitItemType = .habit
+    @State private var calendarSyncEnabled = true
     @State private var paywall: PaywallContext?
 
     /// Die ganze Regel als EIN Wert.
@@ -220,6 +221,8 @@ struct EditHabitSheet: View {
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
             }
+            Toggle(String(localized: "Im Kalender"), isOn: $calendarSyncEnabled)
+                .accessibilityIdentifier("habit-calendar-toggle")
         } header: {
             Text(String(localized: "Zeitraum"))
         } footer: {
@@ -559,6 +562,7 @@ struct EditHabitSheet: View {
         name = habit.name
         emoji = habit.emoji
         itemType = habit.itemType
+        calendarSyncEnabled = habit.calendarSyncEnabled
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
         draft = RecurrenceDraft(habit.recurrence,
@@ -592,6 +596,7 @@ struct EditHabitSheet: View {
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
+        habit.calendarSyncEnabled = calendarSyncEnabled
         let notificationTime = draft.timeMinutes(calendar: calendar)
         habit.timeMinutes = notificationTime
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil

@@ -42,6 +42,17 @@ final class CalendarSyncSelectionTests: XCTestCase {
         }
     }
 
+    func testIndividualOptOutOverridesEnabledType() {
+        var habit = Habit(name: "Lesen")
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        habit.calendarSyncEnabled = false
+        reminder.calendarSyncEnabled = false
+
+        let selection = CalendarSyncSelection(habits: true, reminders: true)
+        XCTAssertFalse(selection.includes(habit))
+        XCTAssertFalse(selection.includes(reminder))
+    }
+
     func testNewKeysOverrideLegacyPreference() {
         defaults.set(true, forKey: CalendarSyncPreferences.legacyEnabledKey)
         defaults.set(false, forKey: CalendarSyncPreferences.habitsEnabledKey)
@@ -79,6 +90,11 @@ final class CalendarSyncSelectionTests: XCTestCase {
 final class CalendarEventPlanTests: XCTestCase {
     /// So, 09.08.2026 als „heute" — dieselbe Fixture-Wochenlage wie überall.
     private let today = "2026-08-09"
+
+    func testNewItemsAreIncludedInCalendarByDefault() {
+        XCTAssertTrue(Habit(name: "Lesen").calendarSyncEnabled)
+        XCTAssertTrue(Habit(name: "Tabletten", itemType: .reminder).calendarSyncEnabled)
+    }
 
     func testDailyHabitWithTimeBecomesTimedDailyEvent() {
         let habit = Habit(name: "Lesen", emoji: "📚", timeMinutes: 19 * 60,

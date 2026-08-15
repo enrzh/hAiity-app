@@ -6,7 +6,7 @@ struct CalendarSyncSelection: Equatable {
     var reminders: Bool
 
     func includes(_ item: Habit) -> Bool {
-        item.isReminder ? reminders : habits
+        item.calendarSyncEnabled && (item.isReminder ? reminders : habits)
     }
 }
 

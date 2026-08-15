@@ -139,6 +139,19 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(store.habits[0].name, "Neu")
     }
 
+    func testMergeRemoteNewerWinsCalendarPreference() {
+        let habit = Habit(name: "Lesen")
+        store.add(habit)
+        var remoteHabit = habit
+        remoteHabit.calendarSyncEnabled = false
+        let remote = HabitData(version: 2, updatedAt: Date().timeIntervalSince1970 + 999,
+                               summaryMinutes: nil, habits: [remoteHabit])
+
+        store.merge(remote: remote)
+
+        XCTAssertFalse(store.habits[0].calendarSyncEnabled)
+    }
+
     func testMergeTieKeepsLocalRename() {
         let h = Habit(name: "Lokal")
         store.add(h)

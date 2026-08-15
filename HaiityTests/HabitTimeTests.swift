@@ -39,6 +39,18 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertNil(habit.timeMinutes)
     }
 
+    func testLegacyHabitDefaultsToCalendarSyncAndOptOutRoundTrips() throws {
+        let legacy = """
+        {"id":"\(UUID().uuidString)","name":"Lesen","emoji":"","createdAt":"2026-01-01","log":{}}
+        """.data(using: .utf8)!
+        XCTAssertTrue(try JSONDecoder().decode(Habit.self, from: legacy).calendarSyncEnabled)
+
+        var habit = Habit(name: "Privat")
+        habit.calendarSyncEnabled = false
+        let back = try JSONDecoder().decode(Habit.self, from: JSONEncoder().encode(habit))
+        XCTAssertFalse(back.calendarSyncEnabled)
+    }
+
     func testGarbageTimesAreDropped() throws {
         XCTAssertNil(Habit(name: "X", timeMinutes: 1500).timeMinutes)
         XCTAssertNil(Habit(name: "X", timeMinutes: -5).timeMinutes)

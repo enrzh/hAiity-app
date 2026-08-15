@@ -54,6 +54,15 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertTrue(source.contains("habit.itemType = itemType"))
     }
 
+    func testEditorOffersAndPersistsCalendarOptOut() throws {
+        let source = try editorSource()
+
+        XCTAssertTrue(source.contains("Toggle(String(localized: \"Im Kalender\"), isOn: $calendarSyncEnabled)"))
+        XCTAssertTrue(source.contains(".accessibilityIdentifier(\"habit-calendar-toggle\")"))
+        XCTAssertTrue(source.contains("calendarSyncEnabled = habit.calendarSyncEnabled"))
+        XCTAssertTrue(source.contains("habit.calendarSyncEnabled = calendarSyncEnabled"))
+    }
+
     func testEditorKeepsTheSharedHabitSettings() throws {
         let source = try editorSource()
 

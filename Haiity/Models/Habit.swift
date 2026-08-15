@@ -48,6 +48,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Gemeinsame Termin- und Erinnerungszeit in Minuten seit Mitternacht;
     /// nil = ohne Uhrzeit und ohne habit-spezifische Erinnerung.
     var timeMinutes: Int?
+    /// Individuelle Teilnahme am Kalender-Spiegel. Der Standard ist an,
+    /// damit bestehende Habits und Erinnerungen ihr Verhalten behalten.
+    var calendarSyncEnabled: Bool
     var log: [String: Int]
     /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer
     /// („limitless" — eine Session zählt dann nur hoch). Rein additiv und
@@ -114,6 +117,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
+        self.calendarSyncEnabled = true
         self.log = [:]
         self.durationMinutes = Habit.sanitizedDuration(durationMinutes)
         self.minutes = [:]
@@ -149,7 +153,7 @@ extension Habit {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes, log, archivedAt, goal, palette, swipeActions
+        case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes, calendarSyncEnabled, log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -191,6 +195,7 @@ extension Habit {
         // Fehlt der Schlüssel (jede Datei vor der Habit-Uhrzeit) oder steht
         // dort Unsinn: keine Uhrzeit statt eines Fehlers.
         timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
+        calendarSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarSyncEnabled) ?? true
         // Müllabfuhr an der Grenze: was formal kein Tag ist oder keinen
         // positiven Zähler hat, kommt gar nicht erst in den Speicher.
         // Bewusst NUR strukturell — ein Schlüssel von morgen (Gerät in einer
@@ -231,6 +236,7 @@ extension Habit {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
+        if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }
         try c.encode(log, forKey: .log)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         // Der Standard bleibt implizit — Dateien sehen für einfache Habits
