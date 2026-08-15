@@ -130,10 +130,10 @@ final class CelebrationTests: XCTestCase {
     func testSignInAsksForNameAndOwnerEmail() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(more.contains("request.requestedScopes = [.fullName, .email]"))
-        XCTAssertTrue(more.contains("if storedAppleEmail == nil"),
-                      "existing name-only sign-ins must be offered owner verification")
+        XCTAssertTrue(more.contains("if let storedAppleUserID"),
+                      "the stable Apple ID, not an optional name, defines signed-in state")
         XCTAssertTrue(more.contains("storedAppleEmail = PersonalName.appleEmail"))
-        for id in ["\"personal-alias\"", "\"apple-signin\"", "\"apple-name-remove\""] {
+        for id in ["\"personal-alias\"", "\"apple-signin\"", "\"apple-signout\""] {
             XCTAssertTrue(more.contains(id), id)
         }
         let entitlements = try source("Haiity/Haiity.entitlements")

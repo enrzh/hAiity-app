@@ -1,6 +1,17 @@
 import Foundation
 
 enum AppleSignInIdentity {
+    static func suggestedAlias(resolvedName: String?, email: String?) -> String? {
+        if let name = trimmed(resolvedName) { return name }
+        guard let email = normalized(email),
+              !email.hasSuffix("@privaterelay.appleid.com"),
+              let localPart = email.split(separator: "@", maxSplits: 1).first
+        else { return nil }
+        let words = localPart.split(whereSeparator: { $0 == "." || $0 == "_" || $0 == "-" })
+        guard !words.isEmpty else { return nil }
+        return words.map { String($0).capitalized }.joined(separator: " ")
+    }
+
     static func resolvedName(credentialName: String?,
                              existingName: String?,
                              existingUserID: String?,

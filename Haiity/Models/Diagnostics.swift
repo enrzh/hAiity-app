@@ -99,9 +99,9 @@ enum DeveloperAccess {
 
     // MARK: – Wem die Tür gehört
 
-    /// Built-in owner identity. The opaque Apple user ID can replace the
-    /// email comparison later once it is known.
-    static let ownerAppleUserID: String? = nil
+    /// Built-in owner identity. The opaque ID is stable even when Apple
+    /// withholds the email on later sign-ins.
+    static let ownerAppleUserID: String? = "000366.5e70aaf77f174436b9c1ad437015d35a.1026"
     static let ownerAppleEmail = "xianjie.zhan@icloud.com"
 
     /// Ist der Entwicklerbereich auf DIESEM Gerät erreichbar?

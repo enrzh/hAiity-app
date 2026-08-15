@@ -449,30 +449,38 @@ struct MoreView: View, Equatable {
                 .submitLabel(.done)
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("personal-alias")
-            if let appleName = storedAppleName {
-                HStack {
-                    Label(String(format: String(localized: "Angemeldet als %@"), appleName),
+            if let storedAppleUserID {
+                if let displayName = PersonalName.resolve(alias: aliasDraft,
+                                                          appleName: storedAppleName) {
+                    Label(String(format: String(localized: "Angemeldet als %@"), displayName),
                           systemImage: "person.crop.circle.badge.checkmark")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    Button(String(localized: "Entfernen")) {
-                        PersonalName.appleName = nil
-                        // Die Kennung kam aus DEMSELBEN Anmeldevorgang und
-                        // geht mit ihm: „Entfernen" heißt abmelden, und was
-                        // dann noch läge, wäre ein Rest einer Anmeldung, die
-                        // der Nutzer gerade zurückgenommen hat.
-                        PersonalName.appleUserID = nil
-                        PersonalName.appleEmail = nil
-                        storedAppleName = nil
-                        storedAppleUserID = nil
-                        storedAppleEmail = nil
-                    }
-                    .font(.subheadline)
-                    .accessibilityIdentifier("apple-name-remove")
                 }
-                if storedAppleEmail == nil {
-                    appleSignInButton
+                Button(role: .destructive) {
+                    signOutFromApple()
+                } label: {
+                    Label(String(localized: "Abmelden"),
+                          systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("apple-signout")
+                if appleSignInCameBackEmpty && PersonalName.effective == nil {
+                    Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                if !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                                                  storedAppleEmail: storedAppleEmail) {
+                    Button {
+                        UIPasteboard.general.string = storedAppleUserID
+                        appleIdentityCopied = true
+                        Theme.Haptics.success()
+                    } label: {
+                        Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
+                              systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
+                    }
+                    .accessibilityIdentifier("copy-unrecognized-apple-user-id")
                 }
             } else {
                 appleSignInButton
@@ -481,19 +489,6 @@ struct MoreView: View, Equatable {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-            }
-            if let storedAppleUserID,
-               !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
-                                              storedAppleEmail: storedAppleEmail) {
-                Button {
-                    UIPasteboard.general.string = storedAppleUserID
-                    appleIdentityCopied = true
-                    Theme.Haptics.success()
-                } label: {
-                    Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
-                          systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
-                }
-                .accessibilityIdentifier("copy-unrecognized-apple-user-id")
             }
         } header: {
             Text(String(localized: "Anrede"))
@@ -523,6 +518,17 @@ struct MoreView: View, Equatable {
                     aliasDraft = value
                     PersonalName.alias = value
                 })
+    }
+
+    private func signOutFromApple() {
+        PersonalName.appleName = nil
+        PersonalName.appleUserID = nil
+        PersonalName.appleEmail = nil
+        storedAppleName = nil
+        storedAppleUserID = nil
+        storedAppleEmail = nil
+        appleSignInCameBackEmpty = false
+        appleIdentityCopied = false
     }
 
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
@@ -557,18 +563,23 @@ struct MoreView: View, Equatable {
         PersonalName.appleEmail = resolvedEmail
         storedAppleUserID = PersonalName.appleUserID
         storedAppleEmail = PersonalName.appleEmail
+        let aliasEmail = resolvedEmail ?? (DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: credential.user,
+            storedAppleEmail: nil) ? DeveloperAccess.ownerAppleEmail : nil)
+        let suggestedAlias = AppleSignInIdentity.suggestedAlias(
+            resolvedName: resolvedName,
+            email: aliasEmail)
         if let resolvedName {
             PersonalName.appleName = resolvedName
             storedAppleName = PersonalName.appleName
-            if PersonalName.alias == nil {
-                PersonalName.alias = resolvedName
-                aliasDraft = resolvedName
-            }
-            appleSignInCameBackEmpty = false
-            Theme.Haptics.success()
-        } else {
-            appleSignInCameBackEmpty = true
         }
+        if PersonalName.alias == nil, let suggestedAlias {
+            PersonalName.alias = suggestedAlias
+            aliasDraft = suggestedAlias
+        }
+        appleSignInCameBackEmpty = PersonalName.effective == nil
+        Task { await Pro.refresh() }
+        Theme.Haptics.success()
     }
 
     private func calendarBinding(for type: HabitItemType) -> Binding<Bool> {

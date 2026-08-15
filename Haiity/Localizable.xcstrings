@@ -7358,6 +7358,26 @@
         }
       }
     },
+    "Abmelden": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تسجيل الخروج" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "সাইন আউট" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Sign Out" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Cerrar sesión" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Se déconnecter" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "साइन आउट" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Keluar" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Esci" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "サインアウト" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "로그아웃" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Terminar sessão" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Выйти" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Çıkış yap" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "سائن آؤٹ" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đăng xuất" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "退出登录" } }
+      }
+    },
     "Abends in einem Satz: was erledigt ist und was noch offen steht.": {
       "localizations": {
         "ar": {

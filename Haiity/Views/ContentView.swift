@@ -1614,22 +1614,22 @@ struct ContentView: View {
         if let toast = undo.current {
             HStack(spacing: Theme.Metrics.gap) {
                 Text(toast.message)
-                    .font(.subheadline)
+                    .font(.body)
                     .lineLimit(1)
                 Divider().frame(height: 16)
                 Button {
                     performUndo()
                 } label: {
                     Text(String(localized: "Rückgängig"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(Theme.accentText(store.paletteStyle))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("undo-action")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
             .modifier(GlassCapsule())
             .transition(reduceMotion
                         ? AnyTransition.opacity
@@ -1637,7 +1637,12 @@ struct ContentView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("undo-toast")
             .task(id: toast.id) {
-                try? await Task.sleep(for: .seconds(4))
+                #if DEBUG
+                let lifetime = ProcessInfo.processInfo.arguments.contains("-show-toast") ? 30 : 4
+                #else
+                let lifetime = 4
+                #endif
+                try? await Task.sleep(for: .seconds(lifetime))
                 guard !Task.isCancelled else { return }
                 withToastAnimation { undo.expire(toast.id) }
             }
@@ -1649,9 +1654,9 @@ struct ContentView: View {
     private var syncBadge: some View {
         if !syncStatus.isEmpty {
             Text(syncStatus)
-                .font(.caption2)
-                .padding(.horizontal, Theme.Metrics.cardPadding)
-                .padding(.vertical, Theme.Metrics.gap)
+                .font(.footnote)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 .modifier(GlassCapsule())
                 .foregroundStyle(.secondary)
                 .allowsHitTesting(false)
@@ -1866,6 +1871,17 @@ struct ContentView: View {
         }
         if let a = args.firstIndex(of: "-set-alias"), a + 1 < args.count {
             PersonalName.alias = args[a + 1]
+        }
+        if let a = args.firstIndex(of: "-apple-user-id"), a + 1 < args.count {
+            PersonalName.appleUserID = args[a + 1]
+        }
+        if args.contains("-show-toast") {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                withToastAnimation {
+                    undo.present(habitId: UUID(), entries: [], message: "Training erledigt")
+                }
+            }
         }
         // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
         // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand
@@ -2531,9 +2547,14 @@ private struct ChromeGlass: ViewModifier {
 /// die kleinste Menge, die das behebt, ohne aus Glas Milchglas zu machen
 /// (dieselbe Rechnung wie in `ChromeGlass`).
 private struct GlassCapsule: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            content.glassEffect(.regular.tint(Color(.systemBackground).opacity(0.5)), in: .capsule)
+            content.glassEffect(
+                .regular.tint(Color(.systemBackground)
+                    .opacity(colorScheme == .dark ? 0.82 : 0.5)),
+                in: .capsule)
         } else {
             content
                 .background(.ultraThinMaterial, in: Capsule())

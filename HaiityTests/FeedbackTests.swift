@@ -172,8 +172,16 @@ final class FeedbackTests: XCTestCase {
 
     // MARK: – Wem die Tür gehört: reine Logik
 
-    func testOnlyTheBuiltInOwnerEmailIdentifiesTheDeveloper() {
+    func testOnlyTheBuiltInOwnerIdentityIdentifiesTheDeveloper() {
+        XCTAssertEqual(DeveloperAccess.ownerAppleUserID,
+                       "000366.5e70aaf77f174436b9c1ad437015d35a.1026")
         XCTAssertEqual(DeveloperAccess.ownerAppleEmail, "xianjie.zhan@icloud.com")
+        XCTAssertTrue(DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: "000366.5e70aaf77f174436b9c1ad437015d35a.1026",
+            storedAppleEmail: nil))
+        XCTAssertFalse(DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: "000366.5e70aaf77f174436b9c1ad437015d35a.1027",
+            storedAppleEmail: nil))
         XCTAssertTrue(DeveloperAccess.isOwnerDevice(
             storedAppleUserID: nil, storedAppleEmail: " xianjie.zhan@icloud.com "))
         XCTAssertTrue(DeveloperAccess.isOwnerDevice(
@@ -192,6 +200,8 @@ final class FeedbackTests: XCTestCase {
     /// Zeichenfolge — an ihr ist nichts zu deuten, nur zu vergleichen.
     func testTheOwnerRuleNeverComparesLoosely() throws {
         let diagnostics = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(diagnostics.contains(
+            "static let ownerAppleUserID: String? = \"000366.5e70aaf77f174436b9c1ad437015d35a.1026\""))
         XCTAssertTrue(diagnostics.contains(
             "static let ownerAppleEmail = \"xianjie.zhan@icloud.com\""))
 
@@ -310,11 +320,51 @@ final class FeedbackTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
 
         XCTAssertTrue(more.contains("let resolvedName = AppleSignInIdentity.resolvedName("))
+        XCTAssertTrue(more.contains("let suggestedAlias = AppleSignInIdentity.suggestedAlias("))
         XCTAssertTrue(more.contains("if PersonalName.alias == nil"))
-        XCTAssertTrue(more.contains("PersonalName.alias = resolvedName"))
-        XCTAssertTrue(more.contains("aliasDraft = resolvedName"))
+        XCTAssertTrue(more.contains("PersonalName.alias = suggestedAlias"))
+        XCTAssertTrue(more.contains("aliasDraft = suggestedAlias"))
         XCTAssertTrue(more.contains("text: aliasBinding"))
         XCTAssertTrue(more.contains("PersonalName.alias = value"))
+    }
+
+    func testAppleSignInSuggestsAReadableAliasOnlyFromARealEmail() {
+        XCTAssertEqual(AppleSignInIdentity.suggestedAlias(
+            resolvedName: nil, email: "xianjie.zhan@icloud.com"),
+            "Xianjie Zhan")
+        XCTAssertEqual(AppleSignInIdentity.suggestedAlias(
+            resolvedName: " Xianjie ", email: "other@icloud.com"),
+            "Xianjie")
+        XCTAssertNil(AppleSignInIdentity.suggestedAlias(
+            resolvedName: nil, email: "random@privaterelay.appleid.com"))
+    }
+
+    func testAppleLoginStateOffersLogoutAndRefreshesStoreEntitlements() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("if let storedAppleUserID"))
+        XCTAssertTrue(more.contains("accessibilityIdentifier(\"apple-signout\")"))
+        XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
+    }
+
+    func testFloatingToastsUseLargerTypeAndStrongerDarkModeGlass() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.body)"))
+        XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
+        XCTAssertTrue(content.contains("@Environment(\\.colorScheme)"))
+        XCTAssertTrue(content.contains("colorScheme == .dark ? 0.82 : 0.5"))
+    }
+
+    func testSimulatorCanStageOwnerAndToastOnlyThroughDebugHooks() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let debugStart = try XCTUnwrap(content.range(of: "#if DEBUG\n    /// Nur Debug:"))
+        let debugEnd = try XCTUnwrap(content.range(of: "#endif", range: debugStart.upperBound..<content.endIndex))
+        let hooks = content[debugStart.lowerBound..<debugEnd.upperBound]
+
+        XCTAssertTrue(hooks.contains("-apple-user-id"))
+        XCTAssertTrue(hooks.contains("-show-toast"))
+        XCTAssertTrue(hooks.contains("undo.present("))
     }
 
     func testUnrecognizedAppleAccountCanCopyItsStableIdentifierFromTheAccountSection() throws {
