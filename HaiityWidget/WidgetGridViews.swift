@@ -85,6 +85,43 @@ struct TrailingGrid: View {
 
 // MARK: – Farbe vs. Deckkraft
 
+/// Homescreen-Raster dürfen kräftiger als die App-Karte auftreten: auf dem
+/// Foto sind Stufe 1 und 2 gegen den dunklen Widget-Hintergrund kaum sichtbar.
+/// Leer und Nein behalten ihre Bedeutung; nur echte Beiträge rücken in den
+/// leuchtenden Teil der Rampe. Sperrbildschirm-Widgets verwenden weiter
+/// `WidgetInk`.
+enum HomeWidgetInk {
+    static let lightBackgroundOpacity = 0.08
+    static let darkBackgroundOpacity = 0.16
+
+    static func mappedLevel(_ level: Int) -> Int {
+        if level == Habit.Answer.declinedLevel { return level }
+        guard level > 0 else { return 0 }
+        return min(4, level + 2)
+    }
+
+    static func level(_ level: Int, dark: Bool, palette: PaletteStyle) -> Color {
+        Theme.level(mappedLevel(level), dark: dark, palette: palette)
+    }
+}
+
+/// Ein sehr leiser Paletten-Ton statt einer neutral schwarzen Fläche. Die
+/// Deckkraft bleibt bewusst unter 20 %, damit Raster und Text den Kontrast
+/// bestimmen und System-Tints weiterhin sauber greifen.
+struct HomeWidgetBackground: View {
+    let palette: PaletteStyle
+    let dark: Bool
+
+    var body: some View {
+        ZStack {
+            Color(.systemBackground)
+            Theme.accent(palette)
+                .opacity(dark ? HomeWidgetInk.darkBackgroundOpacity
+                              : HomeWidgetInk.lightBackgroundOpacity)
+        }
+    }
+}
+
 /// Wie eine Rasterstufe zu einer Farbe wird.
 ///
 /// Auf dem Homescreen ist das die Palette. Auf dem SPERRBILDSCHIRM gibt es

@@ -34,7 +34,10 @@ struct HaiityWidgetView: View {
 
     var body: some View {
         content(family: family, dark: scheme == .dark)
-            .containerBackground(for: .widget) { Color(.systemBackground) }
+            .containerBackground(for: .widget) {
+                HomeWidgetBackground(palette: entry.palettes.style(for: entry.habit),
+                                     dark: scheme == .dark)
+            }
             .widgetURL(URL(string: "haiity://open"))
     }
 
@@ -183,7 +186,7 @@ struct HaiityWidgetView: View {
     private func grid(_ habit: Habit, dark: Bool) -> some View {
         let cellPalette = entry.palettes.style(for: habit)
         return TrailingGrid(habit: habit, today: today) { level in
-            Theme.level(level, dark: dark, palette: cellPalette)
+            HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
         }
     }
 }

@@ -94,7 +94,8 @@ say "Unit tests"
 # More hierarchy, notification opt-out, calendar gate, search and reminder UI = 1020.
 # Stable owner ID, login/restore state and visual toast hooks = 1029.
 # Per-item calendar opt-out coverage: +5 = 1034.
-MIN_TESTS=1034
+# Vibrant Home Screen widget policy: +2 = 1036.
+MIN_TESTS=1036
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

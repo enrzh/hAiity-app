@@ -418,6 +418,25 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertEqual(WidgetInk.opacity(99), WidgetInk.opacities[4])
     }
 
+    // MARK: – Homescreen mit kräftigerer Farbe
+
+    func testHomeWidgetLiftsCompletedLevelsWithoutChangingEmptyOrDeclinedCells() {
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(0), 0)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(1), 3)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(2), 4)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(3), 4)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(4), 4)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(Habit.Answer.declinedLevel),
+                       Habit.Answer.declinedLevel)
+    }
+
+    func testHomeWidgetBackgroundTintStaysSubtleAndIsStrongerInDarkMode() {
+        XCTAssertGreaterThan(HomeWidgetInk.darkBackgroundOpacity,
+                             HomeWidgetInk.lightBackgroundOpacity)
+        XCTAssertGreaterThan(HomeWidgetInk.lightBackgroundOpacity, 0)
+        XCTAssertLessThanOrEqual(HomeWidgetInk.darkBackgroundOpacity, 0.2)
+    }
+
     // MARK: – Der Eintrag
 
     func testEntryResolvesItsOwnHabit() {

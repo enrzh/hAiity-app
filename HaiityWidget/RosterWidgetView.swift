@@ -23,7 +23,9 @@ struct RosterWidgetView: View {
 
     var body: some View {
         content(family: family, dark: scheme == .dark)
-            .containerBackground(for: .widget) { Color(.systemBackground) }
+            .containerBackground(for: .widget) {
+                HomeWidgetBackground(palette: palette, dark: scheme == .dark)
+            }
             .widgetURL(URL(string: "haiity://open"))
     }
 
@@ -94,7 +96,7 @@ struct RosterWidgetView: View {
             }
             Spacer(minLength: 4)
             TrailingGrid(habit: habit, today: today, radius: 1) { level in
-                Theme.level(level, dark: dark, palette: cellPalette)
+                HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
             }
             .frame(width: large ? 116 : 88)
             .padding(.vertical, 2)

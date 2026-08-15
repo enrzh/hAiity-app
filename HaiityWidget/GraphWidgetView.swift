@@ -28,7 +28,10 @@ struct GraphWidgetView: View {
 
     var body: some View {
         content(family: family, dark: scheme == .dark)
-            .containerBackground(for: .widget) { Color(.systemBackground) }
+            .containerBackground(for: .widget) {
+                HomeWidgetBackground(palette: entry.palettes.style(for: entry.habit),
+                                     dark: scheme == .dark)
+            }
             .widgetURL(URL(string: "haiity://open"))
     }
 
@@ -37,7 +40,7 @@ struct GraphWidgetView: View {
     func content(family: WidgetFamily, dark: Bool) -> some View {
         let habit = entry.habit
         let cellPalette = entry.palettes.style(for: habit)
-        let level: (Int) -> Color = { Theme.level($0, dark: dark, palette: cellPalette) }
+        let level: (Int) -> Color = { HomeWidgetInk.level($0, dark: dark, palette: cellPalette) }
         // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
         // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
         // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
