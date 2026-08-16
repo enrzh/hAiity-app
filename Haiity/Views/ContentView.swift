@@ -559,7 +559,7 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var moreTabContent: some View {
         NavigationStack {
-            MoreView(store: store, cloudStatus: cloudStatus,
+            MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
                      onOpen: presentMoreSheet,
                      routeToken: routeToken)
@@ -586,7 +586,7 @@ struct ContentView: View {
 
     private var fallbackMoreContent: some View {
         NavigationStack {
-            MoreView(store: store, cloudStatus: cloudStatus,
+            MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
                      onOpen: presentMoreSheet,
                      routeToken: routeToken)
@@ -651,14 +651,14 @@ struct ContentView: View {
     private func moreDestination(_ route: MoreRoute) -> some View {
         switch route {
         case .archive: ArchiveView(store: store)
-        case .about: AboutView(github: github)
+        case .about: AboutView()
         case .github: GitHubSettingsView(store: github)
         case .appearance:
-            MoreView(store: store, cloudStatus: cloudStatus,
+            MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences, onOpen: presentMoreSheet,
                      routeToken: routeToken, screen: .appearance)
         case .habitBehavior:
-            MoreView(store: store, cloudStatus: cloudStatus,
+            MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences, onOpen: presentMoreSheet,
                      routeToken: routeToken, screen: .habitBehavior)
         // Check ownership at the destination too, not only at the row that

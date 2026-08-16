@@ -45,12 +45,13 @@ enum MoreScreen: Equatable {
 /// Vergleich. (Stammt aus der Tafel-Zeit, kostet nichts und bleibt.)
 struct MoreView: View, Equatable {
     static func == (a: MoreView, b: MoreView) -> Bool {
-        a.store === b.store && a.cloudStatus === b.cloudStatus
+        a.store === b.store && a.github === b.github && a.cloudStatus === b.cloudStatus
             && a.statsCards === b.statsCards && a.routeToken == b.routeToken
             && a.screen == b.screen
     }
 
     let store: HabitStore
+    let github: GitHubContributionStore
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
     /// die Zeile sagt, warum nicht.
     let cloudStatus: CloudSyncStatus
@@ -195,6 +196,7 @@ struct MoreView: View, Equatable {
         List {
             proSection
             personalSection
+            githubSection
             Section {
                 pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
                         symbol: "paintpalette", identifier: "open-appearance")
@@ -220,6 +222,34 @@ struct MoreView: View, Equatable {
             Section {
                 pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
                         symbol: "lock.shield", identifier: "open-about")
+            }
+        }
+    }
+
+    private var githubSection: some View {
+        Section {
+            HStack(spacing: Theme.Metrics.gap) {
+                Button { onOpen(.github) } label: {
+                    HStack(spacing: Theme.Metrics.gap) {
+                        Label(String(localized: "GitHub"),
+                              systemImage: "chevron.left.forwardslash.chevron.right")
+                        Spacer(minLength: 0)
+                        Text(github.snapshot?.username ?? String(localized: "Verbinden"))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("open-github-settings")
+
+                if github.snapshot != nil {
+                    Button(String(localized: "Abmelden"), role: .destructive) {
+                        github.disconnect()
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("disconnect-github")
+                }
             }
         }
     }
@@ -1236,7 +1266,6 @@ struct HabitExport: Transferable {
 /// Kurz und ehrlich: das Kein-Server-Prinzip — und ganz unten die
 /// Versionszeile, hinter der die versteckte Tür zum Entwicklerbereich sitzt.
 struct AboutView: View {
-    let github: GitHubContributionStore
     /// Bereits getätigte Tipps auf die Versionszeile. Bewusst NICHT
     /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
     /// überleben (siehe `DeveloperAccess`).
@@ -1255,17 +1284,6 @@ struct AboutView: View {
             Section(String(localized: "Datenschutz")) {
                 Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
                     .font(.subheadline)
-                NavigationLink(value: MoreRoute.github) {
-                    HStack {
-                        Text(verbatim: "GitHub")
-                        if let name = github.snapshot?.username {
-                            Spacer()
-                            Text(verbatim: name)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .accessibilityIdentifier("open-github-settings")
             }
             Section {
                 Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(

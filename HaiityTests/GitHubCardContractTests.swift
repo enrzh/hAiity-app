@@ -38,16 +38,18 @@ final class GitHubCardContractTests: XCTestCase {
             .profileURL?.absoluteString, "https://github.com/enrzh")
     }
 
-    func testSettingsLiveUnderAboutAndPreserveMoreOrder() throws {
+    func testSettingsLiveOnMainMoreAndPreserveTheExistingFlow() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let content = try source("Haiity/Views/ContentView.swift")
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
 
         XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, github"))
         XCTAssertTrue(more.contains("open-github-settings"))
-        XCTAssertTrue(more.contains("NavigationLink(value: MoreRoute.github)"))
+        XCTAssertTrue(more.contains("private var githubSection: some View"))
+        XCTAssertTrue(more.contains("disconnect-github"))
+        XCTAssertFalse(more.contains("NavigationLink(value: MoreRoute.github)"))
         XCTAssertTrue(content.contains("GitHubSettingsView(store: github)"))
-        XCTAssertTrue(content.contains("AboutView(github: github)"))
+        XCTAssertTrue(content.contains("AboutView()"))
         XCTAssertTrue(settings.contains("github-connect"))
         XCTAssertTrue(settings.contains("github-open-verification"))
         XCTAssertTrue(settings.contains("github-refresh"))

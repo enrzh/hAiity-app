@@ -320,6 +320,20 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains(".onMove(perform: search.isEmpty"))
     }
 
+    func testMainMorePageExposesGitHubConnectionAndLogout() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let aboutStart = try XCTUnwrap(more.range(of: "struct AboutView: View"))
+        let about = more[aboutStart.lowerBound...]
+
+        XCTAssertTrue(more.contains("let github: GitHubContributionStore"))
+        XCTAssertTrue(more.contains("private var githubSection: some View"))
+        XCTAssertTrue(more.contains("accessibilityIdentifier(\"open-github-settings\")"))
+        XCTAssertTrue(more.contains("accessibilityIdentifier(\"disconnect-github\")"))
+        XCTAssertGreaterThanOrEqual(content.components(separatedBy: "github: github").count - 1, 4)
+        XCTAssertFalse(about.contains("NavigationLink(value: MoreRoute.github)"))
+    }
+
     func testHabitToolbarKeepsManagementDestinationsReachable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-management\")"))
