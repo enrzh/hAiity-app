@@ -380,7 +380,7 @@ git commit -m "Show Done action while sorting habits"
 
 - [ ] **Step 1: Raise the intentional unit-test floor**
 
-Change `MIN_TESTS=1079` to `MIN_TESTS=1090`, matching the 11 new XCTest methods in this plan.
+Change `MIN_TESTS=1079` to `MIN_TESTS=1091`, matching the 12 new XCTest methods in this plan.
 
 - [ ] **Step 2: Run the complete release verification without upload**
 
@@ -388,7 +388,7 @@ Change `MIN_TESTS=1079` to `MIN_TESTS=1090`, matching the 11 new XCTest methods 
 tools/release.sh
 ```
 
-Expected: at least 1,090 tests, successful Release archive, export, entitlement checks, and no upload.
+Expected: at least 1,091 tests, successful Release archive, export, entitlement checks, and no upload.
 
 - [ ] **Step 3: Install and launch the Debug app in the newest iPhone simulator**
 
