@@ -27,6 +27,7 @@ actor FakeGitHubAuthorizer: GitHubDeviceAuthorizing {
 actor FakeGitHubContributions: GitHubContributionsFetching {
     var events: [String] = []
     var delayNanoseconds: UInt64 = 0
+    var ignoresCancellation = false
     var fetchCount = 0
     var lastToken: String?
     var result: Result<GitHubContributionSnapshot, Error>
@@ -40,7 +41,11 @@ actor FakeGitHubContributions: GitHubContributionsFetching {
         fetchCount += 1
         lastToken = token
         if delayNanoseconds > 0 {
-            try await Task.sleep(nanoseconds: delayNanoseconds)
+            if ignoresCancellation {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            } else {
+                try await Task.sleep(nanoseconds: delayNanoseconds)
+            }
         }
         return try result.get()
     }
@@ -216,6 +221,65 @@ final class GitHubContributionStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
+    @MainActor
+    func testDisconnectWinsAgainstCancellationInsensitiveRefresh() async throws {
+        try write(sample(fetchedAt: now.addingTimeInterval(-7200)))
+        let contributions = FakeGitHubContributions(result: .success(sample(username: "late", fetchedAt: now)))
+        await contributions.setCancellationInsensitiveDelay()
+        let vault = MemoryGitHubCredentialVault(token: "gho_live")
+        let store = GitHubContributionStore(vault: vault,
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: contributions,
+                                            cacheURL: cacheURL)
+
+        let refresh = Task { await store.refresh(now: now, forced: true) }
+        while await contributions.fetchCount == 0 { await Task.yield() }
+        store.disconnect()
+        await refresh.value
+
+        XCTAssertEqual(store.phase, .disconnected)
+        XCTAssertNil(store.snapshot)
+        XCTAssertNil(try vault.read())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
+    @MainActor
+    func testDisconnectFailureDoesNotReportSuccessOrHideTheCard() async throws {
+        try write(sample(fetchedAt: now))
+        let vault = MemoryGitHubCredentialVault(token: "gho_live")
+        let store = GitHubContributionStore(vault: vault,
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                            cacheURL: cacheURL)
+        await store.boot(now: now)
+        vault.failDeletes(with: GitHubCredentialError.keychain(errSecInteractionNotAllowed))
+
+        store.disconnect()
+
+        if case .failed = store.phase {
+        } else {
+            XCTFail("failed deletion must not be presented as disconnected")
+        }
+        XCTAssertNotNil(store.snapshot)
+        XCTAssertEqual(try vault.read(), "gho_live")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
+    @MainActor
+    func testBootRemovesOrphanedCacheWhenCredentialIsMissing() async throws {
+        try write(sample(fetchedAt: now))
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                            cacheURL: cacheURL)
+
+        await store.boot(now: now)
+
+        XCTAssertEqual(store.phase, .disconnected)
+        XCTAssertNil(store.snapshot)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
     func testDemoFixtureIsDeterministicAndDebugOnly() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -258,5 +322,10 @@ final class GitHubContributionStoreTests: XCTestCase {
 private extension FakeGitHubContributions {
     func setDelay() {
         delayNanoseconds = 80_000_000
+    }
+
+    func setCancellationInsensitiveDelay() {
+        delayNanoseconds = 80_000_000
+        ignoresCancellation = true
     }
 }

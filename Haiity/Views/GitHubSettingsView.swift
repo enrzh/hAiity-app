@@ -75,10 +75,17 @@ struct GitHubSettingsView: View {
         case .failed(let message):
             Text(message)
                 .foregroundStyle(.secondary)
-            Button(String(localized: "Erneut versuchen")) {
-                Task { await store.connect() }
+            if store.snapshot == nil {
+                Button(String(localized: "Erneut versuchen")) {
+                    Task { await store.connect() }
+                }
+                .accessibilityIdentifier("github-connect")
+            } else {
+                Button(String(localized: "Verbindung trennen"), role: .destructive) {
+                    store.disconnect()
+                }
+                .accessibilityIdentifier("github-disconnect")
             }
-            .accessibilityIdentifier("github-connect")
         }
     }
 

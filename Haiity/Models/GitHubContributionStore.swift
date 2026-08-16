@@ -20,6 +20,7 @@ final class GitHubContributionStore {
     private let contributions: any GitHubContributionsFetching
     private let cacheURL: URL
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshGeneration: UInt = 0
 
     static let refreshInterval: TimeInterval = 60 * 60
 
@@ -102,27 +103,42 @@ final class GitHubContributionStore {
             await refreshTask.value
             return
         }
-        let task = Task { await self.performRefresh(now: now, forced: forced) }
+        let generation = refreshGeneration
+        let task = Task {
+            await self.performRefresh(now: now, forced: forced, generation: generation)
+        }
         refreshTask = task
         await task.value
-        refreshTask = nil
+        if generation == refreshGeneration { refreshTask = nil }
     }
 
     func disconnect() {
+        refreshGeneration &+= 1
         refreshTask?.cancel()
         refreshTask = nil
-        try? vault.delete()
-        try? FileManager.default.removeItem(at: cacheURL)
+        do {
+            try vault.delete()
+            if FileManager.default.fileExists(atPath: cacheURL.path) {
+                try FileManager.default.removeItem(at: cacheURL)
+            }
+        } catch {
+            phase = .failed(Self.message(for: error))
+            return
+        }
         snapshot = nil
         deviceCode = nil
         phase = .disconnected
     }
 
-    private func performRefresh(now: Date, forced: Bool) async {
+    private func performRefresh(now: Date, forced: Bool, generation: UInt) async {
         let token: String
         do {
             guard let stored = try vault.read(), !stored.isEmpty else {
-                if snapshot == nil { phase = .disconnected }
+                if FileManager.default.fileExists(atPath: cacheURL.path) {
+                    try? FileManager.default.removeItem(at: cacheURL)
+                }
+                snapshot = nil
+                phase = .disconnected
                 return
             }
             token = stored
@@ -138,14 +154,18 @@ final class GitHubContributionStore {
 
         do {
             let snap = try await contributions.fetch(token: token, now: now)
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
             persist(snap)
             snapshot = snap
             phase = .connected
         } catch let error as GitHubContributionsError where error == .unauthorized {
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
             disconnect()
         } catch is CancellationError {
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
             if snapshot != nil { phase = .connected }
         } catch {
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
             if snapshot != nil {
                 phase = .connected
             } else {

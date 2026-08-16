@@ -95,8 +95,8 @@ say "Unit tests"
 # Stable owner ID, login/restore state and visual toast hooks = 1029.
 # Per-item calendar opt-out coverage: +5 = 1034.
 # Vibrant Home Screen widget policy: +2 = 1036.
-# GitHub contribution card: +39 = 1075.
-MIN_TESTS=1075
+# GitHub contribution card: +43 = 1079.
+MIN_TESTS=1079
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
@@ -183,6 +183,13 @@ ok "archive at $ARCHIVE"
 # --- 5. the checks that caught real bugs ------------------------------------
 say "Verifying the built bundles"
 plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Info.plist" 2>/dev/null || echo ""; }
+
+BUILT_CLIENT_ID=$(plist "$APP" GitHubClientID)
+[[ -n "$BUILT_CLIENT_ID" && "$BUILT_CLIENT_ID" != "REPLACE_ME_CLIENT_ID" ]] \
+  || fail "GitHubClientID is missing or unresolved in the archived app bundle."
+[[ "$BUILT_CLIENT_ID" == "$CLIENT_ID" ]] \
+  || fail "GitHubClientID differs between project.yml and the archived app bundle."
+ok "GitHub client ID resolved in archived app"
 
 # 5a. versions must match EXACTLY, or ingestion returns ITMS-90473.
 # XcodeGen writes its own defaults (1.0/1) into any plist that does not declare

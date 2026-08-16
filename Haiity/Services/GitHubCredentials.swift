@@ -48,15 +48,21 @@ struct KeychainGitHubCredentialVault: GitHubCredentialVault, Sendable {
     }
 
     func save(_ token: String) throws {
-        try delete()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData as String: Data(token.utf8)
         ]
-        let status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            attributes.forEach { item[$0.key] = $0.value }
+            status = SecItemAdd(item as CFDictionary, nil)
+        }
         guard status == errSecSuccess else { throw GitHubCredentialError.keychain(status) }
     }
 
