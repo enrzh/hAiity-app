@@ -34,6 +34,7 @@ private enum CreateAccessibility {
 /// Ecke, mit dem gerechneten Zusammenziehen beim Scrollen.
 struct ContentView: View {
     @State private var store = HabitStore()
+    @State private var github = GitHubContributionStore()
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
     @State private var cloud = CloudSync()
@@ -255,6 +256,7 @@ struct ContentView: View {
                 searchPresentationArmed = true
                 becameActiveAt = .now
                 await boot()
+                await github.boot()
                 #if DEBUG
                 handleLaunchScreenArgument()
                 if FrameProbe.enabled { FrameProbe.shared.start() }
@@ -273,6 +275,7 @@ struct ContentView: View {
                     cloudStatus.refresh()
                     Task { await rescheduleReminders() }
                     Task { await syncNow(announce: false) }
+                    Task { await github.refresh() }
                 }
             }
             .onChange(of: search) { _, query in
@@ -624,7 +627,8 @@ struct ContentView: View {
     private func moreDestination(_ route: MoreRoute) -> some View {
         switch route {
         case .archive: ArchiveView(store: store)
-        case .about: AboutView()
+        case .about: AboutView(github: github)
+        case .github: GitHubSettingsView(store: github)
         case .appearance:
             MoreView(store: store, cloudStatus: cloudStatus,
                      statsCards: viewPreferences, onOpen: presentMoreSheet,
@@ -827,7 +831,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var habitsScreen: some View {
-        if store.activeHabits.isEmpty {
+        if store.activeHabits.isEmpty && github.snapshot == nil {
             emptyState
                 .navigationTitle("Habits")
                 .legacySearchDrawer(text: $search,
@@ -905,10 +909,24 @@ struct ContentView: View {
 
     private var habitList: some View {
         List {
-            if habitsTabSource.isEmpty {
-                ContentUnavailableView.search(text: search)
+            if let snapshot = github.snapshot {
+                GitHubContributionCard(snapshot: snapshot,
+                                       collapsed: collapsed,
+                                       openProfile: { GitHubLink.open(snapshot.profileURL) })
+                    .equatable()
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0,
+                                              leading: Theme.Metrics.gutter,
+                                              bottom: 0,
+                                              trailing: Theme.Metrics.gutter))
+            }
+            if habitsTabSource.isEmpty {
+                if github.snapshot == nil || !search.isEmpty {
+                    ContentUnavailableView.search(text: search)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
             } else {
                 ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
                     // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
@@ -1840,7 +1858,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior: nil
+        case .about, .developer, .appearance, .habitBehavior, .github: nil
         }
     }
 

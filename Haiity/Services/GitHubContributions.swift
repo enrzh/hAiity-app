@@ -12,10 +12,11 @@ struct GitHubContributionSnapshot: Codable, Equatable, Sendable {
     let days: [GitHubContributionDay]
     let fetchedAt: Date
     var profileURL: URL? {
+        let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? username
         var parts = URLComponents()
         parts.scheme = "https"
         parts.host = "github.com"
-        parts.path = "/\(username)"
+        parts.percentEncodedPath = "/\(encoded)"
         return parts.url
     }
 }

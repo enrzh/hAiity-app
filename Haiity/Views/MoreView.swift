@@ -14,7 +14,7 @@ import AuthenticationServices
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior
+    case archive, about, developer, appearance, habitBehavior, github
 
     var id: Self { self }
 }
@@ -1236,6 +1236,7 @@ struct HabitExport: Transferable {
 /// Kurz und ehrlich: das Kein-Server-Prinzip — und ganz unten die
 /// Versionszeile, hinter der die versteckte Tür zum Entwicklerbereich sitzt.
 struct AboutView: View {
+    let github: GitHubContributionStore
     /// Bereits getätigte Tipps auf die Versionszeile. Bewusst NICHT
     /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
     /// überleben (siehe `DeveloperAccess`).
@@ -1254,6 +1255,17 @@ struct AboutView: View {
             Section(String(localized: "Datenschutz")) {
                 Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
                     .font(.subheadline)
+                NavigationLink(value: MoreRoute.github) {
+                    HStack {
+                        Text(verbatim: "GitHub")
+                        if let name = github.snapshot?.username {
+                            Spacer()
+                            Text(verbatim: name)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("open-github-settings")
             }
             Section {
                 Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(

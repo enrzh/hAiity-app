@@ -445,7 +445,12 @@ final class ProGateTests: XCTestCase {
     /// Repository-Mutation und den frueheren proprietaeren Datenspeicher.
     func testGitHubIntegrationIsReadOnly() throws {
         let allGitHubSources = try [
-            source("Haiity/Services/GitHubContributions.swift")
+            source("Haiity/Services/GitHubContributions.swift"),
+            source("Haiity/Services/GitHubCredentials.swift"),
+            source("Haiity/Services/GitHubDeviceFlow.swift"),
+            source("Haiity/Models/GitHubContributionStore.swift"),
+            source("Haiity/Views/GitHubContributionCard.swift"),
+            source("Haiity/Views/GitHubSettingsView.swift")
         ].joined(separator: "\n")
         let forbidden = ["scope=repo", "\"scope\": \"repo\"", "createRepository",
                          "deleteRepository", "git/refs", "contents_url", "haiity-data"]
