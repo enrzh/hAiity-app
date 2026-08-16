@@ -910,13 +910,23 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button { requestCreate() } label: {
-                Image(systemName: "plus")
+            if editMode == .active {
+                Button {
+                    withAnimation { editMode = .inactive }
+                } label: {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel(String(localized: "Fertig"))
+                .accessibilityIdentifier("finish-reordering")
+            } else {
+                Button { requestCreate() } label: {
+                    Image(systemName: "plus")
+                }
+                .modifier(MoreZoomSource(id: Self.createZoomID,
+                                         namespace: createZoomNamespace))
+                .accessibilityLabel(CreateAccessibility.label)
+                .accessibilityIdentifier(CreateAccessibility.identifier)
             }
-            .modifier(MoreZoomSource(id: Self.createZoomID,
-                                     namespace: createZoomNamespace))
-            .accessibilityLabel(CreateAccessibility.label)
-            .accessibilityIdentifier(CreateAccessibility.identifier)
         }
     }
 

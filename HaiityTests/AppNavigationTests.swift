@@ -320,6 +320,19 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains(".onMove(perform: search.isEmpty"))
     }
 
+    func testSortingReplacesCreateWithATrailingDoneCheckmark() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let toolbar = try XCTUnwrap(source.range(of: "private var createToolbarItem"))
+        let list = try XCTUnwrap(source.range(of: "private var habitsTabSource"))
+        let branch = source[toolbar.lowerBound..<list.lowerBound]
+
+        XCTAssertTrue(branch.contains("if editMode == .active"))
+        XCTAssertTrue(branch.contains("Image(systemName: \"checkmark\")"))
+        XCTAssertTrue(branch.contains("editMode = .inactive"))
+        XCTAssertTrue(branch.contains("accessibilityIdentifier(\"finish-reordering\")"))
+        XCTAssertEqual(branch.components(separatedBy: "requestCreate()").count - 1, 1)
+    }
+
     func testMainMorePageExposesGitHubConnectionAndLogout() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
