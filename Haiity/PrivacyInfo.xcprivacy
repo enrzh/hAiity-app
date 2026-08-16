@@ -3,10 +3,12 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  hAiity sammelt nichts und trackt nicht. Alle Daten liegen in der
+	  hAiity sammelt nichts und trackt nicht. Habit-Daten liegen in der
 	  App-Group-Datei data.json auf dem Gerät; der iCloud-Spiegel schreibt
 	  ausschliesslich in die PRIVATE CloudKit-Datenbank der Apple-ID des
-	  Nutzers, nicht an uns.
+	  Nutzers, nicht an uns. Die optionale GitHub-Verbindung spricht
+	  github.com und api.github.com direkt an; Token und Cache bleiben auf
+	  diesem Gerät. Es gibt kein GitHub-SDK.
 
 	  Diese Datei landet in BEIDEN Bundles (App und Widget-Extension) —
 	  Apple prueft jedes Bundle einzeln (ITMS-91053).

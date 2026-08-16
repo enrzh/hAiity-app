@@ -110,14 +110,14 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
 
   <div class="wrap doc">
     <h1>Datenschutzerklärung</h1>
-    <p class="meta">Für die iOS-App <b>hAiity</b> und diese Seite · Stand: 14. August 2026</p>
+    <p class="meta">Für die iOS-App <b>hAiity</b> und diese Seite · Stand: 16. August 2026</p>
 
     <div class="tldr">
       <b>Kurz gesagt:</b> hAiity hat keinen eigenen Server und kein Konto. Deine Habits
       liegen auf deinem Gerät und — wenn du bei iCloud angemeldet bist — in deiner
       eigenen privaten iCloud-Datenbank. Wir erheben nichts, wir sehen nichts, wir
       tracken nicht. Es gibt keine Analyse-SDKs und keine Werbung. Bei uns kommt nur
-      an, was du selbst abschickst — eine Fehlermeldung etwa (Abschnitt 9).
+      an, was du selbst abschickst — eine Fehlermeldung etwa (Abschnitt 10).
     </div>
 
     <h2>1. Verantwortlich und Kontakt</h2>
@@ -134,7 +134,7 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       Werbe-SDKs eingebaut, und es werden keine Daten an Dritte verkauft oder
       weitergegeben. Das Privacy-Manifest der App meldet entsprechend „kein Tracking,
       keine erhobenen Datenarten“. Den einen Weg zu uns öffnest du selbst: die
-      freiwillige Fehlermeldung in Abschnitt 9.</p>
+      freiwillige Fehlermeldung in Abschnitt 10.</p>
 
     <h2>3. Wo deine Daten liegen</h2>
     <p>Alles, was du in hAiity anlegst — Habits, Namen, Icons, Farben, Häkchen,
@@ -149,7 +149,18 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       lokalen Daten weg; den iCloud-Datensatz entfernst du über die iCloud-Verwaltung
       deines Geräts.</p>
 
-    <h2>4. Kalender (optional)</h2>
+    <h2>4. GitHub (optional)</h2>
+    <p>Du kannst unter „Mehr → Über &amp; Datenschutz → GitHub“ ein GitHub-Konto
+      verbinden. Die Verbindung ist freiwillig, nutzt GitHubs Device Flow und fordert
+      keinen Repository-Zugriff. hAiity spricht dabei direkt
+      <code>github.com</code> und <code>api.github.com</code> an — es gibt keinen
+      hAiity-Server dazwischen und kein GitHub-SDK. Der Zugangstoken bleibt im
+      Schlüsselbund <b>dieses Geräts</b> und wird weder exportiert noch über iCloud
+      gespiegelt. Der Beitragskalender wird nur lokal zwischengespeichert. Trennst du
+      die Verbindung, löscht die App Token und Cache. GitHub sieht dabei das, was eine
+      solche Anmeldung bei GitHub ohnehin sieht; wir sehen davon nichts.</p>
+
+    <h2>5. Kalender (optional)</h2>
     <p>Erst wenn du den Kalender-Spiegel einschaltest, fragt iOS nach dem Zugriff auf
       deine Kalender. hAiity legt dann einen <b>eigenen hAiity-Kalender</b> an und
       schreibt dort ausschließlich die Termine deiner eigenen Habits hinein. Deine
@@ -157,13 +168,13 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       Kalenderdaten an uns oder an Dritte übertragen. Du kannst die Erlaubnis in den
       iOS-Einstellungen jederzeit widerrufen.</p>
 
-    <h2>5. Mitteilungen (lokal)</h2>
+    <h2>6. Mitteilungen (lokal)</h2>
     <p>Erinnerungen und die Abendzusammenfassung plant dein Gerät selbst als lokale
       Mitteilungen. Es gibt keinen Push-Dienst und keine Geräte-Token bei uns. Nach der
       Erlaubnis gefragt wirst du nur in dem Moment, in dem du eine Erinnerung
       einschaltest — nie beim Start.</p>
 
-    <h2>6. Anmelden mit Apple (optional, nur der Vorname)</h2>
+    <h2>7. Anmelden mit Apple (optional, nur der Vorname)</h2>
     <p>Du kannst dich mit Apple anmelden, damit dich die App beim Namen nennt. Angefragt
       wird dabei <b>nur der Name</b>, keine E-Mail-Adresse. Der Vorname bleibt auf dem
       Gerät und wird nirgendwohin übertragen; ein Konto entsteht dadurch nicht. Ein
@@ -177,18 +188,18 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       des Entwicklers ist, auf dem der versteckte Diagnosebereich der App aufgeht.
       Entfernst du den Namen, wird sie mit gelöscht.</p>
 
-    <h2>7. Siri und Kurzbefehle</h2>
+    <h2>8. Siri und Kurzbefehle</h2>
     <p>Die Kurzbefehle von hAiity laufen auf dem Gerät und arbeiten mit derselben
       lokalen Datei. Sprichst du mit Siri, verarbeitet Apple die Spracheingabe nach
       seinen eigenen Bestimmungen — an uns geht davon nichts.</p>
 
-    <h2>8. Kauf von hAiity Pro</h2>
+    <h2>9. Kauf von hAiity Pro</h2>
     <p>Der Kauf läuft vollständig über den App Store. Apple wickelt die Zahlung ab; wir
       erhalten keine Zahlungsdaten, keine Adresse und keine Apple-ID. In der App wird
       nur ein Schalter „freigeschaltet“ lokal gespeichert. „Wiederherstellen“ fragt
       diesen Kauf erneut bei Apple ab.</p>
 
-    <h2>9. Export, Teilen und Fehler melden</h2>
+    <h2>10. Export, Teilen und Fehler melden</h2>
     <p>Der JSON-Export und die Teilen-Karte verlassen dein Gerät nur, wenn du sie selbst
       verschickst — und dann genau dorthin, wohin du sie schickst.</p>
     <p>Dasselbe gilt für die <b>Fehlermeldung</b>: Schüttelst du das iPhone, öffnet
@@ -207,14 +218,14 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       Willst du gar nicht gefragt werden: „Mehr“ → <b>Schütteln zum Melden</b>
       ausschalten (auch direkt im Formular möglich).</p>
 
-    <h2>10. Diese Website</h2>
+    <h2>11. Diese Website</h2>
     <p>Diese Seite ist statisch, setzt keine Cookies und lädt keine externen Schriften,
       Skripte oder Analysedienste. Beim Abruf verarbeitet der Server technisch
       notwendige Verbindungsdaten (IP-Adresse, Zeitpunkt, angeforderte Datei,
       User-Agent) zur Auslieferung und Absicherung; Rechtsgrundlage ist Art. 6 Abs. 1
       lit. f DSGVO. Diese Daten werden nicht zu Profilen zusammengeführt.</p>
 
-    <h2>11. Deine Rechte</h2>
+    <h2>12. Deine Rechte</h2>
     <p>Nach der DSGVO hast du Rechte auf Auskunft (Art. 15), Berichtigung (Art. 16),
       Löschung (Art. 17), Einschränkung (Art. 18), Datenübertragbarkeit (Art. 20) und
       Widerspruch (Art. 21) sowie ein Beschwerderecht bei einer Aufsichtsbehörde
@@ -222,10 +233,10 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       dir und können deshalb weder Auskunft geben noch etwas löschen — wir haben es
       schlicht nicht. Deine Daten liegen auf deinem Gerät und in deiner eigenen iCloud;
       beides kontrollierst du selbst. Die einzige Ausnahme ist eine Fehlermeldung, die
-      du uns selbst geschickt hast (Abschnitt 9): Sie liegt dann als E-Mail in unserem
+      du uns selbst geschickt hast (Abschnitt 10): Sie liegt dann als E-Mail in unserem
       Postfach. Schreib uns, und wir löschen sie.</p>
 
-    <h2>12. Änderungen</h2>
+    <h2>13. Änderungen</h2>
     <p>Ändert sich die Funktionsweise der App, wird diese Erklärung angepasst.
       Maßgeblich ist die hier veröffentlichte Fassung mit dem oben genannten Stand.</p>
 

@@ -270,6 +270,9 @@ com.aiity.haiity.pro is a NON-CONSUMABLE, ONE-TIME purchase (no subscription, no
 
 ANALYTICS
 None. No third-party SDKs, no tracking, no advertising identifiers. The privacy manifest declares NSPrivacyTracking=false and an empty NSPrivacyCollectedDataTypes in both the app and the widget extension.
+
+OPTIONAL GITHUB CONNECTION
+More → About & Privacy → GitHub can connect a GitHub account with Device Flow. The app requests no repository scope. Requests go directly from the device to github.com and api.github.com. The OAuth token stays in this-device Keychain; the contribution cache stays in Application Support. Disconnect deletes both. There is no GitHub SDK and no hAiity server in the path. A reviewer can skip this feature entirely; the rest of the app does not depend on it.
 ```
 
 ---
@@ -279,13 +282,39 @@ None. No third-party SDKs, no tracking, no advertising identifiers. The privacy 
 Einstiegsfrage **„Erfasst du oder erfassen deine Drittanbieter Daten aus
 dieser App?“** → **Nein**. Damit endet der Fragebogen mit **„Data Not
 Collected“** für alle Kategorien. Die Tabelle dokumentiert, warum das für
-jede Kategorie stimmt.
+jede Kategorie stimmt — einschließlich der optionalen GitHub-Verbindung.
+
+Audit gegen Apples aktuelle Definitionen (developer.apple.com/app-store/app-privacy-details,
+Stand 16. August 2026):
+
+- **Collect** heißt: Daten verlassen das Gerät so, dass **du und/oder deine
+  Drittanbieter-Partner** länger darauf zugreifen können als nötig, um die
+  Anfrage in Echtzeit zu bedienen.
+- **Third-party partners** sind ausdrücklich Analyse-Tools, Werbenetze,
+  Drittanbieter-SDKs oder andere externe Anbieter, **deren Code du in die App
+  gelegt hast**.
+- Es gibt kein GitHub-SDK und keinen GitHub-Code in der App. Die optionale
+  Verbindung ist ein direkter HTTPS-Device-Flow des Nutzers zu GitHub. Token
+  und Cache bleiben auf dem Gerät. hAiity empfängt die Daten nicht. GitHub ist
+  damit kein „third-party partner“ im Sinne dieser Definition.
+- Die Echtzeit-Antwort (Beitragskalender) wird nur lokal angezeigt und
+  zwischengespeichert. Das erfüllt nicht „access it for a period longer than
+  what is necessary to service the transmitted request in real time“ auf
+  unserer Seite.
+
+Deshalb bleibt die Einstiegsfrage **Nein**. Würde Apple direkte OAuth-APIs
+ohne SDK später als Partner-Erhebung werten, wären die ehrlichen Antworten
+dann optional und nutzerinitiiert: Identifiers — User ID (GitHub-Login) und
+User Content — Other User Content (Beitragskalender), jeweils Linked to User,
+App Functionality, not used for tracking. Heute verlangen die veröffentlichten
+Definitionen das nicht.
 
 Apples Definition zählt nur Daten, die die App vom Gerät **an einen Server
-sendet, auf den der Entwickler Zugriff hat**. hAiity sendet nichts: Es gibt
-keinen hAiity-Server. Der iCloud-Spiegel schreibt in die **private
-CloudKit-Datenbank des Nutzers**; Daten in der privaten Datenbank des Nutzers
-gelten nicht als vom Entwickler erfasst.
+sendet, auf den der Entwickler oder ein Partner mit eingebautem Code Zugriff
+hat**. hAiity sendet uns nichts: Es gibt keinen hAiity-Server. Der
+iCloud-Spiegel schreibt in die **private CloudKit-Datenbank des Nutzers**;
+Daten in der privaten Datenbank des Nutzers gelten nicht als vom Entwickler
+erfasst.
 
 | Kategorie | Antwort | Warum |
 | --- | --- | --- |
@@ -300,7 +329,7 @@ gelten nicht als vom Entwickler erfasst.
 | User Content — Fotos/Video, Audio, Kundendienst | **Not Collected** | Kein Zugriff auf Fotos, Mikrofon oder Kamera. Die Teilen-Karte rendert ein Bild lokal und übergibt es an den Teilen-Dialog des Systems. |
 | Browsing History | **Not Collected** | Kein Browser, kein WKWebView. |
 | Search History | **Not Collected** | Die Suche filtert nur die lokale Liste und wird nicht gespeichert. |
-| Identifiers — User ID, Device ID | **Not Collected** | Keine Konten, keine IDFA/IDFV-Nutzung, kein Analytics-SDK. Habit-UUIDs sind gerätelokal und identifizieren keine Person. |
+| Identifiers — User ID, Device ID | **Not Collected** | Keine hAiity-Konten, keine IDFA/IDFV-Nutzung, kein Analytics-SDK. Habit-UUIDs sind gerätelokal. Der optionale GitHub-Login bleibt auf dem Gerät und geht nicht an uns (siehe Audit oben). |
 | Purchases — Kaufhistorie | **Not Collected** | Der Berechtigungsstatus kommt von StoreKit und wird nur lokal in den App-Group-Defaults zwischengespeichert (`proUnlocked`). Kein Quittungs-Server. |
 | Usage Data — Produktinteraktion, Werbedaten, sonstige | **Not Collected** | Keine Telemetrie. |
 | Diagnostics — Crash-, Performance-, sonstige Diagnosedaten | **Not Collected** | Kein Crash-SDK, keine automatische Übertragung. Schüttelt der Nutzer das Gerät, öffnet die App ein Formular: seine Beschreibung plus ein vollständig einsehbarer, aufklappbarer Diagnosetext (Version, Build, Gerätemodell, iOS, Zähler, Zustände — bauartbedingt ohne Habit-Namen, Emojis, Werte und Namen). Abgeschickt wird er vom Nutzer selbst über `MFMailComposeViewController` bzw. das System-Teilen-Blatt, jederzeit abschaltbar („Mehr → Schütteln zum Melden", Standard EIN). Das fällt unter Apples Ausnahme für **nutzerinitiierte Fehler- und Supportmeldungen**: optional, sichtbar, nicht mit einem Konto verknüpft, kein Tracking, keine Werbung. Was Apple selbst über die Systemeinstellungen sammelt, ist Apples Erhebung, nicht unsere. |

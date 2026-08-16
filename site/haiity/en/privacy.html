@@ -110,14 +110,14 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
 
   <div class="wrap doc">
     <h1>Privacy Policy</h1>
-    <p class="meta">For the iOS app <b>hAiity</b> and this site · Last updated: 14 August 2026</p>
+    <p class="meta">For the iOS app <b>hAiity</b> and this site · Last updated: 16 August 2026</p>
 
     <div class="tldr">
       <b>In short:</b> hAiity has no server of its own and no account. Your habits live on
       your device and — if you are signed into iCloud — in your own private iCloud
       database. We collect nothing, we see nothing, we do not track. There are no
       analytics SDKs and no ads. The only thing that ever reaches us is what you send
-      yourself — a problem report, for instance (section 9).
+      yourself — a problem report, for instance (section 10).
     </div>
 
     <h2>1. Who is responsible, and contact</h2>
@@ -133,7 +133,7 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       analytics or advertising SDKs are built in, and no data is sold or handed to third
       parties. The app's privacy manifest declares exactly that: no tracking, no
       collected data types. The one route to us is the one you open yourself: the
-      voluntary problem report in section 9.</p>
+      voluntary problem report in section 10.</p>
 
     <h2>3. Where your data lives</h2>
     <p>Everything you create in hAiity — habits, names, icons, colours, check-ins, notes
@@ -147,20 +147,30 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       data is gone; the iCloud record can be removed through your device's iCloud
       storage settings.</p>
 
-    <h2>4. Calendar (optional)</h2>
+    <h2>4. GitHub (optional)</h2>
+    <p>Under More → About &amp; Privacy → GitHub you can connect a GitHub account.
+      The connection is optional, uses GitHub’s Device Flow, and requests no
+      repository access. hAiity talks directly to <code>github.com</code> and
+      <code>api.github.com</code> — there is no hAiity server in between and no
+      GitHub SDK. The access token stays in the Keychain of <b>this device</b> and
+      is neither exported nor mirrored through iCloud. The contribution calendar is
+      cached only locally. Disconnecting deletes both the token and the cache.
+      GitHub sees what any such GitHub sign-in already sees; we see none of it.</p>
+
+    <h2>5. Calendar (optional)</h2>
     <p>Only when you switch on the calendar mirror does iOS ask for calendar access.
       hAiity then creates <b>a hAiity calendar of its own</b> and writes only your own
       habit events into it. Your other calendars are neither changed nor read for
       anything, and no calendar data is sent to us or to anyone else. You can revoke the
       permission in iOS Settings at any time.</p>
 
-    <h2>5. Notifications (local)</h2>
+    <h2>6. Notifications (local)</h2>
     <p>Reminders and the evening summary are scheduled by your device as local
       notifications. There is no push service and no device token on our side. You are
       asked for permission only at the moment you switch a reminder on — never at
       launch.</p>
 
-    <h2>6. Sign in with Apple (optional, first name only)</h2>
+    <h2>7. Sign in with Apple (optional, first name only)</h2>
     <p>You can sign in with Apple so the app can address you by name. Only the
       <b>name</b> is requested, no email address. The first name stays on the device and
       is never transmitted anywhere; no account is created by it. A nickname you type
@@ -174,18 +184,18 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       device, the one where the app's hidden diagnostics area opens. Remove the name and
       it is deleted with it.</p>
 
-    <h2>7. Siri and Shortcuts</h2>
+    <h2>8. Siri and Shortcuts</h2>
     <p>hAiity's shortcuts run on the device and work on the same local file. If you talk
       to Siri, Apple processes the voice input under its own terms — none of it reaches
       us.</p>
 
-    <h2>8. Buying hAiity Pro</h2>
+    <h2>9. Buying hAiity Pro</h2>
     <p>The purchase runs entirely through the App Store. Apple handles the payment; we
       receive no payment details, no address and no Apple ID. Inside the app only an
       “unlocked” flag is stored locally. “Restore” simply asks Apple about that purchase
       again.</p>
 
-    <h2>9. Export, sharing and reporting a problem</h2>
+    <h2>10. Export, sharing and reporting a problem</h2>
     <p>The JSON export and the share card leave your device only when you send them
       yourself — and then only to wherever you send them.</p>
     <p>The same goes for the <b>problem report</b>: shake your iPhone and hAiity opens a
@@ -203,24 +213,24 @@ footer.foot{border-top:1px solid var(--border);padding:20px 0 calc(24px + env(sa
       would rather not be asked at all: “More” → turn off <b>Shake to report</b> (also
       possible straight from the form).</p>
 
-    <h2>10. This website</h2>
+    <h2>11. This website</h2>
     <p>This page is static, sets no cookies and loads no external fonts, scripts or
       analytics. When you request it, the server processes technically necessary
       connection data (IP address, time, requested file, user agent) to deliver and
       secure the page; the legal basis is Art. 6(1)(f) GDPR. This data is not combined
       into profiles.</p>
 
-    <h2>11. Your rights</h2>
+    <h2>12. Your rights</h2>
     <p>Under the GDPR you have the rights of access (Art. 15), rectification (Art. 16),
       erasure (Art. 17), restriction (Art. 18), data portability (Art. 20) and objection
       (Art. 21), plus the right to lodge a complaint with a supervisory authority
       (Art. 77). In practice: we store no personal data about you, so we can neither
       disclose nor delete anything — we simply do not have it. Your data sits on your
       device and in your own iCloud, both of which you control. The one exception is a
-      problem report you sent us yourself (section 9): it then sits in our mailbox as an
+      problem report you sent us yourself (section 10): it then sits in our mailbox as an
       email. Write to us and we will delete it.</p>
 
-    <h2>12. Changes</h2>
+    <h2>13. Changes</h2>
     <p>If the way the app works changes, this policy is updated. The version published
       here, with the date shown above, is the one that applies.</p>
 
