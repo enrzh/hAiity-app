@@ -60,6 +60,7 @@ targets:
           - tr
           - vi
           - ko
+        GitHubClientID: $(GITHUB_CLIENT_ID)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -90,6 +91,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Haiity/Haiity.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: H8FW6W6K2D
+        # Public GitHub OAuth client ID only. Device Flow, no secret.
+        GITHUB_CLIENT_ID: REPLACE_ME_CLIENT_ID
   HaiityWidget:
     type: app-extension
     platform: iOS
