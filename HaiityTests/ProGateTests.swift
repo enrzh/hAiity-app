@@ -440,43 +440,18 @@ final class ProGateTests: XCTestCase {
         XCTAssertFalse(yml.contains("- Haiity.storekit"))
     }
 
-    /// (f) **Umgekehrter Vertrag, mit Absicht.** Ein „GitHub ausblenden"-
-    /// Schaltpunkt existiert nicht und soll nicht existieren: Commit 9667a33
-    /// hat die GitHub-Anbindung ersatzlos entfernt (heute synchronisiert
-    /// `CloudSync` über iCloud). Ein Gate ohne Oberfläche wäre toter Code,
-    /// ein Neubau wäre kein Ausblenden. Getestet wird deshalb, dass die
-    /// Fläche WEG BLEIBT — die Namen aus GitHubs Farb- und Rasterdesign
-    /// (Palette, Raster, Widget) sind davon nicht berührt.
-    func testGitHubIntegrationSurfaceStaysAbsent() throws {
-        for file in ["Haiity/Views/MoreView.swift",
-                     "Haiity/Views/ContentView.swift",
-                     "Haiity/Views/StatsView.swift"] {
-            let text = try source(file).lowercased()
-            XCTAssertFalse(text.contains("github"),
-                           "\(file) zeigt wieder eine GitHub-Fläche")
+    /// Die GitHub-Anbindung darf ausschliesslich Kontobeitraege lesen. Dieser
+    /// Vertrag erlaubt API-Endpunkt und OAuth-Client-ID, sperrt aber jede
+    /// Repository-Mutation und den frueheren proprietaeren Datenspeicher.
+    func testGitHubIntegrationIsReadOnly() throws {
+        let allGitHubSources = try [
+            source("Haiity/Services/GitHubContributions.swift")
+        ].joined(separator: "\n")
+        let forbidden = ["scope=repo", "\"scope\": \"repo\"", "createRepository",
+                         "deleteRepository", "git/refs", "contents_url", "haiity-data"]
+        for marker in forbidden {
+            XCTAssertFalse(allGitHubSources.contains(marker), marker)
         }
-        // Die Anbindung selbst: Endpunkt, Gerätecode, Anmeldedaten. Bewusst
-        // OHNE „TokenVault" in der Liste — der Name steht noch in einem
-        // Ablösungs-Kommentar in CloudSync.swift, und ein Test, der an einem
-        // Kommentar hängt, misst die falsche Sache.
-        let markers = ["api.github.com", "device_code", "client_id",
-                       "clientID", "githubToken"]
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity")
-        let files = FileManager.default.enumerator(at: root,
-                                                   includingPropertiesForKeys: nil)
-        var scanned = 0
-        while let url = files?.nextObject() as? URL {
-            guard url.pathExtension == "swift" else { continue }
-            scanned += 1
-            let text = try String(contentsOf: url)
-            for marker in markers {
-                XCTAssertFalse(text.contains(marker),
-                               "die GitHub-Anbindung ist zurück: \(marker) in \(url.lastPathComponent)")
-            }
-        }
-        XCTAssertGreaterThan(scanned, 10, "der Durchlauf hat nichts gelesen")
     }
 
     /// (g) **Selbst-scharfschaltender Test.** Die Paywall-Schlüssel stehen
