@@ -95,7 +95,8 @@ say "Unit tests"
 # Stable owner ID, login/restore state and visual toast hooks = 1029.
 # Per-item calendar opt-out coverage: +5 = 1034.
 # Vibrant Home Screen widget policy: +2 = 1036.
-MIN_TESTS=1036
+# GitHub contribution card: +39 = 1075.
+MIN_TESTS=1075
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
@@ -145,6 +146,22 @@ COUNT=$(grep -oE 'Executed [0-9]+ tests?' "$TEST_LOG" | tail -1 | grep -oE '[0-9
     A test file is probably missing from project.yml, which compiles nothing
     and still exits 0. Raise MIN_TESTS deliberately when you add tests."
 ok "executed $COUNT tests (floor $MIN_TESTS)"
+
+# --- 3b. GitHub OAuth client ID --------------------------------------------
+say "GitHub OAuth client ID"
+CLIENT_ID=$(python3 - <<'PY'
+import re, pathlib
+text = pathlib.Path("project.yml").read_text()
+m = re.search(r"GITHUB_CLIENT_ID:\s*(\S+)", text)
+print(m.group(1) if m else "")
+PY
+)
+if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "REPLACE_ME_CLIENT_ID" ]]; then
+  fail "GitHub client ID is missing or still REPLACE_ME_CLIENT_ID.
+    Register a public OAuth app with Device Flow enabled, then set
+    GITHUB_CLIENT_ID in project.yml. No client secret belongs in the repo."
+fi
+ok "GitHub client ID configured"
 
 # --- 4. archive -------------------------------------------------------------
 say "Archiving"
