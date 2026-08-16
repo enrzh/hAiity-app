@@ -342,6 +342,16 @@ enum Reminders {
         outer: for habit in timed {
             guard plans.count < budget else { break outer }
             guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
+            if habit.isReminder, !habit.repeatsWhileIncomplete {
+                let state = ReminderOccurrenceEngine.state(for: habit, now: now,
+                                                           calendar: calendar)
+                guard let occurrence = state.actionable, occurrence.dueDate > now,
+                      let plan = habitPlan(habit: habit, day: occurrence.day,
+                                           minutes: minutes, calendar: calendar)
+                else { continue }
+                plans.append(plan)
+                continue
+            }
             var day = today
             for offset in 0..<window {
                 guard plans.count < budget else { break outer }
@@ -350,21 +360,30 @@ enum Reminders {
                     day = next
                 }
                 guard reminderWorthy(habit: habit, day: day, today: today, calendar: calendar),
-                      !habit.isDone(day), !habit.isAnswered(day),
-                      let date = DayKey.date(from: day, calendar: calendar)
+                      !habit.isDone(day), !habit.isAnswered(day)
                 else { continue }
-                var components = calendar.dateComponents([.year, .month, .day], from: date)
-                components.hour = minutes / 60
-                components.minute = minutes % 60
-                guard let fire = calendar.date(from: components), fire > now else { continue }
-                let label = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
-                plans.append(ReminderPlan(identifier: habitReminderIdentifier(habitID: habit.id, day: day),
-                                          title: label,
-                                          body: String(localized: "Zeit für \(habit.name)"),
-                                          dateMatching: components, repeats: false))
+                guard let plan = habitPlan(habit: habit, day: day,
+                                           minutes: minutes, calendar: calendar),
+                      let fire = calendar.date(from: plan.dateMatching), fire > now
+                else { continue }
+                plans.append(plan)
             }
         }
         return plans
+    }
+
+    private static func habitPlan(habit: Habit, day: String, minutes: Int,
+                                  calendar: Calendar) -> ReminderPlan? {
+        guard let date = DayKey.date(from: day, calendar: calendar) else { return nil }
+        var components = calendar.dateComponents([.year, .month, .day], from: date)
+        components.hour = minutes / 60
+        components.minute = minutes % 60
+        let label = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
+        return ReminderPlan(identifier: habitReminderIdentifier(habitID: habit.id, day: day),
+                            title: label,
+                            body: String(localized: "Zeit für \(habit.name)"),
+                            dateMatching: components,
+                            repeats: false)
     }
 
     static func sessionMilestonePlan(_ session: HabitSession,

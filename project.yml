@@ -102,6 +102,7 @@ targets:
       # Die Wiederholungsregel hängt an Habit — ohne sie kompiliert das
       # geteilte Modell in der Extension nicht.
       - path: Haiity/Models/Recurrence.swift
+      - path: Haiity/Models/ReminderOccurrence.swift
       - path: Haiity/Models/GoalEngine.swift
       - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/HabitStore.swift

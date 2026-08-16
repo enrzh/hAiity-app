@@ -156,6 +156,27 @@ final class ReminderUpcomingTests: XCTestCase {
         })
     }
 
+    func testReminderWithoutContinuationPlansOnlyItsActionableOccurrence() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             timeMinutes: 9 * 60, recurrence: .daily)
+        reminder.createdAt = "2026-08-08"
+        reminder.repeatsWhileIncomplete = false
+
+        let blocked = Reminders.habitPlans(habits: [reminder], now: now,
+                                           calendar: calendar)
+
+        XCTAssertTrue(blocked.isEmpty, "an overdue occurrence blocks later plans")
+
+        reminder.log["2026-08-08"] = 1
+        reminder.reminderCursor = "2026-08-10"
+        let advanced = Reminders.habitPlans(habits: [reminder], now: now,
+                                            calendar: calendar)
+
+        XCTAssertEqual(advanced.map(\.identifier), [
+            Reminders.habitReminderIdentifier(habitID: reminder.id, day: "2026-08-10")
+        ])
+    }
+
     func testHabitPlansSuppressArchivedAndTodayAlreadyCompleted() {
         var archived = Habit(name: "Alt", reminderMinutes: 18 * 60)
         archived.archivedAt = "2026-08-01"
