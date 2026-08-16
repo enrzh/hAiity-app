@@ -17,6 +17,11 @@ private enum CreateAccessibility {
     static let identifier = "create-habit"
 }
 
+private struct PendingReminderCompletion: Equatable {
+    let habitID: UUID
+    let day: String
+}
+
 /// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
 /// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
 /// ihrem Tab.
@@ -42,6 +47,7 @@ struct ContentView: View {
     /// Fasst schnelle Folgeänderungen zu EINEM Upload zusammen.
     @State private var pushes = PushDebouncer()
     @State private var editing: Habit?
+    @State private var earlyReminderCompletion: PendingReminderCompletion?
     @State private var showAdd = false
     /// `showAdd` ist nur der Praesentationswunsch. Erst `createPage.onAppear`
     /// belegt, dass ein Cover wirklich da ist und ein `onDismiss` schuldet.
@@ -222,6 +228,24 @@ struct ContentView: View {
                     .themed(store)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .confirmationDialog(
+                String(localized: "Vor Termin erledigen?"),
+                isPresented: Binding(
+                    get: { earlyReminderCompletion != nil },
+                    set: { if !$0 { earlyReminderCompletion = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "Erledigen")) {
+                    confirmEarlyReminderCompletion()
+                }
+                .accessibilityIdentifier("reminder-early-completion-confirm")
+                Button(String(localized: "Abbrechen"), role: .cancel) {
+                    earlyReminderCompletion = nil
+                }
+            } message: {
+                Text(String(localized: "Der Termin liegt noch in der Zukunft."))
             }
             // Direkte Unterziele bleiben Blätter über dem aktuell sichtbaren
             // Bereich. Mehr-Zeilen präsentieren über `morePageRoute`.
@@ -983,13 +1007,13 @@ struct ContentView: View {
         switch ItemPresentation.forItem(habit) {
         case .reminderRow:
             ReminderRow(habit: habit,
-                        onToggle: { toggleDay(habit, day: DayKey.today()) },
+                        onToggle: { toggleReminder(habit) },
                         onEdit: { editing = habit },
                         onArchive: { store.archive(habit.id) })
                 .equatable()
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
-                        markDone(habit)
+                        requestReminderCompletion(habit)
                     } label: {
                         Label(String(localized: "Erledigt"), systemImage: "checkmark")
                     }
@@ -997,7 +1021,7 @@ struct ContentView: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button {
-                        revert(habit)
+                        revertReminder(habit)
                     } label: {
                         Label(String(localized: "Zurücksetzen"),
                               systemImage: "arrow.uturn.backward")
@@ -1167,6 +1191,55 @@ struct ContentView: View {
         let today = DayKey.today()
         guard store.value(habit.id, day: today) != nil else { return }
         mutate(habit, day: today) { store.clear(habit.id, day: today) }
+    }
+
+    private func toggleReminder(_ reminder: Habit) {
+        let state = ReminderOccurrenceEngine.state(for: reminder)
+        if state.isChecked() {
+            revertReminder(reminder)
+        } else {
+            requestReminderCompletion(reminder)
+        }
+    }
+
+    private func requestReminderCompletion(_ reminder: Habit) {
+        let state = ReminderOccurrenceEngine.state(for: reminder)
+        guard let occurrence = state.actionable else { return }
+        if occurrence.dueDate > .now {
+            earlyReminderCompletion = PendingReminderCompletion(habitID: reminder.id,
+                                                                day: occurrence.day)
+        } else {
+            completeReminder(reminder, occurrence: occurrence)
+        }
+    }
+
+    private func confirmEarlyReminderCompletion() {
+        guard let pending = earlyReminderCompletion,
+              let reminder = store.habits.first(where: { $0.id == pending.habitID }),
+              let due = ReminderOccurrenceEngine.dueDate(day: pending.day, reminder: reminder)
+        else {
+            earlyReminderCompletion = nil
+            return
+        }
+        earlyReminderCompletion = nil
+        completeReminder(reminder,
+                         occurrence: ReminderOccurrence(day: pending.day, dueDate: due))
+    }
+
+    private func completeReminder(_ reminder: Habit, occurrence: ReminderOccurrence) {
+        let cursor = reminder.repeatsWhileIncomplete ? nil
+            : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence, reminder: reminder)
+        store.setReminderCompletion(reminder.id, day: occurrence.day,
+                                    completed: true, nextCursor: cursor)
+        Theme.Haptics.check()
+    }
+
+    private func revertReminder(_ reminder: Habit) {
+        let state = ReminderOccurrenceEngine.state(for: reminder)
+        guard let completed = state.mostRecentCompleted else { return }
+        store.setReminderCompletion(reminder.id, day: completed.day,
+                                    completed: false, nextCursor: nil)
+        Theme.Haptics.select()
     }
 
     /// Rückgängig nimmt den GANZEN Vorgang zurück — jeden Tag auf genau den

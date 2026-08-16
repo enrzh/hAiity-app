@@ -37,6 +37,8 @@ A reminder occurrence is identified by the reminder ID and its scheduled local d
 
 Completion continues to use the reminder's existing log, keyed to the scheduled occurrence date rather than the moment the user tapped Done. This preserves existing persistence and sync behavior while allowing early and late completion to refer to the correct occurrence.
 
+Non-continuing reminders additionally persist a single schedule cursor. The cursor records the first occurrence still in scope after a late completion, so skipped dates stay skipped across restart and sync without being written to the completion log.
+
 Existing reminders default to continuing their schedule while unfinished. Existing completion history remains valid and requires no destructive migration.
 
 ## Unfinished Recurrence Policy

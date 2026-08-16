@@ -90,6 +90,40 @@ final class ReminderOccurrenceTests: XCTestCase {
         XCTAssertEqual(state.actionable?.day, "2026-08-17")
     }
 
+    func testGermanOccurrenceLabelsUseActionableDatesInsteadOfRecurrenceText() {
+        let locale = Locale(identifier: "de_DE")
+
+        XCTAssertEqual(label("2026-08-16", 18 * 60, now: "2026-08-16", 12 * 60,
+                             locale: locale),
+                       "Heute, 18:00")
+        XCTAssertEqual(label("2026-08-17", 9 * 60, now: "2026-08-16", 12 * 60,
+                             locale: locale),
+                       "Morgen, 09:00")
+        XCTAssertEqual(label("2026-08-20", 9 * 60, now: "2026-08-16", 12 * 60,
+                             locale: locale),
+                       "20.08.2026, 09:00")
+        XCTAssertEqual(label("2026-08-15", 9 * 60, now: "2026-08-16", 12 * 60,
+                             locale: locale),
+                       "Überfällig · 15.08.2026, 09:00")
+    }
+
+    func testCompletionCursorUsesTheFirstOccurrenceAfterTheCompletedDueTimeAndNow() {
+        let reminder = fixture(createdAt: "2026-08-14", timeMinutes: 9 * 60)
+        let overdue = ReminderOccurrence(day: "2026-08-14",
+                                         dueDate: date("2026-08-14", minutes: 9 * 60))
+        let early = ReminderOccurrence(day: "2026-08-17",
+                                       dueDate: date("2026-08-17", minutes: 9 * 60))
+
+        XCTAssertEqual(ReminderOccurrenceEngine.cursorAfterCompleting(
+            overdue, reminder: reminder,
+            now: date("2026-08-16", minutes: 12 * 60), calendar: calendar
+        ), "2026-08-17")
+        XCTAssertEqual(ReminderOccurrenceEngine.cursorAfterCompleting(
+            early, reminder: reminder,
+            now: date("2026-08-16", minutes: 12 * 60), calendar: calendar
+        ), "2026-08-18")
+    }
+
     private func fixture(createdAt: String, timeMinutes: Int) -> Habit {
         var reminder = Habit(name: "Tabletten", itemType: .reminder,
                              timeMinutes: timeMinutes, recurrence: .daily)
@@ -100,5 +134,18 @@ final class ReminderOccurrenceTests: XCTestCase {
     private func date(_ day: String, minutes: Int) -> Date {
         let start = DayKey.date(from: day, calendar: calendar)!
         return calendar.date(byAdding: .minute, value: minutes, to: start)!
+    }
+
+    private func label(_ dueDay: String, _ dueMinutes: Int,
+                       now nowDay: String, _ nowMinutes: Int,
+                       locale: Locale) -> String {
+        ReminderOccurrenceText.label(
+            for: ReminderOccurrence(day: dueDay,
+                                    dueDate: date(dueDay, minutes: dueMinutes)),
+            includesTime: true,
+            now: date(nowDay, minutes: nowMinutes),
+            calendar: calendar,
+            locale: locale
+        )
     }
 }

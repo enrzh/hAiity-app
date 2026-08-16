@@ -9,6 +9,12 @@ struct ReminderOccurrenceState: Equatable, Sendable {
     let actionable: ReminderOccurrence?
     let overdueCount: Int
     let mostRecentCompleted: ReminderOccurrence?
+
+    func isChecked(now: Date = .now, calendar: Calendar = .current) -> Bool {
+        guard let completed = mostRecentCompleted else { return false }
+        let today = DayKey.key(for: now, calendar: calendar)
+        return completed.day >= today && (actionable?.day ?? "9999-12-31") > completed.day
+    }
 }
 
 enum ReminderOccurrenceEngine {
@@ -19,7 +25,8 @@ enum ReminderOccurrenceEngine {
                       calendar: Calendar = .current) -> ReminderOccurrenceState {
         let schedule = reminder.recurrence.schedule(calendar: calendar)
         let today = DayKey.key(for: now, calendar: calendar)
-        let floor = [reminder.createdAt, reminder.recurrence.start, reminder.reminderCursor]
+        let cursor = reminder.repeatsWhileIncomplete ? nil : reminder.reminderCursor
+        let floor = [reminder.createdAt, reminder.recurrence.start, cursor]
             .compactMap { $0 }
             .max() ?? reminder.createdAt
 
@@ -94,5 +101,64 @@ enum ReminderOccurrenceEngine {
         guard let start = DayKey.date(from: day, calendar: calendar) else { return nil }
         let minutes = Habit.sanitizedMinutes(reminder.timeMinutes ?? reminder.reminderMinutes) ?? 0
         return calendar.date(byAdding: .minute, value: minutes, to: start)
+    }
+
+    static func cursorAfterCompleting(_ occurrence: ReminderOccurrence,
+                                      reminder: Habit,
+                                      now: Date = .now,
+                                      calendar: Calendar = .current) -> String? {
+        let schedule = reminder.recurrence.schedule(calendar: calendar)
+        let today = DayKey.key(for: now, calendar: calendar)
+        var candidate = schedule.next(after: occurrence.day)
+        var remaining = historyLimit
+        while let day = candidate, remaining > 0 {
+            guard let due = dueDate(day: day, reminder: reminder, calendar: calendar) else {
+                return nil
+            }
+            if day > today || due > now { return day }
+            candidate = schedule.next(after: day)
+            remaining -= 1
+        }
+        return nil
+    }
+}
+
+enum ReminderOccurrenceText {
+    static func label(for occurrence: ReminderOccurrence,
+                      includesTime: Bool,
+                      now: Date = .now,
+                      calendar: Calendar = .current,
+                      locale: Locale = .current) -> String {
+        let due = occurrence.dueDate
+        let dueDay = calendar.startOfDay(for: due)
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
+
+        let datePart: String
+        if dueDay == today {
+            datePart = String(localized: "Heute")
+        } else if dueDay == tomorrow {
+            datePart = String(localized: "Morgen")
+        } else {
+            datePart = formatted(due, format: "dd.MM.yyyy", calendar: calendar,
+                                 locale: locale)
+        }
+
+        let value = includesTime
+            ? "\(datePart), \(formatted(due, format: "HH:mm", calendar: calendar, locale: locale))"
+            : datePart
+        return due < now ? "\(String(localized: "Überfällig")) · \(value)" : value
+    }
+
+    private static func formatted(_ date: Date,
+                                  format: String,
+                                  calendar: Calendar,
+                                  locale: Locale) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = locale
+        formatter.dateFormat = format
+        return formatter.string(from: date)
     }
 }

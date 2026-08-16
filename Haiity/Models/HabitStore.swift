@@ -410,6 +410,18 @@ final class HabitStore {
         persist()
     }
 
+    func setReminderCompletion(_ id: UUID, day: String, completed: Bool,
+                               nextCursor: String?) {
+        guard let i = data.habits.firstIndex(where: { $0.id == id && $0.isReminder }) else {
+            return
+        }
+        data.habits[i].log[day] = completed ? 1 : nil
+        if !data.habits[i].repeatsWhileIncomplete {
+            data.habits[i].reminderCursor = completed ? nextCursor : day
+        }
+        persist()
+    }
+
     /// Schreibt tatsächliche Session-Minuten an einen Tag. MAX statt
     /// Überschreiben — dieselbe Regel wie im Merge: eine zweite, kürzere
     /// Session am selben Tag darf die längere nicht kleinrechnen, und ein

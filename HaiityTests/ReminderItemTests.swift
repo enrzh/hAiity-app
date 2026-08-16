@@ -30,9 +30,9 @@ final class ReminderItemTests: XCTestCase {
         let habit = try XCTUnwrap(source.range(of: "case .habitCard:"))
         let branch = source[reminder.lowerBound..<habit.lowerBound]
         XCTAssertTrue(branch.contains(".swipeActions(edge: .leading, allowsFullSwipe: true)"))
-        XCTAssertTrue(branch.contains("markDone(habit)"))
+        XCTAssertTrue(branch.contains("requestReminderCompletion(habit)"))
         XCTAssertTrue(branch.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
-        XCTAssertTrue(branch.contains("revert(habit)"))
+        XCTAssertTrue(branch.contains("revertReminder(habit)"))
     }
 
     func testCombinedListBranchesByItemTypeWithoutFilteringReminders() throws {
@@ -61,6 +61,20 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertTrue(source.contains(".accessibilityIdentifier(\"habit-calendar-toggle\")"))
         XCTAssertTrue(source.contains("calendarSyncEnabled = habit.calendarSyncEnabled"))
         XCTAssertTrue(source.contains("habit.calendarSyncEnabled = calendarSyncEnabled"))
+    }
+
+    func testReminderOccurrenceControlsArePresentAndRecurrenceCopyIsRemoved() throws {
+        let editor = try editorSource()
+        let row = try source("Haiity/Views/ReminderRow.swift")
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(editor.contains("repeats-while-incomplete-toggle"))
+        XCTAssertTrue(editor.contains("repeatsWhileIncomplete = habit.repeatsWhileIncomplete"))
+        XCTAssertTrue(editor.contains(
+            "habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true"
+        ))
+        XCTAssertTrue(content.contains("reminder-early-completion-confirm"))
+        XCTAssertFalse(row.contains("RecurrenceText.summary"))
     }
 
     func testEditorKeepsTheSharedHabitSettings() throws {

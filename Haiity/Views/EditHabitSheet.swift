@@ -46,6 +46,7 @@ struct EditHabitSheet: View {
     @State private var emoji = ""
     @State private var itemType: HabitItemType = .habit
     @State private var calendarSyncEnabled = true
+    @State private var repeatsWhileIncomplete = true
     @State private var paywall: PaywallContext?
 
     /// Die ganze Regel als EIN Wert.
@@ -223,6 +224,11 @@ struct EditHabitSheet: View {
             }
             Toggle(String(localized: "Im Kalender"), isOn: $calendarSyncEnabled)
                 .accessibilityIdentifier("habit-calendar-toggle")
+            if itemType == .reminder {
+                Toggle(String(localized: "Trotz offenem Termin wiederholen"),
+                       isOn: $repeatsWhileIncomplete)
+                    .accessibilityIdentifier("repeats-while-incomplete-toggle")
+            }
         } header: {
             Text(String(localized: "Zeitraum"))
         } footer: {
@@ -563,6 +569,7 @@ struct EditHabitSheet: View {
         emoji = habit.emoji
         itemType = habit.itemType
         calendarSyncEnabled = habit.calendarSyncEnabled
+        repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
         draft = RecurrenceDraft(habit.recurrence,
@@ -597,6 +604,10 @@ struct EditHabitSheet: View {
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
         habit.calendarSyncEnabled = calendarSyncEnabled
+        habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
+        if itemType != .reminder || existing?.recurrence != recurrence {
+            habit.reminderCursor = nil
+        }
         let notificationTime = draft.timeMinutes(calendar: calendar)
         habit.timeMinutes = notificationTime
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil

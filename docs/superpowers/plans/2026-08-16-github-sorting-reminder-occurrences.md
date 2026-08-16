@@ -4,7 +4,7 @@
 
 **Goal:** Put GitHub account controls on More, show a Done toolbar action during sorting, and make reminder rows and completion operate on scheduled occurrences.
 
-**Architecture:** Add one pure `ReminderOccurrenceEngine` that derives actionable occurrences from `Habit.recurrence`, `Habit.log`, and an injected clock/calendar. Persist only one additive policy flag on `Habit`; the row, completion actions, editor, and notification planner consume the same engine. Keep GitHub lifecycle in `GitHubContributionStore` and edit mode in `ContentView`.
+**Architecture:** Add one pure `ReminderOccurrenceEngine` that derives actionable occurrences from `Habit.recurrence`, `Habit.log`, and an injected clock/calendar. Persist one additive policy flag and, for non-continuing reminders, one schedule cursor on `Habit`; the row, completion actions, editor, and notification planner consume the same engine. Keep GitHub lifecycle in `GitHubContributionStore` and edit mode in `ContentView`.
 
 **Tech Stack:** Swift 6, SwiftUI, Observation, Foundation `Calendar`, UserNotifications, XCTest, XcodeGen.
 

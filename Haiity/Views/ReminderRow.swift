@@ -14,9 +14,13 @@ struct ReminderRow: View, Equatable {
     let onToggle: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
+    var now: Date = .now
+    var calendar: Calendar = .current
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
+            && DayKey.key(for: lhs.now, calendar: lhs.calendar)
+                == DayKey.key(for: rhs.now, calendar: rhs.calendar)
     }
 
     private var previewWidth: CGFloat {
@@ -51,9 +55,7 @@ struct ReminderRow: View, Equatable {
                     Text(habit.name)
                         .font(.body.weight(.semibold))
                         .lineLimit(2)
-                    Text(RecurrenceText.summary(
-                        habit.recurrence,
-                        timeMinutes: habit.timeMinutes ?? habit.reminderMinutes))
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -64,13 +66,14 @@ struct ReminderRow: View, Equatable {
             .onTapGesture(perform: onEdit)
 
             Button(action: onToggle) {
-                Image(systemName: habit.isDone(DayKey.today())
+                Image(systemName: state.isChecked(now: now, calendar: calendar)
                       ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(habit.isDone(DayKey.today()) ? Color.green : Color.secondary)
+            .foregroundStyle(state.isChecked(now: now, calendar: calendar)
+                             ? Color.green : Color.secondary)
             .accessibilityLabel(String(localized: "Erledigt"))
             .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
         }
@@ -82,6 +85,26 @@ struct ReminderRow: View, Equatable {
                                          style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                        style: .continuous))
+    }
+
+    private var state: ReminderOccurrenceState {
+        ReminderOccurrenceEngine.state(for: habit, now: now, calendar: calendar)
+    }
+
+    private var subtitle: String {
+        guard let occurrence = state.actionable else {
+            return String(localized: "Kein weiterer Termin")
+        }
+        var text = ReminderOccurrenceText.label(
+            for: occurrence,
+            includesTime: Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) != nil,
+            now: now,
+            calendar: calendar
+        )
+        if state.overdueCount > 1 {
+            text += " · +\(state.overdueCount - 1) \(String(localized: "offen"))"
+        }
+        return text
     }
 
     private var reminderPreview: some View {
