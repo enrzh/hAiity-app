@@ -51,6 +51,13 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Individuelle Teilnahme am Kalender-Spiegel. Der Standard ist an,
     /// damit bestehende Habits und Erinnerungen ihr Verhalten behalten.
     var calendarSyncEnabled: Bool
+    /// Wiederholt die Regel auch dann, wenn ein älterer Reminder offen ist.
+    /// Bestehende Dateien lesen als `true` und behalten damit ihr Verhalten.
+    var repeatsWhileIncomplete: Bool
+    /// Erster Termin, den ein nicht fortlaufender Reminder noch betrachtet.
+    /// Nach spätem Erledigen springt der Cursor zum nächsten Zukunftstermin,
+    /// ohne verpasste Tage fälschlich als erledigt in `log` zu schreiben.
+    var reminderCursor: String?
     var log: [String: Int]
     /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer
     /// („limitless" — eine Session zählt dann nur hoch). Rein additiv und
@@ -118,6 +125,8 @@ struct Habit: Codable, Identifiable, Equatable {
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
         self.calendarSyncEnabled = true
+        self.repeatsWhileIncomplete = true
+        self.reminderCursor = nil
         self.log = [:]
         self.durationMinutes = Habit.sanitizedDuration(durationMinutes)
         self.minutes = [:]
@@ -153,7 +162,9 @@ extension Habit {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes, calendarSyncEnabled, log, archivedAt, goal, palette, swipeActions
+        case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
+             calendarSyncEnabled, repeatsWhileIncomplete, reminderCursor,
+             log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -196,6 +207,10 @@ extension Habit {
         // dort Unsinn: keine Uhrzeit statt eines Fehlers.
         timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
         calendarSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarSyncEnabled) ?? true
+        repeatsWhileIncomplete = try c.decodeIfPresent(Bool.self,
+                                                       forKey: .repeatsWhileIncomplete) ?? true
+        reminderCursor = try c.decodeIfPresent(String.self, forKey: .reminderCursor)
+            .flatMap { DayKey.isValid($0) ? $0 : nil }
         // Müllabfuhr an der Grenze: was formal kein Tag ist oder keinen
         // positiven Zähler hat, kommt gar nicht erst in den Speicher.
         // Bewusst NUR strukturell — ein Schlüssel von morgen (Gerät in einer
@@ -237,6 +252,8 @@ extension Habit {
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
         if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }
+        if !repeatsWhileIncomplete { try c.encode(false, forKey: .repeatsWhileIncomplete) }
+        try c.encodeIfPresent(reminderCursor, forKey: .reminderCursor)
         try c.encode(log, forKey: .log)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         // Der Standard bleibt implizit — Dateien sehen für einfache Habits

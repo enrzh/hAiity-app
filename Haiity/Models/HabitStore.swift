@@ -679,6 +679,8 @@ final class HabitStore {
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
                     lh.calendarSyncEnabled = rh.calendarSyncEnabled
+                    lh.repeatsWhileIncomplete = rh.repeatsWhileIncomplete
+                    lh.reminderCursor = rh.reminderCursor
                     lh.recurrence = rh.recurrence
                     lh.durationMinutes = rh.durationMinutes
                     lh.archivedAt = rh.archivedAt
