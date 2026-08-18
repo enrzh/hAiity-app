@@ -688,24 +688,23 @@ struct MoreView: View, Equatable {
         Binding(
             get: { ReminderSync.isEnabled },
             set: { on in
-                guard on else {
+                switch NativeReminderToggleAction.action(for: on, unlocked: unlocked) {
+                case .disable:
                     reminderSyncDenied = false
                     ReminderSync.disable()
-                    return
-                }
-                guard CalendarFeatureGate.canEnable(unlocked: unlocked) else {
+                case .showPaywall:
                     pendingNativeReminder = true
                     paywall = .calendar
-                    return
-                }
-                Task {
-                    let granted = await ReminderSync.requestAccess()
-                    await MainActor.run {
-                        reminderSyncDenied = !granted
-                        guard granted else { return }
-                        ReminderSync.isEnabled = true
-                        ReminderSync.startObserving(store: store)
-                        ReminderSync.reconcile(habits: store.habits)
+                case .requestAccess:
+                    Task {
+                        let granted = await ReminderSync.requestAccess()
+                        await MainActor.run {
+                            reminderSyncDenied = !granted
+                            guard granted else { return }
+                            ReminderSync.isEnabled = true
+                            ReminderSync.startObserving(store: store)
+                            ReminderSync.reconcile(habits: store.habits)
+                        }
                     }
                 }
             })

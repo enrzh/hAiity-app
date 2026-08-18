@@ -14,6 +14,20 @@ enum CalendarFeatureGate {
     static func canEnable(unlocked: Bool) -> Bool { unlocked }
 }
 
+enum NativeReminderToggleAction: Equatable {
+    case disable
+    case showPaywall
+    case requestAccess
+
+    static func action(for on: Bool, unlocked: Bool) -> Self {
+        guard on else { return .disable }
+        guard CalendarFeatureGate.canEnable(unlocked: unlocked) else {
+            return .showPaywall
+        }
+        return .requestAccess
+    }
+}
+
 enum CalendarSyncPreferences {
     static let legacyEnabledKey = "calendarSyncEnabled"
     static let habitsEnabledKey = "calendarSyncHabitsEnabled"

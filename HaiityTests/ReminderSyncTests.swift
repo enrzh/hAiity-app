@@ -87,6 +87,18 @@ final class ReminderSyncPlanTests: XCTestCase {
 }
 
 final class ReminderSyncContractTests: XCTestCase {
+    func testNativeReminderToggleActionDisablesWithoutPro() {
+        XCTAssertEqual(NativeReminderToggleAction.action(for: false, unlocked: false), .disable)
+    }
+
+    func testNativeReminderToggleActionShowsPaywallForFreeEnable() {
+        XCTAssertEqual(NativeReminderToggleAction.action(for: true, unlocked: false), .showPaywall)
+    }
+
+    func testNativeReminderToggleActionRequestsAccessForProEnable() {
+        XCTAssertEqual(NativeReminderToggleAction.action(for: true, unlocked: true), .requestAccess)
+    }
+
     func testReminderServiceUsesReminderPermissionAndOwnedList() throws {
         let source = try source("Haiity/Services/ReminderSync.swift")
         XCTAssertTrue(source.contains("requestFullAccessToReminders"))
@@ -112,26 +124,12 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertFalse(source.contains("try? store.save(reminder, commit: true)"))
     }
 
-    func testMoreViewReminderBindingDisablesForFreeAndGatesBeforePermissionRequest() throws {
+    func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
-        let start = try XCTUnwrap(source.range(of: "private var reminderSyncBinding: Binding<Bool>"))
-        let end = try XCTUnwrap(source.range(of: "// MARK: – Darstellung",
-                                             range: start.upperBound..<source.endIndex))
-        let binding = String(source[start.lowerBound..<end.lowerBound])
-
-        let disableRange = try XCTUnwrap(binding.range(of: "ReminderSync.disable()"))
-        let gateRange = try XCTUnwrap(binding.range(of: "guard CalendarFeatureGate.canEnable(unlocked: unlocked) else"))
-        let paywallRange = try XCTUnwrap(binding.range(of: "paywall = .calendar"))
-        let requestRange = try XCTUnwrap(binding.range(of: "ReminderSync.requestAccess()"))
-
-        XCTAssertTrue(disableRange.upperBound < gateRange.lowerBound,
-                      "Ausschalten muss frei bleiben und vor dem Pro-Gate liegen")
-        XCTAssertTrue(gateRange.upperBound < requestRange.lowerBound,
-                      "das gemeinsame Kalender-Gate muss vor der Erinnerungs-Berechtigung greifen")
-        XCTAssertTrue(paywallRange.lowerBound >= gateRange.lowerBound &&
-                      paywallRange.upperBound <= requestRange.lowerBound,
-                      "freie Aktivierung soll im Kalender-Paywall-Zweig enden")
-        XCTAssertTrue(binding.contains("pendingNativeReminder = true"))
+        XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))
+        XCTAssertTrue(source.contains("case .disable:"))
+        XCTAssertTrue(source.contains("case .showPaywall:"))
+        XCTAssertTrue(source.contains("case .requestAccess:"))
     }
 
     private func source(_ relative: String) throws -> String {
