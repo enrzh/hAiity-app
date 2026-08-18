@@ -318,12 +318,12 @@ final class RecurrenceDraftTests: XCTestCase {
         }
     }
 
-    func testEndTitleSurvivesTheForm() {
+    func testEndTitleIsDroppedByTheForm() {
         let recurrence = Recurrence(frequency: .daily,
                                     start: "2026-08-09",
                                     end: .on("2026-12-31"),
                                     endTitle: "Winter")
-        XCTAssertEqual(roundTrip(recurrence), recurrence)
+        XCTAssertNil(roundTrip(recurrence).endTitle)
     }
 
     /// Ein migriertes Alt-Ziel hat KEINEN Start — und darf beim Bearbeiten
