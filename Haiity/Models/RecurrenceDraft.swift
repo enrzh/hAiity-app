@@ -56,16 +56,23 @@ struct RecurrenceDraft: Equatable {
     // MARK: – Formular -> Regel
 
     func recurrence(calendar: Calendar = .current) -> Recurrence {
-        Recurrence(frequency: frequency,
-                   interval: interval,
-                   weekdays: frequency == .weekly ? weekdays : [],
-                   rule: rule,
-                   month: month,
-                   start: hasStart ? DayKey.key(for: start, calendar: calendar) : nil,
-                   end: end(calendar: calendar),
-                   endTitle: endTitle,
-                   timesPerPeriod: flexible && frequency != .daily ? times : nil,
-                   target: quantity ? target : nil)
+        let startDay: String?
+        if frequency == .once {
+            startDay = DayKey.key(for: start, calendar: calendar)
+        } else {
+            startDay = hasStart ? DayKey.key(for: start, calendar: calendar) : nil
+        }
+
+        return Recurrence(frequency: frequency,
+                          interval: interval,
+                          weekdays: frequency == .weekly ? weekdays : [],
+                          rule: rule,
+                          month: month,
+                          start: startDay,
+                          end: frequency == .once ? .never : end(calendar: calendar),
+                          endTitle: nil,
+                          timesPerPeriod: flexible && frequency != .daily ? times : nil,
+                          target: quantity ? target : nil)
     }
 
     private var rule: Recurrence.DayRule? {
@@ -175,7 +182,7 @@ struct RecurrenceDraft: Equatable {
         if frequency == .weekly, !flexible, weekdays.isEmpty {
             weekdays = [calendar.component(.weekday, from: start)]
         }
-        if frequency == .daily { flexible = false }
+        if frequency == .daily || frequency == .once { flexible = false }
         interval = min(Recurrence.maxInterval, max(1, interval))
         times = min(Recurrence.maxTimes(for: frequency), max(1, times))
         endCount = min(Recurrence.maxOccurrences, max(1, endCount))

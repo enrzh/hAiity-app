@@ -140,7 +140,13 @@ struct EditHabitSheet: View {
                 .themed(store)
         }
         .onAppear { load() }
-        .onChange(of: draft.frequency) { _, _ in draft.normalize(calendar: calendar) }
+        .onChange(of: draft.frequency) { _, new in
+            if new == .once {
+                itemType = .reminder
+                draft.hasStart = true
+            }
+            draft.normalize(calendar: calendar)
+        }
         .onChange(of: draft.flexible) { _, _ in draft.normalize(calendar: calendar) }
         // Die Art IST das Mengenziel-Häkchen: „Menge" schaltet es an, alles
         // andere aus. Ein Ja/Nein-Habit mit stehen gebliebenem Ziel wäre ein
@@ -175,6 +181,7 @@ struct EditHabitSheet: View {
         Section {
             summaryRow
             Picker(String(localized: "Häufigkeit"), selection: $draft.frequency) {
+                Text(String(localized: "Custom")).tag(Recurrence.Frequency.once)
                 Text(String(localized: "Täglich")).tag(Recurrence.Frequency.daily)
                 Text(String(localized: "Wöchentlich")).tag(Recurrence.Frequency.weekly)
                 Text(String(localized: "Monatlich")).tag(Recurrence.Frequency.monthly)
@@ -183,69 +190,73 @@ struct EditHabitSheet: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("cadence-picker")
 
-            Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
-                Text(intervalLabel)
-            }
-            .accessibilityIdentifier("interval-stepper")
-
-            // Die Wahl „feste Termine oder Anzahl" gibt es nicht mehr: die
-            // Regel benennt die TAGE. Ein Habit, das noch aus der Zeit des
-            // flexiblen Ziels stammt, behält seine Rechnung (siehe oben) und
-            // zeigt hier weiterhin seine Verabredung — nur ohne den Zähler,
-            // den man nicht mehr verstellen kann.
-            if draft.flexible, draft.frequency != .daily {
-                flexibleControls
-            } else {
-                switch draft.frequency {
-                case .once: EmptyView()
-                case .daily: EmptyView()
-                case .weekly: weekdayChips(multiSelect: true)
-                case .monthly: monthlyControls
-                case .yearly: yearlyControls
-                }
-            }
-
-            // Der Start gehörte einmal in einen eigenen Abschnitt „Zeitraum"
-            // neben dieser Sektion. Zwei Überschriften für dieselbe Frage
-            // („wann?") waren eine zu viel — jetzt steht er hier, direkt
-            // unter der Regel, für die er gilt.
-            Toggle(String(localized: "Startdatum"), isOn: $draft.hasStart)
-                .accessibilityIdentifier("start-toggle")
-            if draft.hasStart {
-                DatePicker(String(localized: "Beginn"), selection: $draft.start,
+            if draft.frequency == .once {
+                DatePicker(String(localized: "Datum"),
+                           selection: $draft.start,
                            displayedComponents: .date)
-                    .accessibilityIdentifier("start-date")
+                    .datePickerStyle(.compact)
+                    .accessibilityIdentifier("once-date")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(String(localized: "Ende"))
-                    .accessibilityAddTraits(.isHeader)
-                Picker(String(localized: "Ende"), selection: $draft.endMode) {
-                    Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
-                    Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
-                    Text(String(localized: "Nach Anzahl")).tag(RecurrenceDraft.EndMode.afterCount)
+            if draft.frequency != .once {
+                Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
+                    Text(intervalLabel)
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("end-mode-picker")
-            }
-            switch draft.endMode {
-            case .never:
-                EmptyView()
-            case .onDate:
-                TextField(String(localized: "Kategorie / Endtitel"), text: $draft.endTitle)
-                    .textInputAutocapitalization(.sentences)
-                    .accessibilityIdentifier("end-title")
-                DatePicker(String(localized: "Enddatum"), selection: $draft.endDate,
-                           displayedComponents: .date)
-                    .accessibilityIdentifier("end-date")
-            case .afterCount:
-                TextField(String(localized: "Kategorie / Endtitel"), text: $draft.endTitle)
-                    .textInputAutocapitalization(.sentences)
-                    .accessibilityIdentifier("end-title")
-                Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
-                    Text(String(localized: "Nach \(draft.endCount) Terminen"))
+                .accessibilityIdentifier("interval-stepper")
+
+                // Die Wahl „feste Termine oder Anzahl" gibt es nicht mehr: die
+                // Regel benennt die TAGE. Ein Habit, das noch aus der Zeit des
+                // flexiblen Ziels stammt, behält seine Rechnung (siehe oben) und
+                // zeigt hier weiterhin seine Verabredung — nur ohne den Zähler,
+                // den man nicht mehr verstellen kann.
+                if draft.flexible, draft.frequency != .daily {
+                    flexibleControls
+                } else {
+                    switch draft.frequency {
+                    case .once: EmptyView()
+                    case .daily: EmptyView()
+                    case .weekly: weekdayChips(multiSelect: true)
+                    case .monthly: monthlyControls
+                    case .yearly: yearlyControls
+                    }
                 }
-                .accessibilityIdentifier("end-count")
+
+                // Der Start gehörte einmal in einen eigenen Abschnitt „Zeitraum"
+                // neben dieser Sektion. Zwei Überschriften für dieselbe Frage
+                // („wann?") waren eine zu viel — jetzt steht er hier, direkt
+                // unter der Regel, für die er gilt.
+                Toggle(String(localized: "Startdatum"), isOn: $draft.hasStart)
+                    .accessibilityIdentifier("start-toggle")
+                if draft.hasStart {
+                    DatePicker(String(localized: "Beginn"), selection: $draft.start,
+                               displayedComponents: .date)
+                        .accessibilityIdentifier("start-date")
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "Ende"))
+                        .accessibilityAddTraits(.isHeader)
+                    Picker(String(localized: "Ende"), selection: $draft.endMode) {
+                        Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
+                        Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
+                        Text(String(localized: "Nach Anzahl")).tag(RecurrenceDraft.EndMode.afterCount)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("end-mode-picker")
+                }
+                switch draft.endMode {
+                case .never:
+                    EmptyView()
+                case .onDate:
+                    DatePicker(String(localized: "Enddatum"), selection: $draft.endDate,
+                               displayedComponents: .date)
+                        .accessibilityIdentifier("end-date")
+                case .afterCount:
+                    Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
+                        Text(String(localized: "Nach \(draft.endCount) Terminen"))
+                    }
+                    .accessibilityIdentifier("end-count")
+                }
             }
 
             Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
