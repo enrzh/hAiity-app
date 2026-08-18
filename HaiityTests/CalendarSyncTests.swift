@@ -231,3 +231,48 @@ final class CalendarSyncRecurrenceRuleTests: XCTestCase {
         XCTAssertEqual(rule.frequency, .daily)
     }
 }
+
+final class CalendarSyncNativeMappingTests: XCTestCase {
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.locale = Locale(identifier: "de_DE")
+        calendar.firstWeekday = 2
+        return calendar
+    }()
+
+    @MainActor
+    func testOneTimePlanConfiguresSingleNativeEventWithoutRecurrence() throws {
+        let habit = Habit(name: "Einmal",
+                          timeMinutes: 9 * 60 + 15,
+                          recurrence: Recurrence(frequency: .once,
+                                                 start: "2026-08-18"))
+        let plan = try XCTUnwrap(CalendarEventPlan(habit: habit,
+                                                   today: "2026-08-10",
+                                                   calendar: calendar))
+        let event = EKEvent(eventStore: EKEventStore())
+
+        CalendarSync.configure(event: event, for: plan, calendar: calendar)
+
+        XCTAssertEqual(DayKey.key(for: event.startDate, calendar: calendar), "2026-08-18")
+        XCTAssertEqual(calendar.component(.hour, from: event.startDate), 9)
+        XCTAssertEqual(calendar.component(.minute, from: event.startDate), 15)
+        XCTAssertTrue(event.recurrenceRules?.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testRecurringPlanKeepsNativeRecurrenceRule() throws {
+        let habit = Habit(name: "Taeglich",
+                          timeMinutes: 8 * 60,
+                          recurrence: .daily)
+        let plan = try XCTUnwrap(CalendarEventPlan(habit: habit,
+                                                   today: "2026-08-18",
+                                                   calendar: calendar))
+        let event = EKEvent(eventStore: EKEventStore())
+
+        CalendarSync.configure(event: event, for: plan, calendar: calendar)
+
+        XCTAssertEqual(event.recurrenceRules?.count, 1)
+        XCTAssertEqual(event.recurrenceRules?.first?.frequency, .daily)
+    }
+}

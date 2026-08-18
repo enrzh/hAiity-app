@@ -369,7 +369,10 @@ enum ReminderSync {
                                        completed: Bool,
                                        in list: EKCalendar) -> String? {
         let reminder = EKReminder(eventStore: store)
-        guard updateReminder(reminder, plan: plan, completed: completed, in: list) else {
+        guard updateReminder(reminder,
+                             plan: plan,
+                             completed: completed,
+                             in: list) else {
             return nil
         }
         return reminder.calendarItemIdentifier
@@ -381,12 +384,21 @@ enum ReminderSync {
                                        completed: Bool,
                                        in list: EKCalendar) -> Bool {
         reminder.calendar = list
+        configure(reminder: reminder,
+                  for: plan,
+                  completed: completed)
+        return save(reminder)
+    }
+
+    static func configure(reminder: EKReminder,
+                          for plan: ReminderSyncPlan,
+                          completed: Bool,
+                          calendar: Calendar = .current) {
         reminder.title = plan.title
         reminder.notes = "hAiity"
-        reminder.dueDateComponents = dueDateComponents(for: plan)
+        reminder.dueDateComponents = dueDateComponents(for: plan, calendar: calendar)
         reminder.recurrenceRules = CalendarSync.recurrenceRule(for: plan.eventPlan).map { [$0] }
         reminder.isCompleted = completed
-        return save(reminder)
     }
 
     private static func save(_ reminder: EKReminder) -> Bool {
@@ -408,10 +420,11 @@ enum ReminderSync {
         trace("reminders: sync failed: \(error.localizedDescription)")
     }
 
-    private static func dueDateComponents(for plan: ReminderSyncPlan) -> DateComponents? {
-        guard let date = DayKey.date(from: plan.occurrenceDay) else { return nil }
+    private static func dueDateComponents(for plan: ReminderSyncPlan,
+                                          calendar: Calendar = .current) -> DateComponents? {
+        guard let date = DayKey.date(from: plan.occurrenceDay, calendar: calendar) else { return nil }
         let minutes = Habit.sanitizedMinutes(plan.eventPlan.minutes)
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        var components = calendar.dateComponents([.year, .month, .day], from: date)
         if let minutes {
             components.hour = minutes / 60
             components.minute = minutes % 60

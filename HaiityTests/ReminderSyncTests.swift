@@ -1,4 +1,5 @@
 import Foundation
+import EventKit
 import XCTest
 @testable import Haiity
 
@@ -115,5 +116,59 @@ final class ReminderSyncContractTests: XCTestCase {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(relative))
+    }
+}
+
+final class ReminderSyncNativeMappingTests: XCTestCase {
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.locale = Locale(identifier: "de_DE")
+        calendar.firstWeekday = 2
+        return calendar
+    }()
+
+    @MainActor
+    func testOneTimePlanUsesSelectedDayWithoutNativeRecurrenceRule() throws {
+        var reminder = Habit(name: "Einmal", itemType: .reminder)
+        reminder.reminderMinutes = 7 * 60 + 45
+        reminder.recurrence = Recurrence(frequency: .once, start: "2026-08-18")
+        let plan = try XCTUnwrap(ReminderSyncPlan(habit: reminder,
+                                                  today: "2026-08-10",
+                                                  calendar: calendar))
+        let nativeReminder = EKReminder(eventStore: EKEventStore())
+
+        ReminderSync.configure(reminder: nativeReminder,
+                               for: plan,
+                               completed: false,
+                               calendar: calendar)
+
+        XCTAssertEqual(plan.occurrenceDay, "2026-08-18")
+        XCTAssertEqual(nativeReminder.dueDateComponents?.year, 2026)
+        XCTAssertEqual(nativeReminder.dueDateComponents?.month, 8)
+        XCTAssertEqual(nativeReminder.dueDateComponents?.day, 18)
+        XCTAssertEqual(nativeReminder.dueDateComponents?.hour, 7)
+        XCTAssertEqual(nativeReminder.dueDateComponents?.minute, 45)
+        XCTAssertTrue(nativeReminder.recurrenceRules?.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testRecurringPlanKeepsNativeReminderRecurrenceRule() throws {
+        let reminder = Habit(name: "Taeglich",
+                             itemType: .reminder,
+                             reminderMinutes: 8 * 60,
+                             recurrence: .daily)
+        let plan = try XCTUnwrap(ReminderSyncPlan(habit: reminder,
+                                                  today: "2026-08-18",
+                                                  calendar: calendar))
+        let nativeReminder = EKReminder(eventStore: EKEventStore())
+
+        ReminderSync.configure(reminder: nativeReminder,
+                               for: plan,
+                               completed: false,
+                               calendar: calendar)
+
+        XCTAssertEqual(nativeReminder.recurrenceRules?.count, 1)
+        XCTAssertEqual(nativeReminder.recurrenceRules?.first?.frequency, .daily)
     }
 }

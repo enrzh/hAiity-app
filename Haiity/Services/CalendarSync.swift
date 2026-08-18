@@ -356,16 +356,32 @@ enum CalendarSync {
 
     private static func createEvent(plan: CalendarEventPlan,
                                     in calendar: EKCalendar) -> String? {
-        guard let day = DayKey.date(from: plan.firstDay) else { return nil }
         let event = EKEvent(eventStore: store)
         event.calendar = calendar
+        guard configure(event: event, for: plan) else { return nil }
+        do {
+            try store.save(event, span: .futureEvents, commit: true)
+            trace("calsync: saved '\(plan.title)' id=\(event.eventIdentifier ?? "nil")")
+            return event.eventIdentifier
+        } catch {
+            trace("calsync: save FAILED '\(plan.title)': \(error)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    static func configure(event: EKEvent,
+                          for plan: CalendarEventPlan,
+                          calendar: Calendar = .current) -> Bool {
+        guard let day = DayKey.date(from: plan.firstDay, calendar: calendar) else { return false }
         event.title = plan.title
         event.notes = "hAiity"
         event.url = URL(string: "haiity://habits")
         if let minutes = plan.minutes {
-            let start = Calendar.current.date(byAdding: .minute, value: minutes, to: day) ?? day
+            let start = calendar.date(byAdding: .minute, value: minutes, to: day) ?? day
             event.startDate = start
             event.endDate = start.addingTimeInterval(TimeInterval(plan.durationMinutes * 60))
+            event.isAllDay = false
         } else {
             event.isAllDay = true
             event.startDate = day
@@ -376,14 +392,7 @@ enum CalendarSync {
         // der Kalendereintrag ist nur das Bild des Tages. Zwei Wecker für
         // denselben Habit wären Lärm.
         event.alarms = nil
-        do {
-            try store.save(event, span: .futureEvents, commit: true)
-            trace("calsync: saved '\(plan.title)' id=\(event.eventIdentifier ?? "nil")")
-            return event.eventIdentifier
-        } catch {
-            trace("calsync: save FAILED '\(plan.title)': \(error)")
-            return nil
-        }
+        return true
     }
 
     static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule? {
