@@ -384,7 +384,7 @@ enum ReminderSync {
         reminder.title = plan.title
         reminder.notes = "hAiity"
         reminder.dueDateComponents = dueDateComponents(for: plan)
-        reminder.recurrenceRules = [CalendarSync.recurrenceRule(for: plan.eventPlan)]
+        reminder.recurrenceRules = CalendarSync.recurrenceRule(for: plan.eventPlan).map { [$0] }
         reminder.isCompleted = completed
         return save(reminder)
     }

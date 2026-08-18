@@ -1,3 +1,4 @@
+import EventKit
 import XCTest
 @testable import Haiity
 
@@ -206,5 +207,27 @@ final class CalendarEventPlanTests: XCTestCase {
         XCTAssertTrue(source.contains("event.alarms = nil"))
         XCTAssertFalse(source.contains("EKAlarm"), "kein Wecker am Termin")
         XCTAssertFalse(source.contains("addAlarm"), "kein Wecker am Termin")
+    }
+}
+
+final class CalendarSyncRecurrenceRuleTests: XCTestCase {
+    @MainActor
+    func testOncePlanProducesNoEventKitRecurrenceRule() throws {
+        let habit = Habit(name: "Einmal",
+                          recurrence: Recurrence(frequency: .once,
+                                                 start: "2026-08-18"))
+        let plan = try XCTUnwrap(CalendarEventPlan(habit: habit, today: "2026-08-18"))
+
+        XCTAssertNil(CalendarSync.recurrenceRule(for: plan))
+    }
+
+    @MainActor
+    func testDailyPlanStillProducesDailyEventKitRecurrenceRule() throws {
+        let habit = Habit(name: "Taeglich", recurrence: .daily)
+        let plan = try XCTUnwrap(CalendarEventPlan(habit: habit, today: "2026-08-18"))
+
+        let rule = try XCTUnwrap(CalendarSync.recurrenceRule(for: plan))
+
+        XCTAssertEqual(rule.frequency, .daily)
     }
 }

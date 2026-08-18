@@ -371,7 +371,7 @@ enum CalendarSync {
             event.startDate = day
             event.endDate = day
         }
-        event.recurrenceRules = [recurrenceRule(for: plan)]
+        event.recurrenceRules = recurrenceRule(for: plan).map { [$0] }
         // BEWUSST ohne Hinweiston: erinnern tut hAiity selbst (Reminders);
         // der Kalendereintrag ist nur das Bild des Tages. Zwei Wecker für
         // denselben Habit wären Lärm.
@@ -386,10 +386,10 @@ enum CalendarSync {
         }
     }
 
-    static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule {
+    static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule? {
         let frequency: EKRecurrenceFrequency
         switch plan.frequency {
-        case .once: frequency = .daily
+        case .once: return nil
         case .daily: frequency = .daily
         case .weekly: frequency = .weekly
         case .monthly: frequency = .monthly
