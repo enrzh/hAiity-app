@@ -171,6 +171,7 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains(".datePickerStyle(.compact)"))
         XCTAssertTrue(source.contains("if draft.frequency != .once"))
         XCTAssertTrue(source.contains("itemType = .reminder"))
+        XCTAssertFalse(source.contains("draft.hasStart = true"))
     }
 
     // MARK: – Zwei Geräte

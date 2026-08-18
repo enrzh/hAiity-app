@@ -71,6 +71,18 @@ struct EditHabitSheet: View {
 
     private var calendar: Calendar { .current }
 
+    private var frequencySelection: Binding<Recurrence.Frequency> {
+        Binding(
+            get: { draft.frequency },
+            set: { newFrequency in
+                draft.selectFrequency(newFrequency, calendar: calendar)
+                if newFrequency == .once {
+                    itemType = .reminder
+                }
+            }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -140,13 +152,6 @@ struct EditHabitSheet: View {
                 .themed(store)
         }
         .onAppear { load() }
-        .onChange(of: draft.frequency) { _, new in
-            if new == .once {
-                itemType = .reminder
-                draft.hasStart = true
-            }
-            draft.normalize(calendar: calendar)
-        }
         .onChange(of: draft.flexible) { _, _ in draft.normalize(calendar: calendar) }
         // Die Art IST das Mengenziel-Häkchen: „Menge" schaltet es an, alles
         // andere aus. Ein Ja/Nein-Habit mit stehen gebliebenem Ziel wäre ein
@@ -180,7 +185,7 @@ struct EditHabitSheet: View {
     private var recurrenceSection: some View {
         Section {
             summaryRow
-            Picker(String(localized: "Häufigkeit"), selection: $draft.frequency) {
+            Picker(String(localized: "Häufigkeit"), selection: frequencySelection) {
                 Text(String(localized: "Custom")).tag(Recurrence.Frequency.once)
                 Text(String(localized: "Täglich")).tag(Recurrence.Frequency.daily)
                 Text(String(localized: "Wöchentlich")).tag(Recurrence.Frequency.weekly)

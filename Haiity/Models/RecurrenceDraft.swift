@@ -188,6 +188,16 @@ struct RecurrenceDraft: Equatable {
         endCount = min(Recurrence.maxOccurrences, max(1, endCount))
     }
 
+    /// Nutzerwechsel der Häufigkeit: dieselbe sanfte Korrektur wie bisher,
+    /// aber ohne versteckte Nebenwirkung auf einen migrierten Start-losen
+    /// Bestand. `.once` liest immer `start`, braucht dafür aber kein
+    /// dauerhaft umgelegtes `hasStart`.
+    mutating func selectFrequency(_ newFrequency: Recurrence.Frequency,
+                                  calendar: Calendar = .current) {
+        frequency = newFrequency
+        normalize(calendar: calendar)
+    }
+
     /// Die eingestellte Uhrzeit als Minuten seit Mitternacht; nil = ohne.
     func timeMinutes(calendar: Calendar = .current) -> Int? {
         guard hasTime else { return nil }

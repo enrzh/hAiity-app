@@ -351,6 +351,21 @@ final class RecurrenceDraftTests: XCTestCase {
         XCTAssertEqual(draft.recurrence(calendar: calendar).rule, .nthWeekday(nth: 3, weekday: 3))
     }
 
+    func testSwitchingThroughOnceKeepsLegacyRecurringWithoutStart() {
+        let legacy = Recurrence.weekdays([2], start: nil)
+        var draft = RecurrenceDraft(legacy, today: today, calendar: calendar)
+
+        XCTAssertFalse(draft.hasStart)
+        draft.selectFrequency(.once, calendar: calendar)
+        XCTAssertFalse(draft.hasStart)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).start, "2026-08-09")
+
+        draft.selectFrequency(.weekly, calendar: calendar)
+        XCTAssertFalse(draft.hasStart)
+        XCTAssertNil(draft.recurrence(calendar: calendar).start)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).weekdays, [2])
+    }
+
     /// Ein neues Habit startet heute, täglich, ohne Ende — und mit dem
     /// heutigen Wochentag vorgewählt, damit „wöchentlich" nie auf einer
     /// leeren Tagesmenge landet.
