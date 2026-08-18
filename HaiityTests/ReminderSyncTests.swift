@@ -112,6 +112,28 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertFalse(source.contains("try? store.save(reminder, commit: true)"))
     }
 
+    func testMoreViewReminderBindingDisablesForFreeAndGatesBeforePermissionRequest() throws {
+        let source = try source("Haiity/Views/MoreView.swift")
+        let start = try XCTUnwrap(source.range(of: "private var reminderSyncBinding: Binding<Bool>"))
+        let end = try XCTUnwrap(source.range(of: "// MARK: – Darstellung",
+                                             range: start.upperBound..<source.endIndex))
+        let binding = String(source[start.lowerBound..<end.lowerBound])
+
+        let disableRange = try XCTUnwrap(binding.range(of: "ReminderSync.disable()"))
+        let gateRange = try XCTUnwrap(binding.range(of: "guard CalendarFeatureGate.canEnable(unlocked: unlocked) else"))
+        let paywallRange = try XCTUnwrap(binding.range(of: "paywall = .calendar"))
+        let requestRange = try XCTUnwrap(binding.range(of: "ReminderSync.requestAccess()"))
+
+        XCTAssertTrue(disableRange.upperBound < gateRange.lowerBound,
+                      "Ausschalten muss frei bleiben und vor dem Pro-Gate liegen")
+        XCTAssertTrue(gateRange.upperBound < requestRange.lowerBound,
+                      "das gemeinsame Kalender-Gate muss vor der Erinnerungs-Berechtigung greifen")
+        XCTAssertTrue(paywallRange.lowerBound >= gateRange.lowerBound &&
+                      paywallRange.upperBound <= requestRange.lowerBound,
+                      "freie Aktivierung soll im Kalender-Paywall-Zweig enden")
+        XCTAssertTrue(binding.contains("pendingNativeReminder = true"))
+    }
+
     private func source(_ relative: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

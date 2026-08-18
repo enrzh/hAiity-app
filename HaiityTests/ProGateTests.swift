@@ -254,6 +254,8 @@ final class ProGateTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         let project = try source("project.yml")
 
+        XCTAssertFalse(CalendarFeatureGate.canEnable(unlocked: false))
+        XCTAssertTrue(CalendarFeatureGate.canEnable(unlocked: true))
         XCTAssertTrue(more.contains("native-reminder-sync-toggle"))
         XCTAssertTrue(more.contains("ReminderSync.requestAccess()"))
         XCTAssertTrue(more.contains("ReminderSync.disable()"))

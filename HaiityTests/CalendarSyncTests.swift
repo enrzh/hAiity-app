@@ -83,6 +83,17 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("guard CalendarFeatureGate.canEnable(unlocked: unlocked)"))
         XCTAssertTrue(source.contains("paywall = .calendar"))
     }
+
+    func testMoreViewReminderToggleUsesItsBindingAndPurchaseResumePath() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        XCTAssertTrue(source.contains("Toggle(isOn: reminderSyncBinding)"))
+        XCTAssertTrue(source.contains("if pendingNativeReminder {"))
+        XCTAssertTrue(source.contains("reminderSyncBinding.wrappedValue = true"))
+        XCTAssertFalse(source.contains("ReminderSync.isEnabled = true\n                paywall = .calendar"),
+                       "das Kauf-Resume darf nicht an der Binding vorbei verdrahtet werden")
+    }
 }
 
 /// Die Abbildung Habit -> Kalender-Termin (`CalendarEventPlan`) — pur, ohne
