@@ -22,6 +22,17 @@ final class RecurrenceTextTests: XCTestCase {
         XCTAssertEqual(text(Recurrence(frequency: .daily, interval: 2)), "Alle 2 Tage")
     }
 
+    func testOnceNamesItsSelectedDay() {
+        let once = Recurrence(frequency: .once, start: "2026-08-09")
+        XCTAssertEqual(text(once),
+                       "Einmal am 09.08.2026")
+
+        var english = calendar
+        english.locale = Locale(identifier: "en_US")
+        XCTAssertEqual(RecurrenceText.summary(once, calendar: english),
+                       "Once on 09.08.2026")
+    }
+
     func testWeekdaySets() {
         XCTAssertEqual(text(.weekdays([2, 5])), "Jeden Montag und Donnerstag")
         XCTAssertEqual(text(.weekdays([2, 4, 6])), "Jeden Montag, Mittwoch und Freitag")

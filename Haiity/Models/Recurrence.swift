@@ -22,7 +22,7 @@ import Foundation
 struct Recurrence: Equatable {
 
     enum Frequency: String, CaseIterable, Equatable {
-        case daily, weekly, monthly, yearly
+        case once, daily, weekly, monthly, yearly
     }
 
     /// Der Tag INNERHALB eines Monats — für Monats- wie für Jahresregeln.
@@ -109,9 +109,9 @@ struct Recurrence: Equatable {
          timesPerPeriod: Int? = nil,
          target: Int? = nil) {
         self.frequency = frequency
-        self.interval = min(Self.maxInterval, max(1, interval))
+        self.interval = frequency == .once ? 1 : min(Self.maxInterval, max(1, interval))
         // „n× pro Tag" gibt es nicht — das IST das Mengenziel.
-        let flexible: Int? = frequency == .daily
+        let flexible: Int? = frequency == .daily || frequency == .once
             ? nil
             : timesPerPeriod.flatMap { $0 >= 1 ? min($0, Self.maxTimes(for: frequency)) : nil }
         self.timesPerPeriod = flexible
@@ -125,9 +125,9 @@ struct Recurrence: Equatable {
         self.month = flexible == nil && frequency == .yearly
             ? month.flatMap { (1...12).contains($0) ? $0 : nil } : nil
         self.start = start.flatMap { DayKey.components($0) != nil ? $0 : nil }
-        self.target = target.flatMap { $0 > 0 ? $0 : nil }
+        self.target = frequency == .once ? nil : target.flatMap { $0 > 0 ? $0 : nil }
         let normalizedEnd: End
-        switch end {
+        switch frequency == .once ? .never : end {
         case .never:
             normalizedEnd = .never
         case .on(let day):
@@ -154,6 +154,7 @@ struct Recurrence: Equatable {
     /// Wie viele Termine eine Periode überhaupt fassen kann.
     static func maxTimes(for frequency: Frequency) -> Int {
         switch frequency {
+        case .once: return 1
         case .daily: return 1
         case .weekly: return 7
         case .monthly: return 31
@@ -305,6 +306,9 @@ extension Recurrence {
         /// Nur das MUSTER (ohne Start-/Ende-Grenzen).
         func matchesPattern(_ date: Date) -> Bool {
             switch recurrence.frequency {
+            case .once:
+                guard let startDate else { return false }
+                return calendar.isDate(date, inSameDayAs: startDate)
             case .daily:
                 guard recurrence.interval > 1 else { return true }
                 return mod(dayDiff(from: anchor, to: date), recurrence.interval) == 0
@@ -344,6 +348,7 @@ extension Recurrence {
         /// Die Kalendereinheit, in der diese Regel denkt.
         var periodUnit: Calendar.Component {
             switch recurrence.frequency {
+            case .once: return .day
             case .daily: return .day
             case .weekly: return .weekOfYear
             case .monthly: return .month
@@ -449,6 +454,9 @@ extension Recurrence {
         private func search(from cursor: Date) -> String? {
             let cursorDay = calendar.startOfDay(for: cursor)
             switch recurrence.frequency {
+            case .once:
+                guard let startDate, startDate >= cursorDay else { return nil }
+                return DayKey.key(for: startDate, calendar: calendar)
             case .daily:
                 let interval = recurrence.interval
                 guard interval > 1 else { return DayKey.key(for: cursorDay, calendar: calendar) }
@@ -672,6 +680,8 @@ extension Recurrence {
     var legacyMirror: LegacyGoal? {
         guard interval == 1, start == nil, end == .never else { return nil }
         switch frequency {
+        case .once:
+            return nil
         case .daily:
             return LegacyGoal(cadence: .daily, target: target)
         case .weekly:

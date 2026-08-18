@@ -41,6 +41,12 @@ enum RecurrenceText {
             return flexible(times: times, recurrence: recurrence, calendar: calendar)
         }
         switch recurrence.frequency {
+        case .once:
+            guard let start = recurrence.start else { return String(localized: "Keine Termine") }
+            if calendar.locale?.language.languageCode?.identifier == "en" {
+                return "Once on \(dayText(start))"
+            }
+            return String(localized: "Einmal am \(dayText(start))")
         case .daily:
             return recurrence.interval == 1
                 ? String(localized: "Jeden Tag")
@@ -77,6 +83,7 @@ enum RecurrenceText {
         let count = times == 1 ? String(localized: "Einmal") : String(localized: "\(times)×")
         var sentence: String
         switch (recurrence.frequency, recurrence.interval) {
+        case (.once, _):    sentence = String(localized: "Keine Termine")
         case (.weekly, 1):  sentence = String(localized: "\(count) pro Woche")
         case (.weekly, let n): sentence = String(localized: "\(count) alle \(n) Wochen")
         case (.monthly, 1): sentence = String(localized: "\(count) pro Monat")

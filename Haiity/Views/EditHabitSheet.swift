@@ -197,6 +197,7 @@ struct EditHabitSheet: View {
                 flexibleControls
             } else {
                 switch draft.frequency {
+                case .once: EmptyView()
                 case .daily: EmptyView()
                 case .weekly: weekdayChips(multiSelect: true)
                 case .monthly: monthlyControls
@@ -293,6 +294,8 @@ struct EditHabitSheet: View {
     private var intervalLabel: String {
         let n = draft.interval
         switch draft.frequency {
+        case .once:
+            return String(localized: "Einmal")
         case .daily:
             return n == 1 ? String(localized: "Jeden Tag") : String(localized: "Alle \(n) Tage")
         case .weekly:

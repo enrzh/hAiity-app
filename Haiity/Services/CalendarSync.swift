@@ -389,6 +389,7 @@ enum CalendarSync {
     static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule {
         let frequency: EKRecurrenceFrequency
         switch plan.frequency {
+        case .once: frequency = .daily
         case .daily: frequency = .daily
         case .weekly: frequency = .weekly
         case .monthly: frequency = .monthly

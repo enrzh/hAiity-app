@@ -315,6 +315,63 @@ final class RecurrenceTests: XCTestCase {
         XCTAssertNil(Recurrence(frequency: .daily, start: "irgendwann").start)
     }
 
+    // MARK: - Einmalige Regeln
+
+    func testOnceSchedulesOnlyItsStartDay() {
+        let r = Recurrence(frequency: .once, start: "2026-08-09")
+
+        XCTAssertTrue(scheduled(r, "2026-08-09"))
+        XCTAssertFalse(scheduled(r, "2026-08-08"))
+        XCTAssertFalse(scheduled(r, "2026-08-10"))
+    }
+
+    func testOnceFindsItsOccurrenceBeforeButNotAfterTheDate() {
+        let r = Recurrence(frequency: .once, start: "2026-08-09")
+
+        XCTAssertEqual(r.nextOccurrence(after: "2026-08-08", calendar: calendar), "2026-08-09")
+        XCTAssertNil(r.nextOccurrence(after: "2026-08-09", calendar: calendar))
+    }
+
+    func testOnceEnumeratesAtMostOneOccurrence() {
+        let r = Recurrence(frequency: .once, start: "2026-08-09")
+
+        XCTAssertEqual(r.occurrences(in: "2026-08-01"..."2026-08-31", calendar: calendar),
+                       ["2026-08-09"])
+        XCTAssertEqual(r.occurrences(in: "2026-08-10"..."2026-08-31", calendar: calendar), [])
+    }
+
+    func testOnceRoundTripsAndDropsRecurringFields() throws {
+        let r = Recurrence(frequency: .once, interval: 7, weekdays: [2],
+                           rule: .lastDayOfMonth, month: 3, start: "2026-08-09",
+                           end: .after(3), endTitle: "ignored", timesPerPeriod: 2, target: 4)
+
+        XCTAssertEqual(r.interval, 1)
+        XCTAssertTrue(r.weekdays.isEmpty)
+        XCTAssertNil(r.rule)
+        XCTAssertNil(r.month)
+        XCTAssertEqual(r.start, "2026-08-09")
+        XCTAssertEqual(r.end, .never)
+        XCTAssertNil(r.endTitle)
+        XCTAssertNil(r.timesPerPeriod)
+        XCTAssertNil(r.target)
+
+        let data = try JSONEncoder().encode(r)
+        let raw = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertTrue(raw.contains(#""freq":"once""#))
+        XCTAssertTrue(raw.contains(#""start":"2026-08-09""#))
+        XCTAssertEqual(try JSONDecoder().decode(Recurrence.self, from: data), r)
+    }
+
+    func testOnceWithMissingOrMalformedStartSchedulesNothing() throws {
+        XCTAssertFalse(scheduled(Recurrence(frequency: .once), "2026-08-09"))
+        XCTAssertFalse(scheduled(Recurrence(frequency: .once, start: "irgendwann"), "2026-08-09"))
+
+        let missing = try JSONDecoder().decode(Recurrence.self,
+                                               from: Data(#"{"freq":"once"}"#.utf8))
+        XCTAssertNil(missing.start)
+        XCTAssertTrue(missing.occurrences(in: "2026-08-01"..."2026-08-31", calendar: calendar).isEmpty)
+    }
+
     // MARK: – Codable der neuen Formen
 
     func testEveryShapeRoundTripsThroughJSON() throws {
