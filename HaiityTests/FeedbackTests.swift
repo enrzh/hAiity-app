@@ -667,7 +667,7 @@ final class FeedbackTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         for route in ["case archive, about, developer, appearance, habitBehavior, github",
                       "case .appearance:", "case .habitBehavior:",
-                      "Darstellung", "Habit-Verhalten"] {
+                      "Darstellung", "Verhalten & Teilen"] {
             XCTAssertTrue(more.contains(route), route)
         }
 
@@ -692,6 +692,14 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(appearance.contains("compactModeSection"))
         let behavior = more[behaviorStart.lowerBound...]
         XCTAssertFalse(behavior.prefix(250).contains("compactModeSection"))
+    }
+
+    func testDynamicAppIconLabelExplainsAndHidesManualChoices() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(more.contains("App-Icon dynamisch"))
+        XCTAssertTrue(more.contains("Gleiche Farbe wie Graph-Farbe."))
+        XCTAssertTrue(more.contains("if !store.matchAppIcon"))
+        XCTAssertFalse(more.contains("App-Icon anpassen"))
     }
 
     func testMovedSettingsHaveOneVisibleHome() throws {

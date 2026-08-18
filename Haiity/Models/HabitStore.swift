@@ -57,6 +57,10 @@ struct HabitData: Codable {
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
+    /// Soll der GitHub-Nutzername ueber dem Beitragsraster erscheinen? `nil`
+    /// bedeutet eine Datei aus einer Version, die diese Einstellung noch
+    /// lokal im App-Group-Defaults hielt.
+    var githubShowsUsername: Bool?
     /// Ansichts-Einstellungen (Statistik-Karten und kompakte Darstellung).
     /// Sie reisen als Teil desselben privaten iCloud-Payloads mit.
     var viewPreferences: ViewPreferences
@@ -76,6 +80,7 @@ struct HabitData: Codable {
          palette: PaletteRef = .default,
          customPalettes: [CustomPalette] = [],
          matchAppIcon: Bool = true,
+         githubShowsUsername: Bool? = nil,
          weeklySummaryMinutes: Int? = nil,
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
          viewPreferences: ViewPreferences = ViewPreferences(),
@@ -96,6 +101,7 @@ struct HabitData: Codable {
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
+        self.githubShowsUsername = githubShowsUsername
         self.viewPreferences = viewPreferences
     }
 
@@ -112,6 +118,7 @@ extension HabitData {
     /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
+        case githubShowsUsername
         case customPalettes
         // Die Wochenzusammenfassung ist rein ADDITIV: ein Build ohne sie
         // überliest die beiden Schlüssel, also braucht es dafür keinen
@@ -160,6 +167,7 @@ extension HabitData {
         // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
         customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
+        githubShowsUsername = try c.decodeIfPresent(Bool.self, forKey: .githubShowsUsername)
         if let savedPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) {
             viewPreferences = savedPreferences
         } else {
@@ -196,6 +204,7 @@ extension HabitData {
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
+        if let githubShowsUsername { try c.encode(githubShowsUsername, forKey: .githubShowsUsername) }
         if viewPreferences != ViewPreferences() { try c.encode(viewPreferences, forKey: .viewPreferences) }
     }
 
@@ -321,6 +330,26 @@ final class HabitStore {
     var matchAppIcon: Bool {
         get { data.matchAppIcon }
         set { data.matchAppIcon = newValue; persist() }
+    }
+
+    /// The synced preference is authoritative once it exists. Older installs
+    /// keep their local value until `materializeGitHubShowsUsername()` runs
+    /// after the first iCloud pull.
+    var githubShowsUsername: Bool {
+        get { data.githubShowsUsername ?? GitHubPreferences.showsUsername }
+        set {
+            data.githubShowsUsername = newValue
+            GitHubPreferences.setShowsUsername(newValue, in: GitHubPreferences.defaults)
+            persist()
+        }
+    }
+
+    /// Promote the legacy App Group preference only after any remote payload
+    /// has had a chance to provide the newer synced value.
+    func materializeGitHubShowsUsername() {
+        guard data.githubShowsUsername == nil else { return }
+        data.githubShowsUsername = GitHubPreferences.showsUsername
+        persist(notify: false)
     }
 
     func setViewPreferences(_ preferences: ViewPreferences) {
@@ -746,20 +775,17 @@ final class HabitStore {
         data.habits = merged
         let localRecordIDs = Set(data.sessionHistory.map(\.id))
         data.sessionHistory += remote.sessionHistory.filter { !localRecordIDs.contains($0.id) }
-        if remoteNewer, remote.summaryMinutes != nil { data.summaryMinutes = remote.summaryMinutes }
-        if remoteNewer, remote.weeklySummaryMinutes != nil {
+        if remoteNewer {
+            data.summaryMinutes = remote.summaryMinutes
             data.weeklySummaryMinutes = remote.weeklySummaryMinutes
             data.weeklySummaryWeekday = remote.weeklySummaryWeekday
-        }
-        // GENAU derselbe Weg wie bei den beiden Zusammenfassungen, mit
-        // derselben bewussten Schieflage: eine EINGESCHALTETE Uhrzeit vom
-        // neueren Gerät gewinnt, ein dortiges AUSSCHALTEN (nil) reist nicht
-        // mit. „nil" heißt hier „nichts gesetzt" und nicht „ausgeschaltet" —
-        // sonst würde ein Gerät, das die Einstellung nie gesehen hat, sie
-        // beim ersten Abgleich auf dem anderen löschen.
-        if remoteNewer, remote.motivationMinutes != nil {
             data.motivationMinutes = remote.motivationMinutes
             data.motivationDelivery = remote.motivationDelivery
+            if let remoteShowsUsername = remote.githubShowsUsername {
+                data.githubShowsUsername = remoteShowsUsername
+                GitHubPreferences.setShowsUsername(remoteShowsUsername,
+                                                    in: GitHubPreferences.defaults)
+            }
         }
         // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
         // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",

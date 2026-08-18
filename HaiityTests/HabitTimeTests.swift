@@ -155,15 +155,15 @@ final class HabitTimeTests: XCTestCase {
                        RecurrenceDraft.defaultHour * 60)
     }
 
-    func testEditorSourceShowsCustomBeforeDailyAndDropsEndTitleField() throws {
+    func testEditorSourceShowsOneDayBeforeDailyAndDropsEndTitleField() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
 
-        let custom = try XCTUnwrap(source.range(of: "Text(String(localized: \"Custom\")).tag(Recurrence.Frequency.once)"))
+        let once = try XCTUnwrap(source.range(of: "Text(String(localized: \"Ein Tag\")).tag(Recurrence.Frequency.once)"))
         let daily = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
 
-        XCTAssertLessThan(custom.lowerBound, daily.lowerBound)
+        XCTAssertLessThan(once.lowerBound, daily.lowerBound)
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"end-title\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-date\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-count\")"))
@@ -285,15 +285,15 @@ final class LegacyFieldsSurviveTests: XCTestCase {
 }
 
 final class EditHabitSheetContractTests: XCTestCase {
-    func testEditorExposesCustomCadenceAndOnlyFiniteEndControls() throws {
+    func testEditorExposesOneDayCadenceAndOnlyFiniteEndControls() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
 
         XCTAssertTrue(source.contains("$draft.endMode"))
-        let custom = try XCTUnwrap(source.range(of: "Text(String(localized: \"Custom\")).tag(Recurrence.Frequency.once)"))
+        let once = try XCTUnwrap(source.range(of: "Text(String(localized: \"Ein Tag\")).tag(Recurrence.Frequency.once)"))
         let daily = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
-        XCTAssertLessThan(custom.lowerBound, daily.lowerBound)
+        XCTAssertLessThan(once.lowerBound, daily.lowerBound)
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.never)"))
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.onDate)"))
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.afterCount)"))

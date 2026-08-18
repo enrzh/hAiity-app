@@ -117,6 +117,21 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(graph.contains("GitHubWidgetGraph"))
     }
 
+    func testHomeGraphWidgetsRespectWidgetRenderingMode() throws {
+        let graph = try source("HaiityWidget/GraphWidgetView.swift")
+        let main = try source("HaiityWidget/HaiityWidgetView.swift")
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let github = try source("HaiityWidget/GitHubWidgetGraph.swift")
+
+        for source in [graph, main, roster] {
+            XCTAssertTrue(source.contains("@Environment(\\.widgetRenderingMode)"))
+            XCTAssertTrue(source.contains("mode: mode"))
+        }
+        XCTAssertTrue(github.contains("mode: WidgetRenderingMode"))
+        XCTAssertTrue(github.contains("HomeWidgetInk.level(level,"))
+        XCTAssertTrue(github.contains("mode: mode"))
+    }
+
     func testSparseGitHubSnapshotExpandsToAStableWidgetWindow() throws {
         let days = [GitHubContributionDay(date: "2026-08-17", count: 3, level: 2)]
 

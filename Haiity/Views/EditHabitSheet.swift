@@ -186,7 +186,7 @@ struct EditHabitSheet: View {
         Section {
             summaryRow
             Picker(String(localized: "Häufigkeit"), selection: frequencySelection) {
-                Text(String(localized: "Custom")).tag(Recurrence.Frequency.once)
+                Text(String(localized: "Ein Tag")).tag(Recurrence.Frequency.once)
                 Text(String(localized: "Täglich")).tag(Recurrence.Frequency.daily)
                 Text(String(localized: "Wöchentlich")).tag(Recurrence.Frequency.weekly)
                 Text(String(localized: "Monatlich")).tag(Recurrence.Frequency.monthly)

@@ -26,7 +26,7 @@ enum MoreScreen: Equatable {
         switch self {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
-        case .habitBehavior: String(localized: "Habit-Verhalten")
+        case .habitBehavior: String(localized: "Verhalten & Teilen")
         }
     }
 }
@@ -202,7 +202,7 @@ struct MoreView: View, Equatable {
             Section {
                 pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
                         symbol: "paintpalette", identifier: "open-appearance")
-                pageRow(MoreRoute.habitBehavior, title: String(localized: "Habit-Verhalten"),
+                pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
             notificationOptOutSection
@@ -730,11 +730,18 @@ struct MoreView: View, Equatable {
             .accessibilityIdentifier("appearance-picker")
 
             Toggle(isOn: matchIconBinding) {
-                Label(String(localized: "App-Icon anpassen"), systemImage: "app.badge")
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(String(localized: "App-Icon dynamisch"), systemImage: "app.badge")
+                    Text(String(localized: "Gleiche Farbe wie Graph-Farbe."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .accessibilityIdentifier("match-icon-toggle")
 
-            iconGrid
+            if !store.matchAppIcon {
+                iconGrid
+            }
 
             if iconChangeFailed {
                 Text(String(localized: "Der Icon-Wechsel ist auf diesem Gerät gerade nicht möglich."))

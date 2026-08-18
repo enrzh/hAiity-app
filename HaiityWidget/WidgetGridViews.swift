@@ -103,6 +103,18 @@ enum HomeWidgetInk {
     static func level(_ level: Int, dark: Bool, palette: PaletteStyle) -> Color {
         Theme.level(mappedLevel(level), dark: dark, palette: palette)
     }
+
+    /// The Home Screen can tint or make a widget vibrant when the user uses
+    /// the translucent icon appearance. In those modes WidgetKit collapses
+    /// arbitrary colors to one system treatment, so preserve the five data
+    /// levels as opacity instead of letting every tile become white.
+    static func level(_ value: Int,
+                      mode: WidgetRenderingMode,
+                      dark: Bool,
+                      palette: PaletteStyle) -> Color {
+        guard mode == .fullColor else { return WidgetInk.mono(value) }
+        return level(value, dark: dark, palette: palette)
+    }
 }
 
 /// Ein sehr leiser Paletten-Ton statt einer neutral schwarzen Fläche. Die
@@ -111,13 +123,18 @@ enum HomeWidgetInk {
 struct HomeWidgetBackground: View {
     let palette: PaletteStyle
     let dark: Bool
+    let mode: WidgetRenderingMode
 
     var body: some View {
-        ZStack {
-            Color(.systemBackground)
-            Theme.accent(palette)
-                .opacity(dark ? HomeWidgetInk.darkBackgroundOpacity
-                              : HomeWidgetInk.lightBackgroundOpacity)
+        if mode == .fullColor {
+            ZStack {
+                Color(.systemBackground)
+                Theme.accent(palette)
+                    .opacity(dark ? HomeWidgetInk.darkBackgroundOpacity
+                                  : HomeWidgetInk.lightBackgroundOpacity)
+            }
+        } else {
+            Color.clear
         }
     }
 }

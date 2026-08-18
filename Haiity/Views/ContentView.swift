@@ -40,9 +40,6 @@ private struct PendingReminderCompletion: Equatable {
 struct ContentView: View {
     @State private var store = HabitStore()
     @State private var github = GitHubContributionStore()
-    @AppStorage(GitHubPreferences.showsUsernameKey,
-                store: GitHubPreferences.defaults)
-    private var showsGitHubUsername = GitHubPreferences.showsUsername
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
     @State private var cloud = CloudSync()
@@ -149,6 +146,11 @@ struct ContentView: View {
     /// Zusammengezogenes Chrom (Fallback-Leiste) und verdichtete Karten.
     /// Dieser Zustand ist ausschließlich eine persistente Nutzerwahl.
     private var collapsed: Bool { viewPreferences.compactMode }
+
+    private var githubUsernameBinding: Binding<Bool> {
+        Binding(get: { store.githubShowsUsername },
+                set: { store.githubShowsUsername = $0 })
+    }
 
     private static let listSpace = "habit-list"
 
@@ -662,7 +664,7 @@ struct ContentView: View {
         case .about: AboutView()
         case .github:
             GitHubSettingsView(store: github,
-                               showsUsername: $showsGitHubUsername)
+                               showsUsername: githubUsernameBinding)
         case .appearance:
             MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences, onOpen: presentMoreSheet,
@@ -956,7 +958,7 @@ struct ContentView: View {
             if let snapshot = github.snapshot {
                 GitHubContributionCard(snapshot: snapshot,
                                        collapsed: collapsed,
-                                       showsUsername: showsGitHubUsername,
+                                       showsUsername: store.githubShowsUsername,
                                        openProfile: { GitHubLink.open(snapshot.profileURL) })
                     .equatable()
                     .listRowSeparator(.hidden)
@@ -2331,6 +2333,7 @@ struct ContentView: View {
             if pullFirst, let remote = try await cloud.pull() {
                 store.merge(remote: remote)
             }
+            store.materializeGitHubShowsUsername()
             viewPreferences.adoptRemote(store.data.viewPreferences)
             guard let payload = store.exportJSON() else { return }
             try await cloud.push(payload) { remote in
@@ -2338,6 +2341,7 @@ struct ContentView: View {
                 if let remote {
                     await MainActor.run {
                         store.merge(remote: remote)
+                        store.materializeGitHubShowsUsername()
                         viewPreferences.adoptRemote(store.data.viewPreferences)
                     }
                 }

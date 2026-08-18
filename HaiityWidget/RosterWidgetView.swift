@@ -16,22 +16,27 @@ import SwiftUI
 struct RosterWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     let entry: HaiityEntry
 
     private var palette: PaletteStyle { entry.palettes.style }
     private var today: String { DayKey.today() }
 
     var body: some View {
-        content(family: family, dark: scheme == .dark)
+        content(family: family, dark: scheme == .dark, mode: mode)
             .containerBackground(for: .widget) {
-                HomeWidgetBackground(palette: palette, dark: scheme == .dark)
+                HomeWidgetBackground(palette: palette,
+                                     dark: scheme == .dark,
+                                     mode: mode)
             }
             .widgetURL(URL(string: "haiity://open"))
     }
 
     /// Familie UND Schema als Argument — siehe `HaiityWidgetView`.
     @ViewBuilder
-    func content(family: WidgetFamily, dark: Bool) -> some View {
+    func content(family: WidgetFamily,
+                 dark: Bool,
+                 mode: WidgetRenderingMode = .fullColor) -> some View {
         let split = WidgetLogic.roster(entry.habits, limit: WidgetLogic.rosterLimit(for: family))
         if split.visible.isEmpty {
             WidgetEmptyState()
@@ -41,7 +46,7 @@ struct RosterWidgetView: View {
                     header(overflow: split.overflow)
                         .frame(width: geometry.size.width, alignment: .leading)
                     ForEach(split.visible) { habit in
-                        row(habit, width: geometry.size.width, dark: dark)
+                        row(habit, width: geometry.size.width, dark: dark, mode: mode)
                             .frame(maxHeight: .infinity)
                     }
                 }
@@ -76,7 +81,10 @@ struct RosterWidgetView: View {
 
     // MARK: – Karte
 
-    private func row(_ habit: Habit, width: CGFloat, dark: Bool) -> some View {
+    private func row(_ habit: Habit,
+                     width: CGFloat,
+                     dark: Bool,
+                     mode: WidgetRenderingMode) -> some View {
         let status = WidgetLogic.status(habit: habit, today: today)
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
@@ -85,7 +93,7 @@ struct RosterWidgetView: View {
                     .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
 
                 TrailingGrid(habit: habit, today: today, radius: nil) { level in
-                    HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
+                    HomeWidgetInk.level(level, mode: mode, dark: dark, palette: cellPalette)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
 

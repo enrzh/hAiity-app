@@ -6,6 +6,15 @@ import SwiftUI
 struct GitHubWidgetGraph: View {
     let days: [GitHubContributionDay]
     let palette: PaletteStyle
+    let mode: WidgetRenderingMode
+
+    init(days: [GitHubContributionDay],
+         palette: PaletteStyle,
+         mode: WidgetRenderingMode = .fullColor) {
+        self.days = days
+        self.palette = palette
+        self.mode = mode
+    }
 
     @Environment(\.colorScheme) private var scheme
 
@@ -54,7 +63,10 @@ struct GitHubWidgetGraph: View {
 
     private func cell(level: Int, size: CGFloat, radius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(HomeWidgetInk.level(level, dark: scheme == .dark, palette: palette))
+            .fill(HomeWidgetInk.level(level,
+                                      mode: mode,
+                                      dark: scheme == .dark,
+                                      palette: palette))
             .frame(width: size, height: size)
     }
 }

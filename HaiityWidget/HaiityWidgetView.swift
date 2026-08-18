@@ -25,6 +25,7 @@ import AppIntents
 struct HaiityWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     let entry: HaiityEntry
 
     /// Akzente folgen der GLOBALEN Farbe (wie die Knöpfe in der App); nur das
@@ -33,20 +34,23 @@ struct HaiityWidgetView: View {
     private var today: String { DayKey.today() }
 
     var body: some View {
-        content(family: family, dark: scheme == .dark)
+        content(family: family, dark: scheme == .dark, mode: mode)
             .containerBackground(for: .widget) {
                 HomeWidgetBackground(palette: entry.palettes.style(for: entry.habit),
-                                     dark: scheme == .dark)
+                                     dark: scheme == .dark,
+                                     mode: mode)
             }
             .widgetURL(URL(string: "haiity://open"))
     }
 
     @ViewBuilder
-    func content(family: WidgetFamily, dark: Bool) -> some View {
+    func content(family: WidgetFamily,
+                 dark: Bool,
+                 mode: WidgetRenderingMode = .fullColor) -> some View {
         if let habit = entry.habit {
             switch family {
-            case .systemMedium: medium(habit, dark: dark)
-            default: small(habit, dark: dark)
+            case .systemMedium: medium(habit, dark: dark, mode: mode)
+            default: small(habit, dark: dark, mode: mode)
             }
         } else {
             WidgetEmptyState()
@@ -55,7 +59,9 @@ struct HaiityWidgetView: View {
 
     // MARK: – Klein
 
-    private func small(_ habit: Habit, dark: Bool) -> some View {
+    private func small(_ habit: Habit,
+                       dark: Bool,
+                       mode: WidgetRenderingMode) -> some View {
         let status = WidgetLogic.status(habit: habit, today: today)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
@@ -67,7 +73,7 @@ struct HaiityWidgetView: View {
                 .font(.title2.weight(.bold).monospacedDigit())
                 .foregroundStyle(.primary)
             statusLine(status, dark: dark)
-            grid(habit, dark: dark)
+            grid(habit, dark: dark, mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -75,7 +81,9 @@ struct HaiityWidgetView: View {
 
     // MARK: – Mittel
 
-    private func medium(_ habit: Habit, dark: Bool) -> some View {
+    private func medium(_ habit: Habit,
+                        dark: Bool,
+                        mode: WidgetRenderingMode) -> some View {
         let status = WidgetLogic.status(habit: habit, today: today)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Theme.Metrics.gap) {
@@ -87,7 +95,7 @@ struct HaiityWidgetView: View {
                 checkButton(habit, dark: dark)
             }
             statusLine(status, dark: dark)
-            grid(habit, dark: dark)
+            grid(habit, dark: dark, mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -183,10 +191,12 @@ struct HaiityWidgetView: View {
 
     /// Dasselbe Raster wie in der App, nur kleiner — Habit-eigene Farbe
     /// schlägt die globale (dieselbe Regel, dieselbe Funktion).
-    private func grid(_ habit: Habit, dark: Bool) -> some View {
+    private func grid(_ habit: Habit,
+                      dark: Bool,
+                      mode: WidgetRenderingMode) -> some View {
         let cellPalette = entry.palettes.style(for: habit)
         return TrailingGrid(habit: habit, today: today) { level in
-            HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
+            HomeWidgetInk.level(level, mode: mode, dark: dark, palette: cellPalette)
         }
     }
 }

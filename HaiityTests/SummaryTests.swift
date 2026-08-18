@@ -458,24 +458,40 @@ final class SummarySettingsTests: XCTestCase {
         XCTAssertEqual(decoded.summaryMinutes, 1200)
     }
 
-    /// Merge: exakt die Regel von `summaryMinutes`. Das neuere Gerät gibt
-    /// eine EINGESCHALTETE Uhrzeit vor — sein nil bedeutet „nichts gesetzt"
-    /// und löscht die Einstellung hier nicht.
-    func testMergeFollowsTheSummaryMinutesRule() {
+    func testGitHubUsernameVisibilityIsOptionalAndRoundTrips() throws {
+        var data = HabitData(version: 2, updatedAt: 1, summaryMinutes: nil, habits: [])
+        XCTAssertNil(data.githubShowsUsername)
+
+        data.githubShowsUsername = false
+        let back = try JSONDecoder().decode(HabitData.self,
+                                             from: JSONEncoder().encode(data))
+        XCTAssertEqual(back.githubShowsUsername, false)
+
+        let old = try JSONDecoder().decode(HabitData.self,
+                                           from: Data(#"{"version":2,"updatedAt":1,"habits":[]}"#.utf8))
+        XCTAssertNil(old.githubShowsUsername)
+    }
+
+    /// Merge: ein neuerer Stand darf optionale Einstellungen auch abschalten.
+    /// `nil` ist hier eine echte Nutzerentscheidung, keine fehlende Information.
+    func testNewerRemoteCanTurnOptionalSettingsOff() {
         let newer = Date().timeIntervalSince1970 + 999
 
         let s = store()
-        var remote = HabitData(version: 2, updatedAt: newer, summaryMinutes: nil, habits: [])
-        remote.motivationMinutes = 7 * 60 + 30
-        s.merge(remote: remote)
-        XCTAssertEqual(s.motivationMinutes, 7 * 60 + 30)
+        s.summaryMinutes = 20 * 60
+        s.weeklySummaryMinutes = 18 * 60
+        s.motivationMinutes = 8 * 60
+        s.motivationDelivery = .liveActivity
 
-        // Neuer, aber ohne Wert: der lokale Stand bleibt stehen.
-        let keeps = store()
-        keeps.motivationMinutes = 8 * 60
-        keeps.merge(remote: HabitData(version: 2, updatedAt: newer,
-                                      summaryMinutes: nil, habits: []))
-        XCTAssertEqual(keeps.motivationMinutes, 8 * 60)
+        s.merge(remote: HabitData(version: 2, updatedAt: newer,
+                                  summaryMinutes: nil, habits: [],
+                                  weeklySummaryMinutes: nil,
+                                  motivationMinutes: nil,
+                                  motivationDelivery: .notification))
+        XCTAssertNil(s.summaryMinutes)
+        XCTAssertNil(s.weeklySummaryMinutes)
+        XCTAssertNil(s.motivationMinutes)
+        XCTAssertEqual(s.motivationDelivery, .notification)
 
         // Älter, mit Wert: verliert.
         let older = store()
@@ -484,5 +500,19 @@ final class SummarySettingsTests: XCTestCase {
         stale.motivationMinutes = 21 * 60
         older.merge(remote: stale)
         XCTAssertEqual(older.motivationMinutes, 8 * 60)
+    }
+
+    func testNewerRemoteCarriesGitHubVisibility() throws {
+        var local = HabitData(version: 2, updatedAt: 1, summaryMinutes: nil, habits: [])
+        local.githubShowsUsername = false
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("github-visibility-\(UUID().uuidString).json")
+        try JSONEncoder().encode(local).write(to: url)
+        let store = HabitStore(url: url)
+
+        var remote = HabitData(version: 2, updatedAt: 2, summaryMinutes: nil, habits: [])
+        remote.githubShowsUsername = true
+        store.merge(remote: remote)
+        XCTAssertEqual(store.data.githubShowsUsername, true)
     }
 }

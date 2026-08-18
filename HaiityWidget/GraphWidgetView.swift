@@ -19,6 +19,7 @@ import SwiftUI
 struct GraphWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     let entry: HaiityEntry
 
     /// Kein Habit heißt: leeres Raster. Ein stabiler Wert (kein neuer je
@@ -27,27 +28,33 @@ struct GraphWidgetView: View {
     private static let blank = Habit(name: "")
 
     var body: some View {
-        content(family: family, dark: scheme == .dark)
+        content(family: family, dark: scheme == .dark, mode: mode)
             .containerBackground(for: .widget) {
                 HomeWidgetBackground(palette: entry.resolvedGraphPalette,
-                                     dark: scheme == .dark)
+                                     dark: scheme == .dark,
+                                     mode: mode)
             }
             .widgetURL(URL(string: "haiity://open"))
     }
 
     /// Familie UND Schema als Argument — siehe `HaiityWidgetView`.
     @ViewBuilder
-    func content(family: WidgetFamily, dark: Bool) -> some View {
+    func content(family: WidgetFamily,
+                 dark: Bool,
+                 mode: WidgetRenderingMode = .fullColor) -> some View {
         if entry.graphSource == .github {
             GitHubWidgetGraph(days: entry.githubSnapshot?.days ?? [],
-                              palette: entry.resolvedGraphPalette)
+                              palette: entry.resolvedGraphPalette,
+                              mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
         } else {
             let habit = entry.habit
             let cellPalette = entry.resolvedGraphPalette
-            let level: (Int) -> Color = { HomeWidgetInk.level($0, dark: dark, palette: cellPalette) }
+            let level: (Int) -> Color = {
+                HomeWidgetInk.level($0, mode: mode, dark: dark, palette: cellPalette)
+            }
             // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
             // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
             // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
