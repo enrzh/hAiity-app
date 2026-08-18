@@ -6,8 +6,8 @@
 - Task: Task 4 - Lock down the Apple Reminders Pro boundary
 - Outcome: Completed
 - Accepted starting head: `d61c74615a237be31fedc3af6830a1b3e268fed1`
-- Final commit: `963b09d`
-- Production source changed: no
+- Final commit: `eef2911`
+- Production source changed: yes
 - Scope kept: yes
 
 ## Requirements Check
@@ -20,14 +20,14 @@
 
 ## Files Changed
 
+- `Haiity/Services/CalendarSync.swift`
+- `Haiity/Views/MoreView.swift`
 - `HaiityTests/CalendarSyncTests.swift`
 - `HaiityTests/ReminderSyncTests.swift`
 - `HaiityTests/ProGateTests.swift`
 
 ## Files Intentionally Not Changed
 
-- `Haiity/Views/MoreView.swift`
-- `Haiity/Services/CalendarSync.swift`
 - `Haiity/Services/ReminderSync.swift`
 - `tools/release.sh`
 - `build/`
@@ -187,3 +187,15 @@ Result:
 
 - Verified the fix is limited to `CalendarSync.swift`, `MoreView.swift`, `CalendarSyncTests.swift`, `ReminderSyncTests.swift`, and this report.
 - Verified unrelated dirty items such as `tools/release.sh`, `build/`, and `.superpowers/brainstorm/` remained untouched.
+
+11. Created the follow-up fix commit
+
+```sh
+git -C /Users/enrico/Documents/GitHub/haiity add Haiity/Services/CalendarSync.swift Haiity/Views/MoreView.swift HaiityTests/CalendarSyncTests.swift HaiityTests/ReminderSyncTests.swift .superpowers/sdd/task-4-custom-recurrence-report.md
+git -C /Users/enrico/Documents/GitHub/haiity commit -m 'fix: make native reminder gate directly testable'
+```
+
+Result:
+
+- Commit created: `eef2911`
+- Subject: `fix: make native reminder gate directly testable`
