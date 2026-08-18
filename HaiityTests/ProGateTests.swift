@@ -250,6 +250,18 @@ final class ProGateTests: XCTestCase {
                       "das Gate muss VOR der Kalender-Berechtigung greifen")
     }
 
+    func testNativeReminderSyncIsGatedAndOwnsItsPermissionMetadata() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let project = try source("project.yml")
+
+        XCTAssertTrue(more.contains("native-reminder-sync-toggle"))
+        XCTAssertTrue(more.contains("ReminderSync.requestAccess()"))
+        XCTAssertTrue(more.contains("ReminderSync.disable()"))
+        XCTAssertTrue(more.contains("paywall = .calendar"))
+        XCTAssertTrue(more.contains("open-reminder-settings"))
+        XCTAssertTrue(project.contains("NSRemindersFullAccessUsageDescription"))
+    }
+
     /// (b) **Gate 5 — Statistik.** Der Schnitt liegt auf der Sektion, nicht
     /// mitten in einer Karte. Held-Karte und Basis-Kacheln bleiben frei,
     /// gegated ist das ABLESEN — und zwar am echten, nur unscharfen Raster:
@@ -281,6 +293,20 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(more.contains("Mehr Habits, Farben, Kalender und Statistik."))
         // Kein zweiter Kaufknopf für etwas, das schon gekauft ist.
         XCTAssertTrue(more.contains("Freigeschaltet. Danke."))
+    }
+
+    func testUnlockedProRowReopensTheFeatureSheet() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let unlockedStart = try XCTUnwrap(more.range(of: "if unlocked {"))
+        let lockedStart = try XCTUnwrap(more.range(of: "} else {", range: unlockedStart.upperBound..<more.endIndex))
+        let unlockedBranch = String(more[unlockedStart.lowerBound..<lockedStart.lowerBound])
+
+        XCTAssertTrue(unlockedBranch.contains("Button {"))
+        XCTAssertTrue(unlockedBranch.contains("paywall = .settings"))
+        XCTAssertTrue(unlockedBranch.contains("\"pro-status\""))
+        XCTAssertTrue(unlockedBranch.contains("\"open-pro-details\""))
+        XCTAssertTrue(unlockedBranch.contains("chevron.right"))
+        XCTAssertTrue(more.contains("\"open-paywall\""))
     }
 
     // MARK: – Der Merker: was er darf und was nicht

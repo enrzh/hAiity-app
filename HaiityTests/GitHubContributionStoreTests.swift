@@ -22,6 +22,99 @@ actor FakeGitHubAuthorizer: GitHubDeviceAuthorizing {
         events.append("poll")
         return try tokenResult.get()
     }
+
+    func setRequestError(_ error: Error?) {
+        requestError = error
+    }
+
+    func setTokenResult(_ result: Result<String, Error>) {
+        tokenResult = result
+    }
+}
+
+actor BlockingGitHubAuthorizer: GitHubDeviceAuthorizing {
+    let code = GitHubDeviceCode(deviceCode: "dc",
+                                userCode: "WXYZ-9876",
+                                verificationURL: URL(string: "https://github.com/login/device")!,
+                                expiresIn: 900,
+                                interval: 5)
+    private(set) var didStartPolling = false
+    private var pollingReleased = false
+    private var waiters: [CheckedContinuation<String, Never>] = []
+
+    func requestCode() async throws -> GitHubDeviceCode {
+        code
+    }
+
+    func pollForToken(_ code: GitHubDeviceCode) async throws -> String {
+        didStartPolling = true
+        if pollingReleased { return "gho_live" }
+        return await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func releasePolling() {
+        pollingReleased = true
+        let pending = waiters
+        waiters.removeAll()
+        pending.forEach { $0.resume(returning: "gho_live") }
+    }
+}
+
+actor CancellableGitHubAuthorizer: GitHubDeviceAuthorizing {
+    let code = GitHubDeviceCode(deviceCode: "dc",
+                                userCode: "WXYZ-9876",
+                                verificationURL: URL(string: "https://github.com/login/device")!,
+                                expiresIn: 900,
+                                interval: 5)
+    private(set) var didStartPolling = false
+    private var pollingCancelled = false
+
+    func requestCode() async throws -> GitHubDeviceCode {
+        code
+    }
+
+    func pollForToken(_ code: GitHubDeviceCode) async throws -> String {
+        didStartPolling = true
+        while !pollingCancelled {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        throw GitHubDeviceFlowError.cancelled
+    }
+
+    func cancelPolling() {
+        pollingCancelled = true
+    }
+}
+
+actor RestartableGitHubAuthorizer: GitHubDeviceAuthorizing {
+    let code = GitHubDeviceCode(deviceCode: "dc",
+                                userCode: "WXYZ-9876",
+                                verificationURL: URL(string: "https://github.com/login/device")!,
+                                expiresIn: 900,
+                                interval: 5)
+    private(set) var pollCount = 0
+    private var cancelFirstPoll = false
+
+    func requestCode() async throws -> GitHubDeviceCode {
+        code
+    }
+
+    func pollForToken(_ code: GitHubDeviceCode) async throws -> String {
+        pollCount += 1
+        if pollCount == 1 {
+            while !cancelFirstPoll {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            throw GitHubDeviceFlowError.cancelled
+        }
+        return "gho_retry"
+    }
+
+    func cancelFirstPollNow() {
+        cancelFirstPoll = true
+    }
 }
 
 actor FakeGitHubContributions: GitHubContributionsFetching {
@@ -128,11 +221,207 @@ final class GitHubContributionStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testFailedFirstFetchLeavesNoToken() async throws {
+    func testPollNetworkCancellationKeepsLoginForForegroundResume() async throws {
+        let authorizer = FakeGitHubAuthorizer()
+        await authorizer.setTokenResult(.failure(URLError(.cancelled)))
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                            authorizer: authorizer,
+                                            contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                            cacheURL: cacheURL)
+
+        await store.connect()
+
+        XCTAssertEqual(store.phase, .connecting)
+        XCTAssertEqual(store.deviceCode?.userCode, "WXYZ-9876")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("github-device-login.json").path))
+
+        await authorizer.setTokenResult(.success("gho_live"))
+        await store.resumeOrRefresh(now: now)
+
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertEqual(store.snapshot?.username, "octocat")
+        XCTAssertNil(store.deviceCode)
+    }
+
+    @MainActor
+    func testRefreshDoesNotResetAnInProgressDeviceLogin() async throws {
+        let authorizer = BlockingGitHubAuthorizer()
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                            authorizer: authorizer,
+                                            contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                            cacheURL: cacheURL)
+
+        let connection = Task { await store.connect() }
+        for _ in 0..<100 where !(await authorizer.didStartPolling) {
+            await Task.yield()
+        }
+
+        let pollingStarted = await authorizer.didStartPolling
+        XCTAssertTrue(pollingStarted)
+        XCTAssertEqual(store.phase, .connecting)
+        XCTAssertEqual(store.deviceCode?.userCode, "WXYZ-9876")
+
+        await store.refresh(now: now)
+
+        XCTAssertEqual(store.phase, .connecting)
+        XCTAssertEqual(store.deviceCode?.userCode, "WXYZ-9876")
+
+        await authorizer.releasePolling()
+        await connection.value
+    }
+
+    @MainActor
+    func testCancellingCallerAfterCodeIsShownKeepsDeviceLoginPolling() async throws {
+        let authorizer = BlockingGitHubAuthorizer()
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                            authorizer: authorizer,
+                                            contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                            cacheURL: cacheURL)
+
+        let connection = Task { await store.connect() }
+        for _ in 0..<100 where !(await authorizer.didStartPolling) {
+            await Task.yield()
+        }
+
+        let pollingStarted = await authorizer.didStartPolling
+        XCTAssertTrue(pollingStarted)
+        XCTAssertEqual(store.phase, .connecting)
+
+        connection.cancel()
+        await Task.yield()
+        await authorizer.releasePolling()
+        await connection.value
+
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertNil(store.deviceCode)
+    }
+
+    @MainActor
+    func testBootRestoresAndResumesDeviceLoginAfterThePollingTaskIsCancelled() async throws {
+        let authorizer = CancellableGitHubAuthorizer()
+        let first = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                             authorizer: authorizer,
+                                             contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                             cacheURL: cacheURL)
+        let connection = Task { await first.connect() }
+        for _ in 0..<100 where !(first.deviceCode?.userCode == "WXYZ-9876") {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(first.phase, .connecting)
+        XCTAssertEqual(first.deviceCode?.userCode, "WXYZ-9876")
+
+        connection.cancel()
+        await authorizer.cancelPolling()
+        await connection.value
+        XCTAssertEqual(first.phase, .connecting)
+        XCTAssertEqual(first.deviceCode?.userCode, "WXYZ-9876")
+
+        let second = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                             authorizer: FakeGitHubAuthorizer(),
+                                             contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                             cacheURL: cacheURL)
+        await second.boot(now: now.addingTimeInterval(1))
+
+        XCTAssertEqual(second.phase, .connected)
+        XCTAssertEqual(second.snapshot?.username, "octocat")
+        XCTAssertNil(second.deviceCode)
+    }
+
+    @MainActor
+    func testActiveResumeReloadsPendingLoginAfterStoreWasRecreated() async throws {
+        let authorizer = CancellableGitHubAuthorizer()
+        let first = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                             authorizer: authorizer,
+                                             contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                             cacheURL: cacheURL)
+        let connection = Task { await first.connect() }
+        for _ in 0..<100 where first.deviceCode == nil {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(first.phase, .connecting)
+        XCTAssertNotNil(first.deviceCode)
+        connection.cancel()
+        await authorizer.cancelPolling()
+        await connection.value
+
+        let second = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                              authorizer: FakeGitHubAuthorizer(),
+                                              contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                              cacheURL: cacheURL)
+        await second.resumePendingLogin()
+
+        XCTAssertEqual(second.phase, .connected)
+        XCTAssertEqual(second.snapshot?.username, "octocat")
+        XCTAssertNil(second.deviceCode)
+    }
+
+    @MainActor
+    func testRefreshResumesPersistedLoginInsteadOfDisconnecting() async throws {
+        let firstAuthorizer = BlockingGitHubAuthorizer()
+        let first = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                             authorizer: firstAuthorizer,
+                                             contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                             cacheURL: cacheURL)
+        let connection = Task { await first.connect() }
+        for _ in 0..<100 where !(await firstAuthorizer.didStartPolling) {
+            await Task.yield()
+        }
+
+        let second = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                              authorizer: FakeGitHubAuthorizer(),
+                                              contributions: FakeGitHubContributions(result: .success(sample(fetchedAt: now))),
+                                              cacheURL: cacheURL)
+        await second.refresh(now: .now)
+
+        XCTAssertEqual(second.phase, .connected)
+        XCTAssertEqual(second.snapshot?.username, "octocat")
+        await firstAuthorizer.releasePolling()
+        await connection.value
+    }
+
+    @MainActor
+    func testForegroundRefreshRetriesAfterAnInFlightPollIsCancelled() async throws {
+        let authorizer = RestartableGitHubAuthorizer()
+        let contributions = FakeGitHubContributions(result: .success(sample(fetchedAt: now)))
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
+                                            authorizer: authorizer,
+                                            contributions: contributions,
+                                            cacheURL: cacheURL)
+
+        let connection = Task { await store.connect() }
+        var pollCount = await authorizer.pollCount
+        for _ in 0..<100 where pollCount == 0 {
+            await Task.yield()
+            pollCount = await authorizer.pollCount
+        }
+
+        let foreground = Task { @MainActor in
+            await store.refresh(now: now)
+        }
+        await Task.yield()
+        await authorizer.cancelFirstPollNow()
+
+        await connection.value
+        await foreground.value
+
+        let polls = await authorizer.pollCount
+        XCTAssertEqual(polls, 2)
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertEqual(store.snapshot?.username, "octocat")
+    }
+
+    @MainActor
+    func testAuthorizationFailureLeavesNoToken() async throws {
         let contributions = FakeGitHubContributions(result: .failure(GitHubContributionsError.httpStatus(503)))
         let vault = MemoryGitHubCredentialVault()
+        let authorizer = FakeGitHubAuthorizer()
+        await authorizer.setRequestError(GitHubDeviceFlowError.denied)
         let store = GitHubContributionStore(vault: vault,
-                                            authorizer: FakeGitHubAuthorizer(),
+                                            authorizer: authorizer,
                                             contributions: contributions,
                                             cacheURL: cacheURL)
 
@@ -145,6 +434,25 @@ final class GitHubContributionStoreTests: XCTestCase {
         } else {
             XCTFail("expected failed phase, got \(store.phase)")
         }
+    }
+
+    @MainActor
+    func testAuthorizedTokenSurvivesAContributionFetchFailure() async throws {
+        let contributions = FakeGitHubContributions(result: .failure(GitHubContributionsError.httpStatus(503)))
+        let vault = MemoryGitHubCredentialVault()
+        let store = GitHubContributionStore(vault: vault,
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: contributions,
+                                            cacheURL: cacheURL)
+
+        await store.connect()
+
+        XCTAssertEqual(try vault.read(), "gho_live")
+        if case .failed = store.phase {
+        } else {
+            XCTFail("expected failed phase, got \(store.phase)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
     @MainActor
@@ -199,6 +507,47 @@ final class GitHubContributionStoreTests: XCTestCase {
 
         let fetches = await contributions.fetchCount
         XCTAssertEqual(fetches, 1)
+    }
+
+    @MainActor
+    func testForcedRefreshPublishesSuccessAndClearsLoading() async throws {
+        try write(sample(fetchedAt: now.addingTimeInterval(-7200)))
+        let fetcher = FakeGitHubContributions(result: .success(sample(fetchedAt: now)))
+        await fetcher.setDelay()
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(token: "gho_cached"),
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: fetcher,
+                                            cacheURL: cacheURL)
+
+        let refresh = Task { await store.refresh(now: now, forced: true) }
+        while !store.isRefreshing { await Task.yield() }
+        XCTAssertTrue(store.isRefreshing)
+        await refresh.value
+
+        XCTAssertFalse(store.isRefreshing)
+        XCTAssertEqual(store.refreshFeedback, .success)
+        XCTAssertGreaterThan(store.refreshAnimationToken, 0)
+    }
+
+    @MainActor
+    func testRefreshFailureKeepsCachedSnapshotAndPublishesFailure() async throws {
+        let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
+        try write(cached)
+        let fetcher = FakeGitHubContributions(result: .failure(URLError(.notConnectedToInternet)))
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(token: "gho_cached"),
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: fetcher,
+                                            cacheURL: cacheURL)
+
+        await store.boot(now: now)
+
+        XCTAssertFalse(store.isRefreshing)
+        XCTAssertEqual(store.snapshot, cached)
+        if case .failure(let message) = store.refreshFeedback {
+            XCTAssertFalse(message.isEmpty)
+        } else {
+            XCTFail("expected refresh failure feedback")
+        }
     }
 
     @MainActor

@@ -48,6 +48,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Gemeinsame Termin- und Erinnerungszeit in Minuten seit Mitternacht;
     /// nil = ohne Uhrzeit und ohne habit-spezifische Erinnerung.
     var timeMinutes: Int?
+    /// Ob dieses Element eine eigene lokale Mitteilung planen darf. Kalender-
+    /// und Apple-Erinnerungen-Sync bleiben davon unberührt.
+    var notificationsEnabled: Bool
     /// Individuelle Teilnahme am Kalender-Spiegel. Der Standard ist an,
     /// damit bestehende Habits und Erinnerungen ihr Verhalten behalten.
     var calendarSyncEnabled: Bool
@@ -116,7 +119,8 @@ struct Habit: Codable, Identifiable, Equatable {
          timeMinutes: Int? = nil,
          recurrence: Recurrence = .daily,
          kind: HabitKind = .checkbox,
-         durationMinutes: Int? = nil) {
+         durationMinutes: Int? = nil,
+         notificationsEnabled: Bool = true) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -124,6 +128,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
+        self.notificationsEnabled = notificationsEnabled
         self.calendarSyncEnabled = true
         self.repeatsWhileIncomplete = true
         self.reminderCursor = nil
@@ -163,6 +168,7 @@ extension Habit {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
+             notificationsEnabled,
              calendarSyncEnabled, repeatsWhileIncomplete, reminderCursor,
              log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
@@ -206,6 +212,8 @@ extension Habit {
         // Fehlt der Schlüssel (jede Datei vor der Habit-Uhrzeit) oder steht
         // dort Unsinn: keine Uhrzeit statt eines Fehlers.
         timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
+        notificationsEnabled = try c.decodeIfPresent(Bool.self,
+                                                      forKey: .notificationsEnabled) ?? true
         calendarSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarSyncEnabled) ?? true
         repeatsWhileIncomplete = try c.decodeIfPresent(Bool.self,
                                                        forKey: .repeatsWhileIncomplete) ?? true
@@ -251,6 +259,7 @@ extension Habit {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
+        if !notificationsEnabled { try c.encode(false, forKey: .notificationsEnabled) }
         if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }
         if !repeatsWhileIncomplete { try c.encode(false, forKey: .repeatsWhileIncomplete) }
         try c.encodeIfPresent(reminderCursor, forKey: .reminderCursor)

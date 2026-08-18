@@ -40,6 +40,9 @@ private struct PendingReminderCompletion: Equatable {
 struct ContentView: View {
     @State private var store = HabitStore()
     @State private var github = GitHubContributionStore()
+    @AppStorage(GitHubPreferences.showsUsernameKey,
+                store: GitHubPreferences.defaults)
+    private var showsGitHubUsername = GitHubPreferences.showsUsername
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
     @State private var cloud = CloudSync()
@@ -297,9 +300,14 @@ struct ContentView: View {
                     // (an-/abgemeldet), und das andere Gerät kann gehakt
                     // haben, während diese App im Hintergrund lag.
                     cloudStatus.refresh()
-                    Task { await rescheduleReminders() }
+                    Task {
+                        await rescheduleReminders()
+                        await reconcileMotivationActivity()
+                    }
                     Task { await syncNow(announce: false) }
-                    Task { await github.refresh() }
+                    Task { await github.resumeOrRefresh() }
+                    ReminderSync.pullCompletions(into: store)
+                    ReminderSync.reconcile(habits: store.habits, validate: false)
                 }
             }
             .onChange(of: search) { _, query in
@@ -652,7 +660,9 @@ struct ContentView: View {
         switch route {
         case .archive: ArchiveView(store: store)
         case .about: AboutView()
-        case .github: GitHubSettingsView(store: github)
+        case .github:
+            GitHubSettingsView(store: github,
+                               showsUsername: $showsGitHubUsername)
         case .appearance:
             MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences, onOpen: presentMoreSheet,
@@ -946,6 +956,7 @@ struct ContentView: View {
             if let snapshot = github.snapshot {
                 GitHubContributionCard(snapshot: snapshot,
                                        collapsed: collapsed,
+                                       showsUsername: showsGitHubUsername,
                                        openProfile: { GitHubLink.open(snapshot.profileURL) })
                     .equatable()
                     .listRowSeparator(.hidden)
@@ -2040,6 +2051,12 @@ struct ContentView: View {
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         let live = HaiityEntry(date: .now, habits: store.activeTrackedHabits, palettes: store.palettes)
         let entry = live.habits.isEmpty ? HaiityEntry.demo : live
+        let githubEntry = HaiityEntry(date: .now,
+                                      habits: [],
+                                      palettes: store.palettes,
+                                      graphSource: .github,
+                                      githubSnapshot: GitHubContributionSnapshot.loadShared()
+                                          ?? Self.demoGitHubSnapshot())
 
         for scheme in [ColorScheme.light, .dark] {
             let suffix = scheme == .dark ? "dark" : "light"
@@ -2055,6 +2072,8 @@ struct ContentView: View {
                     }
                     write(GraphWidgetView(entry: entry).content(family: family, dark: scheme == .dark),
                           named: "w-graph-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
+                    write(GraphWidgetView(entry: githubEntry).content(family: family, dark: scheme == .dark),
+                          named: "w-github-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
                     if family != .systemSmall {
                         write(RosterWidgetView(entry: entry).content(family: family, dark: scheme == .dark),
                               named: "w-roster-\(name)-\(suffix)", size: size, scheme: scheme, to: dir)
@@ -2149,6 +2168,16 @@ struct ContentView: View {
                 ("notdue", [resting])]
     }
 
+    private static func demoGitHubSnapshot() -> GitHubContributionSnapshot {
+        let today = DayKey.today()
+        let days = (0..<371).compactMap { offset -> GitHubContributionDay? in
+            guard let date = DayKey.shifted(today, by: -offset) else { return nil }
+            let level = offset.isMultiple(of: 7) ? 0 : (offset % 4) + 1
+            return GitHubContributionDay(date: date, count: level * 2, level: level)
+        }
+        return GitHubContributionSnapshot(username: "enrzh", days: days, fetchedAt: .now)
+    }
+
     /// Womit die Fläche hinterlegt wird. Der Sperrbildschirm hat kein
     /// Widget-Hintergrund — dort steht ein Wallpaper, und genau davor muss
     /// der Inhalt bestehen.
@@ -2220,14 +2249,19 @@ struct ContentView: View {
         // lesen den lokalen Merker, keine Ansicht wartet auf das Netz.
         Pro.startTransactionListener()
         Task { await Pro.refresh() }
+        ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()
-            Task { await rescheduleReminders() }
+            Task {
+                await rescheduleReminders()
+                await reconcileMotivationActivity()
+            }
             // Glückwunsch, wenn dieser Check-in den Tag vollgemacht hat.
             Task { await Reminders.celebrateIfPerfectDay(store: store) }
             // Kalender-Spiegel nachziehen (No-op ohne Schalter/Zugriff;
             // ohne `validate`, damit Check-ins EventKit gar nicht anfassen).
             CalendarSync.reconcile(habits: store.habits, validate: false)
+            ReminderSync.reconcile(habits: store.habits, validate: false)
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
@@ -2237,7 +2271,10 @@ struct ContentView: View {
         }
         store.setViewPreferences(viewPreferences.preferences)
         await rescheduleReminders()
+        await reconcileMotivationActivity()
         CalendarSync.reconcile(habits: store.habits)
+        ReminderSync.pullCompletions(into: store)
+        ReminderSync.reconcile(habits: store.habits)
         await syncNow(announce: false)
         if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
             showReminderSetup = true
@@ -2264,6 +2301,13 @@ struct ContentView: View {
             status: store.weeklyStatus(today, calendar: calendar, fullWeek: true),
             calendar: calendar)
         await Reminders.reschedule(daily: daily, weekly: weekly)
+    }
+
+    private func reconcileMotivationActivity() async {
+        await MotivationActivityManager.shared.reconcile(
+            motivationMinutes: store.motivationMinutes,
+            name: PersonalName.effective,
+            delivery: store.motivationDelivery)
     }
 
     /// Nach einer lokalen Änderung: entprellt hochschreiben. Mehrere Häkchen

@@ -17,10 +17,29 @@ struct HaiityEntry: TimelineEntry {
     /// Der in DIESER Widget-Instanz gewählte Habit; nil = „automatisch"
     /// (der empfohlene). Kommt aus dem `WidgetConfigurationIntent`.
     var selected: UUID?
+    /// Die Quelle des reinen Graph-Widgets. Andere Widgettypen lassen diesen
+    /// Wert auf `.habit` und behalten damit ihr bisheriges Verhalten.
+    var graphSource: GraphWidgetSource = .habit
+    /// Eine explizite Farbe für dieses Graph-Widget. `nil` behält die
+    /// bisherige Habit-/Global-Auflösung.
+    var selectedPalette: PaletteRef?
+    /// Öffentliche GitHub-Daten, wenn dieses Graph-Widget GitHub gewählt hat.
+    /// Nie ein Token und nie ein Credential.
+    var githubSnapshot: GitHubContributionSnapshot?
 
     /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Empfehlung,
     /// Empfehlung ist die längste laufende Serie.
-    var habit: Habit? { WidgetLogic.resolve(habits: habits, selected: selected) }
+    var habit: Habit? {
+        guard graphSource == .habit else { return nil }
+        return WidgetLogic.resolve(habits: habits, selected: selected)
+    }
+
+    /// Die Farbe des Graph-Widgets: eine explizite Widget-Auswahl schlägt die
+    /// Habit-Farbe, danach gilt die bestehende globale Auflösung.
+    var resolvedGraphPalette: PaletteStyle {
+        selectedPalette?.style(customs: palettes.customs)
+            ?? palettes.style(for: habit)
+    }
 
     /// Platzhalter für Galerie und Vorschau: genug Historie, damit das
     /// Raster nicht leer aussieht, und mehrere Habits für die Übersicht.

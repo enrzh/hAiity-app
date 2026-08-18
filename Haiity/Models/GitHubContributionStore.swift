@@ -1,5 +1,12 @@
 import Foundation
 import Observation
+import WidgetKit
+
+enum GitHubRefreshFeedback: Equatable {
+    case none
+    case success
+    case failure(String)
+}
 
 @MainActor
 @Observable
@@ -14,21 +21,30 @@ final class GitHubContributionStore {
     private(set) var phase: Phase = .disconnected
     private(set) var deviceCode: GitHubDeviceCode?
     private(set) var snapshot: GitHubContributionSnapshot?
+    private(set) var isRefreshing = false
+    private(set) var refreshFeedback: GitHubRefreshFeedback = .none
+    private(set) var refreshAnimationToken: UInt = 0
 
     private let vault: any GitHubCredentialVault
     private let authorizer: any GitHubDeviceAuthorizing
     private let contributions: any GitHubContributionsFetching
     private let cacheURL: URL
+    private let pendingLoginURL: URL
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration: UInt = 0
+    @ObservationIgnored private var connectionTask: Task<Void, Never>?
+    @ObservationIgnored private var connectionTaskID: UInt = 0
+    @ObservationIgnored private var connectionGeneration: UInt = 0
+
+    private struct PendingLogin: Codable {
+        let code: GitHubDeviceCode
+        let startedAt: Date
+    }
 
     static let refreshInterval: TimeInterval = 60 * 60
 
     nonisolated static var defaultCacheURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("haiity", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("github-contributions.json")
+        GitHubContributionSnapshot.sharedCacheURL()
     }
 
     init(vault: any GitHubCredentialVault = KeychainGitHubCredentialVault(),
@@ -39,6 +55,8 @@ final class GitHubContributionStore {
         self.authorizer = authorizer
         self.contributions = contributions
         self.cacheURL = cacheURL
+        self.pendingLoginURL = cacheURL.deletingLastPathComponent()
+            .appendingPathComponent("github-device-login.json")
     }
 
     func boot(now: Date = .now) async {
@@ -51,7 +69,22 @@ final class GitHubContributionStore {
         #endif
         snapshot = loadCache()
         if snapshot != nil { phase = .connected }
+        await resumeOrRefresh(now: now)
+    }
+
+    func resumeOrRefresh(now: Date = .now) async {
+        await resumePendingLogin(now: now)
+        guard phase != .connecting else { return }
         await refresh(now: now)
+    }
+
+    func resumePendingLogin(now: Date = .now) async {
+        if let code = loadPendingLogin(now: now) {
+            deviceCode = code
+            phase = .connecting
+        }
+        guard phase == .connecting, deviceCode != nil else { return }
+        await connect()
     }
 
     func connect() async {
@@ -62,27 +95,107 @@ final class GitHubContributionStore {
             return
         }
         #endif
+
+        await withTaskCancellationHandler(operation: {
+            await self.connectUntilSettled()
+        }, onCancel: {
+            Task { @MainActor [weak self] in
+                // Once the code is visible, Safari is part of this flow. The
+                // caller can be canceled while the app is backgrounded, but
+                // the store-owned poll must stay alive for that login.
+                guard let self, self.deviceCode == nil else { return }
+                self.connectionTask?.cancel()
+            }
+        })
+    }
+
+    private func connectUntilSettled() async {
+        var retried = false
+
+        while true {
+            let taskID: UInt
+            if let existing = connectionTask {
+                taskID = connectionTaskID
+                await existing.value
+            } else {
+                connectionTaskID &+= 1
+                taskID = connectionTaskID
+                let generation = connectionGeneration
+                let task = Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await self.performConnect(generation: generation)
+                }
+                connectionTask = task
+                await task.value
+            }
+
+            if connectionTaskID == taskID {
+                connectionTask = nil
+            }
+
+            guard !Task.isCancelled, phase == .connecting, !retried else { return }
+            retried = true
+        }
+    }
+
+    private func performConnect(generation: UInt) async {
+        guard generation == connectionGeneration else { return }
+
+        let savedCode = phase == .connecting ? deviceCode : nil
         phase = .connecting
-        deviceCode = nil
+        if savedCode == nil { deviceCode = nil }
+        var code = savedCode
+        var tokenSaved = false
         do {
-            let code = try await authorizer.requestCode()
-            deviceCode = code
+            if code == nil {
+                let requested = try await authorizer.requestCode()
+                guard generation == connectionGeneration else { return }
+                code = requested
+                deviceCode = requested
+                persistPendingLogin(requested, startedAt: .now)
+                if Task.isCancelled {
+                    preservePendingLogin(code)
+                    return
+                }
+            }
+            guard let code else { return }
             let token = try await authorizer.pollForToken(code)
-            let snap = try await contributions.fetch(token: token, now: .now)
+            guard generation == connectionGeneration else { return }
+            if Task.isCancelled {
+                preservePendingLogin(code)
+                return
+            }
             try vault.save(token)
+            tokenSaved = true
+            let snap = try await contributions.fetch(token: token, now: .now)
+            guard generation == connectionGeneration else { return }
+            if Task.isCancelled {
+                preservePendingLogin(code)
+                return
+            }
             persist(snap)
+            removePendingLogin()
             snapshot = snap
             deviceCode = nil
             phase = .connected
         } catch is CancellationError {
-            deviceCode = nil
-            phase = snapshot == nil ? .disconnected : .connected
+            guard generation == connectionGeneration else { return }
+            preservePendingLogin(code)
         } catch let error as GitHubDeviceFlowError where error == .cancelled {
-            deviceCode = nil
-            phase = snapshot == nil ? .disconnected : .connected
+            guard generation == connectionGeneration else { return }
+            preservePendingLogin(code)
         } catch {
+            guard generation == connectionGeneration else { return }
+            if Task.isCancelled || (!tokenSaved && isResumableDeviceLoginError(error)) {
+                preservePendingLogin(code)
+                return
+            }
             deviceCode = nil
-            try? vault.delete()
+            removePendingLogin()
+            let unauthorized = (error as? GitHubContributionsError) == .unauthorized
+            if !tokenSaved || unauthorized {
+                try? vault.delete()
+            }
             if snapshot != nil {
                 phase = .connected
             } else {
@@ -99,6 +212,22 @@ final class GitHubContributionStore {
             return
         }
         #endif
+        if phase == .connecting {
+            if connectionTask == nil {
+                await connect()
+            } else {
+                Task { @MainActor [weak self] in
+                    await self?.connect()
+                }
+            }
+            return
+        }
+        if let pending = loadPendingLogin(now: now) {
+            deviceCode = pending
+            phase = .connecting
+            await connect()
+            return
+        }
         if let refreshTask {
             await refreshTask.value
             return
@@ -113,6 +242,10 @@ final class GitHubContributionStore {
     }
 
     func disconnect() {
+        connectionGeneration &+= 1
+        connectionTaskID &+= 1
+        connectionTask?.cancel()
+        connectionTask = nil
         refreshGeneration &+= 1
         refreshTask?.cancel()
         refreshTask = nil
@@ -127,6 +260,7 @@ final class GitHubContributionStore {
         }
         snapshot = nil
         deviceCode = nil
+        removePendingLogin()
         phase = .disconnected
     }
 
@@ -152,20 +286,27 @@ final class GitHubContributionStore {
             return
         }
 
+        refreshFeedback = .none
+        isRefreshing = true
+        defer { isRefreshing = false }
+
         do {
             let snap = try await contributions.fetch(token: token, now: now)
             guard generation == refreshGeneration, !Task.isCancelled else { return }
             persist(snap)
             snapshot = snap
             phase = .connected
+            recordRefresh(.success)
         } catch let error as GitHubContributionsError where error == .unauthorized {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
+            recordRefresh(.failure(Self.message(for: error)))
             disconnect()
         } catch is CancellationError {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
             if snapshot != nil { phase = .connected }
         } catch {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
+            recordRefresh(.failure(Self.message(for: error)))
             if snapshot != nil {
                 phase = .connected
             } else {
@@ -174,20 +315,66 @@ final class GitHubContributionStore {
         }
     }
 
+    private func recordRefresh(_ feedback: GitHubRefreshFeedback) {
+        refreshFeedback = feedback
+        refreshAnimationToken &+= 1
+    }
+
     private func persist(_ snapshot: GitHubContributionSnapshot) {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(snapshot) else { return }
-        let directory = cacheURL.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? data.write(to: cacheURL, options: .atomic)
+        guard (try? GitHubContributionSnapshot.saveShared(snapshot, to: cacheURL)) != nil else { return }
+        WidgetCenter.shared.reloadTimelines(ofKind: "HaiityGraphWidget")
     }
 
     private func loadCache() -> GitHubContributionSnapshot? {
-        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+        GitHubContributionSnapshot.loadShared(from: cacheURL)
+    }
+
+    private func persistPendingLogin(_ code: GitHubDeviceCode, startedAt: Date) {
+        let pending = PendingLogin(code: code, startedAt: startedAt)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(pending) else { return }
+        let directory = pendingLoginURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? data.write(to: pendingLoginURL, options: .atomic)
+    }
+
+    private func loadPendingLogin(now: Date) -> GitHubDeviceCode? {
+        guard let data = try? Data(contentsOf: pendingLoginURL) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(GitHubContributionSnapshot.self, from: data)
+        guard let pending = try? decoder.decode(PendingLogin.self, from: data),
+              pending.code.expiresIn > 0,
+              now < pending.startedAt.addingTimeInterval(TimeInterval(pending.code.expiresIn)) else {
+            removePendingLogin()
+            return nil
+        }
+        return pending.code
+    }
+
+    private func preservePendingLogin(_ code: GitHubDeviceCode?) {
+        guard let code else {
+            deviceCode = nil
+            phase = snapshot == nil ? .disconnected : .connected
+            return
+        }
+        deviceCode = code
+        phase = .connecting
+    }
+
+    private func isResumableDeviceLoginError(_ error: Error) -> Bool {
+        if error is URLError { return true }
+        guard let error = error as? GitHubDeviceFlowError else { return false }
+        switch error {
+        case .httpStatus(let status):
+            return status == 408 || status == 429 || status >= 500
+        case .unconfigured, .denied, .expired, .cancelled, .malformedPayload:
+            return false
+        }
+    }
+
+    private func removePendingLogin() {
+        try? FileManager.default.removeItem(at: pendingLoginURL)
     }
 
     static func message(for error: Error) -> String {

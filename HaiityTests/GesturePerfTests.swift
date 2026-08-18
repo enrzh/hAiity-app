@@ -57,6 +57,17 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(actions.contains("onClear"))
     }
 
+    func testStatusControlsUseTheHabitPaletteForPositiveAndNegativeStates() throws {
+        let source = try habitCardSource()
+
+        XCTAssertTrue(source.contains("private var habitStyle: PaletteStyle { palettes.style(for: habit) }"))
+        XCTAssertTrue(source.contains("Theme.accentText(habitStyle)"))
+        XCTAssertTrue(source.contains("Theme.accentFill(habitStyle)"))
+        XCTAssertTrue(source.contains("habitStyle.negative(dark: scheme == .dark)"))
+        XCTAssertFalse(source.contains("Theme.accentText(palettes.style)"))
+        XCTAssertFalse(source.contains("Theme.accentFill(palettes.style)"))
+    }
+
     private func habitCardSource() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

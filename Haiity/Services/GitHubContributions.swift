@@ -1,26 +1,5 @@
 import Foundation
 
-struct GitHubContributionDay: Codable, Equatable, Sendable, Identifiable {
-    let date: String
-    let count: Int
-    let level: Int
-    var id: String { date }
-}
-
-struct GitHubContributionSnapshot: Codable, Equatable, Sendable {
-    let username: String
-    let days: [GitHubContributionDay]
-    let fetchedAt: Date
-    var profileURL: URL? {
-        let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? username
-        var parts = URLComponents()
-        parts.scheme = "https"
-        parts.host = "github.com"
-        parts.percentEncodedPath = "/\(encoded)"
-        return parts.url
-    }
-}
-
 protocol GitHubHTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }

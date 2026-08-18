@@ -85,11 +85,20 @@ struct HabitCard: View, Equatable {
     private var today: String { DayKey.today() }
     private var doneToday: Bool { GoalEngine.dayCounts(habit: habit, day: today) }
     private var declinedToday: Bool { habit.isDeclined(today) }
+    /// Status controls follow the same palette as this habit's graph. The
+    /// global palette remains the app tint; this keeps a custom habit color
+    /// coherent without recoloring unrelated controls.
+    private var habitStyle: PaletteStyle { palettes.style(for: habit) }
+
+    private var statusBackground: Color {
+        Theme.level(0, dark: scheme == .dark, palette: habitStyle)
+    }
+
     /// Die Verneinungsfarbe DIESES Habits — dieselbe, die seine Zellen im
     /// Raster tragen. Der Kopf darf nicht in einer anderen Farbe „Nein"
     /// sagen als die Fläche darunter.
     private var negativeColor: Color {
-        Theme.color(palettes.style(for: habit).negative(dark: scheme == .dark))
+        Theme.color(habitStyle.negative(dark: scheme == .dark))
     }
 
     /// Höhe der Kopfzeile. Ausgeklappt volle Trefferfläche, zusammengezogen
@@ -572,7 +581,7 @@ struct HabitCard: View, Equatable {
             Text(verbatim: "\(value)/\(target)")
                 .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(doneToday
-                                 ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                 ? AnyShapeStyle(Theme.accentText(habitStyle))
                                  : AnyShapeStyle(HierarchicalShapeStyle.secondary))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         } else {
@@ -585,7 +594,7 @@ struct HabitCard: View, Equatable {
                 .foregroundStyle(declinedToday
                                  ? AnyShapeStyle(negativeColor)
                                  : (doneToday
-                                    ? AnyShapeStyle(Theme.accentText(palettes.style))
+                                    ? AnyShapeStyle(Theme.accentText(habitStyle))
                                     : AnyShapeStyle(HierarchicalShapeStyle.tertiary)))
                 .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
         }
@@ -732,8 +741,8 @@ struct HabitCard: View, Equatable {
                                  : AnyShapeStyle(HierarchicalShapeStyle.secondary))
                 .frame(width: 34, height: 30)
                 .background(on
-                            ? AnyShapeStyle(yes ? Theme.accentFill(palettes.style) : negativeColor)
-                            : AnyShapeStyle(Color(.tertiarySystemFill)),
+                            ? AnyShapeStyle(yes ? Theme.accentFill(habitStyle) : negativeColor)
+                            : AnyShapeStyle(statusBackground),
                             in: Capsule())
                 .frame(height: headerHeight)
                 .contentShape(Rectangle())
@@ -752,7 +761,7 @@ struct HabitCard: View, Equatable {
             .font(monospaced ? base.monospacedDigit() : base)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(doneToday ? Theme.accentFill(palettes.style) : Color(.tertiarySystemFill),
+            .background(doneToday ? Theme.accentFill(habitStyle) : statusBackground,
                         in: Capsule())
             .foregroundStyle(doneToday ? .white : .primary)
             .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)

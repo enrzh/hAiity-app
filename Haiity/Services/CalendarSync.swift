@@ -128,7 +128,8 @@ struct CalendarEventPlan: Equatable {
         }
         guard let firstDay = first else { return nil }
 
-        self.title = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
+        let baseTitle = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
+        self.title = recurrence.endTitle.map { "\(baseTitle) · \($0)" } ?? baseTitle
         self.firstDay = firstDay
         self.minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes)
         self.durationMinutes = Habit.sanitizedDuration(habit.durationMinutes) ?? 30
@@ -385,7 +386,7 @@ enum CalendarSync {
         }
     }
 
-    private static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule {
+    static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule {
         let frequency: EKRecurrenceFrequency
         switch plan.frequency {
         case .daily: frequency = .daily

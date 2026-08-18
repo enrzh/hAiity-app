@@ -431,6 +431,17 @@ final class SummarySettingsTests: XCTestCase {
         XCTAssertNil(HabitStore(url: s.url).motivationMinutes)
     }
 
+    func testMotivationDeliveryDefaultsToNotificationAndRoundTrips() throws {
+        let s = store()
+        XCTAssertEqual(s.motivationDelivery, .notification)
+
+        s.motivationDelivery = .liveActivity
+        XCTAssertEqual(HabitStore(url: s.url).motivationDelivery, .liveActivity)
+
+        let text = String(data: try Data(contentsOf: s.url), encoding: .utf8) ?? ""
+        XCTAssertTrue(text.contains("motivationDelivery"))
+    }
+
     /// Der Schlüssel steht nur in der Datei, wenn die Nachricht läuft — und
     /// eine Datei aus einem Build ohne ihn lädt unverändert weiter.
     func testMotivationKeyIsAdditiveAndOptional() throws {

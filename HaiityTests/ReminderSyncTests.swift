@@ -1,0 +1,119 @@
+import Foundation
+import XCTest
+@testable import Haiity
+
+final class ReminderSyncPlanTests: XCTestCase {
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.locale = Locale(identifier: "de_DE")
+        calendar.firstWeekday = 2
+        return calendar
+    }()
+
+    func testPlanRejectsTrackedHabitsAndUsesReminderOccurrence() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.createdAt = "2026-08-17"
+        reminder.calendarSyncEnabled = true
+
+        let plan = ReminderSyncPlan(habit: reminder,
+                                    today: "2026-08-17",
+                                    calendar: calendar)
+
+        XCTAssertEqual(plan?.habitID, reminder.id)
+        XCTAssertEqual(plan?.title, "Tabletten")
+        XCTAssertEqual(plan?.occurrenceDay, "2026-08-17")
+        XCTAssertNil(ReminderSyncPlan(habit: Habit(name: "Laufen"),
+                                      today: "2026-08-17",
+                                      calendar: calendar))
+    }
+
+    func testCompletedReminderPlansItsNextOccurrence() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.createdAt = "2026-08-01"
+        reminder.repeatsWhileIncomplete = false
+        reminder.reminderCursor = "2026-08-18"
+        reminder.log["2026-08-17"] = 1
+
+        XCTAssertEqual(ReminderSyncPlan(habit: reminder,
+                                        today: "2026-08-17",
+                                        calendar: calendar)?.occurrenceDay,
+                       "2026-08-18")
+    }
+
+    func testReminderLinksRoundTrip() {
+        let suiteName = "reminder-sync-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let link = ReminderSyncLink(habitID: UUID(),
+                                    reminderID: "native-id",
+                                    occurrenceDay: "2026-08-17")
+        ReminderSyncPreferences.setLinks([link.habitID.uuidString: link], in: defaults)
+
+        XCTAssertEqual(ReminderSyncPreferences.links(in: defaults)[link.habitID.uuidString], link)
+    }
+
+    func testSelectionHonorsGlobalAndPerItemOptIn() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.calendarSyncEnabled = true
+        var disabled = reminder
+        disabled.calendarSyncEnabled = false
+
+        XCTAssertTrue(ReminderSyncSelection(enabled: true).includes(reminder))
+        XCTAssertFalse(ReminderSyncSelection(enabled: true).includes(disabled))
+        XCTAssertFalse(ReminderSyncSelection(enabled: false).includes(reminder))
+        XCTAssertFalse(ReminderSyncSelection(enabled: true).includes(Habit(name: "Laufen")))
+    }
+
+    func testListResolverUsesStoredWritableListBeforeRecoveringExactTitle() {
+        let stored = ReminderListCandidate(id: "stored", title: "Renamed", isWritable: true)
+        let sameTitle = ReminderListCandidate(id: "same-title", title: "hAiity", isWritable: true)
+        let readOnly = ReminderListCandidate(id: "read-only", title: "hAiity", isWritable: false)
+
+        XCTAssertEqual(ReminderListResolver.id(stored: stored,
+                                               calendars: [sameTitle, readOnly],
+                                               title: "hAiity"),
+                       "stored")
+        XCTAssertEqual(ReminderListResolver.id(stored: nil,
+                                               calendars: [readOnly, sameTitle],
+                                               title: "hAiity"),
+                       "same-title")
+        XCTAssertNil(ReminderListResolver.id(stored: nil,
+                                             calendars: [readOnly],
+                                             title: "hAiity"))
+    }
+}
+
+final class ReminderSyncContractTests: XCTestCase {
+    func testReminderServiceUsesReminderPermissionAndOwnedList() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        XCTAssertTrue(source.contains("requestFullAccessToReminders"))
+        XCTAssertTrue(source.contains("authorizationStatus(for: .reminder)"))
+        XCTAssertTrue(source.contains("hAiity"))
+        XCTAssertTrue(source.contains("EKReminder"))
+        XCTAssertFalse(source.contains("event(withIdentifier:"))
+    }
+
+    func testCalendarSyncSharesItsRecurrenceRuleHelper() throws {
+        let calendar = try source("Haiity/Services/CalendarSync.swift")
+        let reminders = try source("Haiity/Services/ReminderSync.swift")
+        XCTAssertTrue(calendar.contains("static func recurrenceRule(for plan: CalendarEventPlan)"))
+        XCTAssertTrue(reminders.contains("CalendarSync.recurrenceRule(for: plan.eventPlan)"))
+    }
+
+    func testReminderSyncOnlyPersistsNativeIDsAfterSuccessfulSaves() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        XCTAssertTrue(source.contains("store.calendars(for: .reminder)"))
+        XCTAssertTrue(source.contains("allowsContentModifications"))
+        XCTAssertTrue(source.contains("try store.save(reminder, commit: true)"))
+        XCTAssertTrue(source.contains("lastError"))
+        XCTAssertFalse(source.contains("try? store.save(reminder, commit: true)"))
+    }
+
+    private func source(_ relative: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(relative))
+    }
+}

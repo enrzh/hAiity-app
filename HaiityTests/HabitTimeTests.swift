@@ -51,6 +51,18 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertFalse(back.calendarSyncEnabled)
     }
 
+    func testNotificationsDefaultOnAndOptOutRoundTrips() throws {
+        let legacy = """
+        {"id":"\(UUID().uuidString)","name":"Lesen","emoji":"","createdAt":"2026-01-01","log":{}}
+        """.data(using: .utf8)!
+        XCTAssertTrue(try JSONDecoder().decode(Habit.self, from: legacy).notificationsEnabled)
+
+        var habit = Habit(name: "Lesen")
+        habit.notificationsEnabled = false
+        let back = try JSONDecoder().decode(Habit.self, from: JSONEncoder().encode(habit))
+        XCTAssertFalse(back.notificationsEnabled)
+    }
+
     func testGarbageTimesAreDropped() throws {
         XCTAssertNil(Habit(name: "X", timeMinutes: 1500).timeMinutes)
         XCTAssertNil(Habit(name: "X", timeMinutes: -5).timeMinutes)
@@ -234,5 +246,37 @@ final class LegacyFieldsSurviveTests: XCTestCase {
         XCTAssertTrue(GoalEngine.periodSatisfied(habit: habit, day: "2026-08-09",
                                                  today: "2026-08-09", calendar: calendar))
         XCTAssertEqual(GoalEngine.streak(habit: habit, today: "2026-08-09", calendar: calendar), 1)
+    }
+}
+
+final class EditHabitSheetContractTests: XCTestCase {
+    func testEditorExposesRecurrenceEndControls() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
+
+        XCTAssertTrue(source.contains("$draft.endMode"))
+        XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.never)"))
+        XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.onDate)"))
+        XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.afterCount)"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-date\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-count\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-title\")"))
+        XCTAssertTrue(source.contains("Text(String(localized: \"Ende\"))"))
+        XCTAssertTrue(source.contains("$notificationsEnabled"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-notification-toggle\")"))
+    }
+
+    func testEndTitleAndPickerShareOneUnstyledFormRow() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
+        let group = try XCTUnwrap(source.range(of: "VStack(alignment: .leading, spacing: 8)"))
+        let switchStart = try XCTUnwrap(source.range(of: "switch draft.endMode", range: group.upperBound..<source.endIndex))
+        let endControls = source[group.lowerBound..<switchStart.lowerBound]
+
+        XCTAssertTrue(endControls.contains("VStack(alignment: .leading"))
+        XCTAssertTrue(endControls.contains("Picker(String(localized: \"Ende\")"))
+        XCTAssertFalse(endControls.contains(".font(.headline)"))
     }
 }

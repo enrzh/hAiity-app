@@ -341,6 +341,27 @@ final class RecurrenceTests: XCTestCase {
         }
     }
 
+    func testEndTitleRoundTripsAndIsSanitized() throws {
+        let recurrence = Recurrence(frequency: .daily,
+                                    end: .on("2026-12-31"),
+                                    endTitle: "  Winter  ")
+        XCTAssertEqual(recurrence.endTitle, "Winter")
+
+        let data = try JSONEncoder().encode(recurrence)
+        let decoded = try JSONDecoder().decode(Recurrence.self, from: data)
+        XCTAssertEqual(decoded.endTitle, "Winter")
+
+        let never = Recurrence(frequency: .daily, endTitle: "ignored")
+        XCTAssertNil(never.endTitle)
+    }
+
+    func testOldRecurrenceWithoutEndTitleStillDecodes() throws {
+        let raw = #"{"freq":"daily","endDate":"2026-12-31"}"#
+        let recurrence = try JSONDecoder().decode(Recurrence.self, from: Data(raw.utf8))
+        XCTAssertEqual(recurrence.end, .on("2026-12-31"))
+        XCTAssertNil(recurrence.endTitle)
+    }
+
     /// Der Alt-Spiegel muss ZURÜCK auf dieselbe Regel führen — sonst
     /// verändert ein ausgelieferter Build beim nächsten Speichern still die
     /// Bedeutung.

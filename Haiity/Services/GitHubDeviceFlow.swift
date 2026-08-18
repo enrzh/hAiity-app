@@ -1,11 +1,25 @@
 import Foundation
 
-struct GitHubDeviceCode: Equatable, Sendable {
+struct GitHubDeviceCode: Codable, Equatable, Sendable {
     let deviceCode: String
     let userCode: String
     let verificationURL: URL
     let expiresIn: Int
     let interval: Int
+
+    /// GitHub documents the device page, but not a prefilled query. Keep the
+    /// documented URL as a fallback if URL construction ever fails.
+    var verificationURLWithCode: URL {
+        guard var components = URLComponents(url: verificationURL,
+                                              resolvingAgainstBaseURL: false) else {
+            return verificationURL
+        }
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name == "user_code" }
+        queryItems.append(URLQueryItem(name: "user_code", value: userCode))
+        components.queryItems = queryItems
+        return components.url ?? verificationURL
+    }
 }
 
 protocol GitHubDeviceAuthorizing: Sendable {

@@ -137,6 +137,13 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertFalse(Reminders.habitPlans(habits: [habit], now: now, calendar: calendar).isEmpty)
     }
 
+    func testHabitPlansSkipAnItemThatOptedOutOfNotifications() {
+        var habit = Habit(name: "Lesen", timeMinutes: 18 * 60, recurrence: .daily)
+        habit.notificationsEnabled = false
+
+        XCTAssertTrue(Reminders.habitPlans(habits: [habit], now: now, calendar: calendar).isEmpty)
+    }
+
     func testReminderItemGetsTheSamePerItemNotificationSchedule() {
         let tracked = Habit(name: "Lesen", timeMinutes: 18 * 60,
                             recurrence: .weekdays([2, 4]))

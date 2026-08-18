@@ -88,6 +88,13 @@ final class RecurrenceTextTests: XCTestCase {
                                        start: "2026-08-03", end: .after(1))),
                        "Jeden Montag, endet nach 1 Termin")
     }
+
+    func testEndTitleIsIncludedInTheSummary() {
+        let recurrence = Recurrence(frequency: .daily,
+                                    end: .after(3),
+                                    endTitle: "Sommer")
+        XCTAssertEqual(text(recurrence), "Jeden Tag, endet nach 3 Terminen (Sommer)")
+    }
 }
 
 /// Die Position im Monat als ORDNUNGSZAHL — und der Bruch eines Schlüssels
@@ -298,6 +305,14 @@ final class RecurrenceDraftTests: XCTestCase {
         for shape in shapes {
             XCTAssertEqual(roundTrip(shape), shape, "\(shape)")
         }
+    }
+
+    func testEndTitleSurvivesTheForm() {
+        let recurrence = Recurrence(frequency: .daily,
+                                    start: "2026-08-09",
+                                    end: .on("2026-12-31"),
+                                    endTitle: "Winter")
+        XCTAssertEqual(roundTrip(recurrence), recurrence)
     }
 
     /// Ein migriertes Alt-Ziel hat KEINEN Start — und darf beim Bearbeiten

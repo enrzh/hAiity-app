@@ -4,6 +4,18 @@ import Observation
 import WidgetKit
 #endif
 
+enum MotivationDelivery: String, Codable, CaseIterable, Sendable {
+    case notification
+    case liveActivity
+
+    var displayName: String {
+        switch self {
+        case .notification: return String(localized: "Mitteilung")
+        case .liveActivity: return String(localized: "Live-Aktivität")
+        }
+    }
+}
+
 /// Persistenz-Container: JSON im App-Group-Container, damit das Widget
 /// dieselbe Datei liest. Fallback auf Application Support (Unit-Tests,
 /// fehlendes Entitlement) — niemals stiller Datenverlust.
@@ -25,6 +37,9 @@ struct HabitData: Codable {
     /// nicht zwangsläufig das andere, und beide dürfen zu verschiedenen
     /// Uhrzeiten kommen.
     var motivationMinutes: Int?
+    /// Auslieferungsart der täglichen Motivation. Alte Dateien fallen auf
+    /// lokale Mitteilungen zurück, damit ihr bisheriges Verhalten bleibt.
+    var motivationDelivery: MotivationDelivery
     /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
     var weeklySummaryWeekday: Int
     var habits: [Habit]
@@ -65,12 +80,14 @@ struct HabitData: Codable {
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
          viewPreferences: ViewPreferences = ViewPreferences(),
          sessionHistory: [HabitSessionRecord] = [],
-         motivationMinutes: Int? = nil) {
+         motivationMinutes: Int? = nil,
+         motivationDelivery: MotivationDelivery = .notification) {
         self.version = version
         self.updatedAt = updatedAt
         self.summaryMinutes = summaryMinutes
         self.weeklySummaryMinutes = weeklySummaryMinutes
         self.motivationMinutes = motivationMinutes
+        self.motivationDelivery = motivationDelivery
         self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
             ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
@@ -102,7 +119,7 @@ extension HabitData {
         case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences, sessionHistory
         // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
         // sie überliest den Schlüssel, kein Versionssprung nötig.
-        case motivationMinutes
+        case motivationMinutes, motivationDelivery
         // Nur zum Einlesen alter Wurzel-Einstellungen; encode schreibt sie
         // nie wieder, weil die neue Konfiguration in viewPreferences liegt.
         case leadingSwipe, trailingSwipe
@@ -124,6 +141,8 @@ extension HabitData {
         weeklySummaryMinutes = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryMinutes)
         // Fehlt der Schlüssel (jede Datei vor dieser Fassung): nil = aus.
         motivationMinutes = try c.decodeIfPresent(Int.self, forKey: .motivationMinutes)
+        motivationDelivery = try c.decodeIfPresent(MotivationDelivery.self,
+                                                    forKey: .motivationDelivery) ?? .notification
         let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
@@ -160,6 +179,9 @@ extension HabitData {
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
         try c.encodeIfPresent(weeklySummaryMinutes, forKey: .weeklySummaryMinutes)
         try c.encodeIfPresent(motivationMinutes, forKey: .motivationMinutes)
+        if motivationMinutes != nil || motivationDelivery != .notification {
+            try c.encode(motivationDelivery, forKey: .motivationDelivery)
+        }
         // Der Wochentag steht nur da, wenn die Wochenzusammenfassung
         // überhaupt läuft — sonst wäre er eine Einstellung ohne Wirkung in
         // jeder Datei.
@@ -258,6 +280,11 @@ final class HabitStore {
     var motivationMinutes: Int? {
         get { data.motivationMinutes }
         set { data.motivationMinutes = newValue; persist() }
+    }
+
+    var motivationDelivery: MotivationDelivery {
+        get { data.motivationDelivery }
+        set { data.motivationDelivery = newValue; persist() }
     }
 
     var weeklySummaryWeekday: Int {
@@ -690,6 +717,7 @@ final class HabitStore {
                     lh.itemType = rh.itemType
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
+                    lh.notificationsEnabled = rh.notificationsEnabled
                     lh.calendarSyncEnabled = rh.calendarSyncEnabled
                     lh.repeatsWhileIncomplete = rh.repeatsWhileIncomplete
                     lh.reminderCursor = rh.reminderCursor
@@ -731,6 +759,7 @@ final class HabitStore {
         // beim ersten Abgleich auf dem anderen löschen.
         if remoteNewer, remote.motivationMinutes != nil {
             data.motivationMinutes = remote.motivationMinutes
+            data.motivationDelivery = remote.motivationDelivery
         }
         // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
         // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",

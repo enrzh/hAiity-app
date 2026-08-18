@@ -42,20 +42,54 @@ final class GitHubCardContractTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         let content = try source("Haiity/Views/ContentView.swift")
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
+        let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
         XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, github"))
         XCTAssertTrue(more.contains("open-github-settings"))
         XCTAssertTrue(more.contains("private var githubSection: some View"))
         XCTAssertTrue(more.contains("disconnect-github"))
         XCTAssertFalse(more.contains("NavigationLink(value: MoreRoute.github)"))
-        XCTAssertTrue(content.contains("GitHubSettingsView(store: github)"))
+        XCTAssertTrue(content.contains("GitHubSettingsView(store: github,\n                               showsUsername: $showsGitHubUsername)"))
         XCTAssertTrue(content.contains("AboutView()"))
         XCTAssertTrue(settings.contains("github-connect"))
         XCTAssertTrue(settings.contains("github-open-verification"))
+        XCTAssertTrue(settings.contains("github-copy-code"))
+        XCTAssertTrue(settings.contains("github-copy-confirmation"))
         XCTAssertTrue(settings.contains("github-refresh"))
+        XCTAssertTrue(settings.contains("store.isRefreshing"))
+        XCTAssertTrue(settings.contains("store.refreshFeedback"))
+        XCTAssertTrue(settings.contains("store.refreshAnimationToken"))
+        XCTAssertTrue(settings.contains("github-refresh-success"))
+        XCTAssertTrue(settings.contains("github-refresh-failure"))
+        XCTAssertTrue(settings.contains(".disabled(store.isRefreshing)"))
         XCTAssertTrue(settings.contains("github-disconnect"))
-        XCTAssertTrue(settings.contains("UIApplication.shared.open"))
+        XCTAssertTrue(settings.contains("GitHub-Namen anzeigen"))
+        XCTAssertTrue(settings.contains("github-username-toggle"))
+        XCTAssertTrue(content.contains("@AppStorage(GitHubPreferences.showsUsernameKey"))
+        XCTAssertTrue(content.contains("private var showsGitHubUsername = GitHubPreferences.showsUsername"))
+        XCTAssertTrue(content.contains("showsUsername: $showsGitHubUsername"))
+        XCTAssertTrue(content.contains("showsUsername: showsGitHubUsername"))
+        XCTAssertTrue(card.contains("let showsUsername: Bool"))
+        XCTAssertFalse(card.contains("@AppStorage(GitHubPreferences.showsUsernameKey"))
+        XCTAssertTrue(card.contains("if showsUsername"))
+        XCTAssertFalse(settings.contains("SafariServices"))
+        XCTAssertFalse(settings.contains("SFSafariViewController"))
+        XCTAssertFalse(settings.contains("GitHubVerificationBrowser"))
+        XCTAssertTrue(settings.contains("GitHubLink.open(code.verificationURLWithCode)"))
+        XCTAssertTrue(settings.contains("verificationURLWithCode"))
         XCTAssertTrue(settings.contains("url.scheme?.lowercased() == \"https\""))
+    }
+
+    func testGitHubDeviceCodeCopiesOnAppearanceAndCanBeCopiedAgain() throws {
+        let settings = try source("Haiity/Views/GitHubSettingsView.swift")
+
+        XCTAssertTrue(settings.contains("UIPasteboard.general.string = code.userCode"))
+        XCTAssertTrue(settings.contains(".onAppear"))
+        XCTAssertTrue(settings.contains("copyCode(store.deviceCode)"))
+        XCTAssertTrue(settings.contains(".onChange(of: store.deviceCode)"))
+        XCTAssertTrue(settings.contains("symbolEffect(.bounce, value: codeCopied)"))
+        XCTAssertTrue(settings.contains("Code kopiert."))
+        XCTAssertTrue(settings.contains("Code kopieren"))
     }
 
     func testGitHubLinkRejectsNonHTTPS() {
@@ -81,7 +115,8 @@ final class GitHubCardContractTests: XCTestCase {
             "Die Verbindung zu GitHub ist fehlgeschlagen.",
             "Verbunden als %@",
             "Dein offizieller GitHub-Beitragskalender erscheint auf der Habits-Seite.",
-            "Code auf GitHub eingeben", "GitHub-Beitragskalender"
+            "Code auf GitHub eingeben", "Code kopieren", "Code kopiert.",
+            "GitHub-Beitragskalender", "GitHub-Namen anzeigen"
         ]
         for key in keys {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], "fehlt im Katalog: \(key)")

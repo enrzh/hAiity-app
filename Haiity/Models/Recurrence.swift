@@ -82,6 +82,9 @@ struct Recurrence: Equatable {
     /// erfundener würde Quoten und Serien rückwirkend verändern.
     private(set) var start: String?
     private(set) var end: End
+    /// Optional label for the finite recurrence cycle, shown in summaries
+    /// and carried into native Calendar/Reminders titles.
+    private(set) var endTitle: String?
     /// Flexibles Ziel: n zählende Tage pro Periode. nil = feste Termine.
     private(set) var timesPerPeriod: Int?
     /// Mengen-Habits: ein Tag zählt ab diesem Log-Wert. nil = Checkbox.
@@ -102,6 +105,7 @@ struct Recurrence: Equatable {
          month: Int? = nil,
          start: String? = nil,
          end: End = .never,
+         endTitle: String? = nil,
          timesPerPeriod: Int? = nil,
          target: Int? = nil) {
         self.frequency = frequency
@@ -122,14 +126,17 @@ struct Recurrence: Equatable {
             ? month.flatMap { (1...12).contains($0) ? $0 : nil } : nil
         self.start = start.flatMap { DayKey.components($0) != nil ? $0 : nil }
         self.target = target.flatMap { $0 > 0 ? $0 : nil }
+        let normalizedEnd: End
         switch end {
         case .never:
-            self.end = .never
+            normalizedEnd = .never
         case .on(let day):
-            self.end = DayKey.components(day) != nil ? .on(day) : .never
+            normalizedEnd = DayKey.components(day) != nil ? .on(day) : .never
         case .after(let n):
-            self.end = n >= 1 ? .after(min(n, Self.maxOccurrences)) : .never
+            normalizedEnd = n >= 1 ? .after(min(n, Self.maxOccurrences)) : .never
         }
+        self.end = normalizedEnd
+        self.endTitle = Self.sanitizedEndTitle(endTitle, for: normalizedEnd)
         // Feste Monats-/Jahresregeln brauchen einen konkreten Tag. Fehlt er,
         // kommt er aus dem Start — wie im Kalender, wo „monatlich" ohne
         // weitere Angabe den Tag des ersten Termins meint. Reine
@@ -155,6 +162,17 @@ struct Recurrence: Equatable {
     }
 
     var isFlexible: Bool { timesPerPeriod != nil }
+
+    static let maxEndTitleLength = 80
+
+    private static func sanitizedEndTitle(_ value: String?, for end: End) -> String? {
+        guard case .never = end else {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty else { return nil }
+            return String(trimmed.prefix(maxEndTitleLength))
+        }
+        return nil
+    }
 
     // MARK: – Bequeme Formen
 
@@ -681,7 +699,7 @@ extension Recurrence: Codable {
     private enum CodingKeys: String, CodingKey {
         // Neu:
         case freq, interval, weekdays, ruleKind, ruleDay, ruleNth, ruleWeekday
-        case month, start, endDate, endCount
+        case month, start, endDate, endCount, endTitle
         // Geteilt mit dem Alt-Format (gleiche Bedeutung, deshalb derselbe Schlüssel):
         case times, target
         // Nur alt (der Spiegel):
@@ -731,6 +749,7 @@ extension Recurrence: Codable {
             month: try c.decodeIfPresent(Int.self, forKey: .month),
             start: try c.decodeIfPresent(String.self, forKey: .start),
             end: end,
+            endTitle: try c.decodeIfPresent(String.self, forKey: .endTitle),
             timesPerPeriod: try c.decodeIfPresent(Int.self, forKey: .times),
             target: try c.decodeIfPresent(Int.self, forKey: .target))
     }
@@ -760,6 +779,7 @@ extension Recurrence: Codable {
         case .on(let day): try c.encode(day, forKey: .endDate)
         case .after(let n): try c.encode(n, forKey: .endCount)
         }
+        try c.encodeIfPresent(endTitle, forKey: .endTitle)
         // `times` und `target` teilen sich den Schlüssel mit dem Alt-Format —
         // der Spiegel darf sie deshalb nicht noch einmal schreiben.
         try c.encodeIfPresent(timesPerPeriod, forKey: .times)

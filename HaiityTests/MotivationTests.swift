@@ -44,6 +44,8 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(more.contains("store.motivationMinutes"))
         XCTAssertTrue(more.contains("\"motivation-toggle\""))
         XCTAssertTrue(more.contains("\"motivation-time\""))
+        XCTAssertTrue(more.contains("\"motivation-delivery\""))
+        XCTAssertTrue(more.contains("Live-Aktivitäten starten"))
         XCTAssertTrue(more.contains("Reminders.ensurePermission()"))
     }
 

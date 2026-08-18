@@ -23,8 +23,8 @@ import SwiftUI
 ///    einer ausgelieferten Version angelegt wurde, verhält sich unverändert.
 ///    Es lässt sich nur nicht mehr NEU einstellen.
 ///  * **Das Ende** (nie / am Datum / nach Terminen, `Recurrence.End`).
-///    Ebenso: gespeicherte Enden gelten weiter und wandern beim Sichern
-///    unverändert mit, es gibt nur keinen Knopf mehr dafür.
+///    Es gehört zur Regel und wird deshalb direkt unter dem Startdatum
+///    eingestellt.
 ///
 /// Der Zustand liegt in `RecurrenceDraft`, nicht in einem Dutzend
 /// `@State`-Variablen: der Weg Regel -> Formular -> Regel ist damit prüfbar,
@@ -46,6 +46,7 @@ struct EditHabitSheet: View {
     @State private var emoji = ""
     @State private var itemType: HabitItemType = .habit
     @State private var calendarSyncEnabled = true
+    @State private var notificationsEnabled = true
     @State private var repeatsWhileIncomplete = true
     @State private var paywall: PaywallContext?
 
@@ -148,12 +149,12 @@ struct EditHabitSheet: View {
         // aufträte.
         .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
         .onChange(of: draft.hasTime) { _, enabled in
-            guard enabled else { return }
-            Task {
-                let granted = await Reminders.ensurePermission()
-                guard !granted, !NotificationPromptPreference.isSuppressed else { return }
-                await MainActor.run { notificationDenied = true }
-            }
+            guard enabled, notificationsEnabled else { return }
+            requestNotificationPermissionIfNeeded()
+        }
+        .onChange(of: notificationsEnabled) { _, enabled in
+            guard enabled, draft.hasTime else { return }
+            requestNotificationPermissionIfNeeded()
         }
         .alert(String(localized: "Mitteilungen aktivieren"),
                isPresented: $notificationDenied) {
@@ -215,12 +216,45 @@ struct EditHabitSheet: View {
                     .accessibilityIdentifier("start-date")
             }
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Ende"))
+                    .accessibilityAddTraits(.isHeader)
+                Picker(String(localized: "Ende"), selection: $draft.endMode) {
+                    Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
+                    Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
+                    Text(String(localized: "Nach Anzahl")).tag(RecurrenceDraft.EndMode.afterCount)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("end-mode-picker")
+            }
+            switch draft.endMode {
+            case .never:
+                EmptyView()
+            case .onDate:
+                TextField(String(localized: "Kategorie / Endtitel"), text: $draft.endTitle)
+                    .textInputAutocapitalization(.sentences)
+                    .accessibilityIdentifier("end-title")
+                DatePicker(String(localized: "Enddatum"), selection: $draft.endDate,
+                           displayedComponents: .date)
+                    .accessibilityIdentifier("end-date")
+            case .afterCount:
+                TextField(String(localized: "Kategorie / Endtitel"), text: $draft.endTitle)
+                    .textInputAutocapitalization(.sentences)
+                    .accessibilityIdentifier("end-title")
+                Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
+                    Text(String(localized: "Nach \(draft.endCount) Terminen"))
+                }
+                .accessibilityIdentifier("end-count")
+            }
+
             Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
                 .accessibilityIdentifier("time-toggle")
             if draft.hasTime {
                 DatePicker(String(localized: "Zeit"), selection: $draft.time,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
+                Toggle(String(localized: "Benachrichtigung"), isOn: $notificationsEnabled)
+                    .accessibilityIdentifier("habit-notification-toggle")
             }
             Toggle(String(localized: "Im Kalender"), isOn: $calendarSyncEnabled)
                 .accessibilityIdentifier("habit-calendar-toggle")
@@ -493,9 +527,8 @@ struct EditHabitSheet: View {
 
     // MARK: – Farbe
     //
-    // Bewusst NUR das Raster dieses Habits: die Knöpfe, der Tint und alles
-    // andere folgen weiter der App-Palette. Eine Habit-Farbe soll EIN Habit
-    // hervorheben, nicht die halbe App umlackieren.
+    // Die Farbe gilt für das Raster und die Statuskontrollen dieses Habits;
+    // Tint und alle anderen App-Akzente folgen weiter der App-Palette.
 
     private var colorSection: some View {
         Section {
@@ -569,6 +602,7 @@ struct EditHabitSheet: View {
         emoji = habit.emoji
         itemType = habit.itemType
         calendarSyncEnabled = habit.calendarSyncEnabled
+        notificationsEnabled = habit.notificationsEnabled
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
@@ -604,6 +638,7 @@ struct EditHabitSheet: View {
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
         habit.calendarSyncEnabled = calendarSyncEnabled
+        habit.notificationsEnabled = notificationsEnabled
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
         if itemType != .reminder || existing?.recurrence != recurrence {
             habit.reminderCursor = nil
@@ -628,5 +663,13 @@ struct EditHabitSheet: View {
         if existing == nil { store.add(habit) } else { store.update(habit) }
         Theme.Haptics.success()
         dismiss()
+    }
+
+    private func requestNotificationPermissionIfNeeded() {
+        Task {
+            let granted = await Reminders.ensurePermission()
+            guard !granted, !NotificationPromptPreference.isSuppressed else { return }
+            await MainActor.run { notificationDenied = true }
+        }
     }
 }

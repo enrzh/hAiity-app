@@ -329,6 +329,7 @@ enum Reminders {
         let today = DayKey.key(for: now, calendar: calendar)
         let timed = habits.filter {
             $0.archivedAt == nil
+                && $0.notificationsEnabled
                 && Habit.sanitizedMinutes($0.timeMinutes ?? $0.reminderMinutes) != nil
         }
         let budget = habitRequestBudget(reservingMotivation: reservingMotivation)
@@ -436,10 +437,14 @@ enum Reminders {
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
             // nicht die Nachricht von morgen früh.
-            plans += motivationPlans(minutes: data.motivationMinutes,
-                                     name: PersonalName.effective)
+            if data.motivationDelivery == .notification {
+                plans += motivationPlans(minutes: data.motivationMinutes,
+                                         name: PersonalName.effective)
+            }
+            let reservingMotivation = data.motivationMinutes != nil
+                && data.motivationDelivery == .notification
             plans += habitPlans(habits: data.habits,
-                                reservingMotivation: data.motivationMinutes != nil)
+                                reservingMotivation: reservingMotivation)
         }
         for plan in plans {
             try? await center.add(request(plan))

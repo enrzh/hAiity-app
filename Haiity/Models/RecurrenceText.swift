@@ -22,7 +22,7 @@ enum RecurrenceText {
         if let clock = timeText(timeMinutes) {
             text += String(localized: " um \(clock)")
         }
-        guard let tail = endClause(recurrence.end, calendar: calendar) else { return text }
+        guard let tail = endClause(recurrence, calendar: calendar) else { return text }
         return text + tail
     }
 
@@ -181,17 +181,22 @@ enum RecurrenceText {
 
     // MARK: – Ende
 
-    private static func endClause(_ end: Recurrence.End, calendar: Calendar) -> String? {
-        switch end {
+    private static func endClause(_ recurrence: Recurrence, calendar: Calendar) -> String? {
+        let clause: String
+        switch recurrence.end {
         case .never:
             return nil
         case .on(let day):
-            return String(localized: ", bis \(dayText(day))")
+            clause = String(localized: ", bis \(dayText(day))")
         case .after(let n):
-            return n == 1
+            clause = n == 1
                 ? String(localized: ", endet nach 1 Termin")
                 : String(localized: ", endet nach \(n) Terminen")
         }
+        guard let title = recurrence.endTitle else { return clause }
+        return clause + String(localized: "recurrence.end.titleSuffix",
+                               defaultValue: " (\(title))",
+                               comment: "Optionaler Titel eines endlichen Wiederholungszyklus")
     }
 
     /// Tagesschlüssel als deutsches Datum. Bewusst von Hand gesetzt und

@@ -177,6 +177,14 @@ final class CalendarEventPlanTests: XCTestCase {
         XCTAssertEqual(CalendarEventPlan(habit: habit, today: today)?.end, .on("2026-09-01"))
     }
 
+    func testEndTitleIsVisibleInNativeEventTitle() {
+        let habit = Habit(name: "Kur",
+                          recurrence: Recurrence(frequency: .daily,
+                                                 end: .on("2026-09-01"),
+                                                 endTitle: "Sommer"))
+        XCTAssertEqual(CalendarEventPlan(habit: habit, today: today)?.title, "Kur · Sommer")
+    }
+
     /// Der Fingerabdruck ändert sich mit dem Sichtbaren — und nur damit.
     func testFingerprintTracksVisibleChanges() {
         let a = CalendarEventPlan(habit: Habit(name: "Lesen", timeMinutes: 19 * 60,

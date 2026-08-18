@@ -29,7 +29,7 @@ struct GraphWidgetView: View {
     var body: some View {
         content(family: family, dark: scheme == .dark)
             .containerBackground(for: .widget) {
-                HomeWidgetBackground(palette: entry.palettes.style(for: entry.habit),
+                HomeWidgetBackground(palette: entry.resolvedGraphPalette,
                                      dark: scheme == .dark)
             }
             .widgetURL(URL(string: "haiity://open"))
@@ -38,19 +38,27 @@ struct GraphWidgetView: View {
     /// Familie UND Schema als Argument — siehe `HaiityWidgetView`.
     @ViewBuilder
     func content(family: WidgetFamily, dark: Bool) -> some View {
-        let habit = entry.habit
-        let cellPalette = entry.palettes.style(for: habit)
-        let level: (Int) -> Color = { HomeWidgetInk.level($0, dark: dark, palette: cellPalette) }
-        // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
-        // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
-        // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
-        TrailingGrid(habit: habit ?? Self.blank,
-                     radius: nil,
-                     alignment: .center,
-                     level: level)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(label(habit))
+        if entry.graphSource == .github {
+            GitHubWidgetGraph(days: entry.githubSnapshot?.days ?? [],
+                              palette: entry.resolvedGraphPalette)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
+        } else {
+            let habit = entry.habit
+            let cellPalette = entry.resolvedGraphPalette
+            let level: (Int) -> Color = { HomeWidgetInk.level($0, dark: dark, palette: cellPalette) }
+            // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
+            // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
+            // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
+            TrailingGrid(habit: habit ?? Self.blank,
+                         radius: nil,
+                         alignment: .center,
+                         level: level)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label(habit))
+        }
     }
 
     private func label(_ habit: Habit?) -> String {

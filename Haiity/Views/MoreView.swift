@@ -68,6 +68,7 @@ struct MoreView: View, Equatable {
 
     @State private var summaryDenied = false
     @State private var calendarDenied = false
+    @State private var reminderSyncDenied = false
     @State private var weeklyDenied = false
     @State private var motivationDenied = false
     @State private var notificationPromptsSuppressed = NotificationPromptPreference.isSuppressed
@@ -101,6 +102,7 @@ struct MoreView: View, Equatable {
     /// Moment, in dem sich ein Kauf wie ein Fehler anfühlt.
     @State private var purchased: PaywallContext?
     @State private var pendingCalendarItemType: HabitItemType = .habit
+    @State private var pendingNativeReminder = false
     @Environment(\.palettes) private var palettes
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
@@ -350,12 +352,22 @@ struct MoreView: View, Equatable {
     private var proSection: some View {
         Section {
             if unlocked {
-                // Kein Kaufknopf für etwas, das schon gekauft ist — und keine
-                // Zeile, die ins Leere tippt. Nur der Dank.
-                proRow(symbol: "checkmark.seal.fill",
-                       detail: String(localized: "Freigeschaltet. Danke."),
-                       highlighted: true)
-                    .accessibilityIdentifier("pro-status")
+                Button {
+                    paywall = .settings
+                } label: {
+                    HStack(spacing: Theme.Metrics.gap) {
+                        proRow(symbol: "checkmark.seal.fill",
+                               detail: String(localized: "Freigeschaltet. Danke."),
+                               highlighted: true)
+                            .accessibilityIdentifier("pro-status")
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("open-pro-details")
             } else {
                 Button {
                     paywall = .settings
@@ -428,6 +440,17 @@ struct MoreView: View, Equatable {
             calendarToggle(type: .reminder,
                            title: String(localized: "Erinnerungen im Kalender"),
                            identifier: "calendar-sync-reminders-toggle")
+            Toggle(isOn: reminderSyncBinding) {
+                HStack {
+                    Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
+                          systemImage: "checklist")
+                    if !unlocked && !ReminderSync.isEnabled {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        proLock
+                    }
+                }
+            }
+            .accessibilityIdentifier("native-reminder-sync-toggle")
             if calendarDenied {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
@@ -440,6 +463,20 @@ struct MoreView: View, Equatable {
                     }
                     .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("open-calendar-settings")
+                }
+            }
+            if reminderSyncDenied {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "Der Zugriff auf Erinnerungen ist in den iOS-Einstellungen deaktiviert."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button(String(localized: "iOS-Einstellungen öffnen")) {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier("open-reminder-settings")
                 }
             }
         }
@@ -642,6 +679,33 @@ struct MoreView: View, Equatable {
                         if type == .habit { CalendarSync.syncHabits = true }
                         else { CalendarSync.syncReminders = true }
                         CalendarSync.reconcile(habits: store.habits)
+                    }
+                }
+            })
+    }
+
+    private var reminderSyncBinding: Binding<Bool> {
+        Binding(
+            get: { ReminderSync.isEnabled },
+            set: { on in
+                guard on else {
+                    reminderSyncDenied = false
+                    ReminderSync.disable()
+                    return
+                }
+                guard CalendarFeatureGate.canEnable(unlocked: unlocked) else {
+                    pendingNativeReminder = true
+                    paywall = .calendar
+                    return
+                }
+                Task {
+                    let granted = await ReminderSync.requestAccess()
+                    await MainActor.run {
+                        reminderSyncDenied = !granted
+                        guard granted else { return }
+                        ReminderSync.isEnabled = true
+                        ReminderSync.startObserving(store: store)
+                        ReminderSync.reconcile(habits: store.habits)
                     }
                 }
             })
@@ -944,9 +1008,14 @@ struct MoreView: View, Equatable {
         purchased = nil
         switch intent {
         case .calendar:
-            // Über die Bindung, nicht daran vorbei: sie ist der EINE Weg,
-            // der das Gate prüft und danach den Kalender-Zugriff erfragt.
-            calendarBinding(for: pendingCalendarItemType).wrappedValue = true
+            if pendingNativeReminder {
+                pendingNativeReminder = false
+                reminderSyncBinding.wrappedValue = true
+            } else {
+                // Über die Bindung, nicht daran vorbei: sie ist der EINE Weg,
+                // der das Gate prüft und danach den Kalender-Zugriff erfragt.
+                calendarBinding(for: pendingCalendarItemType).wrappedValue = true
+            }
         case .palette:
             creatingPalette = true
         case .icon:
@@ -1074,7 +1143,8 @@ struct MoreView: View, Equatable {
             Toggle(isOn: dailyEnabled) {
                 Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
             }
-            .disabled(notificationPromptsSuppressed)
+            .disabled(notificationPromptsSuppressed
+                      && store.motivationDelivery == .notification)
             .accessibilityIdentifier("summary-toggle")
             if store.summaryMinutes != nil {
                 DatePicker(String(localized: "Uhrzeit"),
@@ -1121,6 +1191,18 @@ struct MoreView: View, Equatable {
                            selection: motivationTime,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("motivation-time")
+                Picker(String(localized: "Darstellung"), selection: motivationDelivery) {
+                    ForEach(MotivationDelivery.allCases, id: \.self) { delivery in
+                        Text(delivery.displayName).tag(delivery)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("motivation-delivery")
+                if store.motivationDelivery == .liveActivity {
+                    Text(String(localized: "Live-Aktivitäten starten, sobald hAiity einmal geöffnet wurde."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             if motivationDenied { permissionHint }
         }
@@ -1195,10 +1277,36 @@ struct MoreView: View, Equatable {
             get: { store.motivationMinutes != nil },
             set: { on in
                 guard on else { store.motivationMinutes = nil; return }
+                if store.motivationDelivery == .liveActivity {
+                    store.motivationMinutes = store.motivationMinutes
+                        ?? Self.defaultMotivationMinutes
+                    motivationDenied = false
+                    return
+                }
                 askThen { granted in
                     if granted {
                         store.motivationMinutes = store.motivationMinutes
                             ?? Self.defaultMotivationMinutes
+                        motivationDenied = false
+                    } else {
+                        motivationDenied = true
+                    }
+                }
+            })
+    }
+
+    private var motivationDelivery: Binding<MotivationDelivery> {
+        Binding(
+            get: { store.motivationDelivery },
+            set: { delivery in
+                guard delivery != store.motivationDelivery else { return }
+                guard delivery == .notification, store.motivationMinutes != nil else {
+                    store.motivationDelivery = delivery
+                    return
+                }
+                askThen { granted in
+                    if granted {
+                        store.motivationDelivery = delivery
                         motivationDenied = false
                     } else {
                         motivationDenied = true

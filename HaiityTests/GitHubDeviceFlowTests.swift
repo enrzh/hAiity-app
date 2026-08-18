@@ -65,6 +65,17 @@ final class GitHubDeviceFlowTests: XCTestCase {
         XCTAssertFalse(body.contains("client_secret"))
     }
 
+    func testVerificationURLCanCarryTheUserCodeForPrefilledBrowsers() {
+        let code = GitHubDeviceCode(deviceCode: "dc",
+                                    userCode: "ABCD-1234",
+                                    verificationURL: URL(string: "https://github.com/login/device")!,
+                                    expiresIn: 900,
+                                    interval: 5)
+
+        XCTAssertEqual(code.verificationURLWithCode.absoluteString,
+                       "https://github.com/login/device?user_code=ABCD-1234")
+    }
+
     func testUnconfiguredClientIDFailsBeforeNetwork() async {
         let transport = ScriptedGitHubTransport([])
         let flow = GitHubDeviceFlow(transport: transport,

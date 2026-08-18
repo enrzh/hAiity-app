@@ -71,16 +71,16 @@ SIRI UND KURZBEFEHLE
 „hAiity Lesen erledigt“, „Was ist in hAiity noch offen“, „hAiity Serie von Sport“. Abhaken, Nein notieren, Tagesstand und Serie abfragen.
 
 MITTEILUNGEN
-Erinnerung je Habit, Tages- und Wochenzusammenfassung. Um Erlaubnis wird erst gefragt, wenn du eine einschaltest — nie beim Start.
+Eine Erinnerung je Habit oder Erinnerung, Tages- und Wochenzusammenfassung. Die tägliche Motivation kommt als Mitteilung oder Live-Aktivität. Um Erlaubnis wird erst gefragt, wenn du eine einschaltest — nie beim Start.
 
 KALENDER-SPIEGEL
-hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits. Deine übrigen Kalender bleiben unberührt.
+hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits und Erinnerungen. Jedes Element kann den Kalender einzeln ausschalten; deine übrigen Kalender bleiben unberührt. Erinnerungen lassen sich zusätzlich in einer eigenen hAiity-Liste der Apple-Erinnerungen-App synchronisieren — in beide Richtungen.
 
 GLÜCKWUNSCH ZUM PERFEKTEN TAG
 Alles erfüllt, was heute anstand? Dann gibt es einen Glückwunsch — auf dem Gerät getextet, mit deinem Namen.
 
 AUSSERDEM
-18 App-Icons, eingebaute Farbfamilien, kompakte Ansicht, Wischaktionen, Sessions mit Live-Aktivität, Archiv statt Löschen, Habit als Bild teilen, Export und Import als JSON (ein Import führt zusammen, er überschreibt nie), Deutsch und 16 weitere Sprachen, Dynamic Type, VoiceOver, „Bewegung reduzieren“.
+18 App-Icons, eingebaute Farbfamilien, kompakte Ansicht, Wischaktionen, GitHub-Beitragsgraph, Apple-Erinnerungen-Sync, Sessions mit Live-Aktivität, Archiv statt Löschen, Habit als Bild teilen, Export und Import als JSON (ein Import führt zusammen, er überschreibt nie), Deutsch und 16 weitere Sprachen, Dynamic Type, VoiceOver, „Bewegung reduzieren“.
 
 FREI UND hAiity PRO
 Frei: drei aktive Habits, alle Habit-Arten, Serien, Widgets, Siri, Mitteilungen, Glückwunsch, Export, alle 18 Icons, die eingebauten Farben. Das Limit gilt nur beim Anlegen — Bestehendes bleibt voll nutzbar, archivierte Habits zählen nicht mit.
@@ -176,16 +176,16 @@ SIRI AND SHORTCUTS
 "Check off Reading in hAiity", "What's left in hAiity today", "What's my Running streak in hAiity". Check off, log a No, ask for today's status or a streak.
 
 NOTIFICATIONS
-A reminder per habit, a daily and a weekly summary. Permission is asked only when you turn one on — never at launch.
+Each habit or reminder can have its own local notification, alongside the daily and weekly summaries. Daily motivation can be delivered as a notification or Live Activity. Permission is asked only when you turn one on — never at launch.
 
 CALENDAR MIRROR
-hAiity creates its own calendar and keeps your habit events in it. Your other calendars stay untouched.
+hAiity creates its own calendar and keeps your habit and reminder events in it. Each item can opt out separately. Your other calendars stay untouched. Reminders can also sync two ways through a dedicated hAiity list in Apple's Reminders app.
 
 A PERFECT DAY, CELEBRATED
 Everything that was due today, done? Then you get a note — written on the device, with your name if you gave one.
 
 ALSO
-18 app icons, built-in color families, compact layout, swipe actions, sessions with a Live Activity, archive instead of delete, share a habit as an image, JSON export and import (an import merges, it never overwrites), German plus 16 more languages, Dynamic Type, VoiceOver, Reduce Motion.
+18 app icons, built-in color families, compact layout, swipe actions, a read-only GitHub contribution graph, two-way Apple Reminders sync, sessions with a Live Activity, archive instead of delete, share a habit as an image, JSON export and import (an import merges, it never overwrites), German plus 16 more languages, Dynamic Type, VoiceOver, Reduce Motion.
 
 FREE AND hAiity PRO
 Free: three active habits, every habit kind, streaks, widgets, Siri, notifications, the perfect-day note, JSON export, all 18 icons, the built-in colors. The limit applies only when creating — what you already have stays fully usable, and archived habits do not count.
@@ -258,6 +258,9 @@ If the device is signed into iCloud, the app mirrors that one file into the user
 
 WHY FULL CALENDAR ACCESS (NSCalendarsFullAccessUsageDescription)
 The optional "habits in calendar" feature creates a dedicated hAiity calendar and keeps the user's habit events in it. Maintaining our own events — updating a title or time, removing an event when the habit changes or is deleted, and avoiding duplicates on re-sync — requires finding those events again, and finding requires READ access. EKEventStore's write-only access cannot fetch existing events, so it is not sufficient for a mirror that must stay in sync rather than append forever. The app only ever touches the calendar it created itself; all other calendars and events are left untouched. The feature is off by default and the permission is requested only when the user turns it on. Everything else in the app works without it.
+
+REMINDERS (OPTIONAL)
+The optional Reminders integration creates and maintains one dedicated list named hAiity. Only hAiity reminders with their per-item sync switch enabled are mirrored. Completing or reverting an owned item in either app updates the other; unrelated Apple Reminders and deleting the native list never delete hAiity data.
 
 SIGN IN WITH APPLE IS OPTIONAL AND IS NOT A LOGIN
 The app offers Sign in with Apple in Settings for exactly one purpose: to learn the user's FIRST NAME so notifications can address them (for example the "perfect day" congratulation). The identity token is never inspected, never stored and never transmitted; only the given name is written to UserDefaults in the app group and never leaves the device. A free-text alias field sits directly above it and takes precedence, so the feature is fully usable without ever signing in. Because the app has no authentication at all and offers no third-party login, Guideline 4.8 does not apply.
@@ -352,18 +355,23 @@ um nach einem Widget-Schreibvorgang neu zu laden).
 
 ---
 
-## Offene Punkte vor dem Einreichen
+## Offene Punkte in App Store Connect
 
-- Support-URL und Datenschutz-URL sind in ASC Pflicht — Kandidaten:
-  `https://aiity.de` bzw. die Datenschutzseite unter `site/haiity/`.
-- IAP-Eintrag in ASC: `com.aiity.haiity.pro`, nicht-verbrauchbar,
-  Familienfreigabe an. Anzeigename, Beschreibung und Review-Screenshot
-  fehlen noch. Die lokale Testkonfiguration `Haiity.storekit` führt 9,99 €
-  und Family Sharing — ASC muss denselben Stand bekommen, der Preis ist dort
-  noch nicht gesetzt.
-- Screenshots: 6.9" und 6.5" Pflicht. Naheliegende Reihenfolge — Raster,
-  Habit-Arten, Statistik, Widgets/Sperrbildschirm, Einstellungen mit der
-  „kein Server“-Zeile.
+- App Store Connect metadata, IAP setup, age rating, categories, pricing,
+  export compliance, review notes, and the screenshot upload still need to be
+  entered in ASC. The current API and web sessions are unauthenticated, so
+  those external fields are intentionally not claimed as complete.
+- Support URL: `https://aiity.de`. Privacy URL:
+  `https://enrzh.github.io/hAiity/privacy.html`.
+- IAP: `com.aiity.haiity.pro`, non-consumable, Family Sharing enabled, local
+  reference price `9.99`. Verify or create the ASC product and add its review
+  screenshot before submission.
+- Screenshots are prepared and locally validated in
+  `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
+  `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
+  validation errors or warnings.
+- Build 68 was uploaded through Xcode Transporter; its processing status and
+  attachment to the 1.0.0 version still require an authenticated ASC check.
 - Die App ist iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`, nur Hochformat),
   Ziel `MARKETING_VERSION 1.0.0`.
 

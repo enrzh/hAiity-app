@@ -42,6 +42,7 @@ struct RecurrenceDraft: Equatable {
     var endMode: EndMode = .never
     var endDate = Date()
     var endCount = 10
+    var endTitle = ""
     var quantity = false
     var target = 3
     /// Hat der Habit eine Uhrzeit? Sie gehört NICHT zur Regel (die Regel
@@ -62,6 +63,7 @@ struct RecurrenceDraft: Equatable {
                    month: month,
                    start: hasStart ? DayKey.key(for: start, calendar: calendar) : nil,
                    end: end(calendar: calendar),
+                   endTitle: endTitle,
                    timesPerPeriod: flexible && frequency != .daily ? times : nil,
                    target: quantity ? target : nil)
     }
@@ -152,6 +154,7 @@ struct RecurrenceDraft: Equatable {
             endMode = .afterCount
             endCount = n
         }
+        endTitle = recurrence.endTitle ?? ""
         if let target = recurrence.target {
             quantity = true
             self.target = target

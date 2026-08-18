@@ -4,7 +4,9 @@ import UIKit
 /// Verbindung, Code, Aktualisieren und Trennen. Kein Passwort, kein Scope.
 struct GitHubSettingsView: View {
     let store: GitHubContributionStore
+    @Binding var showsUsername: Bool
     @State private var confirmDisconnect = false
+    @State private var codeCopied = false
 
     var body: some View {
         List {
@@ -14,11 +16,22 @@ struct GitHubSettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section {
+                Toggle(String(localized: "GitHub-Namen anzeigen"), isOn: $showsUsername)
+                    .accessibilityIdentifier("github-username-toggle")
+            }
+            Section {
                 content
             }
         }
         .navigationTitle(Text(verbatim: "GitHub"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            copyCode(store.deviceCode)
+            Task { await store.resumeOrRefresh() }
+        }
+        .onChange(of: store.deviceCode) { _, code in
+            copyCode(code)
+        }
         .confirmationDialog(String(localized: "GitHub-Konto trennen?"),
                             isPresented: $confirmDisconnect,
                             titleVisibility: .visible) {
@@ -53,8 +66,16 @@ struct GitHubSettingsView: View {
                     .font(.title2.monospaced())
                     .textSelection(.enabled)
                     .accessibilityIdentifier("github-user-code")
+                Button {
+                    copyCode(code)
+                } label: {
+                    Label(String(localized: codeCopied ? "Code kopiert." : "Code kopieren"),
+                          systemImage: codeCopied ? "checkmark" : "doc.on.doc")
+                        .symbolEffect(.bounce, value: codeCopied)
+                }
+                .accessibilityIdentifier(codeCopied ? "github-copy-confirmation" : "github-copy-code")
                 Button(String(localized: "Auf GitHub öffnen")) {
-                    open(code.verificationURL)
+                    GitHubLink.open(code.verificationURLWithCode)
                 }
                 .accessibilityIdentifier("github-open-verification")
             }
@@ -65,10 +86,26 @@ struct GitHubSettingsView: View {
                 Text(String(localized: "Verbunden als \(snapshot.username)"))
                     .accessibilityIdentifier("github-connected-name")
             }
-            Button(String(localized: "Aktualisieren")) {
+            Button {
                 Task { await store.refresh(forced: true) }
+            } label: {
+                if store.isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if case .success = store.refreshFeedback {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .symbolEffect(.bounce, value: store.refreshAnimationToken)
+                        .accessibilityIdentifier("github-refresh-success")
+                } else {
+                    Label(String(localized: "Aktualisieren"), systemImage: "arrow.clockwise")
+                }
             }
             .accessibilityIdentifier("github-refresh")
+            .disabled(store.isRefreshing)
+            .animation(.easeInOut(duration: 0.2), value: store.refreshAnimationToken)
+            refreshFeedbackView
             Button(String(localized: "Verbindung trennen"), role: .destructive) {
                 confirmDisconnect = true
             }
@@ -89,8 +126,26 @@ struct GitHubSettingsView: View {
         }
     }
 
-    private func open(_ url: URL) {
-        GitHubLink.open(url)
+    @ViewBuilder
+    private var refreshFeedbackView: some View {
+        if case .failure(let message) = store.refreshFeedback {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote)
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("github-refresh-failure")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private func copyCode(_ code: GitHubDeviceCode?) {
+        guard let code else { return }
+        UIPasteboard.general.string = code.userCode
+        codeCopied = true
+        Theme.Haptics.success()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            codeCopied = false
+        }
     }
 }
 

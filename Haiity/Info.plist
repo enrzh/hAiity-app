@@ -59,6 +59,8 @@
 	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits. Deine übrigen Kalender und Termine bleiben unberührt.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>hAiity synchronisiert deine eigenen Erinnerungen mit der Apple Erinnerungen-App.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

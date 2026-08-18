@@ -1,11 +1,11 @@
 import WidgetKit
 import SwiftUI
 
-/// Die Übersicht: mehrere Habits als kompakte Zeilen, damit EIN Widget die
+/// Die Übersicht: mehrere Habits als kompakte Karten, damit EIN Widget die
 /// ganze Liste abdeckt statt eines Habits.
 ///
-/// Eine Zeile ist: Emoji, Name, was heute mit ihm ist, ein Mini-Raster und
-/// ein Zustandsglyph. Die Kopfzeile sagt, wie viel von heute schon steht
+/// Eine Karte ist: Titel, aktuelle Serie, heutiger Zustand und ein
+/// vollbreites Mini-Raster darunter. Die Kopfzeile sagt, wie viel von heute schon steht
 /// (dieselbe Zählung wie der Ring auf dem Sperrbildschirm: erfüllte ÷ heute
 /// FÄLLIGE) — und, falls mehr Habits da sind als Zeilen passen, wie viele
 /// noch darunter liegen.
@@ -36,14 +36,18 @@ struct RosterWidgetView: View {
         if split.visible.isEmpty {
             WidgetEmptyState()
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                header(overflow: split.overflow)
-                ForEach(split.visible) { habit in
-                    row(habit, large: family == .systemLarge, dark: dark)
-                        .frame(maxHeight: .infinity)
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 4) {
+                    header(overflow: split.overflow)
+                        .frame(width: geometry.size.width, alignment: .leading)
+                    ForEach(split.visible) { habit in
+                        row(habit, width: geometry.size.width, dark: dark)
+                            .frame(maxHeight: .infinity)
+                    }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height,
+                       alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -70,40 +74,64 @@ struct RosterWidgetView: View {
         }
     }
 
-    // MARK: – Zeile
+    // MARK: – Karte
 
-    private func row(_ habit: Habit, large: Bool, dark: Bool) -> some View {
+    private func row(_ habit: Habit, width: CGFloat, dark: Bool) -> some View {
         let status = WidgetLogic.status(habit: habit, today: today)
         let cellPalette = entry.palettes.style(for: habit)
-        return HStack(spacing: Theme.Metrics.gap) {
-            Text(verbatim: habit.emoji.isEmpty ? "•" : habit.emoji)
-                .font(.caption)
-                .frame(width: 16, alignment: .leading)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: habit.name)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(verbatim: WidgetLogic.statusText(status))
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .foregroundStyle(status == .done
-                                     ? AnyShapeStyle(Theme.accentText(palette))
-                                     : status == .declined
-                                     ? AnyShapeStyle(Theme.color(cellPalette.negative(dark: dark)))
-                                     : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+        return GeometryReader { geometry in
+            ZStack(alignment: .bottomLeading) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
+
+                TrailingGrid(habit: habit, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+
+                metadata(habit: habit, status: status, palette: cellPalette, dark: dark)
+                    .padding(6)
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Theme.accentText(cellPalette).opacity(0.2), lineWidth: 0.5)
+            }
+        }
+        .frame(width: width)
+        .frame(maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func streakRun(_ habit: Habit) -> Text {
+        Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak(today: today))")
+    }
+
+    private func metadata(habit: Habit, status: WidgetStatus,
+                          palette cellPalette: PaletteStyle, dark: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            if !habit.emoji.isEmpty {
+                Text(verbatim: habit.emoji)
+                    .font(.caption)
+            }
+            Text(verbatim: habit.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
-            TrailingGrid(habit: habit, today: today, radius: 1) { level in
-                HomeWidgetInk.level(level, dark: dark, palette: cellPalette)
-            }
-            .frame(width: large ? 116 : 88)
-            .padding(.vertical, 2)
+            streakRun(habit)
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
             glyph(status, palette: cellPalette, dark: dark)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5)
+        }
     }
 
     /// Der Zustand als Symbol — dieselben Fälle wie der Text daneben, nur auf
