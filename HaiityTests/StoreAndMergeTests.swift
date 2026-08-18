@@ -9,6 +9,19 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(decoded.viewPreferences, ViewPreferences())
     }
 
+    func testHabitDataRoundTripsManualAppIconName() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(HabitData.empty)) as? [String: Any])
+        object["manualAppIconName"] = "AppIcon-Blue"
+        let imported = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(HabitData.self, from: imported)
+        let roundTripped = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decoded)) as? [String: Any])
+
+        XCTAssertEqual(roundTripped["manualAppIconName"] as? String, "AppIcon-Blue")
+    }
+
     func testNewerRemoteHabitDataWinsViewPreferences() {
         let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [],
                               viewPreferences: ViewPreferences(updatedAt: 10,
@@ -150,6 +163,35 @@ final class StoreAndMergeTests: XCTestCase {
         store.merge(remote: remote)
 
         XCTAssertFalse(store.habits[0].calendarSyncEnabled)
+    }
+
+    func testMergeRemoteNewerWinsHabitSwipeOverride() {
+        let habit = Habit(name: "Lesen")
+        store.add(habit)
+        var remoteHabit = habit
+        remoteHabit.swipeActions = SwipeActionsOverride(leading: .archive, trailing: .edit)
+        let remote = HabitData(version: 2,
+                               updatedAt: Date().timeIntervalSince1970 + 999,
+                               summaryMinutes: nil,
+                               habits: [remoteHabit])
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.habits[0].swipeActions, remoteHabit.swipeActions)
+    }
+
+    func testMergeRemoteNewerWinsManualAppIconName() {
+        let remote = HabitData(version: 2,
+                               updatedAt: Date().timeIntervalSince1970 + 999,
+                               summaryMinutes: nil,
+                               habits: [],
+                               matchAppIcon: false,
+                               manualAppIconName: "AppIcon-Blue")
+
+        store.merge(remote: remote)
+
+        XCTAssertFalse(store.matchAppIcon)
+        XCTAssertEqual(store.manualAppIconName, "AppIcon-Blue")
     }
 
     func testMergeTieKeepsLocalRename() {

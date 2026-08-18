@@ -114,6 +114,18 @@ struct MoreView: View, Equatable {
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
+    private var localCloudPreferences: CloudPreferences {
+        CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
+                         calendarSyncReminders: CalendarSync.syncReminders,
+                         nativeReminderSync: ReminderSync.isEnabled,
+                         notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
+                         shakeToReportEnabled: ShakeToReport.isEnabled)
+    }
+
+    private func updateCloudPreferences(_ body: (inout CloudPreferences) -> Void) {
+        store.updateCloudPreferences(fallback: localCloudPreferences, body)
+    }
+
     var body: some View {
         #if DEBUG
         FrameProbe.shared.mark("MoreView.body")
@@ -134,7 +146,8 @@ struct MoreView: View, Equatable {
             CustomPaletteSheet(store: store).themed(store)
         }
         .onAppear {
-            notificationPromptsSuppressed = NotificationPromptPreference.isSuppressed
+            notificationPromptsSuppressed = store.cloudPreferences?.notificationPromptsSuppressed
+                ?? NotificationPromptPreference.isSuppressed
             #if DEBUG
             // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
             // Liste sind in der Sim-Automatisierung unzuverlässig.
@@ -188,9 +201,16 @@ struct MoreView: View, Equatable {
         // Das App-Icon folgt der GLOBALEN Farbe — egal ob sie umgestellt oder
         // die aktive eigene Farbe umgefärbt wurde. Eine Stelle statt einer
         // Wiederholung an jedem Schreibvorgang.
-        .onChange(of: store.palettes) { _, book in
+        .onChange(of: store.palettes) { _, _ in
             guard store.matchAppIcon else { return }
-            Task { await AppIcons.apply(book) }
+            applyIconPreference()
+        }
+        .onChange(of: store.matchAppIcon) { _, _ in
+            applyIconPreference()
+        }
+        .onChange(of: store.manualAppIconName) { _, _ in
+            guard !store.matchAppIcon else { return }
+            applyIconPreference()
         }
     }
 
@@ -429,8 +449,8 @@ struct MoreView: View, Equatable {
     // Zwei Auswahlen: Habits und Erinnerungen mit Termin erscheinen in einem eigenen
     // hAiity-Kalender — und damit in Apple Kalender und (wenn das
     // Standardkonto ein Google-Konto ist) auch in Google Kalender. Der
-    // Schalter ist GERÄTELOKAL (jedes Gerät entscheidet selbst); die
-    // Berechtigung wird nur beim aktiven Einschalten erfragt.
+    // Die Nutzerwahl reist über iCloud; Berechtigung, Kalenderkennung und
+    // Termine bleiben gerätelokal und werden beim Abgleich geprüft.
 
     private var calendarSection: some View {
         Section {
@@ -444,7 +464,7 @@ struct MoreView: View, Equatable {
                 HStack {
                     Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
                           systemImage: "checklist")
-                    if !unlocked && !ReminderSync.isEnabled {
+                    if !unlocked && !nativeReminderSyncEnabled {
                         Spacer(minLength: Theme.Metrics.gap)
                         proLock
                     }
@@ -488,7 +508,7 @@ struct MoreView: View, Equatable {
         Toggle(isOn: calendarBinding(for: type)) {
             HStack {
                 Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
-                let enabled = type == .habit ? CalendarSync.syncHabits : CalendarSync.syncReminders
+                let enabled = calendarEnabled(for: type)
                 if !unlocked && !enabled {
                     Spacer(minLength: Theme.Metrics.gap)
                     proLock
@@ -496,6 +516,17 @@ struct MoreView: View, Equatable {
             }
         }
         .accessibilityIdentifier(identifier)
+    }
+
+    private func calendarEnabled(for type: HabitItemType) -> Bool {
+        if type == .habit {
+            return store.cloudPreferences?.calendarSyncHabits ?? CalendarSync.syncHabits
+        }
+        return store.cloudPreferences?.calendarSyncReminders ?? CalendarSync.syncReminders
+    }
+
+    private var nativeReminderSyncEnabled: Bool {
+        store.cloudPreferences?.nativeReminderSync ?? ReminderSync.isEnabled
     }
 
     // MARK: – Anrede
@@ -651,11 +682,15 @@ struct MoreView: View, Equatable {
 
     private func calendarBinding(for type: HabitItemType) -> Binding<Bool> {
         Binding(
-            get: { type == .habit ? CalendarSync.syncHabits : CalendarSync.syncReminders },
+            get: { calendarEnabled(for: type) },
             set: { on in
                 guard on else {
                     if type == .habit { CalendarSync.syncHabits = false }
                     else { CalendarSync.syncReminders = false }
+                    updateCloudPreferences {
+                        if type == .habit { $0.calendarSyncHabits = false }
+                        else { $0.calendarSyncReminders = false }
+                    }
                     if CalendarSync.isEnabled { CalendarSync.reconcile(habits: store.habits) }
                     else { CalendarSync.disable() }
                     return
@@ -678,6 +713,10 @@ struct MoreView: View, Equatable {
                         guard granted else { return }
                         if type == .habit { CalendarSync.syncHabits = true }
                         else { CalendarSync.syncReminders = true }
+                        updateCloudPreferences {
+                            if type == .habit { $0.calendarSyncHabits = true }
+                            else { $0.calendarSyncReminders = true }
+                        }
                         CalendarSync.reconcile(habits: store.habits)
                     }
                 }
@@ -686,12 +725,13 @@ struct MoreView: View, Equatable {
 
     private var reminderSyncBinding: Binding<Bool> {
         Binding(
-            get: { ReminderSync.isEnabled },
+            get: { nativeReminderSyncEnabled },
             set: { on in
                 switch NativeReminderToggleAction.action(for: on, unlocked: unlocked) {
                 case .disable:
                     reminderSyncDenied = false
                     ReminderSync.disable()
+                    updateCloudPreferences { $0.nativeReminderSync = false }
                 case .showPaywall:
                     pendingNativeReminder = true
                     paywall = .calendar
@@ -702,6 +742,7 @@ struct MoreView: View, Equatable {
                             reminderSyncDenied = !granted
                             guard granted else { return }
                             ReminderSync.isEnabled = true
+                            updateCloudPreferences { $0.nativeReminderSync = true }
                             ReminderSync.startObserving(store: store)
                             ReminderSync.reconcile(habits: store.habits)
                         }
@@ -780,7 +821,10 @@ struct MoreView: View, Equatable {
             freeIconColorRow
         }
         .padding(.vertical, 4)
-        .onAppear { currentIconName = UIApplication.shared.alternateIconName }
+        .onAppear {
+            currentIconName = AppIcons.validManualName(store.manualAppIconName)
+                ?? UIApplication.shared.alternateIconName
+        }
     }
 
     /// Welches Icon gerade auf dem Homescreen liegt — mit Automatik das aus
@@ -898,6 +942,7 @@ struct MoreView: View, Equatable {
 
     /// Manuelle Wahl: Automatik aus, Icon setzen, Ergebnis zurückmelden.
     private func chooseIcon(named name: String?) {
+        store.manualAppIconName = name
         store.matchAppIcon = false
         Task {
             let ok = await AppIcons.set(name)
@@ -1099,17 +1144,20 @@ struct MoreView: View, Equatable {
             get: { store.matchAppIcon },
             set: { on in
                 store.matchAppIcon = on
-                // Einschalten holt das Icon sofort nach, Ausschalten stellt
-                // das Standard-Icon wieder her — sonst bliebe ein oranges
-                // Icon kleben, obwohl die Kopplung aus ist.
-                let book = on ? store.palettes : PaletteBook()
-                Task {
-                    await AppIcons.apply(book)
-                    await MainActor.run {
-                        currentIconName = UIApplication.shared.alternateIconName
-                    }
-                }
+                applyIconPreference()
             })
+    }
+
+    private func applyIconPreference() {
+        let wanted = store.matchAppIcon
+            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            : AppIcons.validManualName(store.manualAppIconName)
+        Task {
+            let ok = await AppIcons.set(wanted)
+            await MainActor.run {
+                currentIconName = ok ? wanted : UIApplication.shared.alternateIconName
+            }
+        }
     }
 
     // MARK: – Mitteilungen
@@ -1130,6 +1178,7 @@ struct MoreView: View, Equatable {
                     set: { suppressed in
                         notificationPromptsSuppressed = suppressed
                         NotificationPromptPreference.isSuppressed = suppressed
+                        updateCloudPreferences { $0.notificationPromptsSuppressed = suppressed }
                         guard suppressed else { return }
                         store.summaryMinutes = nil
                         store.weeklySummaryMinutes = nil
@@ -1380,6 +1429,7 @@ struct HabitExport: Transferable {
 /// Kurz und ehrlich: das Kein-Server-Prinzip — und ganz unten die
 /// Versionszeile, hinter der die versteckte Tür zum Entwicklerbereich sitzt.
 struct AboutView: View {
+    let store: HabitStore
     /// Bereits getätigte Tipps auf die Versionszeile. Bewusst NICHT
     /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
     /// überleben (siehe `DeveloperAccess`).
@@ -1405,6 +1455,15 @@ struct AboutView: View {
                     set: { enabled in
                         shakeToReport = enabled
                         ShakeToReport.isEnabled = enabled
+                        store.updateCloudPreferences(
+                            fallback: CloudPreferences(
+                                calendarSyncHabits: CalendarSync.syncHabits,
+                                calendarSyncReminders: CalendarSync.syncReminders,
+                                nativeReminderSync: ReminderSync.isEnabled,
+                                notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
+                                shakeToReportEnabled: ShakeToReport.isEnabled)) {
+                            $0.shakeToReportEnabled = enabled
+                        }
                     }))
                     .accessibilityIdentifier("shake-to-report-toggle")
             }
@@ -1416,7 +1475,7 @@ struct AboutView: View {
         .navigationTitle(String(localized: "Über"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            shakeToReport = ShakeToReport.isEnabled
+            shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled
             developerAvailable = DeveloperAccess.isAvailable(
                 storedAppleUserID: PersonalName.appleUserID,
                 storedAppleEmail: PersonalName.appleEmail)

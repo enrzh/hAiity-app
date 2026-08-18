@@ -174,6 +174,21 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertFalse(source.contains("draft.hasStart = true"))
     }
 
+    func testLoadingOneDayEntryKeepsItAsReminder() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
+        let load = try XCTUnwrap(source.range(of: "private func load()"))
+        let save = try XCTUnwrap(source.range(of: "private func save(",
+                                                range: load.upperBound..<source.endIndex))
+        let body = source[load.lowerBound..<save.lowerBound]
+        let draft = try XCTUnwrap(body.range(of: "draft = RecurrenceDraft("))
+        let reminder = try XCTUnwrap(body.range(of: "if draft.frequency == .once {\n            itemType = .reminder",
+                                                range: draft.upperBound..<body.endIndex))
+
+        XCTAssertLessThan(draft.lowerBound, reminder.lowerBound)
+    }
+
     // MARK: – Zwei Geräte
 
     func testMergeCarriesTheTime() {

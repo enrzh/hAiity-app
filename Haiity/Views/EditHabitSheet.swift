@@ -628,6 +628,9 @@ struct EditHabitSheet: View {
         draft = RecurrenceDraft(habit.recurrence,
                                 timeMinutes: habit.timeMinutes ?? habit.reminderMinutes,
                                 calendar: calendar)
+        if draft.frequency == .once {
+            itemType = .reminder
+        }
         habitPalette = habit.palette
         swipeActions = habit.swipeActions
         kind = habit.kind

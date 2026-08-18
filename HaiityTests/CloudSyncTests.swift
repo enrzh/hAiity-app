@@ -317,6 +317,129 @@ final class CloudSyncTests: XCTestCase {
     }
 }
 
+// MARK: - App sync ordering
+
+final class ContentSyncOrderingTests: XCTestCase {
+    func testStartupPullMergesBeforeLocalViewPreferencesTouchThePayloadTimestamp() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/ContentView.swift"))
+
+        let syncStart = try XCTUnwrap(source.range(of: "private func syncNow"))
+        let syncEnd = try XCTUnwrap(source.range(of: "private func flash",
+                                                  range: syncStart.upperBound..<source.endIndex))
+        let syncBody = source[syncStart.lowerBound..<syncEnd.lowerBound]
+        let pull = try XCTUnwrap(syncBody.range(of: "if pullFirst, let remote = try await cloud.pull()"))
+        let localPreferenceWrite = try XCTUnwrap(
+            syncBody.range(of: "store.setViewPreferences(viewPreferences.preferences)"))
+
+        XCTAssertLessThan(pull.lowerBound, localPreferenceWrite.lowerBound,
+                          "remote data must be merged before a local preference write updates data.updatedAt")
+
+        let bootStart = try XCTUnwrap(source.range(of: "private func boot()"))
+        let bootBody = source[bootStart.lowerBound..<syncStart.lowerBound]
+        XCTAssertFalse(bootBody.contains("        store.setViewPreferences(viewPreferences.preferences)\n        await rescheduleReminders()"),
+                       "boot must let syncNow establish ordering instead of touching the timestamp first")
+
+        let syncCall = try XCTUnwrap(bootBody.range(of: "await syncNow(announce: false)"))
+        let firstReminderReconcile = try XCTUnwrap(bootBody.range(of: "\n        await rescheduleReminders()\n"))
+        XCTAssertLessThan(syncCall.lowerBound, firstReminderReconcile.lowerBound,
+                          "startup scheduling must use the iCloud-merged habit data")
+    }
+
+    func testForegroundPullCompletesBeforeSchedulingAndReminderReconciliation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/ContentView.swift"))
+
+        let activeStart = try XCTUnwrap(source.range(of: ".onChange(of: scenePhase)"))
+        let activeEnd = try XCTUnwrap(source.range(of: "private func boot()",
+                                                  range: activeStart.upperBound..<source.endIndex))
+        let activeBody = source[activeStart.lowerBound..<activeEnd.lowerBound]
+        let sync = try XCTUnwrap(activeBody.range(of: "await syncNow(announce: false)"))
+        let schedule = try XCTUnwrap(activeBody.range(of: "await rescheduleReminders()"))
+        let pullReminders = try XCTUnwrap(activeBody.range(of: "ReminderSync.pullCompletions(into: store)"))
+
+        XCTAssertLessThan(sync.lowerBound, schedule.lowerBound,
+                          "foreground scheduling must use the iCloud-merged habit data")
+        XCTAssertLessThan(sync.lowerBound, pullReminders.lowerBound,
+                          "foreground reminder reconciliation must use the iCloud-merged habit data")
+    }
+}
+
+final class CloudPreferencePersistenceTests: XCTestCase {
+    func testCloudPreferencesSurviveHabitDataRoundTrip() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(HabitData.empty)) as? [String: Any])
+        object["cloudPreferences"] = [
+            "calendarSyncHabits": true,
+            "calendarSyncReminders": false,
+            "nativeReminderSync": true,
+            "notificationPromptsSuppressed": true,
+            "shakeToReportEnabled": false
+        ]
+        let imported = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(HabitData.self, from: imported)
+        let roundTripped = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decoded)) as? [String: Any])
+        let preferences = try XCTUnwrap(roundTripped["cloudPreferences"] as? [String: Any])
+
+        XCTAssertEqual(preferences["calendarSyncHabits"] as? Bool, true)
+        XCTAssertEqual(preferences["calendarSyncReminders"] as? Bool, false)
+        XCTAssertEqual(preferences["nativeReminderSync"] as? Bool, true)
+        XCTAssertEqual(preferences["notificationPromptsSuppressed"] as? Bool, true)
+        XCTAssertEqual(preferences["shakeToReportEnabled"] as? Bool, false)
+    }
+
+    func testNewerRemoteCloudPreferencesReplaceLocalPreferences() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cloud-preferences-\(UUID().uuidString).json")
+        let store = HabitStore(url: url)
+        store.add(Habit(name: "Lesen"))
+
+        let object: [String: Any] = [
+            "version": HabitData.currentVersion,
+            "updatedAt": Date().timeIntervalSince1970 + 999,
+            "habits": [],
+            "cloudPreferences": [
+                "calendarSyncHabits": false,
+                "calendarSyncReminders": true,
+                "nativeReminderSync": true,
+                "notificationPromptsSuppressed": true,
+                "shakeToReportEnabled": false
+            ]
+        ]
+        let remote = try JSONDecoder().decode(
+            HabitData.self,
+            from: JSONSerialization.data(withJSONObject: object))
+
+        store.merge(remote: remote)
+
+        let saved = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try XCTUnwrap(store.exportJSON())) as? [String: Any])
+        let preferences = try XCTUnwrap(saved["cloudPreferences"] as? [String: Any])
+        XCTAssertEqual(preferences["calendarSyncHabits"] as? Bool, false)
+        XCTAssertEqual(preferences["calendarSyncReminders"] as? Bool, true)
+        XCTAssertEqual(preferences["nativeReminderSync"] as? Bool, true)
+    }
+
+    func testPartiallyPopulatedCloudPreferencesUseSafeDefaults() throws {
+        let object: [String: Any] = [
+            "version": HabitData.currentVersion,
+            "updatedAt": 1,
+            "habits": [],
+            "cloudPreferences": ["calendarSyncHabits": true]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(HabitData.self, from: data)
+
+        XCTAssertEqual(decoded.cloudPreferences,
+                       CloudPreferences(calendarSyncHabits: true))
+    }
+}
+
 // MARK: – Fehlerabbildung
 
 final class CloudSyncErrorTests: XCTestCase {

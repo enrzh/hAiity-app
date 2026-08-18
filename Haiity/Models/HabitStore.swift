@@ -16,6 +16,51 @@ enum MotivationDelivery: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// User choices that affect system integrations but not the integration
+/// objects themselves. Calendar/reminder permissions and native identifiers
+/// stay on each device; these switches are the user's synced intent.
+struct CloudPreferences: Codable, Equatable {
+    var calendarSyncHabits: Bool
+    var calendarSyncReminders: Bool
+    var nativeReminderSync: Bool
+    var notificationPromptsSuppressed: Bool
+    var shakeToReportEnabled: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case calendarSyncHabits
+        case calendarSyncReminders
+        case nativeReminderSync
+        case notificationPromptsSuppressed
+        case shakeToReportEnabled
+    }
+
+    init(calendarSyncHabits: Bool = false,
+         calendarSyncReminders: Bool = false,
+         nativeReminderSync: Bool = false,
+         notificationPromptsSuppressed: Bool = false,
+         shakeToReportEnabled: Bool = true) {
+        self.calendarSyncHabits = calendarSyncHabits
+        self.calendarSyncReminders = calendarSyncReminders
+        self.nativeReminderSync = nativeReminderSync
+        self.notificationPromptsSuppressed = notificationPromptsSuppressed
+        self.shakeToReportEnabled = shakeToReportEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        calendarSyncHabits = try container.decodeIfPresent(Bool.self,
+                                                           forKey: .calendarSyncHabits) ?? false
+        calendarSyncReminders = try container.decodeIfPresent(Bool.self,
+                                                              forKey: .calendarSyncReminders) ?? false
+        nativeReminderSync = try container.decodeIfPresent(Bool.self,
+                                                             forKey: .nativeReminderSync) ?? false
+        notificationPromptsSuppressed = try container.decodeIfPresent(
+            Bool.self, forKey: .notificationPromptsSuppressed) ?? false
+        shakeToReportEnabled = try container.decodeIfPresent(Bool.self,
+                                                             forKey: .shakeToReportEnabled) ?? true
+    }
+}
+
 /// Persistenz-Container: JSON im App-Group-Container, damit das Widget
 /// dieselbe Datei liest. Fallback auf Application Support (Unit-Tests,
 /// fehlendes Entitlement) — niemals stiller Datenverlust.
@@ -57,6 +102,10 @@ struct HabitData: Codable {
     /// Soll das App-Icon der Palette folgen? Standard an; der Icon-Wechsel
     /// zeigt einen System-Dialog, deshalb ist er abschaltbar.
     var matchAppIcon: Bool
+    /// Der zuletzt gewählte manuelle Alternate-Icon-Katalogname. iOS hält die
+    /// tatsächliche Icon-Auswahl pro Gerät; dieser Wunsch reist deshalb mit
+    /// dem iCloud-Payload und wird auf dem neuen Gerät erneut angewendet.
+    var manualAppIconName: String?
     /// Soll der GitHub-Nutzername ueber dem Beitragsraster erscheinen? `nil`
     /// bedeutet eine Datei aus einer Version, die diese Einstellung noch
     /// lokal im App-Group-Defaults hielt.
@@ -64,6 +113,9 @@ struct HabitData: Codable {
     /// Ansichts-Einstellungen (Statistik-Karten und kompakte Darstellung).
     /// Sie reisen als Teil desselben privaten iCloud-Payloads mit.
     var viewPreferences: ViewPreferences
+    /// Synced user intent for system integrations. Permissions, native IDs,
+    /// and per-device event/reminder mappings deliberately remain local.
+    var cloudPreferences: CloudPreferences?
 
     /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
@@ -80,10 +132,12 @@ struct HabitData: Codable {
          palette: PaletteRef = .default,
          customPalettes: [CustomPalette] = [],
          matchAppIcon: Bool = true,
+         manualAppIconName: String? = nil,
          githubShowsUsername: Bool? = nil,
          weeklySummaryMinutes: Int? = nil,
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
          viewPreferences: ViewPreferences = ViewPreferences(),
+         cloudPreferences: CloudPreferences? = nil,
          sessionHistory: [HabitSessionRecord] = [],
          motivationMinutes: Int? = nil,
          motivationDelivery: MotivationDelivery = .notification) {
@@ -101,8 +155,10 @@ struct HabitData: Codable {
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
+        self.manualAppIconName = manualAppIconName
         self.githubShowsUsername = githubShowsUsername
         self.viewPreferences = viewPreferences
+        self.cloudPreferences = cloudPreferences
     }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
@@ -118,12 +174,14 @@ extension HabitData {
     /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
         case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
+        case manualAppIconName
         case githubShowsUsername
         case customPalettes
         // Die Wochenzusammenfassung ist rein ADDITIV: ein Build ohne sie
         // überliest die beiden Schlüssel, also braucht es dafür keinen
         // Versionssprung (der ihn aussperren würde).
         case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences, sessionHistory
+        case cloudPreferences
         // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
         // sie überliest den Schlüssel, kein Versionssprung nötig.
         case motivationMinutes, motivationDelivery
@@ -167,6 +225,7 @@ extension HabitData {
         // Palette, die dann fehlt, fällt beim Auflösen sauber zurück.
         customPalettes = ((try? c.decodeIfPresent([CustomPalette].self, forKey: .customPalettes)) ?? nil) ?? []
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
+        manualAppIconName = try c.decodeIfPresent(String.self, forKey: .manualAppIconName)
         githubShowsUsername = try c.decodeIfPresent(Bool.self, forKey: .githubShowsUsername)
         if let savedPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) {
             viewPreferences = savedPreferences
@@ -175,9 +234,10 @@ extension HabitData {
                 swipeActions: SwipeActionsPreferences(
                     leading: Self.migratedSwipeChoice(
                         try c.decodeIfPresent(String.self, forKey: .leadingSwipe), fallback: .primary),
-                    trailing: Self.migratedSwipeChoice(
+                trailing: Self.migratedSwipeChoice(
                         try c.decodeIfPresent(String.self, forKey: .trailingSwipe), fallback: .secondary)))
         }
+        cloudPreferences = try c.decodeIfPresent(CloudPreferences.self, forKey: .cloudPreferences)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -204,8 +264,10 @@ extension HabitData {
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
+        try c.encodeIfPresent(manualAppIconName, forKey: .manualAppIconName)
         if let githubShowsUsername { try c.encode(githubShowsUsername, forKey: .githubShowsUsername) }
         if viewPreferences != ViewPreferences() { try c.encode(viewPreferences, forKey: .viewPreferences) }
+        try c.encodeIfPresent(cloudPreferences, forKey: .cloudPreferences)
     }
 
     /// Die frueheren Wurzel-Schluessel stehen fuer dieselben Nutzerabsichten.
@@ -332,6 +394,13 @@ final class HabitStore {
         set { data.matchAppIcon = newValue; persist() }
     }
 
+    var manualAppIconName: String? {
+        get { data.manualAppIconName }
+        set { data.manualAppIconName = newValue; persist() }
+    }
+
+    var cloudPreferences: CloudPreferences? { data.cloudPreferences }
+
     /// The synced preference is authoritative once it exists. Older installs
     /// keep their local value until `materializeGitHubShowsUsername()` runs
     /// after the first iCloud pull.
@@ -355,6 +424,25 @@ final class HabitStore {
     func setViewPreferences(_ preferences: ViewPreferences) {
         guard preferences != data.viewPreferences else { return }
         data.viewPreferences = preferences
+        persist(notify: false)
+    }
+
+    /// The integration objects themselves are device-local, but the user's
+    /// choice to use them is part of the iCloud payload.
+    func updateCloudPreferences(fallback: CloudPreferences,
+                                _ body: (inout CloudPreferences) -> Void) {
+        var next = data.cloudPreferences ?? fallback
+        body(&next)
+        guard next != data.cloudPreferences else { return }
+        data.cloudPreferences = next
+        persist()
+    }
+
+    /// Older payloads have no cloud preference object. Materialize the local
+    /// defaults only after an iCloud pull has had a chance to win.
+    func materializeCloudPreferences(fallback: CloudPreferences) {
+        guard data.cloudPreferences == nil else { return }
+        data.cloudPreferences = fallback
         persist(notify: false)
     }
 
@@ -754,6 +842,7 @@ final class HabitStore {
                     lh.durationMinutes = rh.durationMinutes
                     lh.archivedAt = rh.archivedAt
                     lh.palette = rh.palette
+                    lh.swipeActions = rh.swipeActions
                     lh.kind = rh.kind
                 }
                 // Die Art zum Schluss noch einmal am VEREINIGTEN Log
@@ -794,6 +883,10 @@ final class HabitStore {
             data.appearance = remote.appearance
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
+            data.manualAppIconName = remote.manualAppIconName
+            if let remoteCloudPreferences = remote.cloudPreferences {
+                data.cloudPreferences = remoteCloudPreferences
+            }
         }
         if remote.viewPreferences.updatedAt > data.viewPreferences.updatedAt {
             data.viewPreferences = remote.viewPreferences

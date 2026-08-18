@@ -50,7 +50,7 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(more.contains("disconnect-github"))
         XCTAssertFalse(more.contains("NavigationLink(value: MoreRoute.github)"))
         XCTAssertTrue(content.contains("GitHubSettingsView(store: github,\n                               showsUsername: githubUsernameBinding)"))
-        XCTAssertTrue(content.contains("AboutView()"))
+        XCTAssertTrue(content.contains("AboutView(store: store)"))
         XCTAssertTrue(settings.contains("github-connect"))
         XCTAssertTrue(settings.contains("github-open-verification"))
         XCTAssertTrue(settings.contains("github-copy-code"))

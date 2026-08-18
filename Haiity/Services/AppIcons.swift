@@ -74,6 +74,11 @@ enum AppIcons {
         GraphPalette.allCases.compactMap { name(for: $0) } + hues.map(\.name)
     }
 
+    static func validManualName(_ name: String?) -> String? {
+        guard let name, alternateNames.contains(name) else { return nil }
+        return name
+    }
+
     /// Freie Farbe → Katalogname des nächstliegenden eingebauten Icons
     /// (nil = Primär-Grün). Unbunt bekommt Monochrom; sonst entscheidet der
     /// kürzeste Weg auf dem Farbtonkreis über ALLE 18 Anker — die fünf

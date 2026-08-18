@@ -276,6 +276,14 @@ struct ContentView: View {
             // den Entwickler. Die Geste hängt an der Wurzel, weil sie überall
             // gilt; ob daraus ein Blatt wird, entscheidet `handleShake()`.
             .onShake { handleShake() }
+            .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
+                guard store.cloudPreferences?.shakeToReportEnabled != ShakeToReport.isEnabled else {
+                    return
+                }
+                store.updateCloudPreferences(fallback: localCloudPreferences) {
+                    $0.shakeToReportEnabled = ShakeToReport.isEnabled
+                }
+            }
             .sheet(isPresented: $showFeedback,
                    onDismiss: { feedbackClosedAt = .now }) {
                 FeedbackSheet(store: store, cloudStatus: cloudStatus).themed(store)
@@ -303,13 +311,15 @@ struct ContentView: View {
                     // haben, während diese App im Hintergrund lag.
                     cloudStatus.refresh()
                     Task {
+                        await syncNow(announce: false)
                         await rescheduleReminders()
                         await reconcileMotivationActivity()
+                        CalendarSync.reconcile(habits: store.habits, validate: false)
+                        ReminderSync.pullCompletions(into: store)
+                        ReminderSync.reconcile(habits: store.habits, validate: false)
+                        await reconcileAppIcon()
                     }
-                    Task { await syncNow(announce: false) }
                     Task { await github.resumeOrRefresh() }
-                    ReminderSync.pullCompletions(into: store)
-                    ReminderSync.reconcile(habits: store.habits, validate: false)
                 }
             }
             .onChange(of: search) { _, query in
@@ -661,7 +671,7 @@ struct ContentView: View {
     private func moreDestination(_ route: MoreRoute) -> some View {
         switch route {
         case .archive: ArchiveView(store: store)
-        case .about: AboutView()
+        case .about: AboutView(store: store)
         case .github:
             GitHubSettingsView(store: github,
                                showsUsername: githubUsernameBinding)
@@ -2271,13 +2281,15 @@ struct ContentView: View {
             store.setViewPreferences(viewPreferences.preferences)
             schedulePush()
         }
-        store.setViewPreferences(viewPreferences.preferences)
+        applyCloudPreferences()
+        await syncNow(announce: false)
+        applyCloudPreferences()
         await rescheduleReminders()
         await reconcileMotivationActivity()
         CalendarSync.reconcile(habits: store.habits)
         ReminderSync.pullCompletions(into: store)
         ReminderSync.reconcile(habits: store.habits)
-        await syncNow(announce: false)
+        await reconcileAppIcon()
         if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
             showReminderSetup = true
         }
@@ -2312,6 +2324,32 @@ struct ContentView: View {
             delivery: store.motivationDelivery)
     }
 
+    private func reconcileAppIcon() async {
+        let wanted = store.matchAppIcon
+            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            : AppIcons.validManualName(store.manualAppIconName)
+        _ = await AppIcons.set(wanted)
+    }
+
+    private var localCloudPreferences: CloudPreferences {
+        CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
+                         calendarSyncReminders: CalendarSync.syncReminders,
+                         nativeReminderSync: ReminderSync.isEnabled,
+                         notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
+                         shakeToReportEnabled: ShakeToReport.isEnabled)
+    }
+
+    /// Apply synced intent to the device-local integration settings. The
+    /// following reconciliation pass remains permission- and ID-aware.
+    private func applyCloudPreferences() {
+        guard let preferences = store.cloudPreferences else { return }
+        CalendarSync.syncHabits = preferences.calendarSyncHabits
+        CalendarSync.syncReminders = preferences.calendarSyncReminders
+        ReminderSync.isEnabled = preferences.nativeReminderSync
+        NotificationPromptPreference.isSuppressed = preferences.notificationPromptsSuppressed
+        ShakeToReport.isEnabled = preferences.shakeToReportEnabled
+    }
+
     /// Nach einer lokalen Änderung: entprellt hochschreiben. Mehrere Häkchen
     /// hintereinander werden EIN Upload (siehe PushDebouncer).
     private func schedulePush() {
@@ -2329,12 +2367,17 @@ struct ContentView: View {
     private func syncNow(announce: Bool, pullFirst: Bool = true) async {
         guard cloudStatus.isSignedIn else { cloudStatus.refresh(); return }
         do {
-            store.setViewPreferences(viewPreferences.preferences)
             if pullFirst, let remote = try await cloud.pull() {
                 store.merge(remote: remote)
             }
             store.materializeGitHubShowsUsername()
+            store.materializeCloudPreferences(fallback: localCloudPreferences)
+            applyCloudPreferences()
             viewPreferences.adoptRemote(store.data.viewPreferences)
+            // Pull and merge before touching the root payload timestamp. A
+            // startup-only local preference write must not make remote habit
+            // metadata look older than this device.
+            store.setViewPreferences(viewPreferences.preferences)
             guard let payload = store.exportJSON() else { return }
             try await cloud.push(payload) { remote in
                 // EIN Merge in dieser App — der aus dem Store.
@@ -2342,6 +2385,8 @@ struct ContentView: View {
                     await MainActor.run {
                         store.merge(remote: remote)
                         store.materializeGitHubShowsUsername()
+                        store.materializeCloudPreferences(fallback: localCloudPreferences)
+                        applyCloudPreferences()
                         viewPreferences.adoptRemote(store.data.viewPreferences)
                     }
                 }
