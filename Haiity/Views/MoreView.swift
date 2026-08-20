@@ -57,7 +57,7 @@ struct MoreView: View, Equatable {
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
     /// die Zeile sagt, warum nicht.
     let cloudStatus: CloudSyncStatus
-    /// Auswahl der Statistik-Karten über der Liste (höchstens zwei).
+    /// Synchronisierte Auswahl der Statistik-Karten.
     let statsCards: StatsCardStore
     /// Ein seitenartiges Ziel öffnen (Statistik, Archiv, Über).
     let onOpen: (MoreRoute) -> Void
@@ -263,8 +263,7 @@ struct MoreView: View, Equatable {
                         symbol: "lock.shield", identifier: "open-about")
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
+        .settingsSurface()
     }
 
     private var githubSection: some View {
@@ -301,8 +300,7 @@ struct MoreView: View, Equatable {
             paletteSection
             compactModeSection
         }
-        .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
+        .settingsSurface()
     }
 
     private var habitBehaviorSettings: some View {
@@ -311,8 +309,7 @@ struct MoreView: View, Equatable {
             notificationActionsSection
             calendarSection
         }
-        .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
+        .settingsSurface()
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -370,6 +367,16 @@ struct MoreView: View, Equatable {
                     NotificationPresenter.configureQuickActions(enabled: enabled)
                 }))
             .accessibilityIdentifier("notification-actions-toggle")
+
+            if statsCards.preferences.notificationActionsEnabled {
+                Picker(String(localized: "Schnellaktion"), selection: notificationActionBinding) {
+                    ForEach(SwipeActionChoice.notificationSelectable) { choice in
+                        Text(choice.notificationDisplayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("notification-action-picker")
+            }
         } header: {
             Text(String(localized: "Mitteilungen"))
         }
@@ -389,6 +396,18 @@ struct MoreView: View, Equatable {
     private var swipeTrailingBinding: Binding<SwipeActionChoice> {
         Binding(get: { normalized(statsCards.preferences.swipeActions.trailing) },
                 set: { choice in statsCards.update { $0.swipeActions.trailing = choice } })
+    }
+
+    private var notificationActionBinding: Binding<SwipeActionChoice> {
+        Binding(
+            get: {
+                let choice = statsCards.preferences.notificationAction
+                return SwipeActionChoice.notificationSelectable.contains(choice)
+                    ? choice : .primary
+            },
+            set: { choice in
+                statsCards.update { $0.notificationAction = choice }
+            })
     }
 
     // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der
@@ -1415,7 +1434,10 @@ struct MoreView: View, Equatable {
 
     private var notificationOptOutSection: some View {
         Section {
-            Toggle(String(localized: "Do not disturb"), isOn: dndEnabled)
+            Toggle(isOn: dndEnabled) {
+                Label(NotificationDNDPresentation.title,
+                      systemImage: NotificationDNDPresentation.symbolName)
+            }
                 .accessibilityIdentifier("dnd-toggle")
             if dndActive {
                 Picker(String(localized: "Dauer"), selection: dndModeBinding) {
@@ -1496,14 +1518,19 @@ struct MoreView: View, Equatable {
             let remaining = max(0, Int(until.timeIntervalSince(dndNow)))
             let hours = remaining / 3600
             let minutes = (remaining % 3600) / 60
-            let remainingText = hours > 0
-                ? String(localized: "Noch \(hours) Std. \(minutes) Min.")
-                : String(localized: "Noch \(max(1, minutes)) Min.")
+            let remainingText: String
+            if hours > 0 {
+                remainingText = String.localizedStringWithFormat(
+                    String(localized: "Noch %d Std. %d Min."), hours, minutes)
+            } else {
+                remainingText = String.localizedStringWithFormat(
+                    String(localized: "Noch %d Min."), max(1, minutes))
+            }
             return String(localized: "Aktiv bis") + " "
                 + until.formatted(date: .omitted, time: .shortened)
                 + " · " + remainingText
         }
-        return String(localized: "Aktiv bis DND ausgeschaltet wird")
+        return String(localized: "Aktiv bis Nicht stören ausgeschaltet wird")
     }
 
     private func applyDND(_ state: NotificationDNDState) {
@@ -1790,6 +1817,7 @@ struct AboutView: View {
                 if developerAvailable { developerRow }
             }
         }
+        .settingsSurface()
         .navigationTitle(String(localized: "Über"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

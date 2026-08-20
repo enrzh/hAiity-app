@@ -73,6 +73,7 @@ struct DeveloperView: View {
             actionSection
             ownerSection
         }
+        .settingsSurface()
         .navigationTitle(String(localized: "Entwickler"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await collect() }

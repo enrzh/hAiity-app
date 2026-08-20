@@ -123,6 +123,7 @@ struct EditHabitSheet: View {
                     }
                 }
             }
+            .settingsSurface()
             .navigationTitle(existing == nil ? String(localized: "Neuer Habit") : String(localized: "Bearbeiten"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

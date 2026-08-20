@@ -281,6 +281,20 @@ extension View {
     func appSurface(cornerRadius: CGFloat = Theme.Metrics.cardRadius) -> some View {
         modifier(AppSurfaceModifier(cornerRadius: cornerRadius))
     }
+
+    /// One surface treatment for every settings list and form. Keeping the
+    /// list chrome here makes Solid, Milchglas, and Liquid Glass change the
+    /// whole settings experience together.
+    func settingsSurface() -> some View {
+        modifier(SettingsSurfaceModifier())
+    }
+
+    /// Chrome for settings screens that are not backed by a `List` or `Form`.
+    /// It keeps the page background and navigation bar on the same material
+    /// as settings rows when the user changes Solid, Milchglas, or Liquid.
+    func settingsChrome() -> some View {
+        modifier(SettingsChromeModifier())
+    }
 }
 
 extension EnvironmentValues {
@@ -382,5 +396,65 @@ private struct AppSurfaceModifier: ViewModifier {
                     .overlay(shape.fill(Color(.systemBackground).opacity(0.16)))
             }
         }
+    }
+}
+
+private struct SettingsSurfaceModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
+    private func listSurface(_ content: Content) -> some View {
+        content
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            // A list-wide row background is not reliable when a Form/List
+            // rebuilds its sections. Applying an explicit view keeps every
+            // settings row on the same material as the rest of the page.
+            .listRowSeparator(.hidden)
+            .listRowBackground(SettingsRowSurface(preferences: preferences))
+    }
+
+    func body(content: Content) -> some View {
+        listSurface(content).settingsChrome()
+    }
+}
+
+private struct SettingsChromeModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch preferences.material {
+        case .solid:
+            content
+                .background(AppearanceBackground(preferences: preferences))
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+        case .milky:
+            content
+                .background(AppearanceBackground(preferences: preferences))
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(.regularMaterial, for: .navigationBar)
+        case .liquid:
+            if #available(iOS 26, *) {
+                content
+                    .background(AppearanceBackground(preferences: preferences))
+                    .toolbarBackground(.hidden, for: .navigationBar)
+            } else {
+                content
+                    .background(AppearanceBackground(preferences: preferences))
+                    .toolbarBackground(.visible, for: .navigationBar)
+                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            }
+        }
+    }
+}
+
+private struct SettingsRowSurface: View {
+    let preferences: AppearancePreferences
+
+    var body: some View {
+        Color.clear
+            .appSurface(cornerRadius: 12)
+            .environment(\.appearancePreferences, preferences)
     }
 }

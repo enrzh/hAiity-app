@@ -162,6 +162,47 @@ final class ReminderUpcomingTests: XCTestCase {
                        NotificationQuickAction.checkbox.categoryIdentifier)
     }
 
+    func testNotificationActionChoiceUsesTheConfiguredSwipeSemantic() {
+        let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+        let plan = Reminders.habitPlans(habits: [habit],
+                                        notificationAction: .archive,
+                                        now: now,
+                                        calendar: calendar).first
+
+        XCTAssertEqual(plan?.quickAction, .archive)
+        XCTAssertEqual(plan.map(Reminders.request)?.content.categoryIdentifier,
+                       NotificationQuickAction.archive.categoryIdentifier)
+    }
+
+    func testViewPreferenceChangesEnterTheReminderReschedulePath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let start = try XCTUnwrap(source.range(of: "viewPreferences.onChange = {"))
+        let end = try XCTUnwrap(source.range(of: "applyCloudPreferences()",
+                                             range: start.upperBound..<source.endIndex))
+        let callback = source[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(callback.contains("rescheduleReminders()"),
+                      "changing a notification action must update already scheduled requests")
+    }
+
+    func testNavigationNotificationChoicesRemainMappedAndOpenTheApp() {
+        let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+
+        XCTAssertEqual(NotificationQuickAction.forHabit(habit, choice: .backfill), .backfill)
+        XCTAssertEqual(NotificationQuickAction.forHabit(habit, choice: .session), .session)
+        XCTAssertEqual(NotificationQuickAction.forHabit(habit, choice: .edit), .edit)
+        XCTAssertTrue(NotificationQuickAction.backfill.opensApp)
+        XCTAssertTrue(NotificationQuickAction.session.opensApp)
+        XCTAssertTrue(NotificationQuickAction.edit.opensApp)
+        XCTAssertFalse(NotificationQuickAction.archive.opensApp)
+    }
+
     func testQuickActionWritesTheNotificationDayInsteadOfToday() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("notification-action-\(UUID().uuidString).json")
@@ -175,6 +216,21 @@ final class ReminderUpcomingTests: XCTestCase {
                                                  target: target, store: store))
         XCTAssertEqual(store.value(habit.id, day: "2026-08-17"), 1)
         XCTAssertNil(store.value(habit.id, day: "2026-08-09"))
+    }
+
+    func testResetQuickActionClearsTheNotificationDay() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("notification-reset-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        let habit = Habit(name: "Lesen", recurrence: .daily)
+        store.add(habit)
+        store.setValue(habit.id, day: "2026-08-17", value: 1)
+        let target = NotificationHabitTarget(habitID: habit.id, day: "2026-08-17")
+
+        XCTAssertTrue(Reminders.applyQuickAction(.reset, to: habit,
+                                                 target: target, store: store))
+        XCTAssertNil(store.value(habit.id, day: "2026-08-17"))
     }
 
     func testHabitPlansKeepLegacyReminderAsFallback() {

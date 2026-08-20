@@ -200,6 +200,31 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(HabitData.empty.matchAppIcon)
     }
 
+    func testStatsPageUsesTheSharedSettingsSurface() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StatsView.swift"))
+        let statsList = try XCTUnwrap(source.range(of: "private var statsList"))
+        let statsSettings = source[statsList.upperBound...]
+        XCTAssertTrue(statsSettings.contains(".settingsSurface()"),
+                      "the statistics page must use the same material surface as settings")
+    }
+
+    func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let setup = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ReminderSetupView.swift"))
+
+        XCTAssertTrue(theme.contains("func settingsChrome()"),
+                      "settings chrome needs a reusable non-list surface")
+        XCTAssertTrue(setup.contains(".settingsChrome()"),
+                      "the reminder setup page must follow the selected material too")
+    }
+
     func testMaterialAndImagePreferencesRoundTrip() throws {
         let preferences = AppearancePreferences(material: .liquid,
                                                 backgroundImageData: Data([1, 2, 3]))

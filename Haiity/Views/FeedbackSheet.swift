@@ -73,6 +73,7 @@ struct FeedbackSheet: View {
                 sendSection
                 muteSection
             }
+            .settingsSurface()
             .navigationTitle(String(localized: "Fehler melden"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -6,8 +6,7 @@ import BackgroundTasks
 struct HaiityApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var startupSplashVisible = true
-    @State private var startupAppVisible = false
-    @State private var startupSplashReady = false
+    @State private var startupContentMounted = false
 
     init() {
         // Ohne Delegat unterdrückt iOS jede geplante Mitteilung, solange die
@@ -23,10 +22,15 @@ struct HaiityApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Schema, Palette und Tint setzt ContentView selbst — dort
-                // liegt der Store, der sie hält.
-                ContentView()
-                    .opacity(startupAppVisible ? 1 : 0)
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                if startupContentMounted {
+                    // Schema, Palette und Tint setzt ContentView selbst — dort
+                    // liegt der Store, der sie hält.
+                    ContentView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
                     .allowsHitTesting(!startupSplashVisible)
                     .accessibilityHidden(startupSplashVisible)
                     // Vergessene Sessions aufräumen: eine Live-Aktivität, die
@@ -72,27 +76,24 @@ struct HaiityApp: App {
                         }
                         #endif
                     }
-
-                StartupSplashReadySignal {
-                    startupSplashReady = true
                 }
-                .frame(width: 1, height: 1)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
 
                 if startupSplashVisible {
-                    StartupSplashView(isReady: startupSplashReady, onAppReveal: {
-                        withAnimation(.easeInOut(duration: StartupSplashTimeline.zoomDuration)) {
-                            startupAppVisible = true
-                        }
+                    StartupSplashView(onContentReady: {
+                        startupContentMounted = true
                     }) {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            startupSplashVisible = false
-                        }
+                        // The splash has completed its own fade. Removing it
+                        // without another transition keeps the handoff from
+                        // flashing or shrinking to the center.
+                        startupSplashVisible = false
                     }
-                    .transition(.opacity)
                     .zIndex(1)
                 }
+            }
+            .onAppear {
+                // Scene restoration can retain the previous `false` value;
+                // a new process always gets a fresh launch handoff.
+                startupSplashVisible = true
             }
         }
         .onChange(of: scenePhase) { _, phase in

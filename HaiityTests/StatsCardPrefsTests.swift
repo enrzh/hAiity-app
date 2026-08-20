@@ -1,15 +1,15 @@
 import XCTest
 @testable import Haiity
 
-/// Auswahl der Statistik-Karten: Standard, Obergrenze zwei, tolerantes
+/// Auswahl der Statistik-Karten: Standard, vollständige Auswahl, tolerantes
 /// Codable und die Ablage in UserDefaults,
 /// der aus Fingerweg und Zeilenbewegung entscheidet.
 final class StatsCardPrefsTests: XCTestCase {
-    func testViewPreferencesDefaultToExpandedWithYearPulse() {
+    func testViewPreferencesDefaultToExpandedWithAllStatsCards() {
         let prefs = ViewPreferences()
 
         XCTAssertFalse(prefs.compactMode)
-        XCTAssertEqual(prefs.statsCards.active, [.yearPulse])
+        XCTAssertEqual(prefs.statsCards.active, StatsCard.allCases)
         XCTAssertTrue(prefs.swipeActions.enabled)
         XCTAssertEqual(prefs.swipeActions.leading, .primary)
         XCTAssertEqual(prefs.swipeActions.trailing, .secondary)
@@ -23,11 +23,11 @@ final class StatsCardPrefsTests: XCTestCase {
 
         let store = ViewPreferencesStore(defaults: defaults)
         store.compactMode = true
-        store.setStatsCard(.streakFlame, active: true)
+        store.setStatsCard(.streakFlame, active: false)
 
         let reloaded = ViewPreferencesStore(defaults: defaults)
         XCTAssertTrue(reloaded.compactMode)
-        XCTAssertEqual(reloaded.statsCards.active, [.yearPulse, .streakFlame])
+        XCTAssertFalse(reloaded.statsCards.isActive(.streakFlame))
     }
 
     func testViewPreferencesStorePersistsSwipeActions() {
@@ -54,6 +54,24 @@ final class StatsCardPrefsTests: XCTestCase {
 
         XCTAssertFalse(ViewPreferencesStore(defaults: defaults)
             .preferences.notificationActionsEnabled)
+    }
+
+    func testViewPreferencesStorePersistsSelectedNotificationAction() {
+        let suite = "ViewPreferencesNotificationActionTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.update { $0.notificationAction = .archive }
+
+        XCTAssertEqual(ViewPreferencesStore(defaults: defaults)
+            .preferences.notificationAction, .archive)
+    }
+
+    func testNotificationActionsOfferTheSameChoicesAsSwipeActions() {
+        XCTAssertEqual(SwipeActionChoice.notificationSelectable, [
+            .primary, .secondary, .archive, .backfill, .session, .edit, .none
+        ])
     }
 
     func testNewerRemotePreferencesReplaceLocalPreferences() {
@@ -88,10 +106,10 @@ final class StatsCardPrefsTests: XCTestCase {
     }
 
 
-    // MARK: – Grundzustand und Obergrenze
+    // MARK: – Grundzustand und Auswahl
 
-    func testDefaultIsYearPulseOnly() {
-        XCTAssertEqual(StatsCardPrefs().active, [.yearPulse])
+    func testDefaultIncludesEveryStatsCard() {
+        XCTAssertEqual(StatsCardPrefs().active, StatsCard.allCases)
     }
 
     func testSetActivatesAndDeactivatesInOrder() {
@@ -103,24 +121,24 @@ final class StatsCardPrefsTests: XCTestCase {
         XCTAssertEqual(prefs.active, [.todayRing])
     }
 
-    func testMaxTwoIsEnforcedBySet() {
+    func testAllStatsCardsCanBeSelected() {
         var prefs = StatsCardPrefs(active: [.yearPulse, .streakFlame])
-        XCTAssertTrue(prefs.isFull)
-        prefs.set(.todayRing, active: true)   // No-op: voll
-        XCTAssertEqual(prefs.active, [.yearPulse, .streakFlame])
+        XCTAssertFalse(prefs.isFull)
+        prefs.set(.todayRing, active: true)
+        XCTAssertEqual(prefs.active, [.yearPulse, .streakFlame, .todayRing])
     }
 
-    func testCanToggleLocksOnlyInactiveCardsWhenFull() {
-        let full = StatsCardPrefs(active: [.yearPulse, .streakFlame])
-        XCTAssertTrue(full.canToggle(.yearPulse))      // aktive dürfen immer aus
-        XCTAssertFalse(full.canToggle(.todayRing))     // neue sind gesperrt
+    func testCanToggleAllowsActiveAndAvailableCards() {
+        let full = StatsCardPrefs(active: StatsCard.allCases)
+        XCTAssertTrue(full.canToggle(.yearPulse))
+        XCTAssertTrue(full.canToggle(.totals))
         let free = StatsCardPrefs(active: [.yearPulse])
         XCTAssertTrue(free.canToggle(.todayRing))
     }
 
     func testInitSanitizesDuplicatesAndOverflow() {
         let prefs = StatsCardPrefs(active: [.todayRing, .todayRing, .yearPulse, .weekMomentum])
-        XCTAssertEqual(prefs.active, [.todayRing, .yearPulse])
+        XCTAssertEqual(prefs.active, [.todayRing, .yearPulse, .weekMomentum])
     }
 
     func testSetSameCardTwiceDoesNotDuplicate() {
@@ -143,7 +161,14 @@ final class StatsCardPrefsTests: XCTestCase {
     func testDecodeDropsUnknownCardNames() throws {
         let raw = Data(#"{"active":["yearPulse","hologram","streakFlame","todayRing"]}"#.utf8)
         let prefs = try JSONDecoder().decode(StatsCardPrefs.self, from: raw)
-        XCTAssertEqual(prefs.active, [.yearPulse, .streakFlame])   // max 2, Unbekanntes weg
+        XCTAssertEqual(prefs.active, [.yearPulse, .streakFlame, .todayRing])
+    }
+
+    func testLegacyCustomizedSelectionSurvivesViewPreferencesMigration() throws {
+        let raw = Data(#"{"updatedAt":42,"statsCards":{"active":["weekMomentum"]}}"#.utf8)
+        let prefs = try JSONDecoder().decode(ViewPreferences.self, from: raw)
+
+        XCTAssertEqual(prefs.statsCards.active, [.weekMomentum])
     }
 
     // MARK: – Ablage
@@ -157,7 +182,7 @@ final class StatsCardPrefsTests: XCTestCase {
     func testLoadWithoutStoredValueIsDefault() {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
-        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse])
+        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCard.allCases)
     }
 
     func testSaveThenLoadRoundTrips() {
@@ -173,16 +198,16 @@ final class StatsCardPrefsTests: XCTestCase {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
         defaults.set(Data("kaputt".utf8), forKey: StatsCardPrefs.storageKey)
-        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse])
+        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCard.allCases)
     }
 
     func testStoreWritesEveryChange() {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
         let store = StatsCardStore(defaults: defaults)
-        store.setStatsCard(.streakFlame, active: true)
-        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse, .streakFlame])
+        store.setStatsCard(.streakFlame, active: false)
+        XCTAssertFalse(StatsCardPrefs.load(from: defaults).isActive(.streakFlame))
         let reloaded = StatsCardStore(defaults: defaults)
-        XCTAssertEqual(reloaded.prefs.active, [.yearPulse, .streakFlame])
+        XCTAssertFalse(reloaded.prefs.isActive(.streakFlame))
     }
 }

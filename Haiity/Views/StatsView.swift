@@ -17,6 +17,7 @@ import SwiftUI
 /// memoisiert — eine `body`-Auswertung kostet den Gleichheitsvergleich.
 struct StatsView: View {
     let store: HabitStore
+    let viewPreferences: ViewPreferencesStore
     /// Zählt die eingetroffenen Deep-Links (siehe ContentView). Ein Link ist
     /// eine Absage an das, was gerade offen ist: der Tab wechselt unter dem
     /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
@@ -24,6 +25,7 @@ struct StatsView: View {
     var routeToken: Int = 0
     /// Das Kaufblatt: `nil` heisst geschlossen.
     @State private var paywall: PaywallContext?
+    @State private var showingCardSettings = false
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -53,7 +55,21 @@ struct StatsView: View {
             PaywallView(context: context, store: store, onUnlocked: {})
                 .themed(store)
         }
+        .sheet(isPresented: $showingCardSettings) {
+            statsAdjustmentSheet
+        }
         .onChange(of: routeToken) { _, _ in paywall = nil }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingCardSettings = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel(String(localized: "Statistik anpassen"))
+                .accessibilityIdentifier("stats-adjustments")
+            }
+        }
     }
 
     /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
@@ -75,17 +91,32 @@ struct StatsView: View {
 
     private var statsList: some View {
         let snapshot = StatsEngine.snapshot(habits: store.activeTrackedHabits)
+        let activeCards = viewPreferences.statsCards.active
+        let tileCards = activeCards.filter { $0 != .yearPulse }
         return List {
             Section {
-                heroCard(snapshot)
-                    .modifier(StatsCardChrome())
-                tileGrid(snapshot)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0,
-                                              leading: Theme.Metrics.gutter,
-                                              bottom: Theme.Metrics.gap,
-                                              trailing: Theme.Metrics.gutter))
+                if activeCards.contains(.yearPulse) {
+                    heroCard(snapshot)
+                        .modifier(StatsCardChrome())
+                }
+                if !tileCards.isEmpty {
+                    tileGrid(snapshot, cards: tileCards)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0,
+                                                  leading: Theme.Metrics.gutter,
+                                                  bottom: Theme.Metrics.gap,
+                                                  trailing: Theme.Metrics.gutter))
+                }
+                if activeCards.isEmpty {
+                    statsSelectionEmpty
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
+                                                  leading: Theme.Metrics.gutter,
+                                                  bottom: Theme.Metrics.gap,
+                                                  trailing: Theme.Metrics.gutter))
+                }
             }
             Section {
                 // Der Schnitt liegt auf der SEKTION, nicht mitten in einer
@@ -114,7 +145,56 @@ struct StatsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(AppearanceBackground(preferences: store.appearancePreferences))
+        .settingsSurface()
         .navigationTitle(String(localized: "Statistik"))
+    }
+
+    private var statsSelectionEmpty: some View {
+        ContentUnavailableView {
+            Label(String(localized: "Keine Karten ausgewählt"),
+                  systemImage: "slider.horizontal.3")
+        } description: {
+            Text(String(localized: "Wähle in den Einstellungen eine Statistik-Karte aus."))
+        } actions: {
+            Button(String(localized: "Karten anpassen")) {
+                showingCardSettings = true
+            }
+        }
+    }
+
+    private var statsAdjustmentSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(StatsCard.allCases) { card in
+                        Toggle(isOn: cardBinding(card)) {
+                            Label(card.displayName, systemImage: card.symbol)
+                        }
+                        .accessibilityIdentifier("stats-adjustment-\(card.rawValue)")
+                    }
+                } header: {
+                    Text(String(localized: "Statistikkarten"))
+                }
+            }
+            .settingsSurface()
+            .navigationTitle(String(localized: "Statistik anpassen"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "Fertig")) {
+                        showingCardSettings = false
+                    }
+                }
+            }
+        }
+        .themed(store)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
+        Binding(
+            get: { viewPreferences.statsCards.isActive(card) },
+            set: { active in viewPreferences.setStatsCard(card, active: active) })
     }
 
     // MARK: – Held: Jahres-Puls
@@ -260,13 +340,30 @@ struct StatsView: View {
 
     // MARK: – Kacheln
 
-    private func tileGrid(_ snapshot: StatsEngine.Snapshot) -> some View {
+    private func tileGrid(_ snapshot: StatsEngine.Snapshot,
+                          cards: [StatsCard]) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Metrics.gap),
                             GridItem(.flexible(), spacing: Theme.Metrics.gap)],
                   spacing: Theme.Metrics.gap) {
+            ForEach(cards) { card in
+                statsTile(card, snapshot: snapshot)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statsTile(_ card: StatsCard,
+                           snapshot: StatsEngine.Snapshot) -> some View {
+        switch card {
+        case .yearPulse:
+            EmptyView()
+        case .streakFlame:
             streakTile(snapshot)
+        case .todayRing:
             todayTile(snapshot)
+        case .weekMomentum:
             weekTile(snapshot)
+        case .totals:
             totalsTile(snapshot)
         }
     }

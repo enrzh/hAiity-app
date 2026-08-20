@@ -23,6 +23,7 @@ struct GitHubSettingsView: View {
                 content
             }
         }
+        .settingsSurface()
         .navigationTitle(Text(verbatim: "GitHub"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

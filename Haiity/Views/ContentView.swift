@@ -201,6 +201,10 @@ struct ContentView: View {
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
             .tint(Theme.accentText(store.paletteStyle))
             .onOpenURL { handleDeepLink($0) }
+            .onReceive(NotificationCenter.default.publisher(
+                for: NotificationActionRouter.pendingDidChange)) { _ in
+                schedulePendingNotificationAction()
+            }
             // Blätter sind eine EIGENE Präsentation: Farbe und Tint von oben
             // kommen dort nicht an (nachgemessen — die Farbwahl im Blatt zeigte
             // sonst Grün, während die App längst in einer eigenen Farbe lief).
@@ -294,6 +298,7 @@ struct ContentView: View {
                 searchPresentationArmed = true
                 becameActiveAt = .now
                 await boot()
+                schedulePendingNotificationAction()
                 await github.boot()
                 #if DEBUG
                 handleLaunchScreenArgument()
@@ -303,6 +308,7 @@ struct ContentView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     becameActiveAt = .now
+                    schedulePendingNotificationAction()
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
@@ -507,7 +513,8 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var statsTabContent: some View {
         NavigationStack {
-            StatsView(store: store, routeToken: routeToken)
+            StatsView(store: store, viewPreferences: viewPreferences,
+                      routeToken: routeToken)
         }
     }
 
@@ -617,7 +624,8 @@ struct ContentView: View {
 
     private var fallbackStatsContent: some View {
         NavigationStack {
-            StatsView(store: store, routeToken: routeToken)
+            StatsView(store: store, viewPreferences: viewPreferences,
+                      routeToken: routeToken)
         }
     }
 
@@ -1149,6 +1157,36 @@ struct ContentView: View {
         case .backfill: openBackfill(habit, day: DayKey.today(), afterMenu: false)
         case .session: HabitSessionManager.shared.start(habit: habit)
         case .edit: editing = habit
+        }
+    }
+
+    private func handleNotificationAction(_ request: NotificationActionRequest) {
+        guard let habit = store.habits.first(where: { $0.id == request.target.habitID }),
+              habit.archivedAt == nil else { return }
+        switch request.action {
+        case .backfill:
+            openBackfill(habit, day: request.target.day, afterMenu: false)
+        case .session:
+            HabitSessionManager.shared.start(habit: habit)
+        case .edit:
+            editing = habit
+        default:
+            break
+        }
+    }
+
+    private func handlePendingNotificationAction() {
+        guard let request = NotificationActionRouter.takePending() else { return }
+        handleNotificationAction(request)
+    }
+
+    private func schedulePendingNotificationAction() {
+        Task { @MainActor in
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled,
+                  UIApplication.shared.applicationState == .active else { return }
+            handlePendingNotificationAction()
         }
     }
 
@@ -2280,7 +2318,10 @@ struct ContentView: View {
         }
         viewPreferences.onChange = {
             store.setViewPreferences(viewPreferences.preferences)
+            NotificationPresenter.configureQuickActions(
+                enabled: viewPreferences.preferences.notificationActionsEnabled)
             schedulePush()
+            Task { await rescheduleReminders() }
         }
         applyCloudPreferences()
         await syncNow(announce: false)

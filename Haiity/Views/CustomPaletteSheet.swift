@@ -53,6 +53,7 @@ struct CustomPaletteSheet: View {
                         .accessibilityIdentifier("custom-palette-name")
                 }
             }
+            .settingsSurface()
             .navigationTitle(existing == nil
                              ? String(localized: "Eigene Farbe")
                              : String(localized: "Farbe bearbeiten"))

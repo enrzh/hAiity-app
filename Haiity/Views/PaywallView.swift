@@ -112,7 +112,7 @@ struct PaywallView: View {
                 }
                 .padding(Theme.Metrics.gutter)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(AppearanceBackground(preferences: store.appearancePreferences))
             .safeAreaInset(edge: .bottom) { footer }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -221,9 +221,7 @@ struct PaywallView: View {
         content()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
+            .appSurface()
     }
 
     private func iconTile(_ symbol: String) -> some View {

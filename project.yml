@@ -62,7 +62,9 @@ targets:
           - vi
           - ko
         GitHubClientID: $(GITHUB_CLIENT_ID)
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchTiles
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false

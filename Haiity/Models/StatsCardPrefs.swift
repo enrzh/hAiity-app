@@ -2,10 +2,10 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// Die vier Statistik-Karten über der Habit-Liste. Roh-Wert ist der
+/// Die fünf Statistik-Karten über der Statistikseite. Roh-Wert ist der
 /// Speicher-Schlüssel — Umbenennen wäre ein Datenformat-Bruch.
 enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
-    case yearPulse, streakFlame, todayRing, weekMomentum
+    case yearPulse, streakFlame, todayRing, weekMomentum, totals
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
         case .streakFlame:  return String(localized: "Streak-Flamme")
         case .todayRing:    return String(localized: "Heute-Ring")
         case .weekMomentum: return String(localized: "Wochen-Momentum")
+        case .totals:       return String(localized: "Gesamt")
         }
     }
 
@@ -29,6 +30,8 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
             return String(localized: "Was heute fällig ist — Segment für Segment.")
         case .weekMomentum:
             return String(localized: "Die Woche im Verlauf, verglichen mit der Vorwoche.")
+        case .totals:
+            return String(localized: "Alle Check-ins und aktiven Habits zusammen.")
         }
     }
 
@@ -38,35 +41,41 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
         case .streakFlame:  return "flame"
         case .todayRing:    return "circle.dashed"
         case .weekMomentum: return "chart.line.uptrend.xyaxis"
+        case .totals:       return "number"
         }
     }
 }
 
-/// Welche Karten aktiv sind — höchstens zwei, Reihenfolge = Reihenfolge des
-/// Einschaltens (und damit die Reihenfolge über der Liste).
+/// Welche Karten aktiv sind. Die Reihenfolge entspricht der Reihenfolge des
+/// Einschaltens und damit der Reihenfolge über der Statistikseite.
 struct StatsCardPrefs: Codable, Equatable {
-    static let maxActive = 2
+    static let maxActive = StatsCard.allCases.count
     static let storageKey = "statsCards"
 
     private(set) var active: [StatsCard]
+    /// Old builds stored the default as just `yearPulse`. A missing marker is
+    /// therefore a legacy default, while an explicit empty or partial choice
+    /// made in the new stats settings must remain exactly as selected.
+    private(set) var isCustomized: Bool
 
-    /// Standard: der Jahres-Puls, sonst nichts.
-    init(active: [StatsCard] = [.yearPulse]) {
+    /// Standard: alle fünf Karten. Die Reihenfolge ist die Reihenfolge in der
+    /// Statistikseite.
+    init(active: [StatsCard] = StatsCard.allCases, customized: Bool? = nil) {
         var seen = Set<StatsCard>()
-        self.active = Array(active.filter { seen.insert($0).inserted }.prefix(Self.maxActive))
+        let normalized = Array(active.filter { seen.insert($0).inserted }.prefix(Self.maxActive))
+        self.active = normalized
+        self.isCustomized = customized ?? (normalized != StatsCard.allCases)
     }
 
     var isFull: Bool { active.count >= Self.maxActive }
 
     func isActive(_ card: StatsCard) -> Bool { active.contains(card) }
 
-    /// Darf der Schalter dieser Karte gerade bedient werden? Aktive dürfen
-    /// immer aus; neue nur, solange noch Platz ist — das ist die
-    /// „deaktivieren + Fußnote"-Mechanik der Mehr-Tafel.
+    /// Mit vier möglichen Karten gibt es keine künstliche Obergrenze mehr.
     func canToggle(_ card: StatsCard) -> Bool { isActive(card) || !isFull }
 
-    /// Ein-/Ausschalten mit Obergrenze. Einschalten über die Grenze hinweg
-    /// ist ein No-op (die Oberfläche sperrt den Schalter ohnehin).
+    /// Ein-/Ausschalten. Die Obergrenze entspricht der Zahl der verfügbaren
+    /// Karten und bleibt als Datenformat-Schutz bestehen.
     mutating func set(_ card: StatsCard, active on: Bool) {
         if on {
             guard !isActive(card), !isFull else { return }
@@ -74,11 +83,12 @@ struct StatsCardPrefs: Codable, Equatable {
         } else {
             active.removeAll { $0 == card }
         }
+        isCustomized = true
     }
 
     // MARK: – Codable (tolerant)
 
-    private enum CodingKeys: String, CodingKey { case active }
+    private enum CodingKeys: String, CodingKey { case active, customized }
 
     /// Unbekannte Kartennamen (aus einer neueren Version) fallen still weg,
     /// statt die ganze Einstellung zu verwerfen. Eine GESPEICHERTE leere
@@ -90,11 +100,17 @@ struct StatsCardPrefs: Codable, Equatable {
         active = Array(raw.compactMap(StatsCard.init(rawValue:))
             .filter { seen.insert($0).inserted }
             .prefix(Self.maxActive))
+        // Builds before the explicit marker stored the default as only the
+        // year card. Any other payload, including an intentional empty or
+        // partial selection, is therefore already a user choice.
+        isCustomized = try c.decodeIfPresent(Bool.self, forKey: .customized)
+            ?? (active != [.yearPulse])
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(active.map(\.rawValue), forKey: .active)
+        if isCustomized { try c.encode(true, forKey: .customized) }
     }
 
     // MARK: – Ablage
@@ -105,7 +121,7 @@ struct StatsCardPrefs: Codable, Equatable {
         guard let raw = defaults.data(forKey: storageKey),
               let prefs = try? JSONDecoder().decode(StatsCardPrefs.self, from: raw)
         else { return StatsCardPrefs() }
-        return prefs
+        return prefs.isCustomized ? prefs : StatsCardPrefs()
     }
 
     func save(to defaults: UserDefaults) {
@@ -125,33 +141,44 @@ struct ViewPreferences: Codable, Equatable {
     var swipeActions: SwipeActionsPreferences
     /// Shows one-tap actions when a scheduled notification is held down.
     var notificationActionsEnabled: Bool
+    /// The one action shown on a scheduled habit notification. It uses the
+    /// same semantic choices as swipe settings where an immediate action is
+    /// available.
+    var notificationAction: SwipeActionChoice
 
     init(updatedAt: TimeInterval = 0,
          statsCards: StatsCardPrefs = StatsCardPrefs(),
          compactMode: Bool = false,
          swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
-         notificationActionsEnabled: Bool = true) {
+         notificationActionsEnabled: Bool = true,
+         notificationAction: SwipeActionChoice = .primary) {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
         self.swipeActions = swipeActions
         self.notificationActionsEnabled = notificationActionsEnabled
+        self.notificationAction = notificationAction
     }
 
     private enum CodingKeys: String, CodingKey {
-        case updatedAt, statsCards, compactMode, swipeActions, notificationActionsEnabled
+        case updatedAt, statsCards, compactMode, swipeActions, notificationActionsEnabled,
+             notificationAction
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
-        statsCards = try c.decodeIfPresent(StatsCardPrefs.self, forKey: .statsCards) ?? StatsCardPrefs()
+        let decodedCards = try c.decodeIfPresent(StatsCardPrefs.self, forKey: .statsCards)
+            ?? StatsCardPrefs()
+        statsCards = decodedCards.isCustomized ? decodedCards : StatsCardPrefs()
         compactMode = try c.decodeIfPresent(Bool.self, forKey: .compactMode) ?? false
         swipeActions = try c.decodeIfPresent(SwipeActionsPreferences.self, forKey: .swipeActions)
             ?? SwipeActionsPreferences()
         notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
                                                            forKey: .notificationActionsEnabled)
             ?? true
+        notificationAction = (try c.decodeIfPresent(String.self, forKey: .notificationAction))
+            .flatMap(SwipeActionChoice.init(rawValue:)) ?? .primary
     }
 
     func encode(to encoder: Encoder) throws {
@@ -164,6 +191,9 @@ struct ViewPreferences: Codable, Equatable {
         }
         if !notificationActionsEnabled {
             try c.encode(false, forKey: .notificationActionsEnabled)
+        }
+        if notificationAction != .primary {
+            try c.encode(notificationAction.rawValue, forKey: .notificationAction)
         }
     }
 
@@ -235,6 +265,7 @@ final class ViewPreferencesStore {
                 || next.compactMode != preferences.compactMode
                 || next.swipeActions != preferences.swipeActions
                 || next.notificationActionsEnabled != preferences.notificationActionsEnabled
+                || next.notificationAction != preferences.notificationAction
         else { return }
         next.updatedAt = Date().timeIntervalSince1970
         preferences = next
@@ -268,10 +299,29 @@ enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
     /// Die Auswahl, die die Einstellungen anbieten — ohne die Altlasten.
     static var selectable: [SwipeActionChoice] { [.archive, .backfill, .session, .edit, .none] }
 
+    /// Notifications use the same semantic choices as swipe actions. The
+    /// permanent primary/secondary actions remain available as well because
+    /// a notification has only one configurable action slot.
+    static var notificationSelectable: [SwipeActionChoice] {
+        [.primary, .secondary] + selectable
+    }
+
     var displayName: String {
         switch self {
         case .primary: return String(localized: "Standardaktion")
         case .secondary: return String(localized: "Zurücksetzen")
+        case .archive: return String(localized: "Archivieren")
+        case .backfill: return String(localized: "Nacharbeiten")
+        case .session: return String(localized: "Session starten")
+        case .edit: return String(localized: "Bearbeiten")
+        case .none: return String(localized: "Keine Aktion")
+        }
+    }
+
+    var notificationDisplayName: String {
+        switch self {
+        case .primary: return String(localized: "Standardaktion")
+        case .secondary: return String(localized: "Zurücksetzen / Nein")
         case .archive: return String(localized: "Archivieren")
         case .backfill: return String(localized: "Nacharbeiten")
         case .session: return String(localized: "Session starten")

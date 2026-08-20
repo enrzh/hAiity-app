@@ -63,6 +63,11 @@ enum NotificationPromptPreference {
     }
 }
 
+enum NotificationDNDPresentation {
+    static let title = String(localized: "Do not disturb")
+    static let symbolName = "moon.zzz.fill"
+}
+
 enum ReminderSetup {
     static let completedKey = "reminder-setup-completed"
 
@@ -94,6 +99,12 @@ enum NotificationQuickAction: String, CaseIterable, Codable, Sendable {
     case quantity
     case yesNo
     case reminder
+    case reset
+    case no
+    case archive
+    case backfill
+    case session
+    case edit
 
     static let actionIdentifier = "haiity.quick-check"
 
@@ -104,17 +115,100 @@ enum NotificationQuickAction: String, CaseIterable, Codable, Sendable {
         case .checkbox, .reminder: return String(localized: "Erledigt")
         case .quantity: return String(localized: "+1")
         case .yesNo: return String(localized: "Ja")
+        case .reset: return String(localized: "Zurücksetzen")
+        case .no: return String(localized: "Nein")
+        case .archive: return String(localized: "Archivieren")
+        case .backfill: return String(localized: "Nacharbeiten")
+        case .session: return String(localized: "Session starten")
+        case .edit: return String(localized: "Bearbeiten")
+        }
+    }
+
+    var opensApp: Bool {
+        switch self {
+        case .backfill, .session, .edit: return true
+        default: return false
         }
     }
 
     static func forHabit(_ habit: Habit) -> Self {
         habit.isReminder ? .reminder : Self(rawValue: habit.kind.rawValue) ?? .checkbox
     }
+
+    static func forHabit(_ habit: Habit, choice: SwipeActionChoice) -> Self? {
+        switch choice {
+        case .primary: return forHabit(habit)
+        case .secondary: return habit.kind == .yesNo ? .no : .reset
+        case .archive: return .archive
+        case .backfill: return .backfill
+        case .session: return .session
+        case .edit: return .edit
+        case .none: return nil
+        }
+    }
 }
 
 struct NotificationHabitTarget: Equatable, Sendable {
     let habitID: UUID
     let day: String
+}
+
+struct NotificationActionRequest: Equatable, Sendable {
+    let action: NotificationQuickAction
+    let target: NotificationHabitTarget
+}
+
+enum NotificationActionRouter {
+    /// A wake-up only. The observer must read the persisted request with
+    /// `takePending()`; it must never receive a request that can be presented
+    /// synchronously from UIKit's notification callback.
+    static let pendingDidChange = Notification.Name("haiity.notification-action-pending")
+
+    private static let pendingKey = "pendingNotificationAction"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+    }
+
+    static func post(_ request: NotificationActionRequest) {
+        guard request.action.opensApp else { return }
+        let values: [String: String] = [
+            "action": request.action.rawValue,
+            "habitID": request.target.habitID.uuidString,
+            "day": request.target.day
+        ]
+        defaults.set(values, forKey: pendingKey)
+
+        // Keep this outside the delegate's call stack. The app may still be
+        // restoring UIKit state when `didReceive` returns, so the wake-up is
+        // intentionally delayed and carries no UI payload.
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            NotificationCenter.default.post(name: pendingDidChange, object: nil)
+        }
+    }
+
+    static func takePending() -> NotificationActionRequest? {
+        guard let values = defaults.dictionary(forKey: pendingKey) as? [String: String] else {
+            return nil
+        }
+        defaults.removeObject(forKey: pendingKey)
+        return makeRequest(action: values["action"], habitID: values["habitID"], day: values["day"])
+    }
+
+    private static func makeRequest(action rawAction: String?,
+                                    habitID rawHabitID: String?,
+                                    day: String?) -> NotificationActionRequest? {
+        guard let rawAction,
+              let action = NotificationQuickAction(rawValue: rawAction),
+              action.opensApp,
+              let rawHabitID,
+              let habitID = UUID(uuidString: rawHabitID),
+              let day,
+              DayKey.isValid(day)
+        else { return nil }
+        return NotificationActionRequest(action: action,
+                                         target: NotificationHabitTarget(habitID: habitID, day: day))
+    }
 }
 
 /// Plant tägliche und wöchentliche Zusammenfassungen, tägliche Motivation
@@ -376,6 +470,7 @@ enum Reminders {
     }
 
     static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
+                           notificationAction: SwipeActionChoice = .primary,
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
@@ -401,7 +496,9 @@ enum Reminders {
                                                            calendar: calendar)
                 guard let occurrence = state.actionable, occurrence.dueDate > now,
                       let plan = habitPlan(habit: habit, day: occurrence.day,
-                                           minutes: minutes, calendar: calendar)
+                                           minutes: minutes,
+                                           notificationAction: notificationAction,
+                                           calendar: calendar)
                 else { continue }
                 plans.append(plan)
                 continue
@@ -417,7 +514,9 @@ enum Reminders {
                       !habit.isDone(day), !habit.isAnswered(day)
                 else { continue }
                 guard let plan = habitPlan(habit: habit, day: day,
-                                           minutes: minutes, calendar: calendar),
+                                           minutes: minutes,
+                                           notificationAction: notificationAction,
+                                           calendar: calendar),
                       let fire = calendar.date(from: plan.dateMatching), fire > now
                 else { continue }
                 plans.append(plan)
@@ -427,6 +526,7 @@ enum Reminders {
     }
 
     private static func habitPlan(habit: Habit, day: String, minutes: Int,
+                                  notificationAction: SwipeActionChoice,
                                   calendar: Calendar) -> ReminderPlan? {
         guard let date = DayKey.date(from: day, calendar: calendar) else { return nil }
         var components = calendar.dateComponents([.year, .month, .day], from: date)
@@ -438,7 +538,7 @@ enum Reminders {
                             body: String(localized: "Zeit für \(habit.name)"),
                             dateMatching: components,
                             repeats: false,
-                            quickAction: .forHabit(habit))
+                            quickAction: .forHabit(habit, choice: notificationAction))
     }
 
     static func habitTarget(for identifier: String) -> NotificationHabitTarget? {
@@ -498,8 +598,6 @@ enum Reminders {
         // data.json ist ohnehin die einzige Wahrheit (auch fürs Widget).
         var plans = [daily, weekly].compactMap { $0 }
         if let data = HabitStore.read(SharedStorage.dataURL()) {
-            NotificationPresenter.configureQuickActions(
-                enabled: data.viewPreferences.notificationActionsEnabled)
             plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
@@ -511,7 +609,8 @@ enum Reminders {
             let reservingMotivation = data.motivationMinutes != nil
                 && data.motivationDelivery == .notification
             plans += habitPlans(habits: data.habits,
-                                reservingMotivation: reservingMotivation)
+                                reservingMotivation: reservingMotivation,
+                                notificationAction: data.viewPreferences.notificationAction)
         }
         for plan in plans {
             try? await center.add(request(plan))
@@ -540,8 +639,32 @@ enum Reminders {
                                  store: HabitStore,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> Bool {
-        guard habit.id == target.habitID, habit.archivedAt == nil,
-              NotificationQuickAction.forHabit(habit) == action else { return false }
+        guard habit.id == target.habitID, habit.archivedAt == nil else { return false }
+
+        if action == .archive {
+            store.archive(habit.id)
+            return true
+        }
+
+        if action == .reset {
+            guard store.value(habit.id, day: target.day) != nil else { return false }
+            if habit.isReminder {
+                store.setReminderCompletion(habit.id, day: target.day,
+                                            completed: false, nextCursor: target.day)
+            } else {
+                store.clear(habit.id, day: target.day)
+            }
+            return true
+        }
+
+        if action == .no {
+            guard !habit.isReminder, habit.kind == .yesNo,
+                  !habit.isAnswered(target.day) else { return false }
+            store.setValue(habit.id, day: target.day, value: Habit.Answer.no)
+            return true
+        }
+
+        guard NotificationQuickAction.forHabit(habit) == action else { return false }
 
         if habit.isReminder {
             guard habit.log[target.day] == nil,
@@ -672,60 +795,5 @@ enum Reminders {
         let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateMatching,
                                                     repeats: plan.repeats)
         return UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
-    }
-}
-
-/// Ohne Delegat wirft iOS geplante Mitteilungen WEG, solange die App vorne
-/// ist — wer die Zusammenfassung einschaltet und zum Testen in der App auf
-/// die Uhrzeit wartet, sieht: nichts. Genau so wurde v11 als „Mitteilungen
-/// funktionieren nicht" gemeldet. Der Delegat sagt dem System, dass Banner,
-/// Ton und Mitteilungsliste auch im Vordergrund gelten.
-final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = NotificationPresenter()
-
-    static func configureQuickActions(enabled: Bool) {
-        let categories: Set<UNNotificationCategory>
-        if enabled {
-            categories = Set(NotificationQuickAction.allCases.map { action in
-                let button = UNNotificationAction(identifier: NotificationQuickAction.actionIdentifier,
-                                                   title: action.title,
-                                                   options: [])
-                return UNNotificationCategory(identifier: action.categoryIdentifier,
-                                              actions: [button],
-                                              intentIdentifiers: [],
-                                              options: [])
-            })
-        } else {
-            categories = []
-        }
-        UNUserNotificationCenter.current().setNotificationCategories(categories)
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification) async
-        -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse) async {
-        guard response.actionIdentifier == NotificationQuickAction.actionIdentifier,
-              let target = Reminders.habitTarget(
-                for: response.notification.request.identifier) else { return }
-
-        await MainActor.run {
-            let store = HabitStore(url: SharedStorage.dataURL())
-            guard let habit = store.habits.first(where: { $0.id == target.habitID }),
-                  let category = NotificationQuickAction(rawValue: response.notification
-                    .request.content.categoryIdentifier.replacingOccurrences(
-                        of: "haiity.notification.", with: "")) else { return }
-            guard Reminders.applyQuickAction(category, to: habit, target: target, store: store) else {
-                return
-            }
-            Task {
-                await Reminders.reschedule(store: store)
-                await Reminders.celebrateIfPerfectDay(store: store)
-            }
-        }
     }
 }

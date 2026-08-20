@@ -35,10 +35,10 @@ struct ReminderSetupView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .bottom) { footer }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle(String(localized: "Erinnerungen"))
             .navigationBarTitleDisplayMode(.inline)
         }
+        .settingsChrome()
     }
 
     // MARK: – Seiten
@@ -147,9 +147,7 @@ struct ReminderSetupView: View {
         content()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
+            .appSurface()
     }
 
     private func iconTile(_ symbol: String) -> some View {
@@ -212,7 +210,7 @@ struct ReminderSetupView: View {
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
-        .background(.bar)
+        .background(Color.clear.appSurface(cornerRadius: 0))
     }
 
     /// Eigene Punkte statt der System-Punkte: die stehen sonst UNTER dem

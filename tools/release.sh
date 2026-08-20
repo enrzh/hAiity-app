@@ -148,7 +148,7 @@ echo "    simulator $SIM_NAME"
 
 TEST_LOG="$OUT/tests.log"
 xcodebuild test -project "$PROJECT" -scheme "$SCHEME" \
-  -destination "id=$SIM" -only-testing:HaiityTests \
+  -destination "id=$SIM" -testLanguage de -testRegion DE -only-testing:HaiityTests \
   -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO \
   >"$TEST_LOG" 2>&1 || { tail -40 "$TEST_LOG"; fail "tests failed (full log: $TEST_LOG)"; }
 

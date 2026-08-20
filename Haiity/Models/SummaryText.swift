@@ -33,7 +33,7 @@ enum SummaryText {
         // steht der Name selbst da) — deshalb gibt es keine Einzahl-Form.
         let rest = names.count - limit
         var shown = Array(names.prefix(limit))
-        shown.append(String(localized: "\(rest) weitere"))
+        shown.append(String(localized: "\(rest) weitere", locale: locale))
         return join(shown, locale: locale)
     }
 
@@ -49,10 +49,12 @@ enum SummaryText {
     static func daily(_ status: SummaryStatus, locale: Locale = .current) -> String? {
         guard status.total > 0 else { return nil }
         guard !status.missing.isEmpty else {
-            return String(localized: "Heute geschafft: \(status.done) von \(status.total).")
+            return String(localized: "Heute geschafft: \(status.done) von \(status.total).",
+                          locale: locale)
         }
         let names = nameList(status.missing, locale: locale)
-        return String(localized: "Heute: \(status.done) von \(status.total) erledigt · offen: \(names)")
+        return String(localized: "Heute: \(status.done) von \(status.total) erledigt · offen: \(names)",
+                      locale: locale)
     }
 
     /// Der PROSPEKTIVE Tagessatz für einen Tag, den die App noch nicht
@@ -61,7 +63,12 @@ enum SummaryText {
     /// nil bei leerer Liste: kein Termin, keine Meldung.
     static func upcoming(_ names: [String], locale: Locale = .current) -> String? {
         guard !names.isEmpty else { return nil }
-        return String(localized: "Heute fällig: \(nameList(names, locale: locale))")
+        let template = String(localized: "Heute fällig: %@",
+                              defaultValue: "Heute fällig: %@",
+                              locale: locale)
+        return String(format: template,
+                      locale: locale,
+                      arguments: [nameList(names, locale: locale)])
     }
 
     /// Der Satz der Wochenzusammenfassung. nil, wenn diese Woche gar kein
@@ -69,9 +76,11 @@ enum SummaryText {
     static func weekly(_ status: SummaryStatus, locale: Locale = .current) -> String? {
         guard status.total > 0 else { return nil }
         guard !status.missing.isEmpty else {
-            return String(localized: "Woche geschafft: \(status.done) von \(status.total) Terminen.")
+            return String(localized: "Woche geschafft: \(status.done) von \(status.total) Terminen.",
+                          locale: locale)
         }
         let names = nameList(status.missing, locale: locale)
-        return String(localized: "Diese Woche: \(status.done) von \(status.total) erledigt · offen: \(names)")
+        return String(localized: "Diese Woche: \(status.done) von \(status.total) erledigt · offen: \(names)",
+                      locale: locale)
     }
 }

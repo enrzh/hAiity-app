@@ -2,44 +2,59 @@ import SwiftUI
 import UIKit
 
 struct StartupSplashView: View {
-    let isReady: Bool
-    let onAppReveal: () -> Void
+    let onContentReady: () -> Void
     let onFinished: () -> Void
 
     @Environment(\.colorScheme) private var scheme
-    @State private var phase: StartupSplashPhase = .cluster
-    @State private var tileOpacity = 1.0
-    @State private var tileZoomScale: CGFloat = 1
-    @State private var started = false
+    @State private var startedAt: Date?
 
     private static let columns = 21
     private static let rows = 7
-    private static let clusterColumns = 7
-    private static let clusterRows = 7
 
     var body: some View {
         GeometryReader { proxy in
-            let metrics = Metrics(container: proxy.size)
-            ZStack {
-                Color(.systemBackground)
-                    .opacity(tileOpacity)
+            // Measure the window before the animation clock starts. A reader
+            // nested inside TimelineView can receive a zero-size first frame,
+            // leaving every tile outside the visible window during launch.
+            TimelineView(.animation) { context in
+                let elapsed = elapsed(at: context.date)
+                let spreadProgress = StartupSplashTimeline.spreadProgress(at: elapsed)
+                let zoomProgress = StartupSplashTimeline.zoomProgress(at: elapsed)
+                let splashOpacity = StartupSplashTimeline.overlayOpacity(at: elapsed)
+                let container = StartupSplashTimeline.resolvedContainerSize(
+                    measured: proxy.size,
+                    fallback: UIScreen.main.bounds.size)
+                let metrics = Metrics(container: container)
 
-                tiles(metrics: metrics)
-                    .opacity(tileOpacity)
+                ZStack {
+                    Color(.systemGroupedBackground)
+                        .opacity(splashOpacity)
+                        .ignoresSafeArea()
+
+                    tiles(metrics: metrics,
+                          spreadProgress: spreadProgress,
+                          zoomProgress: zoomProgress)
+                        .opacity(StartupSplashTimeline.tileOpacity(at: elapsed))
+                }
+                .frame(width: container.width, height: container.height)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .accessibilityHidden(true)
         .onAppear {
-            if isReady { start() }
-        }
-        .onChange(of: isReady) { _, ready in
-            if ready { start() }
+            start()
         }
     }
 
-    private func tiles(metrics: Metrics) -> some View {
+    private func elapsed(at date: Date) -> TimeInterval {
+        guard let startedAt else { return 0 }
+        return max(0, date.timeIntervalSince(startedAt))
+    }
+
+    private func tiles(metrics: Metrics,
+                       spreadProgress: CGFloat,
+                       zoomProgress: CGFloat) -> some View {
         ForEach(Self.tileData) { tile in
             RoundedRectangle(cornerRadius: metrics.cell * 0.22,
                              style: .continuous)
@@ -47,12 +62,20 @@ struct StartupSplashView: View {
                                   dark: scheme == .dark,
                                   palette: PaletteStyle.default))
                 .frame(width: metrics.cell, height: metrics.cell)
-                .scaleEffect(tileZoomScale)
-                .position(position(for: tile, metrics: metrics))
+                .scaleEffect(StartupSplashTimeline.tileScale(
+                    spreadProgress: spreadProgress,
+                    zoomProgress: zoomProgress))
+                .position(position(for: tile,
+                                   metrics: metrics,
+                                   spreadProgress: spreadProgress,
+                                   zoomProgress: zoomProgress))
         }
     }
 
-    private func position(for tile: Tile, metrics: Metrics) -> CGPoint {
+    private func position(for tile: Tile,
+                          metrics: Metrics,
+                          spreadProgress: CGFloat,
+                          zoomProgress: CGFloat) -> CGPoint {
         let center = CGPoint(x: metrics.container.width / 2,
                              y: metrics.container.height / 2)
         let gridOrigin = CGPoint(x: center.x - metrics.gridWidth / 2,
@@ -61,45 +84,34 @@ struct StartupSplashView: View {
             x: gridOrigin.x + CGFloat(tile.column) * metrics.pitch + metrics.cell / 2,
             y: gridOrigin.y + CGFloat(tile.row) * metrics.pitch + metrics.cell / 2)
 
-        let clusterIndex = tile.index % (Self.clusterColumns * Self.clusterRows)
-        let clusterColumn = clusterIndex % Self.clusterColumns
-        let clusterRow = clusterIndex / Self.clusterColumns
-        let clusterOrigin = CGPoint(
-            x: center.x - CGFloat(Self.clusterColumns) * metrics.clusterPitch / 2,
-            y: center.y - CGFloat(Self.clusterRows) * metrics.clusterPitch / 2)
-        let clusterPosition = CGPoint(
-            x: clusterOrigin.x + CGFloat(clusterColumn) * metrics.clusterPitch,
-            y: clusterOrigin.y + CGFloat(clusterRow) * metrics.clusterPitch)
+        let clusterPosition = StartupSplashTimeline.zoomedPosition(
+            for: gridPosition,
+            around: center,
+            scale: StartupSplashTimeline.compactScale)
 
-        let basePosition = phase == .cluster ? clusterPosition : gridPosition
+        let basePosition = CGPoint(
+            x: clusterPosition.x + (gridPosition.x - clusterPosition.x) * spreadProgress,
+            y: clusterPosition.y + (gridPosition.y - clusterPosition.y) * spreadProgress)
         return StartupSplashTimeline.zoomedPosition(for: basePosition,
                                                     around: center,
-                                                    scale: tileZoomScale)
+                                                    scale: 1 + (StartupSplashTimeline.zoomScale - 1)
+                                                        * zoomProgress)
     }
 
     private func start() {
-        guard !started else { return }
-        started = true
-
-        let spreadAt = StartupSplashTimeline.clusterDuration
-        let zoomAt = spreadAt + StartupSplashTimeline.spreadDuration
-        let finishAt = StartupSplashTimeline.duration
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + spreadAt) {
-            withAnimation(.spring(response: 0.72, dampingFraction: 0.82)) {
-                phase = .spread
+        guard startedAt == nil else { return }
+        // Mount the app only after this lightweight overlay has produced its
+        // first frame. A large store/UI tree must not delay the launch visual.
+        startedAt = Date()
+        onContentReady()
+        Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
+                                                           * 1_000_000_000))
+            } catch {
+                return
             }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + zoomAt) {
-            withAnimation(.easeIn(duration: StartupSplashTimeline.zoomDuration)) {
-                phase = .zoom
-                tileZoomScale = StartupSplashTimeline.zoomScale
-                tileOpacity = 0
-            }
-            onAppReveal()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + finishAt) {
-            phase = .finished
+            guard !Task.isCancelled else { return }
             onFinished()
         }
     }
@@ -108,7 +120,6 @@ struct StartupSplashView: View {
         let container: CGSize
         let cell: CGFloat
         let pitch: CGFloat
-        let clusterPitch: CGFloat
         let gridWidth: CGFloat
         let gridHeight: CGFloat
 
@@ -120,7 +131,6 @@ struct StartupSplashView: View {
                                    / CGFloat(StartupSplashView.columns)))
             self.cell = cell
             self.pitch = cell + gap
-            self.clusterPitch = cell + 4
             self.gridWidth = CGFloat(StartupSplashView.columns) * pitch - gap
             self.gridHeight = CGFloat(StartupSplashView.rows) * pitch - gap
         }
@@ -151,30 +161,4 @@ struct StartupSplashView: View {
             return Tile(index: index, column: column, row: row, level: level)
         }
     }()
-}
-
-struct StartupSplashReadySignal: UIViewControllerRepresentable {
-    let onReady: () -> Void
-
-    func makeUIViewController(context: Context) -> ReadyViewController {
-        let controller = ReadyViewController()
-        controller.view.backgroundColor = .clear
-        controller.onReady = onReady
-        return controller
-    }
-
-    func updateUIViewController(_ controller: ReadyViewController, context: Context) {
-        controller.onReady = onReady
-    }
-
-    final class ReadyViewController: UIViewController {
-        var onReady: (() -> Void)?
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            let callback = onReady
-            onReady = nil
-            callback?()
-        }
-    }
 }
