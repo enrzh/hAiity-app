@@ -2,13 +2,13 @@ import XCTest
 @testable import Haiity
 
 final class StartupSplashTests: XCTestCase {
-    func testTimelineMovesFromClusterToSpreadToZoomAndFinishes() {
-        let spreadAt = StartupSplashTimeline.clusterDuration
-        let zoomAt = spreadAt + StartupSplashTimeline.spreadDuration
+    func testTimelineMovesFromClusterToSplitToZoomAndFinishes() {
+        let splitAt = StartupSplashTimeline.clusterDuration
+        let zoomAt = splitAt + StartupSplashTimeline.splitDuration
         let finishedAt = StartupSplashTimeline.duration
 
         XCTAssertEqual(StartupSplashTimeline.phase(at: 0), .cluster)
-        XCTAssertEqual(StartupSplashTimeline.phase(at: spreadAt), .spread)
+        XCTAssertEqual(StartupSplashTimeline.phase(at: splitAt), .split)
         XCTAssertEqual(StartupSplashTimeline.phase(at: zoomAt), .zoom)
         XCTAssertEqual(StartupSplashTimeline.phase(at: finishedAt), .finished)
     }
@@ -19,17 +19,17 @@ final class StartupSplashTests: XCTestCase {
 
     func testTilesFadeOutDuringZoomHandoff() {
         XCTAssertEqual(StartupSplashTimeline.tileOpacity(for: .cluster), 1)
-        XCTAssertEqual(StartupSplashTimeline.tileOpacity(for: .spread), 1)
+        XCTAssertEqual(StartupSplashTimeline.tileOpacity(for: .split), 1)
         XCTAssertEqual(StartupSplashTimeline.tileOpacity(for: .zoom), 0)
         XCTAssertEqual(StartupSplashTimeline.tileOpacity(for: .finished), 0)
     }
 
     func testProgressInterpolatesFromClusterToGridAndThenZooms() {
-        let spreadAt = StartupSplashTimeline.clusterDuration
-        let zoomAt = spreadAt + StartupSplashTimeline.spreadDuration
+        let splitAt = StartupSplashTimeline.clusterDuration
+        let zoomAt = splitAt + StartupSplashTimeline.splitDuration
 
-        XCTAssertEqual(StartupSplashTimeline.spreadProgress(at: spreadAt), 0)
-        XCTAssertEqual(StartupSplashTimeline.spreadProgress(at: zoomAt), 1)
+        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: splitAt), 0)
+        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: zoomAt), 1)
         XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: zoomAt), 0)
         XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: StartupSplashTimeline.duration), 1)
         XCTAssertEqual(StartupSplashTimeline.tileOpacity(at: StartupSplashTimeline.duration), 0)
@@ -37,7 +37,7 @@ final class StartupSplashTests: XCTestCase {
 
     func testOverlayAndTilesCrossFadeDuringTheZoom() {
         let zoomAt = StartupSplashTimeline.clusterDuration
-            + StartupSplashTimeline.spreadDuration
+            + StartupSplashTimeline.splitDuration
         let midpoint = zoomAt + StartupSplashTimeline.zoomDuration * 0.5
 
         XCTAssertGreaterThan(StartupSplashTimeline.tileOpacity(at: midpoint), 0)
@@ -46,6 +46,44 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertLessThan(StartupSplashTimeline.overlayOpacity(at: midpoint), 1)
         XCTAssertLessThan(StartupSplashTimeline.overlayOpacity(at: zoomAt), 1)
         XCTAssertEqual(StartupSplashTimeline.overlayOpacity(at: StartupSplashTimeline.duration), 0)
+    }
+
+    func testGraphCopiesAreCenterOnlyBeforeTheSplit() {
+        let beforeSplit = StartupSplashTimeline.clusterDuration * 0.5
+
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .top, at: beforeSplit), 0)
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .center, at: beforeSplit), 1)
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .bottom, at: beforeSplit), 0)
+
+        let splitComplete = StartupSplashTimeline.clusterDuration
+            + StartupSplashTimeline.splitDuration
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .top, at: splitComplete), 1)
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .center, at: splitComplete), 1)
+        XCTAssertEqual(StartupSplashTimeline.graphOpacity(for: .bottom, at: splitComplete), 1)
+    }
+
+    func testGraphCopiesSeparateVerticallyFromTheCenter() {
+        let center = CGPoint(x: 100, y: 200)
+        let separation: CGFloat = 120
+
+        XCTAssertEqual(
+            StartupSplashTimeline.graphCenter(for: .top,
+                                              around: center,
+                                              separation: separation,
+                                              progress: 1),
+            CGPoint(x: 100, y: 80))
+        XCTAssertEqual(
+            StartupSplashTimeline.graphCenter(for: .center,
+                                              around: center,
+                                              separation: separation,
+                                              progress: 1),
+            center)
+        XCTAssertEqual(
+            StartupSplashTimeline.graphCenter(for: .bottom,
+                                              around: center,
+                                              separation: separation,
+                                              progress: 1),
+            CGPoint(x: 100, y: 320))
     }
 
     func testZoomMotionMovesEachTileAwayFromTheCenter() {
@@ -82,7 +120,7 @@ final class StartupSplashTests: XCTestCase {
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
         XCTAssertTrue(splash.contains("start()"))
-        XCTAssertTrue(splash.contains("spreadProgress"))
+        XCTAssertTrue(splash.contains("splitProgress"))
         XCTAssertTrue(splash.contains("splashOpacity"))
         XCTAssertFalse(app.contains("startupAppVisible"))
         XCTAssertFalse(app.contains("onAppReveal"))
@@ -112,33 +150,37 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(tail.contains(".allowsHitTesting(!startupSplashVisible)"))
     }
 
-    func testTilesGrowFromCompactGraphToFullZoom() {
-        XCTAssertEqual(StartupSplashTimeline.tileScale(spreadProgress: 0,
+    func testGraphGroupGrowsFromCompactGraphToFullZoom() {
+        XCTAssertEqual(StartupSplashTimeline.graphScale(splitProgress: 0,
                                                         zoomProgress: 0),
                        StartupSplashTimeline.compactScale)
-        XCTAssertEqual(StartupSplashTimeline.tileScale(spreadProgress: 1,
+        XCTAssertEqual(StartupSplashTimeline.graphScale(splitProgress: 1,
                                                         zoomProgress: 0), 1)
-        XCTAssertEqual(StartupSplashTimeline.tileScale(spreadProgress: 1,
+        XCTAssertEqual(StartupSplashTimeline.graphScale(splitProgress: 1,
                                                         zoomProgress: 1),
                        StartupSplashTimeline.zoomScale)
+        XCTAssertLessThan(StartupSplashTimeline.graphScale(splitProgress: 1,
+                                                           zoomProgress: 0.4),
+                          StartupSplashTimeline.graphScale(splitProgress: 1,
+                                                           zoomProgress: 0.8))
     }
 
     func testSplashLeavesASettledHandoffAfterTheVisualZoom() {
         XCTAssertGreaterThan(StartupSplashTimeline.duration,
                              StartupSplashTimeline.clusterDuration
-                             + StartupSplashTimeline.spreadDuration
+                             + StartupSplashTimeline.splitDuration
                              + StartupSplashTimeline.zoomDuration)
     }
 
-    func testSplashUsesOneFrameDrivenTimelineForTheFullWindow() throws {
+    func testSplashUsesAnExplicitAnimationTimelineForTheFullWindow() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("TimelineView(.animation)"),
-                      "launch animation must be driven by one continuous clock")
+        XCTAssertTrue(splash.contains("TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)"),
+                      "launch animation must be driven by an explicit display-rate clock")
         XCTAssertTrue(splash.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"),
                       "the splash must own the complete window during the handoff")
         XCTAssertTrue(splash.contains(".ignoresSafeArea()"),
@@ -157,7 +199,8 @@ final class StartupSplashTests: XCTestCase {
             "Haiity/Views/StartupSplashView.swift"))
 
         let geometry = try XCTUnwrap(splash.range(of: "GeometryReader {"))
-        let timeline = try XCTUnwrap(splash.range(of: "TimelineView(.animation)"))
+        let timeline = try XCTUnwrap(
+            splash.range(of: "TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)"))
         XCTAssertLessThan(geometry.lowerBound, timeline.lowerBound,
                           "the animation must start inside an already measured window")
         XCTAssertTrue(splash.contains("Metrics(container: container)"),

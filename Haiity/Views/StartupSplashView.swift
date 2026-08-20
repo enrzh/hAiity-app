@@ -16,9 +16,9 @@ struct StartupSplashView: View {
             // Measure the window before the animation clock starts. A reader
             // nested inside TimelineView can receive a zero-size first frame,
             // leaving every tile outside the visible window during launch.
-            TimelineView(.animation) { context in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
                 let elapsed = elapsed(at: context.date)
-                let spreadProgress = StartupSplashTimeline.spreadProgress(at: elapsed)
+                let splitProgress = StartupSplashTimeline.splitProgress(at: elapsed)
                 let zoomProgress = StartupSplashTimeline.zoomProgress(at: elapsed)
                 let splashOpacity = StartupSplashTimeline.overlayOpacity(at: elapsed)
                 let container = StartupSplashTimeline.resolvedContainerSize(
@@ -32,9 +32,11 @@ struct StartupSplashView: View {
                         .ignoresSafeArea()
 
                     tiles(metrics: metrics,
-                          spreadProgress: spreadProgress,
+                          elapsed: elapsed,
+                          splitProgress: splitProgress,
                           zoomProgress: zoomProgress)
                         .opacity(StartupSplashTimeline.tileOpacity(at: elapsed))
+
                 }
                 .frame(width: container.width, height: container.height)
             }
@@ -42,8 +44,11 @@ struct StartupSplashView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .accessibilityHidden(true)
-        .onAppear {
-            start()
+        .overlay {
+            StartupSplashReadySignal(onReady: start)
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
@@ -53,57 +58,86 @@ struct StartupSplashView: View {
     }
 
     private func tiles(metrics: Metrics,
-                       spreadProgress: CGFloat,
+                       elapsed: TimeInterval,
+                       splitProgress: CGFloat,
                        zoomProgress: CGFloat) -> some View {
-        ForEach(Self.tileData) { tile in
-            RoundedRectangle(cornerRadius: metrics.cell * 0.22,
-                             style: .continuous)
-                .fill(Theme.level(tile.level,
-                                  dark: scheme == .dark,
-                                  palette: PaletteStyle.default))
-                .frame(width: metrics.cell, height: metrics.cell)
-                .scaleEffect(StartupSplashTimeline.tileScale(
-                    spreadProgress: spreadProgress,
-                    zoomProgress: zoomProgress))
-                .position(position(for: tile,
-                                   metrics: metrics,
-                                   spreadProgress: spreadProgress,
-                                   zoomProgress: zoomProgress))
+        Canvas(opaque: false, colorMode: .extendedLinear, rendersAsynchronously: true) { context, _ in
+            let center = CGPoint(x: metrics.container.width / 2,
+                                 y: metrics.container.height / 2)
+            let graphScale = StartupSplashTimeline.graphScale(
+                splitProgress: splitProgress,
+                zoomProgress: zoomProgress)
+            var shading: [Int: GraphicsContext.Shading] = [:]
+
+            for graph in StartupSplashGraph.allCases {
+                var graphContext = context
+                graphContext.opacity = StartupSplashTimeline.graphOpacity(for: graph,
+                                                                          at: elapsed)
+                drawGraph(&graphContext,
+                          graph: graph,
+                          metrics: metrics,
+                          center: center,
+                          splitProgress: splitProgress,
+                          graphScale: graphScale,
+                          shading: &shading)
         }
     }
+        .frame(width: metrics.container.width, height: metrics.container.height)
+    }
 
-    private func position(for tile: Tile,
-                          metrics: Metrics,
-                          spreadProgress: CGFloat,
-                          zoomProgress: CGFloat) -> CGPoint {
-        let center = CGPoint(x: metrics.container.width / 2,
-                             y: metrics.container.height / 2)
-        let gridOrigin = CGPoint(x: center.x - metrics.gridWidth / 2,
-                                 y: center.y - metrics.gridHeight / 2)
-        let gridPosition = CGPoint(
-            x: gridOrigin.x + CGFloat(tile.column) * metrics.pitch + metrics.cell / 2,
-            y: gridOrigin.y + CGFloat(tile.row) * metrics.pitch + metrics.cell / 2)
-
-        let clusterPosition = StartupSplashTimeline.zoomedPosition(
-            for: gridPosition,
+    private func drawGraph(_ context: inout GraphicsContext,
+                           graph: StartupSplashGraph,
+                           metrics: Metrics,
+                           center: CGPoint,
+                           splitProgress: CGFloat,
+                           graphScale: CGFloat,
+                           shading: inout [Int: GraphicsContext.Shading]) {
+        let graphCenter = StartupSplashTimeline.graphCenter(
+            for: graph,
             around: center,
-            scale: StartupSplashTimeline.compactScale)
+            separation: metrics.verticalSeparation,
+            progress: splitProgress)
+        let gridOrigin = CGPoint(x: graphCenter.x - metrics.gridWidth / 2,
+                                 y: graphCenter.y - metrics.gridHeight / 2)
 
-        let basePosition = CGPoint(
-            x: clusterPosition.x + (gridPosition.x - clusterPosition.x) * spreadProgress,
-            y: clusterPosition.y + (gridPosition.y - clusterPosition.y) * spreadProgress)
-        return StartupSplashTimeline.zoomedPosition(for: basePosition,
-                                                    around: center,
-                                                    scale: 1 + (StartupSplashTimeline.zoomScale - 1)
-                                                        * zoomProgress)
+        for tile in Self.tileData {
+            let gridPosition = CGPoint(
+                x: gridOrigin.x + CGFloat(tile.column) * metrics.pitch + metrics.cell / 2,
+                y: gridOrigin.y + CGFloat(tile.row) * metrics.pitch + metrics.cell / 2)
+            let position = StartupSplashTimeline.zoomedPosition(for: gridPosition,
+                                                                around: center,
+                                                                scale: graphScale)
+            let cell = metrics.cell * graphScale
+            let rect = CGRect(x: position.x - cell / 2,
+                              y: position.y - cell / 2,
+                              width: cell,
+                              height: cell)
+            if shading[tile.level] == nil {
+                shading[tile.level] = .color(
+                    Theme.level(tile.level,
+                                dark: scheme == .dark,
+                                palette: PaletteStyle.default))
+            }
+            context.fill(Path(roundedRect: rect, cornerRadius: cell * 0.22),
+                         with: shading[tile.level]!)
+        }
     }
 
     private func start() {
         guard startedAt == nil else { return }
-        // Mount the app only after this lightweight overlay has produced its
-        // first frame. A large store/UI tree must not delay the launch visual.
+        // Let the overlay reach the first render pass before mounting the
+        // larger store/UI tree. Otherwise the system launch screen can remain
+        // visible while ContentView is being constructed.
         startedAt = Date()
-        onContentReady()
+        Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 50_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            onContentReady()
+        }
         Task { @MainActor in
             do {
                 try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
@@ -122,6 +156,7 @@ struct StartupSplashView: View {
         let pitch: CGFloat
         let gridWidth: CGFloat
         let gridHeight: CGFloat
+        let verticalSeparation: CGFloat
 
         init(container: CGSize) {
             self.container = container
@@ -133,6 +168,7 @@ struct StartupSplashView: View {
             self.pitch = cell + gap
             self.gridWidth = CGFloat(StartupSplashView.columns) * pitch - gap
             self.gridHeight = CGFloat(StartupSplashView.rows) * pitch - gap
+            self.verticalSeparation = gridHeight + cell * 2
         }
     }
 
@@ -161,4 +197,30 @@ struct StartupSplashView: View {
             return Tile(index: index, column: column, row: row, level: level)
         }
     }()
+}
+
+private struct StartupSplashReadySignal: UIViewControllerRepresentable {
+    let onReady: () -> Void
+
+    func makeUIViewController(context: Context) -> ReadyViewController {
+        let controller = ReadyViewController()
+        controller.view.backgroundColor = .clear
+        controller.onReady = onReady
+        return controller
+    }
+
+    func updateUIViewController(_ controller: ReadyViewController, context: Context) {
+        controller.onReady = onReady
+    }
+
+    final class ReadyViewController: UIViewController {
+        var onReady: (() -> Void)?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            let callback = onReady
+            onReady = nil
+            callback?()
+        }
+    }
 }
