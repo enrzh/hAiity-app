@@ -58,23 +58,23 @@ final class SummaryTextTests: XCTestCase {
 
     func testDailyAllDone() {
         XCTAssertEqual(SummaryText.daily(status(5, 5, []), locale: locale),
-                       "Alles erledigt — 5 von 5.")
+                       "Heute geschafft: 5 von 5.")
     }
 
     func testDailyNoneDone() {
         XCTAssertEqual(SummaryText.daily(status(0, 2, ["Laufen", "Lesen"]), locale: locale),
-                       "0 von 2 erledigt · offen: Laufen und Lesen")
+                       "Heute: 0 von 2 erledigt · offen: Laufen und Lesen")
     }
 
     func testDailyPartial() {
         XCTAssertEqual(SummaryText.daily(status(3, 5, ["Laufen", "Meditation"]), locale: locale),
-                       "3 von 5 erledigt · offen: Laufen und Meditation")
+                       "Heute: 3 von 5 erledigt · offen: Laufen und Meditation")
     }
 
     func testDailyTruncatesALongOpenList() {
         let open = ["Laufen", "Lesen", "Meditation", "Wasser", "Dehnen"]
         XCTAssertEqual(SummaryText.daily(status(1, 6, open), locale: locale),
-                       "1 von 6 erledigt · offen: Laufen, Lesen, Meditation und 2 weitere")
+                       "Heute: 1 von 6 erledigt · offen: Laufen, Lesen, Meditation und 2 weitere")
     }
 
     // MARK: – Woche
@@ -85,18 +85,18 @@ final class SummaryTextTests: XCTestCase {
 
     func testWeeklyFullWeek() {
         XCTAssertEqual(SummaryText.weekly(status(18, 18, []), locale: locale),
-                       "Volle Woche — 18 von 18 Terminen.")
+                       "Woche geschafft: 18 von 18 Terminen.")
     }
 
     func testWeeklyPartialNamesTheStragglers() {
         XCTAssertEqual(SummaryText.weekly(status(12, 18, ["Laufen", "Meditation"]), locale: locale),
-                       "12 von 18 Terminen · offen: Laufen und Meditation")
+                       "Diese Woche: 12 von 18 erledigt · offen: Laufen und Meditation")
     }
 
     func testWeeklyTruncatesALongList() {
         let behind = ["A", "B", "C", "D", "E"]
         XCTAssertEqual(SummaryText.weekly(status(2, 20, behind), locale: locale),
-                       "2 von 20 Terminen · offen: A, B, C und 2 weitere")
+                       "Diese Woche: 2 von 20 erledigt · offen: A, B, C und 2 weitere")
     }
 }
 
@@ -202,7 +202,7 @@ final class SummaryStatusTests: XCTestCase {
         XCTAssertEqual(status.done, 3)
         XCTAssertTrue(status.missing.isEmpty)
         XCTAssertEqual(SummaryText.weekly(status, locale: Locale(identifier: "de_DE")),
-                       "Volle Woche — 3 von 3 Terminen.")
+                       "Woche geschafft: 3 von 3 Terminen.")
     }
 
     /// „3× pro Woche" schuldet DREI Termine, nicht sieben — sonst stünde ein

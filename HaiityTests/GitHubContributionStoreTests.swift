@@ -474,8 +474,9 @@ final class GitHubContributionStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testUnauthorizedRefreshDeletesCredentialsAndCache() async throws {
-        try write(sample(fetchedAt: now.addingTimeInterval(-7200)))
+    func testUnauthorizedRefreshKeepsCredentialsAndCachedCard() async throws {
+        let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
+        try write(cached)
         let contributions = FakeGitHubContributions(result: .failure(GitHubContributionsError.unauthorized))
         let vault = MemoryGitHubCredentialVault(token: "gho_dead")
         let store = GitHubContributionStore(vault: vault,
@@ -485,10 +486,48 @@ final class GitHubContributionStoreTests: XCTestCase {
 
         await store.boot(now: now)
 
-        XCTAssertEqual(store.phase, .disconnected)
-        XCTAssertNil(store.snapshot)
-        XCTAssertNil(try vault.read())
-        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertEqual(store.snapshot, cached)
+        XCTAssertEqual(try vault.read(), "gho_dead")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
+    @MainActor
+    func testMissingCredentialKeepsCachedCardDuringAutomaticRefresh() async throws {
+        let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
+        try write(cached)
+        let vault = MemoryGitHubCredentialVault()
+        let store = GitHubContributionStore(vault: vault,
+                                             authorizer: FakeGitHubAuthorizer(),
+                                             contributions: FakeGitHubContributions(
+                                                result: .success(sample(fetchedAt: now))),
+                                             cacheURL: cacheURL)
+
+        await store.boot(now: now)
+
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertEqual(store.snapshot, cached)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
+    @MainActor
+    func testForcedResumeRefreshesEvenWhenCacheIsFresh() async throws {
+        try write(sample(fetchedAt: now.addingTimeInterval(-60)))
+        let contributions = FakeGitHubContributions(result: .success(sample(fetchedAt: now)))
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(token: "gho_cached"),
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: contributions,
+                                            cacheURL: cacheURL)
+
+        await store.boot(now: now)
+        let initialFetches = await contributions.fetchCount
+        XCTAssertEqual(initialFetches, 0)
+
+        await store.resumeOrRefresh(now: now, forced: true)
+
+        let refreshedFetches = await contributions.fetchCount
+        XCTAssertEqual(refreshedFetches, 1)
+        XCTAssertEqual(store.snapshot?.fetchedAt, now)
     }
 
     @MainActor
@@ -615,7 +654,7 @@ final class GitHubContributionStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testBootRemovesOrphanedCacheWhenCredentialIsMissing() async throws {
+    func testBootKeepsCachedCardWhenCredentialIsMissing() async throws {
         try write(sample(fetchedAt: now))
         let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(),
                                             authorizer: FakeGitHubAuthorizer(),
@@ -624,9 +663,9 @@ final class GitHubContributionStoreTests: XCTestCase {
 
         await store.boot(now: now)
 
-        XCTAssertEqual(store.phase, .disconnected)
-        XCTAssertNil(store.snapshot)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
+        XCTAssertEqual(store.phase, .connected)
+        XCTAssertNotNil(store.snapshot)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
     func testDemoFixtureIsDeterministicAndDebugOnly() throws {

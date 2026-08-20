@@ -123,19 +123,23 @@ struct ViewPreferences: Codable, Equatable {
     /// Globale Wischgesten. Die Auswahl ist absichtlich semantisch
     /// (Haupt-/Nebenaktion), damit sie bei jeder Habit-Art richtig bleibt.
     var swipeActions: SwipeActionsPreferences
+    /// Shows one-tap actions when a scheduled notification is held down.
+    var notificationActionsEnabled: Bool
 
     init(updatedAt: TimeInterval = 0,
          statsCards: StatsCardPrefs = StatsCardPrefs(),
          compactMode: Bool = false,
-         swipeActions: SwipeActionsPreferences = SwipeActionsPreferences()) {
+         swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
+         notificationActionsEnabled: Bool = true) {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
         self.swipeActions = swipeActions
+        self.notificationActionsEnabled = notificationActionsEnabled
     }
 
     private enum CodingKeys: String, CodingKey {
-        case updatedAt, statsCards, compactMode, swipeActions
+        case updatedAt, statsCards, compactMode, swipeActions, notificationActionsEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -145,6 +149,9 @@ struct ViewPreferences: Codable, Equatable {
         compactMode = try c.decodeIfPresent(Bool.self, forKey: .compactMode) ?? false
         swipeActions = try c.decodeIfPresent(SwipeActionsPreferences.self, forKey: .swipeActions)
             ?? SwipeActionsPreferences()
+        notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
+                                                           forKey: .notificationActionsEnabled)
+            ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -154,6 +161,9 @@ struct ViewPreferences: Codable, Equatable {
         try c.encode(compactMode, forKey: .compactMode)
         if swipeActions != SwipeActionsPreferences() {
             try c.encode(swipeActions, forKey: .swipeActions)
+        }
+        if !notificationActionsEnabled {
+            try c.encode(false, forKey: .notificationActionsEnabled)
         }
     }
 
@@ -224,6 +234,7 @@ final class ViewPreferencesStore {
         guard next.statsCards != preferences.statsCards
                 || next.compactMode != preferences.compactMode
                 || next.swipeActions != preferences.swipeActions
+                || next.notificationActionsEnabled != preferences.notificationActionsEnabled
         else { return }
         next.updatedAt = Date().timeIntervalSince1970
         preferences = next

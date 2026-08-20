@@ -49,10 +49,10 @@ enum SummaryText {
     static func daily(_ status: SummaryStatus, locale: Locale = .current) -> String? {
         guard status.total > 0 else { return nil }
         guard !status.missing.isEmpty else {
-            return String(localized: "Alles erledigt — \(status.done) von \(status.total).")
+            return String(localized: "Heute geschafft: \(status.done) von \(status.total).")
         }
         let names = nameList(status.missing, locale: locale)
-        return String(localized: "\(status.done) von \(status.total) erledigt · offen: \(names)")
+        return String(localized: "Heute: \(status.done) von \(status.total) erledigt · offen: \(names)")
     }
 
     /// Der PROSPEKTIVE Tagessatz für einen Tag, den die App noch nicht
@@ -69,9 +69,9 @@ enum SummaryText {
     static func weekly(_ status: SummaryStatus, locale: Locale = .current) -> String? {
         guard status.total > 0 else { return nil }
         guard !status.missing.isEmpty else {
-            return String(localized: "Volle Woche — \(status.done) von \(status.total) Terminen.")
+            return String(localized: "Woche geschafft: \(status.done) von \(status.total) Terminen.")
         }
         let names = nameList(status.missing, locale: locale)
-        return String(localized: "\(status.done) von \(status.total) Terminen · offen: \(names)")
+        return String(localized: "Diese Woche: \(status.done) von \(status.total) erledigt · offen: \(names)")
     }
 }

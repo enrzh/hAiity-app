@@ -25,6 +25,107 @@ enum AppearanceSetting: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum AppearanceMaterial: String, CaseIterable, Codable, Sendable {
+    case solid
+    case milky
+    case liquid
+
+    var displayName: String {
+        switch self {
+        case .solid: return String(localized: "Solid")
+        case .milky: return String(localized: "Milchglas")
+        case .liquid: return String(localized: "Liquid Glass")
+        }
+    }
+}
+
+enum AppearanceBackgroundMode: String, CaseIterable, Codable, Sendable {
+    case color
+    case gradient
+    case image
+
+    var displayName: String {
+        switch self {
+        case .color: return String(localized: "Farbe")
+        case .gradient: return String(localized: "Verlauf")
+        case .image: return String(localized: "Bild")
+        }
+    }
+}
+
+/// Persisted appearance choices shared by the app and iCloud payload. Image
+/// bytes are intentionally bounded because they travel with the full habit
+/// asset even though CloudKit stores that asset outside the record fields.
+struct AppearancePreferences: Codable, Equatable, Sendable {
+    static let maxImageBytes = 600 * 1024
+    static let `default` = AppearancePreferences(material: .solid)
+
+    var material: AppearanceMaterial
+    var backgroundMode: AppearanceBackgroundMode
+    var backgroundColorHex: UInt32?
+    var gradientStartHex: UInt32?
+    var gradientEndHex: UInt32?
+    var backgroundImageData: Data?
+
+    init(material: AppearanceMaterial = .solid,
+         backgroundImageData: Data? = nil,
+         backgroundMode: AppearanceBackgroundMode? = nil,
+         backgroundColorHex: UInt32? = nil,
+         gradientStartHex: UInt32? = nil,
+         gradientEndHex: UInt32? = nil) {
+        self.material = material
+        self.backgroundMode = backgroundMode
+            ?? (backgroundImageData == nil ? .color : .image)
+        self.backgroundColorHex = backgroundColorHex
+        self.gradientStartHex = gradientStartHex
+        self.gradientEndHex = gradientEndHex
+        self.backgroundImageData = backgroundImageData.flatMap {
+            $0.count <= Self.maxImageBytes ? $0 : nil
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case material, backgroundMode, backgroundColorHex, gradientStartHex,
+             gradientEndHex, backgroundImageData
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let image = try c.decodeIfPresent(Data.self, forKey: .backgroundImageData)
+        self.init(
+            material: try c.decodeIfPresent(AppearanceMaterial.self, forKey: .material) ?? .solid,
+            backgroundImageData: image,
+            backgroundMode: try c.decodeIfPresent(AppearanceBackgroundMode.self,
+                                                    forKey: .backgroundMode)
+                ?? (image == nil ? .color : .image),
+            backgroundColorHex: try c.decodeIfPresent(UInt32.self, forKey: .backgroundColorHex),
+            gradientStartHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientStartHex),
+            gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex))
+    }
+
+    var backgroundImage: UIImage? {
+        guard let backgroundImageData else { return nil }
+        return UIImage(data: backgroundImageData)
+    }
+}
+
+enum AppearanceImage {
+    /// Downsample and compress a picked image before it enters `HabitData`.
+    /// The final size check is repeated by `AppearancePreferences`.
+    static func normalizedData(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data), let cgImage = image.cgImage else { return nil }
+        let maxDimension: CGFloat = 1600
+        let scale = min(1, maxDimension / max(CGFloat(cgImage.width), CGFloat(cgImage.height)))
+        let size = CGSize(width: CGFloat(cgImage.width) * scale,
+                          height: CGFloat(cgImage.height) * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let compressed = renderer.jpegData(withCompressionQuality: 0.78) { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return compressed.count <= AppearancePreferences.maxImageBytes ? compressed : nil
+    }
+}
+
 /// Farb-Quelle für App und Widget.
 ///
 /// Alles hier nimmt eine `PaletteStyle` — die AUFGELÖSTE Farbtafel. Ob sie aus
@@ -173,7 +274,12 @@ extension View {
     /// Blatt, statt in jedem Blatt einzeln daran zu denken.
     func themed(_ store: HabitStore) -> some View {
         environment(\.palettes, store.palettes)
+            .environment(\.appearancePreferences, store.appearancePreferences)
             .tint(Theme.accentText(store.paletteStyle))
+    }
+
+    func appSurface(cornerRadius: CGFloat = Theme.Metrics.cardRadius) -> some View {
+        modifier(AppSurfaceModifier(cornerRadius: cornerRadius))
     }
 }
 
@@ -186,5 +292,95 @@ extension EnvironmentValues {
     var palettes: PaletteBook {
         get { self[PaletteBookKey.self] }
         set { self[PaletteBookKey.self] = newValue }
+    }
+
+    var appearancePreferences: AppearancePreferences {
+        get { self[AppearancePreferencesKey.self] }
+        set { self[AppearancePreferencesKey.self] = newValue }
+    }
+}
+
+private struct AppearancePreferencesKey: EnvironmentKey {
+    static let defaultValue = AppearancePreferences.default
+}
+
+/// Background and card surfaces share one switch. Liquid Glass falls back to
+/// material on older iOS versions, while every mode keeps a subtle readability
+/// tint over a user image.
+struct AppearanceBackground: View {
+    let preferences: AppearancePreferences
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var fallbackColor: Color {
+        Color(.systemGroupedBackground)
+    }
+
+    private var fallbackGradient: (Color, Color) {
+        (fallbackColor, Color(.secondarySystemGroupedBackground))
+    }
+
+    var body: some View {
+        ZStack {
+            switch preferences.backgroundMode {
+            case .color:
+                preferences.backgroundColorHex.map(Theme.color) ?? fallbackColor
+            case .gradient:
+                let fallback = fallbackGradient
+                LinearGradient(
+                    colors: [
+                        preferences.gradientStartHex.map(Theme.color) ?? fallback.0,
+                        preferences.gradientEndHex.map(Theme.color) ?? fallback.1
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom)
+            case .image:
+                if let image = preferences.backgroundImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .overlay(Color(.systemBackground).opacity(0.28))
+                        .clipped()
+                } else {
+                    fallbackColor
+                }
+            }
+            if preferences.backgroundMode != .image {
+                Color(.systemBackground).opacity(colorScheme == .dark ? 0.08 : 0.04)
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct AppSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    @Environment(\.appearancePreferences) private var preferences
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    func body(content: Content) -> some View {
+        switch preferences.material {
+        case .solid:
+            content.background(Color(.secondarySystemGroupedBackground), in: shape)
+        case .milky:
+            content
+                .background(.regularMaterial, in: shape)
+                .overlay(shape.fill(Color(.systemBackground)
+                    .opacity(colorScheme == .dark ? 0.22 : 0.12)))
+        case .liquid:
+            if #available(iOS 26, *) {
+                content.glassEffect(
+                    .regular.tint(Color(.systemBackground)
+                        .opacity(colorScheme == .dark ? 0.32 : 0.18)),
+                    in: shape)
+            } else {
+                content
+                    .background(.ultraThinMaterial, in: shape)
+                    .overlay(shape.fill(Color(.systemBackground).opacity(0.16)))
+            }
+        }
     }
 }

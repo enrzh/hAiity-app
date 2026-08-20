@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import BackgroundTasks
 
 @main
 struct HaiityApp: App {
@@ -14,6 +15,9 @@ struct HaiityApp: App {
         // funktionieren nicht". Früh gesetzt, damit auch eine Meldung, die
         // GENAU beim Start eintrifft, präsentiert wird.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        NotificationPresenter.configureQuickActions(
+            enabled: ViewPreferencesStore().preferences.notificationActionsEnabled)
+        GitHubBackgroundRefresh.register()
     }
 
     var body: some Scene {
@@ -92,7 +96,48 @@ struct HaiityApp: App {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { HabitSessionManager.shared.recoverIfNeeded() }
+            switch phase {
+            case .active:
+                HabitSessionManager.shared.recoverIfNeeded()
+            case .background:
+                GitHubBackgroundRefresh.schedule()
+            default:
+                break
+            }
+        }
+    }
+}
+
+enum GitHubBackgroundRefresh {
+    static let taskIdentifier = "com.aiity.haiity.github-refresh"
+
+    static func register() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier,
+                                        using: nil) { task in
+            let operation = Task { @MainActor in
+                let store = GitHubContributionStore()
+                await store.resumeOrRefresh(forced: true)
+                let succeeded: Bool
+                if case .failed = store.phase {
+                    succeeded = false
+                } else {
+                    succeeded = true
+                }
+                task.setTaskCompleted(success: succeeded)
+                schedule()
+            }
+            task.expirationHandler = { operation.cancel() }
+        }
+    }
+
+    static func schedule() {
+        let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 60 * 60)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            // Background refresh is opportunistic; foreground refresh remains
+            // the authoritative path when the user returns to the app.
         }
     }
 }

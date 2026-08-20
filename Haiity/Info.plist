@@ -53,6 +53,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.aiity.haiity.github-refresh</string>
+	</array>
 	<key>GitHubClientID</key>
 	<string>$(GITHUB_CLIENT_ID)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

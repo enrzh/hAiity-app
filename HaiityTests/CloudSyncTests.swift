@@ -368,6 +368,30 @@ final class ContentSyncOrderingTests: XCTestCase {
 }
 
 final class CloudPreferencePersistenceTests: XCTestCase {
+    func testTimedDNDExpiresWithoutChangingTheStoredMode() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let dnd = NotificationDNDState.active(.twoHours, now: now)
+
+        XCTAssertTrue(dnd.isActive(at: now.addingTimeInterval(60)))
+        XCTAssertFalse(dnd.isActive(at: now.addingTimeInterval(2 * 60 * 60 + 1)))
+        XCTAssertEqual(dnd.mode, .twoHours)
+    }
+
+    func testLegacySuppressionBooleanMigratesToPermanentDND() throws {
+        let object: [String: Any] = [
+            "version": HabitData.currentVersion,
+            "updatedAt": 1,
+            "habits": [],
+            "cloudPreferences": ["notificationPromptsSuppressed": true]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(HabitData.self, from: data)
+
+        XCTAssertEqual(decoded.cloudPreferences?.notificationDND.mode, .untilDisabled)
+        XCTAssertTrue(decoded.cloudPreferences?.notificationDND.isActive(at: .distantPast) ?? false)
+    }
+
     func testCloudPreferencesSurviveHabitDataRoundTrip() throws {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(
             with: JSONEncoder().encode(HabitData.empty)) as? [String: Any])
@@ -390,6 +414,7 @@ final class CloudPreferencePersistenceTests: XCTestCase {
         XCTAssertEqual(preferences["nativeReminderSync"] as? Bool, true)
         XCTAssertEqual(preferences["notificationPromptsSuppressed"] as? Bool, true)
         XCTAssertEqual(preferences["shakeToReportEnabled"] as? Bool, false)
+        XCTAssertNotNil(preferences["notificationDND"] as? [String: Any])
     }
 
     func testNewerRemoteCloudPreferencesReplaceLocalPreferences() throws {

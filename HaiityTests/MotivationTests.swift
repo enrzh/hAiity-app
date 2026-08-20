@@ -47,6 +47,15 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(more.contains("\"motivation-delivery\""))
         XCTAssertTrue(more.contains("Live-Aktivitäten starten"))
         XCTAssertTrue(more.contains("Reminders.ensurePermission()"))
+        XCTAssertTrue(more.contains("Do not disturb"))
+        XCTAssertFalse(more.contains("DND (Do not disturb)"))
+        XCTAssertTrue(more.contains("copy-sync-watermark"))
+        XCTAssertFalse(more.contains("ForEach(SyncWatermark.Kind.allCases"))
+        XCTAssertTrue(more.contains("notification-actions-toggle"))
+    }
+
+    func testMotivationLinesStayShortEnoughForNotifications() {
+        XCTAssertTrue(Motivation.lines.allSatisfy { $0.count <= 84 })
     }
 
     func testTargetAndCatalogCarryMotivation() throws {

@@ -48,13 +48,45 @@ struct HaiityWidgetView: View {
                  dark: Bool,
                  mode: WidgetRenderingMode = .fullColor) -> some View {
         if let habit = entry.habit {
-            switch family {
-            case .systemMedium: medium(habit, dark: dark, mode: mode)
-            default: small(habit, dark: dark, mode: mode)
+            if habit.isReminder {
+                reminderContent(habit, family: family, dark: dark)
+            } else {
+                switch family {
+                case .systemMedium: medium(habit, dark: dark, mode: mode)
+                default: small(habit, dark: dark, mode: mode)
+                }
             }
         } else {
             WidgetEmptyState()
         }
+    }
+
+    /// Reminders are to-dos, not tracked habits: no streak, no graph and no
+    /// habit-kind affordance in the widget.
+    private func reminderContent(_ habit: Habit,
+                                 family: WidgetFamily,
+                                 dark: Bool) -> some View {
+        let status = WidgetLogic.status(habit: habit, today: today)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                nameRun(habit, font: family == .systemMedium
+                        ? .headline : .subheadline.weight(.semibold))
+                Spacer(minLength: 4)
+                checkButton(habit, dark: dark)
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                Image(systemName: status == .done ? "checkmark.circle.fill" : "circle")
+                Text(verbatim: WidgetLogic.statusText(status))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(status == .done
+                             ? AnyShapeStyle(Theme.accentText(palette))
+                             : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: – Klein

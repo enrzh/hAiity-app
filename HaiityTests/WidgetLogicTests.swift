@@ -62,11 +62,27 @@ final class WidgetLogicTests: GridTestCase {
         let tracked = named("Lesen")
 
         XCTAssertEqual(WidgetLogic.resolve(habits: [reminder, tracked], selected: reminder.id)?.id,
-                       tracked.id)
+                       reminder.id)
         XCTAssertEqual(WidgetLogic.progress(habits: [reminder, tracked],
                                             today: today, calendar: cal).due, 1)
         XCTAssertEqual(WidgetLogic.roster([reminder, tracked], limit: 3).visible.map(\.name),
                        ["Lesen"])
+    }
+
+    func testGraphResolutionHasATrackedHabitOnlyPath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("HaiityWidget/WidgetLogic.swift"))
+        XCTAssertTrue(source.contains("static func resolveTrackedHabit"))
+    }
+
+    func testMainWidgetCanResolveReminderAsAStandaloneToDo() {
+        var reminder = named("Tabletten")
+        reminder.itemType = .reminder
+
+        XCTAssertEqual(WidgetLogic.resolve(habits: [reminder], selected: reminder.id)?.id,
+                       reminder.id)
+        XCTAssertEqual(WidgetLogic.status(habit: reminder, today: today, calendar: cal), .open)
     }
 
     // MARK: – Die Empfehlung: wer steht drin, wenn nichts eingestellt ist?

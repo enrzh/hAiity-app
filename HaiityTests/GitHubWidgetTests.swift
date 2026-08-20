@@ -88,9 +88,18 @@ final class GitHubWidgetTests: XCTestCase {
         let source = try source("Haiity/Intents/SelectGraphIntent.swift")
         XCTAssertTrue(source.contains("@Parameter(title: \"Quelle\")"))
         XCTAssertTrue(source.contains("var source: GraphWidgetSource?"))
-        XCTAssertTrue(source.contains("var habit: HabitEntity?"))
+        XCTAssertTrue(source.contains("struct GraphHabitEntity"))
+        XCTAssertTrue(source.contains("var habit: GraphHabitEntity?"))
+        XCTAssertTrue(source.contains("isTrackedHabit"))
         XCTAssertTrue(source.contains("source ?? .habit"))
         XCTAssertFalse(source.contains("@IntentParameterDependency"))
+    }
+
+    func testMainWidgetRendersRemindersWithoutGraphOrGitHub() throws {
+        let source = try source("HaiityWidget/HaiityWidgetView.swift")
+        XCTAssertTrue(source.contains("habit.isReminder"))
+        XCTAssertTrue(source.contains("reminderContent"))
+        XCTAssertFalse(source.contains("GitHubContributionGraph"))
     }
 
     func testGitHubWidgetHasASeparatePaletteOnlyConfiguration() throws {

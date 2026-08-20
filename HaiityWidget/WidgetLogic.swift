@@ -86,13 +86,23 @@ enum WidgetLogic {
     // MARK: – Welcher Habit?
 
     /// Auswahl schlägt Empfehlung: die eingestellte Kennung, wenn es sie noch
-    /// gibt, sonst der empfohlene Habit. Ein gelöschter oder archivierter
-    /// Habit lässt das Widget also nicht leer stehen — es fällt zurück,
-    /// statt „Noch keine Habits" zu behaupten.
+    /// gibt, sonst der empfohlene aktive Eintrag. Das Haupt-Widget darf neben
+    /// Habits auch Erinnerungen zeigen.
     static func resolve(habits: [Habit],
                         selected: UUID?,
                         today: String = DayKey.today(),
                         calendar: Calendar = .current) -> Habit? {
+        let active = habits.filter { $0.archivedAt == nil }
+        if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
+        return recommended(habits: active, today: today, calendar: calendar)
+    }
+
+    /// Graph widgets must never resolve a reminder, even if a stale widget
+    /// configuration still carries its identifier.
+    static func resolveTrackedHabit(habits: [Habit],
+                                    selected: UUID?,
+                                    today: String = DayKey.today(),
+                                    calendar: Calendar = .current) -> Habit? {
         let active = habits.filter { $0.archivedAt == nil && $0.isTrackedHabit }
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
         return recommended(habits: active, today: today, calendar: calendar)

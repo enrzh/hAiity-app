@@ -16,10 +16,13 @@ enum WidgetData {
     static func entry(selected: UUID? = nil,
                       source: GraphWidgetSource = .habit,
                       palette: PaletteRef? = nil,
+                      graphOnly: Bool = false,
                       date: Date = .now) -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
         return HaiityEntry(date: date,
-                           habits: data?.habits.filter { $0.archivedAt == nil && $0.isTrackedHabit } ?? [],
+                           habits: data?.habits.filter {
+                               $0.archivedAt == nil && (!graphOnly || $0.isTrackedHabit)
+                           } ?? [],
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
                            selected: source == .habit ? selected : nil,
@@ -34,8 +37,10 @@ enum WidgetData {
     /// „heute"-Rahmen wandert, und „Frei bis Mo" ist am Montag falsch.
     static func timeline(selected: UUID? = nil,
                          source: GraphWidgetSource = .habit,
-                         palette: PaletteRef? = nil) -> Timeline<HaiityEntry> {
-        Timeline(entries: [entry(selected: selected, source: source, palette: palette)],
+                         palette: PaletteRef? = nil,
+                         graphOnly: Bool = false) -> Timeline<HaiityEntry> {
+        Timeline(entries: [entry(selected: selected, source: source, palette: palette,
+                                 graphOnly: graphOnly)],
                  policy: .after(WidgetLogic.nextMidnight()))
     }
 
@@ -86,14 +91,16 @@ struct GraphWidgetProvider: AppIntentTimelineProvider {
         }
         return WidgetData.entry(selected: configuration.habit?.id,
                                 source: source,
-                                palette: configuration.palette?.paletteRef)
+                                palette: configuration.palette?.paletteRef,
+                                graphOnly: true)
     }
 
     func timeline(for configuration: SelectGraphIntent, in context: Context) async -> Timeline<HaiityEntry> {
         let source = configuration.resolvedSource
         return WidgetData.timeline(selected: configuration.habit?.id,
                                    source: source,
-                                   palette: configuration.palette?.paletteRef)
+                                   palette: configuration.palette?.paletteRef,
+                                   graphOnly: true)
     }
 }
 

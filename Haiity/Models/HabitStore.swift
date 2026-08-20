@@ -16,6 +16,54 @@ enum MotivationDelivery: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// A temporary prompt-suppression state. The mode is retained after a timed
+/// window expires so the UI can show the last choice without treating an
+/// expired DND window as still active.
+struct NotificationDNDState: Codable, Equatable, Sendable {
+    enum Mode: String, Codable, CaseIterable, Sendable {
+        case off
+        case twoHours
+        case eightHours
+        case twentyFourHours
+        case custom
+        case untilDisabled
+    }
+
+    var mode: Mode
+    var until: Date?
+
+    static let off = NotificationDNDState(mode: .off, until: nil)
+
+    static func active(_ mode: Mode, now: Date = .now, customUntil: Date? = nil) -> Self {
+        switch mode {
+        case .off:
+            return .off
+        case .twoHours:
+            return Self(mode: mode, until: now.addingTimeInterval(2 * 60 * 60))
+        case .eightHours:
+            return Self(mode: mode, until: now.addingTimeInterval(8 * 60 * 60))
+        case .twentyFourHours:
+            return Self(mode: mode, until: now.addingTimeInterval(24 * 60 * 60))
+        case .custom:
+            let fallback = now.addingTimeInterval(2 * 60 * 60)
+            return Self(mode: mode, until: max(customUntil ?? fallback, now.addingTimeInterval(60)))
+        case .untilDisabled:
+            return Self(mode: mode, until: nil)
+        }
+    }
+
+    func isActive(at date: Date = .now) -> Bool {
+        switch mode {
+        case .off:
+            return false
+        case .untilDisabled:
+            return true
+        case .twoHours, .eightHours, .twentyFourHours, .custom:
+            return until.map { $0 > date } ?? false
+        }
+    }
+}
+
 /// User choices that affect system integrations but not the integration
 /// objects themselves. Calendar/reminder permissions and native identifiers
 /// stay on each device; these switches are the user's synced intent.
@@ -23,7 +71,7 @@ struct CloudPreferences: Codable, Equatable {
     var calendarSyncHabits: Bool
     var calendarSyncReminders: Bool
     var nativeReminderSync: Bool
-    var notificationPromptsSuppressed: Bool
+    var notificationDND: NotificationDNDState
     var shakeToReportEnabled: Bool
 
     private enum CodingKeys: String, CodingKey {
@@ -31,18 +79,25 @@ struct CloudPreferences: Codable, Equatable {
         case calendarSyncReminders
         case nativeReminderSync
         case notificationPromptsSuppressed
+        case notificationDND
         case shakeToReportEnabled
     }
+
+    /// Compatibility view for older callers and older iCloud payloads. New
+    /// code should persist `notificationDND` so timed windows survive sync.
+    var notificationPromptsSuppressed: Bool { notificationDND.isActive() }
 
     init(calendarSyncHabits: Bool = false,
          calendarSyncReminders: Bool = false,
          nativeReminderSync: Bool = false,
          notificationPromptsSuppressed: Bool = false,
-         shakeToReportEnabled: Bool = true) {
+         shakeToReportEnabled: Bool = true,
+         notificationDND: NotificationDNDState? = nil) {
         self.calendarSyncHabits = calendarSyncHabits
         self.calendarSyncReminders = calendarSyncReminders
         self.nativeReminderSync = nativeReminderSync
-        self.notificationPromptsSuppressed = notificationPromptsSuppressed
+        self.notificationDND = notificationDND
+            ?? (notificationPromptsSuppressed ? .active(.untilDisabled) : .off)
         self.shakeToReportEnabled = shakeToReportEnabled
     }
 
@@ -54,10 +109,29 @@ struct CloudPreferences: Codable, Equatable {
                                                               forKey: .calendarSyncReminders) ?? false
         nativeReminderSync = try container.decodeIfPresent(Bool.self,
                                                              forKey: .nativeReminderSync) ?? false
-        notificationPromptsSuppressed = try container.decodeIfPresent(
-            Bool.self, forKey: .notificationPromptsSuppressed) ?? false
+        if let savedDND = try container.decodeIfPresent(NotificationDNDState.self,
+                                                        forKey: .notificationDND) {
+            notificationDND = savedDND
+        } else {
+            let legacy = try container.decodeIfPresent(Bool.self,
+                                                       forKey: .notificationPromptsSuppressed) ?? false
+            notificationDND = legacy ? .active(.untilDisabled) : .off
+        }
         shakeToReportEnabled = try container.decodeIfPresent(Bool.self,
                                                              forKey: .shakeToReportEnabled) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(calendarSyncHabits, forKey: .calendarSyncHabits)
+        try container.encode(calendarSyncReminders, forKey: .calendarSyncReminders)
+        try container.encode(nativeReminderSync, forKey: .nativeReminderSync)
+        try container.encode(notificationDND, forKey: .notificationDND)
+        // Keep the old boolean for one migration cycle. Older builds ignore
+        // the new state but still respect an active permanent/timed window.
+        try container.encode(notificationPromptsSuppressed,
+                             forKey: .notificationPromptsSuppressed)
+        try container.encode(shakeToReportEnabled, forKey: .shakeToReportEnabled)
     }
 }
 
@@ -93,6 +167,10 @@ struct HabitData: Codable {
     /// Einstellung denselben Weg nimmt wie alles andere (Export, Import,
     /// iCloud-Spiegel) — ein neues Gerät sieht sofort dieselbe App.
     var appearance: AppearanceSetting
+    /// Hintergrundbild und Oberflächenmaterial. Das Bild wird vor dem Setzen
+    /// auf eine kleine JPEG-Nutzlast begrenzt, damit der iCloud-Asset nicht
+    /// unnötig groß wird.
+    var appearancePreferences: AppearancePreferences
     /// Globale Rasterfarbe.
     var palette: PaletteRef
     /// Eigene Paletten des Nutzers. Gespeichert wird je Palette NUR die
@@ -129,6 +207,7 @@ struct HabitData: Codable {
          summaryMinutes: Int?,
          habits: [Habit],
          appearance: AppearanceSetting = .default,
+         appearancePreferences: AppearancePreferences = .default,
          palette: PaletteRef = .default,
          customPalettes: [CustomPalette] = [],
          matchAppIcon: Bool = true,
@@ -152,6 +231,7 @@ struct HabitData: Codable {
         self.habits = habits
         self.sessionHistory = sessionHistory
         self.appearance = appearance
+        self.appearancePreferences = appearancePreferences
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
@@ -173,7 +253,8 @@ extension HabitData {
     /// die Einstellung, die es nicht mehr gibt, fällt beim nächsten
     /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
-        case version, updatedAt, summaryMinutes, habits, appearance, palette, matchAppIcon
+        case version, updatedAt, summaryMinutes, habits, appearance, appearancePreferences,
+             palette, matchAppIcon
         case manualAppIconName
         case githubShowsUsername
         case customPalettes
@@ -218,6 +299,9 @@ extension HabitData {
         // Check-ins.
         appearance = (try c.decodeIfPresent(String.self, forKey: .appearance))
             .flatMap(AppearanceSetting.init(rawValue:)) ?? .default
+        appearancePreferences = (try c.decodeIfPresent(AppearancePreferences.self,
+                                                        forKey: .appearancePreferences))
+            ?? .default
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
             .flatMap(PaletteRef.init(rawValue:)) ?? .default
         // Fehlt der Schlüssel (jede Datei vor den eigenen Farben) oder ist ein
@@ -261,6 +345,9 @@ extension HabitData {
         // Standards bleiben implizit — eine unveränderte Installation
         // schreibt exakt dieselbe Datei wie vor dem Theming.
         if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
+        if appearancePreferences != .default {
+            try c.encode(appearancePreferences, forKey: .appearancePreferences)
+        }
         if palette != .default { try c.encode(palette.rawValue, forKey: .palette) }
         if !customPalettes.isEmpty { try c.encode(customPalettes, forKey: .customPalettes) }
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
@@ -370,6 +457,11 @@ final class HabitStore {
     var appearance: AppearanceSetting {
         get { data.appearance }
         set { data.appearance = newValue; persist() }
+    }
+
+    var appearancePreferences: AppearancePreferences {
+        get { data.appearancePreferences }
+        set { data.appearancePreferences = newValue; persist() }
     }
 
     /// Die GLOBALE Einstellung (was gespeichert wird).
@@ -881,6 +973,7 @@ final class HabitStore {
         // der Standard IST ein gültiger Wert.
         if remoteNewer {
             data.appearance = remote.appearance
+            data.appearancePreferences = remote.appearancePreferences
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
             data.manualAppIconName = remote.manualAppIconName

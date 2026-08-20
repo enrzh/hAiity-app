@@ -395,7 +395,7 @@ enum ReminderSync {
                           completed: Bool,
                           calendar: Calendar = .current) {
         reminder.title = plan.title
-        reminder.notes = "hAiity"
+        reminder.notes = SyncWatermark.note(for: plan.habitID, kind: .nativeReminder)
         reminder.dueDateComponents = dueDateComponents(for: plan, calendar: calendar)
         reminder.recurrenceRules = CalendarSync.recurrenceRule(for: plan.eventPlan).map { [$0] }
         reminder.isCompleted = completed

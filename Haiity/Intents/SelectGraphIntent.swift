@@ -1,6 +1,47 @@
 import AppIntents
 import WidgetKit
 
+/// Graph configuration only exposes tracked habits. The main hAiity widget
+/// uses `HabitEntity` and may also be configured with a reminder.
+struct GraphHabitEntity: AppEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Habit")
+    static var defaultQuery = GraphHabitEntityQuery()
+
+    var id: UUID
+    var name: String
+    var emoji: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(emoji.isEmpty ? name : "\(emoji) \(name)")")
+    }
+
+    init(habit: Habit) {
+        id = habit.id
+        name = habit.name
+        emoji = habit.emoji
+    }
+}
+
+struct GraphHabitEntityQuery: EntityQuery {
+    private func trackedHabits() -> [Habit] {
+        HabitStore.read(SharedStorage.dataURL())?.habits.filter {
+            $0.archivedAt == nil && $0.isTrackedHabit
+        } ?? []
+    }
+
+    func entities(for identifiers: [GraphHabitEntity.ID]) async throws -> [GraphHabitEntity] {
+        trackedHabits().filter { identifiers.contains($0.id) }.map(GraphHabitEntity.init)
+    }
+
+    func suggestedEntities() async throws -> [GraphHabitEntity] {
+        trackedHabits().map(GraphHabitEntity.init)
+    }
+
+    func defaultResult() async -> GraphHabitEntity? {
+        trackedHabits().first.map(GraphHabitEntity.init)
+    }
+}
+
 /// Die Einstellung des reinen Graph-Widgets: ein Habit oder der offizielle
 /// GitHub-Beitragskalender. Andere Widgets behalten ihre Habit-Auswahl.
 struct SelectGraphIntent: WidgetConfigurationIntent {
@@ -16,7 +57,7 @@ struct SelectGraphIntent: WidgetConfigurationIntent {
     var palette: GraphPaletteEntity?
 
     @Parameter(title: "Habit")
-    var habit: HabitEntity?
+    var habit: GraphHabitEntity?
 
     init() {
         source = .habit
@@ -25,7 +66,7 @@ struct SelectGraphIntent: WidgetConfigurationIntent {
     }
 
     init(source: GraphWidgetSource,
-         habit: HabitEntity? = nil,
+         habit: GraphHabitEntity? = nil,
          palette: GraphPaletteEntity? = nil) {
         self.source = source
         self.palette = palette

@@ -160,38 +160,38 @@ enum Motivation {
     static let lines: [String] = linesA + linesB + linesC + linesD
 
     private static let linesA: [String] = [
-        String(localized: "Ein Quadrat heute wiegt mehr als drei Vorsätze für nächste Woche."),
+        String(localized: "Ein Quadrat heute ist mehr als ein Vorsatz für nächste Woche."),
         String(localized: "Die Reihe wächst langsam. Langsam ist auch eine Richtung."),
-        String(localized: "Niemand füllt jede Zelle. Die Reihe bleibt trotzdem deine."),
-        String(localized: "Zwei Minuten zählen im Raster genauso viel wie zwei Stunden."),
+        String(localized: "Nicht jede Zelle muss voll sein. Die Reihe bleibt deine."),
+        String(localized: "Zwei Minuten zählen im Raster genauso wie zwei Stunden."),
         String(localized: "Lücken sind kein Urteil. Sie sind nur Lücken."),
-        String(localized: "Nach einer Lücke zählt das nächste Quadrat, nicht die Erklärung dafür."),
+        String(localized: "Nach einer Lücke zählt das nächste Quadrat."),
     ]
 
     private static let linesB: [String] = [
-        String(localized: "Serien reißen. Danach fängt man an derselben Stelle wieder an."),
+        String(localized: "Serien reißen. Danach geht es an derselben Stelle weiter."),
         String(localized: "Ein einzelner Tag beweist nichts. Dafür gibt es die Reihe."),
         String(localized: "Du musst heute nichts nachholen. Heute reicht heute."),
-        String(localized: "Das Raster merkt sich, was du getan hast, nicht was du dir vorgenommen hast."),
-        String(localized: "Anfangen dauert meistens kürzer als das Nachdenken übers Anfangen."),
-        String(localized: "Eine halbe Sache ist im Raster immer noch mehr als eine leere Zelle."),
+        String(localized: "Das Raster merkt sich, was du getan hast."),
+        String(localized: "Anfangen dauert oft kürzer als darüber nachzudenken."),
+        String(localized: "Eine halbe Sache ist mehr als eine leere Zelle."),
     ]
 
     private static let linesC: [String] = [
-        String(localized: "Die einzige Zelle, über die du heute entscheidest, ist die von heute."),
+        String(localized: "Du entscheidest heute nur über die Zelle von heute."),
         String(localized: "Wer dranbleibt, sammelt Quadrate. Wer wartet, sammelt Pläne."),
-        String(localized: "Es muss nicht gut werden. Es muss nur stattfinden."),
-        String(localized: "Manche Tage füllt man mit Schwung, manche mit Sturheit. Beide zählen gleich viel."),
-        String(localized: "Eine Reihe aus drei Tagen sieht unscheinbar aus und trägt trotzdem."),
-        String(localized: "Fang mit dem Kleinsten an, das noch zählt. Meistens reicht das."),
+        String(localized: "Es muss nicht gut werden. Es muss stattfinden."),
+        String(localized: "Schwung und Sturheit zählen im Raster gleich."),
+        String(localized: "Drei Tage sehen unscheinbar aus und tragen trotzdem."),
+        String(localized: "Fang mit dem Kleinsten an, das noch zählt."),
     ]
 
     private static let linesD: [String] = [
         String(localized: "Das Raster fragt nicht nach Motivation. Es fragt nach heute."),
-        String(localized: "Aus Wiederholung wird Routine, und Routine braucht irgendwann keine Erinnerung mehr."),
-        String(localized: "Perfekte Wochen sind selten. Brauchbare Wochen gibt es fast immer."),
-        String(localized: "Wenn heute wenig geht, geht heute eben wenig — und wird trotzdem eingetragen."),
-        String(localized: "Ein Quadrat ist schnell gefüllt. Die Entscheidung davor dauert länger."),
-        String(localized: "Am Ende bleibt die Reihe in Erinnerung, nicht der einzelne Dienstag."),
+        String(localized: "Aus Wiederholung wird Routine. Fang heute wieder an."),
+        String(localized: "Perfekte Wochen sind selten. Brauchbare gibt es oft."),
+        String(localized: "Wenn heute wenig geht, wird heute trotzdem eingetragen."),
+        String(localized: "Ein Quadrat ist schnell gefüllt. Die Entscheidung zählt."),
+        String(localized: "Am Ende bleibt die Reihe, nicht der einzelne Dienstag."),
     ]
 }

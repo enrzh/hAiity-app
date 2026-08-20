@@ -2,6 +2,8 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import AuthenticationServices
+import PhotosUI
+import UIKit
 
 /// Bildschirmartige Unterziele des Mehr-Bereichs — wertbasiert, damit
 /// Deep-Links (haiity://stats, haiity://archive) direkt hinspringen können.
@@ -71,8 +73,12 @@ struct MoreView: View, Equatable {
     @State private var reminderSyncDenied = false
     @State private var weeklyDenied = false
     @State private var motivationDenied = false
-    @State private var notificationPromptsSuppressed = NotificationPromptPreference.isSuppressed
+    @State private var notificationDND = NotificationPromptPreference.state
+    @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
+    @State private var dndNow = Date()
     @State private var showReminderSetup = false
+    @State private var pickedBackgroundItem: PhotosPickerItem?
+    @State private var backgroundImageError = false
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
     @State private var currentIconName: String?
@@ -103,6 +109,7 @@ struct MoreView: View, Equatable {
     @State private var purchased: PaywallContext?
     @State private var pendingCalendarItemType: HabitItemType = .habit
     @State private var pendingNativeReminder = false
+    @State private var copiedSyncHint = false
     @Environment(\.palettes) private var palettes
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
@@ -118,8 +125,8 @@ struct MoreView: View, Equatable {
         CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
                          calendarSyncReminders: CalendarSync.syncReminders,
                          nativeReminderSync: ReminderSync.isEnabled,
-                         notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
-                         shakeToReportEnabled: ShakeToReport.isEnabled)
+                         shakeToReportEnabled: ShakeToReport.isEnabled,
+                         notificationDND: NotificationPromptPreference.state)
     }
 
     private func updateCloudPreferences(_ body: (inout CloudPreferences) -> Void) {
@@ -146,8 +153,12 @@ struct MoreView: View, Equatable {
             CustomPaletteSheet(store: store).themed(store)
         }
         .onAppear {
-            notificationPromptsSuppressed = store.cloudPreferences?.notificationPromptsSuppressed
-                ?? NotificationPromptPreference.isSuppressed
+            dndNow = .now
+            notificationDND = store.cloudPreferences?.notificationDND
+                ?? NotificationPromptPreference.state
+            if notificationDND.mode == .custom, let until = notificationDND.until {
+                dndCustomDate = until
+            }
             #if DEBUG
             // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
             // Liste sind in der Sim-Automatisierung unzuverlässig.
@@ -155,6 +166,12 @@ struct MoreView: View, Equatable {
                 creatingPalette = true
             }
             #endif
+        }
+        .task {
+            while !Task.isCancelled {
+                dndNow = .now
+                try? await Task.sleep(for: .seconds(1))
+            }
         }
         .sheet(item: $editingPalette) { palette in
             CustomPaletteSheet(store: store, existing: palette).themed(store)
@@ -246,6 +263,8 @@ struct MoreView: View, Equatable {
                         symbol: "lock.shield", identifier: "open-about")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     private var githubSection: some View {
@@ -282,13 +301,18 @@ struct MoreView: View, Equatable {
             paletteSection
             compactModeSection
         }
+        .scrollContentBackground(.hidden)
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     private var habitBehaviorSettings: some View {
         List {
             swipeActionsSection
+            notificationActionsSection
             calendarSection
         }
+        .scrollContentBackground(.hidden)
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -334,6 +358,20 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Wischaktionen"))
+        }
+    }
+
+    private var notificationActionsSection: some View {
+        Section {
+            Toggle(String(localized: "Schnellaktionen in Mitteilungen"), isOn: Binding(
+                get: { statsCards.preferences.notificationActionsEnabled },
+                set: { enabled in
+                    statsCards.update { $0.notificationActionsEnabled = enabled }
+                    NotificationPresenter.configureQuickActions(enabled: enabled)
+                }))
+            .accessibilityIdentifier("notification-actions-toggle")
+        } header: {
+            Text(String(localized: "Mitteilungen"))
         }
     }
 
@@ -471,6 +509,7 @@ struct MoreView: View, Equatable {
                 }
             }
             .accessibilityIdentifier("native-reminder-sync-toggle")
+            syncWatermarkHints
             if calendarDenied {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
@@ -500,6 +539,27 @@ struct MoreView: View, Equatable {
                 }
             }
         }
+    }
+
+    private var syncWatermarkHints: some View {
+        HStack(spacing: Theme.Metrics.gap) {
+            Label(String(localized: "Kennzeichnung für eigene Einträge"),
+                  systemImage: "tag")
+            Spacer(minLength: Theme.Metrics.gap)
+            Button {
+                UIPasteboard.general.string = SyncWatermark.copyText
+                copiedSyncHint = true
+                Theme.Haptics.success()
+            } label: {
+                Label(copiedSyncHint ? String(localized: "Kopiert")
+                                     : String(localized: "Kopieren"),
+                      systemImage: copiedSyncHint ? "checkmark" : "doc.on.doc")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("copy-sync-watermark")
+        }
+        .padding(.vertical, 4)
     }
 
     private func calendarToggle(type: HabitItemType,
@@ -770,6 +830,18 @@ struct MoreView: View, Equatable {
             .pickerStyle(.menu)
             .accessibilityIdentifier("appearance-picker")
 
+            Picker(selection: materialBinding) {
+                ForEach(AppearanceMaterial.allCases, id: \.self) { material in
+                    Text(material.displayName).tag(material)
+                }
+            } label: {
+                Label(String(localized: "Oberfläche"), systemImage: "square.3.layers.3d")
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("appearance-material-picker")
+
+            backgroundControl
+
             Toggle(isOn: matchIconBinding) {
                 VStack(alignment: .leading, spacing: 2) {
                     Label(String(localized: "App-Icon dynamisch"), systemImage: "app.badge")
@@ -791,6 +863,177 @@ struct MoreView: View, Equatable {
             }
         } header: {
             Text(String(localized: "Darstellung"))
+        }
+    }
+
+    private var materialBinding: Binding<AppearanceMaterial> {
+        Binding(
+            get: { store.appearancePreferences.material },
+            set: { material in
+                updateAppearance { $0.material = material }
+            })
+    }
+
+    private var backgroundModeBinding: Binding<AppearanceBackgroundMode> {
+        Binding(get: { store.appearancePreferences.backgroundMode },
+                set: { mode in updateAppearance { $0.backgroundMode = mode } })
+    }
+
+    private var backgroundColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Theme.color(store.appearancePreferences.backgroundColorHex
+                            ?? fallbackBackgroundColorHex)
+            },
+            set: { color in
+                updateAppearance { $0.backgroundColorHex = Theme.hex(from: color) }
+            })
+    }
+
+    private var gradientStartBinding: Binding<Color> {
+        Binding(
+            get: {
+                Theme.color(store.appearancePreferences.gradientStartHex
+                            ?? fallbackGradientStartHex)
+            },
+            set: { color in
+                updateAppearance { $0.gradientStartHex = Theme.hex(from: color) }
+            })
+    }
+
+    private var gradientEndBinding: Binding<Color> {
+        Binding(
+            get: {
+                Theme.color(store.appearancePreferences.gradientEndHex
+                            ?? fallbackGradientEndHex)
+            },
+            set: { color in
+                updateAppearance { $0.gradientEndHex = Theme.hex(from: color) }
+            })
+    }
+
+    private var fallbackBackgroundColorHex: UInt32 {
+        colorScheme == .dark ? 0x1C1C1E : 0xF2F2F7
+    }
+
+    private var fallbackGradientStartHex: UInt32 {
+        colorScheme == .dark ? 0x1C1C1E : 0xF2F2F7
+    }
+
+    private var fallbackGradientEndHex: UInt32 {
+        colorScheme == .dark ? 0x2C2C2E : 0xE5E5EA
+    }
+
+    private func updateAppearance(_ body: (inout AppearancePreferences) -> Void) {
+        var next = store.appearancePreferences
+        body(&next)
+        store.appearancePreferences = next
+    }
+
+    private var backgroundControl: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker(selection: backgroundModeBinding) {
+                ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            } label: {
+                Label(String(localized: "Hintergrund"), systemImage: "rectangle.fill")
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("appearance-background-mode-picker")
+
+            switch store.appearancePreferences.backgroundMode {
+            case .color:
+                ColorPicker(String(localized: "Farbe"), selection: backgroundColorBinding,
+                            supportsOpacity: false)
+                    .accessibilityIdentifier("appearance-background-color-picker")
+            case .gradient:
+                ColorPicker(String(localized: "Oben"), selection: gradientStartBinding,
+                            supportsOpacity: false)
+                    .accessibilityIdentifier("appearance-gradient-start-picker")
+                ColorPicker(String(localized: "Unten"), selection: gradientEndBinding,
+                            supportsOpacity: false)
+                    .accessibilityIdentifier("appearance-gradient-end-picker")
+                Text(String(localized: "Vertikaler Verlauf"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .image:
+                backgroundImagePicker
+            }
+        }
+    }
+
+    private var backgroundImagePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: Theme.Metrics.gap) {
+                PhotosPicker(selection: $pickedBackgroundItem, matching: .images) {
+                    Label(String(localized: "Auswählen"), systemImage: "photo")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("appearance-background-picker")
+                Spacer(minLength: 0)
+                if store.appearancePreferences.backgroundImage != nil {
+                    Button(role: .destructive) {
+                        updateAppearance {
+                            $0.backgroundImageData = nil
+                            $0.backgroundMode = .color
+                        }
+                        pickedBackgroundItem = nil
+                        backgroundImageError = false
+                    } label: {
+                        Label(String(localized: "Entfernen"), systemImage: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("appearance-background-remove")
+                }
+            }
+            if let image = store.appearancePreferences.backgroundImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    }
+                    .accessibilityLabel(String(localized: "Ausgewähltes Hintergrundbild"))
+            }
+            if backgroundImageError {
+                Text(String(localized: "Das Bild konnte nicht übernommen werden."))
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .onChange(of: pickedBackgroundItem) { _, item in
+            guard let item else { return }
+            importBackgroundImage(item)
+        }
+    }
+
+    private func importBackgroundImage(_ item: PhotosPickerItem) {
+        Task {
+            let normalized: Data?
+            do {
+                let data = try await item.loadTransferable(type: Data.self)
+                normalized = data.flatMap(AppearanceImage.normalizedData)
+            } catch {
+                normalized = nil
+            }
+            await MainActor.run {
+                guard let normalized else {
+                    backgroundImageError = true
+                    pickedBackgroundItem = nil
+                    return
+                }
+                updateAppearance {
+                    $0.backgroundImageData = normalized
+                    $0.backgroundMode = .image
+                }
+                backgroundImageError = false
+                pickedBackgroundItem = nil
+            }
         }
     }
 
@@ -1172,25 +1415,101 @@ struct MoreView: View, Equatable {
 
     private var notificationOptOutSection: some View {
         Section {
-            Toggle(String(localized: "Ich brauche wirklich keine Mitteilungen"),
-                   isOn: Binding(
-                    get: { notificationPromptsSuppressed },
-                    set: { suppressed in
-                        notificationPromptsSuppressed = suppressed
-                        NotificationPromptPreference.isSuppressed = suppressed
-                        updateCloudPreferences { $0.notificationPromptsSuppressed = suppressed }
-                        guard suppressed else { return }
-                        store.summaryMinutes = nil
-                        store.weeklySummaryMinutes = nil
-                        store.motivationMinutes = nil
-                        summaryDenied = false
-                        weeklyDenied = false
-                        motivationDenied = false
-                    }))
-                .accessibilityIdentifier("suppress-notification-prompts-toggle")
+            Toggle(String(localized: "Do not disturb"), isOn: dndEnabled)
+                .accessibilityIdentifier("dnd-toggle")
+            if dndActive {
+                Picker(String(localized: "Dauer"), selection: dndModeBinding) {
+                    ForEach(dndModes, id: \.self) { mode in
+                        Text(dndTitle(mode)).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("dnd-duration-picker")
+                if notificationDND.mode == .custom {
+                    DatePicker(String(localized: "Bis"), selection: dndCustomDateBinding,
+                               in: Date().addingTimeInterval(60)...)
+                        .accessibilityIdentifier("dnd-custom-date")
+                }
+                Text(dndEndText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text(String(localized: "Mitteilungen"))
         }
+    }
+
+    private var dndActive: Bool { notificationDND.isActive() }
+
+    private var dndModes: [NotificationDNDState.Mode] {
+        [.twoHours, .eightHours, .twentyFourHours, .custom, .untilDisabled]
+    }
+
+    private var dndEnabled: Binding<Bool> {
+        Binding(
+            get: { dndActive },
+            set: { enabled in
+                applyDND(enabled
+                         ? .active(.twoHours)
+                         : .off)
+            })
+    }
+
+    private var dndModeBinding: Binding<NotificationDNDState.Mode> {
+        Binding(
+            get: { dndActive ? notificationDND.mode : .twoHours },
+            set: { mode in
+                if mode == .custom {
+                    if dndCustomDate <= .now {
+                        dndCustomDate = .now.addingTimeInterval(2 * 60 * 60)
+                    }
+                    applyDND(.active(.custom, customUntil: dndCustomDate))
+                } else {
+                    applyDND(.active(mode))
+                }
+            })
+    }
+
+    private var dndCustomDateBinding: Binding<Date> {
+        Binding(
+            get: { dndCustomDate },
+            set: { date in
+                dndCustomDate = date
+                guard notificationDND.mode == .custom else { return }
+                applyDND(.active(.custom, customUntil: date))
+            })
+    }
+
+    private func dndTitle(_ mode: NotificationDNDState.Mode) -> String {
+        switch mode {
+        case .off: return String(localized: "Aus")
+        case .twoHours: return String(localized: "2 Stunden")
+        case .eightHours: return String(localized: "8 Stunden")
+        case .twentyFourHours: return String(localized: "24 Stunden")
+        case .custom: return String(localized: "Benutzerdefiniert")
+        case .untilDisabled: return String(localized: "Bis ausgeschaltet")
+        }
+    }
+
+    private var dndEndText: String {
+        if let until = notificationDND.until {
+            let remaining = max(0, Int(until.timeIntervalSince(dndNow)))
+            let hours = remaining / 3600
+            let minutes = (remaining % 3600) / 60
+            let remainingText = hours > 0
+                ? String(localized: "Noch \(hours) Std. \(minutes) Min.")
+                : String(localized: "Noch \(max(1, minutes)) Min.")
+            return String(localized: "Aktiv bis") + " "
+                + until.formatted(date: .omitted, time: .shortened)
+                + " · " + remainingText
+        }
+        return String(localized: "Aktiv bis DND ausgeschaltet wird")
+    }
+
+    private func applyDND(_ state: NotificationDNDState) {
+        notificationDND = state
+        NotificationPromptPreference.state = state
+        updateCloudPreferences { $0.notificationDND = state }
     }
 
     private var dailySummarySection: some View {
@@ -1198,8 +1517,7 @@ struct MoreView: View, Equatable {
             Toggle(isOn: dailyEnabled) {
                 Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
             }
-            .disabled(notificationPromptsSuppressed
-                      && store.motivationDelivery == .notification)
+            .disabled(dndActive)
             .accessibilityIdentifier("summary-toggle")
             if store.summaryMinutes != nil {
                 DatePicker(String(localized: "Uhrzeit"),
@@ -1216,7 +1534,7 @@ struct MoreView: View, Equatable {
             Toggle(isOn: weeklyEnabled) {
                 Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
             }
-            .disabled(notificationPromptsSuppressed)
+            .disabled(dndActive)
             .accessibilityIdentifier("weekly-summary-toggle")
             if store.weeklySummaryMinutes != nil {
                 Picker(String(localized: "Wochentag"), selection: weeklyWeekday) {
@@ -1239,7 +1557,7 @@ struct MoreView: View, Equatable {
             Toggle(isOn: motivationEnabled) {
                 Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
             }
-            .disabled(notificationPromptsSuppressed)
+            .disabled(dndActive)
             .accessibilityIdentifier("motivation-toggle")
             if store.motivationMinutes != nil {
                 DatePicker(String(localized: "Uhrzeit"),
@@ -1460,8 +1778,8 @@ struct AboutView: View {
                                 calendarSyncHabits: CalendarSync.syncHabits,
                                 calendarSyncReminders: CalendarSync.syncReminders,
                                 nativeReminderSync: ReminderSync.isEnabled,
-                                notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
-                                shakeToReportEnabled: ShakeToReport.isEnabled)) {
+                                shakeToReportEnabled: ShakeToReport.isEnabled,
+                                notificationDND: NotificationPromptPreference.state)) {
                             $0.shakeToReportEnabled = enabled
                         }
                     }))

@@ -108,6 +108,10 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertFalse(source.contains("event(withIdentifier:"))
     }
 
+    func testReminderCopyHintIsAvailableForTheNativeList() {
+        XCTAssertEqual(SyncWatermark.copyText(for: .nativeReminder), "hAiity")
+    }
+
     func testCalendarSyncSharesItsRecurrenceRuleHelper() throws {
         let calendar = try source("Haiity/Services/CalendarSync.swift")
         let reminders = try source("Haiity/Services/ReminderSync.swift")

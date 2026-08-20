@@ -101,7 +101,7 @@ struct EditHabitSheet: View {
                 }
                 recurrenceSection
                 durationSection
-                kindSection
+                if itemType == .habit { kindSection }
                 colorSection
                 if let habit = existing {
                     swipeActionsSection
@@ -674,14 +674,13 @@ struct EditHabitSheet: View {
         habit.recurrence = recurrence
         habit.palette = habitPalette
         habit.swipeActions = swipeActions
-        // Weg von Ja/Nein heißt auch: die Antworten mitnehmen. Ohne das
-        // stünde die Umstellung bis zum nächsten Start und wäre danach
-        // wieder da — die Selbstheilung liest die Antwort-Codes und macht
-        // erneut ein Ja/Nein-Habit daraus (siehe `Habit.migratedLog`).
-        habit.log = Habit.migratedLog(habit.log, to: kind)
-        habit.kind = Habit.resolvedKind(marker: kind.rawValue,
-                                        log: habit.log,
-                                        target: recurrence.target)
+        // Reminders share the checkbox log internally; their habit-only kind
+        // controls stay out of the editor and cannot survive a mode switch.
+        let effectiveKind = itemType == .habit ? kind : .checkbox
+        habit.log = Habit.migratedLog(habit.log, to: effectiveKind)
+        habit.kind = itemType == .habit ? Habit.resolvedKind(marker: kind.rawValue,
+                                                              log: habit.log,
+                                                              target: recurrence.target) : .checkbox
         if existing == nil { store.add(habit) } else { store.update(habit) }
         Theme.Haptics.success()
         dismiss()

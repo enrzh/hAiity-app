@@ -196,6 +196,7 @@ struct ContentView: View {
             // Umstellen in „Mehr" sofort durchschlägt.
             .preferredColorScheme(store.appearance.colorScheme)
             .environment(\.palettes, store.palettes)
+            .environment(\.appearancePreferences, store.appearancePreferences)
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
             .tint(Theme.accentText(store.paletteStyle))
@@ -319,7 +320,7 @@ struct ContentView: View {
                         ReminderSync.reconcile(habits: store.habits, validate: false)
                         await reconcileAppIcon()
                     }
-                    Task { await github.resumeOrRefresh() }
+                    Task { await github.resumeOrRefresh(forced: true) }
                 }
             }
             .onChange(of: search) { _, query in
@@ -431,7 +432,7 @@ struct ContentView: View {
             nativeShell
         } else {
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                AppearanceBackground(preferences: store.appearancePreferences)
                 fallbackTabLayer(.stats) { fallbackStatsContent }
                 fallbackTabLayer(.habits) { habitsStack }
                 fallbackTabLayer(.more) { fallbackMoreContent }
@@ -551,14 +552,14 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
     @available(iOS 26, *)
     private var habitsTabContent: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            AppearanceBackground(preferences: store.appearancePreferences)
             habitsStack
         }
         // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
@@ -1005,7 +1006,7 @@ struct ContentView: View {
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
@@ -1515,7 +1516,7 @@ struct ContentView: View {
             .accessibilityIdentifier("add-first-habit")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     // MARK: – Fallback-Chrom unten (iOS < 26): Navigation links, + rechts
@@ -2335,8 +2336,8 @@ struct ContentView: View {
         CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
                          calendarSyncReminders: CalendarSync.syncReminders,
                          nativeReminderSync: ReminderSync.isEnabled,
-                         notificationPromptsSuppressed: NotificationPromptPreference.isSuppressed,
-                         shakeToReportEnabled: ShakeToReport.isEnabled)
+                         shakeToReportEnabled: ShakeToReport.isEnabled,
+                         notificationDND: NotificationPromptPreference.state)
     }
 
     /// Apply synced intent to the device-local integration settings. The
@@ -2346,7 +2347,7 @@ struct ContentView: View {
         CalendarSync.syncHabits = preferences.calendarSyncHabits
         CalendarSync.syncReminders = preferences.calendarSyncReminders
         ReminderSync.isEnabled = preferences.nativeReminderSync
-        NotificationPromptPreference.isSuppressed = preferences.notificationPromptsSuppressed
+        NotificationPromptPreference.state = preferences.notificationDND
         ShakeToReport.isEnabled = preferences.shakeToReportEnabled
     }
 

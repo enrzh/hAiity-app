@@ -27,7 +27,7 @@ struct GitHubSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             copyCode(store.deviceCode)
-            Task { await store.resumeOrRefresh() }
+            Task { await store.resumeOrRefresh(forced: true) }
         }
         .onChange(of: store.deviceCode) { _, code in
             copyCode(code)
@@ -112,17 +112,21 @@ struct GitHubSettingsView: View {
         case .failed(let message):
             Text(message)
                 .foregroundStyle(.secondary)
-            if store.snapshot == nil {
+            if store.hasStoredCredentials {
+                Button(String(localized: "Aktualisieren")) {
+                    Task { await store.refresh(forced: true) }
+                }
+                .accessibilityIdentifier("github-refresh")
+            } else {
                 Button(String(localized: "Erneut versuchen")) {
                     Task { await store.connect() }
                 }
                 .accessibilityIdentifier("github-connect")
-            } else {
-                Button(String(localized: "Verbindung trennen"), role: .destructive) {
-                    store.disconnect()
-                }
-                .accessibilityIdentifier("github-disconnect")
             }
+            Button(String(localized: "Verbindung trennen"), role: .destructive) {
+                store.disconnect()
+            }
+            .accessibilityIdentifier("github-disconnect")
         }
     }
 

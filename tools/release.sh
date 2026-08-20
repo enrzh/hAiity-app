@@ -55,6 +55,17 @@ if [[ "$XCODE_APP" == *beta* ]]; then
   echo "    NOTE: beta Xcode — fine for building, cannot be uploaded."
 fi
 
+# App Store Connect also rejects archives stamped by a beta macOS, even when
+# the archive was made with the public Xcode and SDK. Local verification stays
+# available; only the irreversible upload path is blocked here.
+OS_BUILD=$(sw_vers -buildVersion 2>/dev/null || true)
+if [[ "$UPLOAD" == yes && "$OS_BUILD" =~ [a-z]$ ]]; then
+  fail "refusing to upload from beta macOS ($OS_BUILD).
+    App Store Connect reports this as ITMS-90111: Unsupported SDK or Xcode
+    version. Build the release on Xcode Cloud or a Mac running release macOS."
+fi
+[[ -z "$OS_BUILD" ]] || echo "    macOS build $OS_BUILD"
+
 # --- 2. project -------------------------------------------------------------
 # The .xcodeproj is gitignored: project.yml is the only source of truth, and a
 # file missing from it is never compiled. Always regenerate before building.

@@ -85,6 +85,13 @@ final class ReminderItemTests: XCTestCase {
         }
     }
 
+    func testReminderModeHidesHabitKindControls() throws {
+        let source = try editorSource()
+
+        XCTAssertTrue(source.contains("if itemType == .habit { kindSection }"))
+        XCTAssertTrue(source.contains("habit.kind = itemType == .habit ?"))
+    }
+
     func testOnlyNewTrackedHabitsUseTheFreeLimit() throws {
         let source = try editorSource()
 

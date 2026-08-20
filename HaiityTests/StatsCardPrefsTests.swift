@@ -13,6 +13,7 @@ final class StatsCardPrefsTests: XCTestCase {
         XCTAssertTrue(prefs.swipeActions.enabled)
         XCTAssertEqual(prefs.swipeActions.leading, .primary)
         XCTAssertEqual(prefs.swipeActions.trailing, .secondary)
+        XCTAssertTrue(prefs.notificationActionsEnabled)
     }
 
     func testViewPreferencesStorePersistsCompactModeAndCards() {
@@ -41,6 +42,18 @@ final class StatsCardPrefsTests: XCTestCase {
 
         XCTAssertEqual(ViewPreferencesStore(defaults: defaults).preferences.swipeActions,
                        SwipeActionsPreferences(enabled: false, leading: .archive, trailing: .none))
+    }
+
+    func testViewPreferencesStorePersistsNotificationActions() {
+        let suite = "ViewPreferencesStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.update { $0.notificationActionsEnabled = false }
+
+        XCTAssertFalse(ViewPreferencesStore(defaults: defaults)
+            .preferences.notificationActionsEnabled)
     }
 
     func testNewerRemotePreferencesReplaceLocalPreferences() {

@@ -20,6 +20,7 @@ enum ReminderGate {
 
 enum NotificationPromptPreference {
     static let suppressedKey = "notificationPromptsSuppressed"
+    static let dndStateKey = "notificationDNDState"
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -30,12 +31,35 @@ enum NotificationPromptPreference {
         set { setSuppressed(newValue, in: defaults) }
     }
 
+    static var state: NotificationDNDState {
+        get { state(in: defaults) }
+        set { setState(newValue, in: defaults) }
+    }
+
+    static func state(in defaults: UserDefaults) -> NotificationDNDState {
+        if let data = defaults.data(forKey: dndStateKey),
+           let saved = try? JSONDecoder().decode(NotificationDNDState.self, from: data) {
+            return saved
+        }
+        // The boolean was the original permanent opt-out. Preserve it when
+        // opening a build that has the richer timed DND model.
+        return defaults.bool(forKey: suppressedKey) ? .active(.untilDisabled) : .off
+    }
+
+    static func setState(_ state: NotificationDNDState, in defaults: UserDefaults) {
+        if let data = try? JSONEncoder().encode(state) {
+            defaults.set(data, forKey: dndStateKey)
+        }
+        // The old key is deliberately a mirror, not a second source of truth.
+        defaults.set(state.isActive(), forKey: suppressedKey)
+    }
+
     static func isSuppressed(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: suppressedKey)
+        state(in: defaults).isActive()
     }
 
     static func setSuppressed(_ suppressed: Bool, in defaults: UserDefaults) {
-        defaults.set(suppressed, forKey: suppressedKey)
+        setState(suppressed ? .active(.untilDisabled) : .off, in: defaults)
     }
 }
 
@@ -58,10 +82,39 @@ struct ReminderPlan: Equatable {
     /// wöchentlich wiederkehrender.
     var dateMatching: DateComponents
     var repeats: Bool
+    var quickAction: NotificationQuickAction? = nil
 
     var isWeekly: Bool { dateMatching.weekday != nil }
     /// Einmalig gestellt und bei jedem `reschedule` neu gesetzt.
     var isOneShot: Bool { !repeats }
+}
+
+enum NotificationQuickAction: String, CaseIterable, Codable, Sendable {
+    case checkbox
+    case quantity
+    case yesNo
+    case reminder
+
+    static let actionIdentifier = "haiity.quick-check"
+
+    var categoryIdentifier: String { "haiity.notification.\(rawValue)" }
+
+    var title: String {
+        switch self {
+        case .checkbox, .reminder: return String(localized: "Erledigt")
+        case .quantity: return String(localized: "+1")
+        case .yesNo: return String(localized: "Ja")
+        }
+    }
+
+    static func forHabit(_ habit: Habit) -> Self {
+        habit.isReminder ? .reminder : Self(rawValue: habit.kind.rawValue) ?? .checkbox
+    }
+}
+
+struct NotificationHabitTarget: Equatable, Sendable {
+    let habitID: UUID
+    let day: String
 }
 
 /// Plant tägliche und wöchentliche Zusammenfassungen, tägliche Motivation
@@ -384,7 +437,19 @@ enum Reminders {
                             title: label,
                             body: String(localized: "Zeit für \(habit.name)"),
                             dateMatching: components,
-                            repeats: false)
+                            repeats: false,
+                            quickAction: .forHabit(habit))
+    }
+
+    static func habitTarget(for identifier: String) -> NotificationHabitTarget? {
+        guard identifier.hasPrefix(habitReminderPrefix) else { return nil }
+        let payload = String(identifier.dropFirst(habitReminderPrefix.count))
+        let parts = payload.split(separator: "-")
+        guard parts.count == 8 else { return nil }
+        let uuidText = parts.prefix(5).joined(separator: "-")
+        let day = parts.suffix(3).joined(separator: "-")
+        guard let habitID = UUID(uuidString: uuidText), DayKey.isValid(day) else { return nil }
+        return NotificationHabitTarget(habitID: habitID, day: day)
     }
 
     static func sessionMilestonePlan(_ session: HabitSession,
@@ -433,6 +498,8 @@ enum Reminders {
         // data.json ist ohnehin die einzige Wahrheit (auch fürs Widget).
         var plans = [daily, weekly].compactMap { $0 }
         if let data = HabitStore.read(SharedStorage.dataURL()) {
+            NotificationPresenter.configureQuickActions(
+                enabled: data.viewPreferences.notificationActionsEnabled)
             plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
@@ -449,6 +516,61 @@ enum Reminders {
         for plan in plans {
             try? await center.add(request(plan))
         }
+    }
+
+    static func reschedule(store: HabitStore,
+                           now: Date = Date(),
+                           calendar: Calendar = .current) async {
+        let today = DayKey.key(for: now, calendar: calendar)
+        let daily = dailySummaryPlan(minutes: store.summaryMinutes,
+                                     status: store.dailyStatus(today, calendar: calendar),
+                                     now: now,
+                                     calendar: calendar)
+        let weekly = weeklySummaryPlan(minutes: store.weeklySummaryMinutes,
+                                       weekday: store.weeklySummaryWeekday,
+                                       status: store.weeklyStatus(today, calendar: calendar,
+                                                                   fullWeek: true),
+                                       calendar: calendar)
+        await reschedule(daily: daily, weekly: weekly)
+    }
+
+    static func applyQuickAction(_ action: NotificationQuickAction,
+                                 to habit: Habit,
+                                 target: NotificationHabitTarget,
+                                 store: HabitStore,
+                                 now: Date = Date(),
+                                 calendar: Calendar = .current) -> Bool {
+        guard habit.id == target.habitID, habit.archivedAt == nil,
+              NotificationQuickAction.forHabit(habit) == action else { return false }
+
+        if habit.isReminder {
+            guard habit.log[target.day] == nil,
+                  let dueDate = ReminderOccurrenceEngine.dueDate(day: target.day,
+                                                                   reminder: habit,
+                                                                   calendar: calendar)
+            else { return false }
+            let occurrence = ReminderOccurrence(day: target.day, dueDate: dueDate)
+            let cursor = habit.repeatsWhileIncomplete
+                ? nil
+                : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
+                                                                  reminder: habit,
+                                                                  now: now,
+                                                                  calendar: calendar)
+            store.setReminderCompletion(habit.id, day: target.day,
+                                        completed: true, nextCursor: cursor)
+            return true
+        }
+
+        guard !habit.isDone(target.day) else { return false }
+        switch habit.kind {
+        case .quantity:
+            store.increment(habit.id, day: target.day)
+        case .yesNo:
+            store.setValue(habit.id, day: target.day, value: Habit.Answer.yes)
+        case .checkbox:
+            store.toggle(habit.id, day: target.day)
+        }
+        return true
     }
 
     /// Nach einem Check-in AUSSERHALB der App (Widget-Knopf, Steuerungs-
@@ -544,6 +666,9 @@ enum Reminders {
         content.title = plan.title
         content.body = plan.body
         content.sound = .default
+        if let quickAction = plan.quickAction {
+            content.categoryIdentifier = quickAction.categoryIdentifier
+        }
         let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateMatching,
                                                     repeats: plan.repeats)
         return UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
@@ -558,9 +683,49 @@ enum Reminders {
 final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationPresenter()
 
+    static func configureQuickActions(enabled: Bool) {
+        let categories: Set<UNNotificationCategory>
+        if enabled {
+            categories = Set(NotificationQuickAction.allCases.map { action in
+                let button = UNNotificationAction(identifier: NotificationQuickAction.actionIdentifier,
+                                                   title: action.title,
+                                                   options: [])
+                return UNNotificationCategory(identifier: action.categoryIdentifier,
+                                              actions: [button],
+                                              intentIdentifiers: [],
+                                              options: [])
+            })
+        } else {
+            categories = []
+        }
+        UNUserNotificationCenter.current().setNotificationCategories(categories)
+    }
+
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
         [.banner, .sound, .list]
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        guard response.actionIdentifier == NotificationQuickAction.actionIdentifier,
+              let target = Reminders.habitTarget(
+                for: response.notification.request.identifier) else { return }
+
+        await MainActor.run {
+            let store = HabitStore(url: SharedStorage.dataURL())
+            guard let habit = store.habits.first(where: { $0.id == target.habitID }),
+                  let category = NotificationQuickAction(rawValue: response.notification
+                    .request.content.categoryIdentifier.replacingOccurrences(
+                        of: "haiity.notification.", with: "")) else { return }
+            guard Reminders.applyQuickAction(category, to: habit, target: target, store: store) else {
+                return
+            }
+            Task {
+                await Reminders.reschedule(store: store)
+                await Reminders.celebrateIfPerfectDay(store: store)
+            }
+        }
     }
 }

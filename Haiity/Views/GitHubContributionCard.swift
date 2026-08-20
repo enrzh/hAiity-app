@@ -45,12 +45,10 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var graph: some View {
-        GitHubContributionGraph(days: snapshot.days)
-            .padding(Theme.Metrics.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
+            GitHubContributionGraph(days: snapshot.days)
+                .padding(Theme.Metrics.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            .appSurface()
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
             .background {

@@ -199,6 +199,83 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertEqual(HabitData.empty.palette, .green)
         XCTAssertTrue(HabitData.empty.matchAppIcon)
     }
+
+    func testMaterialAndImagePreferencesRoundTrip() throws {
+        let preferences = AppearancePreferences(material: .liquid,
+                                                backgroundImageData: Data([1, 2, 3]))
+        let data = HabitData(version: HabitData.currentVersion,
+                             updatedAt: 1,
+                             summaryMinutes: nil,
+                             habits: [],
+                             appearancePreferences: preferences)
+
+        let decoded = try JSONDecoder().decode(HabitData.self,
+                                                from: JSONEncoder().encode(data))
+
+        XCTAssertEqual(decoded.appearancePreferences, preferences)
+    }
+
+    func testBackgroundModesAndGradientColorsRoundTrip() throws {
+        let preferences = AppearancePreferences(
+            material: .milky,
+            backgroundMode: .gradient,
+            backgroundColorHex: 0x102030,
+            gradientStartHex: 0xFFFFFF,
+            gradientEndHex: 0x102030)
+
+        let data = HabitData(version: HabitData.currentVersion,
+                             updatedAt: 1,
+                             summaryMinutes: nil,
+                             habits: [],
+                             appearancePreferences: preferences)
+
+        let decoded = try JSONDecoder().decode(HabitData.self,
+                                                from: JSONEncoder().encode(data))
+
+        XCTAssertEqual(decoded.appearancePreferences, preferences)
+        XCTAssertEqual(decoded.appearancePreferences.backgroundMode, .gradient)
+        XCTAssertEqual(decoded.appearancePreferences.gradientStartHex, 0xFFFFFF)
+        XCTAssertEqual(decoded.appearancePreferences.gradientEndHex, 0x102030)
+    }
+
+    func testLegacyImagePreferencesInferImageMode() throws {
+        let raw = #"{"material":"solid","backgroundImageData":"AQI="}"#
+        let preferences = try JSONDecoder().decode(AppearancePreferences.self,
+                                                    from: Data(raw.utf8))
+
+        XCTAssertEqual(preferences.backgroundMode, .image)
+        XCTAssertEqual(preferences.backgroundImageData, Data([1, 2]))
+    }
+
+    func testAppearancePreferencesRejectOversizedImageData() {
+        let oversized = Data(repeating: 1, count: AppearancePreferences.maxImageBytes + 1)
+
+        XCTAssertNil(AppearancePreferences(material: .solid,
+                                            backgroundImageData: oversized).backgroundImageData)
+    }
+
+    func testNewerRemoteAppearancePreferencesReplaceLocalPreferences() {
+        let local = HabitData(version: HabitData.currentVersion,
+                              updatedAt: 10,
+                              summaryMinutes: nil,
+                              habits: [],
+                              appearancePreferences: .init(material: .solid))
+        let remote = HabitData(version: HabitData.currentVersion,
+                               updatedAt: 20,
+                               summaryMinutes: nil,
+                               habits: [],
+                               appearancePreferences: .init(material: .milky,
+                                                            backgroundImageData: Data([4, 5])))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-appearance-(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try! JSONEncoder().encode(local).write(to: url)
+        let store = HabitStore(url: url)
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.data.appearancePreferences, remote.appearancePreferences)
+    }
 }
 
 // MARK: – Persistenz

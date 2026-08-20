@@ -69,7 +69,7 @@ struct StatsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
         .navigationTitle(String(localized: "Statistik"))
     }
 
@@ -113,7 +113,7 @@ struct StatsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
         .navigationTitle(String(localized: "Statistik"))
     }
 
@@ -288,9 +288,7 @@ struct StatsView: View {
         }
         .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .background(Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                         style: .continuous))
+        .appSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue(value)
@@ -525,9 +523,7 @@ private struct StatsCardChrome: ViewModifier {
         content
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
+            .appSurface()
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0,

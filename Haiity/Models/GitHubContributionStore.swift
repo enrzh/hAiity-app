@@ -72,10 +72,10 @@ final class GitHubContributionStore {
         await resumeOrRefresh(now: now)
     }
 
-    func resumeOrRefresh(now: Date = .now) async {
+    func resumeOrRefresh(now: Date = .now, forced: Bool = false) async {
         await resumePendingLogin(now: now)
         guard phase != .connecting else { return }
-        await refresh(now: now)
+        await refresh(now: now, forced: forced)
     }
 
     func resumePendingLogin(now: Date = .now) async {
@@ -268,11 +268,12 @@ final class GitHubContributionStore {
         let token: String
         do {
             guard let stored = try vault.read(), !stored.isEmpty else {
-                if FileManager.default.fileExists(atPath: cacheURL.path) {
-                    try? FileManager.default.removeItem(at: cacheURL)
-                }
-                snapshot = nil
-                phase = .disconnected
+                // Keychain access can be temporarily unavailable during app
+                // resume. Keep the cached graph until the user explicitly
+                // disconnects, otherwise a background refresh looks like a
+                // logout and the card disappears.
+                if snapshot == nil { snapshot = loadCache() }
+                phase = snapshot == nil ? .disconnected : .connected
                 return
             }
             token = stored
@@ -300,7 +301,10 @@ final class GitHubContributionStore {
         } catch let error as GitHubContributionsError where error == .unauthorized {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
             recordRefresh(.failure(Self.message(for: error)))
-            disconnect()
+            // A background refresh must not turn a transiently rejected API
+            // request into a logout. Keep the token and cached graph visible;
+            // only the explicit disconnect action clears credentials.
+            phase = snapshot == nil ? .failed(Self.message(for: error)) : .connected
         } catch is CancellationError {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
             if snapshot != nil { phase = .connected }
@@ -327,6 +331,14 @@ final class GitHubContributionStore {
 
     private func loadCache() -> GitHubContributionSnapshot? {
         GitHubContributionSnapshot.loadShared(from: cacheURL)
+    }
+
+    var hasStoredCredentials: Bool {
+        do {
+            return try vault.read()?.isEmpty == false
+        } catch {
+            return false
+        }
     }
 
     private func persistPendingLogin(_ code: GitHubDeviceCode, startedAt: Date) {

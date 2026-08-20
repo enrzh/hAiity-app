@@ -92,6 +92,36 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 }
 
+final class SyncWatermarkTests: XCTestCase {
+    func testWatermarkKeepsReadableProductNameAndInvisibleItemMarker() {
+        let id = UUID()
+        let note = SyncWatermark.note(for: id, kind: .habitCalendar)
+
+        XCTAssertTrue(note.hasPrefix("hAiity"))
+        XCTAssertFalse(note.contains(id.uuidString))
+        XCTAssertTrue(note.unicodeScalars.contains { $0.value == 0x2063 })
+        XCTAssertTrue(note.unicodeScalars.contains { (0xE0000...0xE007F).contains($0.value) })
+    }
+
+    func testCopyTextIsStableForAllNativeIntegrations() {
+        XCTAssertEqual(SyncWatermark.copyText(for: .habitCalendar), "hAiity")
+        XCTAssertEqual(SyncWatermark.copyText(for: .reminderCalendar), "hAiity")
+        XCTAssertEqual(SyncWatermark.copyText(for: .nativeReminder), "hAiity")
+    }
+
+    func testNativeServicesUseTheSharedWatermark() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let calendar = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/CalendarSync.swift"))
+        let reminders = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/ReminderSync.swift"))
+
+        XCTAssertTrue(calendar.contains("SyncWatermark.note(for:"))
+        XCTAssertTrue(reminders.contains("SyncWatermark.note(for:"))
+    }
+}
+
 /// Die Abbildung Habit -> Kalender-Termin (`CalendarEventPlan`) — pur, ohne
 /// EventKit: welche Habits einen Termin bekommen, wann er beginnt, wie er
 /// sich wiederholt und wann er endet.
@@ -113,6 +143,14 @@ final class CalendarEventPlanTests: XCTestCase {
         XCTAssertEqual(plan?.minutes, 19 * 60)
         XCTAssertEqual(plan?.frequency, .daily)
         XCTAssertEqual(plan?.interval, 1)
+        XCTAssertFalse(plan?.isReminder ?? true)
+    }
+
+    func testReminderPlanCarriesReminderWatermarkKind() {
+        let plan = CalendarEventPlan(habit: Habit(name: "Tabletten", itemType: .reminder,
+                                                   recurrence: .daily), today: today)
+
+        XCTAssertTrue(plan?.isReminder ?? false)
     }
 
     func testHabitWithoutTimeIsAllDay() {

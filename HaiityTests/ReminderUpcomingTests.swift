@@ -130,6 +130,51 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertEqual(plans.first?.title, "📚 Lesen")
         XCTAssertEqual(plans.first?.body, "Zeit für Lesen")
         XCTAssertFalse(plans.first?.repeats ?? true)
+        XCTAssertEqual(plans.first?.quickAction, .checkbox)
+    }
+
+    func testNotificationIdentifierCarriesTheExactHabitAndDay() {
+        let id = UUID()
+        let identifier = Reminders.habitReminderIdentifier(habitID: id, day: "2026-08-17")
+
+        XCTAssertEqual(Reminders.habitTarget(for: identifier),
+                       NotificationHabitTarget(habitID: id, day: "2026-08-17"))
+        XCTAssertNil(Reminders.habitTarget(for: "summary"))
+    }
+
+    func testReminderNotificationUsesReminderQuickAction() {
+        let reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             timeMinutes: 18 * 60, recurrence: .daily)
+
+        let plans = Reminders.habitPlans(habits: [reminder], now: now,
+                                         calendar: calendar)
+
+        XCTAssertTrue(plans.allSatisfy { $0.quickAction == .reminder })
+    }
+
+    func testNotificationRequestCarriesTheQuickActionCategory() {
+        let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+        let plan = Reminders.habitPlans(habits: [habit], now: now,
+                                        calendar: calendar).first
+
+        XCTAssertEqual(plan.map(Reminders.request)?.content.categoryIdentifier,
+                       NotificationQuickAction.checkbox.categoryIdentifier)
+    }
+
+    func testQuickActionWritesTheNotificationDayInsteadOfToday() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("notification-action-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        let habit = Habit(name: "Lesen", recurrence: .daily)
+        store.add(habit)
+        let target = NotificationHabitTarget(habitID: habit.id, day: "2026-08-17")
+
+        XCTAssertTrue(Reminders.applyQuickAction(.checkbox, to: habit,
+                                                 target: target, store: store))
+        XCTAssertEqual(store.value(habit.id, day: "2026-08-17"), 1)
+        XCTAssertNil(store.value(habit.id, day: "2026-08-09"))
     }
 
     func testHabitPlansKeepLegacyReminderAsFallback() {

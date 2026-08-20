@@ -313,9 +313,7 @@ struct HabitCard: View, Equatable {
             .equatable()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
+            .appSurface()
             // Die Trefferfläche ist die KARTE, nicht nur das, was in ihr
             // gezeichnet ist: ein langer Druck auf eine leere Ecke des
             // Rasters soll dasselbe tun wie einer auf eine Zelle.

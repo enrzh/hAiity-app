@@ -53,6 +53,8 @@ enum CalendarSyncPreferences {
 /// den man eintragen könnte — sie liefern keinen Plan. Flexible Ziele MIT
 /// Verabredung erscheinen an genau diesen Wochentagen.
 struct CalendarEventPlan: Equatable {
+    let habitID: UUID
+    let isReminder: Bool
     var title: String
     /// Erster Termin (Tagesschlüssel) — heute, wenn heute fällig ist, sonst
     /// der nächste laut Regel.
@@ -93,7 +95,7 @@ struct CalendarEventPlan: Equatable {
         let weekdayKey: String = weekdays.map { String($0) }.joined(separator: ",")
         let monthDayKey: String = daysOfMonth.map { String($0) }.joined(separator: ",")
         let monthKey: String = monthOfYear.map { String($0) } ?? "-"
-        var parts: [String] = [title, firstDay, time]
+        var parts: [String] = [isReminder ? "reminder" : "habit", title, firstDay, time]
         parts.append(String(durationMinutes))
         parts.append(frequency.rawValue)
         parts.append(String(interval))
@@ -142,6 +144,8 @@ struct CalendarEventPlan: Equatable {
         }
         guard let firstDay = first else { return nil }
 
+        self.habitID = habit.id
+        self.isReminder = habit.isReminder
         let baseTitle = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
         self.title = recurrence.endTitle.map { "\(baseTitle) · \($0)" } ?? baseTitle
         self.firstDay = firstDay
@@ -389,7 +393,9 @@ enum CalendarSync {
                           calendar: Calendar = .current) -> Bool {
         guard let day = DayKey.date(from: plan.firstDay, calendar: calendar) else { return false }
         event.title = plan.title
-        event.notes = "hAiity"
+        let watermarkKind: SyncWatermark.Kind = plan.isReminder
+            ? .reminderCalendar : .habitCalendar
+        event.notes = SyncWatermark.note(for: plan.habitID, kind: watermarkKind)
         event.url = URL(string: "haiity://habits")
         if let minutes = plan.minutes {
             let start = calendar.date(byAdding: .minute, value: minutes, to: day) ?? day

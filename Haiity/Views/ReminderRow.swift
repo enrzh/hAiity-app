@@ -80,9 +80,7 @@ struct ReminderRow: View, Equatable {
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, minHeight: 64)
-        .background(Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                         style: .continuous))
+        .appSurface()
         .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                        style: .continuous))
     }
