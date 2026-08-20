@@ -630,9 +630,11 @@ final class FeedbackTests: XCTestCase {
         let content = try source("Haiity/Views/ContentView.swift")
         let route = try XCTUnwrap(content.range(of: "case .developer:"))
         let page = try XCTUnwrap(content.range(of: "DeveloperView(store: store, cloudStatus: cloudStatus)"))
-        XCTAssertTrue(content[route.upperBound..<page.lowerBound]
-            .contains("DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,\n"
-                      + "                                           storedAppleEmail: PersonalName.appleEmail)"),
+        let developerRoute = content[route.upperBound..<page.lowerBound]
+        XCTAssertTrue(developerRoute.contains(
+            "DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,"),
+                      "the destination must check the stored Apple identity")
+        XCTAssertTrue(developerRoute.contains("storedAppleEmail: PersonalName.appleEmail"),
                       "die Seite baut sich auf, ohne nach dem Besitzer zu fragen")
     }
 

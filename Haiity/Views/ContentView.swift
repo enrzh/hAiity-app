@@ -678,28 +678,31 @@ struct ContentView: View {
 
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
-        switch route {
-        case .archive: ArchiveView(store: store)
-        case .about: AboutView(store: store)
-        case .github:
-            GitHubSettingsView(store: github,
-                               showsUsername: githubUsernameBinding)
-        case .appearance:
-            MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences, onOpen: presentMoreSheet,
-                     routeToken: routeToken, screen: .appearance)
-        case .habitBehavior:
-            MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences, onOpen: presentMoreSheet,
-                     routeToken: routeToken, screen: .habitBehavior)
-        // Check ownership at the destination too, not only at the row that
-        // opens it. A stale local flag must never build this page.
-        case .developer:
-            if DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,
-                                           storedAppleEmail: PersonalName.appleEmail) {
-                DeveloperView(store: store, cloudStatus: cloudStatus)
+        Group {
+            switch route {
+            case .archive: ArchiveView(store: store)
+            case .about: AboutView(store: store)
+            case .github:
+                GitHubSettingsView(store: github,
+                                   showsUsername: githubUsernameBinding)
+            case .appearance:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         routeToken: routeToken, screen: .appearance)
+            case .habitBehavior:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         routeToken: routeToken, screen: .habitBehavior)
+            // Check ownership at the destination too, not only at the row that
+            // opens it. A stale local flag must never build this page.
+            case .developer:
+                if DeveloperAccess.isAvailable(storedAppleUserID: PersonalName.appleUserID,
+                                               storedAppleEmail: PersonalName.appleEmail) {
+                    DeveloperView(store: store, cloudStatus: cloudStatus)
+                }
             }
         }
+        .settingsSurface()
     }
 
     // MARK: – Schütteln meldet einen Fehler

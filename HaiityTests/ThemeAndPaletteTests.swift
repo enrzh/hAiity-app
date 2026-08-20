@@ -225,6 +225,19 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
+    func testMoreRouteDestinationsUseTheSharedSettingsSurface() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let destination = try XCTUnwrap(source.range(of: "private func moreDestination"))
+        let routeBody = source[destination.upperBound...]
+
+        XCTAssertTrue(routeBody.contains(".settingsSurface()"),
+                      "every More route must inherit the selected settings material")
+    }
+
     func testMaterialAndImagePreferencesRoundTrip() throws {
         let preferences = AppearancePreferences(material: .liquid,
                                                 backgroundImageData: Data([1, 2, 3]))
