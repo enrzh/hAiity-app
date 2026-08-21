@@ -253,6 +253,69 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertEqual(decoded.appearancePreferences, preferences)
     }
 
+    func testAdaptiveMaterialUsesLegacyCompatibleEncoding() throws {
+        let preferences = AppearancePreferences(
+            material: .adaptive,
+            backgroundMode: .color,
+            backgroundColorHex: 0x102030)
+
+        let raw = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(preferences)) as? [String: Any])
+
+        XCTAssertEqual(raw["material"] as? String, "solid")
+        XCTAssertEqual(raw["adaptive"] as? Bool, true)
+        XCTAssertEqual(try JSONDecoder().decode(AppearancePreferences.self,
+                                                 from: JSONEncoder().encode(preferences)),
+                       preferences)
+    }
+
+    func testUnknownMaterialFallsBackToSolid() throws {
+        let raw = #"{"material":"futureMaterial","backgroundMode":"color"}"#
+        let decoded = try JSONDecoder().decode(AppearancePreferences.self,
+                                                from: Data(raw.utf8))
+
+        XCTAssertEqual(decoded.material, .solid)
+    }
+
+    func testAdaptiveReferenceUsesGradientMidpoint() {
+        let preferences = AppearancePreferences(
+            material: .adaptive,
+            backgroundMode: .gradient,
+            gradientStartHex: 0xFFFFFF,
+            gradientEndHex: 0x102030)
+
+        XCTAssertEqual(Theme.adaptiveReferenceHex(preferences: preferences, dark: false),
+                       0x889098)
+    }
+
+    func testAdaptivePaletteMaintainsContrastOnLightAndDarkBackgrounds() {
+        let lightPreferences = AppearancePreferences(
+            material: .adaptive,
+            backgroundMode: .color,
+            backgroundColorHex: 0xFFFFFF)
+        let darkPreferences = AppearancePreferences(
+            material: .adaptive,
+            backgroundMode: .color,
+            backgroundColorHex: 0x101114)
+
+        for (preferences, dark) in [(lightPreferences, false), (darkPreferences, true)] {
+            let palette = Theme.adaptivePalette(GraphPalette.green.style,
+                                                preferences: preferences,
+                                                dark: dark)
+            let background = Theme.adaptiveReferenceHex(preferences: preferences, dark: dark)
+            for level in palette.ramp(dark: dark) {
+                XCTAssertGreaterThanOrEqual(Contrast.ratio(level, background), 1.15,
+                                             "adaptive tile (String(level, radix: 16)) lacks contrast")
+            }
+        }
+    }
+
+    func testAppearancePickerIncludesAdaptiveMaterial() {
+        XCTAssertTrue(AppearanceMaterial.allCases.contains(.adaptive))
+        XCTAssertEqual(AppearanceMaterial.adaptive.displayName,
+                       String(localized: "Auto"))
+    }
+
     func testBackgroundModesAndGradientColorsRoundTrip() throws {
         let preferences = AppearancePreferences(
             material: .milky,

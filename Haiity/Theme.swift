@@ -29,12 +29,14 @@ enum AppearanceMaterial: String, CaseIterable, Codable, Sendable {
     case solid
     case milky
     case liquid
+    case adaptive
 
     var displayName: String {
         switch self {
         case .solid: return String(localized: "Solid")
         case .milky: return String(localized: "Milchglas")
         case .liquid: return String(localized: "Liquid Glass")
+        case .adaptive: return String(localized: "Auto")
         }
     }
 }
@@ -86,14 +88,17 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
-             gradientEndHex, backgroundImageData
+             gradientEndHex, backgroundImageData, adaptive
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let image = try c.decodeIfPresent(Data.self, forKey: .backgroundImageData)
+        let rawMaterial = try c.decodeIfPresent(String.self, forKey: .material)
+        let legacyMaterial = rawMaterial.flatMap(AppearanceMaterial.init(rawValue:)) ?? .solid
+        let isAdaptive = try c.decodeIfPresent(Bool.self, forKey: .adaptive) ?? false
         self.init(
-            material: try c.decodeIfPresent(AppearanceMaterial.self, forKey: .material) ?? .solid,
+            material: isAdaptive ? .adaptive : legacyMaterial,
             backgroundImageData: image,
             backgroundMode: try c.decodeIfPresent(AppearanceBackgroundMode.self,
                                                     forKey: .backgroundMode)
@@ -101,6 +106,23 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             backgroundColorHex: try c.decodeIfPresent(UInt32.self, forKey: .backgroundColorHex),
             gradientStartHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientStartHex),
             gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        if material == .adaptive {
+            // Older builds understand this as Solid and ignore the additive
+            // marker instead of failing the complete iCloud payload.
+            try c.encode(AppearanceMaterial.solid.rawValue, forKey: .material)
+            try c.encode(true, forKey: .adaptive)
+        } else {
+            try c.encode(material.rawValue, forKey: .material)
+        }
+        try c.encode(backgroundMode, forKey: .backgroundMode)
+        try c.encodeIfPresent(backgroundColorHex, forKey: .backgroundColorHex)
+        try c.encodeIfPresent(gradientStartHex, forKey: .gradientStartHex)
+        try c.encodeIfPresent(gradientEndHex, forKey: .gradientEndHex)
+        try c.encodeIfPresent(backgroundImageData, forKey: .backgroundImageData)
     }
 
     var backgroundImage: UIImage? {
@@ -206,9 +228,174 @@ enum Theme {
         return (channel(r) << 16) | (channel(g) << 8) | channel(b)
     }
 
+    /// The background tone is intentionally derived at render time. Storing
+    /// derived colors would make a later background change leave the adaptive
+    /// surface stale on another device.
+    static func adaptiveReferenceHex(preferences: AppearancePreferences,
+                                     dark: Bool) -> UInt32 {
+        let fallback: UInt32 = dark ? 0x1C1C1E : 0xF2F2F7
+        switch preferences.backgroundMode {
+        case .color:
+            return preferences.backgroundColorHex ?? fallback
+        case .gradient:
+            let start = preferences.gradientStartHex ?? fallback
+            let end: UInt32 = preferences.gradientEndHex
+                ?? (dark ? 0x2C2C2E : 0xE5E5EA)
+            return midpoint(start, end)
+        case .image:
+            return preferences.backgroundImage.flatMap(averageHex) ?? fallback
+        }
+    }
+
+    static func adaptiveTintHex(preferences: AppearancePreferences,
+                                dark: Bool) -> UInt32 {
+        let reference = uiColor(adaptiveReferenceHex(preferences: preferences, dark: dark))
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard reference.getHue(&hue,
+                               saturation: &saturation,
+                               brightness: &brightness,
+                               alpha: &alpha),
+              saturation > 0.08 else {
+            return dark ? 0x8AB4F8 : 0x216E39
+        }
+
+        let tunedSaturation = min(0.72, max(0.42, saturation + 0.12))
+        let tunedBrightness = dark ? 0.78 : 0.54
+        return hex(from: UIColor(hue: hue,
+                                 saturation: tunedSaturation,
+                                 brightness: tunedBrightness,
+                                 alpha: 1))
+    }
+
+    /// Keeps the user's hue and level semantics, but lifts cells away from a
+    /// background that would otherwise swallow GitHub's l0 or l4 tiles.
+    static func adaptivePalette(_ palette: PaletteStyle,
+                                preferences: AppearancePreferences,
+                                dark: Bool) -> PaletteStyle {
+        guard preferences.material == .adaptive else { return palette }
+        let background = adaptiveReferenceHex(preferences: preferences, dark: dark)
+        return PaletteStyle(
+            lightRamp: palette.lightRamp.map { adaptiveTileHex($0, against: background) },
+            darkRamp: palette.darkRamp.map { adaptiveTileHex($0, against: background) },
+            accentHex: palette.accentHex,
+            accentFillLight: palette.accentFillLight,
+            accentFillDark: palette.accentFillDark,
+            accentTextLight: palette.accentTextLight,
+            accentTextDark: palette.accentTextDark,
+            negativeLight: adaptiveTileHex(palette.negativeLight, against: background),
+            negativeDark: adaptiveTileHex(palette.negativeDark, against: background))
+    }
+
+    static func adaptiveTileOutline(preferences: AppearancePreferences,
+                                    dark: Bool) -> Color {
+        let background = adaptiveReferenceHex(preferences: preferences, dark: dark)
+        return relativeLuminance(background) < 0.5
+            ? Color.white.opacity(0.18)
+            : Color.black.opacity(0.14)
+    }
+
+    static func adaptiveSurfaceOpacity(preferences: AppearancePreferences,
+                                       dark: Bool) -> CGFloat {
+        let luminance = relativeLuminance(adaptiveReferenceHex(preferences: preferences,
+                                                                dark: dark))
+        let target = dark ? 0.18 : 0.82
+        return min(0.30, max(0.10, 0.10 + abs(luminance - target) * 0.34))
+    }
+
+    static func adaptiveBackgroundScrimOpacity(preferences: AppearancePreferences,
+                                               dark: Bool) -> CGFloat {
+        let luminance = relativeLuminance(adaptiveReferenceHex(preferences: preferences,
+                                                                dark: dark))
+        let target = dark ? 0.18 : 0.82
+        return min(0.52, max(0.22, 0.22 + abs(luminance - target) * 0.45))
+    }
+
+    static func contrastRatio(_ lhs: UInt32, _ rhs: UInt32) -> Double {
+        let a = relativeLuminance(lhs)
+        let b = relativeLuminance(rhs)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+    }
+
     private static func dynamic(light: UInt32, dark: UInt32) -> Color {
         let l = uiColor(light), d = uiColor(dark)
         return Color(UIColor { $0.userInterfaceStyle == .dark ? d : l })
+    }
+
+    private static func midpoint(_ lhs: UInt32, _ rhs: UInt32) -> UInt32 {
+        func channel(_ value: UInt32, _ shift: UInt32) -> UInt32 {
+            (value >> shift) & 0xFF
+        }
+        func average(_ a: UInt32, _ b: UInt32) -> UInt32 { (a + b + 1) / 2 }
+        return (average(channel(lhs, 16), channel(rhs, 16)) << 16)
+            | (average(channel(lhs, 8), channel(rhs, 8)) << 8)
+            | average(channel(lhs, 0), channel(rhs, 0))
+    }
+
+    private static func adaptiveTileHex(_ value: UInt32, against background: UInt32) -> UInt32 {
+        let minimum = 1.15
+        guard contrastRatio(value, background) < minimum else { return value }
+
+        let target: UInt32 = relativeLuminance(background) < 0.5 ? 0xFFFFFF : 0x000000
+        var candidate = value
+        for step in 1...8 {
+            let amount = Double(step) / 8 * 0.72
+            candidate = mix(value, target, amount: amount)
+            if contrastRatio(candidate, background) >= minimum { return candidate }
+        }
+        return candidate
+    }
+
+    private static func mix(_ lhs: UInt32, _ rhs: UInt32, amount: Double) -> UInt32 {
+        func channel(_ value: UInt32, _ shift: UInt32) -> Double {
+            Double((value >> shift) & 0xFF)
+        }
+        func blend(_ a: Double, _ b: Double) -> UInt32 {
+            UInt32((a + (b - a) * amount).rounded())
+        }
+        return (blend(channel(lhs, 16), channel(rhs, 16)) << 16)
+            | (blend(channel(lhs, 8), channel(rhs, 8)) << 8)
+            | blend(channel(lhs, 0), channel(rhs, 0))
+    }
+
+    private static func averageHex(_ image: UIImage) -> UInt32? {
+        guard let image = image.cgImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress,
+                  let context = CGContext(data: base,
+                                          width: 1,
+                                          height: 1,
+                                          bitsPerComponent: 8,
+                                          bytesPerRow: 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        guard drawn else { return nil }
+        return (UInt32(pixel[0]) << 16) | (UInt32(pixel[1]) << 8) | UInt32(pixel[2])
+    }
+
+    private static func hex(from color: UIColor) -> UInt32 {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard color.getRed(&r, green: &g, blue: &b, alpha: &a) else { return 0x2EA043 }
+        func channel(_ value: CGFloat) -> UInt32 {
+            UInt32((min(1, max(0, value)) * 255).rounded())
+        }
+        return (channel(r) << 16) | (channel(g) << 8) | channel(b)
+    }
+
+    private static func relativeLuminance(_ hex: UInt32) -> Double {
+        func channel(_ shift: UInt32) -> Double {
+            let value = Double((hex >> shift) & 0xFF) / 255
+            return value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
     }
 
     private static func uiColor(_ hex: UInt32) -> UIColor {
@@ -349,10 +536,14 @@ struct AppearanceBackground: View {
                     endPoint: .bottom)
             case .image:
                 if let image = preferences.backgroundImage {
+                    let scrim = preferences.material == .adaptive
+                        ? Theme.adaptiveBackgroundScrimOpacity(preferences: preferences,
+                                                              dark: colorScheme == .dark)
+                        : 0.28
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                        .overlay(Color(.systemBackground).opacity(0.28))
+                        .overlay(Color(.systemBackground).opacity(scrim))
                         .clipped()
                 } else {
                     fallbackColor
@@ -394,6 +585,22 @@ private struct AppSurfaceModifier: ViewModifier {
                 content
                     .background(.ultraThinMaterial, in: shape)
                     .overlay(shape.fill(Color(.systemBackground).opacity(0.16)))
+            }
+        case .adaptive:
+            let tint = Theme.color(Theme.adaptiveTintHex(
+                preferences: preferences,
+                dark: colorScheme == .dark))
+            let opacity = Theme.adaptiveSurfaceOpacity(preferences: preferences,
+                                                       dark: colorScheme == .dark)
+            if #available(iOS 26, *) {
+                content.glassEffect(.regular.tint(tint.opacity(opacity)), in: shape)
+            } else {
+                content
+                    .background(.regularMaterial, in: shape)
+                    .overlay(shape.fill(tint.opacity(opacity)))
+                    .overlay(shape.stroke(Theme.adaptiveTileOutline(
+                        preferences: preferences,
+                        dark: colorScheme == .dark), lineWidth: 0.5))
             }
         }
     }
@@ -445,6 +652,11 @@ private struct SettingsChromeModifier: ViewModifier {
                     .toolbarBackground(.visible, for: .navigationBar)
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             }
+        case .adaptive:
+            content
+                .background(AppearanceBackground(preferences: preferences))
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(.regularMaterial, for: .navigationBar)
         }
     }
 }

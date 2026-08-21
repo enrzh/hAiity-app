@@ -22624,6 +22624,16 @@
         }
       }
     },
+    "Auto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
     "Ersten Habit anlegen": {
       "localizations": {
         "ar": {

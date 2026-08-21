@@ -2086,6 +2086,23 @@ struct ContentView: View {
             }
             return
         }
+        if args[i + 1] == "appearance" {
+            let requestedMaterial = args.firstIndex(of: "-appearance-material")
+                .flatMap { index in
+                    index + 1 < args.count ? AppearanceMaterial(rawValue: args[index + 1]) : nil
+                }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                if let requestedMaterial {
+                    var preferences = store.appearancePreferences
+                    preferences.material = requestedMaterial
+                    store.appearancePreferences = preferences
+                }
+                nativeTab = .more
+                presentMoreSheet(.appearance)
+            }
+            return
+        }
         guard let url = URL(string: "haiity://\(args[i + 1])") else { return }
         // Kurz warten: `searchable(isPresented:)` schluckt ein `true`, das
         // gesetzt wird, bevor die Suchleiste im Toolbar-Baum hängt.

@@ -11,6 +11,7 @@ struct GitHubContributionGraph: View {
     var palette: PaletteStyle = .default
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.appearancePreferences) private var appearancePreferences
     @State private var available: CGFloat = 0
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
@@ -28,6 +29,12 @@ struct GitHubContributionGraph: View {
                     max(8, pitch * 11 / Self.referencePitch)),
                 min(GitHubGraphMetrics.gap,
                     max(2, pitch * 3 / Self.referencePitch)))
+    }
+
+    private var renderedPalette: PaletteStyle {
+        Theme.adaptivePalette(palette,
+                              preferences: appearancePreferences,
+                              dark: scheme == .dark)
     }
 
     var body: some View {
@@ -51,12 +58,20 @@ struct GitHubContributionGraph: View {
                             let level = week[row]?.level ?? 0
                             if shading[level] == nil {
                                 shading[level] = .color(
-                                    Theme.level(level, dark: dark, palette: palette))
+                                    Theme.level(level, dark: dark, palette: renderedPalette))
                             }
                             var cellContext = context
                             cellContext.translateBy(x: CGFloat(column) * pitch,
                                                     y: CGFloat(row) * pitch)
                             cellContext.fill(cellPath, with: shading[level]!)
+                            if appearancePreferences.material == .adaptive {
+                                cellContext.stroke(
+                                    cellPath,
+                                    with: .color(Theme.adaptiveTileOutline(
+                                        preferences: appearancePreferences,
+                                        dark: dark)),
+                                    lineWidth: 0.5)
+                            }
                         }
                     }
                 }
