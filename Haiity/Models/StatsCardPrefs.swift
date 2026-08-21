@@ -338,7 +338,7 @@ enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var notificationDisplayName: String {
         switch self {
-        case .primary: return String(localized: "Standardaktion")
+        case .primary: return String(localized: "Hauptaktion")
         case .secondary: return String(localized: "Zurücksetzen / Nein")
         case .archive: return String(localized: "Archivieren")
         case .backfill: return String(localized: "Nacharbeiten")
@@ -387,6 +387,29 @@ struct NotificationActionPreferences: Codable, Equatable, Sendable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(slots.map(\.rawValue))
+    }
+
+    /// Keep the menu honest: an action can be assigned to only one visible
+    /// slot. `none` is intentionally reusable so every slot can be disabled.
+    func availableChoices(for index: Int) -> [SwipeActionChoice] {
+        guard (0..<Self.slotCount).contains(index) else { return [.none] }
+        let current = self[index]
+        let usedElsewhere = Set(slots.enumerated().compactMap { offset, choice in
+            offset == index ? nil : choice
+        })
+        return SwipeActionChoice.notificationSelectable.filter { choice in
+            choice == .none || choice == current || !usedElsewhere.contains(choice)
+        }
+    }
+
+    mutating func assign(_ choice: SwipeActionChoice, to index: Int) {
+        guard (0..<Self.slotCount).contains(index) else { return }
+        if choice != .none {
+            for otherIndex in slots.indices where otherIndex != index {
+                if slots[otherIndex] == choice { slots[otherIndex] = .none }
+            }
+        }
+        self[index] = choice
     }
 }
 

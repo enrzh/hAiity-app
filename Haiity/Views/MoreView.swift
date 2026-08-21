@@ -372,18 +372,59 @@ struct MoreView: View, Equatable {
 
             if statsCards.preferences.notificationActionsEnabled {
                 ForEach(0..<NotificationActionPreferences.slotCount, id: \.self) { index in
-                    Picker(String(localized: "Option \(index + 1)"),
+                    Picker(notificationSlotTitle(index),
                            selection: notificationActionBinding(at: index)) {
-                        ForEach(SwipeActionChoice.notificationSelectable) { choice in
+                        ForEach(statsCards.preferences.notificationActions
+                            .availableChoices(for: index)) { choice in
                             Text(choice.notificationDisplayName).tag(choice)
                         }
                     }
                     .pickerStyle(.menu)
                     .accessibilityIdentifier("notification-action-picker-\(index + 1)")
                 }
+                notificationActionsPreview
             }
         } header: {
             Text(String(localized: "Mitteilungen"))
+        }
+    }
+
+    private func notificationSlotTitle(_ index: Int) -> String {
+        switch index {
+        case 0: return String(localized: "Hauptaktion")
+        case 1: return String(localized: "Zweite Aktion")
+        default: return String(localized: "Dritte Aktion")
+        }
+    }
+
+    private var notificationActionsPreview: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(String(localized: "Vorschau"), systemImage: "bell")
+                .font(.footnote.weight(.semibold))
+            notificationPreviewRow(String(localized: "Abhaken"), base: .checkbox)
+            notificationPreviewRow(String(localized: "Menge"), base: .quantity)
+            notificationPreviewRow(String(localized: "Ja/Nein"), base: .yesNo)
+        }
+        .padding(.vertical, 4)
+        .accessibilityIdentifier("notification-actions-preview")
+    }
+
+    private func notificationPreviewRow(_ title: String,
+                                        base: NotificationQuickAction) -> some View {
+        let actions = NotificationQuickAction.actions(
+            for: base,
+            choices: statsCards.preferences.notificationActions.slots)
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(title)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            Text(actions.isEmpty
+                 ? String(localized: "Keine Aktion")
+                 : actions.map(\.title).joined(separator: " · "))
+                .font(.footnote)
+                .lineLimit(2)
+            Spacer(minLength: 0)
         }
     }
 
@@ -411,7 +452,7 @@ struct MoreView: View, Equatable {
 
     private func updateNotificationAction(at index: Int, to choice: SwipeActionChoice) {
         var next = statsCards.preferences
-        next.notificationActions[index] = choice
+        next.notificationActions.assign(choice, to: index)
         statsCards.update { $0.notificationActions = next.notificationActions }
         NotificationPresenter.configureQuickActions(
             enabled: next.notificationActionsEnabled,

@@ -66,6 +66,29 @@ final class NotificationActionTests: XCTestCase {
                            NotificationQuickAction.reset.responseIdentifier)
     }
 
+    func testNotificationSlotChoicesExcludeActionsAlreadyAssignedElsewhere() {
+        let preferences = NotificationActionPreferences(
+            slots: [.primary, .secondary, .none])
+
+        XCTAssertEqual(Set<SwipeActionChoice>(preferences.availableChoices(for: 0)),
+                       Set<SwipeActionChoice>([.primary, .archive, .backfill, .session, .edit, .none]))
+        XCTAssertEqual(Set<SwipeActionChoice>(preferences.availableChoices(for: 1)),
+                       Set<SwipeActionChoice>([.secondary, .archive, .backfill, .session, .edit, .none]))
+        XCTAssertTrue(preferences.availableChoices(for: 2).contains(.none),
+                      "multiple disabled slots must remain possible")
+        XCTAssertFalse(preferences.availableChoices(for: 2).contains(.primary))
+        XCTAssertFalse(preferences.availableChoices(for: 2).contains(.secondary))
+    }
+
+    func testAssigningAnActionClearsItsPreviousSlot() {
+        var preferences = NotificationActionPreferences(
+            slots: [.archive, .secondary, .none])
+
+        preferences.assign(.archive, to: 1)
+
+        XCTAssertEqual(preferences.slots, [.none, .archive, .none])
+    }
+
     func testCategoryDefinitionsContainTheConfiguredActionsForEachHabitKind() {
         let categories = NotificationPresenter.notificationCategories(
             enabled: true,
@@ -99,5 +122,36 @@ final class NotificationActionTests: XCTestCase {
 
         XCTAssertTrue(body.contains("NotificationPresenter.configureQuickActions"),
                       "changing a slot must update already scheduled notification menus")
+    }
+
+    func testNotificationSettingsShowUniqueChoicesAndTypeAwarePreview() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(source.contains("availableChoices(for: index)"))
+        XCTAssertTrue(source.contains("notification-actions-preview"))
+        XCTAssertTrue(source.contains("notificationPreviewRow(String(localized: \"Abhaken\"), base: .checkbox)"))
+        XCTAssertTrue(source.contains("notificationPreviewRow(String(localized: \"Ja/Nein\"), base: .yesNo)"))
+    }
+
+    func testDebugNotificationSettingsRouteIsScheduledBeforeBoot() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let task = try XCTUnwrap(source.range(of: ".task {"))
+        let startup = source[task.lowerBound..<source.endIndex]
+        let route = try XCTUnwrap(startup.range(of: "handleLaunchScreenArgument()"))
+        let boot = try XCTUnwrap(startup.range(of: "await boot()"))
+
+        XCTAssertLessThan(route.lowerBound, boot.lowerBound,
+                          "the debug screen route must not wait for startup sync")
+
+        XCTAssertTrue(startup.contains("nativeTab = .more\n                presentMoreSheet(.habitBehavior)"),
+                      "the iOS 26 sheet is attached to the More tab")
     }
 }

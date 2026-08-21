@@ -56215,6 +56215,86 @@
           }
         }
       }
+    },
+    "Dritte Aktion": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "الإجراء الثالث" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "তৃতীয় ক্রিয়া" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Third action" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Tercera acción" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Troisième action" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "तीसरी कार्रवाई" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Tindakan ketiga" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Terza azione" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "3番目のアクション" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "세 번째 동작" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Terceira ação" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Третье действие" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Üçüncü eylem" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "تیسری کارروائی" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hành động thứ ba" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "第三个操作" } }
+      }
+    },
+    "Hauptaktion": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "الإجراء الرئيسي" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "প্রধান ক্রিয়া" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Primary action" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Acción principal" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Action principale" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "मुख्य कार्रवाई" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Tindakan utama" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Azione principale" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "メインアクション" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "기본 동작" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Ação principal" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Основное действие" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Ana eylem" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "بنیادی کارروائی" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hành động chính" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "主要操作" } }
+      }
+    },
+    "Keine Aktion": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "بلا إجراء" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "কোনো ক্রিয়া নেই" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No action" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Ninguna acción" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Aucune action" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "कोई कार्रवाई नहीं" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Tanpa tindakan" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Nessuna azione" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アクションなし" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "동작 없음" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Nenhuma ação" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Нет действия" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Eylem yok" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "کوئی کارروائی نہیں" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Không có hành động" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无操作" } }
+      }
+    },
+    "Zweite Aktion": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "الإجراء الثاني" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "দ্বিতীয় ক্রিয়া" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Second action" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Segunda acción" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Deuxième action" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "दूसरी कार्रवाई" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Tindakan kedua" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Seconda azione" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "2番目のアクション" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "두 번째 동작" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Segunda ação" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Второе действие" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "İkinci eylem" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "دوسری کارروائی" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hành động thứ hai" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "第二个操作" } }
+      }
     }
   },
   "version": "1.0"

@@ -297,11 +297,15 @@ struct ContentView: View {
                 try? await Task.sleep(for: .milliseconds(250))
                 searchPresentationArmed = true
                 becameActiveAt = .now
+                #if DEBUG
+                // Keep deterministic simulator routes independent of startup
+                // sync, which can legitimately wait on iCloud.
+                handleLaunchScreenArgument()
+                #endif
                 await boot()
                 schedulePendingNotificationAction()
                 await github.boot()
                 #if DEBUG
-                handleLaunchScreenArgument()
                 if FrameProbe.enabled { FrameProbe.shared.start() }
                 #endif
             }
@@ -2073,8 +2077,16 @@ struct ContentView: View {
                 }
             }
         }
-        guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count,
-              let url = URL(string: "haiity://\(args[i + 1])") else { return }
+        guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count else { return }
+        if args[i + 1] == "notification-actions" {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                nativeTab = .more
+                presentMoreSheet(.habitBehavior)
+            }
+            return
+        }
+        guard let url = URL(string: "haiity://\(args[i + 1])") else { return }
         // Kurz warten: `searchable(isPresented:)` schluckt ein `true`, das
         // gesetzt wird, bevor die Suchleiste im Toolbar-Baum hängt.
         Task { @MainActor in
