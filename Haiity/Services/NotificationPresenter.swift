@@ -35,14 +35,32 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         })
     }
 
+    @MainActor
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
         [.banner, .sound, .list]
     }
 
+    // Absichtlich die COMPLETION-Variante statt einer `async`-Methode:
+    // beim `async`-Delegat läuft der compilererzeugte Abschlussaufruf auf
+    // einem Nebenläufigkeitsthread, und UIKit wirft dort während der
+    // State-Restoration eine Assertion (SIGABRT in Build 75 und 82,
+    // `_performBlockAfterCATransactionCommitSynchronizes`). Die Arbeit
+    // bleibt bewusst außerhalb des Haupt-Actors — nur der Abschluss wird
+    // auf dem Haupt-Actor gefeuert.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse) async {
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { [response] in
+            await NotificationPresenter.process(response)
+            await MainActor.run {
+                completionHandler()
+            }
+        }
+    }
+
+    private static func process(_ response: UNNotificationResponse) async {
         guard let action = NotificationQuickAction.responseAction(
                   identifier: response.actionIdentifier,
                   categoryIdentifier: response.notification.request.content.categoryIdentifier),
