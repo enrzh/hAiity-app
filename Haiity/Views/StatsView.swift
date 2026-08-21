@@ -36,9 +36,8 @@ struct StatsView: View {
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
     /// `ProStatus`). Der Kauf muss NICHT hier passieren: er kann über die
-    /// vierte Habit, über die Einstellungen, auf einem anderen Gerät oder
-    /// als bestätigte Familien-Kaufanfrage kommen. Genau dann darf die
-    /// Statistik nicht gesperrt stehen bleiben.
+    /// vierte Habit, über die Einstellungen oder auf einem anderen Gerät
+    /// kommen. Genau dann darf die Statistik nicht gesperrt stehen bleiben.
     private var unlocked: Bool { Pro.isUnlocked }
 
     var body: some View {

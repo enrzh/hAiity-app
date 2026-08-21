@@ -32078,6 +32078,16 @@
         }
       }
     },
+    "Kein Kauf abgeschlossen, nichts berechnet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No purchase completed, nothing charged."
+          }
+        }
+      }
+    },
     "Kein iCloud-Konto auf diesem Gerät. Die App funktioniert vollständig, deine Daten bleiben hier — melde dich in den iOS-Einstellungen bei iCloud an, dann spiegelt hAiity sie.": {
       "localizations": {
         "ar": {
@@ -36074,106 +36084,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "回答是"
-          }
-        }
-      }
-    },
-    "Mit der Familienfreigabe gilt der Kauf für deine ganze Familiengruppe.": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مع المشاركة العائلية يسري الشراء على مجموعة عائلتك كلها."
-          }
-        },
-        "bn": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ফ্যামিলি শেয়ারিং থাকলে এই কেনা আপনার পুরো পরিবার গ্রুপে প্রযোজ্য।"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "With Family Sharing the purchase covers your whole family group."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Con la función En Familia, la compra vale para todo tu grupo familiar."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Avec le partage familial, l’achat vaut pour tout ton groupe familial."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "फ़ैमिली शेयरिंग के साथ यह ख़रीद आपके पूरे परिवार समूह पर लागू होती है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dengan Berbagi Keluarga, pembelian berlaku untuk seluruh grup keluargamu."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Con In famiglia, l’acquisto vale per tutto il tuo gruppo familiare."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファミリー共有なら、購入はファミリーグループ全員に適用されます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "가족 공유를 쓰면 구입이 가족 그룹 전체에 적용돼요."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Com o Compartilhamento Familiar, a compra vale para todo o seu grupo familiar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "С Семейным доступом покупка действует для всей твоей семейной группы."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aile Paylaşımı ile satın alma tüm aile grubun için geçerli olur."
-          }
-        },
-        "ur": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "فیملی شیئرنگ کے ساتھ یہ خریداری آپ کے پورے فیملی گروپ پر لاگو ہوتی ہے۔"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Với Chia sẻ gia đình, giao dịch mua áp dụng cho cả nhóm gia đình của bạn."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用家人共享时，这次购买对整个家庭群组都有效。"
           }
         }
       }

@@ -85,7 +85,7 @@ AUSSERDEM
 FREI UND hAiity PRO
 Frei: drei aktive Habits, alle Habit-Arten, Serien, Widgets, Siri, Mitteilungen, Glückwunsch, Export, alle 18 Icons, die eingebauten Farben. Das Limit gilt nur beim Anlegen — Bestehendes bleibt voll nutzbar, archivierte Habits zählen nicht mit.
 hAiity Pro: unbegrenzt viele Habits, eigene Farben, App-Icon per Farbrad, Kalender-Spiegel, volle Statistik.
-Einmal kaufen. Kein Abo, kein Konto, kein Server. Familienfreigabe inbegriffen.
+Einmal kaufen. Kein Abo, kein Konto, kein Server.
 
 Erfordert iOS 17.
 ```
@@ -190,7 +190,7 @@ ALSO
 FREE AND hAiity PRO
 Free: three active habits, every habit kind, streaks, widgets, Siri, notifications, the perfect-day note, JSON export, all 18 icons, the built-in colors. The limit applies only when creating — what you already have stays fully usable, and archived habits do not count.
 hAiity Pro: unlimited habits, custom colors, the app icon from a color wheel, the calendar mirror, the full statistics.
-Buy once. No subscription, no account, no server. Family Sharing included.
+Buy once. No subscription, no account, no server.
 
 Requires iOS 17.
 ```
@@ -269,7 +269,7 @@ NOTIFICATIONS
 Permission is requested only when the user enables a reminder or a summary — never at launch.
 
 IN-APP PURCHASE
-com.aiity.haiity.pro is a NON-CONSUMABLE, ONE-TIME purchase (no subscription, no auto-renewal), with Family Sharing enabled. Free tier: up to 3 ACTIVE habits (archived habits do not count). The limit applies only when CREATING a habit — existing data always stays fully usable, nothing is locked away retroactively. Pro unlocks unlimited habits, custom colors, setting the app icon from a color wheel (it snaps to the nearest of the 18 bundled icons — all 18 are tappable for free), the calendar mirror and the full statistics screen. The paywall can be reached from six places: creating a fourth habit, the "hAiity Pro" row in Settings, Settings > custom color, Settings > icon color wheel, Settings > habits in calendar, and the statistics screen. A "Restore purchases" button is on the paywall. The entitlement is cached locally in the app group; there is no receipt server.
+com.aiity.haiity.pro is a NON-CONSUMABLE, ONE-TIME purchase (no subscription, no auto-renewal), with Family Sharing disabled. Free tier: up to 3 ACTIVE habits (archived habits do not count). The limit applies only when CREATING a habit — existing data always stays fully usable, nothing is locked away retroactively. Pro unlocks unlimited habits, custom colors, setting the app icon from a color wheel (it snaps to the nearest of the 18 bundled icons — all 18 are tappable for free), the calendar mirror and the full statistics screen. The paywall can be reached from six places: creating a fourth habit, the "hAiity Pro" row in Settings, Settings > custom color, Settings > icon color wheel, Settings > habits in calendar, and the statistics screen. A "Restore purchases" button is on the paywall. The entitlement is cached locally in the app group; there is no receipt server.
 
 ANALYTICS
 None. No third-party SDKs, no tracking, no advertising identifiers. The privacy manifest declares NSPrivacyTracking=false and an empty NSPrivacyCollectedDataTypes in both the app and the widget extension.
@@ -363,7 +363,7 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   those external fields are intentionally not claimed as complete.
 - Support URL: `https://aiity.de`. Privacy URL:
   `https://enrzh.github.io/hAiity/privacy.html`.
-- IAP: `com.aiity.haiity.pro`, non-consumable, Family Sharing enabled, local
+- IAP: `com.aiity.haiity.pro`, non-consumable, Family Sharing disabled, local
   reference price `9.99`. Verify or create the ASC product and add its review
   screenshot before submission.
 - Screenshots are prepared and locally validated in

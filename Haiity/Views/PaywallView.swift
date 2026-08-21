@@ -77,8 +77,8 @@ struct PaywallView: View {
 
     /// Beim Öffnen aus den Einstellungen kann der Kauf schon vorliegen —
     /// dann wäre ein Kaufknopf schlicht falsch. Kein gespiegelter Zustand:
-    /// `Pro.isUnlocked` ist beobachtbar, und genau hier zählt das — eine
-    /// Familien-Kaufanfrage kann bestätigt werden, WÄHREND dieses Blatt
+    /// `Pro.isUnlocked` ist beobachtbar, und genau hier zählt das — ein Kauf
+    /// auf einem anderen Gerät kann bestätigt werden, WÄHREND dieses Blatt
     /// offen steht.
     private var unlocked: Bool { Pro.isUnlocked }
 
@@ -247,11 +247,6 @@ struct PaywallView: View {
                 purchaseButton
                 restoreButton
             }
-            Text(String(localized: "Mit der Familienfreigabe gilt der Kauf für deine ganze Familiengruppe."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
@@ -344,9 +339,7 @@ struct PaywallView: View {
     private func text(for note: Note) -> String {
         switch note {
         case .cancelled:
-            // Deckt BEIDE Fälle ab, die `Pro.purchase()` als `false` meldet:
-            // Abbruch und die wartende Kaufanfrage der Familienfreigabe.
-            return String(localized: "Kein Kauf abgeschlossen, nichts berechnet. Eine wartende Kaufanfrage schaltet sich von selbst frei, sobald sie bestätigt ist.")
+            return String(localized: "Kein Kauf abgeschlossen, nichts berechnet.")
         case .failed:
             return String(localized: "Der Kauf ist nicht durchgegangen. Es wurde nichts berechnet — du kannst es gleich noch einmal versuchen.")
         case .nothingToRestore:

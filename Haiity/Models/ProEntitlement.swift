@@ -5,14 +5,14 @@ import StoreKit
 /// Der beobachtbare Speicher hinter `Pro.isUnlocked`.
 ///
 /// **Warum es diese Klasse gibt.** Ein Kauf muss nicht in dieser Ansicht
-/// passieren: er kommt vom anderen Gerät, aus einer bestätigten
-/// Familien-Kaufanfrage oder als Erstattung — alles Meldungen, die
+/// passieren: er kommt vom anderen Gerät oder als Erstattung — alles
+/// Meldungen, die
 /// `Transaction.updates` bringt, ohne dass jemand etwas angetippt hätte.
 /// `enum Pro` ist statischer Zustand und für SwiftUI unsichtbar; ohne diesen
 /// Speicher bliebe die Statistik gesperrt und die Einstellungen böten den
 /// Kauf weiter an, bis der Rumpf zufällig aus anderem Grund neu ausgewertet
-/// wird. Genau das versprach die Kaufseite bei der Kaufanfrage NICHT zu tun
-/// („schaltet sich von selbst frei").
+/// wird. Genau das verhindert, dass die Kaufseite nach einem Kauf auf einem
+/// anderen Gerät den alten Sperrzustand zeigt.
 ///
 /// Gelesen wird trotzdem ausschliesslich über `Pro.isUnlocked` — ein zweiter
 /// Lesepunkt wäre ein zweiter Ort, an dem die Debug-Klammer fehlen kann.
@@ -52,8 +52,8 @@ final class ProStatus {
 /// v1 bewusst NICHT gegated, aber der Schlüssel liegt dort, wo ein zweiter
 /// Prozess ihn lesen KÖNNTE — so muss die Ablage später nicht umziehen.
 ///
-/// **Family Sharing kommt geschenkt.** Geteilte Käufe stehen in
-/// `currentEntitlements` wie eigene; es gibt hier nichts zu unterscheiden.
+/// **Family Sharing ist nicht Teil des Produkts.** Der StoreKit-Katalog und
+/// die Entitlement-Prüfung akzeptieren deshalb nur direkt gekaufte Käufe.
 ///
 /// **Was hier NICHT hingehört.** Die Frage „darf ich das?" beantwortet
 /// `ProGate` — pur, ohne StoreKit, damit sie testbar ist. `Pro` weiß nur, OB
@@ -119,8 +119,8 @@ enum Pro {
         ProStatus.shared.unlocked = unlocked
     }
 
-    /// Bestand prüfen: was steht heute auf diesem Konto (inkl. Family
-    /// Sharing)? Zurückgezogene Käufe (Erstattung) zählen nicht mehr.
+    /// Bestand prüfen: was steht heute auf diesem Konto? Zurückgezogene oder
+    /// über Family Sharing erhaltene Käufe zählen nicht als eigener Kauf.
     ///
     /// - Parameter mayDowngrade: Nur nach einem nachweislich erfolgreichen
     ///   `AppStore.sync()` wahr. Ohne diese Zusage darf eine leere Aufzählung
@@ -134,6 +134,7 @@ enum Pro {
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result,
                   transaction.productID == productID,
+                  transaction.ownershipType == .purchased,
                   transaction.revocationDate == nil
             else { continue }
             unlocked = true
@@ -144,9 +145,8 @@ enum Pro {
         cache(unlocked)
     }
 
-    /// Meldungen, die NICHT aus einem Kauf in dieser App stammen: Kauf auf
-    /// einem anderen Gerät, Family-Sharing-Freigabe, Erstattung. Ohne diesen
-    /// Lauscher bliebe eine Erstattung bis zum nächsten Start unbemerkt.
+    /// Meldungen aus Käufen auf anderen Geräten oder Erstattungen. Ohne
+    /// diesen Lauscher bliebe eine Erstattung bis zum nächsten Start unbemerkt.
     ///
     /// `finish()` ist Pflicht: unbeendete Transaktionen meldet StoreKit bei
     /// jedem Start erneut.
@@ -155,7 +155,8 @@ enum Pro {
         listener = Task { @MainActor in
             for await update in Transaction.updates {
                 guard case .verified(let transaction) = update else { continue }
-                if transaction.productID == productID {
+                if transaction.productID == productID,
+                   transaction.ownershipType == .purchased {
                     cache(transaction.revocationDate == nil)
                 }
                 await transaction.finish()
@@ -170,8 +171,8 @@ enum Pro {
     }
 
     /// Kaufen. `true` = ab jetzt freigeschaltet; `false` = der Nutzer hat
-    /// abgebrochen oder der Kauf wartet auf eine Freigabe (Family Sharing:
-    /// „Kaufanfrage"). Beides ist kein Fehler und darf keinen Alarm auslösen.
+    /// abgebrochen oder der Kauf wartet auf die Bestätigung des Stores.
+    /// Beides ist kein Fehler und darf keinen Alarm auslösen.
     @discardableResult
     static func purchase() async throws -> Bool {
         guard let product = try await Product.products(for: [productID]).first

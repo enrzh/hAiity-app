@@ -346,8 +346,8 @@ final class ProGateTests: XCTestCase {
     }
 
     /// **Der Merker ist beobachtbar.** Der Kauf muss nicht in der Ansicht
-    /// passieren, die ihn zeigt: anderes Blatt, anderes Gerät, bestätigte
-    /// Familien-Kaufanfrage. Ohne Beobachtung bliebe die Statistik gesperrt
+    /// passieren, die ihn zeigt: anderes Blatt oder anderes Gerät. Ohne
+    /// Beobachtung bliebe die Statistik gesperrt
     /// und die Einstellungen böten den Kauf weiter an — und genau das
     /// widerspräche dem Satz, den die Kaufseite über die Kaufanfrage sagt.
     func testTheEntitlementIsObservableAndStillHasOneReadPoint() throws {
@@ -421,7 +421,7 @@ final class ProGateTests: XCTestCase {
     }
 
     /// (d) Die StoreKit-Konfiguration beschreibt genau EIN nicht-verbrauchbares
-    /// Produkt mit Familienfreigabe.
+    /// Produkt ohne Familienfreigabe.
     @MainActor
     func testStoreKitConfigurationDeclaresTheProduct() throws {
         let raw = try Data(contentsOf: URL(fileURLWithPath: #filePath)
@@ -436,7 +436,7 @@ final class ProGateTests: XCTestCase {
                        "Quelltext und Konfiguration müssen dieselbe ID nennen")
         XCTAssertEqual(product["type"] as? String, "NonConsumable",
                        "kein Abo — der Kernsatz verspricht das Gegenteil")
-        XCTAssertEqual(product["familyShareable"] as? Bool, true)
+        XCTAssertEqual(product["familyShareable"] as? Bool, false)
         // Keine Abos, auch nicht versehentlich leer daneben stehend.
         XCTAssertEqual((json["subscriptionGroups"] as? [Any])?.count, 0)
         XCTAssertEqual((json["nonRenewingSubscriptions"] as? [Any])?.count, 0)
@@ -514,7 +514,7 @@ final class ProGateTests: XCTestCase {
         keys += PaywallContext.allCases.map(\.headline)
         keys += ["Käufe wiederherstellen", "Freigeschaltet. Danke.",
                  "Preis wird geladen", "Preis nicht verfügbar",
-                 "Mit der Familienfreigabe gilt der Kauf für deine ganze Familiengruppe."]
+                 "Kein Kauf abgeschlossen, nichts berechnet."]
         keys += ["Unbegrenzte Habits", "Eigene Farben", "Icon per Farbrad",
                  "Kalender-Spiegel", "Volle Statistik"]
         keys += ["Stell die Farbe am Rad ein — hAiity setzt das nächstliegende seiner 18 mitgelieferten Icons. Ohne Pro wählst du direkt aus den 18 Kacheln."]

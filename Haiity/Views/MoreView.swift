@@ -114,9 +114,8 @@ struct MoreView: View, Equatable {
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
     /// `ProStatus`). Bewusst KEIN gespiegelter Zustand: der Kauf kann von
-    /// einem anderen Blatt, einem anderen Gerät oder aus einer bestätigten
-    /// Familien-Kaufanfrage kommen, und dann müssen die Schlösser hier
-    /// trotzdem aufgehen.
+    /// einem anderen Blatt oder einem anderen Gerät kommen, und dann müssen
+    /// die Schlösser hier trotzdem aufgehen.
     private var unlocked: Bool { Pro.isUnlocked }
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
