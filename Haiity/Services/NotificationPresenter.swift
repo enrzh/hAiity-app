@@ -7,22 +7,32 @@ import UserNotifications
 final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationPresenter()
 
-    static func configureQuickActions(enabled: Bool) {
-        let categories: Set<UNNotificationCategory>
-        if enabled {
-            categories = Set(NotificationQuickAction.allCases.map { action in
-                let button = UNNotificationAction(identifier: NotificationQuickAction.actionIdentifier,
-                                                   title: action.title,
-                                                   options: action.opensApp ? [.foreground] : [])
-                return UNNotificationCategory(identifier: action.categoryIdentifier,
-                                              actions: [button],
-                                              intentIdentifiers: [],
-                                              options: [])
-            })
-        } else {
-            categories = []
-        }
-        UNUserNotificationCenter.current().setNotificationCategories(categories)
+    static func configureQuickActions(
+        enabled: Bool,
+        choices: [SwipeActionChoice] = NotificationActionPreferences().slots
+    ) {
+        UNUserNotificationCenter.current().setNotificationCategories(
+            notificationCategories(enabled: enabled, choices: choices))
+    }
+
+    static func notificationCategories(
+        enabled: Bool,
+        choices: [SwipeActionChoice]
+    ) -> Set<UNNotificationCategory> {
+        guard enabled else { return [] }
+
+        return Set(NotificationQuickAction.habitCategoryBases.map { base in
+            let buttons = NotificationQuickAction.actions(for: base, choices: choices)
+                .map { action in
+                    UNNotificationAction(identifier: action.responseIdentifier,
+                                         title: action.title,
+                                         options: action.opensApp ? [.foreground] : [])
+                }
+            return UNNotificationCategory(identifier: base.categoryIdentifier,
+                                          actions: buttons,
+                                          intentIdentifiers: [],
+                                          options: [])
+        })
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
@@ -33,16 +43,14 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
-        guard response.actionIdentifier == NotificationQuickAction.actionIdentifier,
+        guard let action = NotificationQuickAction.responseAction(
+                  identifier: response.actionIdentifier,
+                  categoryIdentifier: response.notification.request.content.categoryIdentifier),
               let target = Reminders.habitTarget(
                 for: response.notification.request.identifier) else { return }
 
-        guard let category = NotificationQuickAction(rawValue: response.notification
-            .request.content.categoryIdentifier.replacingOccurrences(
-                of: "haiity.notification.", with: "")) else { return }
-
-        if category.opensApp {
-            NotificationActionRouter.post(NotificationActionRequest(action: category,
+        if action.opensApp {
+            NotificationActionRouter.post(NotificationActionRequest(action: action,
                                                                      target: target))
             return
         }
@@ -53,7 +61,7 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         // the iOS 27 state-restoration assertion seen in build 75.
         let store = HabitStore(url: SharedStorage.dataURL())
         guard let habit = store.habits.first(where: { $0.id == target.habitID }) else { return }
-        guard Reminders.applyQuickAction(category, to: habit, target: target, store: store) else {
+        guard Reminders.applyQuickAction(action, to: habit, target: target, store: store) else {
             return
         }
         Task {

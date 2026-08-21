@@ -68,6 +68,35 @@ final class StatsCardPrefsTests: XCTestCase {
             .preferences.notificationAction, .archive)
     }
 
+    func testNotificationActionsDefaultToTwoVisibleSlotsAndAnOptionalThird() {
+        XCTAssertEqual(ViewPreferences().notificationActions.slots,
+                       [.primary, .secondary, .none])
+    }
+
+    func testViewPreferencesStorePersistsAllNotificationActionSlots() {
+        let suite = "ViewPreferencesNotificationActionsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.update {
+            $0.notificationActions = NotificationActionPreferences(
+                slots: [.archive, .backfill, .none])
+        }
+
+        XCTAssertEqual(ViewPreferencesStore(defaults: defaults)
+            .preferences.notificationActions.slots,
+                       [.archive, .backfill, .none])
+    }
+
+    func testLegacySingleNotificationActionMigratesToTheFirstSlotOnly() throws {
+        let raw = #"{"notificationAction":"archive"}"#.data(using: .utf8)!
+        let preferences = try JSONDecoder().decode(ViewPreferences.self, from: raw)
+
+        XCTAssertEqual(preferences.notificationActions.slots,
+                       [.archive, .none, .none])
+    }
+
     func testNotificationActionsOfferTheSameChoicesAsSwipeActions() {
         XCTAssertEqual(SwipeActionChoice.notificationSelectable, [
             .primary, .secondary, .archive, .backfill, .session, .edit, .none

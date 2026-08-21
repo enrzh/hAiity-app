@@ -43,4 +43,61 @@ final class NotificationActionTests: XCTestCase {
         XCTAssertFalse(received,
                        "notification actions must not synchronously interrupt UIKit state restoration")
     }
+
+    func testConfiguredSlotsResolveToThreeUniqueActionsPerHabitKind() {
+        let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+
+        XCTAssertEqual(NotificationQuickAction.actions(
+            for: habit,
+            choices: [.primary, .secondary, .archive]),
+                       [.checkbox, .reset, .archive])
+    }
+
+    func testNoneSlotsAreNotRegisteredAndResponseIdentifiersAreDistinct() {
+        let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+        let actions = NotificationQuickAction.actions(
+            for: habit,
+            choices: [.primary, .none, .none])
+
+        XCTAssertEqual(actions, [.checkbox])
+        XCTAssertNotEqual(NotificationQuickAction.checkbox.responseIdentifier,
+                           NotificationQuickAction.reset.responseIdentifier)
+    }
+
+    func testCategoryDefinitionsContainTheConfiguredActionsForEachHabitKind() {
+        let categories = NotificationPresenter.notificationCategories(
+            enabled: true,
+            choices: [.primary, .secondary, .archive])
+        let checkbox = categories.first {
+            $0.identifier == NotificationQuickAction.checkbox.categoryIdentifier
+        }
+
+        XCTAssertEqual(checkbox?.actions.map(\.identifier), [
+            NotificationQuickAction.checkbox.responseIdentifier,
+            NotificationQuickAction.reset.responseIdentifier,
+            NotificationQuickAction.archive.responseIdentifier
+        ])
+    }
+
+    func testLegacyResponseIdentifierStillResolvesFromItsOldCategory() {
+        XCTAssertEqual(NotificationQuickAction.responseAction(
+            identifier: NotificationQuickAction.actionIdentifier,
+            categoryIdentifier: NotificationQuickAction.archive.categoryIdentifier),
+                       .archive)
+    }
+
+    func testChangingNotificationSlotReRegistersCategoriesImmediately() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MoreView.swift"))
+        let binding = try XCTUnwrap(source.range(of: "private func notificationActionBinding"))
+        let body = source[binding.lowerBound..<source.endIndex]
+
+        XCTAssertTrue(body.contains("NotificationPresenter.configureQuickActions"),
+                      "changing a slot must update already scheduled notification menus")
+    }
 }

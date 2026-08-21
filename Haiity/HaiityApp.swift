@@ -14,8 +14,10 @@ struct HaiityApp: App {
         // funktionieren nicht". Früh gesetzt, damit auch eine Meldung, die
         // GENAU beim Start eintrifft, präsentiert wird.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        let preferences = ViewPreferencesStore().preferences
         NotificationPresenter.configureQuickActions(
-            enabled: ViewPreferencesStore().preferences.notificationActionsEnabled)
+            enabled: preferences.notificationActionsEnabled,
+            choices: preferences.notificationActions.slots)
         GitHubBackgroundRefresh.register()
     }
 

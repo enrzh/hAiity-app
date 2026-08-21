@@ -88,6 +88,9 @@ struct ReminderPlan: Equatable {
     var dateMatching: DateComponents
     var repeats: Bool
     var quickAction: NotificationQuickAction? = nil
+    /// Habit notifications use the habit-kind category, whose action list is
+    /// configured once for all three slots. Other plans leave this nil.
+    var notificationCategoryIdentifier: String? = nil
 
     var isWeekly: Bool { dateMatching.weekday != nil }
     /// Einmalig gestellt und bei jedem `reschedule` neu gesetzt.
@@ -106,9 +109,15 @@ enum NotificationQuickAction: String, CaseIterable, Codable, Sendable {
     case session
     case edit
 
+    /// Identifier used by builds before multi-action notification menus.
     static let actionIdentifier = "haiity.quick-check"
+    private static let actionIdentifierPrefix = "haiity.quick-check."
+
+    static let habitCategoryBases: [Self] = [.checkbox, .quantity, .yesNo, .reminder]
 
     var categoryIdentifier: String { "haiity.notification.\(rawValue)" }
+
+    var responseIdentifier: String { Self.actionIdentifierPrefix + rawValue }
 
     var title: String {
         switch self {
@@ -136,15 +145,50 @@ enum NotificationQuickAction: String, CaseIterable, Codable, Sendable {
     }
 
     static func forHabit(_ habit: Habit, choice: SwipeActionChoice) -> Self? {
+        resolved(for: forHabit(habit), choice: choice)
+    }
+
+    static func resolved(for base: Self, choice: SwipeActionChoice) -> Self? {
         switch choice {
-        case .primary: return forHabit(habit)
-        case .secondary: return habit.kind == .yesNo ? .no : .reset
+        case .primary: return base
+        case .secondary: return base == .yesNo ? .no : .reset
         case .archive: return .archive
         case .backfill: return .backfill
         case .session: return .session
         case .edit: return .edit
         case .none: return nil
         }
+    }
+
+    static func actions(for habit: Habit,
+                        choices: [SwipeActionChoice]) -> [Self] {
+        actions(for: forHabit(habit), choices: choices)
+    }
+
+    static func actions(for base: Self,
+                        choices: [SwipeActionChoice]) -> [Self] {
+        var result: [Self] = []
+        for choice in choices.prefix(NotificationActionPreferences.slotCount) {
+            guard let action = resolved(for: base, choice: choice),
+                  !result.contains(action) else { continue }
+            result.append(action)
+        }
+        return result
+    }
+
+    static func responseAction(identifier: String,
+                               categoryIdentifier: String) -> Self? {
+        if identifier.hasPrefix(actionIdentifierPrefix) {
+            let raw = String(identifier.dropFirst(actionIdentifierPrefix.count))
+            return Self(rawValue: raw)
+        }
+
+        // Existing pending notifications used one shared action identifier
+        // and encoded the selected action in the category name.
+        guard identifier == actionIdentifier,
+              categoryIdentifier.hasPrefix("haiity.notification.") else { return nil }
+        let raw = String(categoryIdentifier.dropFirst("haiity.notification.".count))
+        return Self(rawValue: raw)
     }
 }
 
@@ -470,7 +514,8 @@ enum Reminders {
     }
 
     static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
-                           notificationAction: SwipeActionChoice = .primary,
+                           notificationActions: [SwipeActionChoice] =
+                               NotificationActionPreferences().slots,
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
@@ -497,7 +542,7 @@ enum Reminders {
                 guard let occurrence = state.actionable, occurrence.dueDate > now,
                       let plan = habitPlan(habit: habit, day: occurrence.day,
                                            minutes: minutes,
-                                           notificationAction: notificationAction,
+                                           notificationActions: notificationActions,
                                            calendar: calendar)
                 else { continue }
                 plans.append(plan)
@@ -515,7 +560,7 @@ enum Reminders {
                 else { continue }
                 guard let plan = habitPlan(habit: habit, day: day,
                                            minutes: minutes,
-                                           notificationAction: notificationAction,
+                                           notificationActions: notificationActions,
                                            calendar: calendar),
                       let fire = calendar.date(from: plan.dateMatching), fire > now
                 else { continue }
@@ -525,8 +570,20 @@ enum Reminders {
         return plans
     }
 
+    /// Compatibility overload for callers from the one-action build.
+    static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
+                           notificationAction: SwipeActionChoice,
+                           now: Date = Date(),
+                           calendar: Calendar = .current) -> [ReminderPlan] {
+        habitPlans(habits: habits,
+                   reservingMotivation: reservingMotivation,
+                   notificationActions: [notificationAction, .none, .none],
+                   now: now,
+                   calendar: calendar)
+    }
+
     private static func habitPlan(habit: Habit, day: String, minutes: Int,
-                                  notificationAction: SwipeActionChoice,
+                                  notificationActions: [SwipeActionChoice],
                                   calendar: Calendar) -> ReminderPlan? {
         guard let date = DayKey.date(from: day, calendar: calendar) else { return nil }
         var components = calendar.dateComponents([.year, .month, .day], from: date)
@@ -538,7 +595,11 @@ enum Reminders {
                             body: String(localized: "Zeit für \(habit.name)"),
                             dateMatching: components,
                             repeats: false,
-                            quickAction: .forHabit(habit, choice: notificationAction))
+                            quickAction: NotificationQuickAction.actions(
+                                for: habit,
+                                choices: notificationActions).first,
+                            notificationCategoryIdentifier: NotificationQuickAction
+                                .forHabit(habit).categoryIdentifier)
     }
 
     static func habitTarget(for identifier: String) -> NotificationHabitTarget? {
@@ -610,7 +671,7 @@ enum Reminders {
                 && data.motivationDelivery == .notification
             plans += habitPlans(habits: data.habits,
                                 reservingMotivation: reservingMotivation,
-                                notificationAction: data.viewPreferences.notificationAction)
+                                notificationActions: data.viewPreferences.notificationActions.slots)
         }
         for plan in plans {
             try? await center.add(request(plan))
@@ -789,7 +850,9 @@ enum Reminders {
         content.title = plan.title
         content.body = plan.body
         content.sound = .default
-        if let quickAction = plan.quickAction {
+        if let category = plan.notificationCategoryIdentifier {
+            content.categoryIdentifier = category
+        } else if let quickAction = plan.quickAction {
             content.categoryIdentifier = quickAction.categoryIdentifier
         }
         let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateMatching,

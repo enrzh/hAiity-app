@@ -172,7 +172,7 @@ final class ReminderUpcomingTests: XCTestCase {
 
         XCTAssertEqual(plan?.quickAction, .archive)
         XCTAssertEqual(plan.map(Reminders.request)?.content.categoryIdentifier,
-                       NotificationQuickAction.archive.categoryIdentifier)
+                       NotificationQuickAction.checkbox.categoryIdentifier)
     }
 
     func testViewPreferenceChangesEnterTheReminderReschedulePath() throws {

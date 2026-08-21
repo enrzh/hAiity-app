@@ -141,28 +141,37 @@ struct ViewPreferences: Codable, Equatable {
     var swipeActions: SwipeActionsPreferences
     /// Shows one-tap actions when a scheduled notification is held down.
     var notificationActionsEnabled: Bool
-    /// The one action shown on a scheduled habit notification. It uses the
-    /// same semantic choices as swipe settings where an immediate action is
-    /// available.
-    var notificationAction: SwipeActionChoice
+    /// Up to three actions shown on a scheduled habit notification.
+    var notificationActions: NotificationActionPreferences
+
+    /// Compatibility view for callers and older tests that still address the
+    /// first notification slot as a singular action.
+    var notificationAction: SwipeActionChoice {
+        get { notificationActions[0] }
+        set { notificationActions[0] = newValue }
+    }
 
     init(updatedAt: TimeInterval = 0,
          statsCards: StatsCardPrefs = StatsCardPrefs(),
          compactMode: Bool = false,
          swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
          notificationActionsEnabled: Bool = true,
-         notificationAction: SwipeActionChoice = .primary) {
+         notificationActions: NotificationActionPreferences = NotificationActionPreferences(),
+         notificationAction: SwipeActionChoice? = nil) {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
         self.swipeActions = swipeActions
         self.notificationActionsEnabled = notificationActionsEnabled
-        self.notificationAction = notificationAction
+        self.notificationActions = notificationActions
+        if let notificationAction {
+            self.notificationActions[0] = notificationAction
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
         case updatedAt, statsCards, compactMode, swipeActions, notificationActionsEnabled,
-             notificationAction
+             notificationActions, notificationAction
     }
 
     init(from decoder: Decoder) throws {
@@ -177,8 +186,17 @@ struct ViewPreferences: Codable, Equatable {
         notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
                                                            forKey: .notificationActionsEnabled)
             ?? true
-        notificationAction = (try c.decodeIfPresent(String.self, forKey: .notificationAction))
-            .flatMap(SwipeActionChoice.init(rawValue:)) ?? .primary
+        if let saved = try c.decodeIfPresent(NotificationActionPreferences.self,
+                                             forKey: .notificationActions) {
+            notificationActions = saved
+        } else if let legacy = (try c.decodeIfPresent(String.self,
+                                                       forKey: .notificationAction))
+            .flatMap(SwipeActionChoice.init(rawValue:)) {
+            notificationActions = NotificationActionPreferences(
+                slots: [legacy, .none, .none])
+        } else {
+            notificationActions = NotificationActionPreferences()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -192,8 +210,8 @@ struct ViewPreferences: Codable, Equatable {
         if !notificationActionsEnabled {
             try c.encode(false, forKey: .notificationActionsEnabled)
         }
-        if notificationAction != .primary {
-            try c.encode(notificationAction.rawValue, forKey: .notificationAction)
+        if notificationActions != NotificationActionPreferences() {
+            try c.encode(notificationActions, forKey: .notificationActions)
         }
     }
 
@@ -265,7 +283,7 @@ final class ViewPreferencesStore {
                 || next.compactMode != preferences.compactMode
                 || next.swipeActions != preferences.swipeActions
                 || next.notificationActionsEnabled != preferences.notificationActionsEnabled
-                || next.notificationAction != preferences.notificationAction
+                || next.notificationActions != preferences.notificationActions
         else { return }
         next.updatedAt = Date().timeIntervalSince1970
         preferences = next
@@ -300,8 +318,8 @@ enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
     static var selectable: [SwipeActionChoice] { [.archive, .backfill, .session, .edit, .none] }
 
     /// Notifications use the same semantic choices as swipe actions. The
-    /// permanent primary/secondary actions remain available as well because
-    /// a notification has only one configurable action slot.
+    /// permanent primary/secondary actions remain available alongside the
+    /// optional extra actions.
     static var notificationSelectable: [SwipeActionChoice] {
         [.primary, .secondary] + selectable
     }
@@ -328,6 +346,47 @@ enum SwipeActionChoice: String, CaseIterable, Codable, Identifiable, Sendable {
         case .edit: return String(localized: "Bearbeiten")
         case .none: return String(localized: "Keine Aktion")
         }
+    }
+}
+
+/// The three configurable notification slots. `none` is a real choice so the
+/// user can keep one or two visible actions without a second source of truth.
+struct NotificationActionPreferences: Codable, Equatable, Sendable {
+    static let slotCount = 3
+
+    var slots: [SwipeActionChoice]
+
+    init(slots: [SwipeActionChoice] = [.primary, .secondary, .none]) {
+        var normalized = Array(slots.prefix(Self.slotCount))
+        while normalized.count < Self.slotCount {
+            normalized.append(.none)
+        }
+        self.slots = normalized
+    }
+
+    subscript(index: Int) -> SwipeActionChoice {
+        get {
+            guard slots.indices.contains(index) else { return .none }
+            return slots[index]
+        }
+        set {
+            guard (0..<Self.slotCount).contains(index) else { return }
+            var next = slots
+            while next.count < Self.slotCount { next.append(.none) }
+            next[index] = newValue
+            slots = next
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = (try? container.decode([String].self)) ?? []
+        self.init(slots: raw.compactMap(SwipeActionChoice.init(rawValue:)))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(slots.map(\.rawValue))
     }
 }
 

@@ -107,7 +107,8 @@ say "Unit tests"
 # Per-item calendar opt-out coverage: +5 = 1034.
 # Vibrant Home Screen widget policy: +2 = 1036.
 # GitHub contribution card: +43 = 1079.
-MIN_TESTS=1091
+# Notification action slots and live category registration: +8 = 1099.
+MIN_TESTS=1099
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

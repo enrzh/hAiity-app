@@ -2322,7 +2322,8 @@ struct ContentView: View {
         viewPreferences.onChange = {
             store.setViewPreferences(viewPreferences.preferences)
             NotificationPresenter.configureQuickActions(
-                enabled: viewPreferences.preferences.notificationActionsEnabled)
+                enabled: viewPreferences.preferences.notificationActionsEnabled,
+                choices: viewPreferences.preferences.notificationActions.slots)
             schedulePush()
             Task { await rescheduleReminders() }
         }

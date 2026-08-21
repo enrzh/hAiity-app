@@ -364,18 +364,23 @@ struct MoreView: View, Equatable {
                 get: { statsCards.preferences.notificationActionsEnabled },
                 set: { enabled in
                     statsCards.update { $0.notificationActionsEnabled = enabled }
-                    NotificationPresenter.configureQuickActions(enabled: enabled)
+                    NotificationPresenter.configureQuickActions(
+                        enabled: enabled,
+                        choices: statsCards.preferences.notificationActions.slots)
                 }))
             .accessibilityIdentifier("notification-actions-toggle")
 
             if statsCards.preferences.notificationActionsEnabled {
-                Picker(String(localized: "Schnellaktion"), selection: notificationActionBinding) {
-                    ForEach(SwipeActionChoice.notificationSelectable) { choice in
-                        Text(choice.notificationDisplayName).tag(choice)
+                ForEach(0..<NotificationActionPreferences.slotCount, id: \.self) { index in
+                    Picker(String(localized: "Option \(index + 1)"),
+                           selection: notificationActionBinding(at: index)) {
+                        ForEach(SwipeActionChoice.notificationSelectable) { choice in
+                            Text(choice.notificationDisplayName).tag(choice)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("notification-action-picker-\(index + 1)")
                 }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("notification-action-picker")
             }
         } header: {
             Text(String(localized: "Mitteilungen"))
@@ -398,16 +403,19 @@ struct MoreView: View, Equatable {
                 set: { choice in statsCards.update { $0.swipeActions.trailing = choice } })
     }
 
-    private var notificationActionBinding: Binding<SwipeActionChoice> {
+    private func notificationActionBinding(at index: Int) -> Binding<SwipeActionChoice> {
         Binding(
-            get: {
-                let choice = statsCards.preferences.notificationAction
-                return SwipeActionChoice.notificationSelectable.contains(choice)
-                    ? choice : .primary
-            },
-            set: { choice in
-                statsCards.update { $0.notificationAction = choice }
-            })
+            get: { statsCards.preferences.notificationActions[index] },
+            set: { choice in updateNotificationAction(at: index, to: choice) })
+    }
+
+    private func updateNotificationAction(at index: Int, to choice: SwipeActionChoice) {
+        var next = statsCards.preferences
+        next.notificationActions[index] = choice
+        statsCards.update { $0.notificationActions = next.notificationActions }
+        NotificationPresenter.configureQuickActions(
+            enabled: next.notificationActionsEnabled,
+            choices: next.notificationActions.slots)
     }
 
     // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der
