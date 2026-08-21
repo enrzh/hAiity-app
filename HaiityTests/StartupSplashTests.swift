@@ -119,9 +119,9 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StartupSplashView.swift"))
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(splash.contains("start()"))
-        XCTAssertTrue(splash.contains("splitProgress"))
-        XCTAssertTrue(splash.contains("splashOpacity"))
+        XCTAssertTrue(splash.contains("startAnimation()"))
+        XCTAssertTrue(splash.contains("CAKeyframeAnimation"))
+        XCTAssertTrue(splash.contains("backgroundLayer"))
         XCTAssertFalse(app.contains("startupAppVisible"))
         XCTAssertFalse(app.contains("onAppReveal"))
         XCTAssertFalse(app.contains(".opacity(startupAppVisible ? 1 : 0)"))
@@ -172,15 +172,19 @@ final class StartupSplashTests: XCTestCase {
                              + StartupSplashTimeline.zoomDuration)
     }
 
-    func testSplashUsesAnExplicitAnimationTimelineForTheFullWindow() throws {
+    func testSplashUsesCoreAnimationForTheFullWindow() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)"),
-                      "launch animation must be driven by an explicit display-rate clock")
+        XCTAssertTrue(splash.contains("StartupSplashAnimationSurface"),
+                      "the launch surface should be hosted by a UIKit renderer")
+        XCTAssertTrue(splash.contains("CAAnimation"),
+                      "launch motion should be interpolated by Core Animation")
+        XCTAssertFalse(splash.contains("TimelineView("),
+                       "a SwiftUI display-rate clock rebuilds the launch hierarchy every frame")
         XCTAssertTrue(splash.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"),
                       "the splash must own the complete window during the handoff")
         XCTAssertTrue(splash.contains(".ignoresSafeArea()"),
@@ -191,20 +195,32 @@ final class StartupSplashTests: XCTestCase {
                        "queued phase jumps make the launch handoff visibly discontinuous")
     }
 
-    func testSplashMeasuresTheWindowBeforeStartingItsTimeline() throws {
+    func testSplashUsesCachedLaunchTilesInsteadOfPerFrameCanvasRendering() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        let geometry = try XCTUnwrap(splash.range(of: "GeometryReader {"))
-        let timeline = try XCTUnwrap(
-            splash.range(of: "TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)"))
-        XCTAssertLessThan(geometry.lowerBound, timeline.lowerBound,
-                          "the animation must start inside an already measured window")
-        XCTAssertTrue(splash.contains("Metrics(container: container)"),
-                      "tile positions must use the resolved window, not a zero-size first frame")
+        XCTAssertTrue(splash.contains("UIGraphicsImageRenderer"),
+                      "the startup graph should be rasterized once before animation")
+        XCTAssertTrue(splash.contains("contents = launchImage"),
+                      "each graph layer should reuse the single rasterized launch asset")
+        XCTAssertFalse(splash.contains("Canvas("),
+                       "a per-frame Canvas rebuilds hundreds of vector paths during launch")
+    }
+
+    func testSplashMeasuresTheWindowBeforeStartingCoreAnimation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("layoutSubviews"),
+                      "the animation must wait for a measured window")
+        XCTAssertTrue(splash.contains("bounds.width > 0"),
+                      "tile positions must not be calculated from a zero-size first frame")
     }
 
     func testSplashFadesItsWindowOverlayBeforeRemovingTheView() throws {
@@ -214,9 +230,9 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("overlayOpacity"),
+        XCTAssertTrue(splash.contains("backgroundLayer"),
                       "the mounted app must be revealed by the splash overlay")
-        XCTAssertTrue(splash.contains("tileOpacity"),
+        XCTAssertTrue(splash.contains("fadeAnimation"),
                       "tiles must fade with the handoff instead of disappearing at a phase boundary")
     }
 
@@ -260,6 +276,6 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(app.contains("startupContentMounted"))
         XCTAssertTrue(app.contains("if startupContentMounted"))
         XCTAssertTrue(app.contains("StartupSplashView(onContentReady:"))
-        XCTAssertTrue(splash.contains("onContentReady()"))
+        XCTAssertTrue(splash.contains("onContentReady?()"))
     }
 }

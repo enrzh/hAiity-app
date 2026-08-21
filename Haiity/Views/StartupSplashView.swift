@@ -5,222 +5,265 @@ struct StartupSplashView: View {
     let onContentReady: () -> Void
     let onFinished: () -> Void
 
-    @Environment(\.colorScheme) private var scheme
-    @State private var startedAt: Date?
+    var body: some View {
+        StartupSplashAnimationSurface(onContentReady: onContentReady,
+                                      onFinished: onFinished)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+}
 
+private struct StartupSplashAnimationSurface: UIViewRepresentable {
+    let onContentReady: () -> Void
+    let onFinished: () -> Void
+
+    func makeUIView(context: Context) -> StartupSplashAnimationView {
+        let view = StartupSplashAnimationView()
+        view.onContentReady = onContentReady
+        view.onFinished = onFinished
+        return view
+    }
+
+    func updateUIView(_ view: StartupSplashAnimationView, context: Context) {
+        view.onContentReady = onContentReady
+        view.onFinished = onFinished
+    }
+}
+
+private final class StartupSplashAnimationView: UIView {
     private static let columns = 21
     private static let rows = 7
 
-    var body: some View {
-        GeometryReader { proxy in
-            // Measure the window before the animation clock starts. A reader
-            // nested inside TimelineView can receive a zero-size first frame,
-            // leaving every tile outside the visible window during launch.
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
-                let elapsed = elapsed(at: context.date)
-                let splitProgress = StartupSplashTimeline.splitProgress(at: elapsed)
-                let zoomProgress = StartupSplashTimeline.zoomProgress(at: elapsed)
-                let splashOpacity = StartupSplashTimeline.overlayOpacity(at: elapsed)
-                let container = StartupSplashTimeline.resolvedContainerSize(
-                    measured: proxy.size,
-                    fallback: UIScreen.main.bounds.size)
-                let metrics = Metrics(container: container)
+    private let backgroundLayer = CALayer()
+    private var tileLayers: [CALayer] = []
+    private var launchImage: CGImage?
+    private var startTask: Task<Void, Never>?
+    private var finishTask: Task<Void, Never>?
+    private var hasStarted = false
 
-                ZStack {
-                    Color(.systemGroupedBackground)
-                        .opacity(splashOpacity)
-                        .ignoresSafeArea()
+    var onContentReady: (() -> Void)?
+    var onFinished: (() -> Void)?
 
-                    tiles(metrics: metrics,
-                          elapsed: elapsed,
-                          splitProgress: splitProgress,
-                          zoomProgress: zoomProgress)
-                        .opacity(StartupSplashTimeline.tileOpacity(at: elapsed))
-
-                }
-                .frame(width: container.width, height: container.height)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-        .overlay {
-            StartupSplashReadySignal(onReady: start)
-                .frame(width: 1, height: 1)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = true
+        backgroundColor = .clear
+        layer.addSublayer(backgroundLayer)
     }
 
-    private func elapsed(at date: Date) -> TimeInterval {
-        guard let startedAt else { return 0 }
-        return max(0, date.timeIntervalSince(startedAt))
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
-    private func tiles(metrics: Metrics,
-                       elapsed: TimeInterval,
-                       splitProgress: CGFloat,
-                       zoomProgress: CGFloat) -> some View {
-        Canvas(opaque: false, colorMode: .extendedLinear, rendersAsynchronously: true) { context, _ in
-            let center = CGPoint(x: metrics.container.width / 2,
-                                 y: metrics.container.height / 2)
-            let graphScale = StartupSplashTimeline.graphScale(
-                splitProgress: splitProgress,
-                zoomProgress: zoomProgress)
-            var shading: [Int: GraphicsContext.Shading] = [:]
-
-            for graph in StartupSplashGraph.allCases {
-                var graphContext = context
-                graphContext.opacity = StartupSplashTimeline.graphOpacity(for: graph,
-                                                                          at: elapsed)
-                drawGraph(&graphContext,
-                          graph: graph,
-                          metrics: metrics,
-                          center: center,
-                          splitProgress: splitProgress,
-                          graphScale: graphScale,
-                          shading: &shading)
-        }
-    }
-        .frame(width: metrics.container.width, height: metrics.container.height)
+    deinit {
+        startTask?.cancel()
+        finishTask?.cancel()
     }
 
-    private func drawGraph(_ context: inout GraphicsContext,
-                           graph: StartupSplashGraph,
-                           metrics: Metrics,
-                           center: CGPoint,
-                           splitProgress: CGFloat,
-                           graphScale: CGFloat,
-                           shading: inout [Int: GraphicsContext.Shading]) {
-        let graphCenter = StartupSplashTimeline.graphCenter(
-            for: graph,
-            around: center,
-            separation: metrics.verticalSeparation,
-            progress: splitProgress)
-        let gridOrigin = CGPoint(x: graphCenter.x - metrics.gridWidth / 2,
-                                 y: graphCenter.y - metrics.gridHeight / 2)
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        scheduleStartIfReady()
+    }
 
-        for tile in Self.tileData {
-            let gridPosition = CGPoint(
-                x: gridOrigin.x + CGFloat(tile.column) * metrics.pitch + metrics.cell / 2,
-                y: gridOrigin.y + CGFloat(tile.row) * metrics.pitch + metrics.cell / 2)
-            let position = StartupSplashTimeline.zoomedPosition(for: gridPosition,
-                                                                around: center,
-                                                                scale: graphScale)
-            let cell = metrics.cell * graphScale
-            let rect = CGRect(x: position.x - cell / 2,
-                              y: position.y - cell / 2,
-                              width: cell,
-                              height: cell)
-            if shading[tile.level] == nil {
-                shading[tile.level] = .color(
-                    Theme.level(tile.level,
-                                dark: scheme == .dark,
-                                palette: PaletteStyle.default))
-            }
-            context.fill(Path(roundedRect: rect, cornerRadius: cell * 0.22),
-                         with: shading[tile.level]!)
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        backgroundLayer.frame = bounds
+        scheduleStartIfReady()
+    }
+
+    private func scheduleStartIfReady() {
+        guard window != nil,
+              !hasStarted,
+              startTask == nil,
+              bounds.width > 0,
+              bounds.height > 0 else { return }
+
+        startTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.startAnimation()
         }
     }
 
-    private func start() {
-        guard startedAt == nil else { return }
-        // Let the overlay reach the first render pass before mounting the
-        // larger store/UI tree. Otherwise the system launch screen can remain
-        // visible while ContentView is being constructed.
-        startedAt = Date()
-        Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: 50_000_000)
-            } catch {
-                return
-            }
+    private func startAnimation() {
+        guard !hasStarted else { return }
+        hasStarted = true
+
+        let metrics = Metrics(container: bounds.size)
+        launchImage = rasterizedLaunchImage(size: metrics.gridSize,
+                                            scale: window?.screen.scale ?? UIScreen.main.scale)
+        configureLayers(metrics: metrics)
+
+        let startTime = layer.convertTime(CACurrentMediaTime(), from: nil)
+        addAnimations(startTime: startTime, metrics: metrics)
+        onContentReady?()
+
+        finishTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
+                                                       * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            onContentReady()
+            self?.onFinished?()
         }
-        Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
-                                                           * 1_000_000_000))
-            } catch {
-                return
+    }
+
+    private func configureLayers(metrics: Metrics) {
+        backgroundLayer.frame = bounds
+        backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor
+        backgroundLayer.opacity = 1
+        backgroundLayer.removeAllAnimations()
+
+        tileLayers.forEach { $0.removeFromSuperlayer() }
+        tileLayers.removeAll(keepingCapacity: true)
+
+        for graph in StartupSplashGraph.allCases {
+            let tileLayer = CALayer()
+            tileLayer.bounds = CGRect(origin: .zero, size: metrics.gridSize)
+            tileLayer.position = metrics.center
+            tileLayer.contents = launchImage
+            tileLayer.contentsScale = window?.screen.scale ?? UIScreen.main.scale
+            tileLayer.contentsGravity = .resize
+            tileLayer.minificationFilter = .trilinear
+            tileLayer.magnificationFilter = .linear
+            tileLayer.transform = scaleTransform(StartupSplashTimeline.compactScale)
+            tileLayer.opacity = graph == .center ? 1 : 0
+            layer.addSublayer(tileLayer)
+            tileLayers.append(tileLayer)
+        }
+    }
+
+    private func addAnimations(startTime: CFTimeInterval, metrics: Metrics) {
+        let visualDuration = StartupSplashTimeline.clusterDuration
+            + StartupSplashTimeline.splitDuration
+            + StartupSplashTimeline.zoomDuration
+        let splitEnd = StartupSplashTimeline.clusterDuration
+            + StartupSplashTimeline.splitDuration
+        let fadeStart = splitEnd + StartupSplashTimeline.zoomDuration * 0.28
+        let splitKeyTime = StartupSplashTimeline.clusterDuration / visualDuration
+        let zoomKeyTime = splitEnd / visualDuration
+        let fadeKeyTime = fadeStart / visualDuration
+        let positionKeyTimes: [NSNumber] = [NSNumber(value: 0),
+                                            NSNumber(value: splitKeyTime),
+                                            NSNumber(value: zoomKeyTime),
+                                            NSNumber(value: 1)]
+        let opacityKeyTimes: [NSNumber] = [NSNumber(value: 0),
+                                           NSNumber(value: splitKeyTime),
+                                           NSNumber(value: zoomKeyTime),
+                                           NSNumber(value: fadeKeyTime),
+                                           NSNumber(value: 1)]
+
+        for (index, graph) in StartupSplashGraph.allCases.enumerated() {
+            let tileLayer = tileLayers[index]
+            let splitPosition = StartupSplashTimeline.graphCenter(
+                for: graph,
+                around: metrics.center,
+                separation: metrics.verticalSeparation,
+                progress: 1)
+            let finalPosition = StartupSplashTimeline.zoomedPosition(
+                for: splitPosition,
+                around: metrics.center,
+                scale: StartupSplashTimeline.zoomScale)
+
+            tileLayer.position = finalPosition
+            tileLayer.transform = scaleTransform(StartupSplashTimeline.zoomScale)
+            tileLayer.opacity = 0
+
+            let position = CAKeyframeAnimation(keyPath: "position")
+            position.values = [
+                NSValue(cgPoint: metrics.center),
+                NSValue(cgPoint: metrics.center),
+                NSValue(cgPoint: splitPosition),
+                NSValue(cgPoint: finalPosition)
+            ]
+            position.keyTimes = positionKeyTimes
+            position.calculationMode = .linear
+
+            let transform = CAKeyframeAnimation(keyPath: "transform")
+            transform.values = [
+                NSValue(caTransform3D: scaleTransform(StartupSplashTimeline.compactScale)),
+                NSValue(caTransform3D: scaleTransform(StartupSplashTimeline.compactScale)),
+                NSValue(caTransform3D: scaleTransform(1)),
+                NSValue(caTransform3D: scaleTransform(StartupSplashTimeline.zoomScale))
+            ]
+            transform.keyTimes = positionKeyTimes
+            transform.calculationMode = .linear
+
+            let opacity = CAKeyframeAnimation(keyPath: "opacity")
+            if graph == .center {
+                opacity.values = [1, 1, 1, 1, 0]
+            } else {
+                opacity.values = [0, 0, 1, 1, 0]
             }
-            guard !Task.isCancelled else { return }
-            onFinished()
+            opacity.keyTimes = opacityKeyTimes
+            opacity.calculationMode = .linear
+
+            let group = CAAnimationGroup()
+            group.animations = [position, transform, opacity]
+            group.beginTime = startTime
+            group.duration = visualDuration
+            group.fillMode = .both
+            group.isRemovedOnCompletion = false
+            group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            tileLayer.add(group, forKey: "startupSplash")
         }
+
+        backgroundLayer.opacity = 0
+        backgroundLayer.add(fadeAnimation(from: 1,
+                                          to: 0,
+                                          beginTime: startTime + splitEnd - 0.08,
+                                          duration: StartupSplashTimeline.zoomDuration + 0.08),
+                            forKey: "startupSplashBackgroundFade")
+    }
+
+    private func fadeAnimation(from: Float,
+                               to: Float,
+                               beginTime: CFTimeInterval,
+                               duration: TimeInterval) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = from
+        animation.toValue = to
+        animation.beginTime = beginTime
+        animation.duration = duration
+        animation.fillMode = .both
+        animation.isRemovedOnCompletion = false
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        return animation
+    }
+
+    private func scaleTransform(_ scale: CGFloat) -> CATransform3D {
+        CATransform3DMakeScale(scale, scale, 1)
+    }
+
+    private func rasterizedLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
+        guard size.width > 0, size.height > 0,
+              let source = UIImage(named: "LaunchTiles") else { return nil }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
+        }.cgImage
     }
 
     private struct Metrics {
-        let container: CGSize
-        let cell: CGFloat
-        let pitch: CGFloat
-        let gridWidth: CGFloat
-        let gridHeight: CGFloat
+        let center: CGPoint
+        let gridSize: CGSize
         let verticalSeparation: CGFloat
 
         init(container: CGSize) {
-            self.container = container
+            center = CGPoint(x: container.width / 2,
+                             y: container.height / 2)
             let width = min(max(container.width - 48, 220), 360)
             let gap: CGFloat = 3
-            let cell = max(7, min(13, (width - CGFloat(StartupSplashView.columns - 1) * gap)
-                                   / CGFloat(StartupSplashView.columns)))
-            self.cell = cell
-            self.pitch = cell + gap
-            self.gridWidth = CGFloat(StartupSplashView.columns) * pitch - gap
-            self.gridHeight = CGFloat(StartupSplashView.rows) * pitch - gap
-            self.verticalSeparation = gridHeight + cell * 2
-        }
-    }
-
-    private struct Tile: Identifiable {
-        let index: Int
-        let column: Int
-        let row: Int
-        let level: Int
-
-        var id: Int { index }
-    }
-
-    private static let tileData: [Tile] = {
-        (0..<(columns * rows)).map { index in
-            let column = index % columns
-            let row = index / columns
-            let hash = (index * 17 + column * 5 + row * 11) % 13
-            let level: Int
-            switch hash {
-            case 0...3: level = 0
-            case 4...6: level = 1
-            case 7...9: level = 2
-            case 10...11: level = 3
-            default: level = 4
-            }
-            return Tile(index: index, column: column, row: row, level: level)
-        }
-    }()
-}
-
-private struct StartupSplashReadySignal: UIViewControllerRepresentable {
-    let onReady: () -> Void
-
-    func makeUIViewController(context: Context) -> ReadyViewController {
-        let controller = ReadyViewController()
-        controller.view.backgroundColor = .clear
-        controller.onReady = onReady
-        return controller
-    }
-
-    func updateUIViewController(_ controller: ReadyViewController, context: Context) {
-        controller.onReady = onReady
-    }
-
-    final class ReadyViewController: UIViewController {
-        var onReady: (() -> Void)?
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            let callback = onReady
-            onReady = nil
-            callback?()
+            let cell = max(7, min(13, (width - CGFloat(StartupSplashAnimationView.columns - 1) * gap)
+                                   / CGFloat(StartupSplashAnimationView.columns)))
+            let pitch = cell + gap
+            gridSize = CGSize(width: CGFloat(StartupSplashAnimationView.columns) * pitch - gap,
+                              height: CGFloat(StartupSplashAnimationView.rows) * pitch - gap)
+            verticalSeparation = gridSize.height + cell * 2
         }
     }
 }
