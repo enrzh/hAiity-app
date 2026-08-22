@@ -80,10 +80,18 @@ struct CheckOffHabitIntent: AppIntent {
         // schreibt synchron und stößt den Widget-Reload bereits an
         // (WidgetCenter.reloadAllTimelines unter canImport(WidgetKit)).
         let store = HabitStore(url: SharedStorage.dataURL())
-        CheckOffLogic.apply(to: store, habitId: habit.id)
+        let storedHabit = store.habits.first { $0.id == habit.id }
+        let day = storedHabit.map {
+            HabitTimeZone.today(for: $0,
+                                defaultIdentifier: store.defaultTimeZoneIdentifier)
+        } ?? DayKey.today()
+        CheckOffLogic.apply(to: store, habitId: habit.id, day: day)
         // Der App-Prozess bekommt von diesem Check-in nichts mit — die
         // heutige Erinnerung und die Tagesmeldung hier selbst nachziehen.
-        await Reminders.reconcileAfterExternalCheckIn(store: store, habitID: habit.id)
+        await Reminders.reconcileAfterExternalCheckIn(
+            store: store,
+            habitID: habit.id,
+            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         return .result()
     }
 }

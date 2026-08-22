@@ -23,6 +23,7 @@ enum WidgetData {
                            habits: data?.habits.filter {
                                $0.archivedAt == nil && (!graphOnly || $0.isTrackedHabit)
                            } ?? [],
+                           defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier,
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
                            selected: source == .habit ? selected : nil,
@@ -300,12 +301,20 @@ struct HabitControlProvider: AppIntentControlValueProvider {
     /// Immer frisch von der Platte — der Store dieses Prozesses ist nicht der
     /// Store des App-Prozesses.
     private func value(for selected: UUID?) -> HabitControlValue? {
-        let habits = HabitStore.read(SharedStorage.dataURL())?.habits ?? []
-        guard let habit = WidgetLogic.resolve(habits: habits, selected: selected) else { return nil }
+        let data = HabitStore.read(SharedStorage.dataURL())
+        let habits = data?.habits ?? []
+        guard let habit = WidgetLogic.resolve(
+            habits: habits,
+            selected: selected,
+            defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier) else { return nil }
         return HabitControlValue(id: habit.id,
                                  name: habit.name,
                                  emoji: habit.emoji,
-                                 done: GoalEngine.dayCounts(habit: habit, day: DayKey.today()))
+                                 done: GoalEngine.dayCounts(
+                                    habit: habit,
+                                    day: WidgetLogic.today(
+                                        for: habit,
+                                        defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier)))
     }
 }
 

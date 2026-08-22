@@ -28,8 +28,12 @@ final class HabitSessionManager {
             Reminders.cancelSessionMilestone(previous)
         }
         let startedAt = Date()
+        let defaultTimeZoneIdentifier = HabitStore.read(SharedStorage.dataURL())?.defaultTimeZoneIdentifier
+        let calendar = HabitTimeZone.calendar(
+            for: habit,
+            defaultIdentifier: defaultTimeZoneIdentifier)
         let session = HabitSession(habitID: habit.id,
-                                   day: DayKey.today(),
+                                   day: DayKey.today(calendar: calendar),
                                    startedAt: startedAt,
                                    plannedMinutes: habit.durationMinutes)
         HabitSessionStorage.save(session)

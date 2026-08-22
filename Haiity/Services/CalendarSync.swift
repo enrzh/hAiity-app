@@ -74,6 +74,10 @@ struct CalendarEventPlan: Equatable {
     /// Monat fürs Jahres-Muster.
     var monthOfYear: Int?
     var end: Recurrence.End
+    /// The timezone used to interpret the first day and event time. It is
+    /// part of the fingerprint so changing a habit's timezone moves the
+    /// native event instead of leaving the old entry in place.
+    let timeZoneIdentifier: String
 
     static func == (a: CalendarEventPlan, b: CalendarEventPlan) -> Bool {
         a.fingerprint == b.fingerprint
@@ -95,7 +99,8 @@ struct CalendarEventPlan: Equatable {
         let weekdayKey: String = weekdays.map { String($0) }.joined(separator: ",")
         let monthDayKey: String = daysOfMonth.map { String($0) }.joined(separator: ",")
         let monthKey: String = monthOfYear.map { String($0) } ?? "-"
-        var parts: [String] = [isReminder ? "reminder" : "habit", title, firstDay, time]
+        var parts: [String] = [isReminder ? "reminder" : "habit", title, firstDay, time,
+                               timeZoneIdentifier]
         parts.append(String(durationMinutes))
         parts.append(frequency.rawValue)
         parts.append(String(interval))
@@ -108,9 +113,15 @@ struct CalendarEventPlan: Equatable {
     }
 
     /// nil = dieses Habit gehört (so) nicht in den Kalender.
-    init?(habit: Habit, today: String = DayKey.today(),
-          calendar: Calendar = .current) {
+    init?(habit: Habit, today: String? = nil,
+          calendar: Calendar = .current,
+          defaultTimeZoneIdentifier: String? = nil) {
         guard habit.archivedAt == nil else { return nil }
+        let itemCalendar = HabitTimeZone.calendar(
+            for: habit,
+            defaultIdentifier: defaultTimeZoneIdentifier,
+            base: calendar)
+        let effectiveToday = today ?? DayKey.today(calendar: itemCalendar)
         let recurrence = habit.recurrence
 
         // Flexible Ziele: nur mit Wochentags-Verabredung — und dann als
@@ -122,24 +133,24 @@ struct CalendarEventPlan: Equatable {
         // in der Periode überall wahr ist).
         func isAgreedDay(_ day: String) -> Bool {
             if recurrence.isFlexible {
-                guard let date = DayKey.date(from: day, calendar: calendar) else { return false }
-                return recurrence.weekdays.contains(calendar.component(.weekday, from: date))
+                guard let date = DayKey.date(from: day, calendar: itemCalendar) else { return false }
+                return recurrence.weekdays.contains(itemCalendar.component(.weekday, from: date))
             }
-            return GoalEngine.isScheduled(habit: habit, day: day, calendar: calendar)
+            return GoalEngine.isScheduled(habit: habit, day: day, calendar: itemCalendar)
         }
-        var first: String? = isAgreedDay(today) ? today : nil
+        var first: String? = isAgreedDay(effectiveToday) ? effectiveToday : nil
         if first == nil {
-            var candidate = today
+            var candidate = effectiveToday
             // Verabredete Tage liegen höchstens eine Woche voraus; feste
             // Regeln beantwortet `nextOccurrence`.
             if recurrence.isFlexible {
                 for _ in 0..<7 {
-                    guard let next = DayKey.shifted(candidate, by: 1, calendar: calendar) else { break }
+                    guard let next = DayKey.shifted(candidate, by: 1, calendar: itemCalendar) else { break }
                     candidate = next
                     if isAgreedDay(candidate) { first = candidate; break }
                 }
             } else {
-                first = recurrence.nextOccurrence(after: today, calendar: calendar)
+                first = recurrence.nextOccurrence(after: effectiveToday, calendar: itemCalendar)
             }
         }
         guard let firstDay = first else { return nil }
@@ -167,6 +178,7 @@ struct CalendarEventPlan: Equatable {
         self.nthWeekday = nth
         self.monthOfYear = recurrence.month
         self.end = recurrence.end
+        self.timeZoneIdentifier = itemCalendar.timeZone.identifier
     }
 }
 
@@ -258,7 +270,9 @@ enum CalendarSync {
     /// (heilt vom Nutzer gelöschte Serien) — das kostet je Habit einen
     /// EventKit-Zugriff. Der Start übergibt `true`; der Check-in-Pfad `false`,
     /// damit ein unveränderter Bestand KEINEN EventKit-Aufruf auslöst.
-    static func reconcile(habits: [Habit], validate: Bool = true) {
+    static func reconcile(habits: [Habit],
+                          defaultTimeZoneIdentifier: String? = nil,
+                          validate: Bool = true) {
         guard isEnabled, hasAccess else { return }
 
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
@@ -267,7 +281,9 @@ enum CalendarSync {
         let selection = CalendarSyncSelection(habits: syncHabits, reminders: syncReminders)
         let active = habits.filter { $0.archivedAt == nil && selection.includes($0) }
         let plans = active.compactMap { habit in
-            CalendarEventPlan(habit: habit).map { (habit.id.uuidString, $0) }
+            CalendarEventPlan(habit: habit,
+                              defaultTimeZoneIdentifier: defaultTimeZoneIdentifier)
+                .map { (habit.id.uuidString, $0) }
         }
         if !validate {
             let wanted = Set(plans.map(\.0))
@@ -286,7 +302,9 @@ enum CalendarSync {
         var seen: Set<String> = []
         for habit in active {
             let key = habit.id.uuidString
-            guard let plan = CalendarEventPlan(habit: habit) else {
+            guard let plan = CalendarEventPlan(
+                habit: habit,
+                defaultTimeZoneIdentifier: defaultTimeZoneIdentifier) else {
                 removeEvent(for: key, map: &map, prints: &prints)
                 continue
             }
@@ -391,14 +409,17 @@ enum CalendarSync {
     static func configure(event: EKEvent,
                           for plan: CalendarEventPlan,
                           calendar: Calendar = .current) -> Bool {
-        guard let day = DayKey.date(from: plan.firstDay, calendar: calendar) else { return false }
+        var itemCalendar = calendar
+        itemCalendar.timeZone = TimeZone(identifier: plan.timeZoneIdentifier)
+            ?? calendar.timeZone
+        guard let day = DayKey.date(from: plan.firstDay, calendar: itemCalendar) else { return false }
         event.title = plan.title
         let watermarkKind: SyncWatermark.Kind = plan.isReminder
             ? .reminderCalendar : .habitCalendar
         event.notes = SyncWatermark.note(for: plan.habitID, kind: watermarkKind)
         event.url = URL(string: "haiity://habits")
         if let minutes = plan.minutes {
-            let start = calendar.date(byAdding: .minute, value: minutes, to: day) ?? day
+            let start = itemCalendar.date(byAdding: .minute, value: minutes, to: day) ?? day
             event.startDate = start
             event.endDate = start.addingTimeInterval(TimeInterval(plan.durationMinutes * 60))
             event.isAllDay = false

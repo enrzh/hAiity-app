@@ -358,7 +358,8 @@ final class ContentSyncOrderingTests: XCTestCase {
         let activeBody = source[activeStart.lowerBound..<activeEnd.lowerBound]
         let sync = try XCTUnwrap(activeBody.range(of: "await syncNow(announce: false)"))
         let schedule = try XCTUnwrap(activeBody.range(of: "await rescheduleReminders()"))
-        let pullReminders = try XCTUnwrap(activeBody.range(of: "ReminderSync.pullCompletions(into: store)"))
+        let pullReminders = try XCTUnwrap(
+            activeBody.range(of: "ReminderSync.pullCompletions(into: store"))
 
         XCTAssertLessThan(sync.lowerBound, schedule.lowerBound,
                           "foreground scheduling must use the iCloud-merged habit data")

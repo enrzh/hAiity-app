@@ -23,11 +23,19 @@ struct DeclineHabitIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let store = HabitStore(url: SharedStorage.dataURL())
-        let outcome = DeclineLogic.apply(to: store, habitId: habit.id)
+        let storedHabit = store.habits.first { $0.id == habit.id }
+        let day = storedHabit.map {
+            HabitTimeZone.today(for: $0,
+                                defaultIdentifier: store.defaultTimeZoneIdentifier)
+        } ?? DayKey.today()
+        let outcome = DeclineLogic.apply(to: store, habitId: habit.id, day: day)
         if outcome == .declined {
             // Der Tag ist beantwortet — die heutige Erinnerung darf nicht
             // mehr klingeln (und ein perfekter Tag wird es damit nie).
-            await Reminders.reconcileAfterExternalCheckIn(store: store, habitID: habit.id)
+            await Reminders.reconcileAfterExternalCheckIn(
+                store: store,
+                habitID: habit.id,
+                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         }
         return .result(dialog: IntentDialog(stringLiteral: DeclineLogic.speech(for: outcome, name: habit.name)))
     }
@@ -100,7 +108,13 @@ struct HabitStreakIntent: AppIntent {
             return .result(value: 0,
                            dialog: IntentDialog(stringLiteral: String(localized: "Diesen Habit gibt es nicht mehr.")))
         }
-        let streak = GoalEngine.streak(habit: stored)
+        let calendar = HabitTimeZone.calendar(
+            for: stored,
+            defaultIdentifier: store.defaultTimeZoneIdentifier)
+        let streak = GoalEngine.streak(
+            habit: stored,
+            today: DayKey.today(calendar: calendar),
+            calendar: calendar)
         return .result(value: streak,
                        dialog: IntentDialog(stringLiteral: StreakSpeech.text(name: stored.name, streak: streak)))
     }

@@ -79,7 +79,16 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         // the iOS 27 state-restoration assertion seen in build 75.
         let store = HabitStore(url: SharedStorage.dataURL())
         guard let habit = store.habits.first(where: { $0.id == target.habitID }) else { return }
-        guard Reminders.applyQuickAction(action, to: habit, target: target, store: store) else {
+        let calendar = HabitTimeZone.calendar(
+            for: habit,
+            defaultIdentifier: store.defaultTimeZoneIdentifier)
+        guard Reminders.applyQuickAction(
+            action,
+            to: habit,
+            target: target,
+            store: store,
+            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+            calendar: calendar) else {
             return
         }
         Task {

@@ -34,7 +34,10 @@ struct RingAccessoryView: View {
     }
 
     func content(mode: WidgetRenderingMode) -> some View {
-        let progress = WidgetLogic.progress(habits: entry.habits)
+        let progress = WidgetLogic.progress(
+            habits: entry.habits,
+            defaultTimeZoneIdentifier: entry.defaultTimeZoneIdentifier,
+            now: entry.date)
         let width: CGFloat = 5
         return ZStack {
             AccessoryWidgetBackground()
@@ -98,8 +101,6 @@ struct StreakAccessoryView: View {
     @Environment(\.colorScheme) private var scheme
     let entry: HaiityEntry
 
-    private var today: String { DayKey.today() }
-
     var body: some View {
         content(mode: mode, dark: scheme == .dark)
     }
@@ -108,6 +109,8 @@ struct StreakAccessoryView: View {
     @ViewBuilder
     func content(mode: WidgetRenderingMode, dark: Bool) -> some View {
         if let habit = entry.habit {
+            let today = entry.today(for: habit)
+            let calendar = entry.calendar(for: habit)
             let palette = entry.palettes.style(for: habit)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
@@ -119,7 +122,7 @@ struct StreakAccessoryView: View {
                         .widgetAccentable()
                     Spacer(minLength: 2)
                     (Text(Image(systemName: "flame.fill"))
-                        + Text(verbatim: " \(habit.streak(today: today))"))
+                        + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))"))
                         .font(.caption.monospacedDigit())
                 }
                 TrailingGrid(habit: habit, today: today, radius: 1) { level in
@@ -133,7 +136,7 @@ struct StreakAccessoryView: View {
             .foregroundStyle(WidgetInk.foreground(mode))
             .containerBackground(for: .widget) { Color.clear }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(String(localized: "\(habit.name), Serie \(habit.streak(today: today)) Tage"))
+            .accessibilityLabel(String(localized: "\(habit.name), Serie \(habit.streak(today: today, calendar: calendar)) Tage"))
         } else {
             Text(verbatim: "hAiity")
                 .font(.headline)
@@ -161,9 +164,17 @@ struct InlineAccessoryView: View {
     @ViewBuilder
     func content(mode: WidgetRenderingMode) -> some View {
         if let habit = entry.habit {
-            let status = WidgetLogic.status(habit: habit)
+            let today = entry.today(for: habit)
+            let calendar = entry.calendar(for: habit)
+            let status = WidgetLogic.status(
+                habit: habit,
+                defaultTimeZoneIdentifier: entry.defaultTimeZoneIdentifier,
+                now: entry.date)
             Label {
-                Text(verbatim: inlineText(habit, status: status))
+                Text(verbatim: inlineText(habit,
+                                          status: status,
+                                          today: today,
+                                          calendar: calendar))
             } icon: {
                 Image(systemName: symbol(status))
             }
@@ -175,10 +186,13 @@ struct InlineAccessoryView: View {
 
     /// Erledigt zeigt die Serie, offen zeigt „heute", frei zeigt den nächsten
     /// Termin — eine Zeile hat Platz für genau EINE Aussage.
-    private func inlineText(_ habit: Habit, status: WidgetStatus) -> String {
+    private func inlineText(_ habit: Habit,
+                            status: WidgetStatus,
+                            today: String,
+                            calendar: Calendar) -> String {
         switch status {
         case .done:
-            return String(localized: "\(habit.name): Serie \(habit.streak())")
+            return String(localized: "\(habit.name): Serie \(habit.streak(today: today, calendar: calendar))")
         case .open:
             return String(localized: "\(habit.name): heute offen")
         case .declined:
@@ -186,7 +200,7 @@ struct InlineAccessoryView: View {
         case .free(nil):
             return String(localized: "\(habit.name): keine Termine mehr")
         case .free(let weekday?):
-            return String(localized: "\(habit.name): frei bis \(RecurrenceText.shortWeekdayName(weekday))")
+            return String(localized: "\(habit.name): frei bis \(RecurrenceText.shortWeekdayName(weekday, calendar: calendar))")
         }
     }
 

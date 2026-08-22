@@ -516,10 +516,10 @@ enum Reminders {
     static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
                            notificationActions: [SwipeActionChoice] =
                                NotificationActionPreferences().slots,
+                           defaultTimeZoneIdentifier: String? = nil,
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
-        let today = DayKey.key(for: now, calendar: calendar)
         let timed = habits.filter {
             $0.archivedAt == nil
                 && $0.notificationsEnabled
@@ -535,15 +535,19 @@ enum Reminders {
         // schnitte iOS selbst ab, nur stumm und ohne zu sagen, wo.
         outer: for habit in timed {
             guard plans.count < budget else { break outer }
+            let habitCalendar = HabitTimeZone.calendar(for: habit,
+                                                       defaultIdentifier: defaultTimeZoneIdentifier,
+                                                       base: calendar)
+            let today = DayKey.key(for: now, calendar: habitCalendar)
             guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
             if habit.isReminder, !habit.repeatsWhileIncomplete {
                 let state = ReminderOccurrenceEngine.state(for: habit, now: now,
-                                                           calendar: calendar)
+                                                           calendar: habitCalendar)
                 guard let occurrence = state.actionable, occurrence.dueDate > now,
                       let plan = habitPlan(habit: habit, day: occurrence.day,
                                            minutes: minutes,
                                            notificationActions: notificationActions,
-                                           calendar: calendar)
+                                           calendar: habitCalendar)
                 else { continue }
                 plans.append(plan)
                 continue
@@ -552,17 +556,17 @@ enum Reminders {
             for offset in 0..<window {
                 guard plans.count < budget else { break outer }
                 if offset > 0 {
-                    guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+                    guard let next = DayKey.shifted(day, by: 1, calendar: habitCalendar) else { break }
                     day = next
                 }
-                guard reminderWorthy(habit: habit, day: day, today: today, calendar: calendar),
+                guard reminderWorthy(habit: habit, day: day, today: today, calendar: habitCalendar),
                       !habit.isDone(day), !habit.isAnswered(day)
                 else { continue }
                 guard let plan = habitPlan(habit: habit, day: day,
                                            minutes: minutes,
                                            notificationActions: notificationActions,
-                                           calendar: calendar),
-                      let fire = calendar.date(from: plan.dateMatching), fire > now
+                                           calendar: habitCalendar),
+                      let fire = habitCalendar.date(from: plan.dateMatching), fire > now
                 else { continue }
                 plans.append(plan)
             }
@@ -573,11 +577,13 @@ enum Reminders {
     /// Compatibility overload for callers from the one-action build.
     static func habitPlans(habits: [Habit], reservingMotivation: Bool = false,
                            notificationAction: SwipeActionChoice,
+                           defaultTimeZoneIdentifier: String? = nil,
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         habitPlans(habits: habits,
                    reservingMotivation: reservingMotivation,
                    notificationActions: [notificationAction, .none, .none],
+                   defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
                    now: now,
                    calendar: calendar)
     }
@@ -589,6 +595,7 @@ enum Reminders {
         var components = calendar.dateComponents([.year, .month, .day], from: date)
         components.hour = minutes / 60
         components.minute = minutes % 60
+        components.timeZone = calendar.timeZone
         let label = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
         return ReminderPlan(identifier: habitReminderIdentifier(habitID: habit.id, day: day),
                             title: label,
@@ -671,7 +678,8 @@ enum Reminders {
                 && data.motivationDelivery == .notification
             plans += habitPlans(habits: data.habits,
                                 reservingMotivation: reservingMotivation,
-                                notificationActions: data.viewPreferences.notificationActions.slots)
+                                notificationActions: data.viewPreferences.notificationActions.slots,
+                                defaultTimeZoneIdentifier: data.defaultTimeZoneIdentifier)
         }
         for plan in plans {
             try? await center.add(request(plan))
@@ -698,9 +706,14 @@ enum Reminders {
                                  to habit: Habit,
                                  target: NotificationHabitTarget,
                                  store: HabitStore,
+                                 defaultTimeZoneIdentifier: String? = nil,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> Bool {
         guard habit.id == target.habitID, habit.archivedAt == nil else { return false }
+        let habitCalendar = HabitTimeZone.calendar(
+            for: habit,
+            defaultIdentifier: defaultTimeZoneIdentifier ?? store.defaultTimeZoneIdentifier,
+            base: calendar)
 
         if action == .archive {
             store.archive(habit.id)
@@ -731,7 +744,7 @@ enum Reminders {
             guard habit.log[target.day] == nil,
                   let dueDate = ReminderOccurrenceEngine.dueDate(day: target.day,
                                                                    reminder: habit,
-                                                                   calendar: calendar)
+                                                                   calendar: habitCalendar)
             else { return false }
             let occurrence = ReminderOccurrence(day: target.day, dueDate: dueDate)
             let cursor = habit.repeatsWhileIncomplete
@@ -739,7 +752,7 @@ enum Reminders {
                 : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
                                                                   reminder: habit,
                                                                   now: now,
-                                                                  calendar: calendar)
+                                                                  calendar: habitCalendar)
             store.setReminderCompletion(habit.id, day: target.day,
                                         completed: true, nextCursor: cursor)
             return true
@@ -766,10 +779,16 @@ enum Reminders {
     /// einmalige Tagesmeldung — alles andere holt der nächste App-Start nach.
     static func reconcileAfterExternalCheckIn(store: HabitStore,
                                               habitID: UUID,
+                                              defaultTimeZoneIdentifier: String? = nil,
                                               now: Date = Date(),
                                               calendar: Calendar = .current) async {
         let center = UNUserNotificationCenter.current()
-        let today = DayKey.key(for: now, calendar: calendar)
+        guard let habit = store.habits.first(where: { $0.id == habitID }) else { return }
+        let habitCalendar = HabitTimeZone.calendar(
+            for: habit,
+            defaultIdentifier: defaultTimeZoneIdentifier ?? store.defaultTimeZoneIdentifier,
+            base: calendar)
+        let today = DayKey.key(for: now, calendar: habitCalendar)
         center.removePendingNotificationRequests(
             withIdentifiers: [habitReminderIdentifier(habitID: habitID, day: today)])
 

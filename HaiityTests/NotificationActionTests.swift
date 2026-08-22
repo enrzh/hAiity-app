@@ -12,10 +12,36 @@ final class NotificationActionTests: XCTestCase {
         XCTAssertTrue(source.contains("NotificationActionRouter.post"))
         XCTAssertFalse(source.contains("NotificationActionRouter.deliverPending()"),
                        "UIKit notification callbacks must never drive SwiftUI presentation")
-        XCTAssertFalse(source.contains("MainActor.run"),
-                       "notification actions must not enter the main actor during UIKit state restoration")
+        XCTAssertTrue(source.contains("withCompletionHandler"),
+                      "the bare async delegate variant lets UIKit's completion "
+                    + "machinery run off-main — the Build 75/82 SIGABRT")
+        XCTAssertFalse(source.contains("didReceive response: UNNotificationResponse) async"),
+                       "the async delegate signature IS the crash; keep the completion variant")
         XCTAssertTrue(source.contains("return"),
                       "the delegate should return after persisting an app-opening action")
+    }
+
+    /// Der EINE erlaubte Haupt-Actor-Sprung: UIKit seine Completion
+    /// zurückgeben (das MUSS auf dem Hauptthread geschehen, sonst wirft
+    /// `_performBlockAfterCATransactionCommitSynchronizes`). Alles andere —
+    /// Store-Mutationen, Neuplanung — bleibt außerhalb.
+    func testMainActorHopWrapsOnlyTheCompletionCall() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/NotificationPresenter.swift"))
+
+        let hop = try XCTUnwrap(source.range(of: "MainActor.run"),
+                                "the delegate must complete on the main actor")
+        XCTAssertNil(source.range(of: "MainActor.run",
+                                  range: hop.upperBound..<source.endIndex),
+                     "processing must stay off the main actor during restoration")
+
+        let tail = source[hop.lowerBound...]
+        let closingBrace = try XCTUnwrap(tail.firstIndex(of: "}"))
+        XCTAssertTrue(tail[..<closingBrace].contains("completionHandler()"),
+                      "the main-actor hop exists solely to call the completion handler")
     }
 
     func testAppOpeningActionIsNotDeliveredSynchronously() {

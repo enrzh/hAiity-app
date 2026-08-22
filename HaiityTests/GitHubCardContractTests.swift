@@ -44,7 +44,7 @@ final class GitHubCardContractTests: XCTestCase {
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
-        XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, github"))
+        XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, timeZone, github"))
         XCTAssertTrue(more.contains("open-github-settings"))
         XCTAssertTrue(more.contains("private var githubSection: some View"))
         XCTAssertTrue(more.contains("disconnect-github"))

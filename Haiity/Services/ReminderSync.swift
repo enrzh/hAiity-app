@@ -15,19 +15,29 @@ struct ReminderSyncPlan: Equatable {
     let fingerprint: String
 
     init?(habit: Habit,
-          today: String = DayKey.today(),
-          calendar: Calendar = .current) {
+          today: String? = nil,
+          calendar: Calendar = .current,
+          defaultTimeZoneIdentifier: String? = nil,
+          now: Date? = nil) {
         guard habit.isReminder, habit.archivedAt == nil,
-              let eventPlan = CalendarEventPlan(habit: habit,
-                                                today: today,
-                                                calendar: calendar),
-              let day = DayKey.date(from: today, calendar: calendar) else {
+              let itemCalendar = Optional(HabitTimeZone.calendar(
+                for: habit,
+                defaultIdentifier: defaultTimeZoneIdentifier,
+                base: calendar)) else {
+            return nil
+        }
+        let effectiveToday = today ?? DayKey.key(for: now ?? .now, calendar: itemCalendar)
+        guard let eventPlan = CalendarEventPlan(habit: habit,
+                                                today: effectiveToday,
+                                                calendar: itemCalendar,
+                                                defaultTimeZoneIdentifier: defaultTimeZoneIdentifier),
+              let day = DayKey.date(from: effectiveToday, calendar: itemCalendar) else {
             return nil
         }
 
         let occurrence = ReminderOccurrenceEngine.state(for: habit,
-                                                        now: day,
-                                                        calendar: calendar)
+                                                        now: now ?? day,
+                                                        calendar: itemCalendar)
             .actionable?.day ?? eventPlan.firstDay
         self.habitID = habit.id
         self.title = eventPlan.title
@@ -149,6 +159,7 @@ enum ReminderSync {
     }
 
     static func reconcile(habits: [Habit],
+                          defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true,
                           now: Date = .now,
                           calendar: Calendar = .current) {
@@ -160,10 +171,12 @@ enum ReminderSync {
         var links = ReminderSyncPreferences.links(in: defaults)
         var fingerprints = ReminderSyncPreferences.fingerprints(in: defaults)
         let selection = ReminderSyncSelection(enabled: true)
-        let today = DayKey.key(for: now, calendar: calendar)
         let active = habits.filter(selection.includes)
         let plans = active.compactMap {
-            ReminderSyncPlan(habit: $0, today: today, calendar: calendar)
+            ReminderSyncPlan(habit: $0,
+                             calendar: calendar,
+                             defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                             now: now)
         }
         let activeKeys = Set(plans.map { $0.habitID.uuidString })
 
@@ -217,6 +230,7 @@ enum ReminderSync {
     }
 
     static func pullCompletions(into habitStore: HabitStore,
+                                defaultTimeZoneIdentifier: String? = nil,
                                 now: Date = .now,
                                 calendar: Calendar = .current) {
         guard isEnabled, hasAccess, !isReconciling, !isPulling else { return }
@@ -231,6 +245,10 @@ enum ReminderSync {
                   let reminder = ownedReminder(id: link.reminderID, in: list) else {
                 continue
             }
+            let habitCalendar = HabitTimeZone.calendar(
+                for: habit,
+                defaultIdentifier: defaultTimeZoneIdentifier,
+                base: calendar)
 
             let appCompleted = habit.log[link.occurrenceDay] != nil
             guard appCompleted != reminder.isCompleted else { continue }
@@ -238,11 +256,11 @@ enum ReminderSync {
                 day: link.occurrenceDay,
                 dueDate: ReminderOccurrenceEngine.dueDate(day: link.occurrenceDay,
                                                           reminder: habit,
-                                                          calendar: calendar) ?? now)
+                                                          calendar: habitCalendar) ?? now)
             let next = ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
                                                                         reminder: habit,
                                                                         now: now,
-                                                                        calendar: calendar)
+                                                                        calendar: habitCalendar)
             habitStore.setReminderCompletion(habit.id,
                                              day: link.occurrenceDay,
                                              completed: reminder.isCompleted,
@@ -422,13 +440,17 @@ enum ReminderSync {
 
     private static func dueDateComponents(for plan: ReminderSyncPlan,
                                           calendar: Calendar = .current) -> DateComponents? {
-        guard let date = DayKey.date(from: plan.occurrenceDay, calendar: calendar) else { return nil }
+        var itemCalendar = calendar
+        itemCalendar.timeZone = TimeZone(identifier: plan.eventPlan.timeZoneIdentifier)
+            ?? calendar.timeZone
+        guard let date = DayKey.date(from: plan.occurrenceDay, calendar: itemCalendar) else { return nil }
         let minutes = Habit.sanitizedMinutes(plan.eventPlan.minutes)
-        var components = calendar.dateComponents([.year, .month, .day], from: date)
+        var components = itemCalendar.dateComponents([.year, .month, .day], from: date)
         if let minutes {
             components.hour = minutes / 60
             components.minute = minutes % 60
         }
+        components.timeZone = itemCalendar.timeZone
         return components
     }
 }

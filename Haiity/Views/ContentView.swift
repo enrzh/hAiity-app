@@ -205,6 +205,10 @@ struct ContentView: View {
                 for: NotificationActionRouter.pendingDidChange)) { _ in
                 schedulePendingNotificationAction()
             }
+            .onReceive(NotificationCenter.default.publisher(
+                for: HomeShortcuts.pendingDidChange)) { _ in
+                schedulePendingShortcutLink()
+            }
             // Blätter sind eine EIGENE Präsentation: Farbe und Tint von oben
             // kommen dort nicht an (nachgemessen — die Farbwahl im Blatt zeigte
             // sonst Grün, während die App längst in einer eigenen Farbe lief).
@@ -304,6 +308,7 @@ struct ContentView: View {
                 #endif
                 await boot()
                 schedulePendingNotificationAction()
+                schedulePendingShortcutLink()
                 await github.boot()
                 #if DEBUG
                 if FrameProbe.enabled { FrameProbe.shared.start() }
@@ -313,6 +318,7 @@ struct ContentView: View {
                 if phase == .active {
                     becameActiveAt = .now
                     schedulePendingNotificationAction()
+                    schedulePendingShortcutLink()
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
@@ -325,9 +331,14 @@ struct ContentView: View {
                         await syncNow(announce: false)
                         await rescheduleReminders()
                         await reconcileMotivationActivity()
-                        CalendarSync.reconcile(habits: store.habits, validate: false)
-                        ReminderSync.pullCompletions(into: store)
-                        ReminderSync.reconcile(habits: store.habits, validate: false)
+                        CalendarSync.reconcile(habits: store.habits,
+                                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                               validate: false)
+                        ReminderSync.pullCompletions(into: store,
+                                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                        ReminderSync.reconcile(habits: store.habits,
+                                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                               validate: false)
                         await reconcileAppIcon()
                     }
                     Task { await github.resumeOrRefresh(forced: true) }
@@ -697,6 +708,10 @@ struct ContentView: View {
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
                          routeToken: routeToken, screen: .habitBehavior)
+            case .timeZone:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         routeToken: routeToken, screen: .timeZone)
             // Check ownership at the destination too, not only at the row that
             // opens it. A stale local flag must never build this page.
             case .developer:
@@ -1040,6 +1055,15 @@ struct ContentView: View {
         return Theme.Metrics.control + Theme.Metrics.gap + Theme.Metrics.gutter
     }
 
+    private func habitCalendar(for habit: Habit) -> Calendar {
+        HabitTimeZone.calendar(for: habit,
+                               defaultIdentifier: store.defaultTimeZoneIdentifier)
+    }
+
+    private func habitToday(_ habit: Habit) -> String {
+        DayKey.today(calendar: habitCalendar(for: habit))
+    }
+
     // Die Statistik-Karten über dem Titel sind in den eigenen
     // Statistik-Tab umgezogen (siehe StatsView) — die Habit-Liste beginnt
     // wieder mit ihrem Titel.
@@ -1058,7 +1082,8 @@ struct ContentView: View {
             ReminderRow(habit: habit,
                         onToggle: { toggleReminder(habit) },
                         onEdit: { editing = habit },
-                        onArchive: { store.archive(habit.id) })
+                        onArchive: { store.archive(habit.id) },
+                        calendar: habitCalendar(for: habit))
                 .equatable()
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
@@ -1095,8 +1120,8 @@ struct ContentView: View {
                     else { openBackfill(habit, day: day, afterMenu: false) }
                 },
                 onBackfill: {
-                    if inSearchTab { redirectBackfillFromSearch(habit, day: DayKey.today()) }
-                    else { openBackfill(habit, day: DayKey.today(), afterMenu: true) }
+                    if inSearchTab { redirectBackfillFromSearch(habit, day: habitToday(habit)) }
+                    else { openBackfill(habit, day: habitToday(habit), afterMenu: true) }
                 },
                 onIncrement: { increment(habit) },
                 onClear: { revert(habit) },
@@ -1105,7 +1130,8 @@ struct ContentView: View {
                 onArchive: { store.archive(habit.id) },
                 onAnswer: { answer(habit, yes: $0) },
                 leadingSwipe: reveal.leading,
-                trailingSwipe: reveal.trailing)
+                trailingSwipe: reveal.trailing,
+                calendar: habitCalendar(for: habit))
                 .equatable()
                 .background { if !inSearchTab { rowProbe(index) } }
                 .listRowSeparator(.hidden)
@@ -1161,7 +1187,7 @@ struct ContentView: View {
         case .yes: answer(habit, yes: true)
         case .no: answer(habit, yes: false)
         case .archive: store.archive(habit.id)
-        case .backfill: openBackfill(habit, day: DayKey.today(), afterMenu: false)
+        case .backfill: openBackfill(habit, day: habitToday(habit), afterMenu: false)
         case .session: HabitSessionManager.shared.start(habit: habit)
         case .edit: editing = habit
         }
@@ -1194,6 +1220,20 @@ struct ContentView: View {
             guard !Task.isCancelled,
                   UIApplication.shared.applicationState == .active else { return }
             handlePendingNotificationAction()
+        }
+    }
+
+    /// Dieselbe Geduld wie beim Benachrichtigungs-Router: die Schnellaktion
+    /// parkt früh, aber erst ein aktives Fenster darf umschalten. Ein
+    /// verpasster Anruf bleibt geparkt, bis der nächste Aktiv-Wechsel holt.
+    private func schedulePendingShortcutLink() {
+        Task { @MainActor in
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled,
+                  UIApplication.shared.applicationState == .active else { return }
+            guard let url = HomeShortcuts.takePending() else { return }
+            handleDeepLink(url)
         }
     }
 
@@ -1236,28 +1276,30 @@ struct ContentView: View {
     }
 
     private func increment(_ habit: Habit) {
-        mutate(habit, day: DayKey.today()) { store.increment(habit.id) }
+        let today = habitToday(habit)
+        mutate(habit, day: today) { store.increment(habit.id, day: today) }
     }
 
     /// Heute beantworten (Habit-Art „Ja/Nein"). Läuft durch dieselbe Stelle
     /// wie jedes Abhaken — also mit exaktem Rückgängig, auch wenn die
     /// Antwort eine bestehende überschreibt.
     private func answer(_ habit: Habit, yes: Bool) {
-        mutate(habit, day: DayKey.today()) { store.answer(habit.id, yes: yes) }
+        let today = habitToday(habit)
+        mutate(habit, day: today) { store.answer(habit.id, day: today, yes: yes) }
     }
 
     /// Wisch-„Erledigt": hakt AN, nie ab. Ein schon erledigtes Checkbox-
     /// Habit bleibt unangetastet (und bekommt keinen Toast, der nichts
     /// zurückzunehmen hätte) — zum Abhaken gibt es „Rückgängig".
     private func markDone(_ habit: Habit) {
-        let today = DayKey.today()
+        let today = habitToday(habit)
         // `isDone` ist bei Ja/Nein die ANTWORT und nicht „es steht ein Wert
         // da" — ein verneinter Tag ist hier also offen und darf auf Ja
         // gedreht werden.
         if habit.kind != .quantity, habit.isDone(today) { return }
         mutate(habit, day: today) {
             switch habit.kind {
-            case .quantity: store.increment(habit.id)
+            case .quantity: store.increment(habit.id, day: today)
             case .yesNo:    store.setValue(habit.id, day: today, value: Habit.Answer.yes)
             case .checkbox: store.toggle(habit.id, day: today)
             }
@@ -1267,14 +1309,15 @@ struct ContentView: View {
     /// Heutigen Eintrag zurücknehmen — komplett, auch bei Mengen-Habits.
     /// Der Toast bringt den exakten Vorwert zurück.
     private func revert(_ habit: Habit) {
-        let today = DayKey.today()
+        let today = habitToday(habit)
         guard store.value(habit.id, day: today) != nil else { return }
         mutate(habit, day: today) { store.clear(habit.id, day: today) }
     }
 
     private func toggleReminder(_ reminder: Habit) {
-        let state = ReminderOccurrenceEngine.state(for: reminder)
-        if state.isChecked() {
+        let calendar = habitCalendar(for: reminder)
+        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
+        if state.isChecked(calendar: calendar) {
             revertReminder(reminder)
         } else {
             requestReminderCompletion(reminder)
@@ -1282,7 +1325,8 @@ struct ContentView: View {
     }
 
     private func requestReminderCompletion(_ reminder: Habit) {
-        let state = ReminderOccurrenceEngine.state(for: reminder)
+        let calendar = habitCalendar(for: reminder)
+        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
         guard let occurrence = state.actionable else { return }
         if occurrence.dueDate > .now {
             earlyReminderCompletion = PendingReminderCompletion(habitID: reminder.id,
@@ -1295,7 +1339,10 @@ struct ContentView: View {
     private func confirmEarlyReminderCompletion() {
         guard let pending = earlyReminderCompletion,
               let reminder = store.habits.first(where: { $0.id == pending.habitID }),
-              let due = ReminderOccurrenceEngine.dueDate(day: pending.day, reminder: reminder)
+              let due = ReminderOccurrenceEngine.dueDate(
+                day: pending.day,
+                reminder: reminder,
+                calendar: habitCalendar(for: reminder))
         else {
             earlyReminderCompletion = nil
             return
@@ -1306,15 +1353,19 @@ struct ContentView: View {
     }
 
     private func completeReminder(_ reminder: Habit, occurrence: ReminderOccurrence) {
+        let calendar = habitCalendar(for: reminder)
         let cursor = reminder.repeatsWhileIncomplete ? nil
-            : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence, reminder: reminder)
+            : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
+                                                             reminder: reminder,
+                                                             calendar: calendar)
         store.setReminderCompletion(reminder.id, day: occurrence.day,
                                     completed: true, nextCursor: cursor)
         Theme.Haptics.check()
     }
 
     private func revertReminder(_ reminder: Habit) {
-        let state = ReminderOccurrenceEngine.state(for: reminder)
+        let calendar = habitCalendar(for: reminder)
+        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
         guard let completed = state.mostRecentCompleted else { return }
         store.setReminderCompletion(reminder.id, day: completed.day,
                                     completed: false, nextCursor: nil)
@@ -2010,7 +2061,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github: nil
+        case .about, .developer, .appearance, .habitBehavior, .timeZone, .github: nil
         }
     }
 
@@ -2072,7 +2123,8 @@ struct ContentView: View {
                     trace("calsync: debug hook disabled")
                 } else if await CalendarSync.requestAccess() {
                     CalendarSync.isEnabled = true
-                    CalendarSync.reconcile(habits: store.habits)
+                    CalendarSync.reconcile(habits: store.habits,
+                                           defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                     trace("calsync: debug hook enabled")
                 }
             }
@@ -2343,8 +2395,12 @@ struct ContentView: View {
             Task { await Reminders.celebrateIfPerfectDay(store: store) }
             // Kalender-Spiegel nachziehen (No-op ohne Schalter/Zugriff;
             // ohne `validate`, damit Check-ins EventKit gar nicht anfassen).
-            CalendarSync.reconcile(habits: store.habits, validate: false)
-            ReminderSync.reconcile(habits: store.habits, validate: false)
+            CalendarSync.reconcile(habits: store.habits,
+                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                   validate: false)
+            ReminderSync.reconcile(habits: store.habits,
+                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                   validate: false)
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
@@ -2361,9 +2417,12 @@ struct ContentView: View {
         applyCloudPreferences()
         await rescheduleReminders()
         await reconcileMotivationActivity()
-        CalendarSync.reconcile(habits: store.habits)
-        ReminderSync.pullCompletions(into: store)
-        ReminderSync.reconcile(habits: store.habits)
+        CalendarSync.reconcile(habits: store.habits,
+                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        ReminderSync.pullCompletions(into: store,
+                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        ReminderSync.reconcile(habits: store.habits,
+                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         await reconcileAppIcon()
         if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
             showReminderSetup = true

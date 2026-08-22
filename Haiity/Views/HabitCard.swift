@@ -31,6 +31,7 @@ struct HabitCard: View, Equatable {
     static func == (a: HabitCard, b: HabitCard) -> Bool {
         a.habit == b.habit && a.collapsed == b.collapsed
             && a.leadingSwipe == b.leadingSwipe && a.trailingSwipe == b.trailingSwipe
+            && a.calendar.timeZone.identifier == b.calendar.timeZone.identifier
     }
 
     let habit: Habit
@@ -65,6 +66,7 @@ struct HabitCard: View, Equatable {
     /// aus.
     var leadingSwipe: [RevealAction] = []
     var trailingSwipe: [RevealAction] = []
+    var calendar: Calendar = .current
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -82,8 +84,10 @@ struct HabitCard: View, Equatable {
     /// Breite der Karte, für die Voll-Wisch-Schwelle (gemessen, nicht geraten).
     @State private var revealCardWidth: CGFloat = 0
 
-    private var today: String { DayKey.today() }
-    private var doneToday: Bool { GoalEngine.dayCounts(habit: habit, day: today) }
+    private var today: String { DayKey.today(calendar: calendar) }
+    private var doneToday: Bool {
+        GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
+    }
     private var declinedToday: Bool { habit.isDeclined(today) }
     /// Status controls follow the same palette as this habit's graph. The
     /// global palette remains the app tint; this keeps a custom habit color
@@ -309,7 +313,9 @@ struct HabitCard: View, Equatable {
         // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
         // Auswertung dieser Karte die 371 Zellen neu, auch wenn sich nur das
         // Chrom bewegt hat. Store-Änderungen kommen an — sie ändern `habit`.
-        ContributionGrid(habit: habit, onSelectDay: onSelectDay)
+        ContributionGrid(habit: habit,
+                         calendar: calendar,
+                         onSelectDay: onSelectDay)
             .equatable()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -402,8 +408,9 @@ struct HabitCard: View, Equatable {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                if habit.streak() > 0 {
-                    (Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak())"))
+                if habit.streak(today: today, calendar: calendar) > 0 {
+                    (Text(Image(systemName: "flame.fill")) +
+                     Text(verbatim: " \(habit.streak(today: today, calendar: calendar))"))
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -412,7 +419,8 @@ struct HabitCard: View, Equatable {
                              weeks: previewWeeks,
                              cellSize: Self.previewCell,
                              gap: Self.previewGap,
-                             interactive: false)
+                             interactive: false,
+                             calendar: calendar)
                 .equatable()
         }
         .padding(Theme.Metrics.gutter)
@@ -626,7 +634,7 @@ struct HabitCard: View, Equatable {
     /// (es zählt auch — siehe GoalEngine).
     @ViewBuilder
     private var meta: some View {
-        let streak = habit.streak()
+        let streak = habit.streak(today: today, calendar: calendar)
         if timeText != nil || streak > 0 || nextDueLabel != nil {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
                 if let time = timeText {
@@ -650,12 +658,12 @@ struct HabitCard: View, Equatable {
     /// „Heute ist nichts fällig, als Nächstes am Montag." nil, sobald heute
     /// ein Termin ist — dann sagt die Heute-Kontrolle schon alles.
     private var nextDueLabel: (short: String, long: String)? {
-        guard !GoalEngine.isScheduled(habit: habit, day: today) else { return nil }
-        guard let next = habit.recurrence.nextOccurrence(after: today),
-              let date = DayKey.date(from: next) else {
+        guard !GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) else { return nil }
+        guard let next = habit.recurrence.nextOccurrence(after: today, calendar: calendar),
+              let date = DayKey.date(from: next, calendar: calendar) else {
             return (String(localized: "frei"), String(localized: "keiner mehr"))
         }
-        let weekday = Calendar.current.component(.weekday, from: date)
+        let weekday = calendar.component(.weekday, from: date)
         return (RecurrenceText.shortWeekdayName(weekday),
                 RecurrenceText.weekdayName(weekday))
     }

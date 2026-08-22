@@ -48,6 +48,10 @@ struct EditHabitSheet: View {
     @State private var calendarSyncEnabled = true
     @State private var notificationsEnabled = true
     @State private var repeatsWhileIncomplete = true
+    /// Nil inherits the global default; `device` is an explicit per-item
+    /// choice that remains stable when the global setting changes.
+    @State private var timeZoneIdentifier: String?
+    @State private var showTimeZonePicker = false
     @State private var paywall: PaywallContext?
 
     /// Die ganze Regel als EIN Wert.
@@ -69,7 +73,10 @@ struct EditHabitSheet: View {
     @State private var swipeActions: SwipeActionsOverride?
     @State private var notificationDenied = false
 
-    private var calendar: Calendar { .current }
+    private var calendar: Calendar {
+        HabitTimeZone.calendar(identifier: timeZoneIdentifier
+                               ?? store.defaultTimeZoneIdentifier)
+    }
 
     private var frequencySelection: Binding<Recurrence.Frequency> {
         Binding(
@@ -150,6 +157,11 @@ struct EditHabitSheet: View {
         .sheet(item: $paywall) { context in
             PaywallView(context: context, store: store,
                         onUnlocked: { save(skipGate: true) })
+                .themed(store)
+        }
+        .sheet(isPresented: $showTimeZonePicker) {
+            HabitTimeZoneSheet(selection: $timeZoneIdentifier,
+                               inheritedLabel: String(localized: "Standard"))
                 .themed(store)
         }
         .onAppear { load() }
@@ -274,6 +286,21 @@ struct EditHabitSheet: View {
                 Toggle(String(localized: "Benachrichtigung"), isOn: $notificationsEnabled)
                     .accessibilityIdentifier("habit-notification-toggle")
             }
+            Button {
+                showTimeZonePicker = true
+            } label: {
+                HStack {
+                    Label(String(localized: "Zeitzone"), systemImage: "globe")
+                    Spacer(minLength: Theme.Metrics.gap)
+                    Text(HabitTimeZone.selectionLabel(
+                        for: timeZoneIdentifier,
+                        defaultIdentifier: store.defaultTimeZoneIdentifier))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("habit-timezone")
             Toggle(String(localized: "Im Kalender"), isOn: $calendarSyncEnabled)
                 .accessibilityIdentifier("habit-calendar-toggle")
             if itemType == .reminder {
@@ -623,6 +650,7 @@ struct EditHabitSheet: View {
         itemType = habit.itemType
         calendarSyncEnabled = habit.calendarSyncEnabled
         notificationsEnabled = habit.notificationsEnabled
+        timeZoneIdentifier = habit.timeZoneIdentifier
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
@@ -662,6 +690,7 @@ struct EditHabitSheet: View {
         habit.itemType = itemType
         habit.calendarSyncEnabled = calendarSyncEnabled
         habit.notificationsEnabled = notificationsEnabled
+        habit.timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(timeZoneIdentifier)
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
         if itemType != .reminder || existing?.recurrence != recurrence {
             habit.reminderCursor = nil

@@ -679,7 +679,7 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(content.contains("case .developer:"), "die Route führt nirgendwohin")
         XCTAssertTrue(content.contains("DeveloperView(store: store, cloudStatus: cloudStatus)"),
                       "die Route zeigt auf keine Seite")
-        XCTAssertTrue(content.contains("case .about, .developer, .appearance, .habitBehavior, .github: nil"),
+        XCTAssertTrue(content.contains("case .about, .developer, .appearance, .habitBehavior, .timeZone, .github: nil"),
                       "die Seite darf kein Deep-Link-Ziel bedienen")
         XCTAssertFalse(content.contains("\"developer\""),
                        "ein Deep-Link auf den Entwicklerbereich hebelt die versteckte Tür aus")

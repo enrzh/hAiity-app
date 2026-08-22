@@ -9,6 +9,9 @@ import SwiftUI
 struct HaiityEntry: TimelineEntry {
     let date: Date
     let habits: [Habit]
+    /// The global default used by habits without an item override. The widget
+    /// has no live app store, so it must travel with the timeline entry.
+    var defaultTimeZoneIdentifier: String? = nil
     /// Globale Farbe UND eigene Paletten aus derselben data.json. Das Widget
     /// hat keine Umgebung von der App — die Farbe muss im Eintrag stehen,
     /// sonst bliebe der Homescreen grün, während die App längst blau ist. Die
@@ -31,7 +34,21 @@ struct HaiityEntry: TimelineEntry {
     /// Empfehlung ist die längste laufende Serie.
     var habit: Habit? {
         guard graphSource == .habit else { return nil }
-        return WidgetLogic.resolve(habits: habits, selected: selected)
+        return WidgetLogic.resolve(habits: habits,
+                                   selected: selected,
+                                   defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                   now: date)
+    }
+
+    func calendar(for habit: Habit) -> Calendar {
+        HabitTimeZone.calendar(for: habit,
+                               defaultIdentifier: defaultTimeZoneIdentifier)
+    }
+
+    func today(for habit: Habit) -> String {
+        HabitTimeZone.today(for: habit,
+                            defaultIdentifier: defaultTimeZoneIdentifier,
+                            now: date)
     }
 
     /// Die Farbe des Graph-Widgets: eine explizite Widget-Auswahl schlägt die
@@ -83,6 +100,24 @@ enum WidgetStatus: Equatable {
 /// treffen keine Entscheidungen mehr, sie zeichnen nur.
 enum WidgetLogic {
 
+    static func today(for habit: Habit,
+                      defaultTimeZoneIdentifier: String?,
+                      now: Date = .now,
+                      calendar: Calendar = .current) -> String {
+        HabitTimeZone.today(for: habit,
+                            defaultIdentifier: defaultTimeZoneIdentifier,
+                            now: now,
+                            base: calendar)
+    }
+
+    static func calendar(for habit: Habit,
+                         defaultTimeZoneIdentifier: String?,
+                         calendar: Calendar = .current) -> Calendar {
+        HabitTimeZone.calendar(for: habit,
+                               defaultIdentifier: defaultTimeZoneIdentifier,
+                               base: calendar)
+    }
+
     // MARK: – Welcher Habit?
 
     /// Auswahl schlägt Empfehlung: die eingestellte Kennung, wenn es sie noch
@@ -95,6 +130,19 @@ enum WidgetLogic {
         let active = habits.filter { $0.archivedAt == nil }
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
         return recommended(habits: active, today: today, calendar: calendar)
+    }
+
+    static func resolve(habits: [Habit],
+                        selected: UUID?,
+                        defaultTimeZoneIdentifier: String?,
+                        now: Date = .now,
+                        calendar: Calendar = .current) -> Habit? {
+        let active = habits.filter { $0.archivedAt == nil }
+        if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
+        return recommended(habits: active,
+                           defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                           now: now,
+                           calendar: calendar)
     }
 
     /// Graph widgets must never resolve a reminder, even if a stale widget
@@ -133,6 +181,22 @@ enum WidgetLogic {
         return best?.habit
     }
 
+    static func recommended(habits: [Habit],
+                            defaultTimeZoneIdentifier: String?,
+                            now: Date = .now,
+                            calendar: Calendar = .current) -> Habit? {
+        var best: (habit: Habit, streak: Int)?
+        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
+            let itemCalendar = Self.calendar(for: habit,
+                                             defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                             calendar: calendar)
+            let itemToday = DayKey.key(for: now, calendar: itemCalendar)
+            let streak = habit.streak(today: itemToday, calendar: itemCalendar)
+            if best == nil || streak > best!.streak { best = (habit, streak) }
+        }
+        return best?.habit
+    }
+
     // MARK: – Heute
 
     /// Genau die Unterscheidung, die auch die Karte in der App trifft: ein
@@ -150,6 +214,18 @@ enum WidgetLogic {
         guard let next = habit.recurrence.nextOccurrence(after: today, calendar: calendar),
               let date = DayKey.date(from: next, calendar: calendar) else { return .free(next: nil) }
         return .free(next: calendar.component(.weekday, from: date))
+    }
+
+    static func status(habit: Habit,
+                       defaultTimeZoneIdentifier: String?,
+                       now: Date = .now,
+                       calendar: Calendar = .current) -> WidgetStatus {
+        let itemCalendar = Self.calendar(for: habit,
+                                         defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                         calendar: calendar)
+        return status(habit: habit,
+                      today: DayKey.key(for: now, calendar: itemCalendar),
+                      calendar: itemCalendar)
     }
 
     /// Der Satz dazu. Kurz genug für ein kleines Widget.
@@ -200,6 +276,23 @@ enum WidgetLogic {
             guard GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) else { continue }
             due += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) { met += 1 }
+        }
+        return DayProgress(due: due, met: met)
+    }
+
+    static func progress(habits: [Habit],
+                         defaultTimeZoneIdentifier: String?,
+                         now: Date = .now,
+                         calendar: Calendar = .current) -> DayProgress {
+        var due = 0, met = 0
+        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
+            let itemCalendar = Self.calendar(for: habit,
+                                             defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                             calendar: calendar)
+            let today = DayKey.key(for: now, calendar: itemCalendar)
+            guard GoalEngine.isScheduled(habit: habit, day: today, calendar: itemCalendar) else { continue }
+            due += 1
+            if GoalEngine.dayCounts(habit: habit, day: today, calendar: itemCalendar) { met += 1 }
         }
         return DayProgress(due: due, met: met)
     }

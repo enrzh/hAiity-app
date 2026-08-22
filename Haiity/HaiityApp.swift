@@ -7,6 +7,9 @@ struct HaiityApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var startupSplashVisible = true
     @State private var startupContentMounted = false
+    // Übergibt die Szenen an ShortcutSceneDelegate — ohne ihn kommen
+    // Schnellaktionen des Homescreens nirgends an.
+    @UIApplicationDelegateAdaptor(ShortcutAppDelegate.self) private var shortcutDelegate
 
     init() {
         // Ohne Delegat unterdrückt iOS jede geplante Mitteilung, solange die
@@ -102,6 +105,9 @@ struct HaiityApp: App {
             switch phase {
             case .active:
                 HabitSessionManager.shared.recoverIfNeeded()
+                // Icon-Menü auffrischen: seit dem letzten Vordergrund kann
+                // ein Widget/Knopf den heutigen Check erledigt haben.
+                HomeShortcuts.update(habits: HabitStore.read(SharedStorage.dataURL())?.habits ?? [])
             case .background:
                 GitHubBackgroundRefresh.schedule()
             default:

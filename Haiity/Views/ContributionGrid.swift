@@ -38,6 +38,7 @@ struct ContributionGrid: View, Equatable {
             && a.gap == b.gap
             && a.interactive == b.interactive
             && a.showsMonthLabels == b.showsMonthLabels
+            && a.calendar.timeZone.identifier == b.calendar.timeZone.identifier
             && (a.onSelectDay == nil) == (b.onSelectDay == nil)
     }
 
@@ -49,6 +50,7 @@ struct ContributionGrid: View, Equatable {
     var gap: CGFloat?
     var interactive: Bool = true
     var showsMonthLabels: Bool = true
+    var calendar: Calendar = .current
     /// Tag AUSGEWÄHLT (nicht geändert): der Aufrufer öffnet damit die
     /// Nacharbeiten-Karte. Nil = das Raster ist nur Anzeige.
     var onSelectDay: ((String) -> Void)?
@@ -87,7 +89,10 @@ struct ContributionGrid: View, Equatable {
         #endif
         let m = metrics
         let pitch = m.cell + m.gap
-        let snapshot = GridCalendar.snapshot(habit: habit, weeks: weeks, today: DayKey.today())
+        let snapshot = GridCalendar.snapshot(habit: habit,
+                                             weeks: weeks,
+                                             today: DayKey.today(calendar: calendar),
+                                             calendar: calendar)
         let contentWidth = CGFloat(weeks) * pitch - m.gap
         let marks = GridCalendar.placeMarks(snapshot.marks,
                                             pitch: pitch,
@@ -141,7 +146,7 @@ struct ContributionGrid: View, Equatable {
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
         // im Raster zeigt, bekommt die eine kleine Bewegung. Bei „Bewegung
         // reduzieren" bleibt nur der Farbwechsel der Zelle.
-        .onChange(of: habit.log[DayKey.today()]) { _, _ in
+        .onChange(of: habit.log[DayKey.today(calendar: calendar)]) { _, _ in
             guard interactive, !reduceMotion else { return }
             checkPulse = true
             withAnimation(.spring(response: 0.35, dampingFraction: 0.55).delay(0.02)) {

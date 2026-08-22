@@ -116,7 +116,8 @@ final class SiriIntentTests: XCTestCase {
         XCTAssertTrue(intents.contains("ReturnsValue<Int> & ProvidesDialog"))
         XCTAssertTrue(intents.contains("SummaryText.daily(status)"),
                       "der Tagesstand spricht denselben Satz wie die Tagesmeldung")
-        XCTAssertTrue(intents.contains("GoalEngine.streak(habit: stored)"),
+        XCTAssertTrue(intents.contains("GoalEngine.streak(")
+                      && intents.contains("today: DayKey.today(calendar:"),
                       "die Serie ist DIE Zahl aus der Statistik")
         // Nach einem Nein muss die heutige Erinnerung verstummen.
         XCTAssertTrue(intents.contains("Reminders.reconcileAfterExternalCheckIn"))

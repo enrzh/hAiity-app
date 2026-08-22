@@ -31,7 +31,15 @@ struct HaiityWidgetView: View {
     /// Akzente folgen der GLOBALEN Farbe (wie die Knöpfe in der App); nur das
     /// Raster nimmt die Habit-eigene.
     private var palette: PaletteStyle { entry.palettes.style }
-    private var today: String { DayKey.today() }
+    private var today: String {
+        guard let habit = entry.habit else { return DayKey.today() }
+        return entry.today(for: habit)
+    }
+
+    private var calendar: Calendar {
+        guard let habit = entry.habit else { return .current }
+        return entry.calendar(for: habit)
+    }
 
     var body: some View {
         content(family: family, dark: scheme == .dark, mode: mode)
@@ -66,7 +74,7 @@ struct HaiityWidgetView: View {
     private func reminderContent(_ habit: Habit,
                                  family: WidgetFamily,
                                  dark: Bool) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today)
+        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 nameRun(habit, font: family == .systemMedium
@@ -94,7 +102,7 @@ struct HaiityWidgetView: View {
     private func small(_ habit: Habit,
                        dark: Bool,
                        mode: WidgetRenderingMode) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today)
+        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 nameRun(habit, font: .subheadline.weight(.semibold))
@@ -116,7 +124,7 @@ struct HaiityWidgetView: View {
     private func medium(_ habit: Habit,
                         dark: Bool,
                         mode: WidgetRenderingMode) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today)
+        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Theme.Metrics.gap) {
                 nameRun(habit, font: .headline)
@@ -150,7 +158,8 @@ struct HaiityWidgetView: View {
     /// Symbol und Zahl als EIN Textlauf — so sitzt das Glyph auf der
     /// Grundlinie der Ziffern statt auf der Mitte seines Kastens (App-Regel).
     private func streakRun(_ habit: Habit) -> Text {
-        Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak(today: today))")
+        Text(Image(systemName: "flame.fill"))
+            + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))")
     }
 
     private func statusLine(_ status: WidgetStatus, dark: Bool) -> some View {
@@ -182,7 +191,7 @@ struct HaiityWidgetView: View {
     /// heißt „abhaken". Auch an einem terminfreien Tag bedienbar: der Bonus
     /// zählt.
     private func checkButton(_ habit: Habit, dark: Bool) -> some View {
-        let done = GoalEngine.dayCounts(habit: habit, day: today)
+        let done = GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
         let declined = habit.isDeclined(today)
         return Button(intent: CheckOffHabitIntent(habit: habit)) {
             if habit.kind == .quantity, let target = habit.recurrence.target {

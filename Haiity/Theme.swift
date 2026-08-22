@@ -39,6 +39,21 @@ enum AppearanceMaterial: String, CaseIterable, Codable, Sendable {
         case .adaptive: return String(localized: "Auto")
         }
     }
+
+    /// Ein Satz unter der Vorschau-Auswahl, der sagt, was die gewählte
+    /// Oberfläche tatsächlich tut — „Auto" ohne Erklärung wäre Rätselraten.
+    var hint: String {
+        switch self {
+        case .solid:
+            return String(localized: "Deckende Flächen in einer ruhigen Farbe.")
+        case .milky:
+            return String(localized: "Milchig getönte Flächen, die den Hintergrund erahnen.")
+        case .liquid:
+            return String(localized: "Echtes Liquid Glass mit Tiefenwirkung (ab iOS 26, sonst Milchglas).")
+        case .adaptive:
+            return String(localized: "Passt Fläche und Kontrast automatisch an deinen Hintergrund an.")
+        }
+    }
 }
 
 enum AppearanceBackgroundMode: String, CaseIterable, Codable, Sendable {

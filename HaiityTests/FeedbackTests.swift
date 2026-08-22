@@ -667,7 +667,7 @@ final class FeedbackTests: XCTestCase {
 
     func testMoreUsesRequestedPageOrderAndDedicatedSettingsScreens() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        for route in ["case archive, about, developer, appearance, habitBehavior, github",
+        for route in ["case archive, about, developer, appearance, habitBehavior, timeZone, github",
                       "case .appearance:", "case .habitBehavior:",
                       "Darstellung", "Verhalten & Teilen"] {
             XCTAssertTrue(more.contains(route), route)

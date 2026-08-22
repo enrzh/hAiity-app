@@ -144,6 +144,9 @@ struct HabitData: Codable {
 
     var version: Int
     var updatedAt: TimeInterval
+    /// Global default for habits without a per-item override. Nil means the
+    /// current device timezone and keeps older payloads unchanged.
+    var defaultTimeZoneIdentifier: String?
     /// Tageszusammenfassung; nil = aus. Hieß bis v4 „Abend-Zusammenfassung"
     /// und behält deshalb ihren Schlüssel — dieselbe Einstellung, nur mit
     /// mehr zu sagen (siehe `SummaryText`).
@@ -206,6 +209,7 @@ struct HabitData: Codable {
          updatedAt: TimeInterval,
          summaryMinutes: Int?,
          habits: [Habit],
+         defaultTimeZoneIdentifier: String? = nil,
          appearance: AppearanceSetting = .default,
          appearancePreferences: AppearancePreferences = .default,
          palette: PaletteRef = .default,
@@ -222,6 +226,7 @@ struct HabitData: Codable {
          motivationDelivery: MotivationDelivery = .notification) {
         self.version = version
         self.updatedAt = updatedAt
+        self.defaultTimeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(defaultTimeZoneIdentifier)
         self.summaryMinutes = summaryMinutes
         self.weeklySummaryMinutes = weeklySummaryMinutes
         self.motivationMinutes = motivationMinutes
@@ -253,7 +258,7 @@ extension HabitData {
     /// die Einstellung, die es nicht mehr gibt, fällt beim nächsten
     /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
-        case version, updatedAt, summaryMinutes, habits, appearance, appearancePreferences,
+        case version, updatedAt, defaultTimeZoneIdentifier, summaryMinutes, habits, appearance, appearancePreferences,
              palette, matchAppIcon
         case manualAppIconName
         case githubShowsUsername
@@ -283,6 +288,8 @@ extension HabitData {
         }
         version = v
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
+        defaultTimeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(
+            try c.decodeIfPresent(String.self, forKey: .defaultTimeZoneIdentifier))
         summaryMinutes = try c.decodeIfPresent(Int.self, forKey: .summaryMinutes)
         weeklySummaryMinutes = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryMinutes)
         // Fehlt der Schlüssel (jede Datei vor dieser Fassung): nil = aus.
@@ -328,6 +335,7 @@ extension HabitData {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(version, forKey: .version)
         try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encodeIfPresent(defaultTimeZoneIdentifier, forKey: .defaultTimeZoneIdentifier)
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
         try c.encodeIfPresent(weeklySummaryMinutes, forKey: .weeklySummaryMinutes)
         try c.encodeIfPresent(motivationMinutes, forKey: .motivationMinutes)
@@ -443,6 +451,16 @@ final class HabitStore {
     var motivationDelivery: MotivationDelivery {
         get { data.motivationDelivery }
         set { data.motivationDelivery = newValue; persist() }
+    }
+
+    var defaultTimeZoneIdentifier: String? {
+        get { data.defaultTimeZoneIdentifier }
+        set {
+            let normalized = HabitTimeZone.sanitizedIdentifier(newValue)
+            guard normalized != data.defaultTimeZoneIdentifier else { return }
+            data.defaultTimeZoneIdentifier = normalized
+            persist()
+        }
     }
 
     var weeklySummaryWeekday: Int {
@@ -928,6 +946,7 @@ final class HabitStore {
                     lh.timeMinutes = rh.timeMinutes
                     lh.notificationsEnabled = rh.notificationsEnabled
                     lh.calendarSyncEnabled = rh.calendarSyncEnabled
+                    lh.timeZoneIdentifier = rh.timeZoneIdentifier
                     lh.repeatsWhileIncomplete = rh.repeatsWhileIncomplete
                     lh.reminderCursor = rh.reminderCursor
                     lh.recurrence = rh.recurrence
@@ -962,6 +981,7 @@ final class HabitStore {
             data.weeklySummaryWeekday = remote.weeklySummaryWeekday
             data.motivationMinutes = remote.motivationMinutes
             data.motivationDelivery = remote.motivationDelivery
+            data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
             if let remoteShowsUsername = remote.githubShowsUsername {
                 data.githubShowsUsername = remoteShowsUsername
                 GitHubPreferences.setShowsUsername(remoteShowsUsername,

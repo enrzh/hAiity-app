@@ -168,6 +168,22 @@ enum AppDestination: Equatable {
         }
     }
 
+    /// Die Tür, durch die dieses Ziel erreicht wird — dieselben Links, die
+    /// auch von außen ankommen (`onOpenURL`). Schnellaktionen des
+    /// Homescreens parken genau diese URL.
+    var url: URL {
+        let host: String
+        switch self {
+        case .habits: host = "habits"
+        case .more: host = "more"
+        case .stats: host = "stats"
+        case .archive: host = "archive"
+        case .search: host = "search"
+        case .create: host = "new"
+        }
+        return URL(string: "haiity://\(host)")!
+    }
+
     var selectedTab: AppTab {
         switch self {
         case .habits:

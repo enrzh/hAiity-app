@@ -20,7 +20,6 @@ struct RosterWidgetView: View {
     let entry: HaiityEntry
 
     private var palette: PaletteStyle { entry.palettes.style }
-    private var today: String { DayKey.today() }
 
     var body: some View {
         content(family: family, dark: scheme == .dark, mode: mode)
@@ -59,7 +58,10 @@ struct RosterWidgetView: View {
     // MARK: – Kopf
 
     private func header(overflow: Int) -> some View {
-        let progress = WidgetLogic.progress(habits: entry.habits, today: today)
+        let progress = WidgetLogic.progress(
+            habits: entry.habits,
+            defaultTimeZoneIdentifier: entry.defaultTimeZoneIdentifier,
+            now: entry.date)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(String(localized: "Heute"))
                 .font(.caption.weight(.semibold))
@@ -85,7 +87,10 @@ struct RosterWidgetView: View {
                      width: CGFloat,
                      dark: Bool,
                      mode: WidgetRenderingMode) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today)
+        let today = entry.today(for: habit)
+        let calendar = entry.calendar(for: habit)
+        let status = WidgetLogic.status(habit: habit, today: today,
+                                        calendar: calendar)
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
@@ -97,7 +102,8 @@ struct RosterWidgetView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
-                metadata(habit: habit, status: status, palette: cellPalette, dark: dark)
+                metadata(habit: habit, today: today, calendar: calendar, status: status,
+                         palette: cellPalette, dark: dark)
                     .padding(6)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -112,11 +118,13 @@ struct RosterWidgetView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func streakRun(_ habit: Habit) -> Text {
-        Text(Image(systemName: "flame.fill")) + Text(verbatim: " \(habit.streak(today: today))")
+    private func streakRun(_ habit: Habit, today: String, calendar: Calendar) -> Text {
+        Text(Image(systemName: "flame.fill"))
+            + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))")
     }
 
-    private func metadata(habit: Habit, status: WidgetStatus,
+    private func metadata(habit: Habit, today: String, calendar: Calendar,
+                          status: WidgetStatus,
                           palette cellPalette: PaletteStyle, dark: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             if !habit.emoji.isEmpty {
@@ -128,7 +136,7 @@ struct RosterWidgetView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
-            streakRun(habit)
+            streakRun(habit, today: today, calendar: calendar)
                 .font(.caption2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
             glyph(status, palette: cellPalette, dark: dark)

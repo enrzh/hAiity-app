@@ -16,19 +16,20 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, github
+    case archive, about, developer, appearance, habitBehavior, timeZone, github
 
     var id: Self { self }
 }
 
 enum MoreScreen: Equatable {
-    case main, appearance, habitBehavior
+    case main, appearance, habitBehavior, timeZone
 
     var title: String {
         switch self {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
         case .habitBehavior: String(localized: "Verhalten & Teilen")
+        case .timeZone: String(localized: "Zeitzone")
         }
     }
 }
@@ -141,6 +142,7 @@ struct MoreView: View, Equatable {
             case .main: mainSettings
             case .appearance: appearanceSettings
             case .habitBehavior: habitBehaviorSettings
+            case .timeZone: timeZoneSettings
             }
         }
         .navigationTitle(screen.title)
@@ -304,11 +306,33 @@ struct MoreView: View, Equatable {
 
     private var habitBehaviorSettings: some View {
         List {
+            timeZoneSection
             swipeActionsSection
             notificationActionsSection
             calendarSection
         }
         .settingsSurface()
+    }
+
+    private var timeZoneSection: some View {
+        Section {
+            pageRow(.timeZone,
+                    title: String(localized: "Standardzeitzone"),
+                    symbol: "globe",
+                    identifier: "open-timezone",
+                    badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
+        } footer: {
+            Text(String(localized: "Neue Habits übernehmen diese Zeitzone. Einzelne Habits können sie überschreiben."))
+        }
+    }
+
+    private var timeZoneSettings: some View {
+        HabitTimeZoneList(selection: defaultTimeZoneBinding,
+                          inheritedLabel: String(localized: "Gerätezeitzone"),
+                          allowsDeviceOverride: false)
+            .navigationTitle(String(localized: "Standardzeitzone"))
+            .navigationBarTitleDisplayMode(.inline)
+            .settingsSurface()
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -818,7 +842,11 @@ struct MoreView: View, Equatable {
                         if type == .habit { $0.calendarSyncHabits = false }
                         else { $0.calendarSyncReminders = false }
                     }
-                    if CalendarSync.isEnabled { CalendarSync.reconcile(habits: store.habits) }
+                    if CalendarSync.isEnabled {
+                        CalendarSync.reconcile(
+                            habits: store.habits,
+                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                    }
                     else { CalendarSync.disable() }
                     return
                 }
@@ -844,7 +872,9 @@ struct MoreView: View, Equatable {
                             if type == .habit { $0.calendarSyncHabits = true }
                             else { $0.calendarSyncReminders = true }
                         }
-                        CalendarSync.reconcile(habits: store.habits)
+                        CalendarSync.reconcile(
+                            habits: store.habits,
+                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                     }
                 }
             })
@@ -871,7 +901,9 @@ struct MoreView: View, Equatable {
                             ReminderSync.isEnabled = true
                             updateCloudPreferences { $0.nativeReminderSync = true }
                             ReminderSync.startObserving(store: store)
-                            ReminderSync.reconcile(habits: store.habits)
+                            ReminderSync.reconcile(
+                                habits: store.habits,
+                                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                         }
                     }
                 }
@@ -897,15 +929,12 @@ struct MoreView: View, Equatable {
             .pickerStyle(.menu)
             .accessibilityIdentifier("appearance-picker")
 
-            Picker(selection: materialBinding) {
-                ForEach(AppearanceMaterial.allCases, id: \.self) { material in
-                    Text(material.displayName).tag(material)
-                }
-            } label: {
-                Label(String(localized: "Oberfläche"), systemImage: "square.3.layers.3d")
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("appearance-material-picker")
+            // Vorschau statt Wortliste: jede Oberfläche als Miniaturfläche
+            // in DEM Material, das sie später wirklich hat (siehe
+            // MaterialPreviewPicker). Ein segmentiertes Steuerelement trug
+            // vier Begriffe ohne jeden Anhaltspunkt, wie sie aussehen.
+            MaterialPreviewPicker(selection: materialBinding)
+                .accessibilityIdentifier("appearance-material-picker")
 
             backgroundControl
 
@@ -991,6 +1020,14 @@ struct MoreView: View, Equatable {
         colorScheme == .dark ? 0x2C2C2E : 0xE5E5EA
     }
 
+    /// A small set of calm starting points keeps the background editor useful
+    /// without turning it into a wall of color controls. The ColorPicker still
+    /// accepts any custom color.
+    private static let backgroundSwatches: [UInt32] = [
+        0xF4F7F2, 0xE7F0FA, 0xF7ECE2, 0xF0EAF7,
+        0x202428, 0x202B2A, 0x24263A, 0x2D2520
+    ]
+
     private func updateAppearance(_ body: (inout AppearancePreferences) -> Void) {
         var next = store.appearancePreferences
         body(&next)
@@ -998,35 +1035,142 @@ struct MoreView: View, Equatable {
     }
 
     private var backgroundControl: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Picker(selection: backgroundModeBinding) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+            Text(String(localized: "Hintergrund"))
+                .font(.subheadline.weight(.semibold))
+
+            backgroundPreview
+
+            Picker(String(localized: "Hintergrund"), selection: backgroundModeBinding) {
                 ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
-                    Text(mode.displayName).tag(mode)
+                    Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
+                        .tag(mode)
                 }
-            } label: {
-                Label(String(localized: "Hintergrund"), systemImage: "rectangle.fill")
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel(String(localized: "Hintergrund"))
             .accessibilityIdentifier("appearance-background-mode-picker")
 
             switch store.appearancePreferences.backgroundMode {
             case .color:
-                ColorPicker(String(localized: "Farbe"), selection: backgroundColorBinding,
-                            supportsOpacity: false)
-                    .accessibilityIdentifier("appearance-background-color-picker")
+                backgroundColorRow(title: String(localized: "Farbe"),
+                                   symbol: "circle.fill",
+                                   selection: backgroundColorBinding,
+                                   selectedHex: store.appearancePreferences.backgroundColorHex) { hex in
+                    updateAppearance { $0.backgroundColorHex = hex }
+                }
+                .accessibilityIdentifier("appearance-background-color-picker")
             case .gradient:
-                ColorPicker(String(localized: "Oben"), selection: gradientStartBinding,
-                            supportsOpacity: false)
+                backgroundColorRow(title: String(localized: "Oben"),
+                                   symbol: "arrow.up",
+                                   selection: gradientStartBinding,
+                                   selectedHex: store.appearancePreferences.gradientStartHex) { hex in
+                    updateAppearance { $0.gradientStartHex = hex }
+                }
                     .accessibilityIdentifier("appearance-gradient-start-picker")
-                ColorPicker(String(localized: "Unten"), selection: gradientEndBinding,
-                            supportsOpacity: false)
+                backgroundColorRow(title: String(localized: "Unten"),
+                                   symbol: "arrow.down",
+                                   selection: gradientEndBinding,
+                                   selectedHex: store.appearancePreferences.gradientEndHex) { hex in
+                    updateAppearance { $0.gradientEndHex = hex }
+                }
                     .accessibilityIdentifier("appearance-gradient-end-picker")
-                Text(String(localized: "Vertikaler Verlauf"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             case .image:
                 backgroundImagePicker
             }
+        }
+    }
+
+    private func backgroundSymbol(for mode: AppearanceBackgroundMode) -> String {
+        switch mode {
+        case .color: "circle.fill"
+        case .gradient: "circle.lefthalf.filled"
+        case .image: "photo"
+        }
+    }
+
+    private func backgroundColorRow(title: String,
+                                    symbol: String,
+                                    selection: Binding<Color>,
+                                    selectedHex: UInt32?,
+                                    apply: @escaping (UInt32) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            HStack(spacing: Theme.Metrics.gap) {
+                Label(title, systemImage: symbol)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: Theme.Metrics.gap)
+                ColorPicker(String(localized: "Eigene Farbe"),
+                            selection: selection,
+                            supportsOpacity: false)
+                    .labelsHidden()
+                    .accessibilityIdentifier("appearance-custom-color-\(title)")
+            }
+            HStack(spacing: 10) {
+                ForEach(Self.backgroundSwatches, id: \.self) { hex in
+                    Button {
+                        apply(hex)
+                    } label: {
+                        Circle()
+                            .fill(Theme.color(hex))
+                            .frame(width: 28, height: 28)
+                            .overlay {
+                                Circle()
+                                    .stroke(hex == selectedHex
+                                            ? Color.primary.opacity(0.85)
+                                            : Color.primary.opacity(0.16),
+                                            lineWidth: hex == selectedHex ? 2 : 0.75)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Farbton"))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var backgroundPreview: some View {
+        ZStack(alignment: .bottomLeading) {
+            switch store.appearancePreferences.backgroundMode {
+            case .color:
+                Theme.color(store.appearancePreferences.backgroundColorHex
+                            ?? fallbackBackgroundColorHex)
+            case .gradient:
+                LinearGradient(
+                    colors: [
+                        Theme.color(store.appearancePreferences.gradientStartHex
+                                    ?? fallbackGradientStartHex),
+                        Theme.color(store.appearancePreferences.gradientEndHex
+                                    ?? fallbackGradientEndHex)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom)
+            case .image:
+                if let image = store.appearancePreferences.backgroundImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color(.systemGroupedBackground)
+                }
+            }
+            Color(.systemBackground).opacity(colorScheme == .dark ? 0.18 : 0.08)
+            HStack(spacing: 6) {
+                Text(verbatim: "hAiity")
+                    .font(.headline.weight(.bold))
+                Text(String(localized: "dein Raum"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 82)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
         }
     }
 
@@ -1447,6 +1591,11 @@ struct MoreView: View, Equatable {
 
     private var appearanceBinding: Binding<AppearanceSetting> {
         Binding(get: { store.appearance }, set: { store.appearance = $0 })
+    }
+
+    private var defaultTimeZoneBinding: Binding<String?> {
+        Binding(get: { store.defaultTimeZoneIdentifier },
+                set: { store.defaultTimeZoneIdentifier = $0 })
     }
 
     private var matchIconBinding: Binding<Bool> {

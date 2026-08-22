@@ -54,6 +54,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Individuelle Teilnahme am Kalender-Spiegel. Der Standard ist an,
     /// damit bestehende Habits und Erinnerungen ihr Verhalten behalten.
     var calendarSyncEnabled: Bool
+    /// Nil = use the global default timezone. `device` is an explicit per-item
+    /// choice that remains on the device even when the global default changes.
+    var timeZoneIdentifier: String?
     /// Wiederholt die Regel auch dann, wenn ein älterer Reminder offen ist.
     /// Bestehende Dateien lesen als `true` und behalten damit ihr Verhalten.
     var repeatsWhileIncomplete: Bool
@@ -130,6 +133,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
         self.notificationsEnabled = notificationsEnabled
         self.calendarSyncEnabled = true
+        self.timeZoneIdentifier = nil
         self.repeatsWhileIncomplete = true
         self.reminderCursor = nil
         self.log = [:]
@@ -169,7 +173,7 @@ extension Habit {
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
              notificationsEnabled,
-             calendarSyncEnabled, repeatsWhileIncomplete, reminderCursor,
+             calendarSyncEnabled, timeZoneIdentifier, repeatsWhileIncomplete, reminderCursor,
              log, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
@@ -215,6 +219,8 @@ extension Habit {
         notificationsEnabled = try c.decodeIfPresent(Bool.self,
                                                       forKey: .notificationsEnabled) ?? true
         calendarSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarSyncEnabled) ?? true
+        timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(
+            try c.decodeIfPresent(String.self, forKey: .timeZoneIdentifier))
         repeatsWhileIncomplete = try c.decodeIfPresent(Bool.self,
                                                        forKey: .repeatsWhileIncomplete) ?? true
         reminderCursor = try c.decodeIfPresent(String.self, forKey: .reminderCursor)
@@ -261,6 +267,7 @@ extension Habit {
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
         if !notificationsEnabled { try c.encode(false, forKey: .notificationsEnabled) }
         if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }
+        try c.encodeIfPresent(timeZoneIdentifier, forKey: .timeZoneIdentifier)
         if !repeatsWhileIncomplete { try c.encode(false, forKey: .repeatsWhileIncomplete) }
         try c.encodeIfPresent(reminderCursor, forKey: .reminderCursor)
         try c.encode(log, forKey: .log)

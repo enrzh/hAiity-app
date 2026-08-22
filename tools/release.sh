@@ -108,7 +108,10 @@ say "Unit tests"
 # Vibrant Home Screen widget policy: +2 = 1036.
 # GitHub contribution card: +43 = 1079.
 # Notification action slots and live category registration: +8 = 1099.
-MIN_TESTS=1099
+# Home Screen quick actions (candidates, menu build, type resolution): +9 = 1108.
+# Main-actor completion contract for the notification delegate: +1 = 1109.
+# Current full-suite floor verified with timezone and appearance coverage.
+MIN_TESTS=1288
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
@@ -227,7 +230,9 @@ ok "CFBundleIconName = AppIcon (top level)"
 
 # 5c. …and the icon has to actually be in the compiled catalog.
 [[ -f "$APP/Assets.car" ]] || fail "no Assets.car in the app bundle."
-xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"AppIcon"' \
+# Consume the full assetutil stream. With pipefail, grep -q closes the pipe
+# after the first match and assetutil exits with SIGPIPE on larger catalogs.
+xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep '"AppIcon"' >/dev/null \
   || fail "AppIcon is not present in Assets.car — the icon set did not compile.
     Check Haiity/Assets.xcassets/AppIcon.appiconset and
     ASSETCATALOG_COMPILER_APPICON_NAME."
@@ -254,7 +259,7 @@ FOUND=$(echo "$ALT_NAMES" | tr ' ' '\n' | sort)
     project.yml: $(echo $WANTED)
     bundle:      $(echo $FOUND)"
 for alt in $ALT_NAMES; do
-  xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q "\"$alt\"" \
+  xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep "\"$alt\"" >/dev/null \
     || fail "$alt is declared but missing from Assets.car."
 done
 ok "alternate icons present ($(echo $ALT_NAMES | wc -w | tr -d ' ')): $(echo $ALT_NAMES | tr '\n' ' ')"
