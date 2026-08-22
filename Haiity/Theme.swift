@@ -736,16 +736,10 @@ private struct SettingsChromeModifier: ViewModifier {
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.regularMaterial, for: .navigationBar)
         case .liquid:
-            if #available(iOS 26, *) {
-                content
-                    .background(AppearanceBackground(preferences: preferences))
-                    .toolbarBackground(.hidden, for: .navigationBar)
-            } else {
-                content
-                    .background(AppearanceBackground(preferences: preferences))
-                    .toolbarBackground(.visible, for: .navigationBar)
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            }
+            content
+                .background(AppearanceBackground(preferences: preferences))
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         case .adaptive:
             content
                 .background(AppearanceBackground(preferences: preferences))

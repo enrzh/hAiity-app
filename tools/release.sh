@@ -110,8 +110,9 @@ say "Unit tests"
 # Notification action slots and live category registration: +8 = 1099.
 # Home Screen quick actions (candidates, menu build, type resolution): +9 = 1108.
 # Main-actor completion contract for the notification delegate: +1 = 1109.
-# Current full-suite floor verified with timezone and appearance coverage.
-MIN_TESTS=1288
+# Current full-suite floor verified with timezone, appearance, and settings
+# chrome coverage.
+MIN_TESTS=1294
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get

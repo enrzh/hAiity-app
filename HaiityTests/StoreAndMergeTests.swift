@@ -104,6 +104,22 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(store.habits.count, 1)
     }
 
+    func testAppearancePersistenceReportsItsOwnChangeKind() {
+        var genericChangeFired = false
+        var changeKind: HabitStoreChange?
+        store.onChange = { genericChangeFired = true }
+        store.onChangeKind = { changeKind = $0 }
+
+        var preferences = store.appearancePreferences
+        preferences.backgroundMode = .gradient
+        store.appearancePreferences = preferences
+
+        XCTAssertTrue(genericChangeFired,
+                      "appearance changes still need the normal persistence callback")
+        XCTAssertEqual(changeKind, .appearance,
+                       "appearance changes must not be treated like habit mutations")
+    }
+
     // MARK: – Merge-Semantik (Union: ein Check-in irgendwo zählt)
 
     func testMergeUnionsLogs() {

@@ -2387,6 +2387,9 @@ struct ContentView: View {
         ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()
+        }
+        store.onChangeKind = { change in
+            guard change == .general else { return }
             Task {
                 await rescheduleReminders()
                 await reconcileMotivationActivity()

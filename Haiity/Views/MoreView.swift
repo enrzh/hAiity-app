@@ -939,11 +939,17 @@ struct MoreView: View, Equatable {
             backgroundControl
 
             Toggle(isOn: matchIconBinding) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(String(localized: "App-Icon dynamisch"), systemImage: "app.badge")
-                    Text(String(localized: "Gleiche Farbe wie Graph-Farbe."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(alignment: .center, spacing: Theme.Metrics.gap) {
+                    Image(systemName: "app.badge")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "App-Icon dynamisch"))
+                        Text(String(localized: "Gleiche Farbe wie Graph-Farbe."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .accessibilityIdentifier("match-icon-toggle")
@@ -1178,11 +1184,16 @@ struct MoreView: View, Equatable {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
                 PhotosPicker(selection: $pickedBackgroundItem, matching: .images) {
-                    Label(String(localized: "Auswählen"), systemImage: "photo")
+                    Label(String(localized: "Bild auswählen"),
+                          systemImage: "photo.on.rectangle.angled")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .appSurface(cornerRadius: 12)
                 .accessibilityIdentifier("appearance-background-picker")
-                Spacer(minLength: 0)
                 if store.appearancePreferences.backgroundImage != nil {
                     Button(role: .destructive) {
                         updateAppearance {
@@ -1192,9 +1203,12 @@ struct MoreView: View, Equatable {
                         pickedBackgroundItem = nil
                         backgroundImageError = false
                     } label: {
-                        Label(String(localized: "Entfernen"), systemImage: "trash")
+                        Image(systemName: "trash")
+                            .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.bordered)
+                    .help(String(localized: "Hintergrundbild entfernen"))
+                    .accessibilityLabel(String(localized: "Hintergrundbild entfernen"))
                     .accessibilityIdentifier("appearance-background-remove")
                 }
             }

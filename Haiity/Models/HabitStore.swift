@@ -406,11 +406,17 @@ enum SharedStorage {
     }
 }
 
+enum HabitStoreChange: Equatable, Sendable {
+    case general
+    case appearance
+}
+
 @Observable
 final class HabitStore {
     private(set) var data: HabitData
     let url: URL
     var onChange: (() -> Void)?
+    var onChangeKind: ((HabitStoreChange) -> Void)?
     /// mtime der Datei beim letzten eigenen Lesen/Schreiben — erkennt
     /// externe Schreiber (Widget-Intent im Extension-Prozess).
     @ObservationIgnored private var loadedMtime: Date?
@@ -474,18 +480,18 @@ final class HabitStore {
 
     var appearance: AppearanceSetting {
         get { data.appearance }
-        set { data.appearance = newValue; persist() }
+        set { data.appearance = newValue; persist(changeKind: .appearance) }
     }
 
     var appearancePreferences: AppearancePreferences {
         get { data.appearancePreferences }
-        set { data.appearancePreferences = newValue; persist() }
+        set { data.appearancePreferences = newValue; persist(changeKind: .appearance) }
     }
 
     /// Die GLOBALE Einstellung (was gespeichert wird).
     var palette: PaletteRef {
         get { data.palette }
-        set { data.palette = newValue; persist() }
+        set { data.palette = newValue; persist(changeKind: .appearance) }
     }
 
     var customPalettes: [CustomPalette] { data.customPalettes }
@@ -501,12 +507,12 @@ final class HabitStore {
 
     var matchAppIcon: Bool {
         get { data.matchAppIcon }
-        set { data.matchAppIcon = newValue; persist() }
+        set { data.matchAppIcon = newValue; persist(changeKind: .appearance) }
     }
 
     var manualAppIconName: String? {
         get { data.manualAppIconName }
-        set { data.manualAppIconName = newValue; persist() }
+        set { data.manualAppIconName = newValue; persist(changeKind: .appearance) }
     }
 
     var cloudPreferences: CloudPreferences? { data.cloudPreferences }
@@ -576,9 +582,10 @@ final class HabitStore {
         loadedMtime = m
         data = fresh
         onChange?()
+        onChangeKind?(.general)
     }
 
-    func persist(notify: Bool = true) {
+    func persist(notify: Bool = true, changeKind: HabitStoreChange = .general) {
         data.version = HabitData.currentVersion
         data.updatedAt = Date().timeIntervalSince1970
         let enc = JSONEncoder()
@@ -590,7 +597,10 @@ final class HabitStore {
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
-        if notify { onChange?() }
+        if notify {
+            onChange?()
+            onChangeKind?(changeKind)
+        }
     }
 
     // MARK: – Mutationen
@@ -858,7 +868,7 @@ final class HabitStore {
     func addCustomPalette(name: String, base: UInt32) -> CustomPalette {
         let palette = CustomPalette(name: name, base: base)
         data.customPalettes.append(palette)
-        persist()
+        persist(changeKind: .appearance)
         return palette
     }
 
@@ -867,7 +877,7 @@ final class HabitStore {
     func updateCustomPalette(_ palette: CustomPalette) {
         guard let i = data.customPalettes.firstIndex(where: { $0.id == palette.id }) else { return }
         data.customPalettes[i] = palette
-        persist()
+        persist(changeKind: .appearance)
     }
 
     /// Wer benutzt diese Palette gerade? Grundlage für die Rückfrage vor dem
@@ -892,7 +902,7 @@ final class HabitStore {
         for i in data.habits.indices where data.habits[i].palette == .custom(id) {
             data.habits[i].palette = nil
         }
-        persist()
+        persist(changeKind: .appearance)
     }
 
     // MARK: – Merge (Union: ein Check-in irgendwo zählt)

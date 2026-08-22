@@ -258,6 +258,51 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
+    func testSettingsChromeKeepsNativeMaterialVisibleForGlassModes() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let chromeStart = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier"))
+        let chrome = theme[chromeStart.lowerBound...]
+        let liquidStart = try XCTUnwrap(chrome.range(of: "case .liquid:"))
+        let adaptiveStart = try XCTUnwrap(chrome.range(of: "case .adaptive:",
+                                                       range: liquidStart.upperBound..<chrome.endIndex))
+        let liquid = chrome[liquidStart.lowerBound..<adaptiveStart.lowerBound]
+        let adaptive = chrome[adaptiveStart.lowerBound...]
+
+        XCTAssertTrue(liquid.contains(".toolbarBackground(.visible, for: .navigationBar)"),
+                      "Liquid Glass settings chrome must keep a visible native header")
+        XCTAssertTrue(liquid.contains(".toolbarBackground(.ultraThinMaterial, for: .navigationBar)"),
+                      "Liquid Glass settings chrome must use a visible blur material")
+        XCTAssertTrue(adaptive.contains(".toolbarBackground(.visible, for: .navigationBar)"),
+                      "Auto settings chrome must keep a visible native header")
+        XCTAssertTrue(adaptive.contains(".toolbarBackground(.regularMaterial, for: .navigationBar)"),
+                      "Auto settings chrome must use a native material")
+        XCTAssertFalse(liquid.contains(".toolbarBackground(.hidden, for: .navigationBar)"),
+                       "the Liquid Glass header must not disappear")
+    }
+
+    func testAppearanceControlsUseStyledImageActionAndInlineDynamicIcon() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("photo.on.rectangle.angled"),
+                      "the image action needs a clear photo affordance")
+        XCTAssertTrue(more.contains("Bild auswählen"),
+                      "the image action should name the action, not only say select")
+        XCTAssertTrue(more.contains("appearance-background-picker"))
+        XCTAssertTrue(more.contains("appearance-background-remove"))
+        XCTAssertTrue(more.contains(".appSurface(cornerRadius: 12)"),
+                      "the image action should follow the selected surface material")
+        XCTAssertTrue(more.contains("HStack(alignment: .center, spacing: Theme.Metrics.gap)"),
+                      "the dynamic icon control should keep its icon inline")
+        XCTAssertTrue(more.contains("Image(systemName: \"app.badge\")"),
+                      "the dynamic icon control should render its icon in the inline row")
+    }
+
     func testMoreRouteDestinationsUseTheSharedSettingsSurface() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
