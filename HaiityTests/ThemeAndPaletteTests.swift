@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Haiity
 
 /// Farbrechnung für die Tests. Bewusst hier und nicht im App-Code: die
@@ -187,6 +188,38 @@ final class PaletteResolutionTests: XCTestCase {
 // MARK: – Erscheinungsbild
 
 final class AppearanceSettingTests: XCTestCase {
+    func testBackgroundImageReusesDecodedImageBetweenReads() throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let data = try XCTUnwrap(source.jpegData(compressionQuality: 0.9))
+        let preferences = AppearancePreferences(material: .adaptive,
+                                                 backgroundImageData: data,
+                                                 backgroundMode: .image)
+
+        let first = try XCTUnwrap(preferences.backgroundImage)
+        let second = try XCTUnwrap(preferences.backgroundImage)
+
+        XCTAssertTrue(first === second,
+                      "the launch handoff should not decode the same background image repeatedly")
+    }
+
+    func testBackgroundImageCanBePrewarmedBeforeSwiftUIReadsIt() async throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
+            UIColor.systemRed.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+        let data = try XCTUnwrap(source.jpegData(compressionQuality: 0.9))
+
+        await AppearanceImageCache.prewarm(data: data)
+        let cached = try XCTUnwrap(AppearanceImageCache.image(for: data))
+        let second = try XCTUnwrap(AppearanceImageCache.image(for: data))
+
+        XCTAssertTrue(cached === second,
+                      "startup should finish preparing the same image SwiftUI will render")
+    }
+
     func testSystemMeansNoOverride() {
         XCTAssertNil(AppearanceSetting.system.colorScheme)
         XCTAssertEqual(AppearanceSetting.light.colorScheme, .light)

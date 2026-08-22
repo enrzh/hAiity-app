@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import ImageIO
 
 /// Erscheinungsbild der App. `system` = dem Gerät folgen (kein Override).
 enum AppearanceSetting: String, CaseIterable, Codable, Sendable {
@@ -142,7 +143,105 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 
     var backgroundImage: UIImage? {
         guard let backgroundImageData else { return nil }
-        return UIImage(data: backgroundImageData)
+        return AppearanceImageCache.image(for: backgroundImageData)
+    }
+}
+
+/// Decoded background images are reused across the many SwiftUI surfaces that
+/// can be mounted during launch. The persisted JPEG remains the source of
+/// truth; this cache is only an in-process rendering optimization.
+enum AppearanceImageCache {
+    private final class Entry {
+        let image: UIImage
+        let averageHex: UInt32?
+
+        init(image: UIImage, averageHex: UInt32?) {
+            self.image = image
+            self.averageHex = averageHex
+        }
+    }
+
+    private final class Store: @unchecked Sendable {
+        let cache: NSCache<NSData, Entry> = {
+            let cache = NSCache<NSData, Entry>()
+            cache.countLimit = 4
+            cache.totalCostLimit = 32 * 1024 * 1024
+            return cache
+        }()
+    }
+
+    private static let store = Store()
+
+    static func image(for data: Data) -> UIImage? {
+        entry(for: data)?.image
+    }
+
+    static func averageHex(for data: Data) -> UInt32? {
+        entry(for: data)?.averageHex
+    }
+
+    /// Decode the selected background while the launch animation is already
+    /// on screen. `UIImage(data:)` is lazy, so merely caching that wrapper
+    /// still leaves the first SwiftUI draw responsible for the JPEG decode.
+    static func prewarm(data: Data?) async {
+        guard let data else { return }
+        await Task.detached(priority: .userInitiated) {
+            _ = entry(for: data)
+        }.value
+    }
+
+    private static func entry(for data: Data) -> Entry? {
+        let key = data as NSData
+        if let cached = store.cache.object(forKey: key) {
+            return cached
+        }
+
+        guard let image = decodedImage(from: data) else { return nil }
+        let entry = Entry(image: image, averageHex: averageHex(image))
+        let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? data.count
+        store.cache.setObject(entry, forKey: key, cost: cost)
+        return entry
+    }
+
+    private static func decodedImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1600,
+            kCGImageSourceShouldCache: true,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source,
+                                                                0,
+                                                                options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: image)
+    }
+
+    private static func averageHex(_ image: UIImage) -> UInt32? {
+        guard let image = image.cgImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress,
+                  let context = CGContext(data: base,
+                                          width: 1,
+                                          height: 1,
+                                          bitsPerComponent: 8,
+                                          bytesPerRow: 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        guard drawn else { return nil }
+        return (UInt32(pixel[0]) << 16) | (UInt32(pixel[1]) << 8) | UInt32(pixel[2])
     }
 }
 
@@ -258,7 +357,8 @@ enum Theme {
                 ?? (dark ? 0x2C2C2E : 0xE5E5EA)
             return midpoint(start, end)
         case .image:
-            return preferences.backgroundImage.flatMap(averageHex) ?? fallback
+            return preferences.backgroundImageData
+                .flatMap(AppearanceImageCache.averageHex) ?? fallback
         }
     }
 
@@ -373,27 +473,6 @@ enum Theme {
         return (blend(channel(lhs, 16), channel(rhs, 16)) << 16)
             | (blend(channel(lhs, 8), channel(rhs, 8)) << 8)
             | blend(channel(lhs, 0), channel(rhs, 0))
-    }
-
-    private static func averageHex(_ image: UIImage) -> UInt32? {
-        guard let image = image.cgImage else { return nil }
-        var pixel = [UInt8](repeating: 0, count: 4)
-        let drawn = pixel.withUnsafeMutableBytes { bytes -> Bool in
-            guard let base = bytes.baseAddress,
-                  let context = CGContext(data: base,
-                                          width: 1,
-                                          height: 1,
-                                          bitsPerComponent: 8,
-                                          bytesPerRow: 4,
-                                          space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-            else { return false }
-            context.interpolationQuality = .medium
-            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-            return true
-        }
-        guard drawn else { return nil }
-        return (UInt32(pixel[0]) << 16) | (UInt32(pixel[1]) << 8) | UInt32(pixel[2])
     }
 
     private static func hex(from color: UIColor) -> UInt32 {

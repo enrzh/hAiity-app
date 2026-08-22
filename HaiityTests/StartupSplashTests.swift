@@ -278,4 +278,18 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(app.contains("StartupSplashView(onContentReady:"))
         XCTAssertTrue(splash.contains("onContentReady?()"))
     }
+
+    func testImageBackedLaunchPreparesAppearanceBeforeReveal() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+
+        XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data:"),
+                      "a selected image must be prepared while the splash is visible")
+        XCTAssertTrue(app.contains("startupAppearanceReady"),
+                      "the app must not reveal a still-decoding background")
+        XCTAssertTrue(app.contains("startupAnimationFinished"),
+                      "the splash and image readiness must meet at one reveal point")
+    }
 }
