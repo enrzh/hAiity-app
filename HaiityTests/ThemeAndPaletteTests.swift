@@ -303,6 +303,18 @@ final class AppearanceSettingTests: XCTestCase {
                       "the dynamic icon control should render its icon in the inline row")
     }
 
+    func testBackgroundImageActionsUsePersistedImageData() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("backgroundImageData != nil"),
+                      "a corrupt but persisted image must remain removable")
+        XCTAssertTrue(more.contains("if mode != .image"),
+                      "switching to a color or gradient must clear stale image state")
+    }
+
     func testMoreRouteDestinationsUseTheSharedSettingsSurface() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -522,6 +522,15 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        // A TabView's native bar is outside the content overlay. Reserving a
+        // bottom inset here keeps the toast above both its collapsed and
+        // expanded states instead of letting the bar paint over it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !searching {
+                floatingPills
+                    .padding(.bottom, Theme.Metrics.control + Theme.Metrics.gap)
+            }
+        }
     }
 
     /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.
@@ -551,11 +560,6 @@ struct ContentView: View {
                         isPresented: $searching,
                         prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
             .searchFocused($searchFieldFocused)
-        }
-        // Rückgängig-Toast und Sync-Pille auch hier: ein Wisch in den
-        // Suchtreffern schreibt genauso und braucht dasselbe Zurück.
-        .overlay(alignment: .bottom) {
-            if !searching { floatingPills }
         }
     }
 
@@ -590,13 +594,6 @@ struct ContentView: View {
         // bei offener Karte antippbar bleiben — dieselbe Schichtung
         // wie im Fallback (Karte unter dem Chrom-Stapel).
         .overlay { backfillLayer }
-        // Toast und Sync-Pille schweben über der Liste, oberhalb
-        // der nativen Leiste (der Tab-Inhalt endet an deren
-        // Sicherheitszone). Bei offener Suche stünden sie auf der
-        // Tastatur — dann nicht.
-        .overlay(alignment: .bottom) {
-            if !searching { floatingPills }
-        }
     }
 
     @available(iOS 26, *)
@@ -1851,7 +1848,7 @@ struct ContentView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .modifier(GlassCapsule())
+            .modifier(ToastSurface())
             .transition(reduceMotion
                         ? AnyTransition.opacity
                         : AnyTransition.move(edge: .bottom).combined(with: .opacity))
@@ -1878,7 +1875,7 @@ struct ContentView: View {
                 .font(.footnote)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .modifier(GlassCapsule())
+                .modifier(ToastSurface())
                 .foregroundStyle(.secondary)
                 .allowsHitTesting(false)
                 .transition(.opacity)
@@ -2871,27 +2868,14 @@ private struct ChromeGlass: ViewModifier {
 }
 
 /// Schwebende Pillen über der Liste (Sync-Rückmeldung, Rückgängig-Toast):
-/// kein Morphing, nur eine Fläche — aber dieselbe Lesbarkeits-Dosis wie das
-/// Chrom. `.regular` allein reicht über einem voll gefüllten Raster oder
-/// einer grünen Erledigt-Pille nicht: der Text darauf verschwimmt mit dem,
-/// was durchscheint. Der Systemhintergrund mit halber Deckung als Tint ist
-/// die kleinste Menge, die das behebt, ohne aus Glas Milchglas zu machen
-/// (dieselbe Rechnung wie in `ChromeGlass`).
-private struct GlassCapsule: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
+/// dieselbe Materialwahl wie Karten und Einstellungen, damit die Rückmeldung
+/// auf Solid, Milchglas, Liquid Glass und Auto nicht aus dem Design fällt.
+private struct ToastSurface: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content.glassEffect(
-                .regular.tint(Color(.systemBackground)
-                    .opacity(colorScheme == .dark ? 0.82 : 0.5)),
-                in: .capsule)
-        } else {
-            content
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.quaternary))
-                .shadow(color: .black.opacity(0.15), radius: 10, y: 3)
-        }
+        content
+            .appSurface(cornerRadius: 999)
+            .overlay(Capsule().strokeBorder(.quaternary))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
     }
 }
 

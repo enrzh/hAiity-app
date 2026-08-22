@@ -347,13 +347,32 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
     }
 
-    func testFloatingToastsUseLargerTypeAndStrongerDarkModeGlass() throws {
+    func testFloatingToastsUseLargerTypeAndSharedAppearanceSurface() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
         XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.body)"))
         XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
-        XCTAssertTrue(content.contains("@Environment(\\.colorScheme)"))
-        XCTAssertTrue(content.contains("colorScheme == .dark ? 0.82 : 0.5"))
+        XCTAssertTrue(content.contains(".appSurface(cornerRadius: 999)"))
+    }
+
+    func testNativeToastsUseTheTabViewSafeAreaAndSharedAppearanceSurface() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let nativeStart = try XCTUnwrap(content.range(of: "private var nativeShell"))
+        let nativeEnd = try XCTUnwrap(content.range(of: "private var statsTabContent",
+                                                     range: nativeStart.upperBound..<content.endIndex))
+        let nativeShell = content[nativeStart.lowerBound..<nativeEnd.lowerBound]
+
+        XCTAssertTrue(nativeShell.contains(".safeAreaInset(edge: .bottom"),
+                      "the native tab bar must reserve its own bottom safe area for the toast")
+        XCTAssertTrue(nativeShell.contains("floatingPills"),
+                      "the toast must be attached outside individual tab content")
+        XCTAssertTrue(nativeShell.contains("Theme.Metrics.control + Theme.Metrics.gap"),
+                      "the toast needs the native bar footprint below its safe-area inset")
+
+        let surfaceStart = try XCTUnwrap(content.range(of: "private struct ToastSurface"))
+        let surface = content[surfaceStart.lowerBound...]
+        XCTAssertTrue(surface.contains(".appSurface(cornerRadius: 999)"),
+                      "toasts must follow the selected appearance material")
     }
 
     func testSimulatorCanStageOwnerAndToastOnlyThroughDebugHooks() throws {

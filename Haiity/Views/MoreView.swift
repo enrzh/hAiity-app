@@ -80,6 +80,7 @@ struct MoreView: View, Equatable {
     @State private var showReminderSetup = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
     @State private var backgroundImageError = false
+    @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
     @State private var currentIconName: String?
@@ -977,8 +978,19 @@ struct MoreView: View, Equatable {
     }
 
     private var backgroundModeBinding: Binding<AppearanceBackgroundMode> {
-        Binding(get: { store.appearancePreferences.backgroundMode },
-                set: { mode in updateAppearance { $0.backgroundMode = mode } })
+        Binding(
+            get: { store.appearancePreferences.backgroundMode },
+            set: { mode in
+                updateAppearance {
+                    $0.backgroundMode = mode
+                    if mode != .image {
+                        $0.backgroundImageData = nil
+                    }
+                }
+                if mode != .image {
+                    backgroundImageImportToken = UUID()
+                }
+            })
     }
 
     private var backgroundColorBinding: Binding<Color> {
@@ -1194,8 +1206,9 @@ struct MoreView: View, Equatable {
                 .buttonStyle(.plain)
                 .appSurface(cornerRadius: 12)
                 .accessibilityIdentifier("appearance-background-picker")
-                if store.appearancePreferences.backgroundImage != nil {
+                if store.appearancePreferences.backgroundImageData != nil {
                     Button(role: .destructive) {
+                        backgroundImageImportToken = UUID()
                         updateAppearance {
                             $0.backgroundImageData = nil
                             $0.backgroundMode = .color
@@ -1238,6 +1251,8 @@ struct MoreView: View, Equatable {
     }
 
     private func importBackgroundImage(_ item: PhotosPickerItem) {
+        let token = UUID()
+        backgroundImageImportToken = token
         Task {
             let normalized: Data?
             do {
@@ -1247,6 +1262,7 @@ struct MoreView: View, Equatable {
                 normalized = nil
             }
             await MainActor.run {
+                guard token == backgroundImageImportToken else { return }
                 guard let normalized else {
                     backgroundImageError = true
                     pickedBackgroundItem = nil
