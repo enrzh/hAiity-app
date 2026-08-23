@@ -268,7 +268,7 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(app.contains("Color(.systemGroupedBackground)"))
     }
 
-    func testAppMountsContentAfterTheSplashHasRendered() throws {
+    func testAppMountsContentBehindTheSplashImmediately() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -276,7 +276,8 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(app.contains("startupContentMounted"))
+        XCTAssertTrue(app.contains("@State private var startupContentMounted = true"),
+                      "the app tree must mount while the splash is covering it")
         XCTAssertTrue(app.contains("if startupContentMounted"))
         XCTAssertTrue(app.contains("StartupSplashView(onContentReady:"))
         XCTAssertTrue(splash.contains("onContentReady?()"))
@@ -290,9 +291,40 @@ final class StartupSplashTests: XCTestCase {
 
         XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data:"),
                       "a selected image must be prepared while the splash is visible")
-        XCTAssertTrue(app.contains("startupAppearanceReady"),
-                      "the app must not reveal a still-decoding background")
+        XCTAssertFalse(app.contains("startupContentMounted = startupAppearanceReady"),
+                       "background preparation must not block mounting the app tree")
         XCTAssertTrue(app.contains("startupAnimationFinished"),
-                      "the splash and image readiness must meet at one reveal point")
+                      "the splash still owns the visual handoff")
+    }
+
+    func testAppearanceBackgroundDoesNotDecodeOnItsFirstBodyEvaluation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let start = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
+        let end = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier",
+                                            range: start.upperBound..<theme.endIndex))
+        let background = theme[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(background.contains("@State private var preparedImage"),
+                      "the full-screen background must own asynchronous image readiness")
+        XCTAssertTrue(background.contains(".task(id: imageData)"),
+                      "image decoding must happen off the first synchronous body pass")
+        XCTAssertFalse(background.contains("preferences.backgroundImage}"),
+                       "the background must not synchronously decode a JPEG during layout")
+    }
+
+    func testSplashHasAnAccessibilityReduceMotionPath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("accessibilityReduceMotion"),
+                      "launch motion must respect the system Reduce Motion setting")
+        XCTAssertTrue(splash.contains("reduceMotion"),
+                      "the UIKit animation surface must receive the reduced-motion state")
     }
 }

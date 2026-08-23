@@ -113,11 +113,50 @@ struct GitHubContributionGraph: View {
         let marks: [MonthMark]
     }
 
+    /// Layout is pure but comparatively expensive: parsing dates and building
+    /// every week happens for the app graph and the widget graph alike. Cache
+    /// the derived geometry by contribution content, not by view identity.
+    private struct LayoutCacheKey: Hashable {
+        let fingerprint: Int
+        let count: Int
+        let weekLimit: Int?
+    }
+
+    private struct WindowCacheKey: Hashable {
+        let fingerprint: Int
+        let count: Int
+        let weeks: Int
+    }
+
+    private static let layoutLock = NSLock()
+    private static var layoutCache: [LayoutCacheKey: Layout] = [:]
+    private static var windowCache: [WindowCacheKey: [GitHubContributionDay]] = [:]
+    private static let cacheLimit = 24
+    private(set) static var layoutComputeCount = 0
+
+    static func resetLayoutCache() {
+        layoutLock.lock()
+        layoutCache.removeAll(keepingCapacity: true)
+        windowCache.removeAll(keepingCapacity: true)
+        layoutComputeCount = 0
+        layoutLock.unlock()
+    }
+
     /// Widgets need a stable number of columns even when a cached response is
     /// sparse. Fill the window with empty days while preserving every real
     /// contribution returned by GitHub.
     static func widgetWindow(days: [GitHubContributionDay], weeks: Int) -> [GitHubContributionDay] {
         guard weeks > 0 else { return [] }
+
+        let key = WindowCacheKey(fingerprint: fingerprint(days),
+                                 count: days.count,
+                                 weeks: weeks)
+        layoutLock.lock()
+        if let cached = windowCache[key] {
+            layoutLock.unlock()
+            return cached
+        }
+        layoutLock.unlock()
 
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -143,16 +182,32 @@ struct GitHubContributionGraph: View {
         var byDate: [String: GitHubContributionDay] = [:]
         for day in days { byDate[day.date] = day }
 
-        return (0..<(weeks * GridCalendar.rows)).compactMap { offset in
+        let result = (0..<(weeks * GridCalendar.rows)).compactMap { (offset: Int) -> GitHubContributionDay? in
             guard let date = calendar.date(byAdding: .day, value: offset, to: start) else {
                 return nil
             }
             let key = formatter.string(from: date)
             return byDate[key] ?? GitHubContributionDay(date: key, count: 0, level: 0)
         }
+
+        layoutLock.lock()
+        if windowCache.count >= cacheLimit { windowCache.removeAll(keepingCapacity: true) }
+        windowCache[key] = result
+        layoutLock.unlock()
+        return result
     }
 
     static func layout(days: [GitHubContributionDay], weekLimit: Int?) -> Layout {
+        let key = LayoutCacheKey(fingerprint: fingerprint(days),
+                                 count: days.count,
+                                 weekLimit: weekLimit)
+        layoutLock.lock()
+        if let cached = layoutCache[key] {
+            layoutLock.unlock()
+            return cached
+        }
+        layoutLock.unlock()
+
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let formatter = DateFormatter()
@@ -163,7 +218,9 @@ struct GitHubContributionGraph: View {
 
         let sorted = days.sorted { $0.date < $1.date }
         guard let first = sorted.first, let firstDate = formatter.date(from: first.date) else {
-            return Layout(columns: [Array(repeating: nil, count: GridCalendar.rows)], marks: [])
+            let empty = Layout(columns: [Array(repeating: nil, count: GridCalendar.rows)], marks: [])
+            storeLayout(empty, for: key)
+            return empty
         }
 
         let pad = calendar.component(.weekday, from: firstDate) - 1
@@ -201,7 +258,28 @@ struct GitHubContributionGraph: View {
                 previousMonth = month
             }
         }
-        return Layout(columns: columns, marks: marks)
+        let result = Layout(columns: columns, marks: marks)
+        storeLayout(result, for: key)
+        return result
+    }
+
+    private static func storeLayout(_ layout: Layout, for key: LayoutCacheKey) {
+        layoutLock.lock()
+        if layoutCache.count >= cacheLimit { layoutCache.removeAll(keepingCapacity: true) }
+        layoutCache[key] = layout
+        layoutComputeCount += 1
+        layoutLock.unlock()
+    }
+
+    private static func fingerprint(_ days: [GitHubContributionDay]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(days.count)
+        for day in days {
+            hasher.combine(day.date)
+            hasher.combine(day.count)
+            hasher.combine(day.level)
+        }
+        return hasher.finalize()
     }
 }
 

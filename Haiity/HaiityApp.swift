@@ -6,9 +6,7 @@ import BackgroundTasks
 struct HaiityApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var startupSplashVisible = true
-    @State private var startupContentMounted = false
-    @State private var startupAppearanceReady = true
-    @State private var startupAnimationStarted = false
+    @State private var startupContentMounted = true
     @State private var startupAnimationFinished = false
     private let startupBackgroundImageData: Data?
     // Übergibt die Szenen an ShortcutSceneDelegate — ohne ihn kommen
@@ -21,7 +19,6 @@ struct HaiityApp: App {
             ? appearance?.backgroundImageData
             : nil
         startupBackgroundImageData = backgroundData
-        _startupAppearanceReady = State(initialValue: backgroundData == nil)
 
         // Ohne Delegat unterdrückt iOS jede geplante Mitteilung, solange die
         // App im Vordergrund ist — der häufigste Grund für „Benachrichtigungen
@@ -95,8 +92,10 @@ struct HaiityApp: App {
 
                 if startupSplashVisible {
                     StartupSplashView(onContentReady: {
-                        startupAnimationStarted = true
-                        startupContentMounted = startupAppearanceReady
+                        // The app tree is already mounted under the splash. The
+                        // callback remains the visual handoff seam for tests and
+                        // future launch choreography.
+                        startupContentMounted = true
                     }) {
                         startupAnimationFinished = true
                         revealStartupIfReady()
@@ -107,12 +106,6 @@ struct HaiityApp: App {
             }
             .task {
                 await AppearanceImageCache.prewarm(data: startupBackgroundImageData)
-                startupAppearanceReady = true
-                if startupAnimationFinished {
-                    revealStartupIfReady()
-                } else if startupAnimationStarted {
-                    startupContentMounted = true
-                }
             }
             .onAppear {
                 // Scene restoration can retain the previous `false` value;
@@ -136,7 +129,7 @@ struct HaiityApp: App {
     }
 
     private func revealStartupIfReady() {
-        guard startupAppearanceReady, startupAnimationFinished else { return }
+        guard startupAnimationFinished else { return }
         startupContentMounted = true
         // The splash has completed its own fade. Removing it without another
         // transition keeps the handoff from flashing or shrinking to center.

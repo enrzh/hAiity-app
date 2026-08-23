@@ -327,6 +327,8 @@ final class GitHubContributionStore {
     private func persist(_ snapshot: GitHubContributionSnapshot) {
         guard (try? GitHubContributionSnapshot.saveShared(snapshot, to: cacheURL)) != nil else { return }
         WidgetCenter.shared.reloadTimelines(ofKind: "HaiityGraphWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "HaiityGitHubWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "HaiityWidget")
     }
 
     private func loadCache() -> GitHubContributionSnapshot? {

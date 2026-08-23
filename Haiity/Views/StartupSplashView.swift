@@ -4,10 +4,12 @@ import UIKit
 struct StartupSplashView: View {
     let onContentReady: () -> Void
     let onFinished: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         StartupSplashAnimationSurface(onContentReady: onContentReady,
-                                      onFinished: onFinished)
+                                      onFinished: onFinished,
+                                      reduceMotion: reduceMotion)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
             .ignoresSafeArea()
@@ -18,17 +20,20 @@ struct StartupSplashView: View {
 private struct StartupSplashAnimationSurface: UIViewRepresentable {
     let onContentReady: () -> Void
     let onFinished: () -> Void
+    let reduceMotion: Bool
 
     func makeUIView(context: Context) -> StartupSplashAnimationView {
         let view = StartupSplashAnimationView()
         view.onContentReady = onContentReady
         view.onFinished = onFinished
+        view.reduceMotion = reduceMotion
         return view
     }
 
     func updateUIView(_ view: StartupSplashAnimationView, context: Context) {
         view.onContentReady = onContentReady
         view.onFinished = onFinished
+        view.reduceMotion = reduceMotion
     }
 }
 
@@ -45,6 +50,7 @@ private final class StartupSplashAnimationView: UIView {
 
     var onContentReady: (() -> Void)?
     var onFinished: (() -> Void)?
+    var reduceMotion = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -90,6 +96,16 @@ private final class StartupSplashAnimationView: UIView {
     private func startAnimation() {
         guard !hasStarted else { return }
         hasStarted = true
+
+        // A reduced-motion launch should not rasterize or animate a graph that
+        // the user asked us not to move. The app is already mounted beneath
+        // this temporary cover, so the direct handoff is both faster and
+        // visually quieter than a different animated sequence.
+        if reduceMotion {
+            onContentReady?()
+            onFinished?()
+            return
+        }
 
         let metrics = Metrics(container: bounds.size)
         launchImage = rasterizedLaunchImage(size: metrics.gridSize,

@@ -2811,12 +2811,42 @@ private struct ChromeGlass: ViewModifier {
     /// als EINE Form — kein Steg, keine Taille, kein „halb drin, halb
     /// draußen". Verschiedene Kennungen = zwei getrennte Scheiben.
     var union: String
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.colorScheme) private var colorScheme
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            glass(content)
-        } else {
+        switch appearancePreferences.material {
+        case .solid:
+            solid(content)
+        case .milky:
             material(content)
+        case .liquid:
+            if #available(iOS 26, *) {
+                glass(content)
+            } else {
+                material(content)
+            }
+        case .adaptive:
+            if #available(iOS 26, *) {
+                glass(content)
+            } else {
+                material(content)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func solid(_ content: Content) -> some View {
+        switch kind {
+        case .capsule:
+            content
+                .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary))
+        case .circle:
+            content
+                .background(accent.map(Theme.accentFill)
+                            ?? Color(.secondarySystemGroupedBackground), in: Circle())
         }
     }
 
@@ -2830,8 +2860,7 @@ private struct ChromeGlass: ViewModifier {
     @available(iOS 26, *)
     @ViewBuilder
     private func glass(_ content: Content) -> some View {
-        let style: Glass = accent.map { Glass.regular.tint(Theme.accent($0)).interactive() }
-            ?? Glass.regular.tint(Color(.systemBackground).opacity(0.5)).interactive()
+        let style = Glass.regular.tint(glassTint).interactive()
         switch kind {
         case .capsule:
             content.glassEffect(style, in: .capsule)
@@ -2841,6 +2870,19 @@ private struct ChromeGlass: ViewModifier {
             content.glassEffect(style, in: .circle)
                 .glassEffectID(id, in: namespace)
                 .glassEffectUnion(id: union, namespace: namespace)
+        }
+    }
+
+    private var glassTint: Color {
+        if let accent {
+            return Theme.accent(accent)
+        } else if appearancePreferences.material == .adaptive {
+            return Theme.color(Theme.adaptiveTintHex(preferences: appearancePreferences,
+                                                     dark: colorScheme == .dark))
+                .opacity(Theme.adaptiveSurfaceOpacity(preferences: appearancePreferences,
+                                                       dark: colorScheme == .dark))
+        } else {
+            return Color(.systemBackground).opacity(0.5)
         }
     }
 
@@ -2859,7 +2901,8 @@ private struct ChromeGlass: ViewModifier {
                 .matchedGeometryEffect(id: id, in: namespace)
         case .circle:
             content
-                .background(accent.map { Theme.accentFill($0) } ?? Color.clear, in: Circle())
+                .background(accent.map { Theme.accentFill($0) }
+                            ?? Color(.secondarySystemGroupedBackground), in: Circle())
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
         }

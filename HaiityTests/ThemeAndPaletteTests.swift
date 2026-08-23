@@ -214,8 +214,11 @@ final class AppearanceSettingTests: XCTestCase {
 
         await AppearanceImageCache.prewarm(data: data)
         let cached = try XCTUnwrap(AppearanceImageCache.image(for: data))
+        let prepared = try XCTUnwrap(AppearanceImageCache.cachedImage(for: data))
         let second = try XCTUnwrap(AppearanceImageCache.image(for: data))
 
+        XCTAssertTrue(cached === prepared,
+                      "the background view must be able to read a prepared image without decoding")
         XCTAssertTrue(cached === second,
                       "startup should finish preparing the same image SwiftUI will render")
     }
@@ -566,6 +569,29 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(AppearanceMaterial.allCases.contains(.adaptive))
         XCTAssertEqual(AppearanceMaterial.adaptive.displayName,
                        String(localized: "Auto"))
+    }
+
+    func testBottomChromeResolvesTheSelectedSurfaceMaterial() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let start = try XCTUnwrap(content.range(of: "private struct ChromeGlass"))
+        let end = try XCTUnwrap(content.range(of: "/// Schwebende Pillen",
+                                              range: start.upperBound..<content.endIndex))
+        let chrome = content[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(chrome.contains("case .solid:"),
+                      "the bottom chrome must have an opaque material path")
+        XCTAssertTrue(chrome.contains("case .milky:"),
+                      "the bottom chrome must have a milky material path")
+        XCTAssertTrue(chrome.contains("case .liquid:"),
+                      "the bottom chrome must have a Liquid Glass path")
+        XCTAssertTrue(chrome.contains("case .adaptive:"),
+                      "the bottom chrome must have an adaptive material path")
+        XCTAssertTrue(chrome.contains("@Environment(\\.appearancePreferences)"),
+                      "the bottom chrome must read the shared appearance setting")
     }
 
     func testBackgroundModesAndGradientColorsRoundTrip() throws {

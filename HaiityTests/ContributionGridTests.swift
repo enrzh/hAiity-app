@@ -488,3 +488,32 @@ final class GridPerformanceTests: GridTestCase {
         }
     }
 }
+
+final class GitHubGraphPerformanceTests: XCTestCase {
+    private func days() -> [GitHubContributionDay] {
+        [
+            GitHubContributionDay(date: "2026-08-01", count: 1, level: 1),
+            GitHubContributionDay(date: "2026-08-02", count: 3, level: 2),
+            GitHubContributionDay(date: "2026-08-03", count: 0, level: 0),
+            GitHubContributionDay(date: "2026-08-04", count: 7, level: 4)
+        ]
+    }
+
+    func testGitHubLayoutReusesStableGeometryUntilContributionDataChanges() {
+        GitHubContributionGraph.resetLayoutCache()
+        let original = days()
+
+        let first = GitHubContributionGraph.layout(days: original, weekLimit: 12)
+        let second = GitHubContributionGraph.layout(days: original, weekLimit: 12)
+
+        XCTAssertEqual(first.columns.count, second.columns.count)
+        XCTAssertEqual(first.marks, second.marks)
+        XCTAssertEqual(GitHubContributionGraph.layoutComputeCount, 1)
+
+        var changed = original
+        changed[1] = GitHubContributionDay(date: changed[1].date, count: 8, level: 4)
+        _ = GitHubContributionGraph.layout(days: changed, weekLimit: 12)
+        XCTAssertEqual(GitHubContributionGraph.layoutComputeCount, 2)
+        GitHubContributionGraph.resetLayoutCache()
+    }
+}

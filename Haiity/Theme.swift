@@ -176,8 +176,19 @@ enum AppearanceImageCache {
         entry(for: data)?.image
     }
 
+    /// Read only an already prepared image. This is the hot path used by the
+    /// full-screen background; it must never start JPEG decoding during a
+    /// SwiftUI body evaluation.
+    static func cachedImage(for data: Data) -> UIImage? {
+        store.cache.object(forKey: data as NSData)?.image
+    }
+
     static func averageHex(for data: Data) -> UInt32? {
         entry(for: data)?.averageHex
+    }
+
+    static func cachedAverageHex(for data: Data) -> UInt32? {
+        store.cache.object(forKey: data as NSData)?.averageHex
     }
 
     /// Decode the selected background while the launch animation is already
@@ -375,7 +386,7 @@ enum Theme {
             return midpoint(start, end)
         case .image:
             return preferences.backgroundImageData
-                .flatMap(AppearanceImageCache.averageHex) ?? fallback
+                .flatMap(AppearanceImageCache.cachedAverageHex) ?? fallback
         }
     }
 
@@ -622,6 +633,12 @@ private struct AppearancePreferencesKey: EnvironmentKey {
 struct AppearanceBackground: View {
     let preferences: AppearancePreferences
     @Environment(\.colorScheme) private var colorScheme
+    @State private var preparedImage: UIImage?
+
+    private var imageData: Data? {
+        guard preferences.backgroundMode == .image else { return nil }
+        return preferences.backgroundImageData
+    }
 
     private var fallbackColor: Color {
         Color(.systemGroupedBackground)
@@ -646,7 +663,7 @@ struct AppearanceBackground: View {
                     startPoint: .top,
                     endPoint: .bottom)
             case .image:
-                if let image = preferences.backgroundImage {
+                if let image = preparedImage {
                     let scrim = preferences.material == .adaptive
                         ? Theme.adaptiveBackgroundScrimOpacity(preferences: preferences,
                                                               dark: colorScheme == .dark)
@@ -666,6 +683,13 @@ struct AppearanceBackground: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+        .task(id: imageData) {
+            preparedImage = nil
+            guard let imageData else { return }
+            await AppearanceImageCache.prewarm(data: imageData)
+            guard !Task.isCancelled else { return }
+            preparedImage = AppearanceImageCache.cachedImage(for: imageData)
+        }
     }
 }
 
