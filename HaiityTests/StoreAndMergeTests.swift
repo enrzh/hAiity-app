@@ -41,6 +41,104 @@ final class StoreAndMergeTests: XCTestCase {
 
         XCTAssertEqual(store.data.viewPreferences, remote.viewPreferences)
     }
+
+    func testNewerUnrelatedRemotePayloadDoesNotReplaceNewerLocalAppearance() throws {
+        let localAppearance = AppearancePreferences(
+            backgroundMode: .gradient,
+            gradientStartHex: 0x0D1117,
+            gradientEndHex: 0x161B22)
+        let remoteAppearance = AppearancePreferences(
+            backgroundImageData: Data([0x01]),
+            backgroundMode: .image)
+        let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [],
+                              appearancePreferences: localAppearance)
+        let remote = HabitData(version: 2, updatedAt: 30, summaryMinutes: nil, habits: [],
+                                appearancePreferences: remoteAppearance)
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-appearance-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: localURL) }
+
+        var localObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(local)) as? [String: Any])
+        localObject["appearanceUpdatedAt"] = 20.0
+        try JSONSerialization.data(withJSONObject: localObject).write(to: localURL)
+        let store = HabitStore(url: localURL)
+
+        var remoteObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(remote)) as? [String: Any])
+        remoteObject["appearanceUpdatedAt"] = 15.0
+        let remoteData = try JSONDecoder().decode(
+            HabitData.self,
+            from: JSONSerialization.data(withJSONObject: remoteObject))
+
+        store.merge(remote: remoteData)
+
+        XCTAssertEqual(store.appearancePreferences, localAppearance)
+    }
+
+    func testLegacyRemotePayloadDoesNotReplaceExplicitLocalAppearance() throws {
+        let localAppearance = AppearancePreferences(
+            backgroundMode: .gradient,
+            gradientStartHex: 0x0D1117,
+            gradientEndHex: 0x161B22)
+        let remoteAppearance = AppearancePreferences(
+            backgroundImageData: Data([0x01]),
+            backgroundMode: .image)
+        let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [],
+                              appearanceUpdatedAt: 20,
+                              appearancePreferences: localAppearance)
+        let remote = HabitData(version: 2, updatedAt: 30, summaryMinutes: nil, habits: [],
+                                appearancePreferences: remoteAppearance)
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-legacy-appearance-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: localURL) }
+        try JSONEncoder().encode(local).write(to: localURL)
+        let store = HabitStore(url: localURL)
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.appearancePreferences, localAppearance)
+    }
+
+    func testNewerRemoteAppearanceTimestampWins() throws {
+        let localAppearance = AppearancePreferences(backgroundMode: .gradient,
+                                                     gradientStartHex: 0x0D1117,
+                                                     gradientEndHex: 0x161B22)
+        let remoteAppearance = AppearancePreferences(backgroundMode: .color,
+                                                      backgroundColorHex: 0x2EA043)
+        let local = HabitData(version: 2, updatedAt: 30, summaryMinutes: nil, habits: [],
+                              appearanceUpdatedAt: 20,
+                              appearancePreferences: localAppearance)
+        let remote = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [],
+                                appearanceUpdatedAt: 40,
+                                appearancePreferences: remoteAppearance)
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-newer-appearance-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: localURL) }
+        try JSONEncoder().encode(local).write(to: localURL)
+        let store = HabitStore(url: localURL)
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.appearancePreferences, remoteAppearance)
+    }
+
+    func testAppearancePersistenceUpdatesOnlyItsOwnTimestamp() throws {
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-appearance-timestamp-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: storeURL) }
+        let store = HabitStore(url: storeURL)
+
+        var preferences = store.appearancePreferences
+        preferences.backgroundMode = .gradient
+        store.appearancePreferences = preferences
+        let appearanceTimestamp = try XCTUnwrap(store.data.appearanceUpdatedAt)
+
+        store.add(Habit(name: "Unrelated"))
+
+        XCTAssertEqual(store.data.appearanceUpdatedAt, appearanceTimestamp)
+    }
+
     private var url: URL!
     private var store: HabitStore!
 

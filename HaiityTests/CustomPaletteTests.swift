@@ -552,6 +552,7 @@ final class CustomPaletteMergeTests: XCTestCase {
         HabitData(version: 2,
                   updatedAt: newer ? Date().timeIntervalSince1970 + 60 : 1,
                   summaryMinutes: nil, habits: [],
+                  appearanceUpdatedAt: newer ? Date().timeIntervalSince1970 + 60 : nil,
                   palette: palette, customPalettes: palettes)
     }
 

@@ -295,12 +295,71 @@ final class AppearanceSettingTests: XCTestCase {
                       "the image action should name the action, not only say select")
         XCTAssertTrue(more.contains("appearance-background-picker"))
         XCTAssertTrue(more.contains("appearance-background-remove"))
-        XCTAssertTrue(more.contains(".appSurface(cornerRadius: 12)"),
-                      "the image action should follow the selected surface material")
+        let imagePickerStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
+        let imagePickerEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
+                                                       range: imagePickerStart.upperBound..<more.endIndex))
+        let picker = more[imagePickerStart.lowerBound..<imagePickerEnd.lowerBound]
+        XCTAssertFalse(picker.contains(".appSurface("),
+                       "PhotosPicker must not own a hit-sensitive material modifier")
+        XCTAssertTrue(more.contains(".background(.regularMaterial,"),
+                      "the image action should keep its visual surface behind the picker")
+        let removeStart = try XCTUnwrap(more.range(of: "Button(role: .destructive)"))
+        let removeEnd = try XCTUnwrap(more.range(of: ".accessibilityIdentifier(\"appearance-background-remove\")",
+                                                  range: removeStart.upperBound..<more.endIndex))
+        let remove = more[removeStart.lowerBound..<removeEnd.upperBound]
+        XCTAssertTrue(remove.contains(".buttonStyle(.plain)"),
+                      "the image removal action must use a native hit-testable plain button")
+        XCTAssertFalse(remove.contains(".buttonStyle(.bordered)"),
+                       "a bordered button is not reliable inside this iOS 27 list row")
         XCTAssertTrue(more.contains("HStack(alignment: .center, spacing: Theme.Metrics.gap)"),
                       "the dynamic icon control should keep its icon inline")
         XCTAssertTrue(more.contains("Image(systemName: \"app.badge\")"),
                       "the dynamic icon control should render its icon in the inline row")
+    }
+
+    func testAppearanceEditorUsesAHitTestableScrollContainer() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View",
+                                           range: start.upperBound..<more.endIndex))
+        let appearance = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(appearance.contains("ScrollView"),
+                      "appearance controls must live in a native scroll container")
+        XCTAssertFalse(appearance.contains("List {"),
+                       "iOS 27 List presentation currently drops taps for this editor")
+    }
+
+    func testAppearanceBackgroundEditorUsesDirectHitTestableActions() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        let backgroundStart = try XCTUnwrap(more.range(of: "private var backgroundControl: some View"))
+        let backgroundEnd = try XCTUnwrap(more.range(of: "private func backgroundSymbol",
+                                                     range: backgroundStart.upperBound..<more.endIndex))
+        let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
+        XCTAssertTrue(background.contains("backgroundModeSelector"),
+                      "background modes need a dedicated selector on iOS 27")
+        XCTAssertTrue(more.contains("private func backgroundModeButton"),
+                      "background modes need explicit buttons on iOS 27")
+        XCTAssertFalse(background.contains("pickerStyle(.segmented)"),
+                       "the segmented picker is not a reliable hit target in this scroll editor")
+
+        let imageStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
+        let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
+                                                range: imageStart.upperBound..<more.endIndex))
+        let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
+        XCTAssertTrue(imagePicker.contains("Button {"),
+                      "the image action needs an explicit hit-testable button")
+        XCTAssertTrue(imagePicker.contains("showingBackgroundPhotoPicker = true"),
+                      "the image button must present the picker directly")
+        XCTAssertTrue(imagePicker.contains(".photosPicker(isPresented:"),
+                      "the image button must own its PhotosPicker presentation")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {
@@ -315,17 +374,120 @@ final class AppearanceSettingTests: XCTestCase {
                       "switching to a color or gradient must clear stale image state")
     }
 
-    func testMoreRouteDestinationsUseTheSharedSettingsSurface() throws {
+    func testSettingsSurfaceKeepsListRowHitTestingNative() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertFalse(theme.contains("SettingsRowSurface"),
+                       "settings lists must use native rows so controls remain tappable")
+    }
+
+    func testAppearanceBackgroundDoesNotCaptureControlTouches() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let background = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
+        let end = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier"))
+        let body = theme[background.upperBound..<end.lowerBound]
+
+        XCTAssertTrue(body.contains(".allowsHitTesting(false)"),
+                      "the full-screen appearance background must stay behind settings controls")
+    }
+
+    func testAppSurfaceDecorationsDoNotCaptureControlTouches() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let surface = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier: ViewModifier"))
+        let end = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier",
+                                             range: surface.upperBound..<theme.endIndex))
+        let body = theme[surface.upperBound..<end.lowerBound]
+
+        XCTAssertTrue(body.contains("allowsHitTesting(false)"),
+                      "material fills and overlays must never sit above interactive content")
+    }
+
+    func testIOS26GlassSurfaceIsRenderedBehindInteractiveContent() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let surface = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier: ViewModifier"))
+        let end = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier",
+                                             range: surface.upperBound..<theme.endIndex))
+        let body = theme[surface.upperBound..<end.lowerBound]
+
+        XCTAssertFalse(body.contains("content.glassEffect("),
+                       "iOS 26 glass must not wrap interactive control content directly")
+        XCTAssertTrue(body.contains(".background {"),
+                      "iOS 26 glass should be a non-interactive background decoration")
+    }
+
+    func testSettingsSurfaceDoesNotInstallAHitCapturingListRowBackground() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let settings = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier"))
+        let end = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier",
+                                             range: settings.upperBound..<theme.endIndex))
+        let body = theme[settings.upperBound..<end.lowerBound]
+
+        XCTAssertFalse(body.contains("listRowBackground(SettingsRowSurface"),
+                       "custom list row backgrounds can intercept native control taps on iOS 27")
+    }
+
+    func testLargeValidBackgroundImageIsCompressedInsteadOfRejected() throws {
+        let width = 1600
+        let height = 1600
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        var state: UInt32 = 0x12345678
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            state = state &* 1664525 &+ 1013904223
+            bytes[offset] = UInt8(truncatingIfNeeded: state >> 24)
+            state = state &* 1664525 &+ 1013904223
+            bytes[offset + 1] = UInt8(truncatingIfNeeded: state >> 24)
+            state = state &* 1664525 &+ 1013904223
+            bytes[offset + 2] = UInt8(truncatingIfNeeded: state >> 24)
+            bytes[offset + 3] = 255
+        }
+
+        let source: UIImage = try bytes.withUnsafeMutableBytes { raw in
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            let context = try XCTUnwrap(CGContext(data: raw.baseAddress,
+                                                   width: width,
+                                                   height: height,
+                                                   bitsPerComponent: 8,
+                                                   bytesPerRow: width * 4,
+                                                   space: colorSpace,
+                                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            let cgImage = try XCTUnwrap(context.makeImage())
+            return UIImage(cgImage: cgImage)
+        }
+        let sourceData = try XCTUnwrap(source.jpegData(compressionQuality: 1))
+        let normalized = AppearanceImage.normalizedData(sourceData)
+
+        XCTAssertNotNil(normalized, "a valid photo should be retried at a smaller size or quality")
+        XCTAssertLessThanOrEqual(normalized?.count ?? .max, AppearancePreferences.maxImageBytes)
+    }
+
+    func testMoreRouteDestinationsDoNotWrapTheirOwnSettingsSurface() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/ContentView.swift"))
         let destination = try XCTUnwrap(source.range(of: "private func moreDestination"))
-        let routeBody = source[destination.upperBound...]
+        let end = try XCTUnwrap(source.range(of: "// MARK: – Schütteln meldet einen Fehler",
+                                             range: destination.upperBound..<source.endIndex))
+        let routeBody = source[destination.upperBound..<end.lowerBound]
 
-        XCTAssertTrue(routeBody.contains(".settingsSurface()"),
-                      "every More route must inherit the selected settings material")
+        XCTAssertFalse(routeBody.contains(".settingsSurface()"),
+                       "More destinations own their settings surface; an outer list wrapper can capture native control touches")
     }
 
     func testMaterialAndImagePreferencesRoundTrip() throws {
@@ -584,6 +746,7 @@ final class ThemePersistenceTests: XCTestCase {
 
         let newer = HabitData(version: 2, updatedAt: Date().timeIntervalSince1970 + 60,
                               summaryMinutes: nil, habits: [],
+                              appearanceUpdatedAt: Date().timeIntervalSince1970 + 60,
                               appearance: .light, palette: .rose)
         store.merge(remote: newer)
         XCTAssertEqual(store.palette, .rose)

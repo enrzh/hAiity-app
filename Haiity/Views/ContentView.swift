@@ -718,7 +718,6 @@ struct ContentView: View {
                 }
             }
         }
-        .settingsSurface()
     }
 
     // MARK: – Schütteln meldet einen Fehler

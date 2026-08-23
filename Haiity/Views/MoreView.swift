@@ -79,6 +79,7 @@ struct MoreView: View, Equatable {
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
+    @State private var showingBackgroundPhotoPicker = false
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
@@ -297,12 +298,23 @@ struct MoreView: View, Equatable {
     }
 
     private var appearanceSettings: some View {
-        List {
-            appearanceSection
-            paletteSection
-            compactModeSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                appearanceSection
+                    .padding(Theme.Metrics.cardPadding)
+                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
+                paletteSection
+                    .padding(Theme.Metrics.cardPadding)
+                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
+                compactModeSection
+                    .padding(Theme.Metrics.cardPadding)
+                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.vertical, Theme.Metrics.gap)
         }
-        .settingsSurface()
+        .scrollIndicators(.hidden)
+        .settingsChrome()
     }
 
     private var habitBehaviorSettings: some View {
@@ -343,7 +355,7 @@ struct MoreView: View, Equatable {
     // decodieren unverändert), nur die Oberfläche dazu ist weg.
 
     private var compactModeSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 0) {
             Toggle(String(localized: "Kompakte Ansicht"), isOn: Binding(
                 get: { statsCards.compactMode },
                 set: { statsCards.compactMode = $0 }))
@@ -919,16 +931,38 @@ struct MoreView: View, Equatable {
     // weil er das Grün loswerden möchte.
 
     private var appearanceSection: some View {
-        Section {
-            Picker(selection: appearanceBinding) {
-                ForEach(AppearanceSetting.allCases, id: \.self) { option in
-                    Text(option.displayName).tag(option)
-                }
-            } label: {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+            Text(String(localized: "Darstellung"))
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: Theme.Metrics.gap) {
                 Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
+                Spacer(minLength: Theme.Metrics.gap)
+                Menu {
+                    ForEach(AppearanceSetting.allCases, id: \.self) { option in
+                        Button {
+                            appearanceBinding.wrappedValue = option
+                        } label: {
+                            HStack {
+                                Text(option.displayName)
+                                Spacer()
+                                if option == store.appearance {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(store.appearance.displayName)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.tint)
+                }
+                .accessibilityIdentifier("appearance-picker")
             }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("appearance-picker")
 
             // Vorschau statt Wortliste: jede Oberfläche als Miniaturfläche
             // in DEM Material, das sie später wirklich hat (siehe
@@ -964,8 +998,6 @@ struct MoreView: View, Equatable {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-        } header: {
-            Text(String(localized: "Darstellung"))
         }
     }
 
@@ -1059,16 +1091,7 @@ struct MoreView: View, Equatable {
 
             backgroundPreview
 
-            Picker(String(localized: "Hintergrund"), selection: backgroundModeBinding) {
-                ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
-                    Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
-                        .tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .accessibilityLabel(String(localized: "Hintergrund"))
-            .accessibilityIdentifier("appearance-background-mode-picker")
+            backgroundModeSelector
 
             switch store.appearancePreferences.backgroundMode {
             case .color:
@@ -1106,6 +1129,38 @@ struct MoreView: View, Equatable {
         case .gradient: "circle.lefthalf.filled"
         case .image: "photo"
         }
+    }
+
+    private var backgroundModeSelector: some View {
+        HStack(spacing: 4) {
+            ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
+                backgroundModeButton(for: mode)
+            }
+        }
+        .padding(4)
+        .background(Color.primary.opacity(0.08), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Hintergrund"))
+        .accessibilityIdentifier("appearance-background-mode-picker")
+    }
+
+    private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
+        let selected = store.appearancePreferences.backgroundMode == mode
+        return Button {
+            backgroundModeBinding.wrappedValue = mode
+        } label: {
+            Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
+                .font(.subheadline.weight(selected ? .semibold : .regular))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .background(selected ? Color(.systemBackground) : .clear, in: Capsule())
+        .accessibilityLabel(mode.displayName)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("appearance-background-mode-\(mode.rawValue)")
     }
 
     private func backgroundColorRow(title: String,
@@ -1195,7 +1250,9 @@ struct MoreView: View, Equatable {
     private var backgroundImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
-                PhotosPicker(selection: $pickedBackgroundItem, matching: .images) {
+                Button {
+                    showingBackgroundPhotoPicker = true
+                } label: {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
                         .font(.body.weight(.semibold))
@@ -1204,8 +1261,18 @@ struct MoreView: View, Equatable {
                         .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
-                .appSurface(cornerRadius: 12)
+                .background(.regularMaterial,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
+                .photosPicker(isPresented: $showingBackgroundPhotoPicker,
+                              selection: $pickedBackgroundItem,
+                              matching: .images)
                 if store.appearancePreferences.backgroundImageData != nil {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
@@ -1219,7 +1286,14 @@ struct MoreView: View, Equatable {
                         Image(systemName: "trash")
                             .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    .background(.regularMaterial, in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
+                    .contentShape(Circle())
                     .help(String(localized: "Hintergrundbild entfernen"))
                     .accessibilityLabel(String(localized: "Hintergrundbild entfernen"))
                     .accessibilityIdentifier("appearance-background-remove")
@@ -1450,7 +1524,12 @@ struct MoreView: View, Equatable {
     // gelöscht werden.
 
     private var paletteSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(String(localized: "Graph-Farbe"))
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, Theme.Metrics.gap)
+
             ForEach(GraphPalette.allCases) { palette in
                 PaletteRow(style: palette.style,
                            title: palette.displayName,
@@ -1458,6 +1537,7 @@ struct MoreView: View, Equatable {
                     select(.builtin(palette))
                 }
                 .accessibilityIdentifier("palette-row-\(palette.rawValue)")
+                .padding(.vertical, Theme.Metrics.gap)
             }
             ForEach(store.customPalettes) { custom in
                 PaletteRow(style: custom.style,
@@ -1466,6 +1546,7 @@ struct MoreView: View, Equatable {
                     select(.custom(custom.id))
                 }
                 .accessibilityIdentifier("palette-row-custom-\(custom.id.uuidString)")
+                .padding(.vertical, Theme.Metrics.gap)
                 .swipeActions(edge: .trailing) {
                     // Rot EXPLIZIT: der App-Tint (die eigene Farbe!) würde die
                     // zerstörende Rolle sonst übermalen — eine Löschen-Taste in
@@ -1507,9 +1588,8 @@ struct MoreView: View, Equatable {
                 .contentShape(Rectangle())
             }
             .foregroundStyle(.primary)
+            .padding(.vertical, Theme.Metrics.gap)
             .accessibilityIdentifier("palette-add-custom")
-        } header: {
-            Text(String(localized: "Graph-Farbe"))
         }
     }
 

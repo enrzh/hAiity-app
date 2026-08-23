@@ -147,7 +147,10 @@ final class StartupSplashTests: XCTestCase {
         let tail = app[content.upperBound...]
         XCTAssertTrue(tail.contains(".ignoresSafeArea()"),
                       "the revealed app must cover the same window as the splash")
-        XCTAssertTrue(tail.contains(".allowsHitTesting(!startupSplashVisible)"))
+        XCTAssertFalse(tail.contains(".allowsHitTesting(!startupSplashVisible)"),
+                       "the splash overlay must own launch blocking; a stale root gate also blocks presented sheets")
+        XCTAssertTrue(app.contains(".allowsHitTesting(startupSplashVisible)"),
+                      "the splash surface must be the only launch-time hit-test blocker")
     }
 
     func testGraphGroupGrowsFromCompactGraphToFullZoom() {

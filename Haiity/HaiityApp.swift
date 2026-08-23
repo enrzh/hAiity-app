@@ -47,7 +47,6 @@ struct HaiityApp: App {
                     ContentView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
-                    .allowsHitTesting(!startupSplashVisible)
                     .accessibilityHidden(startupSplashVisible)
                     // Vergessene Sessions aufräumen: eine Live-Aktivität, die
                     // seit über acht Stunden läuft, wird still beendet, ohne
@@ -102,6 +101,7 @@ struct HaiityApp: App {
                         startupAnimationFinished = true
                         revealStartupIfReady()
                     }
+                    .allowsHitTesting(startupSplashVisible)
                     .zIndex(1)
                 }
             }

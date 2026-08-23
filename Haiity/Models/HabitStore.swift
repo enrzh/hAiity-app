@@ -144,6 +144,10 @@ struct HabitData: Codable {
 
     var version: Int
     var updatedAt: TimeInterval
+    /// Freshness of the appearance slice, independent from habit/check-in
+    /// writes. Nil means the payload predates this timestamp and keeps the
+    /// legacy root-timestamp merge rule only when both sides are legacy.
+    var appearanceUpdatedAt: TimeInterval?
     /// Global default for habits without a per-item override. Nil means the
     /// current device timezone and keeps older payloads unchanged.
     var defaultTimeZoneIdentifier: String?
@@ -209,6 +213,7 @@ struct HabitData: Codable {
          updatedAt: TimeInterval,
          summaryMinutes: Int?,
          habits: [Habit],
+         appearanceUpdatedAt: TimeInterval? = nil,
          defaultTimeZoneIdentifier: String? = nil,
          appearance: AppearanceSetting = .default,
          appearancePreferences: AppearancePreferences = .default,
@@ -226,6 +231,7 @@ struct HabitData: Codable {
          motivationDelivery: MotivationDelivery = .notification) {
         self.version = version
         self.updatedAt = updatedAt
+        self.appearanceUpdatedAt = appearanceUpdatedAt
         self.defaultTimeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(defaultTimeZoneIdentifier)
         self.summaryMinutes = summaryMinutes
         self.weeklySummaryMinutes = weeklySummaryMinutes
@@ -258,7 +264,7 @@ extension HabitData {
     /// die Einstellung, die es nicht mehr gibt, fällt beim nächsten
     /// Speichern heraus.
     private enum CodingKeys: String, CodingKey {
-        case version, updatedAt, defaultTimeZoneIdentifier, summaryMinutes, habits, appearance, appearancePreferences,
+        case version, updatedAt, appearanceUpdatedAt, defaultTimeZoneIdentifier, summaryMinutes, habits, appearance, appearancePreferences,
              palette, matchAppIcon
         case manualAppIconName
         case githubShowsUsername
@@ -288,6 +294,7 @@ extension HabitData {
         }
         version = v
         updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? 0
+        appearanceUpdatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .appearanceUpdatedAt)
         defaultTimeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(
             try c.decodeIfPresent(String.self, forKey: .defaultTimeZoneIdentifier))
         summaryMinutes = try c.decodeIfPresent(Int.self, forKey: .summaryMinutes)
@@ -335,6 +342,7 @@ extension HabitData {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(version, forKey: .version)
         try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encodeIfPresent(appearanceUpdatedAt, forKey: .appearanceUpdatedAt)
         try c.encodeIfPresent(defaultTimeZoneIdentifier, forKey: .defaultTimeZoneIdentifier)
         try c.encodeIfPresent(summaryMinutes, forKey: .summaryMinutes)
         try c.encodeIfPresent(weeklySummaryMinutes, forKey: .weeklySummaryMinutes)
@@ -587,7 +595,11 @@ final class HabitStore {
 
     func persist(notify: Bool = true, changeKind: HabitStoreChange = .general) {
         data.version = HabitData.currentVersion
-        data.updatedAt = Date().timeIntervalSince1970
+        let now = Date().timeIntervalSince1970
+        data.updatedAt = now
+        if changeKind == .appearance {
+            data.appearanceUpdatedAt = now
+        }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let raw = try? enc.encode(data) {
@@ -936,6 +948,24 @@ final class HabitStore {
     func merge(remote: HabitData) {
         var byId = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
         let remoteNewer = remote.updatedAt > data.updatedAt
+        // Appearance is edited independently from habits and check-ins. New
+        // payloads carry their own timestamp; two legacy payloads retain the
+        // old root-timestamp rule so upgrades do not silently stop syncing.
+        let remoteAppearanceNewer: Bool
+        if let localAppearanceUpdatedAt = data.appearanceUpdatedAt {
+            if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt {
+                remoteAppearanceNewer = remoteAppearanceUpdatedAt > localAppearanceUpdatedAt
+            } else {
+                // An old build cannot prove that its newer root timestamp
+                // came from an appearance edit.
+                remoteAppearanceNewer = false
+            }
+        } else if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt,
+                  remoteAppearanceUpdatedAt > 0 {
+            remoteAppearanceNewer = true
+        } else {
+            remoteAppearanceNewer = remoteNewer
+        }
         for rh in remote.habits {
             if var lh = byId[rh.id] {
                 for (k, v) in rh.log {
@@ -1001,15 +1031,16 @@ final class HabitStore {
         // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
         // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",
         // der Standard IST ein gültiger Wert.
-        if remoteNewer {
+        if remoteAppearanceNewer {
             data.appearance = remote.appearance
             data.appearancePreferences = remote.appearancePreferences
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
             data.manualAppIconName = remote.manualAppIconName
-            if let remoteCloudPreferences = remote.cloudPreferences {
-                data.cloudPreferences = remoteCloudPreferences
-            }
+            data.appearanceUpdatedAt = remote.appearanceUpdatedAt
+        }
+        if remoteNewer, let remoteCloudPreferences = remote.cloudPreferences {
+            data.cloudPreferences = remoteCloudPreferences
         }
         if remote.viewPreferences.updatedAt > data.viewPreferences.updatedAt {
             data.viewPreferences = remote.viewPreferences
@@ -1020,7 +1051,7 @@ final class HabitStore {
         // entscheidet der neuere Stand über Name und Farbe.
         var paletteById = Dictionary(uniqueKeysWithValues: data.customPalettes.map { ($0.id, $0) })
         for rp in remote.customPalettes {
-            if paletteById[rp.id] == nil || remoteNewer { paletteById[rp.id] = rp }
+            if paletteById[rp.id] == nil || remoteAppearanceNewer { paletteById[rp.id] = rp }
         }
         var mergedPalettes = data.customPalettes.compactMap { paletteById[$0.id] }
         let localPaletteIds = Set(data.customPalettes.map(\.id))

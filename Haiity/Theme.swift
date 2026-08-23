@@ -250,15 +250,32 @@ enum AppearanceImage {
     /// The final size check is repeated by `AppearancePreferences`.
     static func normalizedData(_ data: Data) -> Data? {
         guard let image = UIImage(data: data), let cgImage = image.cgImage else { return nil }
-        let maxDimension: CGFloat = 1600
-        let scale = min(1, maxDimension / max(CGFloat(cgImage.width), CGFloat(cgImage.height)))
-        let size = CGSize(width: CGFloat(cgImage.width) * scale,
-                          height: CGFloat(cgImage.height) * scale)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let compressed = renderer.jpegData(withCompressionQuality: 0.78) { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
+        let sourceDimension = max(CGFloat(cgImage.width), CGFloat(cgImage.height))
+        let dimensions: [CGFloat] = [1600, 1280, 1024, 840, 720]
+        let qualities: [CGFloat] = [0.78, 0.64, 0.52, 0.42, 0.32]
+
+        for maxDimension in dimensions {
+            let scale = min(1, maxDimension / sourceDimension)
+            let size = CGSize(width: max(1, floor(CGFloat(cgImage.width) * scale)),
+                              height: max(1, floor(CGFloat(cgImage.height) * scale)))
+            let format = UIGraphicsImageRendererFormat()
+            // `size` is expressed in pixels for the persisted JPEG, not in
+            // points. Without this, a Retina device silently triples the
+            // output dimensions and makes otherwise valid photos too large.
+            format.scale = 1
+            format.opaque = true
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+
+            for quality in qualities {
+                let compressed = renderer.jpegData(withCompressionQuality: quality) { _ in
+                    image.draw(in: CGRect(origin: .zero, size: size))
+                }
+                if compressed.count <= AppearancePreferences.maxImageBytes {
+                    return compressed
+                }
+            }
         }
-        return compressed.count <= AppearancePreferences.maxImageBytes ? compressed : nil
+        return nil
     }
 }
 
@@ -648,6 +665,7 @@ struct AppearanceBackground: View {
             }
         }
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 
@@ -667,18 +685,31 @@ private struct AppSurfaceModifier: ViewModifier {
         case .milky:
             content
                 .background(.regularMaterial, in: shape)
-                .overlay(shape.fill(Color(.systemBackground)
-                    .opacity(colorScheme == .dark ? 0.22 : 0.12)))
+                .overlay {
+                    shape
+                        .fill(Color(.systemBackground)
+                            .opacity(colorScheme == .dark ? 0.22 : 0.12))
+                        .allowsHitTesting(false)
+                }
         case .liquid:
             if #available(iOS 26, *) {
-                content.glassEffect(
-                    .regular.tint(Color(.systemBackground)
-                        .opacity(colorScheme == .dark ? 0.32 : 0.18)),
-                    in: shape)
+                content
+                    .background {
+                        Color.clear
+                            .glassEffect(
+                                .regular.tint(Color(.systemBackground)
+                                    .opacity(colorScheme == .dark ? 0.32 : 0.18)),
+                                in: shape)
+                            .allowsHitTesting(false)
+                    }
             } else {
                 content
                     .background(.ultraThinMaterial, in: shape)
-                    .overlay(shape.fill(Color(.systemBackground).opacity(0.16)))
+                    .overlay {
+                        shape
+                            .fill(Color(.systemBackground).opacity(0.16))
+                            .allowsHitTesting(false)
+                    }
             }
         case .adaptive:
             let tint = Theme.color(Theme.adaptiveTintHex(
@@ -687,14 +718,27 @@ private struct AppSurfaceModifier: ViewModifier {
             let opacity = Theme.adaptiveSurfaceOpacity(preferences: preferences,
                                                        dark: colorScheme == .dark)
             if #available(iOS 26, *) {
-                content.glassEffect(.regular.tint(tint.opacity(opacity)), in: shape)
+                content
+                    .background {
+                        Color.clear
+                            .glassEffect(.regular.tint(tint.opacity(opacity)), in: shape)
+                            .allowsHitTesting(false)
+                    }
             } else {
                 content
                     .background(.regularMaterial, in: shape)
-                    .overlay(shape.fill(tint.opacity(opacity)))
-                    .overlay(shape.stroke(Theme.adaptiveTileOutline(
-                        preferences: preferences,
-                        dark: colorScheme == .dark), lineWidth: 0.5))
+                    .overlay {
+                        shape
+                            .fill(tint.opacity(opacity))
+                            .allowsHitTesting(false)
+                    }
+                    .overlay {
+                        shape
+                            .stroke(Theme.adaptiveTileOutline(
+                                preferences: preferences,
+                                dark: colorScheme == .dark), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
             }
         }
     }
@@ -707,11 +751,10 @@ private struct SettingsSurfaceModifier: ViewModifier {
         content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            // A list-wide row background is not reliable when a Form/List
-            // rebuilds its sections. Applying an explicit view keeps every
-            // settings row on the same material as the rest of the page.
+            // Keep native list rows in the hit-test tree. A custom
+            // `listRowBackground` becomes a transparent overlay on iOS 27 and
+            // prevents buttons, toggles, and pickers from receiving taps.
             .listRowSeparator(.hidden)
-            .listRowBackground(SettingsRowSurface(preferences: preferences))
     }
 
     func body(content: Content) -> some View {
@@ -746,15 +789,5 @@ private struct SettingsChromeModifier: ViewModifier {
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.regularMaterial, for: .navigationBar)
         }
-    }
-}
-
-private struct SettingsRowSurface: View {
-    let preferences: AppearancePreferences
-
-    var body: some View {
-        Color.clear
-            .appSurface(cornerRadius: 12)
-            .environment(\.appearancePreferences, preferences)
     }
 }
