@@ -74,7 +74,7 @@ struct HaiityWidgetView: View {
     private func reminderContent(_ habit: Habit,
                                  family: WidgetFamily,
                                  dark: Bool) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 nameRun(habit, font: family == .systemMedium
@@ -83,16 +83,9 @@ struct HaiityWidgetView: View {
                 checkButton(habit, dark: dark)
             }
             Spacer(minLength: 0)
-            HStack(spacing: 6) {
-                Image(systemName: status == .done ? "checkmark.circle.fill" : "circle")
-                Text(verbatim: WidgetLogic.statusText(status))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(status == .done
-                             ? AnyShapeStyle(Theme.accentText(palette))
-                             : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+            metricLine(summary,
+                       palette: entry.palettes.style(for: habit),
+                       dark: dark)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -102,7 +95,7 @@ struct HaiityWidgetView: View {
     private func small(_ habit: Habit,
                        dark: Bool,
                        mode: WidgetRenderingMode) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 nameRun(habit, font: .subheadline.weight(.semibold))
@@ -112,7 +105,9 @@ struct HaiityWidgetView: View {
             streakRun(habit)
                 .font(.title2.weight(.bold).monospacedDigit())
                 .foregroundStyle(.primary)
-            statusLine(status, dark: dark)
+            metricLine(summary,
+                       palette: entry.palettes.style(for: habit),
+                       dark: dark)
             grid(habit, dark: dark, mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
@@ -124,7 +119,7 @@ struct HaiityWidgetView: View {
     private func medium(_ habit: Habit,
                         dark: Bool,
                         mode: WidgetRenderingMode) -> some View {
-        let status = WidgetLogic.status(habit: habit, today: today, calendar: calendar)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Theme.Metrics.gap) {
                 nameRun(habit, font: .headline)
@@ -134,7 +129,9 @@ struct HaiityWidgetView: View {
                     .foregroundStyle(.secondary)
                 checkButton(habit, dark: dark)
             }
-            statusLine(status, dark: dark)
+            metricLine(summary,
+                       palette: entry.palettes.style(for: habit),
+                       dark: dark)
             grid(habit, dark: dark, mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
@@ -162,21 +159,27 @@ struct HaiityWidgetView: View {
             + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))")
     }
 
-    private func statusLine(_ status: WidgetStatus, dark: Bool) -> some View {
-        Text(verbatim: WidgetLogic.statusText(status))
-            .font(.caption2)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .foregroundStyle(statusTint(status, dark: dark))
+    private func metricLine(_ summary: WidgetItemSummary,
+                            palette: PaletteStyle,
+                            dark: Bool) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: summary.metricSymbol)
+            Text(verbatim: summary.metricText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(statusTint(summary.status, palette: palette, dark: dark))
     }
 
-    private func statusTint(_ status: WidgetStatus, dark: Bool) -> AnyShapeStyle {
+    private func statusTint(_ status: WidgetStatus,
+                            palette: PaletteStyle,
+                            dark: Bool) -> AnyShapeStyle {
         switch status {
         case .done:
             return AnyShapeStyle(Theme.accentText(palette))
         case .declined:
-            return AnyShapeStyle(Theme.color(entry.palettes.style(for: entry.habit)
-                .negative(dark: dark)))
+            return AnyShapeStyle(Theme.color(palette.negative(dark: dark)))
         case .open, .free:
             return AnyShapeStyle(HierarchicalShapeStyle.secondary)
         }

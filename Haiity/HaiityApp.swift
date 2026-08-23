@@ -111,11 +111,13 @@ struct HaiityApp: App {
                 // Scene restoration can retain the previous `false` value;
                 // a new process always gets a fresh launch handoff.
                 startupSplashVisible = true
+                Task { await Pro.refresh(mayDowngrade: true) }
             }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                Task { await Pro.refresh(mayDowngrade: true) }
                 HabitSessionManager.shared.recoverIfNeeded()
                 // Icon-Menü auffrischen: seit dem letzten Vordergrund kann
                 // ein Widget/Knopf den heutigen Check erledigt haben.

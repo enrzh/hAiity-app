@@ -102,6 +102,13 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         }
     }
 
+    mutating func selectBackgroundMode(_ mode: AppearanceBackgroundMode) {
+        backgroundMode = mode
+        if mode != .image {
+            backgroundImageData = nil
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
              gradientEndHex, backgroundImageData, adaptive
@@ -604,6 +611,13 @@ extension View {
     func settingsChrome() -> some View {
         modifier(SettingsChromeModifier())
     }
+
+    /// Keeps navigation chrome continuous with the selected appearance. The
+    /// system otherwise falls back to an opaque large-title band on lists with
+    /// a custom background, which is especially visible over an image.
+    func navigationChrome() -> some View {
+        modifier(NavigationChromeModifier())
+    }
 }
 
 extension EnvironmentValues {
@@ -786,32 +800,35 @@ private struct SettingsSurfaceModifier: ViewModifier {
     }
 }
 
-private struct SettingsChromeModifier: ViewModifier {
+private struct NavigationChromeModifier: ViewModifier {
     @Environment(\.appearancePreferences) private var preferences
 
-    @ViewBuilder
     func body(content: Content) -> some View {
         switch preferences.material {
         case .solid:
             content
-                .background(AppearanceBackground(preferences: preferences))
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
         case .milky:
             content
-                .background(AppearanceBackground(preferences: preferences))
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.regularMaterial, for: .navigationBar)
         case .liquid:
             content
-                .background(AppearanceBackground(preferences: preferences))
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         case .adaptive:
             content
-                .background(AppearanceBackground(preferences: preferences))
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.regularMaterial, for: .navigationBar)
         }
+    }
+}
+
+private struct SettingsChromeModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
+    func body(content: Content) -> some View {
+        content.background(AppearanceBackground(preferences: preferences))
     }
 }

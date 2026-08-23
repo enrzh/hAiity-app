@@ -113,10 +113,19 @@ enum Pro {
         #if DEBUG
         if debugOverride != nil { return }
         #endif
-        guard ProStatus.shared.unlocked != unlocked else { return }
+        let ownerDevice = DeveloperAccess.isOwnerDevice(
+            storedAppleUserID: PersonalName.appleUserID,
+            storedAppleEmail: PersonalName.appleEmail
+        )
+        let effectiveUnlocked = unlocked || ownerDevice
+        guard ProStatus.shared.unlocked != effectiveUnlocked else { return }
         writeGeneration &+= 1
-        defaults.set(unlocked, forKey: unlockedKey)
-        ProStatus.shared.unlocked = unlocked
+        defaults.set(effectiveUnlocked, forKey: unlockedKey)
+        ProStatus.shared.unlocked = effectiveUnlocked
+        if !effectiveUnlocked {
+            CalendarSync.disable()
+            ReminderSync.disable()
+        }
     }
 
     /// Bestand prüfen: was steht heute auf diesem Konto? Zurückgezogene oder

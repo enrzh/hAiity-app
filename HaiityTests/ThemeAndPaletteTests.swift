@@ -223,6 +223,25 @@ final class AppearanceSettingTests: XCTestCase {
                       "startup should finish preparing the same image SwiftUI will render")
     }
 
+    func testSelectingNonImageModeClearsTheStoredImage() {
+        var preferences = AppearancePreferences(backgroundImageData: Data([1, 2, 3]),
+                                                 backgroundMode: .image)
+
+        preferences.selectBackgroundMode(.gradient)
+
+        XCTAssertEqual(preferences.backgroundMode, .gradient)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testSelectingImageModeDoesNotInventImageData() {
+        var preferences = AppearancePreferences(backgroundMode: .color)
+
+        preferences.selectBackgroundMode(.image)
+
+        XCTAssertEqual(preferences.backgroundMode, .image)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
     func testSystemMeansNoOverride() {
         XCTAssertNil(AppearanceSetting.system.colorScheme)
         XCTAssertEqual(AppearanceSetting.light.colorScheme, .light)
@@ -261,29 +280,39 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
-    func testSettingsChromeKeepsNativeMaterialVisibleForGlassModes() throws {
+    func testSettingsChromeLeavesNavigationBarMaterialToTheSystem() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
         let chromeStart = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier"))
         let chrome = theme[chromeStart.lowerBound...]
-        let liquidStart = try XCTUnwrap(chrome.range(of: "case .liquid:"))
-        let adaptiveStart = try XCTUnwrap(chrome.range(of: "case .adaptive:",
-                                                       range: liquidStart.upperBound..<chrome.endIndex))
-        let liquid = chrome[liquidStart.lowerBound..<adaptiveStart.lowerBound]
-        let adaptive = chrome[adaptiveStart.lowerBound...]
 
-        XCTAssertTrue(liquid.contains(".toolbarBackground(.visible, for: .navigationBar)"),
-                      "Liquid Glass settings chrome must keep a visible native header")
-        XCTAssertTrue(liquid.contains(".toolbarBackground(.ultraThinMaterial, for: .navigationBar)"),
-                      "Liquid Glass settings chrome must use a visible blur material")
-        XCTAssertTrue(adaptive.contains(".toolbarBackground(.visible, for: .navigationBar)"),
-                      "Auto settings chrome must keep a visible native header")
-        XCTAssertTrue(adaptive.contains(".toolbarBackground(.regularMaterial, for: .navigationBar)"),
-                      "Auto settings chrome must use a native material")
-        XCTAssertFalse(liquid.contains(".toolbarBackground(.hidden, for: .navigationBar)"),
-                       "the Liquid Glass header must not disappear")
+        XCTAssertTrue(chrome.contains("AppearanceBackground(preferences: preferences)"))
+        XCTAssertFalse(chrome.contains("toolbarBackground(.visible"),
+                       "settings chrome must not force a separate header band")
+        XCTAssertFalse(chrome.contains("toolbarBackground(Color("),
+                       "settings chrome must not replace the native header material")
+        XCTAssertFalse(chrome.contains("toolbarBackground(.regularMaterial"),
+                       "settings chrome must not own the blur material")
+        XCTAssertFalse(chrome.contains("toolbarBackground(.ultraThinMaterial"),
+                       "settings chrome must not own the blur material")
+    }
+
+    func testNavigationRootsUseOneAppearanceAwareMaterialChrome() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(theme.contains("func navigationChrome()"))
+        XCTAssertTrue(theme.contains("private struct NavigationChromeModifier"))
+        XCTAssertTrue(theme.contains("toolbarBackground(.ultraThinMaterial"),
+                      "liquid navigation chrome must remain blurred")
+        XCTAssertTrue(content.contains(".navigationChrome()"),
+                      "all root navigation stacks must use the shared chrome")
     }
 
     func testAppearanceControlsUseStyledImageActionAndInlineDynamicIcon() throws {
@@ -348,21 +377,19 @@ final class AppearanceSettingTests: XCTestCase {
         let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
         XCTAssertTrue(background.contains("backgroundModeSelector"),
                       "background modes need a dedicated selector on iOS 27")
-        XCTAssertTrue(more.contains("private func backgroundModeButton"),
-                      "background modes need explicit buttons on iOS 27")
-        XCTAssertFalse(background.contains("pickerStyle(.segmented)"),
-                       "the segmented picker is not a reliable hit target in this scroll editor")
+        XCTAssertTrue(background.contains("Picker(String(localized: \"Hintergrund\"), selection: backgroundModeBinding)"),
+                      "background modes need the native picker as their single selection control")
+        XCTAssertTrue(background.contains("pickerStyle(.segmented)"),
+                      "background modes should use the native segmented picker")
 
         let imageStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
         let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
                                                 range: imageStart.upperBound..<more.endIndex))
         let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
-        XCTAssertTrue(imagePicker.contains("Button {"),
-                      "the image action needs an explicit hit-testable button")
-        XCTAssertTrue(imagePicker.contains("showingBackgroundPhotoPicker = true"),
-                      "the image button must present the picker directly")
-        XCTAssertTrue(imagePicker.contains(".photosPicker(isPresented:"),
-                      "the image button must own its PhotosPicker presentation")
+        XCTAssertTrue(imagePicker.contains("PhotosPicker(selection: $pickedBackgroundItem"),
+                      "the image action must be a native PhotosPicker control")
+        XCTAssertFalse(imagePicker.contains(".photosPicker(isPresented:"),
+                       "a separate presentation modifier can lose the iOS 27 hit target")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {

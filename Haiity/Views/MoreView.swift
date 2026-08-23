@@ -79,7 +79,6 @@ struct MoreView: View, Equatable {
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
-    @State private var showingBackgroundPhotoPicker = false
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
@@ -1014,10 +1013,7 @@ struct MoreView: View, Equatable {
             get: { store.appearancePreferences.backgroundMode },
             set: { mode in
                 updateAppearance {
-                    $0.backgroundMode = mode
-                    if mode != .image {
-                        $0.backgroundImageData = nil
-                    }
+                    $0.selectBackgroundMode(mode)
                 }
                 if mode != .image {
                     backgroundImageImportToken = UUID()
@@ -1132,35 +1128,15 @@ struct MoreView: View, Equatable {
     }
 
     private var backgroundModeSelector: some View {
-        HStack(spacing: 4) {
+        Picker(String(localized: "Hintergrund"), selection: backgroundModeBinding) {
             ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
-                backgroundModeButton(for: mode)
+                Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
+                    .tag(mode)
             }
         }
-        .padding(4)
-        .background(Color.primary.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(String(localized: "Hintergrund"))
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .accessibilityIdentifier("appearance-background-mode-picker")
-    }
-
-    private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
-        let selected = store.appearancePreferences.backgroundMode == mode
-        return Button {
-            backgroundModeBinding.wrappedValue = mode
-        } label: {
-            Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
-                .font(.subheadline.weight(selected ? .semibold : .regular))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .background(selected ? Color(.systemBackground) : .clear, in: Capsule())
-        .accessibilityLabel(mode.displayName)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("appearance-background-mode-\(mode.rawValue)")
     }
 
     private func backgroundColorRow(title: String,
@@ -1250,9 +1226,7 @@ struct MoreView: View, Equatable {
     private var backgroundImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
-                Button {
-                    showingBackgroundPhotoPicker = true
-                } label: {
+                PhotosPicker(selection: $pickedBackgroundItem, matching: .images) {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
                         .font(.body.weight(.semibold))
@@ -1270,15 +1244,11 @@ struct MoreView: View, Equatable {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
-                .photosPicker(isPresented: $showingBackgroundPhotoPicker,
-                              selection: $pickedBackgroundItem,
-                              matching: .images)
                 if store.appearancePreferences.backgroundImageData != nil {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
                         updateAppearance {
-                            $0.backgroundImageData = nil
-                            $0.backgroundMode = .color
+                            $0.selectBackgroundMode(.color)
                         }
                         pickedBackgroundItem = nil
                         backgroundImageError = false
@@ -1343,8 +1313,8 @@ struct MoreView: View, Equatable {
                     return
                 }
                 updateAppearance {
+                    $0.selectBackgroundMode(.image)
                     $0.backgroundImageData = normalized
-                    $0.backgroundMode = .image
                 }
                 backgroundImageError = false
                 pickedBackgroundItem = nil

@@ -95,6 +95,26 @@ enum WidgetStatus: Equatable {
     case free(next: Int?)
 }
 
+enum WidgetAnswer: Equatable {
+    case yes
+    case no
+    case open
+}
+
+struct WidgetItemSummary: Equatable {
+    enum Kind: Equatable {
+        case checkbox, quantity, yesNo, reminder
+    }
+
+    let kind: Kind
+    let status: WidgetStatus
+    let answer: WidgetAnswer?
+    let value: Int?
+    let target: Int?
+    let metricText: String
+    let metricSymbol: String
+}
+
 /// Reine Widget-Logik — ohne SwiftUI-Zustand, ohne Store, mit injiziertem
 /// Kalender. Alles hier ist im Unit-Test nachrechenbar; die Views daneben
 /// treffen keine Entscheidungen mehr, sie zeichnen nur.
@@ -241,6 +261,80 @@ enum WidgetLogic {
             return String(localized: "Keine Termine mehr")
         case .free(let weekday?):
             return String(localized: "Frei bis \(RecurrenceText.shortWeekdayName(weekday, calendar: calendar))")
+        }
+    }
+
+    static func summary(habit: Habit,
+                        today: String = DayKey.today(),
+                        calendar: Calendar = .current) -> WidgetItemSummary {
+        let status = status(habit: habit, today: today, calendar: calendar)
+
+        if habit.isReminder {
+            return WidgetItemSummary(kind: .reminder,
+                                     status: status,
+                                     answer: nil,
+                                     value: nil,
+                                     target: nil,
+                                     metricText: statusText(status, calendar: calendar),
+                                     metricSymbol: symbol(for: status))
+        }
+
+        switch habit.kind {
+        case .checkbox:
+            return WidgetItemSummary(kind: .checkbox,
+                                     status: status,
+                                     answer: nil,
+                                     value: nil,
+                                     target: nil,
+                                     metricText: statusText(status, calendar: calendar),
+                                     metricSymbol: symbol(for: status))
+        case .quantity:
+            let value = habit.log[today] ?? 0
+            let target = habit.recurrence.target
+            let metricText = target.map { "\(value)/\($0)" } ?? "\(value)"
+            return WidgetItemSummary(kind: .quantity,
+                                     status: status,
+                                     answer: nil,
+                                     value: value,
+                                     target: target,
+                                     metricText: metricText,
+                                     metricSymbol: status == .done ? "chart.bar.fill" : "chart.bar")
+        case .yesNo:
+            let answer: WidgetAnswer
+            switch habit.log[today] {
+            case Habit.Answer.yes: answer = .yes
+            case Habit.Answer.no: answer = .no
+            default: answer = .open
+            }
+            let metricText: String
+            let metricSymbol: String
+            switch answer {
+            case .yes:
+                metricText = String(localized: "Ja")
+                metricSymbol = "checkmark.circle.fill"
+            case .no:
+                metricText = String(localized: "Nein")
+                metricSymbol = "xmark.circle.fill"
+            case .open:
+                metricText = String(localized: "Offen")
+                metricSymbol = "circle"
+            }
+            return WidgetItemSummary(kind: .yesNo,
+                                     status: status,
+                                     answer: answer,
+                                     value: nil,
+                                     target: nil,
+                                     metricText: metricText,
+                                     metricSymbol: metricSymbol)
+        }
+    }
+
+    private static func symbol(for status: WidgetStatus) -> String {
+        switch status {
+        case .done: "checkmark.circle.fill"
+        case .declined: "xmark.circle.fill"
+        case .open: "circle"
+        case .free: "circle.dashed"
         }
     }
 

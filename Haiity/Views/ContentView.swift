@@ -540,6 +540,7 @@ struct ContentView: View {
             StatsView(store: store, viewPreferences: viewPreferences,
                       routeToken: routeToken)
         }
+        .navigationChrome()
     }
 
     /// Der Inhalt des Such-Tabs: DIESELBEN Karten, gefiltert. Leerer
@@ -561,6 +562,7 @@ struct ContentView: View {
                         prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
             .searchFocused($searchFieldFocused)
         }
+        .navigationChrome()
     }
 
     @available(iOS 26, *)
@@ -594,6 +596,7 @@ struct ContentView: View {
         // bei offener Karte antippbar bleiben — dieselbe Schichtung
         // wie im Fallback (Karte unter dem Chrom-Stapel).
         .overlay { backfillLayer }
+        .navigationChrome()
     }
 
     @available(iOS 26, *)
@@ -605,6 +608,7 @@ struct ContentView: View {
                      routeToken: routeToken)
                 .navigationTitle(String(localized: "Mehr"))
         }
+        .navigationChrome()
         .sheet(item: $morePageRoute,
                onDismiss: deliverPendingMoreDismissalRoute) { route in
             NavigationStack {
@@ -619,6 +623,7 @@ struct ContentView: View {
                         }
                     }
             }
+            .navigationChrome()
             .themed(store)
             .onAppear { moreSheetDidPresent(route) }
         }
@@ -632,6 +637,7 @@ struct ContentView: View {
                      routeToken: routeToken)
                 .navigationTitle(String(localized: "Mehr"))
         }
+        .navigationChrome()
     }
 
     private var fallbackStatsContent: some View {
@@ -639,6 +645,7 @@ struct ContentView: View {
             StatsView(store: store, viewPreferences: viewPreferences,
                       routeToken: routeToken)
         }
+        .navigationChrome()
     }
 
     /// Rückgängig-Toast und Sync-Pille als schwebende Schicht — in der
@@ -657,6 +664,7 @@ struct ContentView: View {
         NavigationStack {
             habitsScreen
         }
+        .navigationChrome()
     }
 
     // MARK: – Die Anlegen-Seite
@@ -2375,11 +2383,10 @@ struct ContentView: View {
     private func boot() async {
         HaiityShortcuts.updateAppShortcutParameters()
         // Kauf-Zustand: der Lauscher zuerst (er muss stehen, BEVOR StoreKit
-        // eine ausstehende Transaktion meldet — sonst geht sie verloren), der
-        // Bestandsabgleich nebenher. Beides bewusst ohne `await`: die Gates
-        // lesen den lokalen Merker, keine Ansicht wartet auf das Netz.
+        // eine ausstehende Transaktion meldet — sonst geht sie verloren).
+        // Der Bestandsabgleich hängt am App-Lifecycle, damit auch ein
+        // abgelaufener Anspruch beim Vordergrundwechsel wieder gesperrt wird.
         Pro.startTransactionListener()
-        Task { await Pro.refresh() }
         ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()

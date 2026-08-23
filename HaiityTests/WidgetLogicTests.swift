@@ -17,9 +17,11 @@ final class WidgetLogicTests: GridTestCase {
     private func named(_ name: String,
                        recurrence: Recurrence = .daily,
                        log: [String: Int] = [:],
+                       kind: HabitKind? = nil,
                        archived: String? = nil) -> Habit {
         var h = habit(log, recurrence: recurrence, createdAt: "2026-01-01")
         h.name = name
+        if let kind { h.kind = kind }
         h.archivedAt = archived
         return h
     }
@@ -187,6 +189,52 @@ final class WidgetLogicTests: GridTestCase {
         let full = named("Wasser", recurrence: Recurrence(target: 3), log: [today: 3])
         XCTAssertEqual(WidgetLogic.status(habit: partial, today: today, calendar: cal), .open)
         XCTAssertEqual(WidgetLogic.status(habit: full, today: today, calendar: cal), .done)
+    }
+
+    func testSummaryForCheckboxUsesStatusAndStreak() {
+        let habit = named("Lesen", log: [today: 1])
+
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: cal)
+
+        XCTAssertEqual(summary.kind, .checkbox)
+        XCTAssertEqual(summary.status, .done)
+        XCTAssertEqual(summary.metricText, String(localized: "✓ Heute erledigt"))
+        XCTAssertEqual(summary.metricSymbol, "checkmark.circle.fill")
+    }
+
+    func testSummaryForQuantityShowsCurrentAndTargetBeforeCompletion() {
+        let habit = named("Wasser", recurrence: Recurrence(target: 3),
+                          log: [today: 2], kind: .quantity)
+
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: cal)
+
+        XCTAssertEqual(summary.kind, .quantity)
+        XCTAssertEqual(summary.value, 2)
+        XCTAssertEqual(summary.target, 3)
+        XCTAssertEqual(summary.metricText, "2/3")
+        XCTAssertEqual(summary.status, .open)
+    }
+
+    func testSummaryForYesNoDistinguishesYesNoAndOpen() {
+        var yesNo = named("Zucker", kind: .yesNo)
+        XCTAssertEqual(WidgetLogic.summary(habit: yesNo, today: today, calendar: cal).answer, .open)
+
+        yesNo.log[today] = Habit.Answer.no
+        XCTAssertEqual(WidgetLogic.summary(habit: yesNo, today: today, calendar: cal).answer, .no)
+
+        yesNo.log[today] = Habit.Answer.yes
+        XCTAssertEqual(WidgetLogic.summary(habit: yesNo, today: today, calendar: cal).answer, .yes)
+    }
+
+    func testOverviewUsesTheItemNegativePaletteForNo() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "HaiityWidget/RosterWidgetView.swift"))
+
+        XCTAssertTrue(source.contains("palette.negative(dark: dark)"),
+                      "No must use the habit palette instead of gray metadata")
+        XCTAssertTrue(source.contains("private func statusTint"))
     }
 
     // MARK: – … und der Satz dazu

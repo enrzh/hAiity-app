@@ -89,8 +89,7 @@ struct RosterWidgetView: View {
                      mode: WidgetRenderingMode) -> some View {
         let today = entry.today(for: habit)
         let calendar = entry.calendar(for: habit)
-        let status = WidgetLogic.status(habit: habit, today: today,
-                                        calendar: calendar)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
@@ -102,7 +101,7 @@ struct RosterWidgetView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
-                metadata(habit: habit, today: today, calendar: calendar, status: status,
+                metadata(habit: habit, summary: summary,
                          palette: cellPalette, dark: dark)
                     .padding(6)
             }
@@ -118,13 +117,7 @@ struct RosterWidgetView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func streakRun(_ habit: Habit, today: String, calendar: Calendar) -> Text {
-        Text(Image(systemName: "flame.fill"))
-            + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))")
-    }
-
-    private func metadata(habit: Habit, today: String, calendar: Calendar,
-                          status: WidgetStatus,
+    private func metadata(habit: Habit, summary: WidgetItemSummary,
                           palette cellPalette: PaletteStyle, dark: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             if !habit.emoji.isEmpty {
@@ -136,42 +129,34 @@ struct RosterWidgetView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
-            streakRun(habit, today: today, calendar: calendar)
-                .font(.caption2.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
-            glyph(status, palette: cellPalette, dark: dark)
+            Image(systemName: summary.metricSymbol)
+                .font(.caption2.weight(.semibold))
+            Text(verbatim: summary.metricText)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .foregroundStyle(statusTint(summary.status, palette: cellPalette, dark: dark))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5)
         }
     }
 
-    /// Der Zustand als Symbol — dieselben Fälle wie der Text daneben, nur auf
-    /// einen Blick: erledigt, verneint, offen, heute gar nicht dran.
-    @ViewBuilder
-    private func glyph(_ status: WidgetStatus, palette cellPalette: PaletteStyle,
-                       dark: Bool) -> some View {
+    private func statusTint(_ status: WidgetStatus,
+                            palette: PaletteStyle,
+                            dark: Bool) -> AnyShapeStyle {
         switch status {
         case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.footnote)
-                .foregroundStyle(Theme.accentText(palette))
+            return AnyShapeStyle(Theme.accentText(palette))
         case .declined:
-            Image(systemName: "xmark.circle.fill")
-                .font(.footnote)
-                .foregroundStyle(Theme.color(cellPalette.negative(dark: dark)))
-        case .open:
-            Image(systemName: "circle")
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        case .free:
-            Image(systemName: "circle.dashed")
-                .font(.footnote)
-                .foregroundStyle(.quaternary)
+            return AnyShapeStyle(Theme.color(palette.negative(dark: dark)))
+        case .open, .free:
+            return AnyShapeStyle(HierarchicalShapeStyle.secondary)
         }
     }
+
 }

@@ -102,6 +102,31 @@ final class ProGateTests: XCTestCase {
         }
     }
 
+    func testAppRefreshesProWithDowngradePermissionOnLaunchAndForeground() throws {
+        let app = try source("Haiity/HaiityApp.swift")
+
+        XCTAssertEqual(app.components(separatedBy: "Task { await Pro.refresh(mayDowngrade: true) }").count - 1,
+                       2,
+                       "launch and foreground must both re-check the current entitlement")
+        XCTAssertTrue(app.contains("case .active:"))
+        XCTAssertTrue(app.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
+    }
+
+    func testAllExistingProFeatureHostsReadTheSharedEntitlement() throws {
+        for file in ["Haiity/Views/MoreView.swift",
+                     "Haiity/Views/StatsView.swift",
+                     "Haiity/Views/EditHabitSheet.swift"] {
+            let text = try source(file)
+            XCTAssertTrue(text.contains("Pro.isUnlocked") || text.contains("unlocked"), file)
+        }
+
+        // ContentView owns navigation only. Creation is delegated to the
+        // editor, which contains the single ProGate check before saving.
+        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertTrue(content.contains("EditHabitSheet(store: store, asPage: true)"))
+        XCTAssertTrue(content.contains("private func requestCreate()"))
+    }
+
     // MARK: – Reine Logik: das Kaufblatt
 
     /// Sechs Einstiege, sechs Sätze: der Kontext ändert die Kopfzeile, damit
@@ -328,6 +353,14 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(pro.contains("cache(transaction.revocationDate == nil)"))
         // Und ein nachlaufendes Ergebnis überschreibt ihn nicht.
         XCTAssertTrue(pro.contains("guard generation == writeGeneration else { return }"))
+    }
+
+    func testDowngradeStopsProCalendarIntegrations() throws {
+        let pro = try source("Haiity/Models/ProEntitlement.swift")
+
+        XCTAssertTrue(pro.contains("let effectiveUnlocked = unlocked || ownerDevice"))
+        XCTAssertTrue(pro.contains("CalendarSync.disable()"))
+        XCTAssertTrue(pro.contains("ReminderSync.disable()"))
     }
 
     /// **Wiederherstellen reicht seinen Fehler weiter.** „Keine Verbindung"
