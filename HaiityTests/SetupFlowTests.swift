@@ -96,6 +96,17 @@ final class SetupFlowTests: XCTestCase {
                       "short setup pages should center instead of leaving a blank lower half")
     }
 
+    func testSetupPagesUseTopCompositionAndTransparentFooter() throws {
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+
+        XCTAssertTrue(setup.contains("alignment: .top"),
+                      "setup content must begin in a deliberate top composition")
+        XCTAssertFalse(setup.contains("alignment: .center"),
+                       "centering the small intrinsic content creates the reported empty screen")
+        XCTAssertFalse(setup.contains("Color.clear.appSurface(cornerRadius: 0)"),
+                       "the footer must not create a separate opaque band")
+    }
+
     /// Alle Texte des Einrichtungs-Bildschirms stehen im Katalog — die
     /// v16-Texte fehlten dort und fielen in allen 16 Sprachen auf Deutsch
     /// zurück.

@@ -54,8 +54,10 @@ struct ReminderSetupView: View {
                 }
                 .frame(maxWidth: .infinity,
                        minHeight: max(0, proxy.size.height - Theme.Metrics.gutter * 2),
-                       alignment: .center)
-                .padding(Theme.Metrics.gutter)
+                       alignment: .top)
+                .padding(.horizontal, Theme.Metrics.gutter)
+                .padding(.top, Theme.Metrics.gutter * 2)
+                .padding(.bottom, Theme.Metrics.gutter)
             }
         }
     }
@@ -217,7 +219,6 @@ struct ReminderSetupView: View {
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
-        .background(Color.clear.appSurface(cornerRadius: 0))
     }
 
     /// Eigene Punkte statt der System-Punkte: die stehen sonst UNTER dem

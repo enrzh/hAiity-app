@@ -468,6 +468,8 @@ final class AppearanceSettingTests: XCTestCase {
                        "PhotosPicker must not own a hit-sensitive material modifier")
         XCTAssertTrue(more.contains(".background(.regularMaterial,"),
                       "the image action should keep its visual surface behind the picker")
+        XCTAssertTrue(picker.contains("openBackgroundPicker()"),
+                      "the image button must use the same explicit picker path from every mode")
         let removeStart = try XCTUnwrap(more.range(of: "Button(role: .destructive)"))
         let removeEnd = try XCTUnwrap(more.range(of: ".accessibilityIdentifier(\"appearance-background-remove\")",
                                                   range: removeStart.upperBound..<more.endIndex))
@@ -510,6 +512,8 @@ final class AppearanceSettingTests: XCTestCase {
         let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
         XCTAssertTrue(background.contains("backgroundModeSelector"),
                       "background modes need a dedicated selector on iOS 27")
+        XCTAssertTrue(background.contains(".sheet(isPresented: $showingBackgroundPhotoPicker)"),
+                      "the picker sheet must be hosted by the always-rendered background control")
         XCTAssertTrue(more.contains("private func backgroundModeButton"),
                       "each background mode needs its own direct button on iOS 27")
         XCTAssertFalse(background.contains("pickerStyle(.segmented)"),
@@ -521,10 +525,14 @@ final class AppearanceSettingTests: XCTestCase {
         let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
                                                 range: imageStart.upperBound..<more.endIndex))
         let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
-        XCTAssertTrue(imagePicker.contains("showingBackgroundPhotoPicker = true"),
-                      "the visible image action must directly own the tap")
-        XCTAssertTrue(imagePicker.contains(".photosPicker(isPresented:"),
-                      "the explicit button must present the system photo picker")
+        XCTAssertTrue(imagePicker.contains("Button {"),
+                      "the image action must have a direct native button hit target")
+        XCTAssertTrue(imagePicker.contains("openBackgroundPicker()"),
+                      "the image action must explicitly request the picker")
+        XCTAssertTrue(more.contains("PHPickerViewController"),
+                      "the iOS 27 picker path must use the native PhotosUI controller")
+        XCTAssertFalse(imagePicker.contains("PhotosPicker(selection:"),
+                       "the nested SwiftUI PhotosPicker control is the unreliable path")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {

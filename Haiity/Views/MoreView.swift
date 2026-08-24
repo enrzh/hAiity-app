@@ -78,7 +78,6 @@ struct MoreView: View, Equatable {
     @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
-    @State private var pickedBackgroundItem: PhotosPickerItem?
     @State private var showingBackgroundPhotoPicker = false
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
@@ -1128,6 +1127,14 @@ struct MoreView: View, Equatable {
                 backgroundImagePicker
             }
         }
+        .sheet(isPresented: $showingBackgroundPhotoPicker) {
+            BackgroundPhotoPicker { data in
+                showingBackgroundPhotoPicker = false
+                guard let data else { return }
+                importBackgroundImage(data)
+            }
+            .ignoresSafeArea()
+        }
     }
 
     private func backgroundSymbol(for mode: AppearanceBackgroundMode) -> String {
@@ -1154,7 +1161,12 @@ struct MoreView: View, Equatable {
     private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
         let selected = store.appearancePreferences.backgroundMode == mode
         return Button {
-            backgroundModeBinding.wrappedValue = mode
+            if mode == .image,
+               store.appearancePreferences.backgroundImageData == nil {
+                openBackgroundPicker()
+            } else {
+                backgroundModeBinding.wrappedValue = mode
+            }
         } label: {
             Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
                 .font(.subheadline.weight(selected ? .semibold : .regular))
@@ -1258,7 +1270,7 @@ struct MoreView: View, Equatable {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
                 Button {
-                    showingBackgroundPhotoPicker = true
+                    openBackgroundPicker()
                 } label: {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
@@ -1277,16 +1289,12 @@ struct MoreView: View, Equatable {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
-                .photosPicker(isPresented: $showingBackgroundPhotoPicker,
-                              selection: $pickedBackgroundItem,
-                              matching: .images)
                 if store.appearancePreferences.backgroundImageData != nil {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
                         updateAppearance {
                             $0.selectBackgroundMode(.color)
                         }
-                        pickedBackgroundItem = nil
                         backgroundImageError = false
                     } label: {
                         Image(systemName: "trash")
@@ -1324,39 +1332,33 @@ struct MoreView: View, Equatable {
                     .foregroundStyle(.orange)
             }
         }
-        .onChange(of: pickedBackgroundItem) { _, item in
-            guard let item else { return }
-            importBackgroundImage(item)
-        }
     }
 
-    private func importBackgroundImage(_ item: PhotosPickerItem) {
+    private func openBackgroundPicker() {
+        backgroundImageError = false
+        showingBackgroundPhotoPicker = true
+    }
+
+    private func importBackgroundImage(_ data: Data) {
         let token = UUID()
         backgroundImageImportToken = token
         Task {
-            let normalized: Data?
-            do {
-                let data = try await item.loadTransferable(type: Data.self)
-                normalized = data.flatMap(AppearanceImage.normalizedData)
-            } catch {
-                normalized = nil
-            }
+            let normalized = await Task.detached(priority: .userInitiated) {
+                AppearanceImage.normalizedData(data)
+            }.value
             await MainActor.run {
                 guard token == backgroundImageImportToken else { return }
                 guard let normalized else {
                     backgroundImageError = true
-                    pickedBackgroundItem = nil
                     return
                 }
                 var next = store.appearancePreferences
                 guard next.setBackgroundImage(normalized) else {
                     backgroundImageError = true
-                    pickedBackgroundItem = nil
                     return
                 }
                 store.appearancePreferences = next
                 backgroundImageError = false
-                pickedBackgroundItem = nil
             }
         }
     }
@@ -2084,6 +2086,48 @@ struct HabitExport: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { $0.data }
             .suggestedFileName("haiity-export.json")
+    }
+}
+
+private struct BackgroundPhotoPicker: UIViewControllerRepresentable {
+    let onPick: (Data?) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick)
+    }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = 1
+        configuration.preferredAssetRepresentationMode = .current
+
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: PHPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        private let onPick: (Data?) -> Void
+
+        init(onPick: @escaping (Data?) -> Void) {
+            self.onPick = onPick
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            guard let provider = results.first?.itemProvider else {
+                onPick(nil)
+                return
+            }
+
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [onPick] data, _ in
+                DispatchQueue.main.async {
+                    onPick(data)
+                }
+            }
+        }
     }
 }
 

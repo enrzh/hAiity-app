@@ -57,10 +57,12 @@ final class ReminderItemTests: XCTestCase {
     func testEditorOffersAndPersistsCalendarOptOut() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("Toggle(String(localized: \"Im Kalender\"), isOn: $calendarSyncEnabled)"))
+        XCTAssertTrue(source.contains("Toggle(isOn: calendarSyncBinding)"),
+                      "the calendar switch must use the entitlement-aware binding")
         XCTAssertTrue(source.contains(".accessibilityIdentifier(\"habit-calendar-toggle\")"))
         XCTAssertTrue(source.contains("calendarSyncEnabled = habit.calendarSyncEnabled"))
-        XCTAssertTrue(source.contains("habit.calendarSyncEnabled = calendarSyncEnabled"))
+        XCTAssertTrue(source.contains("habit.calendarSyncEnabled = unlocked && calendarSyncEnabled"),
+                      "saving must not restore calendar sync after Pro expiry")
     }
 
     func testReminderOccurrenceControlsArePresentAndRecurrenceCopyIsRemoved() throws {

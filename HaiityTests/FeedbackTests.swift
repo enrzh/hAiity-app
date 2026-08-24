@@ -344,7 +344,7 @@ final class FeedbackTests: XCTestCase {
 
         XCTAssertTrue(more.contains("if let storedAppleUserID"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"apple-signout\")"))
-        XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
+        XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
     }
 
     func testFloatingToastsUseLargerTypeAndSharedAppearanceSurface() throws {
@@ -362,11 +362,11 @@ final class FeedbackTests: XCTestCase {
                                                      range: nativeStart.upperBound..<content.endIndex))
         let nativeShell = content[nativeStart.lowerBound..<nativeEnd.lowerBound]
 
-        XCTAssertTrue(nativeShell.contains(".safeAreaInset(edge: .bottom"),
-                      "the native tab bar must reserve its own bottom safe area for the toast")
         XCTAssertTrue(nativeShell.contains("floatingPills"),
                       "the toast must be attached outside individual tab content")
-        XCTAssertTrue(nativeShell.contains("Theme.Metrics.control + Theme.Metrics.gap"),
+        XCTAssertTrue(nativeShell.contains(".safeAreaPadding(.bottom"),
+                      "the native tab bar must reserve its own bottom safe area for the toast")
+        XCTAssertTrue(nativeShell.contains("nativeTabBarClearance"),
                       "the toast needs the native bar footprint below its safe-area inset")
 
         let surfaceStart = try XCTUnwrap(content.range(of: "private struct ToastSurface"))

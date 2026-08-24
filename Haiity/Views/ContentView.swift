@@ -532,14 +532,17 @@ struct ContentView: View {
     private var nativeToastOverlay: some View {
         if #available(iOS 26, *), !searching {
             floatingPills
-                .padding(.bottom, nativeTabBarClearance)
+                .safeAreaPadding(.bottom, nativeTabBarClearance)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(200)
         }
     }
 
     private var nativeTabBarClearance: CGFloat {
-        Theme.Metrics.control + Theme.Metrics.gutter + Theme.Metrics.gap
+        // Reserve the expanded native bar even while iOS is animating it from
+        // its compact state. The safe-area padding keeps a newly inserted
+        // toast above that transition instead of letting the bar cover it.
+        Theme.Metrics.control + Theme.Metrics.gutter + Theme.Metrics.gap * 3
     }
 
     /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.
