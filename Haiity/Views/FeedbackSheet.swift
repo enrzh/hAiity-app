@@ -68,10 +68,10 @@ struct FeedbackSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                descriptionSection
-                diagnosticsSection
-                sendSection
-                muteSection
+                descriptionSection.settingsListRow()
+                diagnosticsSection.settingsListRow()
+                sendSection.settingsListRow()
+                muteSection.settingsListRow()
             }
             .settingsSurface()
             .navigationTitle(String(localized: "Fehler melden"))

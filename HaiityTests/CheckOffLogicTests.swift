@@ -45,6 +45,45 @@ final class CheckOffLogicTests: XCTestCase {
         XCTAssertEqual(store.habits[0].log["2026-08-09"], 3)
     }
 
+    func testYesNoWidgetActionsSetExplicitAnswers() {
+        var h = Habit(name: "Meditation")
+        h.kind = .yesNo
+        store.add(h)
+
+        XCTAssertTrue(AnswerHabitLogic.apply(to: store, habitId: h.id,
+                                              yes: true, day: "2026-08-09"))
+        XCTAssertEqual(store.habits[0].log["2026-08-09"], Habit.Answer.yes)
+
+        XCTAssertTrue(AnswerHabitLogic.apply(to: store, habitId: h.id,
+                                              yes: false, day: "2026-08-09"))
+        XCTAssertEqual(store.habits[0].log["2026-08-09"], Habit.Answer.no)
+    }
+
+    func testResetWidgetActionClearsCheckboxQuantityAndYesNo() {
+        var checkbox = Habit(name: "Lesen")
+        store.add(checkbox)
+        store.toggle(checkbox.id, day: "2026-08-09")
+        XCTAssertTrue(ResetHabitLogic.apply(to: store, habitId: checkbox.id,
+                                             day: "2026-08-09"))
+        XCTAssertNil(store.habits[0].log["2026-08-09"])
+
+        let quantity = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
+        store.add(quantity)
+        store.increment(quantity.id, day: "2026-08-09")
+        XCTAssertTrue(ResetHabitLogic.apply(to: store, habitId: quantity.id,
+                                             day: "2026-08-09"))
+        XCTAssertNil(store.habits.first(where: { $0.id == quantity.id })?.log["2026-08-09"])
+
+        var yesNo = Habit(name: "Meditation")
+        yesNo.kind = .yesNo
+        store.add(yesNo)
+        XCTAssertTrue(AnswerHabitLogic.apply(to: store, habitId: yesNo.id,
+                                              yes: true, day: "2026-08-09"))
+        XCTAssertTrue(ResetHabitLogic.apply(to: store, habitId: yesNo.id,
+                                             day: "2026-08-09"))
+        XCTAssertNil(store.habits.first(where: { $0.id == yesNo.id })?.log["2026-08-09"])
+    }
+
     func testArchivedHabitIsNoOp() {
         let h = Habit(name: "Alt")
         store.add(h)

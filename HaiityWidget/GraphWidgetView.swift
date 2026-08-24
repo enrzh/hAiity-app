@@ -34,7 +34,6 @@ struct GraphWidgetView: View {
                                      dark: scheme == .dark,
                                      mode: mode)
             }
-            .widgetURL(URL(string: "haiity://open"))
     }
 
     /// Familie UND Schema als Argument — siehe `HaiityWidgetView`.
@@ -58,13 +57,25 @@ struct GraphWidgetView: View {
             // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
             // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
             // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
-            TrailingGrid(habit: habit ?? Self.blank,
-                         radius: nil,
-                         alignment: .center,
-                         level: level)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(label(habit))
+            if let habit {
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    TrailingGrid(habit: habit,
+                                 radius: nil,
+                                 alignment: .center,
+                                 level: level)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(label(habit))
+                }
+            } else {
+                TrailingGrid(habit: Self.blank,
+                             radius: nil,
+                             alignment: .center,
+                             level: level)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(label(habit))
+            }
         }
     }
 

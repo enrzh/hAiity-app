@@ -109,6 +109,71 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(widgetSource.contains("habit.kind == .yesNo"))
         XCTAssertTrue(widgetSource.contains("habit.kind == .quantity"))
         XCTAssertTrue(intent.contains("struct ResetHabitIntent"))
+        XCTAssertTrue(widgetSource.contains("AnswerYesHabitIntent"),
+                      "Ja/Nein widgets need an explicit Ja action")
+        XCTAssertTrue(widgetSource.contains("AnswerNoHabitIntent"),
+                      "Ja/Nein widgets need an explicit Nein action")
+        XCTAssertTrue(intent.contains("struct AnswerYesHabitIntent"))
+        XCTAssertTrue(intent.contains("struct AnswerNoHabitIntent"))
+    }
+
+    func testHabitSpecificWidgetsUseHabitDeepLinks() throws {
+        let main = try source("HaiityWidget/HaiityWidgetView.swift")
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+
+        XCTAssertTrue(main.contains("HaiityWidgetLink.habit"),
+                      "the selected habit widget must open its habit")
+        XCTAssertTrue(roster.contains("HaiityWidgetLink.habit"),
+                      "overview rows must open the habit they represent")
+    }
+
+    func testOverviewWidgetSupportsAllInteractiveItemKinds() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let logic = try source("HaiityWidget/WidgetLogic.swift")
+
+        XCTAssertTrue(logic.contains("let active = habits.filter { $0.archivedAt == nil }"),
+                      "overview selection must include reminders")
+        for symbol in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
+                       "AnswerNoHabitIntent", "ResetHabitIntent"] {
+            XCTAssertTrue(roster.contains(symbol),
+                          "overview rows need the (symbol) action")
+        }
+        XCTAssertTrue(roster.contains("habit.isReminder"),
+                      "reminder rows must render without a habit graph")
+    }
+
+    func testGraphContextMenuScopesItsHitTestToItsHost() throws {
+        let source = try source("Haiity/Views/HabitCard.swift")
+        XCTAssertTrue(source.contains("let targetFrame = convert(bounds, to: view)"),
+                      "each graph menu must use its own card frame in the interaction host")
+        XCTAssertTrue(source.contains("targetFrame.contains(location)"),
+                      "a GitHub tile touch must not resolve another row's menu")
+    }
+
+    func testGitHubTilesHaveNoBackfillSelectionHandler() throws {
+        let card = try source("Haiity/Views/GitHubContributionCard.swift")
+        let graph = try source("Haiity/Views/GitHubContributionGraph.swift")
+
+        XCTAssertFalse(card.contains("onSelectDay"),
+                       "GitHub tiles must remain display-only")
+        XCTAssertFalse(graph.contains("onSelectDay"),
+                       "GitHub tiles must not reuse the habit backfill callback")
+        XCTAssertTrue(card.contains("GitHub-Profil öffnen"),
+                      "the profile action remains available through the hold menu")
+    }
+
+    func testInteractiveWidgetActionsAreNotReplacedByAParentWidgetURL() throws {
+        let main = try source("HaiityWidget/HaiityWidgetView.swift")
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+
+        XCTAssertTrue(main.contains("Link(destination: HaiityWidgetLink.habit"),
+                      "the main widget needs a link around non-action content")
+        XCTAssertTrue(roster.contains("Link(destination: HaiityWidgetLink.habit"),
+                      "each overview row needs its own non-action link")
+        XCTAssertFalse(main.contains(".widgetURL(entry.habit.map"),
+                       "a parent widget URL can swallow AppIntent buttons")
+        XCTAssertFalse(roster.contains(".widgetURL(URL(string: \"haiity://habits\")"),
+                        "the overview parent URL must not override row targets")
     }
 
     func testGitHubWidgetHasASeparatePaletteOnlyConfiguration() throws {

@@ -84,13 +84,17 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     var gradientStartHex: UInt32?
     var gradientEndHex: UInt32?
     var backgroundImageData: Data?
+    /// Last destructive/new-image background mutation. It is a small iCloud
+    /// tombstone: an older payload must not resurrect a removed image.
+    var backgroundResetAt: TimeInterval?
 
     init(material: AppearanceMaterial = .solid,
          backgroundImageData: Data? = nil,
          backgroundMode: AppearanceBackgroundMode? = nil,
          backgroundColorHex: UInt32? = nil,
          gradientStartHex: UInt32? = nil,
-         gradientEndHex: UInt32? = nil) {
+         gradientEndHex: UInt32? = nil,
+         backgroundResetAt: TimeInterval? = nil) {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
         let requestedMode = backgroundMode ?? (boundedImage == nil ? .color : .image)
         self.material = material
@@ -100,6 +104,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         self.gradientStartHex = gradientStartHex
         self.gradientEndHex = gradientEndHex
         self.backgroundImageData = self.backgroundMode == .image ? boundedImage : nil
+        self.backgroundResetAt = backgroundResetAt
     }
 
     /// The JSON payload is also written by older builds and by iCloud merges.
@@ -139,6 +144,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     }
 
     mutating func selectBackgroundMode(_ mode: AppearanceBackgroundMode) {
+        let wasImage = backgroundMode == .image || backgroundImageData != nil
         if mode == .image && Self.usableImageData(backgroundImageData ?? Data()) == nil {
             backgroundMode = .color
             backgroundImageData = nil
@@ -147,6 +153,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         }
         if backgroundMode != .image {
             backgroundImageData = nil
+            if wasImage {
+                backgroundResetAt = Date().timeIntervalSince1970
+            }
         }
     }
 
@@ -158,6 +167,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         guard let usable = Self.usableImageData(data) else { return false }
         backgroundImageData = usable
         backgroundMode = .image
+        backgroundResetAt = Date().timeIntervalSince1970
         return true
     }
 
@@ -167,11 +177,12 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         gradientStartHex = nil
         gradientEndHex = nil
         backgroundImageData = nil
+        backgroundResetAt = Date().timeIntervalSince1970
     }
 
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
-             gradientEndHex, backgroundImageData, adaptive
+             gradientEndHex, backgroundImageData, backgroundResetAt, adaptive
     }
 
     init(from decoder: Decoder) throws {
@@ -188,7 +199,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
                 ?? (image == nil ? .color : .image),
             backgroundColorHex: try c.decodeIfPresent(UInt32.self, forKey: .backgroundColorHex),
             gradientStartHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientStartHex),
-            gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex))
+            gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex),
+            backgroundResetAt: try c.decodeIfPresent(TimeInterval.self,
+                                                      forKey: .backgroundResetAt))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -206,12 +219,17 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         try c.encodeIfPresent(gradientStartHex, forKey: .gradientStartHex)
         try c.encodeIfPresent(gradientEndHex, forKey: .gradientEndHex)
         try c.encodeIfPresent(backgroundImageData, forKey: .backgroundImageData)
+        try c.encodeIfPresent(backgroundResetAt, forKey: .backgroundResetAt)
     }
 
     var backgroundImage: UIImage? {
         guard let backgroundImageData else { return nil }
         return AppearanceImageCache.image(for: backgroundImageData)
     }
+
+    /// Raw persisted bytes for controls that must remain usable even when the
+    /// image is corrupt or has not been prepared for rendering yet.
+    var imagePayload: Data? { backgroundImageData }
 }
 
 /// Decoded background images are reused across the many SwiftUI surfaces that
@@ -320,6 +338,46 @@ enum AppearanceImageCache {
         }
         guard drawn else { return nil }
         return (UInt32(pixel[0]) << 16) | (UInt32(pixel[1]) << 8) | UInt32(pixel[2])
+    }
+}
+
+/// Renders a persisted background image only after the shared cache has
+/// prepared it. Settings pages can mount this view repeatedly while a list is
+/// scrolling; none of those body evaluations should decode JPEG bytes.
+struct AppearanceCachedImage<Placeholder: View>: View {
+    let data: Data?
+    let placeholder: () -> Placeholder
+
+    @State private var image: UIImage?
+
+    init(data: Data?,
+         @ViewBuilder placeholder: @escaping () -> Placeholder) {
+        self.data = data
+        self.placeholder = placeholder
+        _image = State(initialValue: data.flatMap(AppearanceImageCache.cachedImage))
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: data) {
+            image = nil
+            guard let data else { return }
+            if let cached = AppearanceImageCache.cachedImage(for: data) {
+                image = cached
+                return
+            }
+            await AppearanceImageCache.prewarm(data: data)
+            guard !Task.isCancelled else { return }
+            image = AppearanceImageCache.cachedImage(for: data)
+        }
     }
 }
 
@@ -665,6 +723,13 @@ extension View {
         modifier(SettingsSurfaceModifier())
     }
 
+    /// iOS 27 can ignore a list-wide row background on grouped lists. Attach
+    /// the same surface to the Section that owns the rows so the selected
+    /// material is applied at the actual cell boundary.
+    func settingsListRow() -> some View {
+        listRowBackground(SettingsRowSurface())
+    }
+
     /// Chrome for settings screens that are not backed by a `List` or `Form`.
     /// It keeps the page background and navigation bar on the same material
     /// as settings rows when the user changes Solid, Milchglas, or Liquid.
@@ -842,15 +907,16 @@ private struct AppSurfaceModifier: ViewModifier {
     }
 }
 
-private struct SettingsSurfaceModifier: ViewModifier {
+struct SettingsRowSurface: View {
     @Environment(\.appearancePreferences) private var preferences
+    @Environment(\.colorScheme) private var colorScheme
 
     private var rowShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous)
     }
 
     @ViewBuilder
-    private var settingsRowBackground: some View {
+    var body: some View {
         switch preferences.material {
         case .solid:
             rowShape
@@ -878,7 +944,7 @@ private struct SettingsSurfaceModifier: ViewModifier {
         case .adaptive:
             let tint = Theme.color(Theme.adaptiveTintHex(
                 preferences: preferences,
-                dark: UITraitCollection.current.userInterfaceStyle == .dark))
+                dark: colorScheme == .dark))
             if #available(iOS 26, *) {
                 Color.clear
                     .glassEffect(.regular.tint(tint.opacity(0.18)), in: rowShape)
@@ -894,6 +960,13 @@ private struct SettingsSurfaceModifier: ViewModifier {
                     .allowsHitTesting(false)
             }
         }
+    }
+}
+
+private struct SettingsSurfaceModifier: ViewModifier {
+    @ViewBuilder
+    private var settingsRowBackground: some View {
+        SettingsRowSurface()
     }
 
     private func listSurface(_ content: Content) -> some View {

@@ -40,6 +40,7 @@ struct CustomPaletteSheet: View {
                 } footer: {
                     Text(String(localized: "hAiity erzeugt daraus alle Rasterstufen."))
                 }
+                .settingsListRow()
 
                 Section {
                     preview(String(localized: "Hell"), dark: false)
@@ -47,11 +48,13 @@ struct CustomPaletteSheet: View {
                 } header: {
                     Text(String(localized: "Vorschau"))
                 }
+                .settingsListRow()
 
                 Section {
                     TextField(String(localized: "Name (z. B. Petrol)"), text: $name)
                         .accessibilityIdentifier("custom-palette-name")
                 }
+                .settingsListRow()
             }
             .settingsSurface()
             .navigationTitle(existing == nil

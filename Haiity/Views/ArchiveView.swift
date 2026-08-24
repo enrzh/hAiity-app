@@ -22,6 +22,7 @@ struct ArchiveView: View {
             } else {
                 ForEach(archived) { habit in
                     row(for: habit)
+                        .settingsListRow()
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 pendingDelete = habit

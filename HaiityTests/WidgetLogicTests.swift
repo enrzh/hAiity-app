@@ -58,7 +58,7 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertNil(WidgetLogic.resolve(habits: [], selected: nil))
     }
 
-    func testWidgetsExcludeReminderItems() {
+    func testWidgetsIncludeReminderItemsButGraphsRemainTrackedOnly() {
         var reminder = named("Tabletten", log: [today: 1])
         reminder.itemType = .reminder
         let tracked = named("Lesen")
@@ -68,7 +68,10 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertEqual(WidgetLogic.progress(habits: [reminder, tracked],
                                             today: today, calendar: cal).due, 1)
         XCTAssertEqual(WidgetLogic.roster([reminder, tracked], limit: 3).visible.map(\.name),
-                       ["Lesen"])
+                       ["Tabletten", "Lesen"])
+        XCTAssertEqual(WidgetLogic.resolveTrackedHabit(habits: [reminder, tracked],
+                                                        selected: reminder.id)?.id,
+                       tracked.id)
     }
 
     func testGraphResolutionHasATrackedHabitOnlyPath() throws {
@@ -224,6 +227,22 @@ final class WidgetLogicTests: GridTestCase {
 
         yesNo.log[today] = Habit.Answer.yes
         XCTAssertEqual(WidgetLogic.summary(habit: yesNo, today: today, calendar: cal).answer, .yes)
+    }
+
+    func testOverviewInteractiveActionsAreOutsideTheFullCardLink() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "HaiityWidget/RosterWidgetView.swift"))
+        let rowStart = try XCTUnwrap(source.range(of: "private func row("))
+        let actionsStart = try XCTUnwrap(source.range(of: "private func actionButtons",
+                                                      range: rowStart.upperBound..<source.endIndex))
+        let row = source[rowStart.lowerBound..<actionsStart.lowerBound]
+        let linkCount = row.components(separatedBy:
+            "Link(destination: HaiityWidgetLink.habit(habit.id))").count - 1
+
+        XCTAssertEqual(linkCount, 3,
+                       "the graph, title, and metadata may navigate, but a link must not cover widget buttons")
     }
 
     func testOverviewUsesTheItemNegativePaletteForNo() throws {

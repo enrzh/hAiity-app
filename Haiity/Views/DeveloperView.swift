@@ -63,15 +63,15 @@ struct DeveloperView: View {
 
     var body: some View {
         List {
-            appSection
-            dataSection
-            cloudSection
-            notificationSection
-            calendarSection
-            proSection
-            dataTransferSection
-            actionSection
-            ownerSection
+            appSection.settingsListRow()
+            dataSection.settingsListRow()
+            cloudSection.settingsListRow()
+            notificationSection.settingsListRow()
+            calendarSection.settingsListRow()
+            proSection.settingsListRow()
+            dataTransferSection.settingsListRow()
+            actionSection.settingsListRow()
+            ownerSection.settingsListRow()
         }
         .settingsSurface()
         .navigationTitle(String(localized: "Entwickler"))

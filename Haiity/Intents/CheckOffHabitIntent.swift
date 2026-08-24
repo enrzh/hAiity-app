@@ -142,6 +142,81 @@ struct ResetHabitIntent: AppIntent {
     }
 }
 
+/// Explicit Ja/Nein actions for the interactive widget. They deliberately set
+/// a value instead of toggling so pressing Ja twice cannot erase the answer.
+struct AnswerYesHabitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Mit Ja beantworten"
+    static var description = IntentDescription("Beantwortet den heutigen Ja/Nein-Habit mit Ja.")
+
+    @Parameter(title: "Habit")
+    var habit: HabitEntity
+
+    init() {}
+
+    init(habit: Habit) {
+        self.habit = HabitEntity(habit: habit)
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AnswerHabitIntentSupport.setAnswer(habit.id, yes: true)
+        return .result()
+    }
+}
+
+struct AnswerNoHabitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Mit Nein beantworten"
+    static var description = IntentDescription("Beantwortet den heutigen Ja/Nein-Habit mit Nein.")
+
+    @Parameter(title: "Habit")
+    var habit: HabitEntity
+
+    init() {}
+
+    init(habit: Habit) {
+        self.habit = HabitEntity(habit: habit)
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AnswerHabitIntentSupport.setAnswer(habit.id, yes: false)
+        return .result()
+    }
+}
+
+private enum AnswerHabitIntentSupport {
+    static func setAnswer(_ id: UUID, yes: Bool) async {
+        let store = HabitStore(url: SharedStorage.dataURL())
+        guard let storedHabit = store.habits.first(where: { $0.id == id }) else { return }
+        let day = HabitTimeZone.today(for: storedHabit,
+                                      defaultIdentifier: store.defaultTimeZoneIdentifier)
+        AnswerHabitLogic.apply(to: store, habitId: id, yes: yes, day: day)
+        await Reminders.reconcileAfterExternalCheckIn(
+            store: store,
+            habitID: id,
+            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+    }
+}
+
+/// Explicit Ja/Nein writes shared by the widget intent and unit tests. This
+/// must set the requested answer, never toggle it, so repeated widget taps
+/// remain predictable.
+enum AnswerHabitLogic {
+    @discardableResult
+    static func apply(to store: HabitStore,
+                      habitId: UUID,
+                      yes: Bool,
+                      day: String = DayKey.today()) -> Bool {
+        guard let habit = store.habits.first(where: { $0.id == habitId }),
+              habit.archivedAt == nil,
+              habit.isTrackedHabit,
+              habit.kind == .yesNo else { return false }
+
+        let answer = yes ? Habit.Answer.yes : Habit.Answer.no
+        guard habit.log[day] != answer else { return false }
+        store.setValue(habitId, day: day, value: answer)
+        return true
+    }
+}
+
 enum ResetHabitLogic {
     @discardableResult
     static func apply(to store: HabitStore,
@@ -174,6 +249,23 @@ enum CheckOffLogic {
     static func apply(to store: HabitStore, habitId: UUID, day: String = DayKey.today()) -> Bool {
         guard let habit = store.habits.first(where: { $0.id == habitId }),
               habit.archivedAt == nil else { return false }
+        if habit.isReminder {
+            let calendar = HabitTimeZone.calendar(
+                for: habit,
+                defaultIdentifier: store.defaultTimeZoneIdentifier)
+            let state = ReminderOccurrenceEngine.state(for: habit, calendar: calendar)
+            guard let occurrence = state.actionable,
+                  habit.log[occurrence.day] == nil else { return false }
+            let nextCursor = habit.repeatsWhileIncomplete ? nil
+                : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
+                                                                  reminder: habit,
+                                                                  calendar: calendar)
+            store.setReminderCompletion(habitId,
+                                        day: occurrence.day,
+                                        completed: true,
+                                        nextCursor: nextCursor)
+            return true
+        }
         switch habit.kind {
         case .quantity:
             store.increment(habitId, day: day)

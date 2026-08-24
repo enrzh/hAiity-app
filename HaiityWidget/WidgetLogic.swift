@@ -118,6 +118,12 @@ struct WidgetItemSummary: Equatable {
     let metricSymbol: String
 }
 
+enum HaiityWidgetLink {
+    static func habit(_ id: UUID) -> URL {
+        URL(string: "haiity://habits?habit=\(id.uuidString)")!
+    }
+}
+
 /// Reine Widget-Logik — ohne SwiftUI-Zustand, ohne Store, mit injiziertem
 /// Kalender. Alles hier ist im Unit-Test nachrechenbar; die Views daneben
 /// treffen keine Entscheidungen mehr, sie zeichnen nur.
@@ -400,7 +406,7 @@ enum WidgetLogic {
     /// Reihenfolge bleibt die der Liste — eine Übersicht, die ihre Zeilen
     /// selbst umsortiert, ist beim nächsten Blick eine andere Übersicht.
     static func roster(_ habits: [Habit], limit: Int) -> (visible: [Habit], overflow: Int) {
-        let active = habits.filter { $0.archivedAt == nil && $0.isTrackedHabit }
+        let active = habits.filter { $0.archivedAt == nil }
         guard limit > 0 else { return ([], active.count) }
         return (Array(active.prefix(limit)), max(0, active.count - limit))
     }

@@ -15,13 +15,16 @@ struct GitHubSettingsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            .settingsListRow()
             Section {
                 Toggle(String(localized: "GitHub-Namen anzeigen"), isOn: $showsUsername)
                     .accessibilityIdentifier("github-username-toggle")
             }
+            .settingsListRow()
             Section {
                 content
             }
+            .settingsListRow()
         }
         .settingsSurface()
         .navigationTitle(Text(verbatim: "GitHub"))

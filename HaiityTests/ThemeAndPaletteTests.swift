@@ -547,14 +547,110 @@ final class AppearanceSettingTests: XCTestCase {
                       "switching to a color or gradient must clear stale image state")
     }
 
-    func testSettingsSurfaceKeepsListRowHitTestingNative() throws {
+    func testBackgroundPickerDeliversBeforeDismissingSheet() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(
+            more.range(of: "final class Coordinator: NSObject, PHPickerViewControllerDelegate"))
+        let end = try XCTUnwrap(
+            more.range(of: "/// Kurz und ehrlich", range: start.upperBound..<more.endIndex))
+        let picker = more[start.lowerBound..<end.lowerBound]
+
+        let load = try XCTUnwrap(picker.range(of: "loadDataRepresentation"))
+        let deliver = try XCTUnwrap(picker.range(of: "DispatchQueue.main.async"))
+        let pick = try XCTUnwrap(picker.range(of: "onPick(data)", range: deliver.upperBound..<picker.endIndex))
+        let finish = try XCTUnwrap(picker.range(of: "onFinish()", range: pick.upperBound..<picker.endIndex))
+        XCTAssertLessThan(load.lowerBound, deliver.lowerBound,
+                          "Photos must load the asset before the sheet completion is dispatched")
+        XCTAssertLessThan(pick.lowerBound, finish.lowerBound,
+                          "the appearance state must be updated before the picker dismisses")
+    }
+
+    func testBackgroundPhotoPickerRetainsCoordinatorForAsyncProviderCallbacks() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(
+            more.range(of: "final class Coordinator: NSObject, PHPickerViewControllerDelegate"))
+        let end = try XCTUnwrap(
+            more.range(of: "/// Kurz und ehrlich", range: start.upperBound..<more.endIndex))
+        let coordinator = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(coordinator.contains("loadDataRepresentation"))
+        XCTAssertTrue(coordinator.contains("loadObject"))
+        XCTAssertTrue(coordinator.contains("loadFileRepresentation"))
+        XCTAssertFalse(coordinator.contains("{ [weak self]"),
+                       "Photos callbacks must retain the coordinator until bytes arrive")
+    }
+
+    func testBackgroundPickerFallsBackForCloudAndNonCurrentRepresentations() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("loadObject(ofClass: UIImage.self)"),
+                      "Photos may fail to vend UTType.image data for an iCloud asset")
+        XCTAssertTrue(more.contains("loadFileRepresentation"),
+                      "the picker needs a file fallback for provider-backed assets")
+    }
+
+    func testMoreViewDoesNotUseStaleEquatableIdentityForAppearanceChanges() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertFalse(more.contains("struct MoreView: View, Equatable"),
+                       "appearance changes must invalidate the settings editor")
+    }
+
+    func testMoreAndBehaviorPagesUseSharedMaterialSurface() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let behaviorStart = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
+        let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
+
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".settingsSurface()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
+    }
+
+    func testAppearanceEditorsNeverDecodeBackgroundImagesDuringBodyEvaluation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let picker = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MaterialPreviewPicker.swift"))
+
+        XCTAssertFalse(more.contains("store.appearancePreferences.backgroundImage"),
+                       "the settings editor must use the prepared image cache")
+        XCTAssertFalse(picker.contains("preferences.backgroundImage"),
+                       "material previews must not decode image data in body")
+        XCTAssertTrue(more.contains("AppearanceCachedImage"),
+                      "the appearance editor needs an asynchronous cached image view")
+        XCTAssertTrue(picker.contains("AppearanceCachedImage"),
+                      "material previews need the same asynchronous cached image view")
+    }
+
+    func testSettingsSurfaceKeepsListRowBackgroundNonInteractive() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
 
-        XCTAssertFalse(theme.contains("SettingsRowSurface"),
-                       "settings lists must use native rows so controls remain tappable")
+        XCTAssertTrue(theme.contains("SettingsRowSurface"),
+                      "settings lists need one shared appearance-aware row surface")
+        XCTAssertTrue(theme.contains("SettingsRowSurface()"),
+                      "the row surface must be installed through the shared modifier")
+        XCTAssertTrue(theme.contains(".allowsHitTesting(false)"),
+                      "the row surface must stay behind native controls")
     }
 
     func testSettingsSurfaceAppliesTheSelectedMaterialWithoutBlockingRows() throws {
@@ -845,6 +941,41 @@ final class AppearanceSettingTests: XCTestCase {
         store.merge(remote: remote)
 
         XCTAssertEqual(store.data.appearancePreferences, remote.appearancePreferences)
+    }
+
+    func testBackgroundResetTombstoneBlocksAnOlderRemoteImage() throws {
+        let local = HabitData(version: HabitData.currentVersion,
+                              updatedAt: 10,
+                              summaryMinutes: nil,
+                              habits: [],
+                              appearanceUpdatedAt: 10,
+                              appearancePreferences: .init(material: .milky,
+                                                            backgroundMode: .color))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(local)) as? [String: Any])
+        var appearance = try XCTUnwrap(object["appearancePreferences"] as? [String: Any])
+        appearance["backgroundResetAt"] = 15.0
+        object["appearancePreferences"] = appearance
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-background-reset-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+        let store = HabitStore(url: url)
+        let remote = HabitData(version: HabitData.currentVersion,
+                               updatedAt: 100,
+                               summaryMinutes: nil,
+                               habits: [],
+                               appearanceUpdatedAt: 14,
+                               appearancePreferences: .init(
+                                   material: .milky,
+                                   backgroundImageData: try validImageData(),
+                                   backgroundMode: .image))
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertNil(store.appearancePreferences.backgroundImageData)
     }
 }
 

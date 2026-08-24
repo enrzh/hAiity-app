@@ -494,7 +494,17 @@ final class HabitStore {
     var appearancePreferences: AppearancePreferences {
         get { data.appearancePreferences }
         set {
-            data.appearancePreferences = newValue.normalizedForStorage()
+            let old = data.appearancePreferences
+            var next = newValue.normalizedForStorage()
+            let oldWasImage = old.backgroundMode == .image || old.backgroundImageData != nil
+            let newIsImage = next.backgroundMode == .image && next.backgroundImageData != nil
+            if oldWasImage && !newIsImage {
+                next.backgroundResetAt = Date().timeIntervalSince1970
+            } else if newIsImage,
+                      old.backgroundImageData != next.backgroundImageData {
+                next.backgroundResetAt = Date().timeIntervalSince1970
+            }
+            data.appearancePreferences = next
             persist(changeKind: .appearance)
         }
     }
@@ -1072,7 +1082,25 @@ final class HabitStore {
         // der Standard IST ein gültiger Wert.
         if remoteAppearanceNewer {
             data.appearance = remote.appearance
-            data.appearancePreferences = remote.appearancePreferences.normalizedForStorage()
+            let localPreferences = data.appearancePreferences
+            let remotePreferences = remote.appearancePreferences.normalizedForStorage()
+            var nextPreferences = remotePreferences
+            let localMarker = localPreferences.backgroundResetAt ?? 0
+            let remoteMarker = remotePreferences.backgroundResetAt ?? 0
+            if localMarker > remoteMarker {
+                // Preserve the local background whenever the incoming image
+                // predates a local reset. Other appearance fields can still
+                // follow the newer remote payload.
+                if remotePreferences.backgroundMode == .image {
+                    nextPreferences.backgroundMode = localPreferences.backgroundMode
+                    nextPreferences.backgroundColorHex = localPreferences.backgroundColorHex
+                    nextPreferences.gradientStartHex = localPreferences.gradientStartHex
+                    nextPreferences.gradientEndHex = localPreferences.gradientEndHex
+                    nextPreferences.backgroundImageData = localPreferences.backgroundImageData
+                }
+                nextPreferences.backgroundResetAt = localPreferences.backgroundResetAt
+            }
+            data.appearancePreferences = nextPreferences.normalizedForStorage()
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
             data.manualAppIconName = remote.manualAppIconName

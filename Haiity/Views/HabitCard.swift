@@ -892,9 +892,14 @@ struct GraphContextMenu: UIViewRepresentable {
                                     configurationForMenuAtLocation location: CGPoint)
             -> UIContextMenuConfiguration? {
             guard let view = interaction.view else { return nil }
-            let local = view.convert(location, to: self)
-            trace("menu: config? loc=\(local) bounds=\(bounds)")
-            guard bounds.contains(local) else { return nil }
+            // The interaction is installed on the nearest table/collection
+            // host, not on this hidden representable view. Convert the card
+            // frame into that host before testing; converting the touch into
+            // the representable view allowed a GitHub row to borrow a
+            // neighbouring card's coordinate space on iOS 27.
+            let targetFrame = convert(bounds, to: view)
+            trace("menu: config? loc=\(location) target=\(targetFrame)")
+            guard targetFrame.contains(location) else { return nil }
             let width = previewWidth
             let makePreview = preview
             let actions = actions

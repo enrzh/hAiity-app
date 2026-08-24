@@ -60,7 +60,7 @@ struct StatsView: View {
         }
         .onChange(of: routeToken) { _, _ in paywall = nil }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button {
                     showingCardSettings = true
                 } label: {
@@ -98,6 +98,11 @@ struct StatsView: View {
                 if activeCards.contains(.yearPulse) {
                     heroCard(snapshot)
                         .modifier(StatsCardChrome())
+                        .background {
+                            statsContextMenu {
+                                statsPreview(heroCard(snapshot))
+                            }
+                        }
                 }
                 if !tileCards.isEmpty {
                     tileGrid(snapshot, cards: tileCards)
@@ -118,6 +123,7 @@ struct StatsView: View {
                                                   trailing: Theme.Metrics.gutter))
                 }
             }
+            .settingsListRow()
             Section {
                 // Der Schnitt liegt auf der SEKTION, nicht mitten in einer
                 // Karte: eine halbe Zeile („Quoten ja, Balken nein") wäre
@@ -127,10 +133,22 @@ struct StatsView: View {
                     ForEach(store.activeTrackedHabits) { habit in
                         StatsRow(habit: habit)
                             .modifier(StatsCardChrome())
+                            .background {
+                                statsContextMenu {
+                                    statsPreview(
+                                        StatsRow(habit: habit)
+                                            .padding(Theme.Metrics.cardPadding))
+                                }
+                            }
                     }
                 } else {
                     perHabitLockCard
                         .modifier(StatsCardChrome())
+                        .background {
+                            statsContextMenu {
+                                statsPreview(perHabitLockCard)
+                            }
+                        }
                 }
             } header: {
                 if !store.activeTrackedHabits.isEmpty {
@@ -141,6 +159,7 @@ struct StatsView: View {
                         .padding(.leading, Theme.Metrics.gutter)
                 }
             }
+            .settingsListRow()
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -175,6 +194,7 @@ struct StatsView: View {
                 } header: {
                     Text(String(localized: "Statistikkarten"))
                 }
+                .settingsListRow()
             }
             .settingsSurface()
             .navigationTitle(String(localized: "Statistik anpassen"))
@@ -347,8 +367,40 @@ struct StatsView: View {
                   spacing: Theme.Metrics.gap) {
             ForEach(cards) { card in
                 statsTile(card, snapshot: snapshot)
+                    .background {
+                        statsContextMenu {
+                            statsPreview(statsTile(card, snapshot: snapshot))
+                        }
+                    }
             }
         }
+    }
+
+    private var statsPreviewWidth: CGFloat {
+        HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
+    }
+
+    private var statsContextActions: [GraphMenuAction] {
+        [GraphMenuAction(title: String(localized: "Statistik anpassen"),
+                         symbol: "slider.horizontal.3",
+                         handler: { showingCardSettings = true })]
+    }
+
+    private func statsContextMenu(preview: @escaping () -> AnyView)
+        -> GraphContextMenu {
+        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                         previewWidth: statsPreviewWidth,
+                         preview: preview,
+                         actions: statsContextActions,
+                         commit: { showingCardSettings = true })
+    }
+
+    private func statsPreview<Content: View>(_ content: Content) -> AnyView {
+        AnyView(
+            content
+                .padding(Theme.Metrics.cardPadding)
+                .appSurface()
+                .frame(width: statsPreviewWidth))
     }
 
     @ViewBuilder

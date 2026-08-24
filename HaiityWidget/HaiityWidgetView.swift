@@ -48,7 +48,6 @@ struct HaiityWidgetView: View {
                                      dark: scheme == .dark,
                                      mode: mode)
             }
-            .widgetURL(URL(string: "haiity://open"))
     }
 
     @ViewBuilder
@@ -77,15 +76,20 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                nameRun(habit, font: family == .systemMedium
-                        ? .headline : .subheadline.weight(.semibold))
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    nameRun(habit, font: family == .systemMedium
+                            ? .headline : .subheadline.weight(.semibold))
+                }
                 Spacer(minLength: 4)
                 checkButton(habit, dark: dark)
             }
             Spacer(minLength: 0)
-            metricLine(summary,
-                       palette: entry.palettes.style(for: habit),
-                       dark: dark)
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                metricLine(summary,
+                           palette: entry.palettes.style(for: habit),
+                           dark: dark)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -98,18 +102,27 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
-                nameRun(habit, font: .subheadline.weight(.semibold))
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    nameRun(habit, font: .subheadline.weight(.semibold))
+                }
                 Spacer(minLength: 4)
                 checkButton(habit, dark: dark)
             }
-            streakRun(habit)
-                .font(.title2.weight(.bold).monospacedDigit())
-                .foregroundStyle(.primary)
-            metricLine(summary,
-                       palette: entry.palettes.style(for: habit),
-                       dark: dark)
-            grid(habit, dark: dark, mode: mode)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                VStack(alignment: .leading, spacing: 5) {
+                    streakRun(habit)
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                    metricLine(summary,
+                               palette: entry.palettes.style(for: habit),
+                               dark: dark)
+                    grid(habit, dark: dark, mode: mode)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .bottomLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .topLeading)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -122,18 +135,29 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Theme.Metrics.gap) {
-                nameRun(habit, font: .headline)
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    nameRun(habit, font: .headline)
+                }
                 Spacer(minLength: Theme.Metrics.gap)
-                streakRun(habit)
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    streakRun(habit)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
                 checkButton(habit, dark: dark)
             }
-            metricLine(summary,
-                       palette: entry.palettes.style(for: habit),
-                       dark: dark)
-            grid(habit, dark: dark, mode: mode)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                VStack(alignment: .leading, spacing: 6) {
+                    metricLine(summary,
+                               palette: entry.palettes.style(for: habit),
+                               dark: dark)
+                    grid(habit, dark: dark, mode: mode)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .bottomLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .topLeading)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -196,32 +220,52 @@ struct HaiityWidgetView: View {
     private func checkButton(_ habit: Habit, dark: Bool) -> some View {
         let done = GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
         let declined = habit.isDeclined(today)
-        let hasValue = habit.isReminder
-            ? WidgetLogic.summary(habit: habit, today: today, calendar: calendar).status == .done
-            : habit.log[today] != nil
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
+        let hasValue = habit.isReminder ? summary.status == .done : habit.log[today] != nil
         return HStack(spacing: 5) {
-            Button(intent: CheckOffHabitIntent(habit: habit)) {
-                if habit.kind == .quantity, let target = habit.recurrence.target {
-                    Text(verbatim: "\(habit.log[today] ?? 0)/\(target)")
-                        .font(.caption2.bold().monospacedDigit())
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(done ? Theme.accentFill(palette) : Color(.tertiarySystemFill),
-                                    in: Capsule())
-                        .foregroundStyle(done ? .white : .primary)
-                } else {
-                    Image(systemName: declined
-                          ? "xmark.circle.fill"
-                          : (done ? "checkmark.circle.fill" : "circle"))
+            if habit.kind == .yesNo, habit.isTrackedHabit {
+                Button(intent: AnswerYesHabitIntent(habit: habit)) {
+                    Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(negativeOrAccent(declined: declined, done: done, dark: dark))
+                        .foregroundStyle(Theme.accentText(palette))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Mit Ja beantworten"))
+
+                Button(intent: AnswerNoHabitIntent(habit: habit)) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.color(entry.palettes.style(for: habit)
+                            .negative(dark: dark)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Mit Nein beantworten"))
+            } else {
+                Button(intent: CheckOffHabitIntent(habit: habit)) {
+                    if habit.kind == .quantity, let target = habit.recurrence.target {
+                        Text(verbatim: "\(habit.log[today] ?? 0)/\(target)")
+                            .font(.caption2.bold().monospacedDigit())
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(done ? Theme.accentFill(palette) : Color(.tertiarySystemFill),
+                                        in: Capsule())
+                            .foregroundStyle(done ? .white : .primary)
+                    } else {
+                        Image(systemName: declined
+                              ? "xmark.circle.fill"
+                              : (done ? "checkmark.circle.fill" : "circle"))
+                            .font(.title3)
+                            .foregroundStyle(negativeOrAccent(declined: declined,
+                                                               done: done,
+                                                               dark: dark))
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(habit.kind != .quantity && done)
+                .accessibilityLabel(habit.isReminder
+                                    ? String(localized: "Erinnerung erledigen")
+                                    : String(localized: "Habit abhaken"))
             }
-            .buttonStyle(.plain)
-            .disabled(habit.kind != .quantity && done)
-            .accessibilityLabel(habit.kind == .yesNo
-                                ? String(localized: "Mit Ja beantworten")
-                                : String(localized: "Habit abhaken"))
 
             if entry.widgetResetEnabled && hasValue {
                 Button(intent: ResetHabitIntent(habit: habit)) {

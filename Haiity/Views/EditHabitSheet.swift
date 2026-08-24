@@ -127,12 +127,13 @@ struct EditHabitSheet: View {
                     TextField(String(localized: "Emoji (optional)"), text: $emoji)
                         .accessibilityIdentifier("habit-emoji")
                 }
-                recurrenceSection
-                durationSection
-                if itemType == .habit { kindSection }
-                colorSection
+                .settingsListRow()
+                recurrenceSection.settingsListRow()
+                durationSection.settingsListRow()
+                if itemType == .habit { kindSection.settingsListRow() }
+                colorSection.settingsListRow()
                 if let habit = existing {
-                    swipeActionsSection
+                    swipeActionsSection.settingsListRow()
                     Section {
                         if habit.isTrackedHabit {
                             ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
@@ -149,6 +150,7 @@ struct EditHabitSheet: View {
                         .foregroundStyle(.primary)
                         .accessibilityIdentifier("archive-habit")
                     }
+                    .settingsListRow()
                 }
             }
             .settingsSurface()

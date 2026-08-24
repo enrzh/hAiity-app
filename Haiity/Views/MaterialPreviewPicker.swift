@@ -109,11 +109,7 @@ private struct AppearanceStylePreview: View {
                 startPoint: .top,
                 endPoint: .bottom)
         case .image:
-            if let image = preferences.backgroundImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+            AppearanceCachedImage(data: preferences.imagePayload) {
                 Color(.systemGroupedBackground)
             }
         }

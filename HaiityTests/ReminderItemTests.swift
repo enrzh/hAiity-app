@@ -96,8 +96,12 @@ final class ReminderItemTests: XCTestCase {
     func testReminderModeHidesHabitKindControls() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("if itemType == .habit { kindSection }"))
-        XCTAssertTrue(source.contains("habit.kind = itemType == .habit ?"))
+        XCTAssertTrue(source.contains("if itemType == .habit { kindSection.settingsListRow() }"),
+                      "the habit-only kind controls must be conditionally mounted")
+        XCTAssertTrue(source.contains("itemType == .habit ? Habit.resolvedKind"),
+                      "saving a reminder must not persist a habit kind")
+        XCTAssertTrue(source.contains(": .checkbox"),
+                      "reminders must use the internal checkbox representation")
     }
 
     func testOnlyNewTrackedHabitsUseTheFreeLimit() throws {

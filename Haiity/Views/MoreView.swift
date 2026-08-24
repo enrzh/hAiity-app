@@ -43,16 +43,7 @@ enum MoreScreen: Equatable {
 /// System-Navigationsleiste. Die drei seitenartigen Ziele bleiben Knöpfe,
 /// die ein Blatt öffnen (`onOpen`), präsentiert vom Aufrufer ÜBER der Seite.
 ///
-/// **`Equatable`.** Verglichen wird nur, worauf die Ansicht ZEIGT; echte
-/// Änderungen an den Daten kommen über Observation an und nicht über diesen
-/// Vergleich. (Stammt aus der Tafel-Zeit, kostet nichts und bleibt.)
-struct MoreView: View, Equatable {
-    static func == (a: MoreView, b: MoreView) -> Bool {
-        a.store === b.store && a.github === b.github && a.cloudStatus === b.cloudStatus
-            && a.statsCards === b.statsCards && a.routeToken == b.routeToken
-            && a.screen == b.screen
-    }
-
+struct MoreView: View {
     let store: HabitStore
     let github: GitHubContributionStore
     /// Nur Anzeige: es gibt nichts einzurichten. Entweder iCloud läuft, oder
@@ -114,6 +105,11 @@ struct MoreView: View, Equatable {
     @State private var copiedSyncHint = false
     @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
+
+    private var currentAppearance: AppearancePreferences { store.appearancePreferences }
+    private var hasPersistedBackgroundImage: Bool {
+        currentAppearance.backgroundImageData != nil
+    }
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
     /// `ProStatus`). Bewusst KEIN gespiegelter Zustand: der Kauf kann von
@@ -190,6 +186,11 @@ struct MoreView: View, Equatable {
             purchased = nil
             paywall = nil
         }
+        .onChange(of: store.appearancePreferences) { _, _ in
+            // A force reset from the Developer page, or an iCloud merge, must
+            // cancel a stale import before it can put the old image back.
+            backgroundImageImportToken = UUID()
+        }
         .fullScreenCover(isPresented: $showReminderSetup) {
             ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
         }
@@ -236,24 +237,26 @@ struct MoreView: View, Equatable {
 
     private var mainSettings: some View {
         List {
-            proSection
-            personalSection
-            githubSection
+            proSection.settingsListRow()
+            personalSection.settingsListRow()
+            githubSection.settingsListRow()
             Section {
                 pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
                         symbol: "paintpalette", identifier: "open-appearance")
                 pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
-            notificationOptOutSection
-            dailySummarySection
-            weeklySummarySection
-            motivationSection
+            .settingsListRow()
+            notificationOptOutSection.settingsListRow()
+            dailySummarySection.settingsListRow()
+            weeklySummarySection.settingsListRow()
+            motivationSection.settingsListRow()
             Section {
                 pageRow(MoreRoute.archive, title: String(localized: "Archiv"),
                         symbol: "archivebox", identifier: "open-archive",
                         badge: archivedCount > 0 ? "\(archivedCount)" : nil)
             }
+            .settingsListRow()
             Section {
                 Button { showReminderSetup = true } label: {
                     Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
@@ -261,10 +264,12 @@ struct MoreView: View, Equatable {
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("open-reminder-setup")
             }
+            .settingsListRow()
             Section {
                 pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
                         symbol: "lock.shield", identifier: "open-about")
             }
+            .settingsListRow()
         }
         .settingsSurface()
     }
@@ -319,10 +324,10 @@ struct MoreView: View, Equatable {
 
     private var habitBehaviorSettings: some View {
         List {
-            timeZoneSection
-            swipeActionsSection
-            notificationActionsSection
-            calendarSection
+            timeZoneSection.settingsListRow()
+            swipeActionsSection.settingsListRow()
+            notificationActionsSection.settingsListRow()
+            calendarSection.settingsListRow()
         }
         .settingsSurface()
     }
@@ -1130,11 +1135,12 @@ struct MoreView: View, Equatable {
             }
         }
         .sheet(isPresented: $showingBackgroundPhotoPicker) {
-            BackgroundPhotoPicker { data in
-                showingBackgroundPhotoPicker = false
-                guard let data else { return }
-                importBackgroundImage(data)
-            }
+            BackgroundPhotoPicker(
+                onPick: { data in
+                    guard let data else { return }
+                    importBackgroundImage(data)
+                },
+                onFinish: { showingBackgroundPhotoPicker = false })
             .ignoresSafeArea()
         }
     }
@@ -1161,10 +1167,11 @@ struct MoreView: View, Equatable {
     }
 
     private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
-        let selected = store.appearancePreferences.backgroundMode == mode
+        let appearance = currentAppearance
+        let selected = appearance.backgroundMode == mode
         return Button {
             if mode == .image,
-               store.appearancePreferences.backgroundImageData == nil {
+               appearance.imagePayload == nil {
                 openBackgroundPicker()
             } else {
                 backgroundModeBinding.wrappedValue = mode
@@ -1241,11 +1248,7 @@ struct MoreView: View, Equatable {
                     startPoint: .top,
                     endPoint: .bottom)
             case .image:
-                if let image = store.appearancePreferences.backgroundImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
+                AppearanceCachedImage(data: currentAppearance.imagePayload) {
                     Color(.systemGroupedBackground)
                 }
             }
@@ -1291,7 +1294,7 @@ struct MoreView: View, Equatable {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
-                if store.appearancePreferences.backgroundImageData != nil {
+                if hasPersistedBackgroundImage {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
                         updateAppearance {
@@ -1315,10 +1318,10 @@ struct MoreView: View, Equatable {
                     .accessibilityIdentifier("appearance-background-remove")
                 }
             }
-            if let image = store.appearancePreferences.backgroundImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+            if currentAppearance.imagePayload != nil {
+                AppearanceCachedImage(data: currentAppearance.imagePayload) {
+                    Color(.secondarySystemGroupedBackground)
+                }
                     .frame(maxWidth: .infinity)
                     .frame(height: 88)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -2093,9 +2096,10 @@ struct HabitExport: Transferable {
 
 private struct BackgroundPhotoPicker: UIViewControllerRepresentable {
     let onPick: (Data?) -> Void
+    let onFinish: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onPick: onPick)
+        Coordinator(onPick: onPick, onFinish: onFinish)
     }
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
@@ -2113,21 +2117,60 @@ private struct BackgroundPhotoPicker: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, PHPickerViewControllerDelegate {
         private let onPick: (Data?) -> Void
+        private let onFinish: () -> Void
+        private let deliveryLock = NSLock()
+        private var didDeliver = false
 
-        init(onPick: @escaping (Data?) -> Void) {
+        init(onPick: @escaping (Data?) -> Void,
+             onFinish: @escaping () -> Void) {
             self.onPick = onPick
+            self.onFinish = onFinish
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             guard let provider = results.first?.itemProvider else {
-                onPick(nil)
+                deliver(nil)
                 return
             }
 
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [onPick] data, _ in
-                DispatchQueue.main.async {
-                    onPick(data)
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                if let data {
+                    self.deliver(data)
+                    return
                 }
+
+                // iCloud-backed providers can refuse the current data
+                // representation even though they can vend a decoded image.
+                provider.loadObject(ofClass: UIImage.self) { object, _ in
+                    if let image = object as? UIImage,
+                       let data = image.jpegData(compressionQuality: 0.9)
+                        ?? image.pngData() {
+                        self.deliver(data)
+                        return
+                    }
+
+                    // Some providers expose only a temporary file. The file
+                    // is valid for the duration of this callback, so copy it
+                    // before handing the bytes back to SwiftUI.
+                    provider.loadFileRepresentation(
+                        forTypeIdentifier: UTType.image.identifier) { url, _ in
+                            self.deliver(url.flatMap { try? Data(contentsOf: $0) })
+                        }
+                }
+            }
+        }
+
+        private func deliver(_ data: Data?) {
+            deliveryLock.lock()
+            guard !didDeliver else {
+                deliveryLock.unlock()
+                return
+            }
+            didDeliver = true
+            deliveryLock.unlock()
+            DispatchQueue.main.async { [onPick, onFinish] in
+                onPick(data)
+                onFinish()
             }
         }
     }
@@ -2152,10 +2195,12 @@ struct AboutView: View {
                 Text(String(localized: "Dein Alltag als Contribution-Graph."))
                     .font(.subheadline)
             }
+            .settingsListRow()
             Section(String(localized: "Datenschutz")) {
                 Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
                     .font(.subheadline)
             }
+            .settingsListRow()
             Section {
                 Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
                     get: { shakeToReport },
@@ -2174,10 +2219,12 @@ struct AboutView: View {
                     }))
                     .accessibilityIdentifier("shake-to-report-toggle")
             }
+            .settingsListRow()
             Section {
                 versionRow
                 if developerAvailable { developerRow }
             }
+            .settingsListRow()
         }
         .settingsSurface()
         .navigationTitle(String(localized: "Über"))

@@ -104,6 +104,9 @@ struct ContentView: View {
     @State private var routePresentationTask: Task<Void, Never>?
     /// Sperrt bereits eingereihte Sucharbeit eines älteren Deep-Links.
     @State private var routeWork = RouteWork()
+    /// A widget route carries the selected habit. The list consumes this
+    /// once its rows are mounted and scrolls to the stable UUID anchor.
+    @State private var requestedHabitID: UUID?
     /// Genau die letzte noch nicht angewandte Route. Beide Präsentations-
     /// callbacks prüfen ihren Generationstoken, bevor sie sie weiterreichen.
     @State private var pendingRoute: RouteWork.Item?
@@ -505,24 +508,35 @@ struct ContentView: View {
         TabView(selection: $nativeTab) {
             Tab(String(localized: "Statistik"), systemImage: "chart.bar",
                 value: AppTab.stats) {
-                statsTabContent
+                nativeTabRoot { statsTabContent }
             }
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                 value: AppTab.habits) {
-                habitsTabContent
+                nativeTabRoot { habitsTabContent }
             }
             Tab(String(localized: "Mehr"), systemImage: "ellipsis",
                 value: AppTab.more) {
-                moreTabContent
+                nativeTabRoot { moreTabContent }
             }
             // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
             // Beschriftung in der Kapsel („Habits durchsuchen" sprengte sie).
             Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
                 value: AppTab.search, role: .search) {
-                searchTabContent
+                nativeTabRoot { searchTabContent }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+    }
+
+    @available(iOS 26, *)
+    private func nativeTabRoot<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack {
+            AppearanceBackground(preferences: store.appearancePreferences)
+            content()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// The native tab bar paints outside a TabView's content overlay. Keep
@@ -592,16 +606,12 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
     @available(iOS 26, *)
     private var habitsTabContent: some View {
-        ZStack {
-            AppearanceBackground(preferences: store.appearancePreferences)
-            habitsStack
-        }
+        habitsStack
         // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
         // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
         // genau dem, was die Karte gerade geschrieben hat, und muss
@@ -1011,35 +1021,45 @@ struct ContentView: View {
     }
 
     private var habitList: some View {
-        List {
-            if let snapshot = github.snapshot {
-                GitHubContributionCard(snapshot: snapshot,
-                                       collapsed: collapsed,
-                                       showsUsername: store.githubShowsUsername,
-                                       openProfile: { GitHubLink.open(snapshot.profileURL) })
-                    .equatable()
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0,
-                                              leading: Theme.Metrics.gutter,
-                                              bottom: 0,
-                                              trailing: Theme.Metrics.gutter))
-            }
-            if habitsTabSource.isEmpty {
-                if github.snapshot == nil || !search.isEmpty {
-                    ContentUnavailableView.search(text: search)
+        ScrollViewReader { proxy in
+            List {
+                if let snapshot = github.snapshot {
+                    GitHubContributionCard(snapshot: snapshot,
+                                           collapsed: collapsed,
+                                           showsUsername: store.githubShowsUsername,
+                                           openProfile: { GitHubLink.open(snapshot.profileURL) })
+                        .equatable()
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0,
+                                                  leading: Theme.Metrics.gutter,
+                                                  bottom: 0,
+                                                  trailing: Theme.Metrics.gutter))
                 }
-            } else {
-                ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
-                    // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
-                    // da und damit der stabile Anker der Scroll-Messung).
-                    row(for: habit, index: index + 1)
+                if habitsTabSource.isEmpty {
+                    if github.snapshot == nil || !search.isEmpty {
+                        ContentUnavailableView.search(text: search)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                } else {
+                    ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
+                        // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
+                        // da und damit der stabile Anker der Scroll-Messung).
+                        row(for: habit, index: index + 1)
+                            .id(habit.id)
+                    }
+                    .onMove(perform: search.isEmpty
+                        ? { store.move(fromOffsets: $0, toOffset: $1) }
+                        : nil)
                 }
-                .onMove(perform: search.isEmpty
-                    ? { store.move(fromOffsets: $0, toOffset: $1) }
-                    : nil)
+            }
+            .onAppear { scrollToRequestedHabit(using: proxy) }
+            .onChange(of: requestedHabitID) { _, _ in
+                scrollToRequestedHabit(using: proxy)
+            }
+            .onChange(of: habitsTabSource.map(\.id)) { _, _ in
+                scrollToRequestedHabit(using: proxy)
             }
         }
         .listStyle(.plain)
@@ -1074,6 +1094,31 @@ struct ContentView: View {
     private func habitCalendar(for habit: Habit) -> Calendar {
         HabitTimeZone.calendar(for: habit,
                                defaultIdentifier: store.defaultTimeZoneIdentifier)
+    }
+
+    private func scrollToRequestedHabit(using proxy: ScrollViewProxy) {
+        guard let id = requestedHabitID,
+              habitsTabSource.contains(where: { $0.id == id }) else { return }
+        Task { @MainActor in
+            for attempt in 0..<6 {
+                guard requestedHabitID == id else { return }
+                if attempt > 0 {
+                    try? await Task.sleep(for: .milliseconds(80))
+                }
+                await Task.yield()
+                guard requestedHabitID == id else { return }
+                if reduceMotion {
+                    proxy.scrollTo(id, anchor: .center)
+                } else {
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
+            }
+            if requestedHabitID == id {
+                requestedHabitID = nil
+            }
+        }
     }
 
     private func habitToday(_ habit: Habit) -> String {
@@ -2054,6 +2099,7 @@ struct ContentView: View {
     private func apply(_ route: RouteWork.Item) {
         guard routeWork.isCurrent(route) else { return }
         nativeTab = route.effect.tab
+        requestedHabitID = route.effect.habitID
 
         routePresentationTask = Task { @MainActor in
             await Task.yield()

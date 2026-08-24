@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 /// Die Übersicht: mehrere Habits als kompakte Karten, damit EIN Widget die
 /// ganze Liste abdeckt statt eines Habits.
@@ -28,7 +29,6 @@ struct RosterWidgetView: View {
                                      dark: scheme == .dark,
                                      mode: mode)
             }
-            .widgetURL(URL(string: "haiity://open"))
     }
 
     /// Familie UND Schema als Argument — siehe `HaiityWidgetView`.
@@ -93,17 +93,49 @@ struct RosterWidgetView: View {
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
 
-                TrailingGrid(habit: habit, today: today, radius: nil) { level in
-                    HomeWidgetInk.level(level, mode: mode, dark: dark, palette: cellPalette)
+                        if habit.isReminder {
+                            Image(systemName: "bell.fill")
+                                .font(.system(size: 42, weight: .semibold))
+                                .foregroundStyle(Theme.accentText(cellPalette).opacity(0.18))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                                       alignment: .center)
+                        } else {
+                            TrailingGrid(habit: habit, today: today, radius: nil) { level in
+                                HomeWidgetInk.level(level, mode: mode, dark: dark, palette: cellPalette)
+                            }
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                        }
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
 
-                metadata(habit: habit, summary: summary,
-                         palette: cellPalette, dark: dark)
-                    .padding(6)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 4) {
+                        Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                            Text(verbatim: habit.name)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        Spacer(minLength: 2)
+                        actionButtons(habit,
+                                      summary: summary,
+                                      palette: cellPalette,
+                                      dark: dark)
+                    }
+                    Spacer(minLength: 0)
+                    Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                        metadata(habit: habit, summary: summary,
+                                 palette: cellPalette, dark: dark)
+                    }
+                }
+                .padding(6)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -117,17 +149,73 @@ struct RosterWidgetView: View {
         .accessibilityElement(children: .combine)
     }
 
+    @ViewBuilder
+    private func actionButtons(_ habit: Habit,
+                               summary: WidgetItemSummary,
+                               palette: PaletteStyle,
+                               dark: Bool) -> some View {
+        HStack(spacing: 3) {
+            switch summary.kind {
+            case .yesNo:
+                Button(intent: AnswerYesHabitIntent(habit: habit)) {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel(String(localized: "Mit Ja beantworten"))
+                Button(intent: AnswerNoHabitIntent(habit: habit)) {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel(String(localized: "Mit Nein beantworten"))
+            case .quantity:
+                Button(intent: CheckOffHabitIntent(habit: habit)) {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(String(localized: "Menge erhöhen"))
+            case .checkbox, .reminder:
+                Button(intent: CheckOffHabitIntent(habit: habit)) {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel(habit.isReminder
+                                    ? String(localized: "Erinnerung erledigen")
+                                    : String(localized: "Habit abhaken"))
+            }
+
+            if entry.widgetResetEnabled && hasValue(habit, summary: summary) {
+                Button(intent: ResetHabitIntent(habit: habit)) {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .accessibilityLabel(String(localized: "Rückgängig"))
+            }
+        }
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(Theme.accentText(palette))
+        .buttonStyle(.plain)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay { Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5) }
+    }
+
+    private func hasValue(_ habit: Habit, summary: WidgetItemSummary) -> Bool {
+        if habit.isReminder { return summary.status == .done }
+        return summary.kind == .yesNo
+            ? summary.answer != .some(.open)
+            : habit.log[entry.today(for: habit)] != nil
+    }
+
     private func metadata(habit: Habit, summary: WidgetItemSummary,
                           palette cellPalette: PaletteStyle, dark: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            if !habit.emoji.isEmpty {
-                Text(verbatim: habit.emoji)
-                    .font(.caption)
+        let streak = habit.streak(today: entry.today(for: habit),
+                                  calendar: entry.calendar(for: habit))
+        return HStack(alignment: .firstTextBaseline, spacing: 5) {
+            if !habit.isReminder {
+                Image(systemName: "flame.fill")
+                    .font(.caption2.weight(.semibold))
+                Text(verbatim: "\(streak)")
+                    .font(.caption.weight(.bold).monospacedDigit())
+            } else {
+                Image(systemName: "bell.fill")
+                    .font(.caption2.weight(.semibold))
             }
-            Text(verbatim: habit.name)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
             Image(systemName: summary.metricSymbol)
                 .font(.caption2.weight(.semibold))

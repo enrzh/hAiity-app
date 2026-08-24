@@ -47,6 +47,7 @@ struct HabitTimeZoneList: View {
                     .accessibilityIdentifier("timezone-device")
                 }
             }
+            .settingsListRow()
 
             Section {
                 ForEach(filteredOptions) { option in
@@ -62,11 +63,13 @@ struct HabitTimeZoneList: View {
                     .accessibilityIdentifier(timezoneIdentifier(for: option.identifier))
                 }
             }
+            .settingsListRow()
         }
         .searchable(text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Zeitzone suchen"))
         .listStyle(.insetGrouped)
+        .settingsSurface()
     }
 
     private func zoneRow(symbol: String,

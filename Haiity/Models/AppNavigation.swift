@@ -34,6 +34,19 @@ struct AppRouteEffect: Equatable {
     let morePage: AppMoreDestination?
     let opensSearch: Bool
     let opensCreate: Bool
+    let habitID: UUID?
+
+    init(tab: AppTab,
+         morePage: AppMoreDestination?,
+         opensSearch: Bool,
+         opensCreate: Bool,
+         habitID: UUID? = nil) {
+        self.tab = tab
+        self.morePage = morePage
+        self.opensSearch = opensSearch
+        self.opensCreate = opensCreate
+        self.habitID = habitID
+    }
 }
 
 enum RoutePresentationPhase: Equatable {
@@ -148,6 +161,7 @@ struct RouteWork {
 
 enum AppDestination: Equatable {
     case habits
+    case habit(UUID)
     case more
     case stats
     case archive
@@ -157,8 +171,14 @@ enum AppDestination: Equatable {
     static func resolve(url: URL) -> AppDestination? {
         guard url.scheme?.lowercased() == "haiity" else { return nil }
 
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let habitID = components?.queryItems?
+            .first(where: { $0.name == "habit" })?
+            .value
+            .flatMap(UUID.init(uuidString:))
+
         switch url.host?.lowercased() {
-        case "habits": return .habits
+        case "habits": return habitID.map(AppDestination.habit) ?? .habits
         case "more", "sync": return .more
         case "stats": return .stats
         case "archive": return .archive
@@ -175,6 +195,12 @@ enum AppDestination: Equatable {
         let host: String
         switch self {
         case .habits: host = "habits"
+        case .habit(let id):
+            var components = URLComponents()
+            components.scheme = "haiity"
+            components.host = "habits"
+            components.queryItems = [URLQueryItem(name: "habit", value: id.uuidString)]
+            return components.url!
         case .more: host = "more"
         case .stats: host = "stats"
         case .archive: host = "archive"
@@ -186,7 +212,7 @@ enum AppDestination: Equatable {
 
     var selectedTab: AppTab {
         switch self {
-        case .habits:
+        case .habits, .habit:
             return .habits
         case .search:
             return .search
@@ -203,6 +229,9 @@ enum AppDestination: Equatable {
         switch self {
         case .habits:
             .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: false)
+        case .habit(let id):
+            .init(tab: .habits, morePage: nil, opensSearch: false,
+                  opensCreate: false, habitID: id)
         case .more:
             .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false)
         case .stats:

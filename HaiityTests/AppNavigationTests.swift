@@ -12,6 +12,23 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://new")!), .create)
     }
 
+    func testHabitWidgetDeepLinksCarryTheHabitIdentifier() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let navigation = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Models/AppNavigation.swift"))
+        let widgetLogic = try String(contentsOf: root.appendingPathComponent(
+            "HaiityWidget/WidgetLogic.swift"))
+
+        XCTAssertTrue(navigation.contains("URLComponents"),
+                      "app navigation must parse widget query items")
+        XCTAssertTrue(navigation.contains("habitID"),
+                      "habit routes must carry the selected habit")
+        XCTAssertTrue(widgetLogic.contains("haiity://habits?habit="),
+                      "specific widgets must link to their selected habit")
+    }
+
     func testUnknownAndForeignURLsAreIgnored() {
         XCTAssertNil(AppDestination.resolve(url: URL(string: "https://aiity.de")!))
         XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://unknown")!))
@@ -38,6 +55,54 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.search.effect.tab, .search)
         XCTAssertTrue(AppDestination.search.effect.opensSearch)
         XCTAssertTrue(AppDestination.create.effect.opensCreate)
+    }
+
+    func testStatsSettingsUseLeadingToolbarAndContextPreview() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let stats = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StatsView.swift"))
+
+        XCTAssertTrue(stats.contains("ToolbarItem(placement: .topBarLeading)"),
+                      "stats adjustments belong on the leading side")
+        XCTAssertTrue(stats.contains("GraphContextMenu"),
+                      "stats cards need the same full-width hold preview as habit graphs")
+        XCTAssertTrue(stats.contains("previewWidth"),
+                      "the stats preview must use the full active window width")
+    }
+
+    func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("private func nativeTabRoot"),
+                      "native tabs need one shared full-frame background root")
+        XCTAssertTrue(content.contains("nativeTabRoot { statsTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabRoot { habitsTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabRoot { moreTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
+    }
+
+    func testHabitDeepLinkRetriesAfterItsListRowsMount() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("onChange(of: habitsTabSource.map(\\.id))"),
+                      "a widget route must retry when lazy list data mounts")
+        XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds"),
+                      "the first scroll request can arrive before the row exists")
+    }
+
+    func testStatsPreviewFramesAfterItsSurfacePadding() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
+        let start = try XCTUnwrap(content.range(of: "private func statsPreview<Content: View>"))
+        let end = try XCTUnwrap(content.range(of: "@ViewBuilder\n    private func statsTile",
+                                              range: start.upperBound..<content.endIndex))
+        let preview = content[start.lowerBound..<end.lowerBound]
+        let surface = try XCTUnwrap(preview.range(of: ".appSurface()"))
+        let frame = try XCTUnwrap(preview.range(of: ".frame(width: statsPreviewWidth)"))
+
+        XCTAssertGreaterThan(frame.lowerBound, surface.lowerBound,
+                             "the outer stats preview frame must include its padding")
     }
 
     func testMoreRouteWinsOverQueuedSearchWork() {
