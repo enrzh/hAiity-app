@@ -355,14 +355,16 @@ struct MoreView: View, Equatable {
     // decodieren unverändert), nur die Oberfläche dazu ist weg.
 
     private var compactModeSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
             Toggle(String(localized: "Kompakte Ansicht"), isOn: Binding(
                 get: { statsCards.compactMode },
                 set: { statsCards.compactMode = $0 }))
+            .padding(.vertical, 2)
             .accessibilityIdentifier("compact-mode-toggle")
             Toggle(String(localized: "Rückgängig in Widgets"), isOn: Binding(
                 get: { statsCards.widgetResetEnabled },
                 set: { statsCards.widgetResetEnabled = $0 }))
+            .padding(.vertical, 2)
             .accessibilityIdentifier("widget-reset-toggle")
         }
     }
