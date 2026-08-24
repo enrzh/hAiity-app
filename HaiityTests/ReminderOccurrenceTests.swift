@@ -124,6 +124,28 @@ final class ReminderOccurrenceTests: XCTestCase {
         ), "2026-08-18")
     }
 
+    func testOlderOpenOccurrencesBecomeExplicitlyMissedWhenTheNextOneIsDue() {
+        let reminder = fixture(createdAt: "2026-08-14", timeMinutes: 9 * 60)
+
+        let missed = ReminderOccurrenceEngine.missedDays(
+            for: reminder,
+            now: date("2026-08-16", minutes: 12 * 60),
+            calendar: calendar)
+
+        XCTAssertEqual(missed, ["2026-08-14", "2026-08-15"])
+    }
+
+    func testMissedOccurrenceIsStoredSeparatelyFromTheLog() throws {
+        var reminder = fixture(createdAt: "2026-08-14", timeMinutes: 9 * 60)
+        reminder.missedDays = ["2026-08-14"]
+
+        let decoded = try JSONDecoder().decode(Habit.self,
+                                                from: JSONEncoder().encode(reminder))
+
+        XCTAssertEqual(decoded.missedDays, ["2026-08-14"])
+        XCTAssertNil(decoded.log["2026-08-14"])
+    }
+
     private func fixture(createdAt: String, timeMinutes: Int) -> Habit {
         var reminder = Habit(name: "Tabletten", itemType: .reminder,
                              timeMinutes: timeMinutes, recurrence: .daily)

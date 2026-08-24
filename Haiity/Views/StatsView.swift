@@ -26,6 +26,7 @@ struct StatsView: View {
     /// Das Kaufblatt: `nil` heisst geschlossen.
     @State private var paywall: PaywallContext?
     @State private var showingCardSettings = false
+    @State private var proStatus = ProStatus.shared
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -38,7 +39,7 @@ struct StatsView: View {
     /// `ProStatus`). Der Kauf muss NICHT hier passieren: er kann über die
     /// vierte Habit, über die Einstellungen oder auf einem anderen Gerät
     /// kommen. Genau dann darf die Statistik nicht gesperrt stehen bleiben.
-    private var unlocked: Bool { Pro.isUnlocked }
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
     var body: some View {
         Group {

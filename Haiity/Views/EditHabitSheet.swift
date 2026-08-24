@@ -53,6 +53,8 @@ struct EditHabitSheet: View {
     @State private var timeZoneIdentifier: String?
     @State private var showTimeZonePicker = false
     @State private var paywall: PaywallContext?
+    @State private var pendingCalendarEnable = false
+    @State private var proStatus = ProStatus.shared
 
     /// Die ganze Regel als EIN Wert.
     @State private var draft = RecurrenceDraft()
@@ -76,6 +78,25 @@ struct EditHabitSheet: View {
     private var calendar: Calendar {
         HabitTimeZone.calendar(identifier: timeZoneIdentifier
                                ?? store.defaultTimeZoneIdentifier)
+    }
+
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+
+    private var calendarSyncBinding: Binding<Bool> {
+        Binding(
+            get: { unlocked && calendarSyncEnabled },
+            set: { enabled in
+                guard enabled else {
+                    calendarSyncEnabled = false
+                    return
+                }
+                guard unlocked else {
+                    pendingCalendarEnable = true
+                    paywall = .calendar
+                    return
+                }
+                calendarSyncEnabled = true
+            })
     }
 
     private var frequencySelection: Binding<Recurrence.Frequency> {
@@ -156,7 +177,14 @@ struct EditHabitSheet: View {
         }
         .sheet(item: $paywall) { context in
             PaywallView(context: context, store: store,
-                        onUnlocked: { save(skipGate: true) })
+                        onUnlocked: {
+                            if pendingCalendarEnable {
+                                pendingCalendarEnable = false
+                                calendarSyncEnabled = true
+                            } else {
+                                save(skipGate: true)
+                            }
+                        })
                 .themed(store)
         }
         .sheet(isPresented: $showTimeZonePicker) {
@@ -301,7 +329,18 @@ struct EditHabitSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("habit-timezone")
-            Toggle(String(localized: "Im Kalender"), isOn: $calendarSyncEnabled)
+            Toggle(isOn: calendarSyncBinding) {
+                HStack {
+                    Text(String(localized: "Im Kalender"))
+                    if !unlocked {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        Image(systemName: "lock")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+                    }
+                }
+            }
                 .accessibilityIdentifier("habit-calendar-toggle")
             if itemType == .reminder {
                 Toggle(String(localized: "Trotz offenem Termin wiederholen"),
@@ -688,7 +727,7 @@ struct EditHabitSheet: View {
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
-        habit.calendarSyncEnabled = calendarSyncEnabled
+        habit.calendarSyncEnabled = unlocked && calendarSyncEnabled
         habit.notificationsEnabled = notificationsEnabled
         habit.timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(timeZoneIdentifier)
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true

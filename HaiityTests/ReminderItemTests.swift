@@ -77,6 +77,12 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertFalse(row.contains("RecurrenceText.summary"))
     }
 
+    func testReminderLongPressMenuIncludesRevert() throws {
+        let source = try source("Haiity/Views/ReminderRow.swift")
+        XCTAssertTrue(source.contains("Rückgängig"))
+        XCTAssertTrue(source.contains("onRevert"))
+    }
+
     func testEditorKeepsTheSharedHabitSettings() throws {
         let source = try editorSource()
 

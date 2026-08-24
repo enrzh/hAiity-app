@@ -65,6 +65,9 @@ struct Habit: Codable, Identifiable, Equatable {
     /// ohne verpasste Tage fälschlich als erledigt in `log` zu schreiben.
     var reminderCursor: String?
     var log: [String: Int]
+    /// Scheduled reminder days that passed without a completion. Kept outside
+    /// `log` so a missed reminder can never look like a successful check-in.
+    var missedDays: [String]
     /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer
     /// („limitless" — eine Session zählt dann nur hoch). Rein additiv und
     /// tolerant dekodiert, KEIN Versionssprung: ein ausgelieferter Build
@@ -137,6 +140,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.repeatsWhileIncomplete = true
         self.reminderCursor = nil
         self.log = [:]
+        self.missedDays = []
         self.durationMinutes = Habit.sanitizedDuration(durationMinutes)
         self.minutes = [:]
         self.archivedAt = nil
@@ -174,7 +178,7 @@ extension Habit {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
              notificationsEnabled,
              calendarSyncEnabled, timeZoneIdentifier, repeatsWhileIncomplete, reminderCursor,
-             log, archivedAt, goal, palette, swipeActions
+             log, missedDays, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -232,6 +236,8 @@ extension Habit {
         // der Rechen-Schicht ignoriert, statt hier Daten zu verlieren.
         let rawLog = try c.decodeIfPresent([String: Int].self, forKey: .log) ?? [:]
         log = rawLog.filter { $0.value >= 1 && DayKey.isValid($0.key) }
+        let rawMissedDays = try c.decodeIfPresent([String].self, forKey: .missedDays) ?? []
+        missedDays = Array(Set(rawMissedDays.filter { DayKey.isValid($0) })).sorted()
         // Session-Felder: fehlend (jede Datei vor den Sessions) oder kaputt
         // -> Standard statt Fehler. Die Minuten-Karte durchläuft dieselbe
         // Müllabfuhr wie der Log.
@@ -271,6 +277,7 @@ extension Habit {
         if !repeatsWhileIncomplete { try c.encode(false, forKey: .repeatsWhileIncomplete) }
         try c.encodeIfPresent(reminderCursor, forKey: .reminderCursor)
         try c.encode(log, forKey: .log)
+        if !missedDays.isEmpty { try c.encode(missedDays, forKey: .missedDays) }
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         // Der Standard bleibt implizit — Dateien sehen für einfache Habits
         // exakt aus wie v1 (plus Versionsnummer). Alles andere schreibt die
@@ -393,6 +400,10 @@ extension Habit {
     /// können das — bei allen anderen ist der Wert ein Zähler.
     func isDeclined(_ key: String) -> Bool {
         kind == .yesNo && log[key] == Answer.no
+    }
+
+    func isMissed(_ key: String) -> Bool {
+        isReminder && missedDays.contains(key)
     }
 
     /// Überhaupt beantwortet (Ja ODER Nein)? Bei allen anderen Arten immer
@@ -525,8 +536,10 @@ extension Habit {
     /// oder Werten ≤ 0 nichts verfälschen kann.
     func validDays(today: String = DayKey.today(), calendar: Calendar = .current) -> [String] {
         let floor = DayKey.plausibleFloor(today: today, calendar: calendar)
-        return log.compactMap { key, value in
-            guard value >= 1, key <= today,
+        let keys = Set(log.keys).union(missedDays)
+        return keys.compactMap { key in
+            let value = log[key] ?? 0
+            guard (value >= 1 || missedDays.contains(key)), key <= today,
                   let date = DayKey.date(from: key, calendar: calendar) else { return nil }
             if let floor, date < floor { return nil }
             return key

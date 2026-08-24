@@ -96,6 +96,70 @@ struct CheckOffHabitIntent: AppIntent {
     }
 }
 
+/// Explicitly removes today's widget value. It is separate from
+/// `CheckOffHabitIntent` so the main widget can offer a real revert action
+/// without making the primary check-in toggle unexpectedly.
+struct ResetHabitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Habit zurücksetzen"
+    static var description = IntentDescription("Entfernt den heutigen Eintrag.")
+
+    @Parameter(title: "Habit")
+    var habit: HabitEntity
+
+    init() {}
+
+    init(habit: Habit) {
+        self.habit = HabitEntity(habit: habit)
+    }
+
+    init(entity: HabitEntity) {
+        self.habit = entity
+    }
+
+    func perform() async throws -> some IntentResult {
+        let store = HabitStore(url: SharedStorage.dataURL())
+        guard let storedHabit = store.habits.first(where: { $0.id == habit.id }),
+              storedHabit.archivedAt == nil else { return .result() }
+        let calendar = HabitTimeZone.calendar(
+            for: storedHabit,
+            defaultIdentifier: store.defaultTimeZoneIdentifier)
+        if storedHabit.isReminder {
+            let state = ReminderOccurrenceEngine.state(for: storedHabit, calendar: calendar)
+            if let completed = state.mostRecentCompleted {
+                store.setReminderCompletion(storedHabit.id, day: completed.day,
+                                            completed: false, nextCursor: nil)
+            }
+        } else {
+            let day = HabitTimeZone.today(for: storedHabit,
+                                          defaultIdentifier: store.defaultTimeZoneIdentifier)
+            store.clear(storedHabit.id, day: day)
+        }
+        await Reminders.reconcileAfterExternalCheckIn(
+            store: store,
+            habitID: storedHabit.id,
+            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        return .result()
+    }
+}
+
+enum ResetHabitLogic {
+    @discardableResult
+    static func apply(to store: HabitStore,
+                      habitId: UUID,
+                      day: String = DayKey.today()) -> Bool {
+        guard let habit = store.habits.first(where: { $0.id == habitId }),
+              habit.archivedAt == nil,
+              habit.log[day] != nil else { return false }
+        if habit.isReminder {
+            store.setReminderCompletion(habitId, day: day,
+                                        completed: false, nextCursor: nil)
+        } else {
+            store.clear(habitId, day: day)
+        }
+        return true
+    }
+}
+
 /// Pure, testbare Abhak-Semantik — getrennt vom Intent, damit Unit-Tests
 /// sie ohne AppIntents-Laufzeit abdecken.
 enum CheckOffLogic {

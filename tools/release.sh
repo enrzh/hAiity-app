@@ -26,6 +26,7 @@ PROJECT="Haiity.xcodeproj"
 SCHEME="Haiity"
 APP_NAME="Haiity"
 TEAM_ID="${TEAM_ID:-H8FW6W6K2D}"
+DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$OUT/DerivedData}"
 UPLOAD=no
 [[ "${1:-}" == "--upload" ]] && UPLOAD=yes
 
@@ -153,6 +154,7 @@ echo "    simulator $SIM_NAME"
 
 TEST_LOG="$OUT/tests.log"
 xcodebuild test -project "$PROJECT" -scheme "$SCHEME" \
+  -derivedDataPath "$DERIVED_DATA_PATH" \
   -destination "id=$SIM" -testLanguage de -testRegion DE -only-testing:HaiityTests \
   -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO \
   >"$TEST_LOG" 2>&1 || { tail -40 "$TEST_LOG"; fail "tests failed (full log: $TEST_LOG)"; }
@@ -184,6 +186,7 @@ say "Archiving"
 ARCHIVE="$OUT/$APP_NAME.xcarchive"
 rm -rf "$ARCHIVE"
 xcodebuild archive -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
+  -derivedDataPath "$DERIVED_DATA_PATH" \
   -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
   -skipPackagePluginValidation -skipMacroValidation -allowProvisioningUpdates \
   >"$OUT/archive.log" 2>&1 || { tail -40 "$OUT/archive.log"; fail "archive failed (full log: $OUT/archive.log)"; }

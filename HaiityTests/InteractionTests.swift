@@ -428,3 +428,43 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertEqual(reopened.data.viewPreferences.swipeActions.trailing, .secondary)
     }
 }
+
+final class WidgetPreferenceTests: XCTestCase {
+    func testWidgetResetPreferenceRoundTripsThroughHabitData() throws {
+        let preferences = ViewPreferences(widgetResetEnabled: false)
+        let data = HabitData(version: HabitData.currentVersion,
+                             updatedAt: 1,
+                             summaryMinutes: nil,
+                             habits: [],
+                             viewPreferences: preferences)
+
+        let decoded = try JSONDecoder().decode(ViewPreferences.self,
+                                                from: JSONEncoder().encode(preferences))
+        XCTAssertFalse(decoded.widgetResetEnabled)
+        XCTAssertFalse(data.viewPreferences.widgetResetEnabled)
+    }
+
+    func testWidgetResetSettingIsPresentedInDarstellungAndReadByWidget() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let widget = try String(contentsOf: root.appendingPathComponent("HaiityWidget/HaiityWidget.swift"))
+        XCTAssertTrue(more.contains("widget-reset-toggle"))
+        XCTAssertTrue(widget.contains("widgetResetEnabled"))
+    }
+}
+
+final class ToastLayoutTests: XCTestCase {
+    func testNativeToastUsesATopmostOverlayWithTabBarClearance() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("nativeToastOverlay"),
+                      "the native tab bar needs an explicit topmost toast layer")
+        XCTAssertTrue(content.contains("nativeTabBarClearance"),
+                      "toast positioning must account for the expanded native bar")
+        XCTAssertTrue(content.contains(".zIndex(200)"),
+                      "the toast must paint above the native tab bar")
+    }
+}

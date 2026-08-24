@@ -90,6 +90,41 @@ final class ProGateTests: XCTestCase {
         XCTAssertFalse(ProGate.mayUseProFeature(unlocked: false))
     }
 
+    func testLockedEntitlementDisablesEveryPaidCloudIntegration() {
+        let requested = CloudPreferences(
+            calendarSyncHabits: true,
+            calendarSyncReminders: true,
+            nativeReminderSync: true,
+            shakeToReportEnabled: false,
+            notificationDND: .active(.eightHours, now: Date(timeIntervalSince1970: 1_000)))
+
+        let effective = ProGate.restrictedCloudPreferences(requested, unlocked: false)
+
+        XCTAssertFalse(effective.calendarSyncHabits)
+        XCTAssertFalse(effective.calendarSyncReminders)
+        XCTAssertFalse(effective.nativeReminderSync)
+        XCTAssertEqual(effective.notificationDND, requested.notificationDND)
+        XCTAssertEqual(effective.shakeToReportEnabled, requested.shakeToReportEnabled)
+    }
+
+    func testUnlockedEntitlementKeepsRequestedCloudIntegrations() {
+        let requested = CloudPreferences(calendarSyncHabits: true,
+                                         calendarSyncReminders: true,
+                                         nativeReminderSync: true)
+
+        XCTAssertEqual(ProGate.restrictedCloudPreferences(requested, unlocked: true), requested)
+    }
+
+    func testCloudApplicationAndToggleReadbackUseTheSharedEntitlement() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(content.contains("ProGate.restrictedCloudPreferences"),
+                      "iCloud must not restore paid integrations after entitlement loss")
+        XCTAssertTrue(more.contains("guard unlocked else { return false }"),
+                      "paid sync toggles must render locked after entitlement loss")
+    }
+
     /// Das Limit lebt an EINER Stelle. Rechnet eine Ansicht selbst mit der
     /// Drei, wandert sie beim nächsten Produktbeschluss nicht mit.
     func testOnlyProGateKnowsTheNumber() throws {
@@ -112,6 +147,13 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(app.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
     }
 
+    func testAppleAccountSwitchRechecksProWithDowngradePermission() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"),
+                      "changing the signed-in Apple account must be allowed to relock paid features")
+    }
+
     func testAllExistingProFeatureHostsReadTheSharedEntitlement() throws {
         for file in ["Haiity/Views/MoreView.swift",
                      "Haiity/Views/StatsView.swift",
@@ -125,6 +167,17 @@ final class ProGateTests: XCTestCase {
         let content = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(content.contains("EditHabitSheet(store: store, asPage: true)"))
         XCTAssertTrue(content.contains("private func requestCreate()"))
+    }
+
+    func testPaidSurfacesObserveEntitlementChanges() throws {
+        for file in ["Haiity/Views/MoreView.swift",
+                     "Haiity/Views/StatsView.swift",
+                     "Haiity/Views/PaywallView.swift"] {
+            let text = try source(file)
+            XCTAssertTrue(text.contains("@State private var proStatus = ProStatus.shared"), file)
+            XCTAssertTrue(text.contains("proStatus.unlocked"),
+                          "(file) must observe a downgrade from StoreKit")
+        }
     }
 
     // MARK: – Reine Logik: das Kaufblatt
@@ -265,7 +318,14 @@ final class ProGateTests: XCTestCase {
     /// danach doch nicht läuft, wäre unter falschem Vorwand gestellt.
     func testGate4CalendarMirrorIsGatedOnEnableOnly() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let editor = try source("Haiity/Views/EditHabitSheet.swift")
         XCTAssertTrue(more.contains("paywall = .calendar"))
+        XCTAssertTrue(editor.contains("private var calendarSyncBinding"),
+                      "per-habit calendar access needs the same paid gate")
+        XCTAssertTrue(editor.contains("pendingCalendarEnable = true"),
+                      "a locked editor must resume the attempted calendar enable after purchase")
+        XCTAssertTrue(editor.contains("habit.calendarSyncEnabled = unlocked && calendarSyncEnabled"),
+                      "a locked save must not persist an active paid integration")
         let disableRange = try XCTUnwrap(more.range(of: "CalendarSync.disable()"))
         let gateRange = try XCTUnwrap(more.range(of: "paywall = .calendar"))
         let askRange = try XCTUnwrap(more.range(of: "CalendarSync.requestAccess()"))
@@ -393,9 +453,8 @@ final class ProGateTests: XCTestCase {
         for file in ["Haiity/Views/MoreView.swift", "Haiity/Views/StatsView.swift",
                      "Haiity/Views/PaywallView.swift", "Haiity/Views/EditHabitSheet.swift"] {
             let text = try source(file)
-            XCTAssertTrue(text.contains("Pro.isUnlocked"), file)
-            XCTAssertFalse(text.contains("ProStatus.shared"),
-                           "\(file) liest am einen Lesepunkt vorbei")
+            XCTAssertTrue(text.contains("Pro.isUnlocked") ||
+                          text.contains("proStatus.unlocked"), file)
             XCTAssertFalse(text.contains("proUnlocked"),
                            "\(file) liest den Merker an StoreKit vorbei aus den Defaults")
         }

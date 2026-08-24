@@ -91,22 +91,82 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
          backgroundColorHex: UInt32? = nil,
          gradientStartHex: UInt32? = nil,
          gradientEndHex: UInt32? = nil) {
+        let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
+        let requestedMode = backgroundMode ?? (boundedImage == nil ? .color : .image)
         self.material = material
-        self.backgroundMode = backgroundMode
-            ?? (backgroundImageData == nil ? .color : .image)
+        self.backgroundMode = requestedMode == .image && boundedImage == nil
+            ? .color : requestedMode
         self.backgroundColorHex = backgroundColorHex
         self.gradientStartHex = gradientStartHex
         self.gradientEndHex = gradientEndHex
-        self.backgroundImageData = backgroundImageData.flatMap {
-            $0.count <= Self.maxImageBytes ? $0 : nil
+        self.backgroundImageData = self.backgroundMode == .image ? boundedImage : nil
+    }
+
+    /// The JSON payload is also written by older builds and by iCloud merges.
+    /// A byte-size check alone accepts truncated or non-image data, leaving the
+    /// UI stuck in `.image` after the photo itself can no longer be decoded.
+    func normalizedForStorage() -> AppearancePreferences {
+        guard backgroundMode == .image,
+              let image = backgroundImageData,
+              let usable = Self.usableImageData(image) else {
+            var normalized = self
+            normalized.backgroundMode = backgroundMode == .image ? .color : backgroundMode
+            normalized.backgroundImageData = nil
+            return normalized
         }
+
+        var normalized = self
+        normalized.backgroundImageData = usable
+        return normalized
+    }
+
+    private static func usableImageData(_ data: Data) -> Data? {
+        guard data.count <= maxImageBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              CGImageSourceCreateThumbnailAtIndex(
+                  source,
+                  0,
+                  [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceThumbnailMaxPixelSize: 32,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceShouldCache: false
+                  ] as CFDictionary) != nil else {
+            return nil
+        }
+        return data
     }
 
     mutating func selectBackgroundMode(_ mode: AppearanceBackgroundMode) {
-        backgroundMode = mode
-        if mode != .image {
+        if mode == .image && Self.usableImageData(backgroundImageData ?? Data()) == nil {
+            backgroundMode = .color
+            backgroundImageData = nil
+        } else {
+            backgroundMode = mode
+        }
+        if backgroundMode != .image {
             backgroundImageData = nil
         }
+    }
+
+    /// Installs a validated image and selects image mode in one mutation. The
+    /// importer must not publish the transient state `.image` without bytes:
+    /// the store normalizer correctly repairs that state back to `.color`.
+    @discardableResult
+    mutating func setBackgroundImage(_ data: Data) -> Bool {
+        guard let usable = Self.usableImageData(data) else { return false }
+        backgroundImageData = usable
+        backgroundMode = .image
+        return true
+    }
+
+    mutating func resetBackground() {
+        backgroundMode = .color
+        backgroundColorHex = nil
+        gradientStartHex = nil
+        gradientEndHex = nil
+        backgroundImageData = nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -785,13 +845,62 @@ private struct AppSurfaceModifier: ViewModifier {
 private struct SettingsSurfaceModifier: ViewModifier {
     @Environment(\.appearancePreferences) private var preferences
 
+    private var rowShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous)
+    }
+
+    @ViewBuilder
+    private var settingsRowBackground: some View {
+        switch preferences.material {
+        case .solid:
+            rowShape
+                .fill(Color(.secondarySystemGroupedBackground))
+                .allowsHitTesting(false)
+        case .milky:
+            rowShape
+                .fill(.regularMaterial)
+                .overlay {
+                    rowShape
+                        .fill(Color(.systemBackground).opacity(0.12))
+                        .allowsHitTesting(false)
+                }
+                .allowsHitTesting(false)
+        case .liquid:
+            if #available(iOS 26, *) {
+                Color.clear
+                    .glassEffect(.regular, in: rowShape)
+                    .allowsHitTesting(false)
+            } else {
+                rowShape
+                    .fill(.ultraThinMaterial)
+                    .allowsHitTesting(false)
+            }
+        case .adaptive:
+            let tint = Theme.color(Theme.adaptiveTintHex(
+                preferences: preferences,
+                dark: UITraitCollection.current.userInterfaceStyle == .dark))
+            if #available(iOS 26, *) {
+                Color.clear
+                    .glassEffect(.regular.tint(tint.opacity(0.18)), in: rowShape)
+                    .allowsHitTesting(false)
+            } else {
+                rowShape
+                    .fill(.regularMaterial)
+                    .overlay {
+                        rowShape
+                            .fill(tint.opacity(0.16))
+                            .allowsHitTesting(false)
+                    }
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
     private func listSurface(_ content: Content) -> some View {
         content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            // Keep native list rows in the hit-test tree. A custom
-            // `listRowBackground` becomes a transparent overlay on iOS 27 and
-            // prevents buttons, toggles, and pickers from receiving taps.
+            .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
     }
 

@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Haiity
 
 final class StoreAndMergeTests: XCTestCase {
@@ -200,6 +201,43 @@ final class StoreAndMergeTests: XCTestCase {
         store.reloadFromDisk()
         XCTAssertFalse(fired) // unveränderte mtime -> kein Re-Read, kein onChange
         XCTAssertEqual(store.habits.count, 1)
+    }
+
+    func testReloadFromDiskMergesWidgetWriteWithoutRestoringStaleBackground() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let imageData = try XCTUnwrap(image.jpegData(compressionQuality: 0.9))
+        var habit = Habit(name: "Lesen")
+        habit.log["2026-08-24"] = 1
+        store.add(habit)
+
+        var imagePreferences = store.appearancePreferences
+        XCTAssertTrue(imagePreferences.setBackgroundImage(imageData))
+        store.appearancePreferences = imagePreferences
+
+        // This is the widget's snapshot before the user switches away from
+        // the image. It later writes a legitimate check-in with stale theme
+        // data, which used to replace the whole app payload on reload.
+        var widgetPayload = store.data
+        widgetPayload.habits[0].log["2026-08-23"] = 1
+
+        var gradient = store.appearancePreferences
+        gradient.selectBackgroundMode(.gradient)
+        store.appearancePreferences = gradient
+
+        widgetPayload.updatedAt = Date().timeIntervalSince1970 + 1
+        widgetPayload.appearanceUpdatedAt = store.data.appearanceUpdatedAt.map { $0 - 1 }
+        try JSONEncoder().encode(widgetPayload).write(to: url, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(2)],
+            ofItemAtPath: url.path)
+
+        store.reloadFromDisk()
+
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .gradient)
+        XCTAssertTrue(store.habits[0].isDone("2026-08-23"))
     }
 
     func testAppearancePersistenceReportsItsOwnChangeKind() {

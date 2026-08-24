@@ -136,6 +136,8 @@ struct ViewPreferences: Codable, Equatable {
     var updatedAt: TimeInterval
     var statsCards: StatsCardPrefs
     var compactMode: Bool
+    /// Allows the main widget to expose an explicit reset/revert control.
+    var widgetResetEnabled: Bool
     /// Globale Wischgesten. Die Auswahl ist absichtlich semantisch
     /// (Haupt-/Nebenaktion), damit sie bei jeder Habit-Art richtig bleibt.
     var swipeActions: SwipeActionsPreferences
@@ -154,6 +156,7 @@ struct ViewPreferences: Codable, Equatable {
     init(updatedAt: TimeInterval = 0,
          statsCards: StatsCardPrefs = StatsCardPrefs(),
          compactMode: Bool = false,
+         widgetResetEnabled: Bool = true,
          swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
          notificationActionsEnabled: Bool = true,
          notificationActions: NotificationActionPreferences = NotificationActionPreferences(),
@@ -161,6 +164,7 @@ struct ViewPreferences: Codable, Equatable {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
+        self.widgetResetEnabled = widgetResetEnabled
         self.swipeActions = swipeActions
         self.notificationActionsEnabled = notificationActionsEnabled
         self.notificationActions = notificationActions
@@ -170,7 +174,7 @@ struct ViewPreferences: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case updatedAt, statsCards, compactMode, swipeActions, notificationActionsEnabled,
+        case updatedAt, statsCards, compactMode, widgetResetEnabled, swipeActions, notificationActionsEnabled,
              notificationActions, notificationAction
     }
 
@@ -181,6 +185,7 @@ struct ViewPreferences: Codable, Equatable {
             ?? StatsCardPrefs()
         statsCards = decodedCards.isCustomized ? decodedCards : StatsCardPrefs()
         compactMode = try c.decodeIfPresent(Bool.self, forKey: .compactMode) ?? false
+        widgetResetEnabled = try c.decodeIfPresent(Bool.self, forKey: .widgetResetEnabled) ?? true
         swipeActions = try c.decodeIfPresent(SwipeActionsPreferences.self, forKey: .swipeActions)
             ?? SwipeActionsPreferences()
         notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
@@ -204,6 +209,9 @@ struct ViewPreferences: Codable, Equatable {
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encode(statsCards, forKey: .statsCards)
         try c.encode(compactMode, forKey: .compactMode)
+        if !widgetResetEnabled {
+            try c.encode(false, forKey: .widgetResetEnabled)
+        }
         if swipeActions != SwipeActionsPreferences() {
             try c.encode(swipeActions, forKey: .swipeActions)
         }
@@ -276,11 +284,17 @@ final class ViewPreferencesStore {
         set { update { $0.compactMode = newValue } }
     }
 
+    var widgetResetEnabled: Bool {
+        get { preferences.widgetResetEnabled }
+        set { update { $0.widgetResetEnabled = newValue } }
+    }
+
     func update(_ body: (inout ViewPreferences) -> Void) {
         var next = preferences
         body(&next)
         guard next.statsCards != preferences.statsCards
                 || next.compactMode != preferences.compactMode
+                || next.widgetResetEnabled != preferences.widgetResetEnabled
                 || next.swipeActions != preferences.swipeActions
                 || next.notificationActionsEnabled != preferences.notificationActionsEnabled
                 || next.notificationActions != preferences.notificationActions

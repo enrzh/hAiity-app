@@ -29,6 +29,9 @@ struct HaiityEntry: TimelineEntry {
     /// Öffentliche GitHub-Daten, wenn dieses Graph-Widget GitHub gewählt hat.
     /// Nie ein Token und nie ein Credential.
     var githubSnapshot: GitHubContributionSnapshot?
+    /// User preference transported with the timeline because the extension
+    /// cannot observe the app's preference store directly.
+    var widgetResetEnabled: Bool = true
 
     /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Empfehlung,
     /// Empfehlung ist die längste laufende Serie.

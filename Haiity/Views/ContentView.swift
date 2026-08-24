@@ -185,6 +185,7 @@ struct ContentView: View {
             // NUR Fallback (iOS < 26): das selbstgebaute Chrom über der
             // Liste. Ab iOS 26 zeichnet die native TabView die Leiste selbst.
             .overlay(alignment: .bottom) { legacyBottomChrome }
+            .overlay(alignment: .bottom) { nativeToastOverlay }
             // Der Feld-Beobachter (nur iOS 27, nur bei offener Suche) —
             // absichtlich hier oben und nicht an der Liste: er darf nicht
             // mit ihr verschwinden, wenn sie gerade neu gebaut wird.
@@ -522,15 +523,23 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        // A TabView's native bar is outside the content overlay. Reserving a
-        // bottom inset here keeps the toast above both its collapsed and
-        // expanded states instead of letting the bar paint over it.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !searching {
-                floatingPills
-                    .padding(.bottom, Theme.Metrics.control + Theme.Metrics.gap)
-            }
+    }
+
+    /// The native tab bar paints outside a TabView's content overlay. Keep
+    /// feedback in the root overlay and reserve the full expanded-bar height;
+    /// otherwise iOS 27 can draw the bar over a toast during its resize.
+    @ViewBuilder
+    private var nativeToastOverlay: some View {
+        if #available(iOS 26, *), !searching {
+            floatingPills
+                .padding(.bottom, nativeTabBarClearance)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .zIndex(200)
         }
+    }
+
+    private var nativeTabBarClearance: CGFloat {
+        Theme.Metrics.control + Theme.Metrics.gutter + Theme.Metrics.gap
     }
 
     /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.
@@ -1087,6 +1096,7 @@ struct ContentView: View {
                         onToggle: { toggleReminder(habit) },
                         onEdit: { editing = habit },
                         onArchive: { store.archive(habit.id) },
+                        onRevert: { revertReminder(habit) },
                         calendar: habitCalendar(for: habit))
                 .equatable()
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -2440,6 +2450,9 @@ struct ContentView: View {
     /// und Habit-Weckrufe lesen im selben Lauf ihre Einstellungen von Platte.
     /// Darum hängt das hier an `store.onChange` und am Aktivwerden.
     private func rescheduleReminders() async {
+        // Close completed past occurrences before deriving summaries and
+        // notification plans. The current day remains actionable.
+        store.materializeMissedReminderDays()
         let calendar = Calendar.current
         let today = DayKey.today(calendar: calendar)
         let daily = Reminders.dailySummaryPlan(
@@ -2483,11 +2496,13 @@ struct ContentView: View {
     /// following reconciliation pass remains permission- and ID-aware.
     private func applyCloudPreferences() {
         guard let preferences = store.cloudPreferences else { return }
-        CalendarSync.syncHabits = preferences.calendarSyncHabits
-        CalendarSync.syncReminders = preferences.calendarSyncReminders
-        ReminderSync.isEnabled = preferences.nativeReminderSync
-        NotificationPromptPreference.state = preferences.notificationDND
-        ShakeToReport.isEnabled = preferences.shakeToReportEnabled
+        let effective = ProGate.restrictedCloudPreferences(preferences,
+                                                           unlocked: Pro.isUnlocked)
+        CalendarSync.syncHabits = effective.calendarSyncHabits
+        CalendarSync.syncReminders = effective.calendarSyncReminders
+        ReminderSync.isEnabled = effective.nativeReminderSync
+        NotificationPromptPreference.state = effective.notificationDND
+        ShakeToReport.isEnabled = effective.shakeToReportEnabled
     }
 
     /// Nach einer lokalen Änderung: entprellt hochschreiben. Mehrere Häkchen

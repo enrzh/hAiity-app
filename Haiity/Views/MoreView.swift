@@ -79,6 +79,7 @@ struct MoreView: View, Equatable {
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
+    @State private var showingBackgroundPhotoPicker = false
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
@@ -112,13 +113,14 @@ struct MoreView: View, Equatable {
     @State private var pendingCalendarItemType: HabitItemType = .habit
     @State private var pendingNativeReminder = false
     @State private var copiedSyncHint = false
+    @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
 
     /// Der eine Lesepunkt dieser Seite — und ein beobachtbarer (siehe
     /// `ProStatus`). Bewusst KEIN gespiegelter Zustand: der Kauf kann von
     /// einem anderen Blatt oder einem anderen Gerät kommen, und dann müssen
     /// die Schlösser hier trotzdem aufgehen.
-    private var unlocked: Bool { Pro.isUnlocked }
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
     private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
 
@@ -359,6 +361,10 @@ struct MoreView: View, Equatable {
                 get: { statsCards.compactMode },
                 set: { statsCards.compactMode = $0 }))
             .accessibilityIdentifier("compact-mode-toggle")
+            Toggle(String(localized: "Rückgängig in Widgets"), isOn: Binding(
+                get: { statsCards.widgetResetEnabled },
+                set: { statsCards.widgetResetEnabled = $0 }))
+            .accessibilityIdentifier("widget-reset-toggle")
         }
     }
 
@@ -682,6 +688,7 @@ struct MoreView: View, Equatable {
     }
 
     private func calendarEnabled(for type: HabitItemType) -> Bool {
+        guard unlocked else { return false }
         if type == .habit {
             return store.cloudPreferences?.calendarSyncHabits ?? CalendarSync.syncHabits
         }
@@ -689,7 +696,8 @@ struct MoreView: View, Equatable {
     }
 
     private var nativeReminderSyncEnabled: Bool {
-        store.cloudPreferences?.nativeReminderSync ?? ReminderSync.isEnabled
+        guard unlocked else { return false }
+        return store.cloudPreferences?.nativeReminderSync ?? ReminderSync.isEnabled
     }
 
     // MARK: – Anrede
@@ -839,7 +847,10 @@ struct MoreView: View, Equatable {
             aliasDraft = suggestedAlias
         }
         appleSignInCameBackEmpty = PersonalName.effective == nil
-        Task { await Pro.refresh() }
+        // Apple sign-in is an account boundary. Re-read the entitlement with
+        // downgrade permission so a previous account cannot keep paid gates
+        // open after this account is signed in.
+        Task { await Pro.refresh(mayDowngrade: true) }
         Theme.Haptics.success()
     }
 
@@ -1128,15 +1139,35 @@ struct MoreView: View, Equatable {
     }
 
     private var backgroundModeSelector: some View {
-        Picker(String(localized: "Hintergrund"), selection: backgroundModeBinding) {
+        HStack(spacing: 4) {
             ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
-                Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
-                    .tag(mode)
+                backgroundModeButton(for: mode)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        .padding(4)
+        .background(Color.primary.opacity(0.08), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Hintergrund"))
         .accessibilityIdentifier("appearance-background-mode-picker")
+    }
+
+    private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
+        let selected = store.appearancePreferences.backgroundMode == mode
+        return Button {
+            backgroundModeBinding.wrappedValue = mode
+        } label: {
+            Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
+                .font(.subheadline.weight(selected ? .semibold : .regular))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .background(selected ? Color(.systemBackground) : .clear, in: Capsule())
+        .accessibilityLabel(mode.displayName)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("appearance-background-mode-\(mode.rawValue)")
     }
 
     private func backgroundColorRow(title: String,
@@ -1226,7 +1257,9 @@ struct MoreView: View, Equatable {
     private var backgroundImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
-                PhotosPicker(selection: $pickedBackgroundItem, matching: .images) {
+                Button {
+                    showingBackgroundPhotoPicker = true
+                } label: {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
                         .font(.body.weight(.semibold))
@@ -1244,6 +1277,9 @@ struct MoreView: View, Equatable {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
+                .photosPicker(isPresented: $showingBackgroundPhotoPicker,
+                              selection: $pickedBackgroundItem,
+                              matching: .images)
                 if store.appearancePreferences.backgroundImageData != nil {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
@@ -1312,10 +1348,13 @@ struct MoreView: View, Equatable {
                     pickedBackgroundItem = nil
                     return
                 }
-                updateAppearance {
-                    $0.selectBackgroundMode(.image)
-                    $0.backgroundImageData = normalized
+                var next = store.appearancePreferences
+                guard next.setBackgroundImage(normalized) else {
+                    backgroundImageError = true
+                    pickedBackgroundItem = nil
+                    return
                 }
+                store.appearancePreferences = next
                 backgroundImageError = false
                 pickedBackgroundItem = nil
             }

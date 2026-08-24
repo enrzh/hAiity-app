@@ -14,6 +14,7 @@ struct ReminderRow: View, Equatable {
     let onToggle: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
+    let onRevert: () -> Void
     var now: Date = .now
     var calendar: Calendar = .current
 
@@ -114,6 +115,8 @@ struct ReminderRow: View, Equatable {
     private var menuActions: [GraphMenuAction] {
         [GraphMenuAction(title: String(localized: "Bearbeiten"),
                          symbol: "pencil", handler: onEdit),
+         GraphMenuAction(title: String(localized: "Rückgängig"),
+                         symbol: "arrow.uturn.backward", handler: onRevert),
          GraphMenuAction(title: String(localized: "Archivieren"),
                          symbol: "archivebox", handler: onArchive)]
     }

@@ -38,7 +38,9 @@ enum ReminderOccurrenceEngine {
             scheduledThroughToday = []
         }
 
-        let unfinished = scheduledThroughToday.filter { reminder.log[$0] == nil }
+        let unfinished = scheduledThroughToday.filter {
+            reminder.log[$0] == nil && !reminder.missedDays.contains($0)
+        }
         let actionableDay = unfinished.first ?? nextUnfinishedDay(
             schedule: schedule,
             reminder: reminder,
@@ -93,6 +95,32 @@ enum ReminderOccurrenceEngine {
                                    calendar: Calendar) -> ReminderOccurrence? {
         dueDate(day: day, reminder: reminder, calendar: calendar)
             .map { ReminderOccurrence(day: day, dueDate: $0) }
+    }
+
+    /// Returns past scheduled days that were due before today and are still
+    /// unanswered. Today stays actionable so the user can still complete it.
+    static func missedDays(for reminder: Habit,
+                           now: Date = .now,
+                           calendar: Calendar = .current) -> [String] {
+        let today = DayKey.key(for: now, calendar: calendar)
+        guard let yesterday = DayKey.shifted(today, by: -1, calendar: calendar) else {
+            return []
+        }
+        let schedule = reminder.recurrence.schedule(calendar: calendar)
+        let cursor = reminder.repeatsWhileIncomplete ? nil : reminder.reminderCursor
+        let floor = [reminder.createdAt, reminder.recurrence.start, cursor]
+            .compactMap { $0 }
+            .max() ?? reminder.createdAt
+        guard floor <= yesterday else { return [] }
+
+        return schedule.occurrences(in: floor...yesterday, limit: historyLimit)
+            .filter { day in
+                guard reminder.log[day] == nil,
+                      !reminder.missedDays.contains(day),
+                      let due = dueDate(day: day, reminder: reminder, calendar: calendar)
+                else { return false }
+                return due <= now
+            }
     }
 
     static func dueDate(day: String,

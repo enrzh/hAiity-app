@@ -102,6 +102,15 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertFalse(source.contains("GitHubContributionGraph"))
     }
 
+    func testMainWidgetCanRenderAndResetQuantityAndYesNoStates() throws {
+        let widgetSource = try source("HaiityWidget/HaiityWidgetView.swift")
+        let intent = try source("Haiity/Intents/CheckOffHabitIntent.swift")
+        XCTAssertTrue(widgetSource.contains("ResetHabitIntent"))
+        XCTAssertTrue(widgetSource.contains("habit.kind == .yesNo"))
+        XCTAssertTrue(widgetSource.contains("habit.kind == .quantity"))
+        XCTAssertTrue(intent.contains("struct ResetHabitIntent"))
+    }
+
     func testGitHubWidgetHasASeparatePaletteOnlyConfiguration() throws {
         let intentSource = try source("Haiity/Intents/SelectGitHubWidgetIntent.swift")
         XCTAssertTrue(intentSource.contains("struct SelectGitHubWidgetIntent"))

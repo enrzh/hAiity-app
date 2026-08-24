@@ -74,13 +74,14 @@ struct PaywallView: View {
     @State private var loadingPrice = true
     @State private var busy: Busy?
     @State private var note: Note?
+    @State private var proStatus = ProStatus.shared
 
     /// Beim Öffnen aus den Einstellungen kann der Kauf schon vorliegen —
     /// dann wäre ein Kaufknopf schlicht falsch. Kein gespiegelter Zustand:
     /// `Pro.isUnlocked` ist beobachtbar, und genau hier zählt das — ein Kauf
     /// auf einem anderen Gerät kann bestätigt werden, WÄHREND dieses Blatt
     /// offen steht.
-    private var unlocked: Bool { Pro.isUnlocked }
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
     private enum Busy {
         case buying

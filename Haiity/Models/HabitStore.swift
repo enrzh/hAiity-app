@@ -242,7 +242,7 @@ struct HabitData: Codable {
         self.habits = habits
         self.sessionHistory = sessionHistory
         self.appearance = appearance
-        self.appearancePreferences = appearancePreferences
+        self.appearancePreferences = appearancePreferences.normalizedForStorage()
         self.palette = palette
         self.customPalettes = customPalettes
         self.matchAppIcon = matchAppIcon
@@ -313,9 +313,9 @@ extension HabitData {
         // Check-ins.
         appearance = (try c.decodeIfPresent(String.self, forKey: .appearance))
             .flatMap(AppearanceSetting.init(rawValue:)) ?? .default
-        appearancePreferences = (try c.decodeIfPresent(AppearancePreferences.self,
-                                                        forKey: .appearancePreferences))
-            ?? .default
+        appearancePreferences = ((try c.decodeIfPresent(AppearancePreferences.self,
+                                                         forKey: .appearancePreferences))
+            ?? .default).normalizedForStorage()
         palette = (try c.decodeIfPresent(String.self, forKey: .palette))
             .flatMap(PaletteRef.init(rawValue:)) ?? .default
         // Fehlt der Schlüssel (jede Datei vor den eigenen Farben) oder ist ein
@@ -493,7 +493,18 @@ final class HabitStore {
 
     var appearancePreferences: AppearancePreferences {
         get { data.appearancePreferences }
-        set { data.appearancePreferences = newValue; persist(changeKind: .appearance) }
+        set {
+            data.appearancePreferences = newValue.normalizedForStorage()
+            persist(changeKind: .appearance)
+        }
+    }
+
+    func resetBackground() {
+        var preferences = data.appearancePreferences
+        preferences.resetBackground()
+        guard preferences != data.appearancePreferences else { return }
+        data.appearancePreferences = preferences
+        persist(changeKind: .appearance)
     }
 
     /// Die GLOBALE Einstellung (was gespeichert wird).
@@ -582,18 +593,21 @@ final class HabitStore {
     /// Liest die Datei neu ein, wenn sie sich EXTERN geändert hat (der
     /// Widget-Intent schreibt aus dem Extension-Prozess). Merge-frei und
     /// sicher: `persist()` schreibt synchron, der In-Memory-Stand liegt
-    /// also immer schon auf der Platte — ein purer Re-Read verliert nichts.
+    /// also immer schon auf der Platte. Ein externer Widget-Schreiber kann
+    /// aber mit einem älteren Snapshot arbeiten; deshalb wird der frische
+    /// Payload über dieselbe Union/LWW-Logik wie iCloud eingespielt, statt
+    /// den gesamten lokalen Stand blind zu ersetzen. So kann ein Widget-
+    /// Check-in ankommen, ohne eine danach gewählte Darstellung zurückzuholen.
     /// Unveränderte mtime -> No-op (kein Decode, kein onChange).
     func reloadFromDisk() {
         let m = Self.mtime(url)
         guard m != loadedMtime, let fresh = Self.read(url) else { return }
         loadedMtime = m
-        data = fresh
-        onChange?()
-        onChangeKind?(.general)
+        merge(remote: fresh)
     }
 
     func persist(notify: Bool = true, changeKind: HabitStoreChange = .general) {
+        data.appearancePreferences = data.appearancePreferences.normalizedForStorage()
         data.version = HabitData.currentVersion
         let now = Date().timeIntervalSince1970
         data.updatedAt = now
@@ -692,10 +706,34 @@ final class HabitStore {
             return
         }
         data.habits[i].log[day] = completed ? 1 : nil
+        data.habits[i].missedDays.removeAll { $0 == day }
         if !data.habits[i].repeatsWhileIncomplete {
             data.habits[i].reminderCursor = completed ? nextCursor : day
         }
         persist()
+    }
+
+    /// Converts stale open reminder occurrences into explicit negative days.
+    /// One persistence pass covers all reminders so launch/rescheduling cannot
+    /// create a write storm.
+    @discardableResult
+    func materializeMissedReminderDays(now: Date = .now) -> Bool {
+        var changed = false
+        for index in data.habits.indices where data.habits[index].isReminder {
+            let habit = data.habits[index]
+            let calendar = HabitTimeZone.calendar(
+                for: habit,
+                defaultIdentifier: data.defaultTimeZoneIdentifier)
+            let additions = ReminderOccurrenceEngine.missedDays(
+                for: habit, now: now, calendar: calendar)
+            guard !additions.isEmpty else { continue }
+            let merged = Array(Set(habit.missedDays).union(additions)).sorted()
+            guard merged != habit.missedDays else { continue }
+            data.habits[index].missedDays = merged
+            changed = true
+        }
+        if changed { persist() }
+        return changed
     }
 
     /// Schreibt tatsächliche Session-Minuten an einen Tag. MAX statt
@@ -978,6 +1016,7 @@ final class HabitStore {
                     let merged = max(lh.minutes[k] ?? 0, v)
                     if merged >= 1 { lh.minutes[k] = merged }
                 }
+                lh.missedDays = Array(Set(lh.missedDays).union(rh.missedDays)).sorted()
                 if remoteNewer {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
@@ -1033,7 +1072,7 @@ final class HabitStore {
         // der Standard IST ein gültiger Wert.
         if remoteAppearanceNewer {
             data.appearance = remote.appearance
-            data.appearancePreferences = remote.appearancePreferences
+            data.appearancePreferences = remote.appearancePreferences.normalizedForStorage()
             data.palette = remote.palette
             data.matchAppIcon = remote.matchAppIcon
             data.manualAppIconName = remote.manualAppIconName

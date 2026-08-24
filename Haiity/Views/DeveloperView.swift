@@ -283,6 +283,17 @@ struct DeveloperView: View {
             .accessibilityIdentifier("reload-widgets")
 
             Button {
+                store.resetBackground()
+                actionMessage = String(localized: "Hintergrund zurückgesetzt.")
+                Theme.Haptics.success()
+            } label: {
+                Label(String(localized: "Hintergrund zurücksetzen"),
+                      systemImage: "arrow.counterclockwise")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("reset-background")
+
+            Button {
                 // Bewusst das ALLGEMEINE Pasteboard, ohne `.localOnly`: Der
                 // Bericht SOLL das Gerät verlassen — der übliche Weg ist,
                 // ihn am iPhone zu kopieren und am Mac in eine Mail zu

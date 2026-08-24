@@ -188,6 +188,14 @@ final class PaletteResolutionTests: XCTestCase {
 // MARK: – Erscheinungsbild
 
 final class AppearanceSettingTests: XCTestCase {
+    private func validImageData() throws -> Data {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        return try XCTUnwrap(image.jpegData(compressionQuality: 0.9))
+    }
+
     func testBackgroundImageReusesDecodedImageBetweenReads() throws {
         let source = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
             UIColor.systemBlue.setFill()
@@ -233,13 +241,138 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(preferences.backgroundImageData)
     }
 
-    func testSelectingImageModeDoesNotInventImageData() {
+    func testSelectingImageModeWithoutAnImageFallsBackToColor() {
         var preferences = AppearancePreferences(backgroundMode: .color)
 
         preferences.selectBackgroundMode(.image)
 
-        XCTAssertEqual(preferences.backgroundMode, .image)
+        XCTAssertEqual(preferences.backgroundMode, .color)
         XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testInstallingAnImageChangesModeAndPayloadAtomically() throws {
+        var preferences = AppearancePreferences(backgroundMode: .color)
+
+        XCTAssertTrue(preferences.setBackgroundImage(try validImageData()))
+
+        XCTAssertEqual(preferences.backgroundMode, .image)
+        XCTAssertNotNil(preferences.backgroundImageData)
+    }
+
+    func testInstallingInvalidImageLeavesTheExistingBackgroundUntouched() {
+        var preferences = AppearancePreferences(backgroundMode: .gradient,
+                                                 gradientStartHex: 0x112233,
+                                                 gradientEndHex: 0x445566)
+
+        XCTAssertFalse(preferences.setBackgroundImage(Data([1, 2, 3])))
+
+        XCTAssertEqual(preferences.backgroundMode, .gradient)
+        XCTAssertEqual(preferences.gradientStartHex, 0x112233)
+        XCTAssertEqual(preferences.gradientEndHex, 0x445566)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testDecodedColorModeDropsStaleImageData() throws {
+        let raw = Data(#"{"material":"solid","backgroundMode":"color","backgroundImageData":"AQID"}"#.utf8)
+
+        let preferences = try JSONDecoder().decode(AppearancePreferences.self, from: raw)
+
+        XCTAssertEqual(preferences.backgroundMode, .color)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testDecodedImageModeWithoutImageFallsBackToColor() throws {
+        let raw = Data(#"{"material":"solid","backgroundMode":"image"}"#.utf8)
+
+        let preferences = try JSONDecoder().decode(AppearancePreferences.self, from: raw)
+
+        XCTAssertEqual(preferences.backgroundMode, .color)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testInvalidImagePayloadNormalizesToColorBeforeStorage() {
+        let preferences = AppearancePreferences(
+            material: .liquid,
+            backgroundImageData: Data([1, 2, 3]),
+            backgroundMode: .image,
+            backgroundColorHex: 0x112233)
+
+        let normalized = preferences.normalizedForStorage()
+
+        XCTAssertEqual(normalized.material, .liquid)
+        XCTAssertEqual(normalized.backgroundMode, .color)
+        XCTAssertEqual(normalized.backgroundColorHex, 0x112233)
+        XCTAssertNil(normalized.backgroundImageData)
+    }
+
+    func testStoreSetterNormalizesStaleImageMode() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-background-normalize-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = HabitStore(url: url)
+        store.appearancePreferences = AppearancePreferences(
+            backgroundImageData: Data([1, 2, 3]),
+            backgroundMode: .image)
+
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertNil(store.appearancePreferences.backgroundImageData)
+        XCTAssertEqual(HabitStore(url: url).appearancePreferences.backgroundMode, .color)
+    }
+
+    func testMergeNormalizesRemoteImageModeBeforeApplyingIt() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-background-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = HabitStore(url: url)
+        let remote = HabitData(version: HabitData.currentVersion,
+                               updatedAt: 20,
+                               summaryMinutes: nil,
+                               habits: [],
+                               appearanceUpdatedAt: 20,
+                               appearancePreferences: AppearancePreferences(
+                                   backgroundImageData: Data([1, 2, 3]),
+                                   backgroundMode: .image))
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertNil(store.appearancePreferences.backgroundImageData)
+    }
+
+    func testStoreResetBackgroundClearsEveryBackgroundValueAndPersists() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-background-reset-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        store.appearancePreferences = AppearancePreferences(
+            material: .adaptive,
+            backgroundImageData: Data([1, 2, 3]),
+            backgroundMode: .image,
+            backgroundColorHex: 0x112233,
+            gradientStartHex: 0x445566,
+            gradientEndHex: 0x778899)
+
+        store.resetBackground()
+
+        let saved = HabitStore(url: url).appearancePreferences
+        XCTAssertEqual(saved.material, .adaptive)
+        XCTAssertEqual(saved.backgroundMode, .color)
+        XCTAssertNil(saved.backgroundImageData)
+        XCTAssertNil(saved.backgroundColorHex)
+        XCTAssertNil(saved.gradientStartHex)
+        XCTAssertNil(saved.gradientEndHex)
+    }
+
+    func testDeveloperPageOffersTheForceBackgroundReset() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/DeveloperView.swift"))
+
+        XCTAssertTrue(source.contains("store.resetBackground()"))
+        XCTAssertTrue(source.contains("\"reset-background\""))
     }
 
     func testSystemMeansNoOverride() {
@@ -377,19 +510,21 @@ final class AppearanceSettingTests: XCTestCase {
         let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
         XCTAssertTrue(background.contains("backgroundModeSelector"),
                       "background modes need a dedicated selector on iOS 27")
-        XCTAssertTrue(background.contains("Picker(String(localized: \"Hintergrund\"), selection: backgroundModeBinding)"),
-                      "background modes need the native picker as their single selection control")
-        XCTAssertTrue(background.contains("pickerStyle(.segmented)"),
-                      "background modes should use the native segmented picker")
+        XCTAssertTrue(more.contains("private func backgroundModeButton"),
+                      "each background mode needs its own direct button on iOS 27")
+        XCTAssertFalse(background.contains("pickerStyle(.segmented)"),
+                       "the segmented picker drops taps in this scroll editor on iOS 27")
+        XCTAssertTrue(more.contains("\"appearance-background-mode-\\(mode.rawValue)\""),
+                      "each mode needs an independently testable hit target")
 
         let imageStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
         let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
                                                 range: imageStart.upperBound..<more.endIndex))
         let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
-        XCTAssertTrue(imagePicker.contains("PhotosPicker(selection: $pickedBackgroundItem"),
-                      "the image action must be a native PhotosPicker control")
-        XCTAssertFalse(imagePicker.contains(".photosPicker(isPresented:"),
-                       "a separate presentation modifier can lose the iOS 27 hit target")
+        XCTAssertTrue(imagePicker.contains("showingBackgroundPhotoPicker = true"),
+                      "the visible image action must directly own the tap")
+        XCTAssertTrue(imagePicker.contains(".photosPicker(isPresented:"),
+                      "the explicit button must present the system photo picker")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {
@@ -412,6 +547,22 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertFalse(theme.contains("SettingsRowSurface"),
                        "settings lists must use native rows so controls remain tappable")
+    }
+
+    func testSettingsSurfaceAppliesTheSelectedMaterialWithoutBlockingRows() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertTrue(theme.contains("settingsRowBackground"),
+                      "native settings rows need an appearance-aware background")
+        XCTAssertTrue(theme.contains("listRowBackground(settingsRowBackground)"),
+                      "the row surface must be applied through List's native background hook")
+        XCTAssertTrue(theme.contains("allowsHitTesting(false)"),
+                      "material backgrounds must never steal taps from controls")
+        XCTAssertTrue(theme.contains("case .liquid"),
+                      "Liquid Glass needs a settings-row treatment, not only a page background")
     }
 
     func testAppearanceBackgroundDoesNotCaptureControlTouches() throws {
@@ -521,8 +672,9 @@ final class AppearanceSettingTests: XCTestCase {
     }
 
     func testMaterialAndImagePreferencesRoundTrip() throws {
+        let imageData = try validImageData()
         let preferences = AppearancePreferences(material: .liquid,
-                                                backgroundImageData: Data([1, 2, 3]))
+                                                backgroundImageData: imageData)
         let data = HabitData(version: HabitData.currentVersion,
                              updatedAt: 1,
                              summaryMinutes: nil,
@@ -645,12 +797,16 @@ final class AppearanceSettingTests: XCTestCase {
     }
 
     func testLegacyImagePreferencesInferImageMode() throws {
-        let raw = #"{"material":"solid","backgroundImageData":"AQI="}"#
+        let imageData = try validImageData()
+        let raw = try JSONSerialization.data(withJSONObject: [
+            "material": "solid",
+            "backgroundImageData": imageData.base64EncodedString()
+        ])
         let preferences = try JSONDecoder().decode(AppearancePreferences.self,
-                                                    from: Data(raw.utf8))
+                                                    from: raw)
 
         XCTAssertEqual(preferences.backgroundMode, .image)
-        XCTAssertEqual(preferences.backgroundImageData, Data([1, 2]))
+        XCTAssertEqual(preferences.backgroundImageData, imageData)
     }
 
     func testAppearancePreferencesRejectOversizedImageData() {
@@ -671,7 +827,7 @@ final class AppearanceSettingTests: XCTestCase {
                                summaryMinutes: nil,
                                habits: [],
                                appearancePreferences: .init(material: .milky,
-                                                            backgroundImageData: Data([4, 5])))
+                                                            backgroundImageData: try! validImageData()))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-appearance-(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }

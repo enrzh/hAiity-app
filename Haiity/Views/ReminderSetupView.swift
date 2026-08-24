@@ -44,12 +44,19 @@ struct ReminderSetupView: View {
     // MARK: – Seiten
 
     /// Jede Seite scrollt für sich — große Schriftgrade brauchen den Platz.
-    private func setupPage(@ViewBuilder content: () -> some View) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gutter) {
-                content()
+    private func setupPage<Content: View>(
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gutter) {
+                    content()
+                }
+                .frame(maxWidth: .infinity,
+                       minHeight: max(0, proxy.size.height - Theme.Metrics.gutter * 2),
+                       alignment: .center)
+                .padding(Theme.Metrics.gutter)
             }
-            .padding(Theme.Metrics.gutter)
         }
     }
 

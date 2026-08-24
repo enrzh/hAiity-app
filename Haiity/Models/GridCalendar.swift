@@ -176,6 +176,7 @@ enum GridCalendar {
         /// sich ein einziger Log-Wert ändert (aus einem Ja/Nein-Habit ein
         /// Checkbox-Habit zu machen färbt jede verneinte Zelle um).
         let kind: HabitKind
+        let missedHash: Int
         let weeks: Int
         let today: String
         let firstWeekday: Int
@@ -195,6 +196,7 @@ enum GridCalendar {
                            logHash: habit.log.hashValue,
                            target: habit.recurrence.target,
                            kind: habit.kind,
+                           missedHash: habit.missedDays.hashValue,
                            weeks: weeks,
                            today: today,
                            firstWeekday: calendar.firstWeekday)

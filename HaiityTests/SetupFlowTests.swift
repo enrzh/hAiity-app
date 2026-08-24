@@ -85,6 +85,17 @@ final class SetupFlowTests: XCTestCase {
         XCTAssertTrue(setup.contains("Button(String(localized: \"Jetzt nicht\")) { finish() }"))
     }
 
+    func testSetupPagesUseTheAvailableHeightForBalancedLayout() throws {
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+
+        XCTAssertTrue(setup.contains("GeometryReader"),
+                      "setup pages need the actual available height to avoid top-heavy layouts")
+        XCTAssertTrue(setup.contains("proxy.size.height"),
+                      "the page container must react to the device and footer height")
+        XCTAssertTrue(setup.contains("minHeight:"),
+                      "short setup pages should center instead of leaving a blank lower half")
+    }
+
     /// Alle Texte des Einrichtungs-Bildschirms stehen im Katalog — die
     /// v16-Texte fehlten dort und fielen in allen 16 Sprachen auf Deutsch
     /// zurück.

@@ -49,7 +49,7 @@ enum GoalEngine {
     /// EINZIGE Grund, warum eine Serie an einem terminfreien Tag reißen kann.
     static func dayDeclined(habit: Habit, day: String) -> Bool {
         guard DayKey.components(day) != nil else { return false }
-        return habit.isDeclined(day)
+        return habit.isDeclined(day) || habit.isMissed(day)
     }
 
     /// Ist an diesem Tag ein Termin fällig?
@@ -356,7 +356,9 @@ enum GoalEngine {
     /// ohne Legende liest, weil sie eine eigene FARBE hat und keinen
     /// Grauton.
     static func intensity(habit: Habit, key: String, calendar: Calendar = .current) -> Int {
-        if habit.isDeclined(key) { return Habit.Answer.declinedLevel }
+        if habit.isDeclined(key) || habit.isMissed(key) {
+            return Habit.Answer.declinedLevel
+        }
         let value = habit.log[key] ?? 0
         guard value >= 1 else { return 0 }
         if habit.kind == .quantity, let target = habit.recurrence.target {

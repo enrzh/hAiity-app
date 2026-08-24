@@ -31,7 +31,8 @@ enum WidgetData {
                            selectedPalette: palette,
                            githubSnapshot: source == .github
                                ? GitHubContributionSnapshot.loadShared()
-                               : nil)
+                               : nil,
+                           widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true)
     }
 
     /// Eine Timeline mit genau einem Eintrag, gültig bis Mitternacht — der

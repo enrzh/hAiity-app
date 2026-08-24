@@ -196,28 +196,43 @@ struct HaiityWidgetView: View {
     private func checkButton(_ habit: Habit, dark: Bool) -> some View {
         let done = GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
         let declined = habit.isDeclined(today)
-        return Button(intent: CheckOffHabitIntent(habit: habit)) {
-            if habit.kind == .quantity, let target = habit.recurrence.target {
-                Text(verbatim: "\(habit.log[today] ?? 0)/\(target)")
-                    .font(.caption2.bold().monospacedDigit())
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(done ? Theme.accentFill(palette) : Color(.tertiarySystemFill),
-                                in: Capsule())
-                    .foregroundStyle(done ? .white : .primary)
-            } else {
-                Image(systemName: declined
-                      ? "xmark.circle.fill"
-                      : (done ? "checkmark.circle.fill" : "circle"))
-                    .font(.title3)
-                    .foregroundStyle(negativeOrAccent(declined: declined, done: done, dark: dark))
+        let hasValue = habit.isReminder
+            ? WidgetLogic.summary(habit: habit, today: today, calendar: calendar).status == .done
+            : habit.log[today] != nil
+        return HStack(spacing: 5) {
+            Button(intent: CheckOffHabitIntent(habit: habit)) {
+                if habit.kind == .quantity, let target = habit.recurrence.target {
+                    Text(verbatim: "\(habit.log[today] ?? 0)/\(target)")
+                        .font(.caption2.bold().monospacedDigit())
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(done ? Theme.accentFill(palette) : Color(.tertiarySystemFill),
+                                    in: Capsule())
+                        .foregroundStyle(done ? .white : .primary)
+                } else {
+                    Image(systemName: declined
+                          ? "xmark.circle.fill"
+                          : (done ? "checkmark.circle.fill" : "circle"))
+                        .font(.title3)
+                        .foregroundStyle(negativeOrAccent(declined: declined, done: done, dark: dark))
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(habit.kind != .quantity && done)
+            .accessibilityLabel(habit.kind == .yesNo
+                                ? String(localized: "Mit Ja beantworten")
+                                : String(localized: "Habit abhaken"))
+
+            if entry.widgetResetEnabled && hasValue {
+                Button(intent: ResetHabitIntent(habit: habit)) {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Rückgängig"))
             }
         }
-        .buttonStyle(.plain)
-        .disabled(habit.kind != .quantity && done)
-        .accessibilityLabel(habit.kind == .yesNo
-                            ? String(localized: "Mit Ja beantworten")
-                            : String(localized: "Habit abhaken"))
     }
 
     /// Verneint zeichnet in der Verneinungsfarbe DIESES Habits — dieselbe,

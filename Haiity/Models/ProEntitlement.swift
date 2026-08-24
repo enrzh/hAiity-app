@@ -118,14 +118,14 @@ enum Pro {
             storedAppleEmail: PersonalName.appleEmail
         )
         let effectiveUnlocked = unlocked || ownerDevice
-        guard ProStatus.shared.unlocked != effectiveUnlocked else { return }
-        writeGeneration &+= 1
-        defaults.set(effectiveUnlocked, forKey: unlockedKey)
-        ProStatus.shared.unlocked = effectiveUnlocked
         if !effectiveUnlocked {
             CalendarSync.disable()
             ReminderSync.disable()
         }
+        guard ProStatus.shared.unlocked != effectiveUnlocked else { return }
+        writeGeneration &+= 1
+        defaults.set(effectiveUnlocked, forKey: unlockedKey)
+        ProStatus.shared.unlocked = effectiveUnlocked
     }
 
     /// Bestand prüfen: was steht heute auf diesem Konto? Zurückgezogene oder
@@ -256,5 +256,15 @@ enum ProGate {
     /// zweites Produkt) hat genau einen Ort.
     static func mayUseProFeature(unlocked: Bool) -> Bool {
         unlocked
+    }
+
+    static func restrictedCloudPreferences(_ preferences: CloudPreferences,
+                                           unlocked: Bool) -> CloudPreferences {
+        guard !unlocked else { return preferences }
+        var restricted = preferences
+        restricted.calendarSyncHabits = false
+        restricted.calendarSyncReminders = false
+        restricted.nativeReminderSync = false
+        return restricted
     }
 }
