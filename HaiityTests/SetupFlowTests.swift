@@ -107,6 +107,14 @@ final class SetupFlowTests: XCTestCase {
                        "the footer must not create a separate opaque band")
     }
 
+    func testSetupRequestsAllNativePermissionsUsedByTheApp() throws {
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+        XCTAssertTrue(setup.contains("Reminders.ensurePermission()"))
+        XCTAssertTrue(setup.contains("CalendarSync.requestAccess()"))
+        XCTAssertTrue(setup.contains("ReminderSync.requestAccess()"))
+        XCTAssertTrue(setup.contains("Berechtigungen aktivieren"))
+    }
+
     /// Alle Texte des Einrichtungs-Bildschirms stehen im Katalog — die
     /// v16-Texte fehlten dort und fielen in allen 16 Sprachen auf Deutsch
     /// zurück.

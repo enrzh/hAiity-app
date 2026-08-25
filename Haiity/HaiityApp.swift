@@ -7,6 +7,7 @@ struct HaiityApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var startupSplashVisible = true
     @State private var startupContentMounted = true
+    @State private var startupAppOpacity = 0.0
     @State private var startupAnimationFinished = false
     private let startupBackgroundImageData: Data?
     // Übergibt die Szenen an ShortcutSceneDelegate — ohne ihn kommen
@@ -44,6 +45,7 @@ struct HaiityApp: App {
                     ContentView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
+                    .opacity(startupAppOpacity)
                     .accessibilityHidden(startupSplashVisible)
                     // Vergessene Sessions aufräumen: eine Live-Aktivität, die
                     // seit über acht Stunden läuft, wird still beendet, ohne
@@ -93,9 +95,14 @@ struct HaiityApp: App {
                 if startupSplashVisible {
                     StartupSplashView(onContentReady: {
                         // The app tree is already mounted under the splash. The
-                        // callback remains the visual handoff seam for tests and
-                        // future launch choreography.
+                        // app reveal starts during the tile zoom, not after the
+                        // overlay has disappeared.
                         startupContentMounted = true
+                        withAnimation(.easeInOut(duration: StartupSplashTimeline.zoomDuration + 0.08)
+                            .delay(StartupSplashTimeline.clusterDuration
+                                   + StartupSplashTimeline.splitDuration - 0.08)) {
+                            startupAppOpacity = 1
+                        }
                     }) {
                         finishStartupAnimation()
                     }
@@ -110,6 +117,7 @@ struct HaiityApp: App {
                 // Scene restoration can retain the previous `false` value;
                 // a new process always gets a fresh launch handoff.
                 startupSplashVisible = true
+                startupAppOpacity = 0
                 Task { await Pro.refresh(mayDowngrade: true) }
             }
         }
@@ -135,6 +143,7 @@ struct HaiityApp: App {
         // transparent splash above every control.
         startupAnimationFinished = true
         startupContentMounted = true
+        startupAppOpacity = 1
         startupSplashVisible = false
     }
 }

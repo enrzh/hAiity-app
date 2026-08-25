@@ -151,6 +151,17 @@ enum RecurrenceText {
                     String(localized: "recurrence.nthWeekday.inMonth",
                            defaultValue: "\(position) \(name) im \(month)",
                            comment: "Jahresregel: „3. Freitag im März“") })
+        case .multipleDays(let days):
+            let list = days.sorted().map { "\($0)." }.joined(separator: ", ")
+            return RuleText(
+                short: list,
+                monthly: String(localized: "recurrence.multipleDays.monthly",
+                                defaultValue: "Am \(list) jedes Monats",
+                                comment: "Mehrere Monatstage: „Am 5., 15. jedes Monats“"),
+                inMonth: { month in
+                    String(localized: "recurrence.multipleDays.inMonth",
+                           defaultValue: "\(list) im \(month)",
+                           comment: "Mehrere Tage einer Jahresregel: „5., 15. im März“") })
         }
     }
 

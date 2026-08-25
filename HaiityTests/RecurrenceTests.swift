@@ -10,6 +10,23 @@ import XCTest
 /// 4., 11., 18., 25.; Februar hat 28 Tage; Sommerzeit beginnt am 29.03.,
 /// endet am 25.10.
 final class RecurrenceTests: XCTestCase {
+    func testMonthlyAndYearlyRecurrenceUseTheTopDateWithoutAnIntervalStepper() {
+        var draft = RecurrenceDraft(today: Date(timeIntervalSince1970: 1_750_000_000))
+
+        draft.frequency = .daily
+        XCTAssertTrue(draft.showsIntervalStepper)
+        draft.frequency = .weekly
+        XCTAssertTrue(draft.showsIntervalStepper)
+        draft.interval = 3
+        draft.selectFrequency(.monthly)
+        XCTAssertFalse(draft.showsIntervalStepper)
+        XCTAssertEqual(draft.interval, 1)
+        draft.interval = 4
+        draft.selectFrequency(.yearly)
+        XCTAssertFalse(draft.showsIntervalStepper)
+        XCTAssertEqual(draft.interval, 1)
+    }
+
     private var calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(identifier: "Europe/Berlin")!
@@ -21,6 +38,10 @@ final class RecurrenceTests: XCTestCase {
 
     private func scheduled(_ recurrence: Recurrence, _ day: String) -> Bool {
         recurrence.isScheduled(on: day, calendar: calendar)
+    }
+
+    private func date(_ day: String) -> Date {
+        DayKey.date(from: day, calendar: calendar)!
     }
 
     // MARK: – Täglich
@@ -396,6 +417,51 @@ final class RecurrenceTests: XCTestCase {
             XCTAssertEqual(try JSONDecoder().decode(Recurrence.self, from: raw), shape,
                            String(data: raw, encoding: .utf8) ?? "")
         }
+    }
+
+    func testMultipleMonthDaysScheduleAndRoundTrip() throws {
+        let recurrence = Recurrence(frequency: .monthly,
+                                    rule: .multipleDays([5, 15, 31]),
+                                    start: "2026-08-01")
+
+        XCTAssertTrue(recurrence.isScheduled(on: "2026-08-05", calendar: calendar))
+        XCTAssertTrue(recurrence.isScheduled(on: "2026-08-15", calendar: calendar))
+        XCTAssertFalse(recurrence.isScheduled(on: "2026-08-06", calendar: calendar))
+        XCTAssertFalse(recurrence.isScheduled(on: "2026-02-31", calendar: calendar))
+
+        let data = try JSONEncoder().encode(recurrence)
+        XCTAssertEqual(try JSONDecoder().decode(Recurrence.self, from: data), recurrence)
+    }
+
+    func testDraftUsesMainDateForMonthlyAndYearlyMultipleDays() {
+        var draft = RecurrenceDraft(today: date("2026-08-25"), calendar: calendar)
+        draft.selectFrequency(.monthly, calendar: calendar)
+        draft.multipleDaysEnabled = true
+        draft.multipleDays = [5, 15]
+
+        XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
+                       .multipleDays([5, 15]))
+
+        draft.selectFrequency(.yearly, calendar: calendar)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).month, 8)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
+                       .multipleDays([5, 15]))
+    }
+
+    func testDraftPreservesLegacyMonthlyRuleUntilDateChanges() {
+        let legacy = Recurrence(frequency: .monthly,
+                                rule: .lastDayOfMonth,
+                                start: "2026-08-31")
+        var draft = RecurrenceDraft(legacy,
+                                    today: date("2026-08-25"),
+                                    calendar: calendar)
+
+        XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
+                       .lastDayOfMonth)
+
+        draft.selectDate(date("2026-08-15"), calendar: calendar)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
+                       .dayOfMonth(15))
     }
 
     func testEndTitleRoundTripsAndIsSanitized() throws {

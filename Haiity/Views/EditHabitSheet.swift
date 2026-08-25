@@ -7,7 +7,7 @@ import SwiftUI
 /// Tages- und Wochenzusammenfassungen bleiben zusätzliche globale Hinweise.
 ///
 /// Das Herz ist der Regel-Editor: Häufigkeit × Intervall, dazu die feine
-/// Regel (Wochentage, Tag im Monat, n-ter Wochentag), das Startdatum und die
+/// Regel (Wochentage, monatliche Feineinstellung), das Startdatum und die
 /// Uhrzeit — alles unter EINER Überschrift „Zeitraum". Damit das nicht zu
 /// einem Formular wird, das man raten muss, steht ganz oben in der Sektion
 /// EIN Satz, der die eingestellte Regel vorliest — „Jeden 2. Montag und
@@ -128,10 +128,12 @@ struct EditHabitSheet: View {
     private var dateBinding: Binding<Date> {
         Binding(
             get: { draft.start },
-            set: {
-                draft.start = $0
-                draft.hasStart = true
-            })
+            set: { draft.selectDate($0, calendar: calendar) })
+    }
+
+    private var multipleDaysBinding: Binding<Bool> {
+        Binding(get: { draft.multipleDaysEnabled },
+                set: { draft.setMultipleDaysEnabled($0, calendar: calendar) })
     }
 
     var body: some View {
@@ -288,10 +290,12 @@ struct EditHabitSheet: View {
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("cadence-picker")
 
-                Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
-                    Text(intervalLabel)
+                if draft.showsIntervalStepper {
+                    Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
+                        Text(intervalLabel)
+                    }
+                    .accessibilityIdentifier("interval-stepper")
                 }
-                .accessibilityIdentifier("interval-stepper")
 
                 // Die Wahl „feste Termine oder Anzahl" gibt es nicht mehr: die
                 // Regel benennt die TAGE. Ein Habit, das noch aus der Zeit des
@@ -453,68 +457,46 @@ struct EditHabitSheet: View {
 
     @ViewBuilder
     private var monthlyControls: some View {
-        Picker(String(localized: "Regel"), selection: $draft.monthlyMode) {
-            Text(String(localized: "Tag im Monat")).tag(RecurrenceDraft.MonthlyMode.dayOfMonth)
-            Text(String(localized: "Letzter Tag")).tag(RecurrenceDraft.MonthlyMode.lastDay)
-            Text(String(localized: "Wochentag")).tag(RecurrenceDraft.MonthlyMode.nthWeekday)
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("monthly-rule-picker")
-        monthRuleDetail
+        multipleDayControls
     }
 
     @ViewBuilder
     private var yearlyControls: some View {
-        Picker(String(localized: "Monat"), selection: $draft.month) {
-            ForEach(1...12, id: \.self) { month in
-                Text(RecurrenceText.monthName(month, calendar: calendar)).tag(month)
-            }
-        }
-        .accessibilityIdentifier("year-month")
-        Picker(String(localized: "Regel"), selection: $draft.monthlyMode) {
-            Text(String(localized: "Tag im Monat")).tag(RecurrenceDraft.MonthlyMode.dayOfMonth)
-            Text(String(localized: "Letzter Tag")).tag(RecurrenceDraft.MonthlyMode.lastDay)
-            Text(String(localized: "Wochentag")).tag(RecurrenceDraft.MonthlyMode.nthWeekday)
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("monthly-rule-picker")
-        monthRuleDetail
+        multipleDayControls
     }
 
-    @ViewBuilder
-    private var monthRuleDetail: some View {
-        switch draft.monthlyMode {
-        case .dayOfMonth:
-            Stepper(value: $draft.dayOfMonth, in: 1...31) {
-                Text(String(localized: "Am \(draft.dayOfMonth)."))
-            }
-            .accessibilityIdentifier("month-day")
-            if draft.dayOfMonth > 28 {
-                // Nicht jeder Monat hat diesen Tag. Was dann passiert, ist
-                // eine ENTSCHEIDUNG (der Termin fällt aus, er rutscht nicht
-                // auf den 28.) — also steht sie da, wo man sie trifft.
-                Text(String(localized: "Monate ohne diesen Tag werden übersprungen."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        case .lastDay:
-            EmptyView()
-        case .nthWeekday:
-            Picker(String(localized: "Der wievielte"), selection: $draft.nth) {
-                Text(String(localized: "Erster")).tag(1)
-                Text(String(localized: "Zweiter")).tag(2)
-                Text(String(localized: "Dritter")).tag(3)
-                Text(String(localized: "Vierter")).tag(4)
-                Text(String(localized: "Fünfter")).tag(5)
-                Text(String(localized: "Letzter")).tag(Recurrence.DayRule.last)
-            }
-            .accessibilityIdentifier("month-nth")
-            Picker(String(localized: "Wochentag"), selection: $draft.nthWeekday) {
-                ForEach(orderedWeekdays, id: \.self) { day in
-                    Text(RecurrenceText.weekdayName(day, calendar: calendar)).tag(day)
+    private var multipleDayControls: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            Toggle(String(localized: "Mehrere Tage"), isOn: multipleDaysBinding)
+                .accessibilityIdentifier("multiple-days-toggle")
+            if draft.multipleDaysEnabled {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7),
+                          spacing: 8) {
+                    ForEach(1...31, id: \.self) { day in
+                        Button {
+                            draft.toggleMultipleDay(day)
+                        } label: {
+                            Text(String(day))
+                                .font(.subheadline.monospacedDigit().weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 34)
+                                .foregroundStyle(draft.multipleDays.contains(day)
+                                                 ? Color.white
+                                                 : Color.primary)
+                                .background(draft.multipleDays.contains(day)
+                                            ? Theme.accentFill(store.paletteStyle)
+                                            : Color(.secondarySystemFill),
+                                            in: RoundedRectangle(cornerRadius: 8,
+                                                                 style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "Tag \(day)"))
+                        .accessibilityAddTraits(draft.multipleDays.contains(day)
+                                                ? .isSelected : [])
+                        .accessibilityIdentifier("multiple-day-\(day)")
+                    }
                 }
+                .accessibilityIdentifier("multiple-day-grid")
             }
-            .accessibilityIdentifier("month-weekday")
         }
     }
 

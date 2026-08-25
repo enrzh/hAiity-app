@@ -698,12 +698,14 @@ final class FeedbackTests: XCTestCase {
         let ordered = ["proSection", "personalSection", "githubSection",
                        "MoreRoute.appearance", "MoreRoute.habitBehavior",
                        "notificationSettingsSection",
-                       "MoreRoute.archive", "Setup wiederholen", "MoreRoute.about"]
+                       "Setup wiederholen", "MoreRoute.about"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)
             cursor = range.upperBound
         }
+        XCTAssertFalse(main.contains("MoreRoute.archive"),
+                       "Archive is opened from the Habits filter menu")
 
         let appearanceStart = try XCTUnwrap(
             more.range(of: "private var appearanceSettings: some View"))

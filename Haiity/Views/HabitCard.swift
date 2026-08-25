@@ -363,7 +363,7 @@ struct HabitCard: View, Equatable {
     /// A context-menu preview is hosted outside the list's layout tree. Keep
     /// its vertical proposal stable so UIKit cannot collapse the graph to the
     /// action row while SwiftUI is still measuring it.
-    static let contextPreviewHeight: CGFloat = 260
+    static let contextPreviewHeight: CGFloat = 300
     /// Rand zwischen Vorschau und Bildschirmkante.
     static let previewMargin: CGFloat = 16
     /// Untergrenze für sehr schmale Fenster (Slide-Over).

@@ -48,6 +48,17 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertEqual(StartupSplashTimeline.overlayOpacity(at: StartupSplashTimeline.duration), 0)
     }
 
+    func testMountedAppFadesInDuringTheZoomHandoff() {
+        let revealStart = StartupSplashTimeline.clusterDuration
+            + StartupSplashTimeline.splitDuration - 0.08
+        let midpoint = revealStart + StartupSplashTimeline.zoomDuration * 0.5
+
+        XCTAssertEqual(StartupSplashTimeline.appOpacity(at: revealStart), 0)
+        XCTAssertGreaterThan(StartupSplashTimeline.appOpacity(at: midpoint), 0)
+        XCTAssertLessThan(StartupSplashTimeline.appOpacity(at: midpoint), 1)
+        XCTAssertEqual(StartupSplashTimeline.appOpacity(at: StartupSplashTimeline.duration), 1)
+    }
+
     func testGraphCopiesAreCenterOnlyBeforeTheSplit() {
         let beforeSplit = StartupSplashTimeline.clusterDuration * 0.5
 
@@ -126,6 +137,8 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertFalse(app.contains("onAppReveal"))
         XCTAssertFalse(app.contains(".opacity(startupAppVisible ? 1 : 0)"))
         XCTAssertFalse(app.contains(".transition(.opacity)"))
+        XCTAssertTrue(app.contains("startupAppOpacity"))
+        XCTAssertTrue(app.contains(".opacity(startupAppOpacity)"))
     }
 
     func testSplashReadinessUsesRootSceneLifecycle() throws {

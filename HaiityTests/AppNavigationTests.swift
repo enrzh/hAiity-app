@@ -121,6 +121,36 @@ final class AppNavigationTests: XCTestCase {
                       "UIKit must be told the final preview size")
         XCTAssertTrue(githubCard.contains("previewHeight:"),
                       "the GitHub graph must opt into the stable preview height")
+        XCTAssertTrue(habitCard.contains("contextPreviewHeight: CGFloat = 300"),
+                      "the enlarged habit graph must leave room for its full grid")
+    }
+
+    func testMonthlyAndYearlyEditorUsesDateAndOptionalMultipleDaysOnly() throws {
+        let editor = try String(contentsOf: sourceURL("Haiity/Views/EditHabitSheet.swift"))
+
+        XCTAssertTrue(editor.contains("Mehrere Tage"))
+        XCTAssertTrue(editor.contains("multipleDaysEnabled"))
+        XCTAssertTrue(editor.contains("multipleDays"))
+        XCTAssertFalse(editor.contains("monthly-rule-picker"))
+        XCTAssertFalse(editor.contains("Tag im Monat"))
+        XCTAssertFalse(editor.contains("Letzter Tag"))
+        XCTAssertFalse(editor.contains("month-nth"))
+        XCTAssertFalse(editor.contains("month-weekday"))
+        XCTAssertTrue(editor.contains("if draft.showsIntervalStepper"),
+                      "the interval stepper must be limited to daily and weekly recurrence")
+    }
+
+    func testAppleAccountActionSitsBesideIdentity() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(more.range(of: "private var personalSection: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var appleSignInButton",
+                                           range: start.upperBound..<more.endIndex))
+        let section = more[start.lowerBound..<end.lowerBound]
+        let account = try XCTUnwrap(section.range(of: "if let storedAppleUserID"))
+        let accountBlock = section[account.lowerBound...]
+
+        XCTAssertTrue(accountBlock.contains("HStack(spacing: Theme.Metrics.gap)"),
+                      "the account identity and sign-out action should share a row")
     }
 
     func testSearchListOwnsTheAppearanceBackground() throws {
@@ -434,9 +464,20 @@ final class AppNavigationTests: XCTestCase {
     func testHabitToolbarKeepsManagementDestinationsReachable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-management\")"))
-        // Statistik ist ein eigener Tab; im Menue bleibt nur noch das Archiv.
+        // Statistik ist ein eigener Tab; Archive is now inside the filter menu.
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"open-stats\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))
+        XCTAssertTrue(source.contains("String(localized: \"Filter\")"))
+        for label in ["Heute", "Erledigt", "Nicht erledigt", "Erinnerung", "Habit"] {
+            XCTAssertTrue(source.contains("String(localized: \"\(label)\")"), label)
+        }
+    }
+
+    func testArchiveIsNotListedOnTheMorePage() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let main = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let tail = more[main.lowerBound...]
+        XCTAssertFalse(tail.contains("pageRow(MoreRoute.archive"))
     }
 
     func testSearchIsARealTabWithItsOwnSearchable() throws {

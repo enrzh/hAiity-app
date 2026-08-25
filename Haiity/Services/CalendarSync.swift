@@ -172,6 +172,7 @@ struct CalendarEventPlan: Equatable {
             case .dayOfMonth(let day): days = [day]
             case .lastDayOfMonth: days = [-1]
             case .nthWeekday(let n, let weekday): nth = (n, weekday)
+            case .multipleDays(let values): days = values.sorted()
             }
         }
         self.daysOfMonth = days

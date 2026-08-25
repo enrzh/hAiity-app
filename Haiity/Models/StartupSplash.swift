@@ -96,6 +96,16 @@ enum StartupSplashTimeline {
         return 1 - Double(reveal)
     }
 
+    /// Opacity for the already-mounted app underneath the splash. It follows
+    /// the same handoff window as the overlay so the content appears with the
+    /// zoom instead of popping in after the tiles disappear.
+    static func appOpacity(at elapsed: TimeInterval) -> Double {
+        let revealStart = clusterDuration + splitDuration - 0.08
+        let revealDuration = zoomDuration + 0.08
+        return Double(eased(progress(at: elapsed - revealStart,
+                                     duration: revealDuration)))
+    }
+
     private static func progress(at elapsed: TimeInterval,
                                  duration: TimeInterval) -> CGFloat {
         guard elapsed > 0 else { return 0 }

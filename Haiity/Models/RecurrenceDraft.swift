@@ -15,7 +15,8 @@ import Foundation
 /// die gerade gewählte.
 struct RecurrenceDraft: Equatable {
 
-    /// Die drei Formen, in denen ein Monatstag benannt werden kann.
+    /// Legacy values remain for decoding old rules; the editor now uses the
+    /// start date and an optional set of day numbers.
     enum MonthlyMode: String, CaseIterable, Equatable { case dayOfMonth, lastDay, nthWeekday }
 
     /// Die drei Enden.
@@ -29,6 +30,11 @@ struct RecurrenceDraft: Equatable {
     var times = 3
     var monthlyMode: MonthlyMode = .dayOfMonth
     var dayOfMonth = 1
+    var multipleDaysEnabled = false
+    var multipleDays: Set<Int> = []
+    /// Keep old last-day/nth-weekday rules stable until the user edits the
+    /// date or the new multi-day option.
+    private var preservedLegacyMonthlyRule: Recurrence.DayRule?
     /// 1…5 oder `Recurrence.DayRule.last`.
     var nth = 1
     var nthWeekday = 2
@@ -53,6 +59,13 @@ struct RecurrenceDraft: Equatable {
     var hasTime = false
     var time = Date()
 
+    /// Monthly and yearly recurrence use the date at the top of the editor as
+    /// their single cadence anchor. Only daily and weekly rules expose an
+    /// adjustable interval in the form.
+    var showsIntervalStepper: Bool {
+        frequency == .daily || frequency == .weekly
+    }
+
     // MARK: – Formular -> Regel
 
     func recurrence(calendar: Calendar = .current) -> Recurrence {
@@ -76,11 +89,13 @@ struct RecurrenceDraft: Equatable {
     }
 
     private var rule: Recurrence.DayRule? {
-        switch monthlyMode {
-        case .dayOfMonth: return .dayOfMonth(dayOfMonth)
-        case .lastDay: return .lastDayOfMonth
-        case .nthWeekday: return .nthWeekday(nth: nth, weekday: nthWeekday)
+        guard frequency == .monthly || frequency == .yearly else { return nil }
+        if multipleDaysEnabled {
+            let days = Set(multipleDays.filter { (1...31).contains($0) })
+            if !days.isEmpty { return .multipleDays(days) }
         }
+        if let preservedLegacyMonthlyRule { return preservedLegacyMonthlyRule }
+        return .dayOfMonth(dayOfMonth)
     }
 
     private func end(calendar: Calendar) -> Recurrence.End {
@@ -137,10 +152,17 @@ struct RecurrenceDraft: Equatable {
             dayOfMonth = day
         case .lastDayOfMonth?:
             monthlyMode = .lastDay
+            preservedLegacyMonthlyRule = .lastDayOfMonth
         case .nthWeekday(let nth, let weekday)?:
             monthlyMode = .nthWeekday
             self.nth = nth
             nthWeekday = weekday
+            preservedLegacyMonthlyRule = .nthWeekday(nth: nth, weekday: weekday)
+        case .multipleDays(let days)?:
+            monthlyMode = .dayOfMonth
+            multipleDaysEnabled = true
+            multipleDays = Set(days.filter { (1...31).contains($0) })
+            dayOfMonth = multipleDays.sorted().first ?? dayOfMonth
         case nil:
             break
         }
@@ -168,6 +190,42 @@ struct RecurrenceDraft: Equatable {
         }
     }
 
+    /// Select the single date shown at the top of the editor. It also updates
+    /// the day/month components used by monthly and yearly rules.
+    mutating func selectDate(_ date: Date, calendar: Calendar = .current) {
+        start = date
+        hasStart = true
+        dayOfMonth = calendar.component(.day, from: date)
+        month = calendar.component(.month, from: date)
+        preservedLegacyMonthlyRule = nil
+        if multipleDaysEnabled {
+            multipleDays.insert(dayOfMonth)
+        }
+    }
+
+    mutating func setMultipleDaysEnabled(_ enabled: Bool,
+                                         calendar: Calendar = .current) {
+        multipleDaysEnabled = enabled
+        preservedLegacyMonthlyRule = nil
+        guard enabled else { return }
+        if multipleDays.isEmpty {
+            multipleDays = [calendar.component(.day, from: start)]
+        }
+    }
+
+    mutating func toggleMultipleDay(_ day: Int) {
+        guard (1...31).contains(day) else { return }
+        preservedLegacyMonthlyRule = nil
+        if multipleDays.contains(day) {
+            // Keep one selected day so the enabled mode never creates an
+            // invalid empty monthly/yearly rule.
+            guard multipleDays.count > 1 else { return }
+            multipleDays.remove(day)
+        } else {
+            multipleDays.insert(day)
+        }
+    }
+
     // MARK: – Sanft nachziehen
 
     /// Beim Umschalten der Häufigkeit: was in der neuen Form keinen Sinn
@@ -183,6 +241,10 @@ struct RecurrenceDraft: Equatable {
             weekdays = [calendar.component(.weekday, from: start)]
         }
         if frequency == .daily || frequency == .once { flexible = false }
+        multipleDays = Set(multipleDays.filter { (1...31).contains($0) })
+        if multipleDaysEnabled, multipleDays.isEmpty {
+            multipleDays = [calendar.component(.day, from: start)]
+        }
         interval = min(Recurrence.maxInterval, max(1, interval))
         times = min(Recurrence.maxTimes(for: frequency), max(1, times))
         endCount = min(Recurrence.maxOccurrences, max(1, endCount))
@@ -195,6 +257,9 @@ struct RecurrenceDraft: Equatable {
     mutating func selectFrequency(_ newFrequency: Recurrence.Frequency,
                                   calendar: Calendar = .current) {
         frequency = newFrequency
+        if newFrequency == .monthly || newFrequency == .yearly {
+            interval = 1
+        }
         normalize(calendar: calendar)
     }
 

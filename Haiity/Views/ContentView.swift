@@ -116,6 +116,7 @@ struct ContentView: View {
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
     @State private var search = ""
+    @State private var habitFilter = HabitListFilter()
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
@@ -964,11 +965,18 @@ struct ContentView: View {
     }
 
     private var filteredHabits: [Habit] {
-        let active = visibleActiveHabits
+        let active = listFilteredHabits
         let q = search.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return active }
         return active.filter {
             $0.name.localizedCaseInsensitiveContains(q) || $0.emoji.contains(q)
+        }
+    }
+
+    private var listFilteredHabits: [Habit] {
+        visibleActiveHabits.filter {
+            habitFilter.matches($0,
+                                 defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         }
     }
 
@@ -998,10 +1006,7 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
-                            Button { presentMoreSheet(.archive) } label: {
-                                Label(String(localized: "Archiv"), systemImage: "archivebox")
-                            }
-                            .accessibilityIdentifier("open-archive")
+                            habitFilterMenu
                         } label: {
                             Label(String(localized: "Bearbeiten"), systemImage: "ellipsis")
                         }
@@ -1032,8 +1037,75 @@ struct ContentView: View {
     /// beim Tippen und Schließen. Nur der Fallback vor iOS 26 (Such-Drawer
     /// AUF der Habit-Liste) filtert hier weiter.
     private var habitsTabSource: [Habit] {
-        if #available(iOS 26, *) { return visibleActiveHabits }
+        if #available(iOS 26, *) { return listFilteredHabits }
         return filteredHabits
+    }
+
+    @ViewBuilder
+    private var habitFilterMenu: some View {
+        Menu {
+            Toggle(String(localized: "Heute"), isOn: $habitFilter.todayOnly)
+                .accessibilityIdentifier("filter-today")
+
+            Menu {
+                filterStatusButton(.all, title: String(localized: "Alle"))
+                filterStatusButton(.done, title: String(localized: "Erledigt"))
+                filterStatusButton(.notDone, title: String(localized: "Nicht erledigt"))
+            } label: {
+                Label(String(localized: "Status"), systemImage: "checkmark.circle")
+            }
+
+            Menu {
+                filterTypeButton(.all, title: String(localized: "Alle"))
+                filterTypeButton(.habit, title: String(localized: "Habit"))
+                filterTypeButton(.reminder, title: String(localized: "Erinnerung"))
+            } label: {
+                Label(String(localized: "Typ"), systemImage: "line.3.horizontal.decrease.circle")
+            }
+
+            if !habitFilter.isEmpty {
+                Button {
+                    habitFilter = HabitListFilter()
+                } label: {
+                    Label(String(localized: "Filter zurücksetzen"), systemImage: "arrow.counterclockwise")
+                }
+            }
+
+            Divider()
+            Button { presentMoreSheet(.archive) } label: {
+                Label(String(localized: "Archiv"), systemImage: "archivebox")
+            }
+            .accessibilityIdentifier("open-archive")
+        } label: {
+            Label(String(localized: "Filter"), systemImage: "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityIdentifier("habit-filter")
+    }
+
+    private func filterStatusButton(_ status: HabitListFilter.Status,
+                                    title: String) -> some View {
+        Button {
+            habitFilter.status = status
+        } label: {
+            filterChoiceLabel(title, selected: habitFilter.status == status)
+        }
+    }
+
+    private func filterTypeButton(_ type: HabitListFilter.ItemType,
+                                  title: String) -> some View {
+        Button {
+            habitFilter.itemType = type
+        } label: {
+            filterChoiceLabel(title, selected: habitFilter.itemType == type)
+        }
+    }
+
+    private func filterChoiceLabel(_ title: String, selected: Bool) -> some View {
+        HStack {
+            Text(title)
+            Spacer(minLength: Theme.Metrics.gap)
+            if selected { Image(systemName: "checkmark") }
+        }
     }
 
     private var habitList: some View {

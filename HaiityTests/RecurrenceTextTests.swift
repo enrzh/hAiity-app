@@ -318,6 +318,14 @@ final class RecurrenceDraftTests: XCTestCase {
         }
     }
 
+    func testMultipleDaysUseTheDateListInTheSummary() {
+        let recurrence = Recurrence(frequency: .monthly,
+                                    rule: .multipleDays([5, 15]),
+                                    start: "2026-08-01")
+        XCTAssertTrue(RecurrenceText.pattern(recurrence, calendar: calendar).contains("5."))
+        XCTAssertTrue(RecurrenceText.pattern(recurrence, calendar: calendar).contains("15."))
+    }
+
     func testEndTitleIsDroppedByTheForm() {
         let recurrence = Recurrence(frequency: .daily,
                                     start: "2026-08-09",

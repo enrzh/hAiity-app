@@ -33,6 +33,9 @@ struct Recurrence: Equatable {
         case dayOfMonth(Int)                     // 1…31
         case lastDayOfMonth
         case nthWeekday(nth: Int, weekday: Int)  // nth 1…5 oder `last`; weekday 1 = So … 7 = Sa
+        /// Several day numbers in the selected month. This is the additive
+        /// form used by the simplified monthly/yearly editor.
+        case multipleDays(Set<Int>)
 
         /// „Der letzte" — als Zahl, damit `nthWeekday` EIN Fall bleibt.
         static let last = -1
@@ -48,6 +51,9 @@ struct Recurrence: Equatable {
                 guard (1...7).contains(weekday),
                       nth == Self.last || (1...5).contains(nth) else { return nil }
                 return self
+            case .multipleDays(let days):
+                let sanitized = Set(days.filter { (1...31).contains($0) })
+                return sanitized.isEmpty ? nil : .multipleDays(sanitized)
             }
         }
     }
@@ -340,6 +346,8 @@ extension Recurrence {
                 guard calendar.component(.weekday, from: date) == weekday else { return false }
                 if nth == DayRule.last { return day + 7 > daysInMonth }
                 return (day - 1) / 7 + 1 == nth
+            case .multipleDays(let days):
+                return days.contains(day)
             }
         }
 
@@ -502,29 +510,29 @@ extension Recurrence {
             }
         }
 
-        /// Der Tag, den die Monats-/Jahresregel in dieser Periode trifft —
-        /// oder nil, wenn die Periode ihn nicht hat (31. im Februar,
+        /// Die Tage, die eine Monats-/Jahresregel in dieser Periode trifft —
+        /// leer, wenn die Periode keinen passenden Tag hat (31. im Februar,
         /// 5. Dienstag in einem Vier-Dienstage-Monat).
-        func ruleDay(inPeriod periodStart: Date) -> Date? {
+        func ruleDays(inPeriod periodStart: Date) -> [Date] {
             var monthStart = periodStart
             if recurrence.frequency == .yearly {
                 var comps = calendar.dateComponents([.year], from: periodStart)
                 comps.month = recurrence.month ?? 1
                 comps.day = 1
-                guard let start = calendar.date(from: comps) else { return nil }
+                guard let start = calendar.date(from: comps) else { return [] }
                 monthStart = start
             }
-            guard let range = calendar.range(of: .day, in: .month, for: monthStart) else { return nil }
+            guard let range = calendar.range(of: .day, in: .month, for: monthStart) else { return [] }
             let daysInMonth = range.count
             var comps = calendar.dateComponents([.year, .month], from: monthStart)
             switch recurrence.rule ?? .dayOfMonth(1) {
             case .dayOfMonth(let day):
-                guard day <= daysInMonth else { return nil }
+                guard day <= daysInMonth else { return [] }
                 comps.day = day
-                return calendar.date(from: comps)
+                return calendar.date(from: comps).map { [$0] } ?? []
             case .lastDayOfMonth:
                 comps.day = daysInMonth
-                return calendar.date(from: comps)
+                return calendar.date(from: comps).map { [$0] } ?? []
             case .nthWeekday(let nth, let weekday):
                 var hits: [Date] = []
                 for day in 1...daysInMonth {
@@ -533,10 +541,20 @@ extension Recurrence {
                           calendar.component(.weekday, from: date) == weekday else { continue }
                     hits.append(date)
                 }
-                if nth == DayRule.last { return hits.last }
-                guard nth >= 1, nth <= hits.count else { return nil }
-                return hits[nth - 1]
+                if nth == DayRule.last { return hits.last.map { [$0] } ?? [] }
+                guard nth >= 1, nth <= hits.count else { return [] }
+                return [hits[nth - 1]]
+            case .multipleDays(let days):
+                return days.sorted().compactMap { day in
+                    guard day <= daysInMonth else { return nil }
+                    comps.day = day
+                    return calendar.date(from: comps)
+                }
             }
+        }
+
+        func ruleDay(inPeriod periodStart: Date) -> Date? {
+            ruleDays(inPeriod: periodStart).first
         }
 
         // MARK: Kleinkram
@@ -708,7 +726,7 @@ extension Recurrence {
 extension Recurrence: Codable {
     private enum CodingKeys: String, CodingKey {
         // Neu:
-        case freq, interval, weekdays, ruleKind, ruleDay, ruleNth, ruleWeekday
+        case freq, interval, weekdays, ruleKind, ruleDay, ruleDays, ruleNth, ruleWeekday
         case month, start, endDate, endCount, endTitle
         // Geteilt mit dem Alt-Format (gleiche Bedeutung, deshalb derselbe Schlüssel):
         case times, target
@@ -738,6 +756,9 @@ extension Recurrence: Codable {
             let nth = try c.decodeIfPresent(Int.self, forKey: .ruleNth) ?? 1
             let weekday = try c.decodeIfPresent(Int.self, forKey: .ruleWeekday) ?? 2
             rule = .nthWeekday(nth: nth, weekday: weekday)
+        case "multiple":
+            rule = .multipleDays(Set(try c.decodeIfPresent([Int].self,
+                                                            forKey: .ruleDays) ?? []))
         default:
             rule = nil
         }
@@ -779,6 +800,9 @@ extension Recurrence: Codable {
             try c.encode("nth", forKey: .ruleKind)
             try c.encode(nth, forKey: .ruleNth)
             try c.encode(weekday, forKey: .ruleWeekday)
+        case .multipleDays(let days)?:
+            try c.encode("multiple", forKey: .ruleKind)
+            try c.encode(days.sorted(), forKey: .ruleDays)
         case nil:
             break
         }

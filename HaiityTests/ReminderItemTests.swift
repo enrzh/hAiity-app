@@ -47,11 +47,11 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertTrue(branch.contains("revertReminder(habit)"))
     }
 
-    func testCombinedListBranchesByItemTypeWithoutFilteringReminders() throws {
+    func testCombinedListBranchesByItemTypeAfterApplyingTheSharedFilter() throws {
         let source = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(source.contains("ItemPresentation.forItem(habit)"))
         XCTAssertTrue(source.contains("ReminderRow("))
-        XCTAssertTrue(source.contains("let active = visibleActiveHabits"))
+        XCTAssertTrue(source.contains("let active = listFilteredHabits"))
     }
 
     func testEditorOffersAndPersistsItemType() throws {

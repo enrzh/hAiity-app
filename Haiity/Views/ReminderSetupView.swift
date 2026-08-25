@@ -21,10 +21,12 @@ struct ReminderSetupView: View {
     @State private var weeklyEnabled = true
     @State private var denied = false
     @State private var page = 0
+    @State private var proStatus = ProStatus.shared
 
     private static let lastPage = 2
 
     private var accent: Color { Theme.accentText(store.paletteStyle) }
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
     var body: some View {
         NavigationStack {
@@ -205,7 +207,7 @@ struct ReminderSetupView: View {
                 Button {
                     enable()
                 } label: {
-                    Label(String(localized: "Benachrichtigungen aktivieren"), systemImage: "bell")
+                    Label(String(localized: "Berechtigungen aktivieren"), systemImage: "lock.open")
                         .font(.body.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
@@ -238,10 +240,17 @@ struct ReminderSetupView: View {
 
     private func enable() {
         Task {
-            let granted = await Reminders.ensurePermission()
+            let notificationsGranted = await Reminders.ensurePermission()
+            if unlocked {
+                // Calendar and native Reminders are optional Pro integrations;
+                // ask for both during setup, but do not block setup if either
+                // permission is declined.
+                _ = await CalendarSync.requestAccess()
+                _ = await ReminderSync.requestAccess()
+            }
             await MainActor.run {
-                denied = !granted
-                guard granted else { return }
+                denied = !notificationsGranted
+                guard notificationsGranted else { return }
                 if dailyEnabled {
                     store.summaryMinutes = store.summaryMinutes ?? 20 * 60
                 }

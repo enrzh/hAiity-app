@@ -117,8 +117,6 @@ struct MoreView: View {
     /// die Schlösser hier trotzdem aufgehen.
     private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
-    private var archivedCount: Int { store.habits.filter { $0.archivedAt != nil }.count }
-
     private var localCloudPreferences: CloudPreferences {
         CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
                          calendarSyncReminders: CalendarSync.syncReminders,
@@ -250,12 +248,6 @@ struct MoreView: View {
             }
             .settingsListRow()
             notificationSettingsSection.settingsListRow()
-            Section {
-                pageRow(MoreRoute.archive, title: String(localized: "Archiv"),
-                        symbol: "archivebox", identifier: "open-archive",
-                        badge: archivedCount > 0 ? "\(archivedCount)" : nil)
-            }
-            .settingsListRow()
             Section {
                 Button { showReminderSetup = true } label: {
                     Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
@@ -724,21 +716,22 @@ struct MoreView: View {
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("personal-alias")
             if let storedAppleUserID {
-                if let displayName = PersonalName.resolve(alias: aliasDraft,
-                                                          appleName: storedAppleName) {
+                let displayName = PersonalName.resolve(alias: aliasDraft,
+                                                        appleName: storedAppleName)
+                    ?? String(localized: "Apple-ID")
+                HStack(spacing: Theme.Metrics.gap) {
                     Label(String(format: String(localized: "Angemeldet als %@"), displayName),
                           systemImage: "person.crop.circle.badge.checkmark")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: Theme.Metrics.gap)
+                    Button(String(localized: "Abmelden"), role: .destructive) {
+                        signOutFromApple()
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("apple-signout")
                 }
-                Button(role: .destructive) {
-                    signOutFromApple()
-                } label: {
-                    Label(String(localized: "Abmelden"),
-                          systemImage: "rectangle.portrait.and.arrow.right")
-                        .frame(maxWidth: .infinity)
-                }
-                .accessibilityIdentifier("apple-signout")
                 if appleSignInCameBackEmpty && PersonalName.effective == nil {
                     Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
                         .font(.caption)
