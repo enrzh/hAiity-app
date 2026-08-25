@@ -8,6 +8,8 @@ struct GitHubContributionGraph: View {
     var weeks: Int?
     var cellSize: CGFloat?
     var gap: CGFloat?
+    var showsMonthLabels: Bool = true
+    var interactive: Bool = true
     var palette: PaletteStyle = .default
 
     @Environment(\.colorScheme) private var scheme
@@ -46,7 +48,9 @@ struct GitHubContributionGraph: View {
 
         ScrollView(.horizontal, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 3) {
-                monthRow(layout.marks, width: contentWidth, pitch: pitch)
+                if showsMonthLabels {
+                    monthRow(layout.marks, width: contentWidth, pitch: pitch)
+                }
                 Canvas { context, _ in
                     var shading: [Int: GraphicsContext.Shading] = [:]
                     let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
@@ -82,6 +86,7 @@ struct GitHubContributionGraph: View {
         }
         .environment(\.layoutDirection, .leftToRight)
         .defaultScrollAnchor(.trailing)
+        .scrollDisabled(!interactive)
         .background(widthReader)
         .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
     }

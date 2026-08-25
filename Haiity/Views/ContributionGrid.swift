@@ -115,9 +115,9 @@ struct ContributionGrid: View, Equatable {
         // Recent habits use a viewport-sized history window. Disable the
         // horizontal gesture once layout confirms there is no extra content;
         // otherwise iOS still gives the graph an empty rubber-band bounce.
-        .scrollDisabled(available > 0
+        .scrollDisabled(!interactive || (available > 0
                         && !GridCalendar.needsHorizontalScroll(contentWidth: contentWidth,
-                                                               viewportWidth: available))
+                                                               viewportWidth: available)))
         .background(widthReader)
         // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in

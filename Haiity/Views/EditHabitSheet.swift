@@ -251,6 +251,8 @@ struct EditHabitSheet: View {
                     }
                 })
             .themed(store, palettes: palettes)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
         .onAppear { load() }
         .confirmationDialog(String(localized: "Eintrag löschen?"),

@@ -716,11 +716,44 @@ struct ContentView: View {
     /// Schicht.
     private var floatingPills: some View {
         VStack(spacing: Theme.Metrics.gap) {
+            filterToast
             undoToast
             syncBadge
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.bottom, Theme.Metrics.gap)
+    }
+
+    /// A filter is a mode, not a one-shot action. Keep the same glass toast
+    /// family as undo/sync visible while the mode is active and offer the
+    /// reset at the point where the user notices the filtered list.
+    @ViewBuilder
+    private var filterToast: some View {
+        if !habitFilter.isEmpty {
+            HStack(spacing: Theme.Metrics.gap) {
+                Label(String(localized: "Filter aktiv"),
+                      systemImage: "line.3.horizontal.decrease.circle.fill")
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: Theme.Metrics.gap)
+                Button {
+                    withAnimation { habitFilter = HabitListFilter() }
+                } label: {
+                    Text(String(localized: "Zurücksetzen"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.accentText(effectivePaletteStyle))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("clear-filters")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .modifier(ToastSurface())
+            .transition(reduceMotion ? .opacity
+                        : .move(edge: .bottom).combined(with: .opacity))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("filter-toast")
+        }
     }
 
     private var habitsStack: some View {
@@ -1005,12 +1038,7 @@ struct ContentView: View {
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Menu {
-                            habitFilterMenu
-                        } label: {
-                            Label(String(localized: "Bearbeiten"), systemImage: "ellipsis")
-                        }
-                        .accessibilityIdentifier("habit-management")
+                        habitFilterMenu
                     }
                     createToolbarItem
                 }

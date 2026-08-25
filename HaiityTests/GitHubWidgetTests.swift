@@ -144,10 +144,12 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testGraphContextMenuScopesItsHitTestToItsHost() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
-        XCTAssertTrue(source.contains("let targetFrame = convert(bounds, to: view)"),
-                      "each graph menu must use its own card frame in the interaction host")
-        XCTAssertTrue(source.contains("targetFrame.contains(location)"),
-                      "a GitHub tile touch must not resolve another row's menu")
+        XCTAssertTrue(source.contains("GraphContextMenuHub"),
+                      "a UIKit host must coordinate its registered cards")
+        XCTAssertTrue(source.contains("host(at location: CGPoint)"),
+                      "the hub must resolve the held card from its own frame")
+        XCTAssertTrue(source.contains("convert($0.bounds, to: container).contains(location)"),
+                      "a GitHub tile touch must not resolve another card")
     }
 
     func testGitHubTilesHaveNoBackfillSelectionHandler() throws {

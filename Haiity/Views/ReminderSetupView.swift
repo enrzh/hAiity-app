@@ -22,6 +22,14 @@ struct ReminderSetupView: View {
     @State private var denied = false
     @State private var page = 0
     @State private var proStatus = ProStatus.shared
+    @State private var calendarPermissionGranted = false
+    @State private var remindersPermissionGranted = false
+    @State private var requestingPermission: NativePermission?
+
+    private enum NativePermission: Equatable {
+        case calendar
+        case reminders
+    }
 
     private static let lastPage = 2
 
@@ -41,6 +49,7 @@ struct ReminderSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .settingsChrome()
+        .onAppear { refreshPermissions() }
     }
 
     // MARK: – Seiten
@@ -105,6 +114,7 @@ struct ReminderSetupView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
             habitReminderCard
+            calendarPermissionCard
             if denied {
                 deniedHint
             }
@@ -152,6 +162,73 @@ struct ReminderSetupView: View {
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    /// Native integrations are optional, but their permission request belongs
+    /// visibly in setup rather than being hidden behind the final notification
+    /// button. The rows remain available for Pro users and explain the gate
+    /// for everyone else without requesting anything on mere page appearance.
+    private var calendarPermissionCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                Label(String(localized: "Apple-Apps verbinden"),
+                      systemImage: "arrow.triangle.2.circlepath")
+                    .font(.subheadline.weight(.semibold))
+                Text(String(localized: "Eigene Einträge können mit Kalender und Erinnerungen synchronisiert werden."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                permissionRow(title: String(localized: "Kalender"),
+                              symbol: "calendar",
+                              granted: calendarPermissionGranted,
+                              permission: .calendar,
+                              action: requestCalendarPermission)
+                    .accessibilityIdentifier("setup-calendar-permission")
+                Divider()
+                permissionRow(title: String(localized: "Erinnerungen"),
+                              symbol: "checklist",
+                              granted: remindersPermissionGranted,
+                              permission: .reminders,
+                              action: requestRemindersPermission)
+                    .accessibilityIdentifier("setup-reminders-permission")
+            }
+        }
+        .accessibilityIdentifier("setup-native-permissions")
+    }
+
+    private func permissionRow(title: String,
+                               symbol: String,
+                               granted: Bool,
+                               permission: NativePermission,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Metrics.gap) {
+                Image(systemName: symbol)
+                    .foregroundStyle(accent)
+                    .frame(width: 24)
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: Theme.Metrics.gap)
+                if requestingPermission == permission {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if granted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if unlocked {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!unlocked || requestingPermission != nil)
     }
 
     private func card(@ViewBuilder content: () -> some View) -> some View {
@@ -241,14 +318,15 @@ struct ReminderSetupView: View {
     private func enable() {
         Task {
             let notificationsGranted = await Reminders.ensurePermission()
+            var calendarGranted = calendarPermissionGranted
+            var remindersGranted = remindersPermissionGranted
             if unlocked {
-                // Calendar and native Reminders are optional Pro integrations;
-                // ask for both during setup, but do not block setup if either
-                // permission is declined.
-                _ = await CalendarSync.requestAccess()
-                _ = await ReminderSync.requestAccess()
+                calendarGranted = await CalendarSync.requestAccess()
+                remindersGranted = await ReminderSync.requestAccess()
             }
             await MainActor.run {
+                calendarPermissionGranted = calendarGranted
+                remindersPermissionGranted = remindersGranted
                 denied = !notificationsGranted
                 guard notificationsGranted else { return }
                 if dailyEnabled {
@@ -258,6 +336,35 @@ struct ReminderSetupView: View {
                     store.weeklySummaryMinutes = store.weeklySummaryMinutes ?? 18 * 60
                 }
                 finish()
+            }
+        }
+    }
+
+    private func refreshPermissions() {
+        calendarPermissionGranted = CalendarSync.hasAccess
+        remindersPermissionGranted = ReminderSync.hasAccess
+    }
+
+    private func requestCalendarPermission() {
+        guard unlocked else { return }
+        requestingPermission = .calendar
+        Task {
+            let granted = await CalendarSync.requestAccess()
+            await MainActor.run {
+                calendarPermissionGranted = granted
+                requestingPermission = nil
+            }
+        }
+    }
+
+    private func requestRemindersPermission() {
+        guard unlocked else { return }
+        requestingPermission = .reminders
+        Task {
+            let granted = await ReminderSync.requestAccess()
+            await MainActor.run {
+                remindersPermissionGranted = granted
+                requestingPermission = nil
             }
         }
     }

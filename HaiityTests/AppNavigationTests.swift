@@ -467,7 +467,9 @@ final class AppNavigationTests: XCTestCase {
 
     func testHabitToolbarKeepsManagementDestinationsReachable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-management\")"))
+        XCTAssertTrue(source.contains("habitFilterMenu"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-filter\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"filter-toast\")"))
         // Statistik ist ein eigener Tab; Archive is now inside the filter menu.
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"open-stats\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))

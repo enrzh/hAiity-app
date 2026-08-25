@@ -96,7 +96,9 @@ struct GitHubContributionCard: View, Equatable {
                                     // inside this fixed popup frame.
                                     weeks: Self.previewGraphWeeks,
                                     cellSize: previewGraphCellSize,
-                                    gap: Self.previewGraphGap)
+                                    gap: Self.previewGraphGap,
+                                    showsMonthLabels: false,
+                                    interactive: false)
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
