@@ -24,6 +24,18 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertFalse(source.contains(".contextMenu {"))
     }
 
+    func testReminderPreviewConstrainsItsLayoutBeforeApplyingTheSurface() throws {
+        let source = try source("Haiity/Views/ReminderRow.swift")
+        let start = try XCTUnwrap(source.range(of: "private var reminderPreview: some View"))
+        let end = try XCTUnwrap(source.range(of: "private var menuActions:",
+                                             range: start.upperBound..<source.endIndex))
+        let preview = source[start.lowerBound..<end.lowerBound]
+        let frame = try XCTUnwrap(preview.range(of: ".frame(width: previewWidth"))
+        let surface = try XCTUnwrap(preview.range(of: ".appSurface()"))
+        XCTAssertLessThan(frame.lowerBound, surface.lowerBound,
+                          "the context preview width must be applied before appSurface")
+    }
+
     func testReminderHasFixedDoneAndRevertSwipeActions() throws {
         let source = try source("Haiity/Views/ContentView.swift")
         let reminder = try XCTUnwrap(source.range(of: "case .reminderRow:"))
@@ -83,6 +95,17 @@ final class ReminderItemTests: XCTestCase {
         let source = try source("Haiity/Views/ReminderRow.swift")
         XCTAssertTrue(source.contains("Rückgängig"))
         XCTAssertTrue(source.contains("onRevert"))
+        XCTAssertTrue(source.contains("Löschen"))
+        XCTAssertTrue(source.contains("onDelete"))
+    }
+
+    func testHabitEditorOffersDeleteForExistingItems() throws {
+        let editor = try editorSource()
+        let card = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(editor.contains("delete-habit"))
+        XCTAssertTrue(editor.contains("store.remove(habit.id)"))
+        XCTAssertTrue(card.contains("handler: onDelete"))
     }
 
     func testEditorKeepsTheSharedHabitSettings() throws {
@@ -91,6 +114,14 @@ final class ReminderItemTests: XCTestCase {
         for section in ["recurrenceSection", "durationSection", "kindSection", "colorSection"] {
             XCTAssertTrue(source.contains(section), "missing shared editor section: \(section)")
         }
+    }
+
+    func testHabitAndReminderEditorOfferConfirmedDelete() throws {
+        let source = try editorSource()
+        XCTAssertTrue(source.contains("showingDeleteConfirmation"))
+        XCTAssertTrue(source.contains("delete-habit"))
+        XCTAssertTrue(source.contains("store.remove(habit.id)"))
+        XCTAssertTrue(source.contains("role: .destructive"))
     }
 
     func testReminderModeHidesHabitKindControls() throws {
@@ -107,7 +138,9 @@ final class ReminderItemTests: XCTestCase {
     func testOnlyNewTrackedHabitsUseTheFreeLimit() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("existing == nil && itemType == .habit"))
+        XCTAssertTrue(source.contains("ProGate.maySaveTrackedHabit"))
+        XCTAssertTrue(source.contains("existingIsTracked: existing?.isTrackedHabit == true"))
+        XCTAssertTrue(source.contains("targetIsTracked: itemType == .habit"))
         XCTAssertTrue(source.contains("store.activeTrackedHabits.count"))
         XCTAssertTrue(source.contains("paywall = .habits"))
     }

@@ -55,6 +55,17 @@ struct DeveloperView: View {
     @State private var showImporter = false
     @State private var importMessage: String?
 
+    private enum ImportError: LocalizedError {
+        case trackedHabitLimit
+
+        var errorDescription: String? {
+            switch self {
+            case .trackedHabitLimit:
+                return String(localized: "Dieser Import würde das kostenlose Limit von drei aktiven Habits überschreiten. Mit hAiity Pro kannst du ihn vollständig zusammenführen.")
+            }
+        }
+    }
+
     /// Was angezeigt und kopiert wird. Vor dem Sammeln der leere Stand —
     /// jede ZAHL daraus wird von `count`/`yesNo`/`shortDate` zu `n/a`.
     private var facts: DiagnosticsFacts { collected ?? DiagnosticsFacts() }
@@ -293,6 +304,17 @@ struct DeveloperView: View {
             .foregroundStyle(.primary)
             .accessibilityIdentifier("reset-background")
 
+            Button(role: .destructive) {
+                store.removeBackgroundImage()
+                actionMessage = String(localized: "Hintergrundbild entfernt.")
+                Theme.Haptics.success()
+            } label: {
+                Label(String(localized: "Hintergrundbild erzwingen entfernen"),
+                      systemImage: "photo.badge.minus")
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("force-remove-background-image")
+
             Button {
                 // Bewusst das ALLGEMEINE Pasteboard, ohne `.localOnly`: Der
                 // Bericht SOLL das Gerät verlassen — der übliche Weg ist,
@@ -373,7 +395,14 @@ struct DeveloperView: View {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             do {
-                try store.importJSON(Data(contentsOf: url))
+                let raw = try Data(contentsOf: url)
+                let incoming = try JSONDecoder().decode(HabitData.self, from: raw)
+                guard ProGate.mayImport(incoming: incoming,
+                                        into: store.data,
+                                        unlocked: Pro.isUnlocked) else {
+                    throw ImportError.trackedHabitLimit
+                }
+                try store.importJSON(raw)
                 importMessage = String(localized: "Import zusammengeführt.")
                 Task { await collect() }
             } catch {

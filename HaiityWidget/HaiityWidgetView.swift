@@ -220,8 +220,6 @@ struct HaiityWidgetView: View {
     private func checkButton(_ habit: Habit, dark: Bool) -> some View {
         let done = GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
         let declined = habit.isDeclined(today)
-        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
-        let hasValue = habit.isReminder ? summary.status == .done : habit.log[today] != nil
         return HStack(spacing: 5) {
             if habit.kind == .yesNo, habit.isTrackedHabit {
                 Button(intent: AnswerYesHabitIntent(habit: habit)) {
@@ -267,7 +265,7 @@ struct HaiityWidgetView: View {
                                     : String(localized: "Habit abhaken"))
             }
 
-            if entry.widgetResetEnabled && hasValue {
+            if entry.widgetResetEnabled {
                 Button(intent: ResetHabitIntent(habit: habit)) {
                     Image(systemName: "arrow.uturn.backward.circle")
                         .font(.caption)

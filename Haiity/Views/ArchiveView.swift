@@ -5,10 +5,14 @@ import SwiftUI
 struct ArchiveView: View {
     let store: HabitStore
     @State private var pendingDelete: Habit?
+    @State private var pendingRestore: Habit?
+    @State private var paywall: PaywallContext?
+    @State private var proStatus = ProStatus.shared
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.palettes) private var palettes
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
+    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
     var body: some View {
         List {
@@ -52,6 +56,18 @@ struct ArchiveView: View {
         } message: { habit in
             Text(String(localized: "„\(habit.name)“ und die komplette Historie (\(habit.checkInCount()) Check-ins) werden gelöscht. Das lässt sich nicht rückgängig machen."))
         }
+        .sheet(item: $paywall) { context in
+            PaywallView(context: context, store: store,
+                        onUnlocked: {
+                            if let pendingRestore {
+                                store.unarchive(pendingRestore.id)
+                                Theme.Haptics.success()
+                                self.pendingRestore = nil
+                            }
+                            paywall = nil
+                        })
+                .themed(store, palettes: palettes)
+        }
     }
 
     /// Archiv-Zeile. Ab den Accessibility-Größen bricht sie um — sonst
@@ -91,6 +107,14 @@ struct ArchiveView: View {
 
     private func restoreButton(for habit: Habit) -> some View {
         Button {
+            guard ProGate.mayUnarchiveTrackedHabit(
+                isTracked: habit.isTrackedHabit,
+                activeCount: store.activeTrackedHabits.count,
+                unlocked: unlocked) else {
+                pendingRestore = habit
+                paywall = .habits
+                return
+            }
             store.unarchive(habit.id)
             Theme.Haptics.success()
         } label: {

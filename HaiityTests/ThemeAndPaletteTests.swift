@@ -231,8 +231,9 @@ final class AppearanceSettingTests: XCTestCase {
                       "startup should finish preparing the same image SwiftUI will render")
     }
 
-    func testSelectingNonImageModeClearsTheStoredImage() {
-        var preferences = AppearancePreferences(backgroundImageData: Data([1, 2, 3]),
+    func testSelectingNonImageModeRemovesTheStoredImage() throws {
+        let imageData = try validImageData()
+        var preferences = AppearancePreferences(backgroundImageData: imageData,
                                                  backgroundMode: .image)
 
         preferences.selectBackgroundMode(.gradient)
@@ -241,12 +242,22 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(preferences.backgroundImageData)
     }
 
-    func testSelectingImageModeWithoutAnImageFallsBackToColor() {
+    func testRemovingTheBackgroundImageIsAnExplicitDestructiveAction() throws {
+        var preferences = AppearancePreferences(backgroundImageData: try validImageData(),
+                                                 backgroundMode: .image)
+
+        preferences.removeBackgroundImage()
+
+        XCTAssertEqual(preferences.backgroundMode, .color)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testSelectingImageModeWithoutAnImageKeepsThePickerMode() {
         var preferences = AppearancePreferences(backgroundMode: .color)
 
         preferences.selectBackgroundMode(.image)
 
-        XCTAssertEqual(preferences.backgroundMode, .color)
+        XCTAssertEqual(preferences.backgroundMode, .image)
         XCTAssertNil(preferences.backgroundImageData)
     }
 
@@ -281,8 +292,13 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(preferences.backgroundImageData)
     }
 
-    func testDecodedImageModeWithoutImageFallsBackToColor() throws {
-        let raw = Data(#"{"material":"solid","backgroundMode":"image"}"#.utf8)
+    func testDecodedColorModeDropsAValidStaleImage() throws {
+        let imageData = try validImageData()
+        let raw = try JSONSerialization.data(withJSONObject: [
+            "material": "solid",
+            "backgroundMode": "color",
+            "backgroundImageData": imageData.base64EncodedString()
+        ])
 
         let preferences = try JSONDecoder().decode(AppearancePreferences.self, from: raw)
 
@@ -290,7 +306,16 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(preferences.backgroundImageData)
     }
 
-    func testInvalidImagePayloadNormalizesToColorBeforeStorage() {
+    func testDecodedImageModeWithoutImageKeepsThePickerMode() throws {
+        let raw = Data(#"{"material":"solid","backgroundMode":"image"}"#.utf8)
+
+        let preferences = try JSONDecoder().decode(AppearancePreferences.self, from: raw)
+
+        XCTAssertEqual(preferences.backgroundMode, .image)
+        XCTAssertNil(preferences.backgroundImageData)
+    }
+
+    func testInvalidImagePayloadNormalizesToAnEmptyImageModeBeforeStorage() {
         let preferences = AppearancePreferences(
             material: .liquid,
             backgroundImageData: Data([1, 2, 3]),
@@ -300,7 +325,7 @@ final class AppearanceSettingTests: XCTestCase {
         let normalized = preferences.normalizedForStorage()
 
         XCTAssertEqual(normalized.material, .liquid)
-        XCTAssertEqual(normalized.backgroundMode, .color)
+        XCTAssertEqual(normalized.backgroundMode, .image)
         XCTAssertEqual(normalized.backgroundColorHex, 0x112233)
         XCTAssertNil(normalized.backgroundImageData)
     }
@@ -315,9 +340,9 @@ final class AppearanceSettingTests: XCTestCase {
             backgroundImageData: Data([1, 2, 3]),
             backgroundMode: .image)
 
-        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .image)
         XCTAssertNil(store.appearancePreferences.backgroundImageData)
-        XCTAssertEqual(HabitStore(url: url).appearancePreferences.backgroundMode, .color)
+        XCTAssertEqual(HabitStore(url: url).appearancePreferences.backgroundMode, .image)
     }
 
     func testMergeNormalizesRemoteImageModeBeforeApplyingIt() {
@@ -337,18 +362,18 @@ final class AppearanceSettingTests: XCTestCase {
 
         store.merge(remote: remote)
 
-        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .image)
         XCTAssertNil(store.appearancePreferences.backgroundImageData)
     }
 
-    func testStoreResetBackgroundClearsEveryBackgroundValueAndPersists() {
+    func testStoreResetBackgroundClearsEveryBackgroundValueAndPersists() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-background-reset-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         let store = HabitStore(url: url)
         store.appearancePreferences = AppearancePreferences(
             material: .adaptive,
-            backgroundImageData: Data([1, 2, 3]),
+            backgroundImageData: try validImageData(),
             backgroundMode: .image,
             backgroundColorHex: 0x112233,
             gradientStartHex: 0x445566,
@@ -365,6 +390,36 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(saved.gradientEndHex)
     }
 
+    func testStoreRemoveBackgroundImagePersistsAnExplicitRemoval() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-background-remove-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = HabitStore(url: url)
+        store.appearancePreferences = AppearancePreferences(
+            backgroundImageData: try validImageData(),
+            backgroundMode: .image)
+
+        store.removeBackgroundImage()
+
+        let saved = HabitStore(url: url).appearancePreferences
+        XCTAssertEqual(saved.backgroundMode, .color)
+        XCTAssertNil(saved.backgroundImageData)
+        XCTAssertNotNil(saved.backgroundResetAt)
+    }
+
+    func testModeSelectorTreatsOnlyValidatedImageDataAsExisting() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("appearance.imagePayload == nil"),
+                      "the image mode control must open the picker when no usable image exists")
+        XCTAssertTrue(more.contains("store.removeBackgroundImage()"),
+                      "the visible delete action must use the explicit removal path")
+    }
+
     func testDeveloperPageOffersTheForceBackgroundReset() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -373,6 +428,8 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(source.contains("store.resetBackground()"))
         XCTAssertTrue(source.contains("\"reset-background\""))
+        XCTAssertTrue(source.contains("store.removeBackgroundImage()"))
+        XCTAssertTrue(source.contains("\"force-remove-background-image\""))
     }
 
     func testSystemMeansNoOverride() {
@@ -409,6 +466,10 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("func settingsChrome()"),
                       "settings chrome needs a reusable non-list surface")
+        XCTAssertTrue(theme.contains("listRowSpacing(Theme.Metrics.settingsRowGap)"),
+                      "settings rows need a shared gap instead of a squished glass stack")
+        XCTAssertTrue(theme.contains("listSectionSpacing(Theme.Metrics.settingsSectionGap)"),
+                      "settings groups need shared breathing room")
         XCTAssertTrue(setup.contains(".settingsChrome()"),
                       "the reminder setup page must follow the selected material too")
     }
@@ -466,10 +527,10 @@ final class AppearanceSettingTests: XCTestCase {
         let picker = more[imagePickerStart.lowerBound..<imagePickerEnd.lowerBound]
         XCTAssertFalse(picker.contains(".appSurface("),
                        "PhotosPicker must not own a hit-sensitive material modifier")
-        XCTAssertTrue(more.contains(".background(.regularMaterial,"),
-                      "the image action should keep its visual surface behind the picker")
-        XCTAssertTrue(picker.contains("openBackgroundPicker()"),
-                      "the image button must use the same explicit picker path from every mode")
+        XCTAssertTrue(more.contains("PhotosPicker(selection: $pickedBackgroundItem"),
+                      "image selection must use the native PhotosUI control")
+        XCTAssertTrue(picker.contains("PhotosPicker("),
+                      "the image action should be a direct native picker control")
         let removeStart = try XCTUnwrap(more.range(of: "Button(role: .destructive)"))
         let removeEnd = try XCTUnwrap(more.range(of: ".accessibilityIdentifier(\"appearance-background-remove\")",
                                                   range: removeStart.upperBound..<more.endIndex))
@@ -500,7 +561,7 @@ final class AppearanceSettingTests: XCTestCase {
                        "iOS 27 List presentation currently drops taps for this editor")
     }
 
-    func testAppearanceBackgroundEditorUsesDirectHitTestableActions() throws {
+    func testAppearanceBackgroundEditorUsesNativeControls() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -512,27 +573,37 @@ final class AppearanceSettingTests: XCTestCase {
         let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
         XCTAssertTrue(background.contains("backgroundModeSelector"),
                       "background modes need a dedicated selector on iOS 27")
-        XCTAssertTrue(background.contains(".sheet(isPresented: $showingBackgroundPhotoPicker)"),
-                      "the picker sheet must be hosted by the always-rendered background control")
-        XCTAssertTrue(more.contains("private func backgroundModeButton"),
-                      "each background mode needs its own direct button on iOS 27")
-        XCTAssertFalse(background.contains("pickerStyle(.segmented)"),
-                       "the segmented picker drops taps in this scroll editor on iOS 27")
-        XCTAssertTrue(more.contains("\"appearance-background-mode-\\(mode.rawValue)\""),
-                      "each mode needs an independently testable hit target")
+        XCTAssertTrue(background.contains("Picker(selection: backgroundModeBinding"),
+                      "background modes must use a native picker hit target")
+        XCTAssertFalse(more.contains("showingBackgroundPhotoPicker"),
+                       "the fragile custom sheet state must not remain")
+        XCTAssertFalse(more.contains("private func backgroundModeButton"),
+                       "the custom mode buttons must not remain")
+        XCTAssertTrue(more.contains("\"appearance-background-mode-picker\""),
+                      "the native picker needs one stable test target")
 
         let imageStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
         let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
                                                 range: imageStart.upperBound..<more.endIndex))
         let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
-        XCTAssertTrue(imagePicker.contains("Button {"),
-                      "the image action must have a direct native button hit target")
-        XCTAssertTrue(imagePicker.contains("openBackgroundPicker()"),
-                      "the image action must explicitly request the picker")
-        XCTAssertTrue(more.contains("PHPickerViewController"),
-                      "the iOS 27 picker path must use the native PhotosUI controller")
-        XCTAssertFalse(imagePicker.contains("PhotosPicker(selection:"),
-                       "the nested SwiftUI PhotosPicker control is the unreliable path")
+        XCTAssertTrue(imagePicker.contains("PhotosPicker(selection: $pickedBackgroundItem"),
+                      "the image action must have a direct native picker hit target")
+        XCTAssertFalse(more.contains("PHPickerViewController"),
+                       "the custom UIKit picker path must not remain")
+    }
+
+    func testBackgroundPickerUsesOneAsyncImportPath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("loadTransferable(type: Data.self)"),
+                      "the native picker must load one transferable payload")
+        XCTAssertTrue(more.contains("importBackgroundImage(data)"),
+                      "the native picker must share the existing normalization path")
+        XCTAssertTrue(more.contains("backgroundImageImportToken"),
+                      "a canceled or replaced selection must invalidate stale work")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {
@@ -543,47 +614,20 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(more.contains("backgroundImageData != nil"),
                       "a corrupt but persisted image must remain removable")
-        XCTAssertTrue(more.contains("if mode != .image"),
-                      "switching to a color or gradient must clear stale image state")
+        XCTAssertTrue(more.contains("removeBackgroundImage()"),
+                      "only the explicit remove action may clear image state")
     }
 
-    func testBackgroundPickerDeliversBeforeDismissingSheet() throws {
+    func testBackgroundPickerDoesNotRetainASecondUIKitCoordinator() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
-        let start = try XCTUnwrap(
-            more.range(of: "final class Coordinator: NSObject, PHPickerViewControllerDelegate"))
-        let end = try XCTUnwrap(
-            more.range(of: "/// Kurz und ehrlich", range: start.upperBound..<more.endIndex))
-        let picker = more[start.lowerBound..<end.lowerBound]
 
-        let load = try XCTUnwrap(picker.range(of: "loadDataRepresentation"))
-        let deliver = try XCTUnwrap(picker.range(of: "DispatchQueue.main.async"))
-        let pick = try XCTUnwrap(picker.range(of: "onPick(data)", range: deliver.upperBound..<picker.endIndex))
-        let finish = try XCTUnwrap(picker.range(of: "onFinish()", range: pick.upperBound..<picker.endIndex))
-        XCTAssertLessThan(load.lowerBound, deliver.lowerBound,
-                          "Photos must load the asset before the sheet completion is dispatched")
-        XCTAssertLessThan(pick.lowerBound, finish.lowerBound,
-                          "the appearance state must be updated before the picker dismisses")
-    }
-
-    func testBackgroundPhotoPickerRetainsCoordinatorForAsyncProviderCallbacks() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
-        let start = try XCTUnwrap(
-            more.range(of: "final class Coordinator: NSObject, PHPickerViewControllerDelegate"))
-        let end = try XCTUnwrap(
-            more.range(of: "/// Kurz und ehrlich", range: start.upperBound..<more.endIndex))
-        let coordinator = more[start.lowerBound..<end.lowerBound]
-
-        XCTAssertTrue(coordinator.contains("loadDataRepresentation"))
-        XCTAssertTrue(coordinator.contains("loadObject"))
-        XCTAssertTrue(coordinator.contains("loadFileRepresentation"))
-        XCTAssertFalse(coordinator.contains("{ [weak self]"),
-                       "Photos callbacks must retain the coordinator until bytes arrive")
+        XCTAssertFalse(more.contains("final class Coordinator: NSObject, PHPickerViewControllerDelegate"),
+                       "the native SwiftUI picker owns its lifecycle")
+        XCTAssertTrue(more.contains("pickedBackgroundItem"),
+                      "the selection must be retained by the view state")
     }
 
     func testBackgroundPickerFallsBackForCloudAndNonCurrentRepresentations() throws {
@@ -592,10 +636,10 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
 
-        XCTAssertTrue(more.contains("loadObject(ofClass: UIImage.self)"),
-                      "Photos may fail to vend UTType.image data for an iCloud asset")
-        XCTAssertTrue(more.contains("loadFileRepresentation"),
-                      "the picker needs a file fallback for provider-backed assets")
+        XCTAssertTrue(more.contains("PhotosPicker(selection: $pickedBackgroundItem"),
+                      "PhotosPicker handles iCloud-backed asset representations")
+        XCTAssertTrue(more.contains("loadTransferable(type: Data.self)"),
+                      "the picker must load the selected asset asynchronously")
     }
 
     func testMoreViewDoesNotUseStaleEquatableIdentityForAppearanceChanges() throws {

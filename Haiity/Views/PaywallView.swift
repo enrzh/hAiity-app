@@ -75,6 +75,7 @@ struct PaywallView: View {
     @State private var busy: Busy?
     @State private var note: Note?
     @State private var proStatus = ProStatus.shared
+    @Environment(\.palettes) private var palettes
 
     /// Beim Öffnen aus den Einstellungen kann der Kauf schon vorliegen —
     /// dann wäre ein Kaufknopf schlicht falsch. Kein gespiegelter Zustand:
@@ -98,14 +99,14 @@ struct PaywallView: View {
         case storeUnreachable
     }
 
-    private var accent: Color { Theme.accentText(store.paletteStyle) }
+    private var accent: Color { Theme.accentText(palettes.style) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Metrics.gutter) {
                     MotifGrid(pattern: MotifGrid.brand,
-                              palette: store.paletteStyle, cellSize: 16)
+                              palette: palettes.style, cellSize: 16)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 8)
                     header
@@ -231,7 +232,7 @@ struct PaywallView: View {
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(accent)
             .frame(width: 36, height: 36)
-            .background(Theme.accent(store.paletteStyle).opacity(0.12),
+            .background(Theme.accent(palettes.style).opacity(0.12),
                         in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
@@ -265,7 +266,7 @@ struct PaywallView: View {
                 .frame(maxWidth: .infinity, minHeight: 32)
         }
         .buttonStyle(.borderedProminent)
-        .tint(Theme.accentFill(store.paletteStyle))
+        .tint(Theme.accentFill(palettes.style))
         .disabled(busy != nil || product == nil)
         .accessibilityIdentifier("paywall-purchase")
     }
@@ -321,7 +322,7 @@ struct PaywallView: View {
                     .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Theme.accentFill(store.paletteStyle))
+            .tint(Theme.accentFill(palettes.style))
             .accessibilityIdentifier("paywall-done")
         }
     }

@@ -55,6 +55,7 @@ struct HabitCard: View, Equatable {
     let onMarkDone: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
+    var onDelete: () -> Void = {}
     /// Heute mit Ja bzw. Nein beantworten (Habit-Art „Ja/Nein"). Umschaltend:
     /// dieselbe Antwort ein zweites Mal nimmt sie zurück. Steht mit einem
     /// Standardwert ganz am Ende, damit Vorschauen und Tests die Karte ohne
@@ -458,9 +459,16 @@ struct HabitCard: View, Equatable {
          GraphMenuAction(title: String(localized: "Bearbeiten"),
                          symbol: "pencil",
                          handler: onEdit),
+         GraphMenuAction(title: String(localized: "Rückgängig"),
+                         symbol: "arrow.uturn.backward",
+                         handler: onClear),
          GraphMenuAction(title: String(localized: "Archivieren"),
                          symbol: "archivebox",
                          handler: onArchive),
+         GraphMenuAction(title: String(localized: "Löschen"),
+                         symbol: "trash",
+                         handler: onDelete,
+                         destructive: true),
          GraphMenuAction(title: String(localized: "Als Bild teilen"),
                          symbol: "square.and.arrow.up",
                          handler: shareCard)]
@@ -804,6 +812,7 @@ struct GraphMenuAction {
     let title: String
     let symbol: String
     let handler: () -> Void
+    var destructive: Bool = false
 }
 
 struct GraphContextMenu: UIViewRepresentable {
@@ -911,10 +920,14 @@ struct GraphContextMenu: UIViewRepresentable {
                 return controller
             }, actionProvider: { _ in
                 UIMenu(children: actions.map { action in
-                    UIAction(title: action.title,
-                             image: UIImage(systemName: action.symbol)) { _ in
+                    let item = UIAction(title: action.title,
+                                        image: UIImage(systemName: action.symbol)) { _ in
                         action.handler()
                     }
+                    if action.destructive {
+                        item.attributes = [.destructive]
+                    }
+                    return item
                 })
             })
         }

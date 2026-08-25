@@ -137,6 +137,30 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertFalse(app.contains("StartupSplashReadySignal"))
     }
 
+    func testSplashCompletionCommitsAndRemovesTheOverlayInOneCallback() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+
+        let callbackStart = try XCTUnwrap(app.range(of: "StartupSplashView(onContentReady:"))
+        let callbackEnd = try XCTUnwrap(app.range(of: ".allowsHitTesting(startupSplashVisible)",
+                                                   range: callbackStart.upperBound..<app.endIndex))
+        let callback = app[callbackStart.lowerBound..<callbackEnd.lowerBound]
+        XCTAssertTrue(callback.contains("finishStartupAnimation()"),
+                      "the completion callback must not read stale @State")
+        XCTAssertFalse(callback.contains("revealStartupIfReady()"),
+                       "the old two-step state handoff leaves the transparent overlay mounted")
+
+        let methodStart = try XCTUnwrap(app.range(of: "private func finishStartupAnimation()"))
+        let methodEnd = app.range(of: "\n    }", range: methodStart.upperBound..<app.endIndex)
+            .map(\.lowerBound) ?? app.endIndex
+        let method = app[methodStart.lowerBound..<methodEnd]
+        XCTAssertTrue(method.contains("startupAnimationFinished = true"))
+        XCTAssertTrue(method.contains("startupContentMounted = true"))
+        XCTAssertTrue(method.contains("startupSplashVisible = false"))
+    }
+
     func testAppContentKeepsTheFullScreenHandoffSurface() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

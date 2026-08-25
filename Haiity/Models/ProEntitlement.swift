@@ -238,10 +238,10 @@ enum Pro {
 /// Hauptakteur. Deshalb testbar, und deshalb der EINE benannte Prüfpunkt:
 /// keine Ansicht rechnet selbst mit `freeHabitLimit`.
 ///
-/// **Das Limit greift NUR beim Anlegen.** Bestehende Daten bleiben immer
-/// voll nutzbar — wer aus dem Archiv zurückholt, importiert oder von iCloud
-/// mehr als drei aktive Habits bekommt, behält sie. Gegated wird die
-/// Anlege-Absicht, nicht der Bestand.
+/// **Das Limit schützt auch einen abgelaufenen Pro-Bestand.** Vorhandene
+/// Daten bleiben erhalten und dürfen archiviert oder gelöscht werden. Ein
+/// freier Bestand bis zum Limit bleibt editierbar; ein übergroßer Bestand
+/// kann erst wieder normal bearbeitet werden, wenn Pro aktiv ist.
 enum ProGate {
     /// Drei aktive Habits sind gratis. Archivierte zählen nicht mit — sie
     /// stehen in keiner Liste und kosten keine Aufmerksamkeit.
@@ -249,6 +249,54 @@ enum ProGate {
 
     static func mayAddHabit(activeCount: Int, unlocked: Bool) -> Bool {
         unlocked || activeCount < freeHabitLimit
+    }
+
+    /// Reminders can always be created and existing free habits remain
+    /// editable. A tracked habit from an expired over-limit Pro set must not
+    /// be an escape hatch around the three-habit limit; archive/delete remain
+    /// available so the user can reduce the active set.
+    static func maySaveTrackedHabit(existingIsTracked: Bool,
+                                    targetIsTracked: Bool,
+                                    activeCount: Int,
+                                    unlocked: Bool) -> Bool {
+        guard targetIsTracked else { return true }
+        guard !unlocked else { return true }
+        if existingIsTracked {
+            return activeCount <= freeHabitLimit
+        }
+        return activeCount < freeHabitLimit
+    }
+
+    /// Restoring an archived tracked habit is another creation path. A
+    /// reminder stays free, while a tracked habit can return only if the
+    /// active free allowance still has room.
+    static func mayUnarchiveTrackedHabit(isTracked: Bool,
+                                         activeCount: Int,
+                                         unlocked: Bool) -> Bool {
+        !isTracked || unlocked || activeCount < freeHabitLimit
+    }
+
+    /// Imports are a second creation path, so they must be evaluated against
+    /// the same active tracked-habit limit as the editor. Existing IDs are
+    /// replacements during merge; new reminders and archived entries do not
+    /// consume a tracked-habit slot.
+    static func mayImport(incoming: HabitData,
+                          into local: HabitData,
+                          unlocked: Bool) -> Bool {
+        guard !unlocked else { return true }
+
+        var merged = Dictionary(uniqueKeysWithValues: local.habits.map { ($0.id, $0) })
+        let remoteNewer = incoming.updatedAt > local.updatedAt
+        for habit in incoming.habits {
+            if merged[habit.id] == nil || remoteNewer {
+                merged[habit.id] = habit
+            }
+        }
+
+        let activeTracked = merged.values.filter {
+            $0.archivedAt == nil && $0.isTrackedHabit
+        }.count
+        return activeTracked <= freeHabitLimit
     }
 
     /// Trivial — und trotzdem eine eigene Funktion: so heißt jede gegatete

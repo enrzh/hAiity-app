@@ -47,6 +47,7 @@ struct ContentView: View {
     /// Fasst schnelle Folgeänderungen zu EINEM Upload zusammen.
     @State private var pushes = PushDebouncer()
     @State private var editing: Habit?
+    @State private var pendingDelete: Habit?
     @State private var earlyReminderCompletion: PendingReminderCompletion?
     @State private var showAdd = false
     /// `showAdd` ist nur der Praesentationswunsch. Erst `createPage.onAppear`
@@ -80,6 +81,7 @@ struct ContentView: View {
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
     /// öffnet das Suchfeld.
     @State private var nativeTab: AppTab = .habits
+    @State private var proStatus = ProStatus.shared
     @State private var showReminderSetup = false
     /// Das Melde-Blatt (Schütteln). Es hängt hier oben, weil die Geste überall
     /// gilt — sie gehört keinem Bereich, sondern der App.
@@ -150,6 +152,15 @@ struct ContentView: View {
     /// Dieser Zustand ist ausschließlich eine persistente Nutzerwahl.
     private var collapsed: Bool { viewPreferences.compactMode }
 
+    private var effectivePalettes: PaletteBook {
+        let unlocked = proStatus.unlocked || Pro.isUnlocked
+        return unlocked ? store.palettes : store.palettes.withoutCustoms
+    }
+
+    private var effectivePaletteStyle: PaletteStyle {
+        effectivePalettes.style
+    }
+
     private var githubUsernameBinding: Binding<Bool> {
         Binding(get: { store.githubShowsUsername },
                 set: { store.githubShowsUsername = $0 })
@@ -199,11 +210,11 @@ struct ContentView: View {
             // System-Steuerelemente mit. Alle drei hängen am Store, damit ein
             // Umstellen in „Mehr" sofort durchschlägt.
             .preferredColorScheme(store.appearance.colorScheme)
-            .environment(\.palettes, store.palettes)
+            .environment(\.palettes, effectivePalettes)
             .environment(\.appearancePreferences, store.appearancePreferences)
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
-            .tint(Theme.accentText(store.paletteStyle))
+            .tint(Theme.accentText(effectivePaletteStyle))
             .onOpenURL { handleDeepLink($0) }
             .onReceive(NotificationCenter.default.publisher(
                 for: NotificationActionRouter.pendingDidChange)) { _ in
@@ -238,12 +249,12 @@ struct ContentView: View {
                    onDismiss: deliverPendingPaywallDismissalRoute) { context in
                 PaywallView(context: context, store: store,
                             onUnlocked: { purchasedIntent = context })
-                    .themed(store)
+                    .themed(store, palettes: effectivePalettes)
                     .onAppear { paywallDidPresent(context) }
             }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
-                    .themed(store)
+                    .themed(store, palettes: effectivePalettes)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -265,6 +276,20 @@ struct ContentView: View {
             } message: {
                 Text(String(localized: "Der Termin liegt noch in der Zukunft."))
             }
+            .confirmationDialog(
+                String(localized: "Eintrag löschen?"),
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }),
+                presenting: pendingDelete) { habit in
+                    Button(String(localized: "Löschen"), role: .destructive) {
+                        store.remove(habit.id)
+                        pendingDelete = nil
+                    }
+                    Button(String(localized: "Abbrechen"), role: .cancel) {}
+                } message: { habit in
+                    Text(String(localized: "„\(habit.name)“ und die komplette Historie werden gelöscht. Das lässt sich nicht rückgängig machen."))
+                }
             // Direkte Unterziele bleiben Blätter über dem aktuell sichtbaren
             // Bereich. Mehr-Zeilen präsentieren über `morePageRoute`.
             .sheet(item: $moreSheet,
@@ -279,11 +304,12 @@ struct ContentView: View {
                             }
                         }
                 }
-                .themed(store)
+                .themed(store, palettes: effectivePalettes)
                 .onAppear { moreSheetDidPresent(route) }
             }
             .fullScreenCover(isPresented: $showReminderSetup) {
-                ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
+                ReminderSetupView(isPresented: $showReminderSetup, store: store)
+                    .themed(store, palettes: effectivePalettes)
             }
             // Schütteln meldet einen Fehler — für JEDEN Nutzer, nicht nur für
             // den Entwickler. Die Geste hängt an der Wurzel, weil sie überall
@@ -299,7 +325,8 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showFeedback,
                    onDismiss: { feedbackClosedAt = .now }) {
-                FeedbackSheet(store: store, cloudStatus: cloudStatus).themed(store)
+                FeedbackSheet(store: store, cloudStatus: cloudStatus)
+                    .themed(store, palettes: effectivePalettes)
             }
             .task {
                 try? await Task.sleep(for: .milliseconds(250))
@@ -646,7 +673,7 @@ struct ContentView: View {
                     }
             }
             .navigationChrome()
-            .themed(store)
+            .themed(store, palettes: effectivePalettes)
             .onAppear { moreSheetDidPresent(route) }
         }
     }
@@ -698,7 +725,7 @@ struct ContentView: View {
     /// Anlegen-Knopf und schrumpft dorthin zurück.
     private var createPage: some View {
         EditHabitSheet(store: store, asPage: true)
-            .themed(store)
+            .themed(store, palettes: effectivePalettes)
             .modifier(MoreZoomDestination(id: Self.createZoomID,
                                           namespace: createZoomNamespace))
     }
@@ -1145,6 +1172,7 @@ struct ContentView: View {
                         onEdit: { editing = habit },
                         onArchive: { store.archive(habit.id) },
                         onRevert: { revertReminder(habit) },
+                        onDelete: { pendingDelete = habit },
                         calendar: habitCalendar(for: habit))
                 .equatable()
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -1190,6 +1218,7 @@ struct ContentView: View {
                 onMarkDone: { markDone(habit) },
                 onEdit: { editing = habit },
                 onArchive: { store.archive(habit.id) },
+                onDelete: { pendingDelete = habit },
                 onAnswer: { answer(habit, yes: $0) },
                 leadingSwipe: reveal.leading,
                 trailingSwipe: reveal.trailing,
@@ -1652,7 +1681,7 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            DemoGrid(palette: store.paletteStyle)
+            DemoGrid(palette: effectivePaletteStyle)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
             Text(String(localized: "Lege deinen ersten Eintrag an."))
@@ -1667,7 +1696,7 @@ struct ContentView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Theme.accentFill(store.paletteStyle), in: Capsule())
+                    .background(Theme.accentFill(effectivePaletteStyle), in: Capsule())
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -1826,11 +1855,11 @@ struct ContentView: View {
             .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
             .background {
                 if selected {
-                    Capsule().fill(Theme.accent(store.paletteStyle).opacity(0.18))
+                    Capsule().fill(Theme.accent(effectivePaletteStyle).opacity(0.18))
                 }
             }
             .foregroundStyle(selected
-                             ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
+                             ? AnyShapeStyle(Theme.accentText(effectivePaletteStyle))
                              : AnyShapeStyle(.secondary))
         }
         .buttonStyle(.plain)
@@ -1854,7 +1883,7 @@ struct ContentView: View {
                 // Scheibe mehr, auf der Weiß stünde — dort trägt das Zeichen
                 // selbst die Markenfarbe.
                 .foregroundStyle(collapsed
-                                 ? AnyShapeStyle(Theme.accentText(store.paletteStyle))
+                                 ? AnyShapeStyle(Theme.accentText(effectivePaletteStyle))
                                  : AnyShapeStyle(.white))
                 // Die Farbe springt, sie fährt NICHT mit. Nachgemessen: der
                 // grüne Glas-Tint verschwindet beim Einklappen sofort,
@@ -1869,7 +1898,7 @@ struct ContentView: View {
         .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
         .modifier(ChromeGlass(id: "chrome-add", namespace: glassNamespace,
                               kind: .circle,
-                              accent: collapsed ? nil : store.paletteStyle,
+                              accent: collapsed ? nil : effectivePaletteStyle,
                               union: chromeUnion("chrome-add-solo")))
         // Fallback (iOS < 26): hier ist der Anlegen-Kreis eine EIGENE View —
         // die Zoom-Quelle sitzt direkt auf ihm (iOS 18–25; unter 18 blendet
@@ -1905,7 +1934,7 @@ struct ContentView: View {
                 } label: {
                     Text(String(localized: "Rückgängig"))
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(store.paletteStyle))
+                        .foregroundStyle(Theme.accentText(effectivePaletteStyle))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -2247,11 +2276,11 @@ struct ContentView: View {
     @MainActor
     private func dumpWidgets() {
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
-        let live = HaiityEntry(date: .now, habits: store.activeTrackedHabits, palettes: store.palettes)
+        let live = HaiityEntry(date: .now, habits: store.activeTrackedHabits, palettes: effectivePalettes)
         let entry = live.habits.isEmpty ? HaiityEntry.demo : live
         let githubEntry = HaiityEntry(date: .now,
                                       habits: [],
-                                      palettes: store.palettes,
+                                      palettes: effectivePalettes,
                                       graphSource: .github,
                                       githubSnapshot: GitHubContributionSnapshot.loadShared()
                                           ?? Self.demoGitHubSnapshot())
@@ -2323,14 +2352,14 @@ struct ContentView: View {
                 // einziges Widget auch im Leerfall keine Schrift zeigen darf
                 // — ein Raster aus l0-Zellen statt „Noch keine Habits".
                 write(GraphWidgetView(entry: HaiityEntry(date: .now, habits: [],
-                                                         palettes: store.palettes))
+                                                         palettes: effectivePalettes))
                         .content(family: .systemMedium, dark: scheme == .dark),
                       named: "w-graph-empty-\(suffix)",
                       size: CGSize(width: 364, height: 170), scheme: scheme, to: dir)
 
                 // Grenzfälle, die früher gebrochen sind — nur die Hauptgröße.
                 for (name, habits) in Self.edgeCases {
-                    let edge = HaiityEntry(date: .now, habits: habits, palettes: store.palettes)
+                    let edge = HaiityEntry(date: .now, habits: habits, palettes: effectivePalettes)
                     write(HaiityWidgetView(entry: edge).content(family: .systemSmall, dark: scheme == .dark),
                           named: "w-edge-\(name)-\(suffix)",
                           size: CGSize(width: 170, height: 170), scheme: scheme, to: dir)
@@ -2425,7 +2454,7 @@ struct ContentView: View {
         guard let habit = store.activeTrackedHabits.first else { return }
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for scheme in [ColorScheme.light, .dark] {
-            guard let png = ShareCard.render(habit: habit, scheme: scheme, palette: store.palettes.style(for: habit))?.pngData() else { continue }
+            guard let png = ShareCard.render(habit: habit, scheme: scheme, palette: effectivePalettes.style(for: habit))?.pngData() else { continue }
             let name = scheme == .dark ? "sharecard-dark.png" : "sharecard-light.png"
             try? png.write(to: dir.appendingPathComponent(name))
         }
@@ -2528,7 +2557,7 @@ struct ContentView: View {
 
     private func reconcileAppIcon() async {
         let wanted = store.matchAppIcon
-            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            ? AppIcons.iconName(for: effectivePalettes.global, customs: effectivePalettes.customs)
             : AppIcons.validManualName(store.manualAppIconName)
         _ = await AppIcons.set(wanted)
     }

@@ -237,16 +237,15 @@ enum Backfill {
         /// Bei Ja/Nein heißen die Knöpfe „Ja" und „Nein" und nicht
         /// „Erledigt"/„Nicht gemacht": das Habit stellt eine FRAGE („Kein
         /// Zucker?"), und man beantwortet eine Frage nicht mit „erledigt".
-        /// „Leeren" statt „Rückgängig": die Aktion entfernt Einträge — das
-        /// echte Rückgängig ist der Toast, und zwei Knöpfe mit demselben
-        /// Namen und verschiedener Bedeutung wären eine Falle.
+        /// The clear action is presented as „Rückgängig" because it restores
+        /// the empty state directly from the backfill menu.
         var title: String {
             switch kind {
             case .done:     return String(localized: "Erledigt")
             case .affirmed: return String(localized: "Ja")
             case .declined: return String(localized: "Nein")
             case .quantity: return String(localized: "Eintragen")
-            case .clear:    return String(localized: "Leeren")
+            case .clear:    return String(localized: "Rückgängig")
             }
         }
 
@@ -278,10 +277,9 @@ enum Backfill {
 
     /// Welche Aktionen gibt es zu diesem Zustand?
     ///
-    /// Bei Ja/Nein sind es IMMER genau zwei, und in jedem Zustand die beiden,
-    /// die etwas ändern: unbeantwortet -> Ja | Nein, Ja -> Nein |
-    /// Rückgängig, Nein -> Ja | Rückgängig. Ein dritter Knopf wäre in jedem
-    /// Zustand einer, der nichts tut.
+    /// Bei Ja/Nein stehen die beiden Entscheidungen und das Leeren immer zur
+    /// Verfügung. So ist „Rückgängig" schon beim Öffnen sichtbar und nicht
+    /// erst nach einer neuen Entscheidung.
     ///
     /// Die Art muss mit hinein, weil `.done` bei einer Checkbox etwas
     /// anderes bedeutet als bei einer Frage — und vor allem einen anderen
@@ -289,15 +287,15 @@ enum Backfill {
     static func actions(for state: DayState, kind: HabitKind = .checkbox) -> [Action] {
         if kind == .yesNo {
             switch state {
-            case .empty:    return [.affirm, .decline]
+            case .empty:    return [.affirm, .decline, .clear]
             case .done:     return [.decline, .clear]
             case .declined: return [.affirm, .clear]
-            case .quantity: return [.affirm, .decline]   // unmöglich; nie ohne Ausweg
+            case .quantity: return [.affirm, .decline, .clear]   // unmöglich
             }
         }
         switch state {
         case .empty:
-            return [.done]
+            return [.done, .clear]
         case .done:
             return [.clear]
         case .declined:
@@ -307,7 +305,7 @@ enum Backfill {
         case let .quantity(value, target):
             var out: [Action] = []
             if value < target { out.append(.quantity(target: target)) }
-            if value > 0 { out.append(.clear) }
+            out.append(.clear)
             return out
         }
     }

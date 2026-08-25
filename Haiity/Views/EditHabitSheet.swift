@@ -74,6 +74,7 @@ struct EditHabitSheet: View {
     /// neues Habit soll mit der globalen, nachvollziehbaren Regel starten.
     @State private var swipeActions: SwipeActionsOverride?
     @State private var notificationDenied = false
+    @State private var showingDeleteConfirmation = false
 
     private var calendar: Calendar {
         HabitTimeZone.calendar(identifier: timeZoneIdentifier
@@ -149,6 +150,12 @@ struct EditHabitSheet: View {
                         }
                         .foregroundStyle(.primary)
                         .accessibilityIdentifier("archive-habit")
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label(String(localized: "Löschen"), systemImage: "trash")
+                        }
+                        .accessibilityIdentifier("delete-habit")
                     }
                     .settingsListRow()
                 }
@@ -187,14 +194,25 @@ struct EditHabitSheet: View {
                                 save(skipGate: true)
                             }
                         })
-                .themed(store)
+                .themed(store, palettes: palettes)
         }
         .sheet(isPresented: $showTimeZonePicker) {
             HabitTimeZoneSheet(selection: $timeZoneIdentifier,
                                inheritedLabel: String(localized: "Standard"))
-                .themed(store)
+                .themed(store, palettes: palettes)
         }
         .onAppear { load() }
+        .confirmationDialog(String(localized: "Eintrag löschen?"),
+                            isPresented: $showingDeleteConfirmation,
+                            presenting: existing) { habit in
+            Button(String(localized: "Löschen"), role: .destructive) {
+                store.remove(habit.id)
+                dismiss()
+            }
+            Button(String(localized: "Abbrechen"), role: .cancel) {}
+        } message: { habit in
+            Text(String(localized: "„\(habit.name)“ und die komplette Historie werden gelöscht. Das lässt sich nicht rückgängig machen."))
+        }
         .onChange(of: draft.flexible) { _, _ in draft.normalize(calendar: calendar) }
         // Die Art IST das Mengenziel-Häkchen: „Menge" schaltet es an, alles
         // andere aus. Ein Ja/Nein-Habit mit stehen gebliebenem Ziel wäre ein
@@ -622,7 +640,7 @@ struct EditHabitSheet: View {
         Section {
             PalettePicker(selection: $habitPalette,
                           allowsGlobal: true,
-                          palettes: palettes)
+                          palettes: unlocked ? palettes : palettes.withoutCustoms)
         } header: {
             Text(String(localized: "Farbe"))
         } footer: {
@@ -701,7 +719,9 @@ struct EditHabitSheet: View {
         if draft.frequency == .once {
             itemType = .reminder
         }
-        habitPalette = habit.palette
+        // A persisted custom palette is a Pro-only choice. Keep the editor
+        // usable after expiry and avoid writing that choice back invisibly.
+        habitPalette = unlocked || habit.palette?.customID == nil ? habit.palette : nil
         swipeActions = habit.swipeActions
         kind = habit.kind
         if let duration = habit.durationMinutes {
@@ -715,9 +735,12 @@ struct EditHabitSheet: View {
     private func save(skipGate: Bool = false) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        if !skipGate, existing == nil && itemType == .habit,
-           !ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count,
-                                unlocked: Pro.isUnlocked) {
+        if !skipGate,
+           !ProGate.maySaveTrackedHabit(
+               existingIsTracked: existing?.isTrackedHabit == true,
+               targetIsTracked: itemType == .habit,
+               activeCount: store.activeTrackedHabits.count,
+               unlocked: unlocked) {
             paywall = .habits
             return
         }
@@ -743,7 +766,7 @@ struct EditHabitSheet: View {
         // notification while every current UI exposes only one time.
         habit.reminderMinutes = notificationTime
         habit.recurrence = recurrence
-        habit.palette = habitPalette
+        habit.palette = unlocked || habitPalette?.customID == nil ? habitPalette : nil
         habit.swipeActions = swipeActions
         // Reminders share the checkbox log internally; their habit-only kind
         // controls stay out of the editor and cannot survive a mode switch.

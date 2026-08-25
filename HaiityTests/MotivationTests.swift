@@ -40,7 +40,7 @@ final class MotivationTests: XCTestCase {
 
     func testMoreCarriesTheOptInSettingAndTimePicker() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("motivationSection"))
+        XCTAssertTrue(more.contains("motivationRows"))
         XCTAssertTrue(more.contains("store.motivationMinutes"))
         XCTAssertTrue(more.contains("\"motivation-toggle\""))
         XCTAssertTrue(more.contains("\"motivation-time\""))

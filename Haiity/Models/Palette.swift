@@ -297,6 +297,14 @@ struct PaletteBook: Equatable, Hashable, Sendable {
     var global: PaletteRef = .default
     var customs: [CustomPalette] = []
 
+    /// The free surface used after a Pro entitlement expires. A persisted
+    /// custom reference falls back through the normal resolver to the default
+    /// built-in palette, while built-in selections remain unchanged.
+    var withoutCustoms: PaletteBook {
+        PaletteBook(global: global.customID == nil ? global : .default,
+                    customs: [])
+    }
+
     /// Die globale Farbtafel — für Akzente, Tint und Chrom.
     var style: PaletteStyle { PaletteStyle.resolve(habit: nil, global: global, customs: customs) }
 

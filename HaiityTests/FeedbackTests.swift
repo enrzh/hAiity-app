@@ -695,9 +695,9 @@ final class FeedbackTests: XCTestCase {
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
         let main = more[body.lowerBound..<end.lowerBound]
-        let ordered = ["proSection", "personalSection", "MoreRoute.appearance",
-                       "MoreRoute.habitBehavior", "notificationOptOutSection",
-                       "dailySummarySection", "weeklySummarySection", "motivationSection",
+        let ordered = ["proSection", "personalSection", "githubSection",
+                       "MoreRoute.appearance", "MoreRoute.habitBehavior",
+                       "notificationSettingsSection",
                        "MoreRoute.archive", "Setup wiederholen", "MoreRoute.about"]
         var cursor = main.startIndex
         for marker in ordered {

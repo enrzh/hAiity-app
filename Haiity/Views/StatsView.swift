@@ -53,7 +53,7 @@ struct StatsView: View {
             // Hier gibt es nichts fortzusetzen: die Seite selbst IST das
             // Ziel und entsperrt sich mit dem Kauf.
             PaywallView(context: context, store: store, onUnlocked: {})
-                .themed(store)
+                .themed(store, palettes: palettes)
         }
         .sheet(isPresented: $showingCardSettings) {
             statsAdjustmentSheet
@@ -61,9 +61,7 @@ struct StatsView: View {
         .onChange(of: routeToken) { _, _ in paywall = nil }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showingCardSettings = true
-                } label: {
+                Button(action: openStatsAdjustments) {
                     Image(systemName: "slider.horizontal.3")
                 }
                 .accessibilityLabel(String(localized: "Statistik anpassen"))
@@ -175,10 +173,16 @@ struct StatsView: View {
         } description: {
             Text(String(localized: "Wähle in den Einstellungen eine Statistik-Karte aus."))
         } actions: {
-            Button(String(localized: "Karten anpassen")) {
-                showingCardSettings = true
-            }
+            Button(String(localized: "Karten anpassen"), action: openStatsAdjustments)
         }
+    }
+
+    private func openStatsAdjustments() {
+        guard unlocked else {
+            paywall = .stats
+            return
+        }
+        showingCardSettings = true
     }
 
     private var statsAdjustmentSheet: some View {
@@ -207,7 +211,7 @@ struct StatsView: View {
                 }
             }
         }
-        .themed(store)
+        .themed(store, palettes: palettes)
         .presentationDetents([.medium, .large])
     }
 
@@ -383,7 +387,7 @@ struct StatsView: View {
     private var statsContextActions: [GraphMenuAction] {
         [GraphMenuAction(title: String(localized: "Statistik anpassen"),
                          symbol: "slider.horizontal.3",
-                         handler: { showingCardSettings = true })]
+                         handler: openStatsAdjustments)]
     }
 
     private func statsContextMenu(preview: @escaping () -> AnyView)
@@ -392,7 +396,7 @@ struct StatsView: View {
                          previewWidth: statsPreviewWidth,
                          preview: preview,
                          actions: statsContextActions,
-                         commit: { showingCardSettings = true })
+                         commit: openStatsAdjustments)
     }
 
     private func statsPreview<Content: View>(_ content: Content) -> AnyView {

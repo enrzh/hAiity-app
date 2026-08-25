@@ -234,6 +234,7 @@ enum CalendarSync {
     /// Der eine Ort, der den System-Dialog auslösen darf — beim aktiven
     /// Einschalten in „Mehr", nie beim Start.
     static func requestAccess() async -> Bool {
+        guard Pro.isUnlocked else { return false }
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess: return true
         case .notDetermined:
@@ -273,6 +274,7 @@ enum CalendarSync {
     static func reconcile(habits: [Habit],
                           defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true) {
+        guard Pro.isUnlocked else { return }
         guard isEnabled, hasAccess else { return }
 
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]

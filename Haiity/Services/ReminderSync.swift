@@ -148,6 +148,7 @@ enum ReminderSync {
     }
 
     static func requestAccess() async -> Bool {
+        guard Pro.isUnlocked else { return false }
         switch EKEventStore.authorizationStatus(for: .reminder) {
         case .fullAccess, .authorized:
             return true
@@ -163,6 +164,7 @@ enum ReminderSync {
                           validate: Bool = true,
                           now: Date = .now,
                           calendar: Calendar = .current) {
+        guard Pro.isUnlocked else { return }
         guard isEnabled, hasAccess, !isReconciling, !isPulling else { return }
         isReconciling = true
         lastError = nil
@@ -233,6 +235,7 @@ enum ReminderSync {
                                 defaultTimeZoneIdentifier: String? = nil,
                                 now: Date = .now,
                                 calendar: Calendar = .current) {
+        guard Pro.isUnlocked else { return }
         guard isEnabled, hasAccess, !isReconciling, !isPulling else { return }
         isPulling = true
         defer { isPulling = false }
@@ -270,6 +273,7 @@ enum ReminderSync {
 
     static func pushCompletion(for habit: Habit,
                                habits: [Habit]) {
+        guard Pro.isUnlocked else { return }
         guard isEnabled, hasAccess, !isReconciling, !isPulling,
               let link = ReminderSyncPreferences.links(in: defaults)[habit.id.uuidString],
               let list = storedList(),
@@ -284,6 +288,7 @@ enum ReminderSync {
     }
 
     static func startObserving(store habitStore: HabitStore) {
+        guard Pro.isUnlocked else { return }
         observedStore = habitStore
         guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(

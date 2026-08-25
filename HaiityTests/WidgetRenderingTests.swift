@@ -62,6 +62,22 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(blue, red)
     }
 
+    func testWidgetUndoIsVisibleBeforeTheFirstDecision() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let main = try String(contentsOf: root.appendingPathComponent(
+            "HaiityWidget/HaiityWidgetView.swift"))
+        let roster = try String(contentsOf: root.appendingPathComponent(
+            "HaiityWidget/RosterWidgetView.swift"))
+
+        XCTAssertTrue(main.contains("if entry.widgetResetEnabled {"))
+        XCTAssertTrue(roster.contains("if entry.widgetResetEnabled {"))
+        XCTAssertFalse(main.contains("entry.widgetResetEnabled && hasValue"),
+                       "undo is a configured action, not a post-decision action")
+        XCTAssertFalse(roster.contains("entry.widgetResetEnabled && hasValue"),
+                       "undo is a configured action, not a post-decision action")
+    }
+
     private var githubEntry: HaiityEntry {
         let today = DayKey.today()
         let days = (0..<371).compactMap { offset -> GitHubContributionDay? in

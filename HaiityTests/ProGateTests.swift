@@ -40,6 +40,84 @@ final class ProGateTests: XCTestCase {
         }
     }
 
+    func testReminderConversionUsesTheSameTrackedHabitLimit() {
+        XCTAssertFalse(ProGate.maySaveTrackedHabit(existingIsTracked: false,
+                                                   targetIsTracked: true,
+                                                   activeCount: 3,
+                                                   unlocked: false))
+        XCTAssertTrue(ProGate.maySaveTrackedHabit(existingIsTracked: false,
+                                                  targetIsTracked: true,
+                                                  activeCount: 2,
+                                                  unlocked: false))
+        XCTAssertTrue(ProGate.maySaveTrackedHabit(existingIsTracked: true,
+                                                  targetIsTracked: true,
+                                                  activeCount: 3,
+                                                  unlocked: false),
+                      "existing tracked habits remain usable after entitlement loss")
+        XCTAssertTrue(ProGate.maySaveTrackedHabit(existingIsTracked: false,
+                                                  targetIsTracked: false,
+                                                  activeCount: 3,
+                                                  unlocked: false),
+                      "free reminders remain available")
+    }
+
+    func testLockedOverLimitTrackedHabitsCannotBeEditedAsAProBypass() {
+        XCTAssertTrue(ProGate.maySaveTrackedHabit(existingIsTracked: true,
+                                                  targetIsTracked: true,
+                                                  activeCount: 3,
+                                                  unlocked: false),
+                      "a normal free user must still be able to edit three habits")
+        XCTAssertFalse(ProGate.maySaveTrackedHabit(existingIsTracked: true,
+                                                   targetIsTracked: true,
+                                                   activeCount: 4,
+                                                   unlocked: false),
+                       "an expired Pro set must not bypass the unlimited-habits gate by editing")
+        XCTAssertTrue(ProGate.maySaveTrackedHabit(existingIsTracked: true,
+                                                  targetIsTracked: true,
+                                                  activeCount: 4,
+                                                  unlocked: true))
+    }
+
+    func testLockedImportCannotAddTrackedHabitsPastTheFreeLimit() {
+        var localHabits = [Habit(name: "A"), Habit(name: "B"), Habit(name: "C")]
+        let local = HabitData(version: HabitData.currentVersion,
+                              updatedAt: 10,
+                              summaryMinutes: nil,
+                              habits: localHabits)
+
+        let newTracked = Habit(name: "D")
+        let incoming = HabitData(version: HabitData.currentVersion,
+                                  updatedAt: 20,
+                                  summaryMinutes: nil,
+                                  habits: [newTracked])
+
+        XCTAssertFalse(ProGate.mayImport(incoming: incoming, into: local, unlocked: false))
+
+        let reminder = Habit(name: "Reminder", itemType: .reminder)
+        let reminderImport = HabitData(version: HabitData.currentVersion,
+                                       updatedAt: 20,
+                                       summaryMinutes: nil,
+                                       habits: [reminder])
+        XCTAssertTrue(ProGate.mayImport(incoming: reminderImport, into: local, unlocked: false))
+
+        var archived = Habit(name: "Archived")
+        archived.archivedAt = "2026-08-25"
+        let archivedImport = HabitData(version: HabitData.currentVersion,
+                                       updatedAt: 20,
+                                       summaryMinutes: nil,
+                                       habits: [archived])
+        XCTAssertTrue(ProGate.mayImport(incoming: archivedImport, into: local, unlocked: false))
+
+        var duplicate = Habit(name: "A updated")
+        duplicate.id = localHabits[0].id
+        let duplicateImport = HabitData(version: HabitData.currentVersion,
+                                        updatedAt: 20,
+                                        summaryMinutes: nil,
+                                        habits: [duplicate])
+        XCTAssertTrue(ProGate.mayImport(incoming: duplicateImport, into: local, unlocked: false))
+        XCTAssertTrue(ProGate.mayImport(incoming: incoming, into: local, unlocked: true))
+    }
+
     /// **Die API nimmt `activeCount`, nicht `habits.count`** — das IST die
     /// Stelle, an der „archivierte zählen nicht" entschieden wird. `ProGate`
     /// selbst kann das nicht wissen; es zählt, was man ihm gibt. Also wird
@@ -82,6 +160,30 @@ final class ProGateTests: XCTestCase {
                                           unlocked: false))
     }
 
+    func testArchivedTrackedHabitRestoreUsesTheFreeLimit() {
+        XCTAssertTrue(ProGate.mayUnarchiveTrackedHabit(isTracked: false,
+                                                        activeCount: 99,
+                                                        unlocked: false),
+                      "reminders stay free when restored")
+        XCTAssertTrue(ProGate.mayUnarchiveTrackedHabit(isTracked: true,
+                                                        activeCount: 2,
+                                                        unlocked: false))
+        XCTAssertFalse(ProGate.mayUnarchiveTrackedHabit(isTracked: true,
+                                                         activeCount: 3,
+                                                         unlocked: false))
+        XCTAssertTrue(ProGate.mayUnarchiveTrackedHabit(isTracked: true,
+                                                       activeCount: 99,
+                                                       unlocked: true))
+    }
+
+    func testArchiveRestoreCannotBypassTheSharedProGate() throws {
+        let archive = try source("Haiity/Views/ArchiveView.swift")
+        XCTAssertTrue(archive.contains("ProGate.mayUnarchiveTrackedHabit"))
+        XCTAssertTrue(archive.contains("store.activeTrackedHabits.count"))
+        XCTAssertTrue(archive.contains("paywall = .habits"))
+        XCTAssertTrue(archive.contains("Pro.isUnlocked"))
+    }
+
     /// Trivial, und trotzdem festgenagelt: `mayUseProFeature` ist die
     /// Berechtigung selbst — keine Ansicht darf hier eine zweite Bedingung
     /// hineinverhandeln.
@@ -105,6 +207,20 @@ final class ProGateTests: XCTestCase {
         XCTAssertFalse(effective.nativeReminderSync)
         XCTAssertEqual(effective.notificationDND, requested.notificationDND)
         XCTAssertEqual(effective.shakeToReportEnabled, requested.shakeToReportEnabled)
+    }
+
+    func testPaidSyncServicesRecheckTheEntitlementAtTheirBoundaries() throws {
+        let calendar = try source("Haiity/Services/CalendarSync.swift")
+        let reminders = try source("Haiity/Services/ReminderSync.swift")
+
+        XCTAssertGreaterThanOrEqual(
+            calendar.components(separatedBy: "guard Pro.isUnlocked").count - 1,
+            2,
+            "calendar access and reconciliation must not be UI-only gates")
+        XCTAssertGreaterThanOrEqual(
+            reminders.components(separatedBy: "guard Pro.isUnlocked").count - 1,
+            3,
+            "reminder access, pull, and push must not be UI-only gates")
     }
 
     func testUnlockedEntitlementKeepsRequestedCloudIntegrations() {
@@ -271,10 +387,13 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(content.contains("private func requestCreate()"))
         XCTAssertFalse(content.contains("ProGate.mayAddHabit(activeCount:"),
                        "der Typ steht erst im Editor fest; der Einstieg darf Erinnerungen nicht blockieren")
-        XCTAssertTrue(editor.contains("existing == nil && itemType == .habit"))
-        XCTAssertTrue(editor.contains("ProGate.mayAddHabit(activeCount: store.activeTrackedHabits.count"),
-                      "nur neue getrackte Habits zählen am Sicherungspunkt")
-        XCTAssertTrue(editor.contains("unlocked: Pro.isUnlocked"))
+        XCTAssertTrue(editor.contains("ProGate.maySaveTrackedHabit"))
+        XCTAssertTrue(editor.contains("existingIsTracked: existing?.isTrackedHabit == true"),
+                      "existing tracked habits must remain editable")
+        XCTAssertTrue(editor.contains("targetIsTracked: itemType == .habit"),
+                      "reminder-to-habit conversion must pass through the gate")
+        XCTAssertTrue(editor.contains("store.activeTrackedHabits.count"),
+                      "only active tracked habits count at the save boundary")
         XCTAssertTrue(editor.contains("paywall = .habits"))
 
         let assignments = content.components(separatedBy: "showAdd = true").count - 1
@@ -282,10 +401,13 @@ final class ProGateTests: XCTestCase {
                        "das Anlege-Cover darf nur aus requestCreate() aufgehen")
     }
 
-    /// (b) **Gate 2 — eigene Farben.** Gegated ist das ANLEGEN, nie der
-    /// Bestand: vorhandene eigene Farben bleiben wählbar und löschbar.
-    func testGate2CustomPaletteCreationIsGated() throws {
+    /// (b) **Gate 2 — eigene Farben.** Die Paywall verspricht eigene Farben
+    /// als Pro; deshalb gilt der Zaun für Anlegen, Auswahl und Bearbeiten,
+    /// auch wenn die Daten von einem früheren Pro-Zeitraum noch vorhanden sind.
+    func testGate2EveryCustomPalettePathIsGated() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let editor = try source("Haiity/Views/EditHabitSheet.swift")
+        let content = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(more.contains("private func requestCustomPalette()"))
         XCTAssertTrue(more.contains("paywall = .palette"))
         // Zweimal: die Definition und der EINE Aufruf an „Eigene Farbe …".
@@ -295,6 +417,20 @@ final class ProGateTests: XCTestCase {
         let requestRange = try XCTUnwrap(more.range(of: "private func requestCustomPalette()"))
         let body = more[requestRange.lowerBound...]
         XCTAssertTrue(body.contains("guard ProGate.mayUseProFeature(unlocked: unlocked)"))
+        XCTAssertTrue(more.contains("private func selectCustomPalette"),
+                      "existing custom palettes need the same entitlement gate as creation")
+        XCTAssertTrue(editor.contains("palettes: unlocked ? palettes : palettes.withoutCustoms"),
+                      "locked editors must not expose old custom palettes")
+        XCTAssertTrue(content.contains("store.palettes.withoutCustoms"),
+                      "locked app surfaces must fall back from persisted custom palettes")
+    }
+
+    func testStatsAdjustmentsAreAProSurface() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        XCTAssertTrue(stats.contains("private func openStatsAdjustments()"))
+        XCTAssertTrue(stats.contains("paywall = .stats"))
+        XCTAssertTrue(stats.contains("openStatsAdjustments()"),
+                      "toolbar, empty state, and long-press actions must share the gate")
     }
 
     /// (b) **Gate 3 — freie Icon-Farbe.** Gegated ist nur das SETZEN: die 18
@@ -510,6 +646,14 @@ final class ProGateTests: XCTestCase {
         }
         // Auch der Export-Typ selbst kennt keine Berechtigung.
         XCTAssertFalse(more.contains("guard unlocked else { return Data()"))
+    }
+
+    func testDeveloperImportUsesTheSharedLimitPolicy() throws {
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+        XCTAssertTrue(developer.contains("ProGate.mayImport"),
+                      "Developer import must not bypass the tracked-habit limit")
+        XCTAssertTrue(developer.contains("Pro.isUnlocked"),
+                      "the import boundary must use the shared entitlement read point")
     }
 
     /// (d) Die StoreKit-Konfiguration beschreibt genau EIN nicht-verbrauchbares

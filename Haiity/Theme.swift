@@ -98,12 +98,16 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
         let requestedMode = backgroundMode ?? (boundedImage == nil ? .color : .image)
         self.material = material
-        self.backgroundMode = requestedMode == .image && boundedImage == nil
-            ? .color : requestedMode
+        // An explicitly selected Image mode is also valid before a replacement
+        // photo is chosen. Keeping that state visible is what makes the native
+        // picker recoverable after a deleted or invalid iCloud payload.
+        self.backgroundMode = requestedMode
         self.backgroundColorHex = backgroundColorHex
         self.gradientStartHex = gradientStartHex
         self.gradientEndHex = gradientEndHex
-        self.backgroundImageData = self.backgroundMode == .image ? boundedImage : nil
+        // A photo only belongs to Image mode. Keeping it in Color/Gradient
+        // makes stale iCloud payloads look like a locked editor state.
+        self.backgroundImageData = requestedMode == .image ? boundedImage : nil
         self.backgroundResetAt = backgroundResetAt
     }
 
@@ -111,17 +115,16 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     /// A byte-size check alone accepts truncated or non-image data, leaving the
     /// UI stuck in `.image` after the photo itself can no longer be decoded.
     func normalizedForStorage() -> AppearancePreferences {
-        guard backgroundMode == .image,
-              let image = backgroundImageData,
-              let usable = Self.usableImageData(image) else {
-            var normalized = self
-            normalized.backgroundMode = backgroundMode == .image ? .color : backgroundMode
-            normalized.backgroundImageData = nil
-            return normalized
-        }
-
         var normalized = self
-        normalized.backgroundImageData = usable
+        if backgroundMode != .image {
+            normalized.backgroundImageData = nil
+        } else if let image = backgroundImageData {
+            if let usable = Self.usableImageData(image) {
+                normalized.backgroundImageData = usable
+            } else {
+                normalized.backgroundImageData = nil
+            }
+        }
         return normalized
     }
 
@@ -144,18 +147,13 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     }
 
     mutating func selectBackgroundMode(_ mode: AppearanceBackgroundMode) {
-        let wasImage = backgroundMode == .image || backgroundImageData != nil
-        if mode == .image && Self.usableImageData(backgroundImageData ?? Data()) == nil {
-            backgroundMode = .color
-            backgroundImageData = nil
+        backgroundMode = mode
+        if mode == .image {
+            // Drop corrupt bytes, but keep Image selected so the picker stays
+            // visible and the user can repair the background in one tap.
+            backgroundImageData = backgroundImageData.flatMap(Self.usableImageData)
         } else {
-            backgroundMode = mode
-        }
-        if backgroundMode != .image {
             backgroundImageData = nil
-            if wasImage {
-                backgroundResetAt = Date().timeIntervalSince1970
-            }
         }
     }
 
@@ -169,6 +167,14 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         backgroundMode = .image
         backgroundResetAt = Date().timeIntervalSince1970
         return true
+    }
+
+    /// Explicitly removes the stored photo. Selecting another mode remains
+    /// reversible and must not call this operation.
+    mutating func removeBackgroundImage() {
+        backgroundImageData = nil
+        backgroundMode = .color
+        backgroundResetAt = Date().timeIntervalSince1970
     }
 
     mutating func resetBackground() {
@@ -367,6 +373,9 @@ struct AppearanceCachedImage<Placeholder: View>: View {
                 placeholder()
             }
         }
+        // A rendered preview is decoration. Keeping it out of the hit-test
+        // tree prevents a cached image from swallowing the controls below it.
+        .allowsHitTesting(false)
         .task(id: data) {
             image = nil
             guard let data else { return }
@@ -679,6 +688,12 @@ enum Theme {
         static let hit: CGFloat = 44
         /// Grundabstand.
         static let gap: CGFloat = 8
+        /// Spacing between independently interactive settings rows. The
+        /// default grouped-list spacing is too compressed with custom glass
+        /// backgrounds, so all settings screens use this shared value.
+        static let settingsRowGap: CGFloat = 10
+        /// Breathing room between settings groups.
+        static let settingsSectionGap: CGFloat = 18
         /// Seitenrand von Liste und Chrom.
         static let gutter: CGFloat = 16
         /// Innenabstand der Rasterfläche.
@@ -706,10 +721,11 @@ extension View {
     /// Bearbeiten-Blatt zeigte deshalb Grün, während die App in einer eigenen
     /// Farbe lief, und die eigenen Paletten fehlten dort ganz. Eine Zeile je
     /// Blatt, statt in jedem Blatt einzeln daran zu denken.
-    func themed(_ store: HabitStore) -> some View {
-        environment(\.palettes, store.palettes)
+    func themed(_ store: HabitStore, palettes: PaletteBook? = nil) -> some View {
+        let effectivePalettes = palettes ?? store.palettes
+        return environment(\.palettes, effectivePalettes)
             .environment(\.appearancePreferences, store.appearancePreferences)
-            .tint(Theme.accentText(store.paletteStyle))
+            .tint(Theme.accentText(effectivePalettes.style))
     }
 
     func appSurface(cornerRadius: CGFloat = Theme.Metrics.cardRadius) -> some View {
@@ -973,6 +989,8 @@ private struct SettingsSurfaceModifier: ViewModifier {
         content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
+            .listRowSpacing(Theme.Metrics.settingsRowGap)
+            .listSectionSpacing(Theme.Metrics.settingsSectionGap)
             .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
     }

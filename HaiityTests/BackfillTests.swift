@@ -238,11 +238,17 @@ final class BackfillStateTests: GridTestCase {
         XCTAssertEqual(Backfill.state(habit: h, day: day), .quantity(value: 2, target: 3))
     }
 
-    /// Ein leerer Tag bietet genau EINE Aktion an, und die schreibt 1.
+    /// Ein leerer Tag bietet die Entscheidung und Rückgängig von Anfang an.
     func testEmptyCheckboxDayOffersDoneWritingOne() {
         let actions = Backfill.actions(for: .empty)
-        XCTAssertEqual(actions.map(\.kind), [.done])
+        XCTAssertEqual(actions.map(\.kind), [.done, .clear])
         XCTAssertEqual(actions[0].value, 1)
+        XCTAssertNil(actions[1].value)
+    }
+
+    func testClearActionIsPresentedAsUndoFromTheStart() {
+        XCTAssertEqual(Backfill.Action.clear.title, String(localized: "Rückgängig"))
+        XCTAssertEqual(Backfill.Action.clear.systemImage, "arrow.uturn.backward")
     }
 
     func testDoneDayOffersOnlyClearWritingNil() {
@@ -256,8 +262,9 @@ final class BackfillStateTests: GridTestCase {
     /// sich, ein Delta wäre also eine Rechnung im Blindflug.
     func testQuantityActionWritesExactlyTheTargetNotAnIncrement() {
         let actions = Backfill.actions(for: .quantity(value: 0, target: 5))
-        XCTAssertEqual(actions.map(\.kind), [.quantity])
+        XCTAssertEqual(actions.map(\.kind), [.quantity, .clear])
         XCTAssertEqual(actions[0].value, 5)
+        XCTAssertNil(actions[1].value)
 
         let partial = Backfill.actions(for: .quantity(value: 4, target: 5))
         XCTAssertEqual(partial.map(\.kind), [.quantity, .clear])

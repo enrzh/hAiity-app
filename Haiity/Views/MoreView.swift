@@ -69,7 +69,7 @@ struct MoreView: View {
     @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
-    @State private var showingBackgroundPhotoPicker = false
+    @State private var pickedBackgroundItem: PhotosPickerItem?
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
@@ -149,7 +149,7 @@ struct MoreView: View {
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
         .sheet(isPresented: $creatingPalette) {
-            CustomPaletteSheet(store: store).themed(store)
+            CustomPaletteSheet(store: store).themed(store, palettes: palettes)
         }
         .onAppear {
             dndNow = .now
@@ -173,12 +173,13 @@ struct MoreView: View {
             }
         }
         .sheet(item: $editingPalette) { palette in
-            CustomPaletteSheet(store: store, existing: palette).themed(store)
+            CustomPaletteSheet(store: store, existing: palette)
+                .themed(store, palettes: palettes)
         }
         .sheet(item: $paywall, onDismiss: resumeAfterPurchase) { context in
             PaywallView(context: context, store: store,
                         onUnlocked: { purchased = context })
-                .themed(store)
+                .themed(store, palettes: palettes)
         }
         // Ein Deep-Link gewinnt gegen jedes offene Kaufblatt: der Tab
         // wechselt darunter, also darf es nicht darüber liegen bleiben.
@@ -192,7 +193,8 @@ struct MoreView: View {
             backgroundImageImportToken = UUID()
         }
         .fullScreenCover(isPresented: $showReminderSetup) {
-            ReminderSetupView(isPresented: $showReminderSetup, store: store).themed(store)
+            ReminderSetupView(isPresented: $showReminderSetup, store: store)
+                .themed(store, palettes: palettes)
         }
         .alert(String(localized: "Farbe umbenennen"),
                isPresented: Binding(get: { renamingPalette != nil },
@@ -247,10 +249,7 @@ struct MoreView: View {
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
             .settingsListRow()
-            notificationOptOutSection.settingsListRow()
-            dailySummarySection.settingsListRow()
-            weeklySummarySection.settingsListRow()
-            motivationSection.settingsListRow()
+            notificationSettingsSection.settingsListRow()
             Section {
                 pageRow(MoreRoute.archive, title: String(localized: "Archiv"),
                         symbol: "archivebox", identifier: "open-archive",
@@ -1029,12 +1028,11 @@ struct MoreView: View {
         Binding(
             get: { store.appearancePreferences.backgroundMode },
             set: { mode in
+                backgroundImageImportToken = UUID()
                 updateAppearance {
                     $0.selectBackgroundMode(mode)
                 }
-                if mode != .image {
-                    backgroundImageImportToken = UUID()
-                }
+                pickedBackgroundItem = nil
             })
     }
 
@@ -1098,7 +1096,8 @@ struct MoreView: View {
     }
 
     private var backgroundControl: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+        let appearance = currentAppearance
+        return VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
             Text(String(localized: "Hintergrund"))
                 .font(.subheadline.weight(.semibold))
 
@@ -1133,16 +1132,29 @@ struct MoreView: View {
             case .image:
                 backgroundImagePicker
             }
+            // Keep the native picker reachable while Color/Gradient is
+            // selected. Image mode is also persisted without bytes when a
+            // photo was removed or invalidated, so the picker remains a
+            // repair path instead of leaving a dead-looking editor.
+            if store.appearancePreferences.backgroundMode != .image,
+               appearance.imagePayload == nil {
+                backgroundImagePicker
+            }
         }
-        .sheet(isPresented: $showingBackgroundPhotoPicker) {
-            BackgroundPhotoPicker(
-                onPick: { data in
-                    guard let data else { return }
-                    importBackgroundImage(data)
-                },
-                onFinish: { showingBackgroundPhotoPicker = false })
-            .ignoresSafeArea()
+    }
+
+    private var backgroundModeSelector: some View {
+        Picker(selection: backgroundModeBinding) {
+            ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
+                Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
+                    .tag(mode)
+            }
+        } label: {
+            Text(String(localized: "Hintergrund"))
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .accessibilityIdentifier("appearance-background-mode-picker")
     }
 
     private func backgroundSymbol(for mode: AppearanceBackgroundMode) -> String {
@@ -1151,44 +1163,6 @@ struct MoreView: View {
         case .gradient: "circle.lefthalf.filled"
         case .image: "photo"
         }
-    }
-
-    private var backgroundModeSelector: some View {
-        HStack(spacing: 4) {
-            ForEach(AppearanceBackgroundMode.allCases, id: \.self) { mode in
-                backgroundModeButton(for: mode)
-            }
-        }
-        .padding(4)
-        .background(Color.primary.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(String(localized: "Hintergrund"))
-        .accessibilityIdentifier("appearance-background-mode-picker")
-    }
-
-    private func backgroundModeButton(for mode: AppearanceBackgroundMode) -> some View {
-        let appearance = currentAppearance
-        let selected = appearance.backgroundMode == mode
-        return Button {
-            if mode == .image,
-               appearance.imagePayload == nil {
-                openBackgroundPicker()
-            } else {
-                backgroundModeBinding.wrappedValue = mode
-            }
-        } label: {
-            Label(mode.displayName, systemImage: backgroundSymbol(for: mode))
-                .font(.subheadline.weight(selected ? .semibold : .regular))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .background(selected ? Color(.systemBackground) : .clear, in: Capsule())
-        .accessibilityLabel(mode.displayName)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("appearance-background-mode-\(mode.rawValue)")
     }
 
     private func backgroundColorRow(title: String,
@@ -1269,14 +1243,15 @@ struct MoreView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
         }
+        .allowsHitTesting(false)
     }
 
     private var backgroundImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: Theme.Metrics.gap) {
-                Button {
-                    openBackgroundPicker()
-                } label: {
+                PhotosPicker(selection: $pickedBackgroundItem,
+                             matching: .images,
+                             photoLibrary: .shared()) {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
                         .font(.body.weight(.semibold))
@@ -1294,12 +1269,12 @@ struct MoreView: View {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("appearance-background-picker")
+
                 if hasPersistedBackgroundImage {
                     Button(role: .destructive) {
                         backgroundImageImportToken = UUID()
-                        updateAppearance {
-                            $0.selectBackgroundMode(.color)
-                        }
+                        pickedBackgroundItem = nil
+                        store.removeBackgroundImage()
                         backgroundImageError = false
                     } label: {
                         Image(systemName: "trash")
@@ -1318,6 +1293,34 @@ struct MoreView: View {
                     .accessibilityIdentifier("appearance-background-remove")
                 }
             }
+            .onChange(of: pickedBackgroundItem) { _, item in
+                guard let item else { return }
+                backgroundImageError = false
+                let token = UUID()
+                backgroundImageImportToken = token
+                Task {
+                    do {
+                        let data = try await item.loadTransferable(type: Data.self)
+                        await MainActor.run {
+                            guard token == backgroundImageImportToken else { return }
+                            guard let data else {
+                                backgroundImageError = true
+                                pickedBackgroundItem = nil
+                                return
+                            }
+                            importBackgroundImage(data)
+                            pickedBackgroundItem = nil
+                        }
+                    } catch {
+                        await MainActor.run {
+                            guard token == backgroundImageImportToken else { return }
+                            backgroundImageError = true
+                            pickedBackgroundItem = nil
+                        }
+                    }
+                }
+            }
+
             if currentAppearance.imagePayload != nil {
                 AppearanceCachedImage(data: currentAppearance.imagePayload) {
                     Color(.secondarySystemGroupedBackground)
@@ -1329,6 +1332,7 @@ struct MoreView: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                     }
+                    .allowsHitTesting(false)
                     .accessibilityLabel(String(localized: "Ausgewähltes Hintergrundbild"))
             }
             if backgroundImageError {
@@ -1337,11 +1341,6 @@ struct MoreView: View {
                     .foregroundStyle(.orange)
             }
         }
-    }
-
-    private func openBackgroundPicker() {
-        backgroundImageError = false
-        showingBackgroundPhotoPicker = true
     }
 
     private func importBackgroundImage(_ data: Data) {
@@ -1405,7 +1404,7 @@ struct MoreView: View {
     /// der Graph-Farbe hergeleitete, sonst das zuletzt gesetzte.
     private var selectedIconName: String? {
         store.matchAppIcon
-            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            ? AppIcons.iconName(for: palettes.global, customs: palettes.customs)
             : currentIconName
     }
 
@@ -1555,11 +1554,11 @@ struct MoreView: View {
                 .accessibilityIdentifier("palette-row-\(palette.rawValue)")
                 .padding(.vertical, Theme.Metrics.gap)
             }
-            ForEach(store.customPalettes) { custom in
+            ForEach(unlocked ? store.customPalettes : []) { custom in
                 PaletteRow(style: custom.style,
                            title: custom.displayName,
                            selected: store.palette == .custom(custom.id)) {
-                    select(.custom(custom.id))
+                    selectCustomPalette(custom.id)
                 }
                 .accessibilityIdentifier("palette-row-custom-\(custom.id.uuidString)")
                 .padding(.vertical, Theme.Metrics.gap)
@@ -1625,6 +1624,14 @@ struct MoreView: View {
             return
         }
         creatingPalette = true
+    }
+
+    private func selectCustomPalette(_ id: UUID) {
+        guard ProGate.mayUseProFeature(unlocked: unlocked) else {
+            paywall = .palette
+            return
+        }
+        select(.custom(id))
     }
 
     /// Was nach einem erfolgreichen Kauf weiterläuft. Erst beim ZUFAHREN des
@@ -1735,7 +1742,7 @@ struct MoreView: View {
 
     private func applyIconPreference() {
         let wanted = store.matchAppIcon
-            ? AppIcons.iconName(for: store.palettes.global, customs: store.palettes.customs)
+            ? AppIcons.iconName(for: palettes.global, customs: palettes.customs)
             : AppIcons.validManualName(store.manualAppIconName)
         Task {
             let ok = await AppIcons.set(wanted)
@@ -1755,8 +1762,24 @@ struct MoreView: View {
     // Das Berechtigungs-Gate bleibt exakt wie gehabt: gefragt wird NUR beim
     // aktiven Einschalten, nie beim Start.
 
-    private var notificationOptOutSection: some View {
+    private var notificationSettingsSection: some View {
         Section {
+            // One notification block keeps the related controls together;
+            // spacing separates the groups without the cramped divider stack.
+            VStack(alignment: .leading, spacing: Theme.Metrics.gutter + 6) {
+                notificationOptOutRows
+                dailySummaryRows
+                weeklySummaryRows
+                motivationRows
+            }
+            .padding(.vertical, Theme.Metrics.gap)
+        } header: {
+            Text(String(localized: "Mitteilungen"))
+        }
+    }
+
+    private var notificationOptOutRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: dndEnabled) {
                 Label(NotificationDNDPresentation.title,
                       systemImage: NotificationDNDPresentation.symbolName)
@@ -1779,8 +1802,6 @@ struct MoreView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        } header: {
-            Text(String(localized: "Mitteilungen"))
         }
     }
 
@@ -1862,8 +1883,8 @@ struct MoreView: View {
         updateCloudPreferences { $0.notificationDND = state }
     }
 
-    private var dailySummarySection: some View {
-        Section {
+    private var dailySummaryRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: dailyEnabled) {
                 Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
             }
@@ -1879,8 +1900,8 @@ struct MoreView: View {
         }
     }
 
-    private var weeklySummarySection: some View {
-        Section {
+    private var weeklySummaryRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: weeklyEnabled) {
                 Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
             }
@@ -1902,8 +1923,8 @@ struct MoreView: View {
         }
     }
 
-    private var motivationSection: some View {
-        Section {
+    private var motivationRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: motivationEnabled) {
                 Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
             }
@@ -2091,88 +2112,6 @@ struct HabitExport: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { $0.data }
             .suggestedFileName("haiity-export.json")
-    }
-}
-
-private struct BackgroundPhotoPicker: UIViewControllerRepresentable {
-    let onPick: (Data?) -> Void
-    let onFinish: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onPick: onPick, onFinish: onFinish)
-    }
-
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.filter = .images
-        configuration.selectionLimit = 1
-        configuration.preferredAssetRepresentationMode = .current
-
-        let picker = PHPickerViewController(configuration: configuration)
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ controller: PHPickerViewController, context: Context) {}
-
-    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        private let onPick: (Data?) -> Void
-        private let onFinish: () -> Void
-        private let deliveryLock = NSLock()
-        private var didDeliver = false
-
-        init(onPick: @escaping (Data?) -> Void,
-             onFinish: @escaping () -> Void) {
-            self.onPick = onPick
-            self.onFinish = onFinish
-        }
-
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            guard let provider = results.first?.itemProvider else {
-                deliver(nil)
-                return
-            }
-
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                if let data {
-                    self.deliver(data)
-                    return
-                }
-
-                // iCloud-backed providers can refuse the current data
-                // representation even though they can vend a decoded image.
-                provider.loadObject(ofClass: UIImage.self) { object, _ in
-                    if let image = object as? UIImage,
-                       let data = image.jpegData(compressionQuality: 0.9)
-                        ?? image.pngData() {
-                        self.deliver(data)
-                        return
-                    }
-
-                    // Some providers expose only a temporary file. The file
-                    // is valid for the duration of this callback, so copy it
-                    // before handing the bytes back to SwiftUI.
-                    provider.loadFileRepresentation(
-                        forTypeIdentifier: UTType.image.identifier) { url, _ in
-                            self.deliver(url.flatMap { try? Data(contentsOf: $0) })
-                        }
-                }
-            }
-        }
-
-        private func deliver(_ data: Data?) {
-            deliveryLock.lock()
-            guard !didDeliver else {
-                deliveryLock.unlock()
-                return
-            }
-            didDeliver = true
-            deliveryLock.unlock()
-            DispatchQueue.main.async { [onPick, onFinish] in
-                onPick(data)
-                onFinish()
-            }
-        }
     }
 }
 

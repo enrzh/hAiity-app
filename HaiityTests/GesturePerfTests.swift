@@ -48,13 +48,17 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertTrue(habitActions.contains("String(localized: \"Nacharbeiten\")"))
         XCTAssertTrue(habitActions.contains("String(localized: \"Archivieren\")"))
         XCTAssertTrue(habitActions.contains("String(localized: \"Als Bild teilen\")"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Rückgängig\")"))
+        XCTAssertTrue(habitActions.contains("handler: onClear"))
+        XCTAssertTrue(habitActions.contains("String(localized: \"Löschen\")"))
+        XCTAssertTrue(habitActions.contains("destructive: true"))
     }
 
     func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {
         let actions = try habitActionsSource()
         XCTAssertFalse(actions.contains("onMarkDone"))
         XCTAssertFalse(actions.contains("onAnswer"))
-        XCTAssertFalse(actions.contains("onClear"))
+        XCTAssertEqual(actions.components(separatedBy: "handler: onClear").count - 1, 1)
     }
 
     func testStatusControlsUseTheHabitPaletteForPositiveAndNegativeStates() throws {

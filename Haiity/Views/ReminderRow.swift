@@ -15,6 +15,7 @@ struct ReminderRow: View, Equatable {
     let onEdit: () -> Void
     let onArchive: () -> Void
     let onRevert: () -> Void
+    var onDelete: () -> Void = {}
     var now: Date = .now
     var calendar: Calendar = .current
 
@@ -40,6 +41,14 @@ struct ReminderRow: View, Equatable {
     }
 
     private var rowContent: some View {
+        rowLayout
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .appSurface()
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
+    }
+
+    private var rowLayout: some View {
         HStack(spacing: Theme.Metrics.gap) {
             HStack(spacing: Theme.Metrics.gap) {
                 if habit.emoji.isEmpty {
@@ -80,10 +89,6 @@ struct ReminderRow: View, Equatable {
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 64)
-        .appSurface()
-        .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                       style: .continuous))
     }
 
     private var state: ReminderOccurrenceState {
@@ -107,8 +112,12 @@ struct ReminderRow: View, Equatable {
     }
 
     private var reminderPreview: some View {
-        rowContent
+        rowLayout
             .frame(width: previewWidth)
+            .frame(minHeight: 64)
+            .appSurface()
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
             .accessibilityIdentifier("reminder-preview")
     }
 
@@ -118,6 +127,8 @@ struct ReminderRow: View, Equatable {
          GraphMenuAction(title: String(localized: "Rückgängig"),
                          symbol: "arrow.uturn.backward", handler: onRevert),
          GraphMenuAction(title: String(localized: "Archivieren"),
-                         symbol: "archivebox", handler: onArchive)]
+                         symbol: "archivebox", handler: onArchive),
+         GraphMenuAction(title: String(localized: "Löschen"),
+                         symbol: "trash", handler: onDelete, destructive: true)]
     }
 }

@@ -97,8 +97,7 @@ struct HaiityApp: App {
                         // future launch choreography.
                         startupContentMounted = true
                     }) {
-                        startupAnimationFinished = true
-                        revealStartupIfReady()
+                        finishStartupAnimation()
                     }
                     .allowsHitTesting(startupSplashVisible)
                     .zIndex(1)
@@ -130,11 +129,12 @@ struct HaiityApp: App {
         }
     }
 
-    private func revealStartupIfReady() {
-        guard startupAnimationFinished else { return }
+    private func finishStartupAnimation() {
+        // Commit the handoff in one callback. Reading @State immediately after
+        // writing it would observe the previous render pass and leave the
+        // transparent splash above every control.
+        startupAnimationFinished = true
         startupContentMounted = true
-        // The splash has completed its own fade. Removing it without another
-        // transition keeps the handoff from flashing or shrinking to center.
         startupSplashVisible = false
     }
 }

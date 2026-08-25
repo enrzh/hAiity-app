@@ -496,12 +496,9 @@ final class HabitStore {
         set {
             let old = data.appearancePreferences
             var next = newValue.normalizedForStorage()
-            let oldWasImage = old.backgroundMode == .image || old.backgroundImageData != nil
-            let newIsImage = next.backgroundMode == .image && next.backgroundImageData != nil
-            if oldWasImage && !newIsImage {
-                next.backgroundResetAt = Date().timeIntervalSince1970
-            } else if newIsImage,
-                      old.backgroundImageData != next.backgroundImageData {
+            // A mode switch is reversible and must not become a deletion
+            // tombstone. Only an actual payload mutation changes the marker.
+            if old.backgroundImageData != next.backgroundImageData {
                 next.backgroundResetAt = Date().timeIntervalSince1970
             }
             data.appearancePreferences = next
@@ -513,6 +510,13 @@ final class HabitStore {
         var preferences = data.appearancePreferences
         preferences.resetBackground()
         guard preferences != data.appearancePreferences else { return }
+        data.appearancePreferences = preferences
+        persist(changeKind: .appearance)
+    }
+
+    func removeBackgroundImage() {
+        var preferences = data.appearancePreferences
+        preferences.removeBackgroundImage()
         data.appearancePreferences = preferences
         persist(changeKind: .appearance)
     }
@@ -1089,15 +1093,13 @@ final class HabitStore {
             let remoteMarker = remotePreferences.backgroundResetAt ?? 0
             if localMarker > remoteMarker {
                 // Preserve the local background whenever the incoming image
-                // predates a local reset. Other appearance fields can still
-                // follow the newer remote payload.
-                if remotePreferences.backgroundMode == .image {
-                    nextPreferences.backgroundMode = localPreferences.backgroundMode
-                    nextPreferences.backgroundColorHex = localPreferences.backgroundColorHex
-                    nextPreferences.gradientStartHex = localPreferences.gradientStartHex
-                    nextPreferences.gradientEndHex = localPreferences.gradientEndHex
-                    nextPreferences.backgroundImageData = localPreferences.backgroundImageData
-                }
+                // predates a local reset, including a color-mode payload that
+                // still carries old image bytes.
+                nextPreferences.backgroundMode = localPreferences.backgroundMode
+                nextPreferences.backgroundColorHex = localPreferences.backgroundColorHex
+                nextPreferences.gradientStartHex = localPreferences.gradientStartHex
+                nextPreferences.gradientEndHex = localPreferences.gradientEndHex
+                nextPreferences.backgroundImageData = localPreferences.backgroundImageData
                 nextPreferences.backgroundResetAt = localPreferences.backgroundResetAt
             }
             data.appearancePreferences = nextPreferences.normalizedForStorage()

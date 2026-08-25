@@ -543,8 +543,8 @@ final class YesNoSurfaceTests: XCTestCase {
         XCTAssertEqual(Backfill.state(habit: h, day: "2026-08-07"), .done)
     }
 
-    func testEveryYesNoStateOffersExactlyTwoUsefulActions() {
-        for (state, kinds) in [(Backfill.DayState.empty, [Backfill.Action.Kind.affirmed, .declined]),
+    func testEveryYesNoStateOffersTheDecisionAndUndoFromTheStart() {
+        for (state, kinds) in [(Backfill.DayState.empty, [Backfill.Action.Kind.affirmed, .declined, .clear]),
                                (.done, [.declined, .clear]),
                                (.declined, [.affirmed, .clear])] {
             let actions = Backfill.actions(for: state, kind: .yesNo)
@@ -561,9 +561,9 @@ final class YesNoSurfaceTests: XCTestCase {
     }
 
     func testCheckboxActionsAreUnchanged() {
-        XCTAssertEqual(Backfill.actions(for: .empty).map(\.kind), [.done])
+        XCTAssertEqual(Backfill.actions(for: .empty).map(\.kind), [.done, .clear])
         XCTAssertEqual(Backfill.actions(for: .done).map(\.kind), [.clear])
-        XCTAssertEqual(Backfill.actions(for: .quantity(value: 1, target: 3)).map(\.kind),
+        XCTAssertEqual(Backfill.actions(for: .quantity(value: 0, target: 3)).map(\.kind),
                        [.quantity, .clear])
     }
 

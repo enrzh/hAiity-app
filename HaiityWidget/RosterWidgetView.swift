@@ -179,7 +179,7 @@ struct RosterWidgetView: View {
                                     : String(localized: "Habit abhaken"))
             }
 
-            if entry.widgetResetEnabled && hasValue(habit, summary: summary) {
+            if entry.widgetResetEnabled {
                 Button(intent: ResetHabitIntent(habit: habit)) {
                     Image(systemName: "arrow.uturn.backward")
                 }
@@ -193,13 +193,6 @@ struct RosterWidgetView: View {
         .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay { Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5) }
-    }
-
-    private func hasValue(_ habit: Habit, summary: WidgetItemSummary) -> Bool {
-        if habit.isReminder { return summary.status == .done }
-        return summary.kind == .yesNo
-            ? summary.answer != .some(.open)
-            : habit.log[entry.today(for: habit)] != nil
     }
 
     private func metadata(habit: Habit, summary: WidgetItemSummary,

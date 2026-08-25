@@ -26540,6 +26540,36 @@
         }
       }
     },
+    "Dieser Import würde das kostenlose Limit von drei aktiven Habits überschreiten. Mit hAiity Pro kannst du ihn vollständig zusammenführen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This import would exceed the free limit of three active habits. With hAiity Pro, you can merge it completely."
+          }
+        }
+      }
+    },
+    "Hintergrundbild entfernt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background image removed."
+          }
+        }
+      }
+    },
+    "Hintergrundbild erzwingen entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Force-remove background image"
+          }
+        }
+      }
+    },
     "Hintergrund zurückgesetzt.": {
       "localizations": {
         "ar": {
