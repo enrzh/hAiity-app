@@ -4,15 +4,10 @@ import UIKit
 /// Das Herzstück: 53 Wochen × 7 Tage, Sonntag oben, Monatsmarken darüber,
 /// scrollt zu heute. Zukunft ist gedimmt und tot.
 ///
-/// **Ein Tipp auf eine Zelle SCHREIBT NICHT.** Er WÄHLT den Tag aus und
-/// öffnet damit die Nacharbeiten-Karte an genau diesem Datum
-/// (`onSelectDay`). Vorher hakte er direkt ab: auf einem 8- bis 12-pt-Quadrat
-/// heißt das, dass ein Fehlgriff still einen vergangenen Tag umschreibt — an
-/// der einzigen Stelle der App, an der Wochen alter Verlauf mit einem Finger
-/// erreichbar ist. Geschrieben wird jetzt erst in der Karte, auf eine
-/// benannte Aktion. Deshalb ist die Rückmeldung hier auch eine
-/// AUSWAHL-Haptik und nicht mehr der Stups des Abhakens: es ist nichts
-/// bestätigt worden.
+/// The grid is display-only. Editing past days is deliberately available only
+/// through the card's long-press menu, where the Nacharbeiten action is named
+/// explicitly instead of making every tiny cell an accidental navigation
+/// target.
 ///
 /// Drei Dinge, die hier bewusst NICHT der Umgebung folgen:
 ///  * **Layout-Richtung**: die Chronologie läuft immer links→rechts, auch
@@ -26,10 +21,8 @@ import UIKit
 /// ist mit Abstand der teuerste Teilbaum einer Karte (371 Zellen), und es
 /// hängt an KEINEM der Werte, die sich bei Chrom-Umbauten ändern (collapsed,
 /// Tafel, Toast). Ohne den Vergleich riss jede `ContentView`-Auswertung alle
-/// sichtbaren Raster mit, weil die frisch gebauten Closures für SwiftUI nie
-/// gleich aussehen. Der Callback bleibt darum ausdrücklich AUSSERHALB des
-/// Vergleichs — er ist Verhalten, nicht Anzeige, und an den `.equatable()`-
-/// Stellen in jeder Auswertung semantisch derselbe.
+/// sichtbaren Raster mit, weil die frisch gebauten Werte für SwiftUI nie
+/// gleich aussehen.
 struct ContributionGrid: View, Equatable {
     static func == (a: ContributionGrid, b: ContributionGrid) -> Bool {
         a.habit == b.habit
@@ -39,7 +32,6 @@ struct ContributionGrid: View, Equatable {
             && a.interactive == b.interactive
             && a.showsMonthLabels == b.showsMonthLabels
             && a.calendar.timeZone.identifier == b.calendar.timeZone.identifier
-            && (a.onSelectDay == nil) == (b.onSelectDay == nil)
     }
 
     let habit: Habit
@@ -51,10 +43,6 @@ struct ContributionGrid: View, Equatable {
     var interactive: Bool = true
     var showsMonthLabels: Bool = true
     var calendar: Calendar = .current
-    /// Tag AUSGEWÄHLT (nicht geändert): der Aufrufer öffnet damit die
-    /// Nacharbeiten-Karte. Nil = das Raster ist nur Anzeige.
-    var onSelectDay: ((String) -> Void)?
-
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// GLOBALE Farbe + eigene Paletten; die Habit-eigene Farbe legt sich
@@ -116,23 +104,6 @@ struct ContributionGrid: View, Equatable {
                     cellCanvas(snapshot: snapshot, cell: m.cell, gap: m.gap,
                                width: contentWidth)
                         .id(Self.gridID)
-                        // EIN Tipp-Erkenner für alle 371 Zellen. Getroffen
-                        // wird über die Geometrie — die Tippbarkeits-Regel
-                        // bleibt Zeichen für Zeichen `GridCalendar.isTappable`.
-                        .contentShape(Rectangle())
-                        .modifier(GridTap(enabled: interactive && onSelectDay != nil) { location in
-                            guard let key = GridCalendar.hitKey(location: location,
-                                                                keys: snapshot.keys,
-                                                                cell: m.cell,
-                                                                gap: m.gap),
-                                  GridCalendar.isTappable(key: key,
-                                                          interactive: interactive,
-                                                          today: snapshot.today) else { return }
-                            // Auswahl-Haptik, nicht die des Abhakens: hier
-                            // wird nichts bestätigt, hier wird ausgewählt.
-                            Theme.Haptics.select()
-                            onSelectDay?(key)
-                        })
                 }
                 .padding(.vertical, 2)
         }
@@ -141,6 +112,12 @@ struct ContributionGrid: View, Equatable {
         // Listen-/Tab-Aufbau acht breite ScrollViews zu doppeltem Layout
         // (mitgemessen im Such-Tab-Aufbau).
         .defaultScrollAnchor(.trailing)
+        // Recent habits use a viewport-sized history window. Disable the
+        // horizontal gesture once layout confirms there is no extra content;
+        // otherwise iOS still gives the graph an empty rubber-band bounce.
+        .scrollDisabled(available > 0
+                        && !GridCalendar.needsHorizontalScroll(contentWidth: contentWidth,
+                                                               viewportWidth: available))
         .background(widthReader)
         // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
@@ -359,27 +336,5 @@ private struct GridWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
-    }
-}
-
-/// Tipp-Erkenner fürs GANZE Raster — nur angehängt, wenn das Raster
-/// überhaupt interaktiv ist (Teilen-Karte und Vorschau bekommen gar keine
-/// Gestenerkennung, nicht bloß einen `guard` im Handler).
-private struct GridTap: ViewModifier {
-    let enabled: Bool
-    let action: (CGPoint) -> Void
-
-    func body(content: Content) -> some View {
-        if enabled {
-            // `onTapGesture(coordinateSpace:)`, NICHT `SpatialTapGesture` in
-            // `.gesture` — Letzterer feuert in dieser Verschachtelung
-            // (List-Zelle mit gehobenem `contextMenu`, horizontale
-            // ScrollView) schlicht nicht (nachgemessen: kein einziger
-            // Treffer). Der Tap-Erkenner hier ist derselbe Mechanismus, den
-            // vorher jede Zelle einzeln trug.
-            content.onTapGesture(coordinateSpace: .local) { action($0) }
-        } else {
-            content
-        }
     }
 }

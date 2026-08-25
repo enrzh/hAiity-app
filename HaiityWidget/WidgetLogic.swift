@@ -156,7 +156,9 @@ enum WidgetLogic {
                         selected: UUID?,
                         today: String = DayKey.today(),
                         calendar: Calendar = .current) -> Habit? {
-        let active = habits.filter { $0.archivedAt == nil }
+        let active = HabitVisibility.visibleActiveHabits(
+            habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
         return recommended(habits: active, today: today, calendar: calendar)
     }
@@ -203,7 +205,10 @@ enum WidgetLogic {
                             today: String = DayKey.today(),
                             calendar: Calendar = .current) -> Habit? {
         var best: (habit: Habit, streak: Int)?
-        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
+        for habit in HabitVisibility.visibleActiveHabits(
+            habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            where habit.isTrackedHabit {
             let streak = habit.streak(today: today, calendar: calendar)
             if best == nil || streak > best!.streak { best = (habit, streak) }
         }

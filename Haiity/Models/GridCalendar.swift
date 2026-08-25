@@ -67,6 +67,55 @@ enum GridCalendar {
         }
     }
 
+    /// Number of columns that carry meaningful history, with enough columns
+    /// to fill the normal card viewport but without an artificial blank year
+    /// before a recently created habit.
+    static func weeksForDisplay(habit: Habit,
+                                today: String,
+                                minimumWeeks: Int = 24,
+                                maximumWeeks: Int = 53,
+                                calendar: Calendar = .current) -> Int {
+        guard maximumWeeks > 0 else { return 0 }
+        let minimum = min(maximumWeeks, max(1, minimumWeeks))
+        guard let todayDate = DayKey.date(from: today, calendar: calendar) else {
+            return minimum
+        }
+
+        var earliestKey = today
+        if DayKey.isPlausible(habit.createdAt, today: today, calendar: calendar) {
+            earliestKey = min(earliestKey, habit.createdAt)
+        }
+        if let firstLoggedDay = habit.validDays(today: today, calendar: calendar).min() {
+            earliestKey = min(earliestKey, firstLoggedDay)
+        }
+        guard let earliestDate = DayKey.date(from: earliestKey, calendar: calendar) else {
+            return minimum
+        }
+
+        let firstWeek = weekStart(for: earliestDate, calendar: calendar)
+        let currentWeek = weekStart(for: todayDate, calendar: calendar)
+        let days = calendar.dateComponents([.day], from: firstWeek, to: currentWeek).day ?? 0
+        let naturalWeeks = max(1, days / rows + 1)
+        return min(maximumWeeks, max(minimum, naturalWeeks))
+    }
+
+    /// Whether a horizontal graph has content beyond its measured viewport.
+    /// A small tolerance prevents fractional layout measurements from leaving
+    /// a recent graph with a pointless one-pixel bounce.
+    static func needsHorizontalScroll(contentWidth: CGFloat,
+                                      viewportWidth: CGFloat) -> Bool {
+        guard viewportWidth > 0 else { return true }
+        return contentWidth > viewportWidth + 0.5
+    }
+
+    private static func weekStart(for date: Date, calendar: Calendar) -> Date {
+        let day = calendar.component(.weekday, from: date) - 1
+        return calendar.date(byAdding: .day,
+                            value: -day,
+                            to: calendar.startOfDay(for: date))
+            ?? calendar.startOfDay(for: date)
+    }
+
     // MARK: – Monatsmarken
 
     /// Jede Spalte, deren erster Tag in einem neuen Monat liegt. Die

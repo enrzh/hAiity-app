@@ -666,7 +666,10 @@ enum Reminders {
         // data.json ist ohnehin die einzige Wahrheit (auch fürs Widget).
         var plans = [daily, weekly].compactMap { $0 }
         if let data = HabitStore.read(SharedStorage.dataURL()) {
-            plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: data.habits)
+            let visibleHabits = HabitVisibility.visibleActiveHabits(
+                data.habits,
+                unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            plans += upcomingDailyPlans(minutes: data.summaryMinutes, habits: visibleHabits)
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
             // nicht die Nachricht von morgen früh.
@@ -676,7 +679,7 @@ enum Reminders {
             }
             let reservingMotivation = data.motivationMinutes != nil
                 && data.motivationDelivery == .notification
-            plans += habitPlans(habits: data.habits,
+            plans += habitPlans(habits: visibleHabits,
                                 reservingMotivation: reservingMotivation,
                                 notificationActions: data.viewPreferences.notificationActions.slots,
                                 defaultTimeZoneIdentifier: data.defaultTimeZoneIdentifier)
@@ -690,14 +693,21 @@ enum Reminders {
                            now: Date = Date(),
                            calendar: Calendar = .current) async {
         let today = DayKey.key(for: now, calendar: calendar)
+        let visibleHabits = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         let daily = dailySummaryPlan(minutes: store.summaryMinutes,
-                                     status: store.dailyStatus(today, calendar: calendar),
+                                     status: store.dailyStatus(today,
+                                                               calendar: calendar,
+                                                               habits: visibleHabits),
                                      now: now,
                                      calendar: calendar)
         let weekly = weeklySummaryPlan(minutes: store.weeklySummaryMinutes,
                                        weekday: store.weeklySummaryWeekday,
-                                       status: store.weeklyStatus(today, calendar: calendar,
-                                                                   fullWeek: true),
+                                       status: store.weeklyStatus(today,
+                                                                   calendar: calendar,
+                                                                   fullWeek: true,
+                                                                   habits: visibleHabits),
                                        calendar: calendar)
         await reschedule(daily: daily, weekly: weekly)
     }
@@ -783,7 +793,10 @@ enum Reminders {
                                               now: Date = Date(),
                                               calendar: Calendar = .current) async {
         let center = UNUserNotificationCenter.current()
-        guard let habit = store.habits.first(where: { $0.id == habitID }) else { return }
+        guard let habit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == habitID }) else { return }
         let habitCalendar = HabitTimeZone.calendar(
             for: habit,
             defaultIdentifier: defaultTimeZoneIdentifier ?? store.defaultTimeZoneIdentifier,
@@ -796,7 +809,11 @@ enum Reminders {
         guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
         center.removePendingNotificationRequests(withIdentifiers: [summaryId])
         if let daily = dailySummaryPlan(minutes: store.summaryMinutes,
-                                        status: store.dailyStatus(today, calendar: calendar),
+                                        status: store.dailyStatus(today,
+                                                                  calendar: calendar,
+                                                                  habits: HabitVisibility.visibleActiveHabits(
+                                                                      store.habits,
+                                                                      unlocked: HabitVisibility.sharedEntitlementIsUnlocked)),
                                         now: now,
                                         calendar: calendar) {
             try? await center.add(request(daily))
@@ -813,8 +830,13 @@ enum Reminders {
                                       now: Date = Date(),
                                       calendar: Calendar = .current) async {
         let today = DayKey.key(for: now, calendar: calendar)
+        let visibleHabits = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
-        guard Celebration.shouldCelebrate(status: store.dailyStatus(today, calendar: calendar),
+        guard Celebration.shouldCelebrate(status: store.dailyStatus(today,
+                                                                     calendar: calendar,
+                                                                     habits: visibleHabits),
                                           today: today,
                                           lastCelebrated: defaults.string(forKey: Celebration.celebratedKey))
         else { return }

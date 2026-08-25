@@ -41,9 +41,17 @@ struct StatsView: View {
     /// kommen. Genau dann darf die Statistik nicht gesperrt stehen bleiben.
     private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
 
+    private var visibleActiveHabits: [Habit] {
+        ProGate.visibleActiveHabits(store.activeHabits, unlocked: unlocked)
+    }
+
+    private var visibleActiveTrackedHabits: [Habit] {
+        visibleActiveHabits.filter(\.isTrackedHabit)
+    }
+
     var body: some View {
         Group {
-            if store.activeTrackedHabits.isEmpty {
+            if visibleActiveTrackedHabits.isEmpty {
                 emptyState
             } else {
                 statsList
@@ -88,7 +96,7 @@ struct StatsView: View {
     }
 
     private var statsList: some View {
-        let snapshot = StatsEngine.snapshot(habits: store.activeTrackedHabits)
+        let snapshot = StatsEngine.snapshot(habits: visibleActiveTrackedHabits)
         let activeCards = viewPreferences.statsCards.active
         let tileCards = activeCards.filter { $0 != .yearPulse }
         return List {
@@ -96,10 +104,11 @@ struct StatsView: View {
                 if activeCards.contains(.yearPulse) {
                     heroCard(snapshot)
                         .modifier(StatsCardChrome())
-                        .background {
+                        .overlay {
                             statsContextMenu {
                                 statsPreview(heroCard(snapshot))
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                 }
                 if !tileCards.isEmpty {
@@ -128,28 +137,30 @@ struct StatsView: View {
                 // eine kaputte Zeile. Die Daten bleiben unangetastet — hier
                 // wird nur nicht gezeichnet.
                 if unlocked {
-                    ForEach(store.activeTrackedHabits) { habit in
+                    ForEach(visibleActiveTrackedHabits) { habit in
                         StatsRow(habit: habit)
                             .modifier(StatsCardChrome())
-                            .background {
+                            .overlay {
                                 statsContextMenu {
                                     statsPreview(
                                         StatsRow(habit: habit)
                                             .padding(Theme.Metrics.cardPadding))
                                 }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                     }
                 } else {
                     perHabitLockCard
                         .modifier(StatsCardChrome())
-                        .background {
+                        .overlay {
                             statsContextMenu {
                                 statsPreview(perHabitLockCard)
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                 }
             } header: {
-                if !store.activeTrackedHabits.isEmpty {
+                if !visibleActiveTrackedHabits.isEmpty {
                     Text(String(localized: "Je Habit"))
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -371,10 +382,11 @@ struct StatsView: View {
                   spacing: Theme.Metrics.gap) {
             ForEach(cards) { card in
                 statsTile(card, snapshot: snapshot)
-                    .background {
+                    .overlay {
                         statsContextMenu {
                             statsPreview(statsTile(card, snapshot: snapshot))
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
             }
         }
@@ -549,15 +561,15 @@ struct StatsView: View {
     private func totalsTile(_ snapshot: StatsEngine.Snapshot) -> some View {
         tile(String(localized: "Gesamt"),
              identifier: "stats-card-totals",
-             value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(store.habits.filter(\.isTrackedHabit)))") {
+             value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(visibleActiveTrackedHabits))") {
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "\(StatsMath.totalCheckIns(store.habits.filter(\.isTrackedHabit)))")
+                Text(verbatim: "\(StatsMath.totalCheckIns(visibleActiveTrackedHabits))")
                     .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                     .contentTransition(.numericText())
                 Text(String(localized: "Check-ins gesamt"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(String(localized: "Aktive Habits") + " · " + "\(store.activeTrackedHabits.count)")
+                Text(String(localized: "Aktive Habits") + " · " + "\(visibleActiveTrackedHabits.count)")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }

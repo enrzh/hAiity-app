@@ -24,9 +24,11 @@ struct GraphHabitEntity: AppEntity {
 
 struct GraphHabitEntityQuery: EntityQuery {
     private func trackedHabits() -> [Habit] {
-        HabitStore.read(SharedStorage.dataURL())?.habits.filter {
-            $0.archivedAt == nil && $0.isTrackedHabit
-        } ?? []
+        guard let data = HabitStore.read(SharedStorage.dataURL()) else { return [] }
+        return HabitVisibility.visibleActiveHabits(
+            data.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .filter(\.isTrackedHabit)
     }
 
     func entities(for identifiers: [GraphHabitEntity.ID]) async throws -> [GraphHabitEntity] {

@@ -51,13 +51,13 @@ final class ReminderItemTests: XCTestCase {
         let source = try source("Haiity/Views/ContentView.swift")
         XCTAssertTrue(source.contains("ItemPresentation.forItem(habit)"))
         XCTAssertTrue(source.contains("ReminderRow("))
-        XCTAssertTrue(source.contains("let active = store.activeHabits"))
+        XCTAssertTrue(source.contains("let active = visibleActiveHabits"))
     }
 
     func testEditorOffersAndPersistsItemType() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .habit"))
+        XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .reminder"))
         XCTAssertTrue(source.contains("selection: $itemType"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.habit)"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.reminder)"))
@@ -89,6 +89,7 @@ final class ReminderItemTests: XCTestCase {
         ))
         XCTAssertTrue(content.contains("reminder-early-completion-confirm"))
         XCTAssertFalse(row.contains("RecurrenceText.summary"))
+        XCTAssertTrue(editor.contains("itemType == .reminder && draft.frequency != .once"))
     }
 
     func testReminderLongPressMenuIncludesRevert() throws {

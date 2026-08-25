@@ -366,13 +366,11 @@ final class RecurrenceDraftTests: XCTestCase {
         XCTAssertEqual(draft.recurrence(calendar: calendar).weekdays, [2])
     }
 
-    /// Ein neues Habit startet heute, täglich, ohne Ende — und mit dem
-    /// heutigen Wochentag vorgewählt, damit „wöchentlich" nie auf einer
-    /// leeren Tagesmenge landet.
+    /// Ein neuer Eintrag startet als einmaliger Termin am heutigen Tag.
     func testFreshDraftDefaults() {
         var draft = RecurrenceDraft(today: today, calendar: calendar)
         XCTAssertEqual(draft.recurrence(calendar: calendar),
-                       Recurrence(frequency: .daily, start: "2026-08-09"))
+                       Recurrence(frequency: .once, start: "2026-08-09"))
         draft.frequency = .weekly
         draft.normalize(calendar: calendar)
         XCTAssertEqual(draft.weekdays, [1])          // 09.08.2026 ist ein Sonntag

@@ -157,6 +157,17 @@ struct ContentView: View {
         return unlocked ? store.palettes : store.palettes.withoutCustoms
     }
 
+    /// The store retains the complete payload; the current entitlement decides
+    /// which active entries the main app exposes.
+    private var visibleActiveHabits: [Habit] {
+        ProGate.visibleActiveHabits(store.activeHabits,
+                                    unlocked: proStatus.unlocked || Pro.isUnlocked)
+    }
+
+    private var visibleActiveTrackedHabits: [Habit] {
+        visibleActiveHabits.filter(\.isTrackedHabit)
+    }
+
     private var effectivePaletteStyle: PaletteStyle {
         effectivePalettes.style
     }
@@ -603,7 +614,7 @@ struct ContentView: View {
     private var searchTabContent: some View {
         NavigationStack {
             Group {
-                if store.activeHabits.isEmpty {
+                if visibleActiveHabits.isEmpty {
                     emptyState
                 } else {
                     searchList
@@ -633,6 +644,7 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
@@ -951,7 +963,7 @@ struct ContentView: View {
     }
 
     private var filteredHabits: [Habit] {
-        let active = store.activeHabits
+        let active = visibleActiveHabits
         let q = search.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return active }
         return active.filter {
@@ -961,7 +973,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var habitsScreen: some View {
-        if store.activeHabits.isEmpty && github.snapshot == nil {
+        if visibleActiveHabits.isEmpty && github.snapshot == nil {
             emptyState
                 .navigationTitle("Habits")
                 .legacySearchDrawer(text: $search,
@@ -1043,7 +1055,7 @@ struct ContentView: View {
     /// beim Tippen und Schließen. Nur der Fallback vor iOS 26 (Such-Drawer
     /// AUF der Habit-Liste) filtert hier weiter.
     private var habitsTabSource: [Habit] {
-        if #available(iOS 26, *) { return store.activeHabits }
+        if #available(iOS 26, *) { return visibleActiveHabits }
         return filteredHabits
     }
 
@@ -1205,10 +1217,6 @@ struct ContentView: View {
                 habit: habit,
                 collapsed: collapsed,
                 onToggleDay: { toggleDay(habit, day: $0) },
-                onSelectDay: { day in
-                    if inSearchTab { redirectBackfillFromSearch(habit, day: day) }
-                    else { openBackfill(habit, day: day, afterMenu: false) }
-                },
                 onBackfill: {
                     if inSearchTab { redirectBackfillFromSearch(habit, day: habitToday(habit)) }
                     else { openBackfill(habit, day: habitToday(habit), afterMenu: true) }
@@ -1285,8 +1293,7 @@ struct ContentView: View {
     }
 
     private func handleNotificationAction(_ request: NotificationActionRequest) {
-        guard let habit = store.habits.first(where: { $0.id == request.target.habitID }),
-              habit.archivedAt == nil else { return }
+        guard let habit = visibleActiveHabits.first(where: { $0.id == request.target.habitID }) else { return }
         switch request.action {
         case .backfill:
             openBackfill(habit, day: request.target.day, afterMenu: false)
@@ -1429,7 +1436,7 @@ struct ContentView: View {
 
     private func confirmEarlyReminderCompletion() {
         guard let pending = earlyReminderCompletion,
-              let reminder = store.habits.first(where: { $0.id == pending.habitID }),
+              let reminder = visibleActiveHabits.first(where: { $0.id == pending.habitID }),
               let due = ReminderOccurrenceEngine.dueDate(
                 day: pending.day,
                 reminder: reminder,
@@ -1523,7 +1530,7 @@ struct ContentView: View {
     ///  * **Einheitlich.** Alle Tage bekommen DENSELBEN Wert. Was gemischt
     ///    war, ist danach gleich — das ist die Zusage der Mehrfachauswahl.
     private func backfillWrite(_ habitId: UUID, days: [String], value: Int?) {
-        guard let habit = store.habits.first(where: { $0.id == habitId }) else { return }
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
         let allowed = days.filter { Backfill.canWrite(habit: habit, day: $0) }.sorted()
         guard !allowed.isEmpty else { return }
 
@@ -1556,7 +1563,7 @@ struct ContentView: View {
     /// rückgängig.
     private func backfillRestore(_ habitId: UUID,
                                  entries: [(day: String, value: Int?)]) {
-        guard let habit = store.habits.first(where: { $0.id == habitId }) else { return }
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
         let allowed = entries.filter { Backfill.canWrite(habit: habit, day: $0.day) }
             .sorted { $0.day < $1.day }
         guard !allowed.isEmpty else { return }
@@ -1636,7 +1643,7 @@ struct ContentView: View {
     @ViewBuilder
     private var backfillLayer: some View {
         if let request = backfill,
-           let habit = store.habits.first(where: { $0.id == request.habitId }) {
+           let habit = visibleActiveHabits.first(where: { $0.id == request.habitId }) {
             BackfillCard(habit: habit,
                          day: Binding(get: { backfill?.day ?? request.day },
                                       set: { backfill?.day = $0 }),
@@ -2276,7 +2283,7 @@ struct ContentView: View {
     @MainActor
     private func dumpWidgets() {
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
-        let live = HaiityEntry(date: .now, habits: store.activeTrackedHabits, palettes: effectivePalettes)
+        let live = HaiityEntry(date: .now, habits: visibleActiveTrackedHabits, palettes: effectivePalettes)
         let entry = live.habits.isEmpty ? HaiityEntry.demo : live
         let githubEntry = HaiityEntry(date: .now,
                                       habits: [],
@@ -2451,7 +2458,7 @@ struct ContentView: View {
     /// Teilen-Blatt zu klicken.
     @MainActor
     private func dumpShareCards() {
-        guard let habit = store.activeTrackedHabits.first else { return }
+        guard let habit = visibleActiveTrackedHabits.first else { return }
         let dir = SharedStorage.dataURL().deletingLastPathComponent()
         for scheme in [ColorScheme.light, .dark] {
             guard let png = ShareCard.render(habit: habit, scheme: scheme, palette: effectivePalettes.style(for: habit))?.pngData() else { continue }
@@ -2535,7 +2542,9 @@ struct ContentView: View {
         let today = DayKey.today(calendar: calendar)
         let daily = Reminders.dailySummaryPlan(
             minutes: store.summaryMinutes,
-            status: store.dailyStatus(today, calendar: calendar),
+            status: store.dailyStatus(today,
+                                      calendar: calendar,
+                                      habits: visibleActiveHabits),
             calendar: calendar)
         // `fullWeek`: die Wochen-Mitteilung darf nicht ausfallen, nur weil
         // die Woche BIS HEUTE noch leer ist (Montag geöffnet, Termin am
@@ -2543,7 +2552,10 @@ struct ContentView: View {
         let weekly = Reminders.weeklySummaryPlan(
             minutes: store.weeklySummaryMinutes,
             weekday: store.weeklySummaryWeekday,
-            status: store.weeklyStatus(today, calendar: calendar, fullWeek: true),
+            status: store.weeklyStatus(today,
+                                       calendar: calendar,
+                                       fullWeek: true,
+                                       habits: visibleActiveHabits),
             calendar: calendar)
         await Reminders.reschedule(daily: daily, weekly: weekly)
     }

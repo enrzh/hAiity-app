@@ -23,11 +23,16 @@ struct DeclineHabitIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let store = HabitStore(url: SharedStorage.dataURL())
-        let storedHabit = store.habits.first { $0.id == habit.id }
-        let day = storedHabit.map {
-            HabitTimeZone.today(for: $0,
-                                defaultIdentifier: store.defaultTimeZoneIdentifier)
-        } ?? DayKey.today()
+        let storedHabit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first { $0.id == habit.id }
+        guard let storedHabit else {
+            return .result(dialog: IntentDialog(stringLiteral:
+                String(localized: "Diesen Habit gibt es nicht mehr.")))
+        }
+        let day = HabitTimeZone.today(for: storedHabit,
+                                      defaultIdentifier: store.defaultTimeZoneIdentifier)
         let outcome = DeclineLogic.apply(to: store, habitId: habit.id, day: day)
         if outcome == .declined {
             // Der Tag ist beantwortet — die heutige Erinnerung darf nicht
@@ -82,7 +87,10 @@ struct HabitStatusIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
         let store = HabitStore(url: SharedStorage.dataURL())
-        let status = store.dailyStatus()
+        let visibleHabits = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+        let status = store.dailyStatus(habits: visibleHabits)
         let text = SummaryText.daily(status)
             ?? String(localized: "Heute steht kein Habit an.")
         return .result(value: status.total - status.done,
@@ -103,8 +111,10 @@ struct HabitStreakIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
         let store = HabitStore(url: SharedStorage.dataURL())
-        guard let stored = store.habits.first(where: { $0.id == habit.id }),
-              stored.archivedAt == nil else {
+        guard let stored = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == habit.id }) else {
             return .result(value: 0,
                            dialog: IntentDialog(stringLiteral: String(localized: "Diesen Habit gibt es nicht mehr.")))
         }

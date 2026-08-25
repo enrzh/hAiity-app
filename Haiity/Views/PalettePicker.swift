@@ -102,11 +102,11 @@ struct PaletteRow: View {
                     .lineLimit(1)
                     .foregroundStyle(.primary)
                 Spacer(minLength: 8)
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(style))
-                }
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(selected
+                                     ? AnyShapeStyle(Theme.accentText(style))
+                                     : AnyShapeStyle(.tertiary))
             }
             .contentShape(Rectangle())
         }

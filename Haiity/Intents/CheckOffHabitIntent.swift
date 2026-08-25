@@ -37,7 +37,10 @@ struct HabitEntity: AppEntity {
 /// tauchen weder in Siri-Vorschlägen noch in der Shortcuts-Auswahl auf.
 struct HabitEntityQuery: EntityQuery {
     private func activeHabits() -> [Habit] {
-        HabitStore.read(SharedStorage.dataURL())?.habits.filter { $0.archivedAt == nil } ?? []
+        guard let data = HabitStore.read(SharedStorage.dataURL()) else { return [] }
+        return HabitVisibility.visibleActiveHabits(
+            data.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
     }
 
     func entities(for identifiers: [HabitEntity.ID]) async throws -> [HabitEntity] {
@@ -80,11 +83,13 @@ struct CheckOffHabitIntent: AppIntent {
         // schreibt synchron und stößt den Widget-Reload bereits an
         // (WidgetCenter.reloadAllTimelines unter canImport(WidgetKit)).
         let store = HabitStore(url: SharedStorage.dataURL())
-        let storedHabit = store.habits.first { $0.id == habit.id }
-        let day = storedHabit.map {
-            HabitTimeZone.today(for: $0,
-                                defaultIdentifier: store.defaultTimeZoneIdentifier)
-        } ?? DayKey.today()
+        let storedHabit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first { $0.id == habit.id }
+        guard let storedHabit else { return .result() }
+        let day = HabitTimeZone.today(for: storedHabit,
+                                      defaultIdentifier: store.defaultTimeZoneIdentifier)
         CheckOffLogic.apply(to: store, habitId: habit.id, day: day)
         // Der App-Prozess bekommt von diesem Check-in nichts mit — die
         // heutige Erinnerung und die Tagesmeldung hier selbst nachziehen.
@@ -118,8 +123,10 @@ struct ResetHabitIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let store = HabitStore(url: SharedStorage.dataURL())
-        guard let storedHabit = store.habits.first(where: { $0.id == habit.id }),
-              storedHabit.archivedAt == nil else { return .result() }
+        guard let storedHabit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == habit.id }) else { return .result() }
         let calendar = HabitTimeZone.calendar(
             for: storedHabit,
             defaultIdentifier: store.defaultTimeZoneIdentifier)
@@ -185,7 +192,10 @@ struct AnswerNoHabitIntent: AppIntent {
 private enum AnswerHabitIntentSupport {
     static func setAnswer(_ id: UUID, yes: Bool) async {
         let store = HabitStore(url: SharedStorage.dataURL())
-        guard let storedHabit = store.habits.first(where: { $0.id == id }) else { return }
+        guard let storedHabit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == id }) else { return }
         let day = HabitTimeZone.today(for: storedHabit,
                                       defaultIdentifier: store.defaultTimeZoneIdentifier)
         AnswerHabitLogic.apply(to: store, habitId: id, yes: yes, day: day)

@@ -54,6 +54,28 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertTrue(habitActions.contains("destructive: true"))
     }
 
+    func testHabitGraphsHaveNoDirectCellSelectionPath() throws {
+        let card = try habitCardSource()
+        let content = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+        let grid = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContributionGrid.swift"))
+
+        XCTAssertFalse(card.contains("onSelectDay"))
+        XCTAssertFalse(content.contains("onSelectDay:"))
+        XCTAssertFalse(grid.contains("GridTap"))
+    }
+
+    func testStatsContextMenuFillsTheStatsTileFrame() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/StatsView.swift"))
+
+        XCTAssertTrue(source.contains("frame(maxWidth: .infinity, maxHeight: .infinity)"))
+    }
+
     func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {
         let actions = try habitActionsSource()
         XCTAssertFalse(actions.contains("onMarkDone"))

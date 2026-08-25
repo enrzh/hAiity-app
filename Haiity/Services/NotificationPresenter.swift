@@ -78,7 +78,10 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         // that does not present a sheet can trigger SwiftUI observation and
         // the iOS 27 state-restoration assertion seen in build 75.
         let store = HabitStore(url: SharedStorage.dataURL())
-        guard let habit = store.habits.first(where: { $0.id == target.habitID }) else { return }
+        guard let habit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == target.habitID }) else { return }
         let calendar = HabitTimeZone.calendar(
             for: habit,
             defaultIdentifier: store.defaultTimeZoneIdentifier)

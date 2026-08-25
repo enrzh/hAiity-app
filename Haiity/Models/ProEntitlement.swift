@@ -245,7 +245,14 @@ enum Pro {
 enum ProGate {
     /// Drei aktive Habits sind gratis. Archivierte zählen nicht mit — sie
     /// stehen in keiner Liste und kosten keine Aufmerksamkeit.
-    static let freeHabitLimit = 3
+    static let freeHabitLimit = HabitVisibility.freeHabitLimit
+
+    /// Keep over-limit data in storage, but expose only the free tracked-habit
+    /// allowance while Pro is locked. Reminders remain free and ordering stays
+    /// stable so reactivation can reveal the preserved entries again.
+    static func visibleActiveHabits(_ habits: [Habit], unlocked: Bool) -> [Habit] {
+        HabitVisibility.visibleActiveHabits(habits, unlocked: unlocked)
+    }
 
     static func mayAddHabit(activeCount: Int, unlocked: Bool) -> Bool {
         unlocked || activeCount < freeHabitLimit

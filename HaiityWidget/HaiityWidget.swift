@@ -19,10 +19,13 @@ enum WidgetData {
                       graphOnly: Bool = false,
                       date: Date = .now) -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
+        let visible = HabitVisibility.visibleActiveHabits(
+            data?.habits ?? [],
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         return HaiityEntry(date: date,
-                           habits: data?.habits.filter {
-                               $0.archivedAt == nil && (!graphOnly || $0.isTrackedHabit)
-                           } ?? [],
+                           habits: visible.filter {
+                               !graphOnly || $0.isTrackedHabit
+                           },
                            defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier,
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
@@ -303,7 +306,9 @@ struct HabitControlProvider: AppIntentControlValueProvider {
     /// Store des App-Prozesses.
     private func value(for selected: UUID?) -> HabitControlValue? {
         let data = HabitStore.read(SharedStorage.dataURL())
-        let habits = data?.habits ?? []
+        let habits = HabitVisibility.visibleActiveHabits(
+            data?.habits ?? [],
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         guard let habit = WidgetLogic.resolve(
             habits: habits,
             selected: selected,

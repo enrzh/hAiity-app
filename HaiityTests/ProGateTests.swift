@@ -253,6 +253,61 @@ final class ProGateTests: XCTestCase {
         }
     }
 
+    func testExpiredProShowsOnlyThreeTrackedHabitsButKeepsReminders() {
+        let first = Habit(name: "A")
+        let reminder = Habit(name: "Erinnerung", itemType: .reminder)
+        let second = Habit(name: "B")
+        let third = Habit(name: "C")
+        let fourth = Habit(name: "D")
+
+        let visible = ProGate.visibleActiveHabits(
+            [first, reminder, second, third, fourth], unlocked: false)
+
+        XCTAssertEqual(visible.map(\.name), ["A", "Erinnerung", "B", "C"])
+        XCTAssertEqual(visible.filter(\.isTrackedHabit).count, 3)
+    }
+
+    func testUnlockedProKeepsEveryActiveHabitVisible() {
+        let habits = [Habit(name: "A"), Habit(name: "B"), Habit(name: "C"), Habit(name: "D")]
+
+        XCTAssertEqual(ProGate.visibleActiveHabits(habits, unlocked: true).count, habits.count)
+    }
+
+    func testMainSurfacesUseTheEntitlementFilteredHabitCollection() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let stats = try source("Haiity/Views/StatsView.swift")
+
+        XCTAssertTrue(content.contains("ProGate.visibleActiveHabits"))
+        XCTAssertTrue(stats.contains("ProGate.visibleActiveHabits"))
+    }
+
+    func testSharedVisibilityMatchesTheExpiredProPolicy() {
+        let habits = [Habit(name: "A"),
+                      Habit(name: "B"),
+                      Habit(name: "C"),
+                      Habit(name: "D"),
+                      Habit(name: "Reminder", itemType: .reminder)]
+
+        XCTAssertEqual(
+            HabitVisibility.visibleActiveHabits(habits, unlocked: false).map(\.name),
+            ["A", "B", "C", "Reminder"])
+        XCTAssertEqual(
+            HabitVisibility.visibleActiveHabits(habits, unlocked: true).count,
+            habits.count)
+    }
+
+    func testWidgetAndIntentSurfacesUseSharedVisibility() throws {
+        let intent = try source("Haiity/Intents/CheckOffHabitIntent.swift")
+        let graphIntent = try source("Haiity/Intents/SelectGraphIntent.swift")
+        let siri = try source("Haiity/Intents/SiriQueryIntents.swift")
+        let widget = try source("HaiityWidget/HaiityWidget.swift")
+
+        for text in [intent, graphIntent, siri, widget] {
+            XCTAssertTrue(text.contains("HabitVisibility.visibleActiveHabits"),
+                          "(text.prefix(40)) must use the shared entitlement filter")
+        }
+    }
+
     func testAppRefreshesProWithDowngradePermissionOnLaunchAndForeground() throws {
         let app = try source("Haiity/HaiityApp.swift")
 

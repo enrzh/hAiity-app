@@ -155,15 +155,24 @@ final class HabitTimeTests: XCTestCase {
                        RecurrenceDraft.defaultHour * 60)
     }
 
-    func testEditorSourceShowsOneDayBeforeDailyAndDropsEndTitleField() throws {
+    func testNewDraftDefaultsToOneDay() {
+        let draft = RecurrenceDraft(today: today, calendar: calendar)
+
+        XCTAssertEqual(draft.frequency, .once)
+    }
+
+    func testEditorUsesOneDayDefaultAndHidesItBehindRepeat() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
 
-        let once = try XCTUnwrap(source.range(of: "Text(String(localized: \"Ein Tag\")).tag(Recurrence.Frequency.once)"))
         let daily = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
 
-        XCTAssertLessThan(once.lowerBound, daily.lowerBound)
+        XCTAssertTrue(source.contains("Toggle(String(localized: \"Wiederholen\")"))
+        XCTAssertTrue(source.contains("repeat-toggle"))
+        XCTAssertTrue(source.contains("DatePicker(String(localized: \"Datum\")"))
+        XCTAssertFalse(source.contains("Text(String(localized: \"Ein Tag\")).tag"))
+        XCTAssertTrue(daily.lowerBound > source.startIndex)
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"end-title\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-date\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"end-count\")"))
@@ -171,7 +180,7 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains(".datePickerStyle(.compact)"))
         XCTAssertTrue(source.contains("if draft.frequency != .once"))
         XCTAssertTrue(source.contains("itemType = .reminder"))
-        XCTAssertFalse(source.contains("draft.hasStart = true"))
+        XCTAssertTrue(source.contains("draft.hasStart = true"))
     }
 
     func testLoadingOneDayEntryKeepsItAsReminder() throws {
@@ -306,9 +315,10 @@ final class EditHabitSheetContractTests: XCTestCase {
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
 
         XCTAssertTrue(source.contains("$draft.endMode"))
-        let once = try XCTUnwrap(source.range(of: "Text(String(localized: \"Ein Tag\")).tag(Recurrence.Frequency.once)"))
         let daily = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
-        XCTAssertLessThan(once.lowerBound, daily.lowerBound)
+        XCTAssertFalse(source.contains("Text(String(localized: \"Ein Tag\")).tag"))
+        XCTAssertTrue(source.contains("Toggle(String(localized: \"Wiederholen\")"))
+        XCTAssertTrue(source.contains("repeat-toggle"))
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.never)"))
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.onDate)"))
         XCTAssertTrue(source.contains(".tag(RecurrenceDraft.EndMode.afterCount)"))
@@ -323,6 +333,7 @@ final class EditHabitSheetContractTests: XCTestCase {
         XCTAssertTrue(source.contains("Text(String(localized: \"Ende\"))"))
         XCTAssertTrue(source.contains("$notificationsEnabled"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-notification-toggle\")"))
+        XCTAssertTrue(source.contains("draft.frequency != .once"))
     }
 
     func testEndPickerKeepsOneUnstyledFormRow() throws {

@@ -414,6 +414,34 @@ enum SharedStorage {
     }
 }
 
+/// Shared app/widget visibility policy. The app's `ProGate` adds the live
+/// StoreKit/owner override; extension processes use the persisted App Group
+/// flag because they cannot observe the app's StoreKit state directly.
+enum HabitVisibility {
+    static let freeHabitLimit = 3
+    static let proUnlockedKey = "proUnlocked"
+
+    static func visibleActiveHabits(_ habits: [Habit], unlocked: Bool) -> [Habit] {
+        let active = habits.filter { $0.archivedAt == nil }
+        guard !unlocked else { return active }
+
+        var trackedCount = 0
+        return active.filter { habit in
+            guard !habit.isTrackedHabit else {
+                guard trackedCount < freeHabitLimit else { return false }
+                trackedCount += 1
+                return true
+            }
+            return true
+        }
+    }
+
+    static var sharedEntitlementIsUnlocked: Bool {
+        (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+            .bool(forKey: proUnlockedKey)
+    }
+}
+
 enum HabitStoreChange: Equatable, Sendable {
     case general
     case appearance
@@ -816,9 +844,12 @@ final class HabitStore {
     /// „entschieden": um 20 Uhr an etwas zu erinnern, das man um 14 Uhr
     /// ausdrücklich mit Nein beantwortet hat, wäre keine Erinnerung, sondern
     /// eine Nachfrage.
-    func openToday(_ today: String = DayKey.today()) -> [Habit] {
-        activeTrackedHabits.filter {
-            GoalEngine.isScheduled(habit: $0, day: today)
+    func openToday(_ today: String = DayKey.today(),
+                   calendar: Calendar = .current,
+                   habits: [Habit]? = nil) -> [Habit] {
+        let tracked = (habits ?? activeHabits).filter(\.isTrackedHabit)
+        return tracked.filter {
+            GoalEngine.isScheduled(habit: $0, day: today, calendar: calendar)
                 && !$0.isDone(today) && !$0.isAnswered(today)
         }
     }
@@ -840,10 +871,12 @@ final class HabitStore {
     /// `total` — die Summe war nie die Aussage, „x von y" und „das steht noch
     /// aus" sind zwei verschiedene Sätze (siehe `SummaryText`).
     func dailyStatus(_ today: String = DayKey.today(),
-                     calendar: Calendar = .current) -> SummaryStatus {
+                     calendar: Calendar = .current,
+                     habits: [Habit]? = nil) -> SummaryStatus {
         var done = 0, total = 0
         var missing: [String] = []
-        for habit in activeTrackedHabits
+        let tracked = (habits ?? activeHabits).filter(\.isTrackedHabit)
+        for habit in tracked
         where GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) {
             total += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) {
@@ -872,7 +905,8 @@ final class HabitStore {
     /// leer, und der Plan fiele ersatzlos aus (gemeldeter Fehler).
     func weeklyStatus(_ today: String = DayKey.today(),
                       calendar: Calendar = .current,
-                      fullWeek: Bool = false) -> SummaryStatus {
+                      fullWeek: Bool = false,
+                      habits: [Habit]? = nil) -> SummaryStatus {
         guard let todayDate = DayKey.date(from: today, calendar: calendar),
               let week = calendar.dateInterval(of: .weekOfYear, for: todayDate)?.start
         else { return SummaryStatus(done: 0, total: 0, missing: []) }
@@ -881,7 +915,8 @@ final class HabitStore {
         let dueThrough = fullWeek ? max(lastDay, today) : today
         var done = 0, total = 0
         var missing: [String] = []
-        for habit in activeTrackedHabits {
+        let tracked = (habits ?? activeHabits).filter(\.isTrackedHabit)
+        for habit in tracked {
             let schedule = habit.recurrence.schedule(calendar: calendar)
             var due = 0, met = 0
             if let times = habit.recurrence.timesPerPeriod {

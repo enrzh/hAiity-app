@@ -44,7 +44,7 @@ struct EditHabitSheet: View {
 
     @State private var name = ""
     @State private var emoji = ""
-    @State private var itemType: HabitItemType = .habit
+    @State private var itemType: HabitItemType = .reminder
     @State private var calendarSyncEnabled = true
     @State private var notificationsEnabled = true
     @State private var repeatsWhileIncomplete = true
@@ -102,14 +102,36 @@ struct EditHabitSheet: View {
 
     private var frequencySelection: Binding<Recurrence.Frequency> {
         Binding(
-            get: { draft.frequency },
+            get: { draft.frequency == .once ? .daily : draft.frequency },
             set: { newFrequency in
+                draft.hasStart = true
                 draft.selectFrequency(newFrequency, calendar: calendar)
-                if newFrequency == .once {
-                    itemType = .reminder
-                }
             }
         )
+    }
+
+    private var repeatsBinding: Binding<Bool> {
+        Binding(
+            get: { draft.frequency != .once },
+            set: { enabled in
+                draft.hasStart = true
+                if enabled {
+                    let frequency = draft.frequency == .once ? Recurrence.Frequency.daily : draft.frequency
+                    draft.selectFrequency(frequency, calendar: calendar)
+                } else {
+                    draft.selectFrequency(.once, calendar: calendar)
+                    itemType = .reminder
+                }
+            })
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { draft.start },
+            set: {
+                draft.start = $0
+                draft.hasStart = true
+            })
     }
 
     var body: some View {
@@ -246,25 +268,26 @@ struct EditHabitSheet: View {
     private var recurrenceSection: some View {
         Section {
             summaryRow
-            Picker(String(localized: "Häufigkeit"), selection: frequencySelection) {
-                Text(String(localized: "Ein Tag")).tag(Recurrence.Frequency.once)
-                Text(String(localized: "Täglich")).tag(Recurrence.Frequency.daily)
-                Text(String(localized: "Wöchentlich")).tag(Recurrence.Frequency.weekly)
-                Text(String(localized: "Monatlich")).tag(Recurrence.Frequency.monthly)
-                Text(String(localized: "Jährlich")).tag(Recurrence.Frequency.yearly)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("cadence-picker")
 
-            if draft.frequency == .once {
-                DatePicker(String(localized: "Datum"),
-                           selection: $draft.start,
-                           displayedComponents: .date)
-                    .datePickerStyle(.compact)
-                    .accessibilityIdentifier("once-date")
-            }
+            DatePicker(String(localized: "Datum"),
+                       selection: dateBinding,
+                       displayedComponents: .date)
+                .datePickerStyle(.compact)
+                .accessibilityIdentifier("once-date")
+
+            Toggle(String(localized: "Wiederholen"), isOn: repeatsBinding)
+                .accessibilityIdentifier("repeat-toggle")
 
             if draft.frequency != .once {
+                Picker(String(localized: "Häufigkeit"), selection: frequencySelection) {
+                    Text(String(localized: "Täglich")).tag(Recurrence.Frequency.daily)
+                    Text(String(localized: "Wöchentlich")).tag(Recurrence.Frequency.weekly)
+                    Text(String(localized: "Monatlich")).tag(Recurrence.Frequency.monthly)
+                    Text(String(localized: "Jährlich")).tag(Recurrence.Frequency.yearly)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("cadence-picker")
+
                 Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
                     Text(intervalLabel)
                 }
@@ -285,18 +308,6 @@ struct EditHabitSheet: View {
                     case .monthly: monthlyControls
                     case .yearly: yearlyControls
                     }
-                }
-
-                // Der Start gehörte einmal in einen eigenen Abschnitt „Zeitraum"
-                // neben dieser Sektion. Zwei Überschriften für dieselbe Frage
-                // („wann?") waren eine zu viel — jetzt steht er hier, direkt
-                // unter der Regel, für die er gilt.
-                Toggle(String(localized: "Startdatum"), isOn: $draft.hasStart)
-                    .accessibilityIdentifier("start-toggle")
-                if draft.hasStart {
-                    DatePicker(String(localized: "Beginn"), selection: $draft.start,
-                               displayedComponents: .date)
-                        .accessibilityIdentifier("start-date")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -362,7 +373,7 @@ struct EditHabitSheet: View {
                 }
             }
                 .accessibilityIdentifier("habit-calendar-toggle")
-            if itemType == .reminder {
+            if itemType == .reminder && draft.frequency != .once {
                 Toggle(String(localized: "Trotz offenem Termin wiederholen"),
                        isOn: $repeatsWhileIncomplete)
                     .accessibilityIdentifier("repeats-while-incomplete-toggle")

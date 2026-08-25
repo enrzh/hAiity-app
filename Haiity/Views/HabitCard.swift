@@ -41,9 +41,6 @@ struct HabitCard: View, Equatable {
     /// Heute abhaken (Kopfzeile). Der einzige Weg von dieser Karte aus, der
     /// direkt schreibt — er sitzt auf einem beschrifteten Knopf.
     let onToggleDay: (String) -> Void
-    /// Ein Tag im Raster wurde AUSGEWÄHLT. Schreibt nichts; der Aufrufer
-    /// öffnet damit die Nacharbeiten-Karte an diesem Datum.
-    let onSelectDay: (String) -> Void
     /// „Nacharbeiten" aus dem Kontextmenü — dieselbe Karte, aber ohne
     /// vorgewählten Tag (sie öffnet auf heute). Eigener Weg, weil er ERST
     /// nach dem Schließen des Menüs greifen darf.
@@ -304,19 +301,16 @@ struct HabitCard: View, Equatable {
     /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
     /// — dieselbe Fläche, die die Vorschau auch zeigt.
     ///
-    /// Der Tipp auf eine EINZELNE Zelle überlebt das: die Langdruck-Geste
-    /// lässt kurze Tipps zu ihren Kindern durch (die Zellen haben ihre
-    /// eigenen `onTapGesture` in `ContributionGrid`). Er
-    /// WÄHLT den Tag aus und öffnet die Nacharbeiten-Karte — er schreibt
-    /// nicht.
+    /// Short taps keep the grid passive. Past-day editing is intentionally
+    /// reachable only from the named Nacharbeiten menu action.
     private var grid: some View {
         // `.equatable()` ist Tempo, nicht Kosmetik (dasselbe Muster wie die
         // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
         // Auswertung dieser Karte die 371 Zellen neu, auch wenn sich nur das
         // Chrom bewegt hat. Store-Änderungen kommen an — sie ändern `habit`.
         ContributionGrid(habit: habit,
-                         calendar: calendar,
-                         onSelectDay: onSelectDay)
+                         weeks: gridWeeks,
+                         calendar: calendar)
             .equatable()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -399,7 +393,22 @@ struct HabitCard: View, Equatable {
     }
 
     private var previewWidth: CGFloat { Self.previewMetrics(windowWidth: Self.windowWidth()).width }
-    private var previewWeeks: Int { Self.previewMetrics(windowWidth: Self.windowWidth()).weeks }
+    private var gridWeeks: Int {
+        GridCalendar.weeksForDisplay(habit: habit,
+                                     today: today,
+                                     minimumWeeks: 24,
+                                     maximumWeeks: 53,
+                                     calendar: calendar)
+    }
+    private var previewWeeks: Int {
+        let desired = Self.previewMetrics(windowWidth: Self.windowWidth()).weeks
+        return min(desired,
+                   GridCalendar.weeksForDisplay(habit: habit,
+                                                today: today,
+                                                minimumWeeks: 8,
+                                                maximumWeeks: 53,
+                                                calendar: calendar))
+    }
 
     private var habitPreview: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -137,8 +137,11 @@ enum HomeShortcuts {
     /// aufgerufen — ein Check durch Widget/Knopf ändert den Kandidaten.
     static func update(habits: [Habit]) {
         let data = HabitStore.read(SharedStorage.dataURL())
+        let visibleHabits = HabitVisibility.visibleActiveHabits(
+            habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         UIApplication.shared.shortcutItems =
-            descriptors(habits: habits,
+            descriptors(habits: visibleHabits,
                         defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier)
                 .map(\.shortcutItem)
     }
@@ -161,8 +164,10 @@ enum HomeShortcuts {
     /// NotificationPresenter: Store schreiben, Neuplanung anstoßen.
     private static func applyCheckOff(habitID: UUID) -> Bool {
         let store = HabitStore(url: SharedStorage.dataURL())
-        guard let habit = store.habits.first(where: { $0.id == habitID }),
-              habit.archivedAt == nil else { return false }
+        guard let habit = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+            .first(where: { $0.id == habitID }) else { return false }
         let calendar = HabitTimeZone.calendar(
             for: habit,
             defaultIdentifier: store.defaultTimeZoneIdentifier)

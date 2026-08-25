@@ -21,7 +21,7 @@ struct RecurrenceDraft: Equatable {
     /// Die drei Enden.
     enum EndMode: String, CaseIterable, Equatable { case never, onDate, afterCount }
 
-    var frequency: Recurrence.Frequency = .daily
+    var frequency: Recurrence.Frequency = .once
     var interval = 1
     var weekdays: Set<Int> = []
     /// „Feste Anzahl statt fester Tage" — das flexible Ziel.

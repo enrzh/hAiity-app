@@ -267,6 +267,41 @@ final class GridWindowTests: GridTestCase {
         XCTAssertTrue(snap.levels[0].allSatisfy { $0 == 0 })
     }
 
+    func testDisplayWindowKeepsARecentHabitWithinTheViewport() {
+        let recent = habit([:], createdAt: "2026-08-01")
+        let weeks = GridCalendar.weeksForDisplay(habit: recent,
+                                                 today: "2026-08-09",
+                                                 minimumWeeks: 24,
+                                                 maximumWeeks: 53,
+                                                 calendar: cal)
+
+        XCTAssertEqual(weeks, 24)
+    }
+
+    func testDisplayWindowTracksOlderMeaningfulHistoryWithoutAFullBlankYear() {
+        let older = habit(run(days: 5, endingAt: "2026-08-09"),
+                          createdAt: "2026-01-01")
+        let weeks = GridCalendar.weeksForDisplay(habit: older,
+                                                 today: "2026-08-09",
+                                                 minimumWeeks: 24,
+                                                 maximumWeeks: 53,
+                                                 calendar: cal)
+
+        XCTAssertGreaterThan(weeks, 24)
+        XCTAssertLessThan(weeks, 53)
+    }
+
+    func testHorizontalScrollIsDisabledWhenTheGraphFitsItsViewport() {
+        XCTAssertFalse(GridCalendar.needsHorizontalScroll(contentWidth: 320,
+                                                           viewportWidth: 320))
+        XCTAssertFalse(GridCalendar.needsHorizontalScroll(contentWidth: 320,
+                                                           viewportWidth: 320.4))
+        XCTAssertTrue(GridCalendar.needsHorizontalScroll(contentWidth: 320.6,
+                                                          viewportWidth: 320))
+        XCTAssertTrue(GridCalendar.needsHorizontalScroll(contentWidth: 320,
+                                                          viewportWidth: 0))
+    }
+
     func testLongHistoryClampsWindowButKeepsTotals() {
         // 500 Tage Historie = mehr als 53 Wochen (371 Tage).
         let h = habit(run(days: 500, endingAt: "2026-08-09"), createdAt: "2025-01-01")

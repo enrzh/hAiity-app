@@ -105,6 +105,16 @@ final class AppNavigationTests: XCTestCase {
                              "the outer stats preview frame must include its padding")
     }
 
+    func testSearchListOwnsTheAppearanceBackground() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let start = try XCTUnwrap(content.range(of: "private var searchList"))
+        let end = try XCTUnwrap(content.range(of: "/// Der Inhalt des Habits-Tabs",
+                                              range: start.upperBound..<content.endIndex))
+        let searchList = content[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(searchList.contains("AppearanceBackground(preferences: store.appearancePreferences)"))
+    }
+
     func testMoreRouteWinsOverQueuedSearchWork() {
         var work = RouteWork()
         let searchRoute = work.begin()

@@ -1096,7 +1096,6 @@ struct MoreView: View {
     }
 
     private var backgroundControl: some View {
-        let appearance = currentAppearance
         return VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
             Text(String(localized: "Hintergrund"))
                 .font(.subheadline.weight(.semibold))
@@ -1130,14 +1129,6 @@ struct MoreView: View {
                 }
                     .accessibilityIdentifier("appearance-gradient-end-picker")
             case .image:
-                backgroundImagePicker
-            }
-            // Keep the native picker reachable while Color/Gradient is
-            // selected. Image mode is also persisted without bytes when a
-            // photo was removed or invalidated, so the picker remains a
-            // repair path instead of leaving a dead-looking editor.
-            if store.appearancePreferences.backgroundMode != .image,
-               appearance.imagePayload == nil {
                 backgroundImagePicker
             }
         }

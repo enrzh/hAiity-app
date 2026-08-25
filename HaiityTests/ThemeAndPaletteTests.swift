@@ -390,6 +390,28 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(saved.gradientEndHex)
     }
 
+    func testImagePickerIsMountedOnlyForImageMode() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let control = try XCTUnwrap(source.range(of: "private var backgroundControl"))
+        let end = try XCTUnwrap(source.range(of: "private var backgroundModeSelector",
+                                             range: control.upperBound..<source.endIndex))
+        let body = source[control.lowerBound..<end.lowerBound]
+
+        XCTAssertEqual(body.components(separatedBy: "backgroundImagePicker").count - 1, 1)
+        XCTAssertFalse(body.contains("backgroundMode != .image"))
+    }
+
+    func testPaletteRowsExposeAnExplicitRoundSelectionControl() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/PalettePicker.swift"))
+
+        XCTAssertTrue(source.contains("checkmark.circle.fill"))
+        XCTAssertTrue(source.contains("selected ? \"checkmark.circle.fill\" : \"circle\""))
+    }
+
     func testStoreRemoveBackgroundImagePersistsAnExplicitRemoval() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-background-remove-\(UUID().uuidString).json")
@@ -414,8 +436,8 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
 
-        XCTAssertTrue(more.contains("appearance.imagePayload == nil"),
-                      "the image mode control must open the picker when no usable image exists")
+        XCTAssertTrue(more.contains("hasPersistedBackgroundImage"),
+                      "image mode must show the picker and removal action only for persisted image data")
         XCTAssertTrue(more.contains("store.removeBackgroundImage()"),
                       "the visible delete action must use the explicit removal path")
     }
