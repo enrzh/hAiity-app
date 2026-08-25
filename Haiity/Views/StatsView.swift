@@ -105,9 +105,10 @@ struct StatsView: View {
                     heroCard(snapshot)
                         .modifier(StatsCardChrome())
                         .overlay {
-                            statsContextMenu {
-                                statsPreview(heroCard(snapshot))
-                            }
+                            statsContextMenu(preview: {
+                                statsPreview(heroCard(snapshot),
+                                             height: statsHeroPreviewHeight)
+                            }, height: statsHeroPreviewHeight)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                 }
@@ -141,11 +142,11 @@ struct StatsView: View {
                         StatsRow(habit: habit)
                             .modifier(StatsCardChrome())
                             .overlay {
-                                statsContextMenu {
+                                statsContextMenu(preview: {
                                     statsPreview(
-                                        StatsRow(habit: habit)
-                                            .padding(Theme.Metrics.cardPadding))
-                                }
+                                        StatsRow(habit: habit),
+                                        height: statsRowPreviewHeight)
+                                }, height: statsRowPreviewHeight)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                     }
@@ -153,9 +154,10 @@ struct StatsView: View {
                     perHabitLockCard
                         .modifier(StatsCardChrome())
                         .overlay {
-                            statsContextMenu {
-                                statsPreview(perHabitLockCard)
-                            }
+                            statsContextMenu(preview: {
+                                statsPreview(perHabitLockCard,
+                                             height: statsLockPreviewHeight)
+                            }, height: statsLockPreviewHeight)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                 }
@@ -383,9 +385,11 @@ struct StatsView: View {
             ForEach(cards) { card in
                 statsTile(card, snapshot: snapshot)
                     .overlay {
-                        statsContextMenu {
-                            statsPreview(statsTile(card, snapshot: snapshot))
-                        }
+                        statsContextMenu(preview: {
+                            statsPreview(statsTile(card, snapshot: snapshot),
+                                         height: statsTilePreviewHeight,
+                                         wrapsSurface: false)
+                        }, height: statsTilePreviewHeight)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
             }
@@ -396,27 +400,46 @@ struct StatsView: View {
         HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
     }
 
+    /// Each stats shape gets its own preview height. A single hero-sized
+    /// height made the compact tiles look like blank sliding panels.
+    private let statsHeroPreviewHeight: CGFloat = 180
+    private let statsTilePreviewHeight: CGFloat = 124
+    private let statsRowPreviewHeight: CGFloat = 180
+    private let statsLockPreviewHeight: CGFloat = 148
+
     private var statsContextActions: [GraphMenuAction] {
         [GraphMenuAction(title: String(localized: "Statistik anpassen"),
                          symbol: "slider.horizontal.3",
                          handler: openStatsAdjustments)]
     }
 
-    private func statsContextMenu(preview: @escaping () -> AnyView)
+    private func statsContextMenu(preview: @escaping () -> AnyView,
+                                  height: CGFloat)
         -> GraphContextMenu {
         GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                          previewWidth: statsPreviewWidth,
+                         previewHeight: height,
                          preview: preview,
                          actions: statsContextActions,
                          commit: openStatsAdjustments)
     }
 
-    private func statsPreview<Content: View>(_ content: Content) -> AnyView {
-        AnyView(
-            content
-                .padding(Theme.Metrics.cardPadding)
-                .appSurface()
-                .frame(width: statsPreviewWidth))
+    private func statsPreview<Content: View>(_ content: Content,
+                                             height: CGFloat,
+                                             wrapsSurface: Bool = true) -> AnyView {
+        if wrapsSurface {
+            return AnyView(
+                content
+                    .padding(Theme.Metrics.cardPadding)
+                    .appSurface()
+                    .frame(width: statsPreviewWidth,
+                           height: height,
+                           alignment: .topLeading))
+        }
+        return AnyView(content
+            .frame(width: statsPreviewWidth,
+                   height: height,
+                   alignment: .topLeading))
     }
 
     @ViewBuilder

@@ -124,10 +124,6 @@ struct ContentView: View {
     @State private var lastNonSearchTab: AppTab = .habits
     @State private var searchPresentationArmed = false
     @FocusState private var searchFieldFocused: Bool
-    /// Der native EditButton schaltet die Griffleisten der Habit-Liste ein.
-    /// Beim Filtern wird er geschlossen, weil die Move-Offsets dann nicht
-    /// mehr auf die vollständige aktive Liste zeigen.
-    @State private var editMode: EditMode = .inactive
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
@@ -386,8 +382,14 @@ struct ContentView: View {
                     Task { await github.resumeOrRefresh(forced: true) }
                 }
             }
-            .onChange(of: search) { _, query in
-                if !query.isEmpty { editMode = .inactive }
+            .onChange(of: proStatus.unlocked) { old, new in
+                guard old && !new else { return }
+                // StoreKit can revoke an entitlement while the app is alive.
+                // Surface the same global gate used by the feature limits so
+                // the user is not left inside a stale Pro-only surface until
+                // the next launch.
+                guard paywall == nil else { return }
+                paywall = .settings
             }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
@@ -396,7 +398,6 @@ struct ContentView: View {
                 // Lupen-Berührung eine Suche präsentieren.
                 chrome.searchFlow.coverChanged(open: open)
                 guard open else { return }
-                editMode = .inactive
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
                 undo.clear()
@@ -990,7 +991,6 @@ struct ContentView: View {
                 // Zeilen-Titel blieb beim Scrollen einfach stehen und ließ
                 // eine leere Glasleiste zurück).
                 .navigationTitle("Habits")
-                .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
@@ -998,19 +998,6 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
-                            Button {
-                                withAnimation {
-                                    editMode = editMode == .active ? .inactive : .active
-                                }
-                            } label: {
-                                Label(editMode == .active
-                                      ? String(localized: "Sortieren beenden")
-                                      : String(localized: "Habits sortieren"),
-                                      systemImage: "arrow.up.arrow.down")
-                            }
-                            .disabled(!search.isEmpty)
-                            .accessibilityIdentifier("reorder-habits")
-
                             Button { presentMoreSheet(.archive) } label: {
                                 Label(String(localized: "Archiv"), systemImage: "archivebox")
                             }
@@ -1028,23 +1015,13 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            if editMode == .active {
-                Button {
-                    withAnimation { editMode = .inactive }
-                } label: {
-                    Image(systemName: "checkmark")
-                }
-                .accessibilityLabel(String(localized: "Fertig"))
-                .accessibilityIdentifier("finish-reordering")
-            } else {
-                Button { requestCreate() } label: {
-                    Image(systemName: "plus")
-                }
-                .modifier(MoreZoomSource(id: Self.createZoomID,
-                                         namespace: createZoomNamespace))
-                .accessibilityLabel(CreateAccessibility.label)
-                .accessibilityIdentifier(CreateAccessibility.identifier)
+            Button { requestCreate() } label: {
+                Image(systemName: "plus")
             }
+            .modifier(MoreZoomSource(id: Self.createZoomID,
+                                     namespace: createZoomNamespace))
+            .accessibilityLabel(CreateAccessibility.label)
+            .accessibilityIdentifier(CreateAccessibility.identifier)
         }
     }
 
@@ -1088,9 +1065,6 @@ struct ContentView: View {
                         row(for: habit, index: index + 1)
                             .id(habit.id)
                     }
-                    .onMove(perform: search.isEmpty
-                        ? { store.move(fromOffsets: $0, toOffset: $1) }
-                        : nil)
                 }
             }
             .onAppear { scrollToRequestedHabit(using: proxy) }
@@ -2482,6 +2456,7 @@ struct ContentView: View {
         // Der Bestandsabgleich hängt am App-Lifecycle, damit auch ein
         // abgelaufener Anspruch beim Vordergrundwechsel wieder gesperrt wird.
         Pro.startTransactionListener()
+        Pro.startEntitlementMonitor()
         ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()

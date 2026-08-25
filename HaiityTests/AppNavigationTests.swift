@@ -95,14 +95,32 @@ final class AppNavigationTests: XCTestCase {
     func testStatsPreviewFramesAfterItsSurfacePadding() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let start = try XCTUnwrap(content.range(of: "private func statsPreview<Content: View>"))
-        let end = try XCTUnwrap(content.range(of: "@ViewBuilder\n    private func statsTile",
+        let end = try XCTUnwrap(content.range(of: "private func statsTile",
                                               range: start.upperBound..<content.endIndex))
         let preview = content[start.lowerBound..<end.lowerBound]
         let surface = try XCTUnwrap(preview.range(of: ".appSurface()"))
-        let frame = try XCTUnwrap(preview.range(of: ".frame(width: statsPreviewWidth)"))
+        let frame = try XCTUnwrap(preview.range(of: ".frame(width: statsPreviewWidth,"))
 
         XCTAssertGreaterThan(frame.lowerBound, surface.lowerBound,
                              "the outer stats preview frame must include its padding")
+        XCTAssertTrue(preview.contains("height: CGFloat"),
+                      "stats previews need a stable height for UIContextMenu")
+        XCTAssertTrue(preview.contains(".frame(width: statsPreviewWidth,"),
+                      "the preview frame must constrain both axes")
+    }
+
+    func testGraphContextMenuUsesAnExplicitStablePreviewFrame() throws {
+        let habitCard = try String(contentsOf: sourceURL("Haiity/Views/HabitCard.swift"))
+        let githubCard = try String(contentsOf: sourceURL("Haiity/Views/GitHubContributionCard.swift"))
+
+        XCTAssertTrue(habitCard.contains("let previewHeight: CGFloat"),
+                      "graph context menus need an explicit height")
+        XCTAssertTrue(habitCard.contains("controller.view.frame = CGRect"),
+                      "the hosting view must receive the same stable frame as the menu")
+        XCTAssertTrue(habitCard.contains("controller.preferredContentSize = size"),
+                      "UIKit must be told the final preview size")
+        XCTAssertTrue(githubCard.contains("previewHeight:"),
+                      "the GitHub graph must opt into the stable preview height")
     }
 
     func testSearchListOwnsTheAppearanceBackground() throws {
@@ -387,25 +405,16 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("private var createToolbarItem: some ToolbarContent"))
     }
 
-    func testContentViewKeepsHabitReorderingReachable() throws {
+    func testContentViewDoesNotExposeLongPressReordering() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("@State private var editMode: EditMode = .inactive"))
-        XCTAssertTrue(source.contains(".environment(\\.editMode, $editMode)"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
-        XCTAssertTrue(source.contains(".onMove(perform: search.isEmpty"))
-    }
-
-    func testSortingReplacesCreateWithATrailingDoneCheckmark() throws {
-        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let toolbar = try XCTUnwrap(source.range(of: "private var createToolbarItem"))
-        let list = try XCTUnwrap(source.range(of: "private var habitsTabSource"))
-        let branch = source[toolbar.lowerBound..<list.lowerBound]
-
-        XCTAssertTrue(branch.contains("if editMode == .active"))
-        XCTAssertTrue(branch.contains("Image(systemName: \"checkmark\")"))
-        XCTAssertTrue(branch.contains("editMode = .inactive"))
-        XCTAssertTrue(branch.contains("accessibilityIdentifier(\"finish-reordering\")"))
-        XCTAssertEqual(branch.components(separatedBy: "requestCreate()").count - 1, 1)
+        XCTAssertFalse(source.contains("@State private var editMode: EditMode"),
+                       "long press must not enter a drag/reorder mode")
+        XCTAssertFalse(source.contains(".environment(\\.editMode"),
+                       "the habit list must not expose SwiftUI reorder handles")
+        XCTAssertFalse(source.contains(".onMove("),
+                       "reordering is removed from the long-press interaction")
+        XCTAssertFalse(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
+        XCTAssertFalse(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }
 
     func testMainMorePageExposesGitHubConnectionAndLogout() throws {

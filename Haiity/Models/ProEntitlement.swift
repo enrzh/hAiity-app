@@ -78,6 +78,8 @@ enum Pro {
     }
 
     private static var listener: Task<Void, Never>?
+    private static var entitlementMonitor: Task<Void, Never>?
+    private static let entitlementPollInterval: Duration = .seconds(15)
 
     /// Zählt jede ECHTE Zustandsänderung. `refresh()` läuft über ein `await`
     /// und schreibt sein Ergebnis danach zurück — trifft in diesem Fenster
@@ -169,6 +171,25 @@ enum Pro {
                     cache(transaction.revocationDate == nil)
                 }
                 await transaction.finish()
+            }
+        }
+    }
+
+    /// StoreKit emits revocations promptly, but a process can miss an update
+    /// while suspended. Re-check the current entitlement while the app is
+    /// alive so a revoked purchase relocks observed surfaces without waiting
+    /// for a new launch. The guard makes this safe to call from every boot
+    /// path and from previews/tests.
+    static func startEntitlementMonitor() {
+        guard entitlementMonitor == nil else { return }
+        entitlementMonitor = Task { @MainActor in
+            while !Task.isCancelled {
+                await refresh(mayDowngrade: true)
+                do {
+                    try await Task.sleep(for: entitlementPollInterval)
+                } catch {
+                    break
+                }
             }
         }
     }

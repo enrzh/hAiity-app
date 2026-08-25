@@ -318,6 +318,37 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(app.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
     }
 
+    func testAppBootStartsContinuousProEntitlementMonitoring() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let pro = try source("Haiity/Models/ProEntitlement.swift")
+
+        XCTAssertTrue(content.contains("Pro.startEntitlementMonitor()"),
+                      "the monitor must start with the app's existing StoreKit listener")
+        XCTAssertTrue(pro.contains("static func startEntitlementMonitor()"),
+                      "Pro needs an idempotent active entitlement monitor")
+        XCTAssertTrue(pro.contains("entitlementMonitor == nil"),
+                      "boot must not create duplicate monitor tasks")
+        XCTAssertTrue(pro.contains("Task.sleep(for: entitlementPollInterval)"),
+                      "the monitor must re-check without requiring an app restart")
+        XCTAssertTrue(pro.contains("entitlementPollInterval: Duration = .seconds(15)"),
+                      "active entitlement changes must be reflected promptly")
+        XCTAssertTrue(pro.contains("try await Task.sleep(for: entitlementPollInterval)"),
+                      "the monitor must use the configured polling interval")
+        XCTAssertTrue(pro.contains("await refresh(mayDowngrade: true)"),
+                      "active checks must be able to relock expired Pro state")
+    }
+
+    func testRootRequestsTheProGateWhenAnActiveSessionExpires() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains(".onChange(of: proStatus.unlocked)"),
+                      "the root must observe an entitlement downgrade while alive")
+        XCTAssertTrue(content.contains("guard old && !new else { return }"),
+                      "only an unlocked-to-locked transition should interrupt the user")
+        XCTAssertTrue(content.contains("paywall = .settings"),
+                      "an expiry must show the global Pro gate, not wait for a feature tap")
+    }
+
     func testAppleAccountSwitchRechecksProWithDowngradePermission() throws {
         let more = try source("Haiity/Views/MoreView.swift")
 
@@ -598,8 +629,10 @@ final class ProGateTests: XCTestCase {
         let pro = try source("Haiity/Models/ProEntitlement.swift")
         XCTAssertTrue(pro.contains("static func refresh(mayDowngrade: Bool = false) async"))
         XCTAssertTrue(pro.contains("guard unlocked || mayDowngrade else { return }"))
-        // Genau EINE Stelle darf herabstufen: nach erfolgreichem sync().
-        XCTAssertEqual(pro.components(separatedBy: "mayDowngrade: true").count - 1, 1)
+        // Der explizite Restore und der laufende aktive Monitor dürfen nach
+        // einer StoreKit-Antwort herabstufen. Der normale Bestandsabgleich
+        // bleibt weiterhin upgrade-only.
+        XCTAssertEqual(pro.components(separatedBy: "mayDowngrade: true").count - 1, 2)
         // Die Erstattung kommt weiterhin über den Lauscher an.
         XCTAssertTrue(pro.contains("cache(transaction.revocationDate == nil)"))
         // Und ein nachlaufendes Ergebnis überschreibt ihn nicht.

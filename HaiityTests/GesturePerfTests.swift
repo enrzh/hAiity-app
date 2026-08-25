@@ -76,6 +76,35 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertTrue(source.contains("frame(maxWidth: .infinity, maxHeight: .infinity)"))
     }
 
+    func testStatsContextMenuUsesAHeightForEachCardShape() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/StatsView.swift"))
+
+        XCTAssertTrue(source.contains("private func statsContextMenu(preview:"),
+                      "context menus need a dedicated stats preview helper")
+        XCTAssertTrue(source.contains("height: CGFloat)"),
+                      "context menus need an explicit height instead of one hero-sized constant")
+        XCTAssertTrue(source.contains("statsHeroPreviewHeight"))
+        XCTAssertTrue(source.contains("statsTilePreviewHeight"))
+        XCTAssertTrue(source.contains("statsRowPreviewHeight"))
+        XCTAssertTrue(source.contains("height: statsTilePreviewHeight"),
+                      "small tiles must not inherit the hero preview height")
+    }
+
+    func testContextMenuStaysOnTheTouchReceivingListCell() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/HabitCard.swift"))
+
+        XCTAssertTrue(source.contains("if view is UICollectionViewCell || view is UITableViewCell"),
+                      "the interaction must be installed on the UIKit list cell that receives the hold")
+        XCTAssertFalse(source.contains("exactHost"),
+                       "a same-sized representable host can be outside the actual touch path")
+        XCTAssertFalse(source.contains("isBackgroundHost"),
+                       "host selection must not depend on private SwiftUI view type names")
+    }
+
     func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {
         let actions = try habitActionsSource()
         XCTAssertFalse(actions.contains("onMarkDone"))

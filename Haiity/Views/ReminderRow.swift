@@ -34,6 +34,7 @@ struct ReminderRow: View, Equatable {
             .background {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
+                                 previewHeight: 96,
                                  preview: { AnyView(reminderPreview) },
                                  actions: menuActions,
                                  commit: onEdit)

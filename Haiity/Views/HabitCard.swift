@@ -332,6 +332,7 @@ struct HabitCard: View, Equatable {
             .background {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
+                                 previewHeight: Self.contextPreviewHeight,
                                  preview: { AnyView(habitPreview) },
                                  actions: menuActions,
                                  commit: onEdit)
@@ -359,6 +360,10 @@ struct HabitCard: View, Equatable {
 
     static let previewCell: CGFloat = 20
     static let previewGap: CGFloat = 4
+    /// A context-menu preview is hosted outside the list's layout tree. Keep
+    /// its vertical proposal stable so UIKit cannot collapse the graph to the
+    /// action row while SwiftUI is still measuring it.
+    static let contextPreviewHeight: CGFloat = 260
     /// Rand zwischen Vorschau und Bildschirmkante.
     static let previewMargin: CGFloat = 16
     /// Untergrenze für sehr schmale Fenster (Slide-Over).
@@ -827,18 +832,21 @@ struct GraphMenuAction {
 struct GraphContextMenu: UIViewRepresentable {
     let cardRadius: CGFloat
     let previewWidth: CGFloat
+    let previewHeight: CGFloat
     let preview: () -> AnyView
     let actions: [GraphMenuAction]
     let commit: () -> Void
 
     func makeUIView(context: Context) -> MenuHost {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
+                 previewHeight: previewHeight,
                  preview: preview, actions: actions, commit: commit)
     }
 
     func updateUIView(_ view: MenuHost, context: Context) {
         view.cardRadius = cardRadius
         view.previewWidth = previewWidth
+        view.previewHeight = previewHeight
         view.preview = preview
         view.actions = actions
         view.commit = commit
@@ -851,18 +859,22 @@ struct GraphContextMenu: UIViewRepresentable {
     final class MenuHost: UIView, UIContextMenuInteractionDelegate {
         var cardRadius: CGFloat
         var previewWidth: CGFloat
+        var previewHeight: CGFloat
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
         private var interaction: UIContextMenuInteraction?
         private weak var host: UIView?
+        private var attachScheduled = false
 
         init(cardRadius: CGFloat, previewWidth: CGFloat,
+             previewHeight: CGFloat,
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void) {
             self.cardRadius = cardRadius
             self.previewWidth = previewWidth
+            self.previewHeight = previewHeight
             self.preview = preview
             self.actions = actions
             self.commit = commit
@@ -878,10 +890,40 @@ struct GraphContextMenu: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            scheduleAttach()
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            scheduleAttach()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleAttach()
+        }
+
+        private func scheduleAttach() {
+            guard !attachScheduled else { return }
+            attachScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.attachScheduled = false
+                self.attachIfPossible()
+            }
+        }
+
+        private func attachIfPossible() {
             // Zeilen-Recycling: raus aus dem Fenster -> Interaktion abhängen,
             // wieder rein -> neu anhängen (die Zelle kann eine andere sein).
             guard window != nil else { detach(); return }
             guard interaction == nil else { return }
+
+            // SwiftUI renders the card contents and this representable as
+            // siblings. The representable is therefore not on the touch path;
+            // the UIKit list cell is the stable event receiver for list rows
+            // and for all four tiles in the stats grid. The location check
+            // below dispatches the hold back to this card's own frame.
             var ancestor = superview
             var container: UIView?
             while let view = ancestor {
@@ -895,7 +937,6 @@ struct GraphContextMenu: UIViewRepresentable {
             container.addInteraction(interaction)
             self.interaction = interaction
             host = container
-            trace("menu: attached to \(String(describing: type(of: container)))")
         }
 
         func detach() {
@@ -916,16 +957,23 @@ struct GraphContextMenu: UIViewRepresentable {
             // the representable view allowed a GitHub row to borrow a
             // neighbouring card's coordinate space on iOS 27.
             let targetFrame = convert(bounds, to: view)
-            trace("menu: config? loc=\(location) target=\(targetFrame)")
             guard targetFrame.contains(location) else { return nil }
             let width = previewWidth
+            let height = max(1, previewHeight)
             let makePreview = preview
             let actions = actions
             return UIContextMenuConfiguration(identifier: nil, previewProvider: {
-                let controller = UIHostingController(rootView: makePreview())
+                let size = CGSize(width: width, height: height)
+                let root = AnyView(makePreview()
+                    .frame(width: width, height: height,
+                           alignment: .topLeading))
+                let controller = UIHostingController(rootView: root)
                 controller.view.backgroundColor = .clear
-                controller.preferredContentSize = controller.sizeThatFits(
-                    in: CGSize(width: width, height: 10_000))
+                controller.view.frame = CGRect(origin: .zero, size: size)
+                controller.view.bounds = CGRect(origin: .zero, size: size)
+                controller.preferredContentSize = size
+                controller.view.setNeedsLayout()
+                controller.view.layoutIfNeeded()
                 return controller
             }, actionProvider: { _ in
                 UIMenu(children: actions.map { action in

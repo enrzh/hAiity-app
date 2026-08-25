@@ -54,6 +54,7 @@ struct GitHubContributionCard: View, Equatable {
             .background {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
+                                 previewHeight: previewHeight,
                                  preview: { AnyView(cardPreview) },
                                  actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
                                                            symbol: "arrow.up.right.square",
@@ -67,9 +68,21 @@ struct GitHubContributionCard: View, Equatable {
         HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
     }
 
-    private var previewWeeks: Int {
-        HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).weeks
+    private var previewHeight: CGFloat {
+        showsUsername ? 190 : 158
     }
+
+    private var previewGraphCellSize: CGFloat {
+        // The popup cannot be horizontally scrolled reliably. Fit the full
+        // year into the card instead of showing a clipped middle slice.
+        let gap = Self.previewGraphGap
+        let graphWidth = max(1, previewWidth
+            - 2 * (Theme.Metrics.gutter + Theme.Metrics.cardPadding))
+        return max(6, (graphWidth + gap) / CGFloat(Self.previewGraphWeeks) - gap)
+    }
+
+    private static let previewGraphWeeks = 53
+    private static let previewGraphGap: CGFloat = 2
 
     private var cardPreview: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,9 +92,11 @@ struct GitHubContributionCard: View, Equatable {
                     .lineLimit(1)
             }
             GitHubContributionGraph(days: snapshot.days,
-                                    weeks: previewWeeks,
-                                    cellSize: HabitCard.previewCell,
-                                    gap: HabitCard.previewGap)
+                                    // The complete contribution history fits
+                                    // inside this fixed popup frame.
+                                    weeks: Self.previewGraphWeeks,
+                                    cellSize: previewGraphCellSize,
+                                    gap: Self.previewGraphGap)
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
