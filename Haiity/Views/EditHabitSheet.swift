@@ -75,6 +75,14 @@ struct EditHabitSheet: View {
     @State private var swipeActions: SwipeActionsOverride?
     @State private var notificationDenied = false
     @State private var showingDeleteConfirmation = false
+    @State private var editingMultipleDate: MultipleDateEdit?
+
+    private struct MultipleDateEdit: Identifiable {
+        let id = UUID()
+        let original: Recurrence.MonthDay?
+        let initialDate: Date
+        let isYearly: Bool
+    }
 
     private var calendar: Calendar {
         HabitTimeZone.calendar(identifier: timeZoneIdentifier
@@ -224,6 +232,25 @@ struct EditHabitSheet: View {
             HabitTimeZoneSheet(selection: $timeZoneIdentifier,
                                inheritedLabel: String(localized: "Standard"))
                 .themed(store, palettes: palettes)
+        }
+        .sheet(item: $editingMultipleDate) { edit in
+            MultipleDatePickerSheet(
+                initialDate: edit.initialDate,
+                isYearly: edit.isYearly,
+                calendar: calendar,
+                onSave: { date in
+                    draft.setMultipleDate(date,
+                                           replacing: edit.original,
+                                           calendar: calendar)
+                    editingMultipleDate = nil
+                },
+                onDelete: edit.original.map { original in
+                    {
+                        draft.removeMultipleDate(original)
+                        editingMultipleDate = nil
+                    }
+                })
+            .themed(store, palettes: palettes)
         }
         .onAppear { load() }
         .confirmationDialog(String(localized: "Eintrag löschen?"),
@@ -470,34 +497,75 @@ struct EditHabitSheet: View {
             Toggle(String(localized: "Mehrere Tage"), isOn: multipleDaysBinding)
                 .accessibilityIdentifier("multiple-days-toggle")
             if draft.multipleDaysEnabled {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7),
-                          spacing: 8) {
-                    ForEach(1...31, id: \.self) { day in
-                        Button {
-                            draft.toggleMultipleDay(day)
-                        } label: {
-                            Text(String(day))
-                                .font(.subheadline.monospacedDigit().weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 34)
-                                .foregroundStyle(draft.multipleDays.contains(day)
-                                                 ? Color.white
-                                                 : Color.primary)
-                                .background(draft.multipleDays.contains(day)
-                                            ? Theme.accentFill(store.paletteStyle)
-                                            : Color(.secondarySystemFill),
-                                            in: RoundedRectangle(cornerRadius: 8,
-                                                                 style: .continuous))
+                VStack(spacing: 0) {
+                    ForEach(draft.sortedMultipleDates, id: \.self) { value in
+                        HStack(spacing: Theme.Metrics.gap) {
+                            Button {
+                                editingMultipleDate = MultipleDateEdit(
+                                    original: value,
+                                    initialDate: multipleDatePickerDate(for: value),
+                                    isYearly: draft.frequency == .yearly)
+                            } label: {
+                                HStack {
+                                    Text(multipleDateLabel(value))
+                                        .font(.body.monospacedDigit().weight(.medium))
+                                    Spacer(minLength: Theme.Metrics.gap)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(String(localized: "\(multipleDateLabel(value)) bearbeiten"))
+                            .accessibilityIdentifier("multiple-date-\(value.month)-\(value.day)")
+
+                            Button(role: .destructive) {
+                                draft.removeMultipleDate(value)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.body.weight(.medium))
+                                    .frame(width: 32, height: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(String(localized: "\(multipleDateLabel(value)) löschen"))
+                            .accessibilityIdentifier("multiple-date-delete-\(value.month)-\(value.day)")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(String(localized: "Tag \(day)"))
-                        .accessibilityAddTraits(draft.multipleDays.contains(day)
-                                                ? .isSelected : [])
-                        .accessibilityIdentifier("multiple-day-\(day)")
+                        .padding(.vertical, 7)
+                        if value != draft.sortedMultipleDates.last {
+                            Divider()
+                        }
                     }
                 }
-                .accessibilityIdentifier("multiple-day-grid")
+                .accessibilityIdentifier("multiple-date-list")
+
+                Button {
+                    editingMultipleDate = MultipleDateEdit(
+                        original: nil,
+                        initialDate: multipleDatePickerDate(for: nil),
+                        isYearly: draft.frequency == .yearly)
+                } label: {
+                    Label(String(localized: "Datum hinzufügen"), systemImage: "plus")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("multiple-date-add")
             }
         }
+    }
+
+    private func multipleDateLabel(_ value: Recurrence.MonthDay) -> String {
+        if draft.frequency == .yearly {
+            return String(format: "%02d.%02d.", value.day, value.month)
+        }
+        return "\(value.day)."
+    }
+
+    private func multipleDatePickerDate(for value: Recurrence.MonthDay?) -> Date {
+        let month = value?.month ?? (draft.frequency == .yearly ? draft.month : 1)
+        let day = value?.day ?? draft.dayOfMonth
+        return calendar.date(from: DateComponents(year: 2000,
+                                                  month: month,
+                                                  day: min(day, 31))) ?? draft.start
     }
 
     // MARK: – Dauer (geplante Session-Länge)
@@ -778,6 +846,129 @@ struct EditHabitSheet: View {
             let granted = await Reminders.ensurePermission()
             guard !granted, !NotificationPromptPreference.isSuppressed else { return }
             await MainActor.run { notificationDenied = true }
+        }
+    }
+}
+
+/// Native iOS wheel selection for additional recurrence entries. The sheet
+/// exposes only the components that can be stored: a day for monthly rules,
+/// and a day plus month for yearly rules.
+private struct MultipleDatePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let initialDate: Date
+    let isYearly: Bool
+    let calendar: Calendar
+    let onSave: (Date) -> Void
+    let onDelete: (() -> Void)?
+
+    @State private var selectedDay: Int
+    @State private var selectedMonth: Int
+    @State private var showingDeleteConfirmation = false
+
+    init(initialDate: Date,
+         isYearly: Bool,
+         calendar: Calendar,
+         onSave: @escaping (Date) -> Void,
+         onDelete: (() -> Void)?) {
+        self.initialDate = initialDate
+        self.isYearly = isYearly
+        self.calendar = calendar
+        self.onSave = onSave
+        self.onDelete = onDelete
+        _selectedDay = State(initialValue: calendar.component(.day, from: initialDate))
+        _selectedMonth = State(initialValue: calendar.component(.month, from: initialDate))
+    }
+
+    private var validDays: Range<Int> {
+        guard isYearly else { return 1..<32 }
+        var components = DateComponents(year: 2000, month: selectedMonth, day: 1)
+        let date = calendar.date(from: components)
+        let count = date.flatMap { calendar.range(of: .day, in: .month, for: $0)?.count } ?? 31
+        return 1..<(count + 1)
+    }
+
+    private var selection: Date {
+        calendar.date(from: DateComponents(year: 2000,
+                                            month: isYearly ? selectedMonth : 1,
+                                            day: selectedDay)) ?? initialDate
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if isYearly {
+                    HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+                        pickerColumn(String(localized: "Tag"), selection: $selectedDay,
+                                     values: validDays,
+                                     suffix: ".")
+                        pickerColumn(String(localized: "Monat"), selection: $selectedMonth,
+                                     values: 1..<13,
+                                     suffix: nil)
+                    }
+                } else {
+                    pickerColumn(String(localized: "Tag"), selection: $selectedDay,
+                                 values: validDays,
+                                 suffix: ".")
+                }
+                Text(String(localized: isYearly
+                            ? "Jahr wird nicht gespeichert"
+                            : "Gilt an diesem Tag in jedem Monat"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("multiple-date-picker")
+            }
+            .onChange(of: selectedMonth) { _, _ in
+                selectedDay = min(selectedDay, validDays.last ?? selectedDay)
+            }
+            .navigationTitle(String(localized: isYearly ? "Datum bearbeiten" : "Tag bearbeiten"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Abbrechen")) { dismiss() }
+                }
+                if onDelete != nil {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(String(localized: "Löschen"), role: .destructive) {
+                            showingDeleteConfirmation = true
+                        }
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Sichern")) {
+                        onSave(selection)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .confirmationDialog(String(localized: "Datum löschen?"),
+                            isPresented: $showingDeleteConfirmation) {
+            Button(String(localized: "Löschen"), role: .destructive) {
+                onDelete?()
+                dismiss()
+            }
+            Button(String(localized: "Abbrechen"), role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private func pickerColumn(_ title: String,
+                              selection: Binding<Int>,
+                              values: Range<Int>,
+                              suffix: String?) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Picker(title, selection: selection) {
+                ForEach(values, id: \.self) { value in
+                    Text(suffix.map { "\(value)\($0)" } ?? calendar.monthSymbols[value - 1])
+                        .tag(value)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
         }
     }
 }

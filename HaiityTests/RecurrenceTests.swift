@@ -445,7 +445,89 @@ final class RecurrenceTests: XCTestCase {
         draft.selectFrequency(.yearly, calendar: calendar)
         XCTAssertEqual(draft.recurrence(calendar: calendar).month, 8)
         XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
-                       .multipleDays([5, 15]))
+                       .multipleMonthDays([
+                           Recurrence.MonthDay(month: 8, day: 5),
+                           Recurrence.MonthDay(month: 8, day: 15)
+                       ]))
+    }
+
+    func testYearlyMultipleDatesKeepMonthAndDayTogether() throws {
+        let raw = #"{"freq":"yearly","ruleKind":"multipleMonthDays","ruleMonthDays":[{"month":3,"day":12},{"month":10,"day":5}],"month":3,"start":"2026-03-12"}"#
+        let recurrence = try JSONDecoder().decode(Recurrence.self, from: Data(raw.utf8))
+
+        XCTAssertTrue(recurrence.isScheduled(on: "2027-03-12", calendar: calendar))
+        XCTAssertTrue(recurrence.isScheduled(on: "2027-10-05", calendar: calendar))
+        XCTAssertFalse(recurrence.isScheduled(on: "2027-03-05", calendar: calendar))
+        XCTAssertEqual(recurrence.occurrences(in: "2027-01-01"..."2027-12-31", calendar: calendar),
+                       ["2027-03-12", "2027-10-05"])
+    }
+
+    func testYearlyMultipleDatesRoundTripWithoutCrossProduct() throws {
+        let raw = #"{"freq":"yearly","ruleKind":"multipleMonthDays","ruleMonthDays":[{"month":3,"day":12},{"month":10,"day":5}],"month":3,"start":"2026-03-12"}"#
+        let recurrence = try JSONDecoder().decode(Recurrence.self, from: Data(raw.utf8))
+
+        let encoded = try JSONEncoder().encode(recurrence)
+        let decoded = try JSONDecoder().decode(Recurrence.self, from: encoded)
+        XCTAssertEqual(decoded, recurrence)
+        XCTAssertTrue(String(data: encoded, encoding: .utf8)?.contains("multipleMonthDays") == true)
+    }
+
+    func testYearlyMultipleDatesSkipInvalidDatesInNonLeapYears() {
+        let recurrence = Recurrence(frequency: .yearly,
+                                    rule: .multipleMonthDays([
+                                        Recurrence.MonthDay(month: 2, day: 29)
+                                    ]),
+                                    start: "2027-01-01")
+
+        XCTAssertFalse(recurrence.isScheduled(on: "2027-03-01", calendar: calendar))
+        XCTAssertTrue(recurrence.isScheduled(on: "2028-02-29", calendar: calendar))
+        XCTAssertEqual(recurrence.occurrences(in: "2027-01-01"..."2027-12-31",
+                                               calendar: calendar), [])
+        XCTAssertEqual(recurrence.nextOccurrence(after: "2027-01-01", calendar: calendar),
+                       "2028-02-29")
+    }
+
+    func testDraftMultipleDateListSupportsAddEditAndDelete() {
+        var draft = RecurrenceDraft(today: date("2026-08-25"), calendar: calendar)
+        draft.selectFrequency(.yearly, calendar: calendar)
+        draft.setMultipleDaysEnabled(true, calendar: calendar)
+
+        draft.setMultipleDate(date("2000-03-12"), calendar: calendar)
+        XCTAssertEqual(draft.sortedMultipleDates,
+                       [Recurrence.MonthDay(month: 3, day: 12),
+                        Recurrence.MonthDay(month: 8, day: 25)])
+
+        draft.setMultipleDate(date("2000-10-05"),
+                              replacing: Recurrence.MonthDay(month: 8, day: 25),
+                              calendar: calendar)
+        XCTAssertEqual(draft.sortedMultipleDates,
+                       [Recurrence.MonthDay(month: 3, day: 12),
+                        Recurrence.MonthDay(month: 10, day: 5)])
+
+        draft.removeMultipleDate(Recurrence.MonthDay(month: 3, day: 12))
+        XCTAssertEqual(draft.sortedMultipleDates,
+                       [Recurrence.MonthDay(month: 10, day: 5)])
+        draft.removeMultipleDate(Recurrence.MonthDay(month: 10, day: 5))
+        XCTAssertFalse(draft.multipleDaysEnabled)
+    }
+
+    func testMonthlyDeleteIgnoresStaleYearlyEntries() {
+        var draft = RecurrenceDraft(today: date("2026-08-25"), calendar: calendar)
+        draft.selectFrequency(.yearly, calendar: calendar)
+        draft.setMultipleDaysEnabled(true, calendar: calendar)
+        draft.setMultipleDate(date("2000-03-12"), calendar: calendar)
+
+        draft.selectFrequency(.monthly, calendar: calendar)
+        XCTAssertEqual(draft.sortedMultipleDates,
+                       [Recurrence.MonthDay(month: 1, day: 12),
+                        Recurrence.MonthDay(month: 1, day: 25)])
+
+        draft.removeMultipleDate(Recurrence.MonthDay(month: 1, day: 12))
+        draft.removeMultipleDate(Recurrence.MonthDay(month: 1, day: 25))
+
+        XCTAssertFalse(draft.multipleDaysEnabled)
+        XCTAssertEqual(draft.recurrence(calendar: calendar).rule,
+                       .dayOfMonth(draft.dayOfMonth))
     }
 
     func testDraftPreservesLegacyMonthlyRuleUntilDateChanges() {

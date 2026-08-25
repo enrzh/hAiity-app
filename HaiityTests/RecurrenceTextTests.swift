@@ -326,6 +326,17 @@ final class RecurrenceDraftTests: XCTestCase {
         XCTAssertTrue(RecurrenceText.pattern(recurrence, calendar: calendar).contains("15."))
     }
 
+    func testYearlyMultipleDatesShowMonthAndDayPairs() throws {
+        let raw = #"{"freq":"yearly","ruleKind":"multipleMonthDays","ruleMonthDays":[{"month":3,"day":12},{"month":10,"day":5}],"month":3,"start":"2026-03-12"}"#
+        let recurrence = try JSONDecoder().decode(Recurrence.self, from: Data(raw.utf8))
+        let text = RecurrenceText.pattern(recurrence, calendar: calendar)
+
+        XCTAssertTrue(text.contains("12."))
+        XCTAssertTrue(text.contains("03"))
+        XCTAssertTrue(text.contains("05."))
+        XCTAssertTrue(text.contains("10"))
+    }
+
     func testEndTitleIsDroppedByTheForm() {
         let recurrence = Recurrence(frequency: .daily,
                                     start: "2026-08-09",

@@ -131,6 +131,10 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(editor.contains("Mehrere Tage"))
         XCTAssertTrue(editor.contains("multipleDaysEnabled"))
         XCTAssertTrue(editor.contains("multipleDays"))
+        XCTAssertTrue(editor.contains("multiple-date-list"),
+                      "Mehrere Tage should be presented as an editable list")
+        XCTAssertTrue(editor.contains("multiple-date-add"),
+                      "Mehrere Tage needs an add action")
         XCTAssertFalse(editor.contains("monthly-rule-picker"))
         XCTAssertFalse(editor.contains("Tag im Monat"))
         XCTAssertFalse(editor.contains("Letzter Tag"))

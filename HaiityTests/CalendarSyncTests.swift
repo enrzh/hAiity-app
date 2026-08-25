@@ -275,6 +275,27 @@ final class CalendarSyncRecurrenceRuleTests: XCTestCase {
 
         XCTAssertEqual(rule.frequency, .daily)
     }
+
+    @MainActor
+    func testYearlyMultipleDatesUseExactNativeDayOfYearValues() throws {
+        let recurrence = Recurrence(frequency: .yearly,
+                                    rule: .multipleMonthDays([
+                                        Recurrence.MonthDay(month: 3, day: 12),
+                                        Recurrence.MonthDay(month: 10, day: 5)
+                                    ]),
+                                    start: "2026-03-12")
+        let habit = Habit(name: "Mehrere Jahrestage", recurrence: recurrence)
+        let plan = try XCTUnwrap(CalendarEventPlan(habit: habit,
+                                                   today: "2026-01-01",
+                                                   calendar: .current))
+
+        let rule = try XCTUnwrap(CalendarSync.recurrenceRule(for: plan))
+
+        XCTAssertEqual(rule.frequency, EKRecurrenceFrequency.yearly)
+        XCTAssertEqual(rule.daysOfTheYear?.map { $0.intValue }, [72, 279])
+        XCTAssertNil(rule.daysOfTheMonth)
+        XCTAssertNil(rule.monthsOfTheYear)
+    }
 }
 
 final class CalendarSyncNativeMappingTests: XCTestCase {

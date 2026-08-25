@@ -69,6 +69,8 @@ struct CalendarEventPlan: Equatable {
     var weekdays: [Int]
     /// Monatstag(e); EventKit versteht -1 als „letzter".
     var daysOfMonth: [Int]
+    /// Exact month/day pairs for a yearly multi-date rule.
+    var monthDays: [Recurrence.MonthDay]
     /// „n-ter Wochentag im Monat" (nth, weekday); nth -1 = letzter.
     var nthWeekday: (nth: Int, weekday: Int)?
     /// Monat fürs Jahres-Muster.
@@ -98,6 +100,7 @@ struct CalendarEventPlan: Equatable {
         let time: String = minutes.map { String($0) } ?? "allday"
         let weekdayKey: String = weekdays.map { String($0) }.joined(separator: ",")
         let monthDayKey: String = daysOfMonth.map { String($0) }.joined(separator: ",")
+        let monthDaysKey: String = monthDays.map { "\($0.month).\($0.day)" }.joined(separator: ",")
         let monthKey: String = monthOfYear.map { String($0) } ?? "-"
         var parts: [String] = [isReminder ? "reminder" : "habit", title, firstDay, time,
                                timeZoneIdentifier]
@@ -106,6 +109,7 @@ struct CalendarEventPlan: Equatable {
         parts.append(String(interval))
         parts.append(weekdayKey)
         parts.append(monthDayKey)
+        parts.append(monthDaysKey)
         parts.append(nth)
         parts.append(monthKey)
         parts.append(endKey)
@@ -166,6 +170,7 @@ struct CalendarEventPlan: Equatable {
         self.interval = recurrence.interval
         self.weekdays = recurrence.weekdays.sorted()
         var days: [Int] = []
+        var monthDays: [Recurrence.MonthDay] = []
         var nth: (Int, Int)?
         if let rule = recurrence.rule {
             switch rule {
@@ -173,11 +178,13 @@ struct CalendarEventPlan: Equatable {
             case .lastDayOfMonth: days = [-1]
             case .nthWeekday(let n, let weekday): nth = (n, weekday)
             case .multipleDays(let values): days = values.sorted()
+            case .multipleMonthDays(let values): monthDays = values.sorted()
             }
         }
         self.daysOfMonth = days
+        self.monthDays = monthDays
         self.nthWeekday = nth
-        self.monthOfYear = recurrence.month
+        self.monthOfYear = monthDays.isEmpty ? recurrence.month : nil
         self.end = recurrence.end
         self.timeZoneIdentifier = itemCalendar.timeZone.identifier
     }
@@ -450,6 +457,7 @@ enum CalendarSync {
         }
         var days: [EKRecurrenceDayOfWeek]?
         var setPositions: [NSNumber]?
+        var daysOfTheYear: [NSNumber]?
         if !plan.weekdays.isEmpty {
             days = plan.weekdays.compactMap { EKWeekday(rawValue: $0) }
                 .map { EKRecurrenceDayOfWeek($0) }
@@ -457,6 +465,18 @@ enum CalendarSync {
         if let nth = plan.nthWeekday, let weekday = EKWeekday(rawValue: nth.weekday) {
             days = [EKRecurrenceDayOfWeek(weekday)]
             setPositions = [NSNumber(value: nth.nth)]
+        }
+        if !plan.monthDays.isEmpty {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+            daysOfTheYear = plan.monthDays.compactMap { value in
+                guard let date = calendar.date(from: DateComponents(year: 2000,
+                                                                     month: value.month,
+                                                                     day: value.day)) else { return nil }
+                return calendar.ordinality(of: .day, in: .year, for: date).map(NSNumber.init)
+            }
+            days = nil
+            setPositions = nil
         }
         var end: EKRecurrenceEnd?
         switch plan.end {
@@ -472,10 +492,12 @@ enum CalendarSync {
             recurrenceWith: frequency,
             interval: max(1, plan.interval),
             daysOfTheWeek: days,
-            daysOfTheMonth: plan.daysOfMonth.isEmpty ? nil : plan.daysOfMonth.map(NSNumber.init),
-            monthsOfTheYear: plan.monthOfYear.map { [NSNumber(value: $0)] },
+            daysOfTheMonth: plan.monthDays.isEmpty && !plan.daysOfMonth.isEmpty
+                ? plan.daysOfMonth.map(NSNumber.init) : nil,
+            monthsOfTheYear: plan.monthDays.isEmpty
+                ? plan.monthOfYear.map { [NSNumber(value: $0)] } : nil,
             weeksOfTheYear: nil,
-            daysOfTheYear: nil,
+            daysOfTheYear: daysOfTheYear,
             setPositions: setPositions,
             end: end)
     }

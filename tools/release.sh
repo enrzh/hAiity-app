@@ -113,7 +113,7 @@ say "Unit tests"
 # Main-actor completion contract for the notification delegate: +1 = 1109.
 # Current full-suite floor verified with timezone, appearance, and settings
 # chrome coverage.
-MIN_TESTS=1367
+MIN_TESTS=1423
 # Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
 # runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
 # available but cannot be built for. UDIDs are not hard-coded — simulators get
