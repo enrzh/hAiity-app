@@ -23,6 +23,10 @@ final class FakeCloudStore: CloudRecordStore, @unchecked Sendable {
     var fetchError: CKError?
     /// Der Reihe nach abgearbeitet; leer = Erfolg.
     var saveOutcomes: [SaveOutcome] = []
+    /// Simuliert CloudKits Änderungs-Tag-Regel: existiert schon ein Server-
+    /// Datensatz, darf ein FRISCHER Record ohne diesen Stand ihn nicht blind
+    /// überschreiben.
+    var enforceServerVersioning = false
 
     private(set) var fetches: [CKRecord.ID] = []
     private(set) var savedTypes: [String] = []
@@ -47,6 +51,13 @@ final class FakeCloudStore: CloudRecordStore, @unchecked Sendable {
         savedIDs.append(record.recordID)
         savedPayloads.append(CloudFixtures.payload(of: record))
         savedSchemas.append(record[CloudSync.schemaKey] as? Int)
+        if saveOutcomes.isEmpty,
+           enforceServerVersioning,
+           let stored,
+           stored !== record {
+            throw CloudFixtures.ckError(.serverRecordChanged,
+                                        userInfo: [CKRecordChangedErrorServerRecordKey: stored])
+        }
         let outcome = saveOutcomes.isEmpty ? SaveOutcome.success : saveOutcomes.removeFirst()
         switch outcome {
         case .success:
@@ -275,6 +286,66 @@ final class CloudSyncTests: XCTestCase {
             XCTFail("sollte werfen")
         } catch let error as CloudSyncError {
             XCTAssertFalse(error.isTemporary)
+        } catch { XCTFail("falscher Fehler: \(error)") }
+    }
+
+    /// Ein später erfolgreicher Retry muss den AKTUELLEN lokalen Stand
+    /// schreiben — ein vorübergehender CloudKit-Fehler darf keine späteren
+    /// lokalen Änderungen „vergessen“.
+    @MainActor
+    func testTemporaryFailureRetryKeepsLaterLocalWrite() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-cloud-retry-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        var local = Habit(name: "Lesen")
+        local.log["2026-08-01"] = 1
+        store.add(local)
+
+        let fake = FakeCloudStore()
+        fake.saveOutcomes = [.failure(CloudFixtures.ckError(.networkUnavailable))]
+        let sync = CloudSync(database: fake)
+
+        let firstPayload = try XCTUnwrap(store.exportJSON())
+        do {
+            try await sync.push(firstPayload) { _ in firstPayload }
+            XCTFail("sollte werfen")
+        } catch let error as CloudSyncError {
+            XCTAssertTrue(error.isTemporary)
+        } catch { XCTFail("falscher Fehler: \(error)") }
+
+        store.toggle(local.id, day: "2026-08-02")
+        let secondPayload = try XCTUnwrap(store.exportJSON())
+        try await sync.push(secondPayload) { _ in secondPayload }
+
+        let written = try XCTUnwrap(try CloudSync.decode(CloudFixtures.record(
+            carrying: try XCTUnwrap(fake.savedPayloads.last ?? nil))))
+        XCTAssertTrue(written.habits[0].isDone("2026-08-01"))
+        XCTAssertTrue(written.habits[0].isDone("2026-08-02"))
+    }
+
+    /// Ein unlesbarer Pull darf NICHT als gültiger Serverstand im Actor
+    /// hängen bleiben — sonst würde der nächste Push denselben kaputten
+    /// Datensatz mit seinem Änderungs-Tag überschreiben.
+    func testUnreadablePullDoesNotCacheServerRecordForLaterOverwrite() async {
+        let fake = FakeCloudStore()
+        fake.stored = CloudFixtures.record(carrying: Data("kaputt".utf8))
+        fake.enforceServerVersioning = true
+        let sync = CloudSync(database: fake)
+
+        do {
+            _ = try await sync.pull()
+            XCTFail("sollte werfen")
+        } catch let error as CloudSyncError {
+            XCTAssertEqual(error, .unreadableRemote)
+        } catch { XCTFail("falscher Fehler: \(error)") }
+
+        do {
+            let payload = Data(#"{"version":2,"updatedAt":1,"habits":[]}"#.utf8)
+            try await sync.push(payload) { _ in payload }
+            XCTFail("sollte werfen")
+        } catch let error as CloudSyncError {
+            XCTAssertEqual(error, .unreadableRemote)
         } catch { XCTFail("falscher Fehler: \(error)") }
     }
 

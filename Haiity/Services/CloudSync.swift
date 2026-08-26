@@ -178,12 +178,14 @@ actor CloudSync {
     func pull() async throws -> HabitData? {
         do {
             let record = try await database.record(for: Self.recordID)
+            let decoded = try Self.decode(record)
             known = record
-            return try Self.decode(record)
+            return decoded
         } catch let error as CKError where error.code == .unknownItem {
             known = nil
             return nil
         } catch {
+            known = nil
             throw CloudSyncError.map(error)
         }
     }

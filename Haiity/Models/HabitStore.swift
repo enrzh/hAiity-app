@@ -652,9 +652,10 @@ final class HabitStore {
         data.appearancePreferences = data.appearancePreferences.normalizedForStorage()
         data.version = HabitData.currentVersion
         let now = Date().timeIntervalSince1970
-        data.updatedAt = now
         if changeKind == .appearance {
             data.appearanceUpdatedAt = now
+        } else {
+            data.updatedAt = now
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]

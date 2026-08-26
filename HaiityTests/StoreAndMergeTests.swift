@@ -124,6 +124,43 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(store.appearancePreferences, remoteAppearance)
     }
 
+    func testRemoteHabitMetadataStillWinsWhenLocalAppearanceChangesDuringFetch() throws {
+        var localHabit = Habit(name: "Alt")
+        localHabit.notificationsEnabled = true
+        let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil, habits: [localHabit],
+                              appearanceUpdatedAt: 10,
+                              appearancePreferences: AppearancePreferences(
+                                backgroundMode: .gradient,
+                                gradientStartHex: 0x0D1117,
+                                gradientEndHex: 0x161B22))
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-appearance-race-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: localURL) }
+        try JSONEncoder().encode(local).write(to: localURL)
+        let store = HabitStore(url: localURL)
+
+        store.appearancePreferences = AppearancePreferences(
+            backgroundMode: .color,
+            backgroundColorHex: 0x2EA043)
+
+        var remoteHabit = localHabit
+        remoteHabit.name = "Neu"
+        remoteHabit.notificationsEnabled = false
+        let remote = HabitData(version: 2, updatedAt: 20, summaryMinutes: nil, habits: [remoteHabit],
+                               appearanceUpdatedAt: 15,
+                               appearancePreferences: AppearancePreferences(
+                                backgroundMode: .gradient,
+                                gradientStartHex: 0x581C87,
+                                gradientEndHex: 0x7C3AED))
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.habits[0].name, "Neu")
+        XCTAssertFalse(store.habits[0].notificationsEnabled)
+        XCTAssertEqual(store.appearancePreferences.backgroundMode, .color)
+        XCTAssertEqual(store.appearancePreferences.backgroundColorHex, 0x2EA043)
+    }
+
     func testAppearancePersistenceUpdatesOnlyItsOwnTimestamp() throws {
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-appearance-timestamp-\(UUID().uuidString).json")
