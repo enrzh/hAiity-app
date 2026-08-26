@@ -104,6 +104,7 @@ struct MoreView: View {
     @State private var pendingNativeReminder = false
     @State private var copiedSyncHint = false
     @State private var nativeSyncCleanupInProgress = false
+    @State private var nativeSyncCleanupNeedsRetry = false
     @State private var nativeSyncCleanupMessage: String?
     @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
@@ -621,9 +622,7 @@ struct MoreView: View {
             Button {
                 cleanupNativeEntries()
             } label: {
-                Label(nativeSyncCleanupInProgress
-                      ? String(localized: "Einträge werden aufgeräumt …")
-                      : String(localized: "Native Einträge aufräumen"),
+                Label(nativeSyncCleanupButtonTitle,
                       systemImage: "arrow.triangle.2.circlepath")
             }
             .foregroundStyle(.primary)
@@ -688,6 +687,7 @@ struct MoreView: View {
 
     private func cleanupNativeEntries() {
         nativeSyncCleanupInProgress = true
+        nativeSyncCleanupNeedsRetry = false
         nativeSyncCleanupMessage = nil
         Task { @MainActor in
             let result = await NativeSyncCleanup.run()
@@ -701,19 +701,33 @@ struct MoreView: View {
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
+            nativeSyncCleanupNeedsRetry = result.needsRetry
             nativeSyncCleanupMessage = nativeCleanupMessage(for: result)
             nativeSyncCleanupInProgress = false
         }
     }
 
+    private var nativeSyncCleanupButtonTitle: String {
+        if nativeSyncCleanupInProgress {
+            return String(localized: "Einträge werden aufgeräumt …")
+        }
+        if nativeSyncCleanupNeedsRetry {
+            return String(localized: "Aufräumen erneut versuchen")
+        }
+        return String(localized: "Native Einträge aufräumen")
+    }
+
     private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
+        guard result.needsRetry else {
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+        }
         switch (result.calendar, result.reminders) {
+        case (true, false), (false, true):
+            return String(localized: "Einträge teilweise bereinigt. Prüfe die Berechtigungen und versuche es erneut.")
+        case (false, false):
+            return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen und versuche es erneut.")
         case (true, true):
             return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
-        case (true, false), (false, true):
-            return String(localized: "Einträge teilweise bereinigt. Prüfe die Berechtigungen.")
-        case (false, false):
-            return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen.")
         }
     }
 

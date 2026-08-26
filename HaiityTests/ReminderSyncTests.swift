@@ -176,6 +176,38 @@ final class ReminderSyncContractTests: XCTestCase {
                       "the async EventKit pass must finish before the lifecycle task continues")
     }
 
+    func testContentViewAwaitsReminderReconciliationInBootAndCleanupFlows() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("if nativeSyncRecoveryReady {"),
+                      "boot should gate native recreation behind recovery cleanup")
+        XCTAssertTrue(content.contains("Task { @MainActor in\n                await ReminderSync.reconcile("),
+                      "store change handling must hop onto the async reminder pass")
+        XCTAssertTrue(content.contains("if result.reminders {\n                await ReminderSync.reconcile("),
+                      "cleanup should await reminder recreation before reporting completion")
+    }
+
+    func testMoreViewAwaitsReminderReconciliationInCleanupAndEnableFlows() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let occurrences = more.components(separatedBy: "await ReminderSync.reconcile").count - 1
+
+        XCTAssertEqual(occurrences, 2,
+                       "settings cleanup and reminder enable must both await the async reconciliation")
+        XCTAssertTrue(more.contains("guard granted else {"),
+                      "a denied reminder permission should exit before enabling sync state")
+    }
+
+    func testMoreViewCleanupUISurfacesRetryableResults() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("nativeSyncCleanupNeedsRetry"),
+                      "cleanup UI should remember when the last pass can be retried")
+        XCTAssertTrue(more.contains("nativeSyncCleanupNeedsRetry = result.needsRetry"),
+                      "retryable cleanup results must drive the settings state")
+        XCTAssertTrue(more.contains("Aufräumen erneut versuchen"),
+                      "retryable cleanup should keep the action visible as a retry")
+    }
+
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))
