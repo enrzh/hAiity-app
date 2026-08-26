@@ -2,6 +2,13 @@ import XCTest
 @testable import Haiity
 
 final class NotificationActionTests: XCTestCase {
+    private let berlinCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.locale = Locale(identifier: "de_DE")
+        return calendar
+    }()
+
     func testNotificationDelegateOnlyPersistsAppOpeningActions() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -161,6 +168,155 @@ final class NotificationActionTests: XCTestCase {
         XCTAssertTrue(source.contains("notification-actions-preview"))
         XCTAssertTrue(source.contains("notificationPreviewRow(String(localized: \"Abhaken\"), base: .checkbox)"))
         XCTAssertTrue(source.contains("notificationPreviewRow(String(localized: \"Ja/Nein\"), base: .yesNo)"))
+    }
+
+    func testExternalCheckInReconciliationRefreshesUpcomingSummaryPlans() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("notification-upcoming-refresh-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+        store.summaryMinutes = 20 * 60
+
+        let daily = Habit(name: "Water plants", recurrence: .daily)
+        let monday = Habit(name: "Stretch", recurrence: .weekdays([2]))
+        store.add(daily)
+        store.add(monday)
+
+        let now = try XCTUnwrap(berlinCalendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 17, hour: 7, minute: 30)))
+        let update = try XCTUnwrap(Reminders.externalCheckInReconciliation(
+            store: store,
+            habitID: daily.id,
+            pendingIdentifiers: [
+                Reminders.summaryId,
+                Reminders.habitReminderIdentifier(habitID: daily.id, day: "2026-08-17"),
+                Reminders.upcomingPrefix + "2026-08-18",
+                Reminders.upcomingPrefix + "2026-08-19",
+                Reminders.upcomingPrefix + "2026-08-24"
+            ],
+            now: now,
+            calendar: berlinCalendar))
+
+        XCTAssertEqual(Set(update.pendingUpcomingIdentifiers), Set([
+            Reminders.upcomingPrefix + "2026-08-18",
+            Reminders.upcomingPrefix + "2026-08-19",
+            Reminders.upcomingPrefix + "2026-08-24"
+        ]))
+        XCTAssertEqual(Set(update.upcomingPlans.map(\.identifier)), Set([
+            Reminders.upcomingPrefix + "2026-08-18",
+            Reminders.upcomingPrefix + "2026-08-19",
+            Reminders.upcomingPrefix + "2026-08-20",
+            Reminders.upcomingPrefix + "2026-08-21",
+            Reminders.upcomingPrefix + "2026-08-22",
+            Reminders.upcomingPrefix + "2026-08-23",
+            Reminders.upcomingPrefix + "2026-08-24"
+        ]))
+    }
+
+    func testUpcomingSummaryRefreshRemovesObsoleteIdsOnlyAfterAllAddsSucceed() async {
+        let desired = [
+            ReminderPlan(identifier: Reminders.upcomingPrefix + "2026-08-18",
+                         title: "Heute",
+                         body: "Heute fällig: Water plants",
+                         dateMatching: DateComponents(year: 2026, month: 8, day: 18, hour: 20),
+                         repeats: false),
+            ReminderPlan(identifier: Reminders.upcomingPrefix + "2026-08-19",
+                         title: "Heute",
+                         body: "Heute fällig: Water plants",
+                         dateMatching: DateComponents(year: 2026, month: 8, day: 19, hour: 20),
+                         repeats: false)
+        ]
+        var added: [String] = []
+        var removed: [String] = []
+        var failures: [String] = []
+
+        await Reminders.refreshUpcomingSummaryPlans(
+            pendingIdentifiers: [
+                Reminders.upcomingPrefix + "2026-08-18",
+                Reminders.upcomingPrefix + "2026-08-17"
+            ],
+            desiredPlans: desired,
+            addPlan: { plan in
+                added.append(plan.identifier)
+            },
+            removePending: { identifiers in
+                removed = identifiers
+            },
+            logFailure: { _, identifier, _ in
+                failures.append(identifier)
+            })
+
+        XCTAssertEqual(added, desired.map(\.identifier))
+        XCTAssertEqual(removed, [Reminders.upcomingPrefix + "2026-08-17"])
+        XCTAssertTrue(failures.isEmpty)
+    }
+
+    func testUpcomingSummaryRefreshKeepsOldIdsAndReportsFailureWhenAnyAddFails() async {
+        enum StubFailure: Error { case failed }
+
+        let desired = [
+            ReminderPlan(identifier: Reminders.upcomingPrefix + "2026-08-18",
+                         title: "Heute",
+                         body: "Heute fällig: Water plants",
+                         dateMatching: DateComponents(year: 2026, month: 8, day: 18, hour: 20),
+                         repeats: false),
+            ReminderPlan(identifier: Reminders.upcomingPrefix + "2026-08-19",
+                         title: "Heute",
+                         body: "Heute fällig: Water plants",
+                         dateMatching: DateComponents(year: 2026, month: 8, day: 19, hour: 20),
+                         repeats: false)
+        ]
+        var added: [String] = []
+        var removed: [String] = []
+        var failures: [String] = []
+
+        await Reminders.refreshUpcomingSummaryPlans(
+            pendingIdentifiers: [
+                Reminders.upcomingPrefix + "2026-08-18",
+                Reminders.upcomingPrefix + "2026-08-17"
+            ],
+            desiredPlans: desired,
+            addPlan: { plan in
+                added.append(plan.identifier)
+                if plan.identifier == Reminders.upcomingPrefix + "2026-08-19" {
+                    throw StubFailure.failed
+                }
+            },
+            removePending: { identifiers in
+                removed = identifiers
+            },
+            logFailure: { _, identifier, _ in
+                failures.append(identifier)
+            })
+
+        XCTAssertEqual(added, desired.map(\.identifier))
+        XCTAssertTrue(removed.isEmpty)
+        XCTAssertEqual(failures, [Reminders.upcomingPrefix + "2026-08-19"])
+    }
+
+    func testNotificationDeliveryIssuePersistsUntilTheUiConsumesIt() {
+        let suite = "NotificationActionTests.delivery-issue"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let center = NotificationCenter()
+        let issue = NotificationDeliveryIssue(message: "retry me")
+        var notifications = 0
+        let observer = center.addObserver(
+            forName: NotificationDeliveryIssueCenter.pendingDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            notifications += 1
+        }
+        defer { center.removeObserver(observer) }
+
+        NotificationDeliveryIssueCenter.note(issue, defaults: defaults, center: center)
+
+        XCTAssertEqual(notifications, 1)
+        XCTAssertEqual(NotificationDeliveryIssueCenter.takePending(defaults: defaults), issue)
+        XCTAssertNil(NotificationDeliveryIssueCenter.takePending(defaults: defaults))
     }
 
     func testDebugNotificationSettingsRouteIsScheduledBeforeBoot() throws {

@@ -202,6 +202,42 @@ struct NotificationActionRequest: Equatable, Sendable {
     let target: NotificationHabitTarget
 }
 
+struct NotificationDeliveryIssue: Codable, Equatable, Sendable {
+    let message: String
+
+    static let reminderScheduleFailed = NotificationDeliveryIssue(
+        message: String(localized:
+            "Mitteilungen konnten nicht aktualisiert werden. Öffne hAiity erneut, um es noch einmal zu versuchen."))
+}
+
+enum NotificationDeliveryIssueCenter {
+    static let pendingDidChange = Notification.Name("haiity.notification-delivery-issue")
+
+    private static let pendingKey = "pendingNotificationDeliveryIssue"
+
+    private static var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+    }
+
+    static func note(_ issue: NotificationDeliveryIssue,
+                     defaults: UserDefaults = sharedDefaults,
+                     center: NotificationCenter = .default) {
+        if let data = try? JSONEncoder().encode(issue) {
+            defaults.set(data, forKey: pendingKey)
+        }
+        center.post(name: pendingDidChange, object: nil)
+    }
+
+    static func takePending(defaults: UserDefaults = sharedDefaults) -> NotificationDeliveryIssue? {
+        guard let data = defaults.data(forKey: pendingKey),
+              let issue = try? JSONDecoder().decode(NotificationDeliveryIssue.self, from: data) else {
+            return nil
+        }
+        defaults.removeObject(forKey: pendingKey)
+        return issue
+    }
+}
+
 enum NotificationActionRouter {
     /// A wake-up only. The observer must read the persisted request with
     /// `takePending()`; it must never receive a request that can be presented
@@ -492,6 +528,13 @@ enum Reminders {
     static let pendingBudget = 64
     private static let baseFixedRequestEstimate = upcomingDays + 7
 
+    struct ExternalCheckInReconciliation: Equatable, Sendable {
+        let removeIdentifiers: [String]
+        let addPlans: [ReminderPlan]
+        let pendingUpcomingIdentifiers: [String]
+        let upcomingPlans: [ReminderPlan]
+    }
+
     static func fixedRequestEstimate(reservingMotivation: Bool) -> Int {
         baseFixedRequestEstimate + (reservingMotivation ? motivationDays : 0)
     }
@@ -712,6 +755,18 @@ enum Reminders {
         await reschedule(daily: daily, weekly: weekly)
     }
 
+    private static func logScheduleFailure(_ error: Error,
+                                           identifier: String,
+                                           context: String) {
+        NSLog("Reminders: failed to schedule %@ during %@: %@",
+              identifier,
+              context,
+              String(describing: error))
+        Task { @MainActor in
+            NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)
+        }
+    }
+
     static func applyQuickAction(_ action: NotificationQuickAction,
                                  to habit: Habit,
                                  target: NotificationHabitTarget,
@@ -785,39 +840,116 @@ enum Reminders {
     /// `reschedule`) läuft in DIESEM Prozess nie. Ohne diesen Abgleich
     /// klingelte am Abend die Erinnerung für ein längst abgehaktes Habit,
     /// und die Tages-Zusammenfassung nannte es weiter „offen" (gemeldeter
-    /// Fehlerklasse). Bewusst schmal: nur der heutige Habit-Weckruf und die
-    /// einmalige Tagesmeldung — alles andere holt der nächste App-Start nach.
+    /// Fehlerklasse). Bewusst gezielt statt „alles neu": der betroffene
+    /// Habit-Weckruf, die heutige Einmal-Zusammenfassung und die voraus
+    /// geplanten `summary-day-*`-Meldungen werden abgeglichen; anderes darf
+    /// bis zum nächsten App-Start warten.
+    static func externalCheckInReconciliation(store: HabitStore,
+                                              habitID: UUID,
+                                              pendingIdentifiers: [String],
+                                              defaultTimeZoneIdentifier: String? = nil,
+                                              now: Date = Date(),
+                                              calendar: Calendar = .current)
+        -> ExternalCheckInReconciliation? {
+        let visibleHabits = HabitVisibility.visibleActiveHabits(
+            store.habits,
+            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
+        guard visibleHabits.contains(where: { $0.id == habitID }) else { return nil }
+
+        let today = DayKey.key(for: now, calendar: calendar)
+        let daily = dailySummaryPlan(minutes: store.summaryMinutes,
+                                     status: store.dailyStatus(today,
+                                                               calendar: calendar,
+                                                               habits: visibleHabits),
+                                     now: now,
+                                     calendar: calendar)
+        let reservingMotivation = store.motivationMinutes != nil
+            && store.motivationDelivery == .notification
+        let habitPlans = habitPlans(
+            habits: visibleHabits,
+            reservingMotivation: reservingMotivation,
+            notificationActions: store.data.viewPreferences.notificationActions.slots,
+            defaultTimeZoneIdentifier: defaultTimeZoneIdentifier ?? store.defaultTimeZoneIdentifier,
+            now: now,
+            calendar: calendar
+        ).filter { habitTarget(for: $0.identifier)?.habitID == habitID }
+        let reminderPrefix = habitReminderPrefix + habitID.uuidString
+        return ExternalCheckInReconciliation(
+            removeIdentifiers: pendingIdentifiers.filter {
+                $0 == summaryId || $0.hasPrefix(reminderPrefix)
+            },
+            addPlans: [daily].compactMap { $0 } + habitPlans,
+            pendingUpcomingIdentifiers: pendingIdentifiers.filter {
+                $0.hasPrefix(upcomingPrefix)
+            },
+            upcomingPlans: upcomingDailyPlans(minutes: store.summaryMinutes,
+                                              habits: visibleHabits,
+                                              now: now,
+                                              calendar: calendar)
+        )
+    }
+
+    static func refreshUpcomingSummaryPlans(
+        pendingIdentifiers: [String],
+        desiredPlans: [ReminderPlan],
+        addPlan: (ReminderPlan) async throws -> Void,
+        removePending: ([String]) -> Void,
+        logFailure: (Error, String, String) -> Void
+    ) async {
+        for plan in desiredPlans {
+            do {
+                try await addPlan(plan)
+            } catch {
+                logFailure(error, plan.identifier, "external check-in upcoming summaries")
+                return
+            }
+        }
+
+        let desiredIdentifiers = Set(desiredPlans.map(\.identifier))
+        let obsolete = pendingIdentifiers.filter { !desiredIdentifiers.contains($0) }
+        guard !obsolete.isEmpty else { return }
+        removePending(obsolete)
+    }
+
     static func reconcileAfterExternalCheckIn(store: HabitStore,
                                               habitID: UUID,
                                               defaultTimeZoneIdentifier: String? = nil,
                                               now: Date = Date(),
                                               calendar: Calendar = .current) async {
         let center = UNUserNotificationCenter.current()
-        guard let habit = HabitVisibility.visibleActiveHabits(
-            store.habits,
-            unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
-            .first(where: { $0.id == habitID }) else { return }
-        let habitCalendar = HabitTimeZone.calendar(
-            for: habit,
-            defaultIdentifier: defaultTimeZoneIdentifier ?? store.defaultTimeZoneIdentifier,
-            base: calendar)
-        let today = DayKey.key(for: now, calendar: habitCalendar)
-        center.removePendingNotificationRequests(
-            withIdentifiers: [habitReminderIdentifier(habitID: habitID, day: today)])
+        let pendingIdentifiers = await center.pendingNotificationRequests().map(\.identifier)
+        guard let update = externalCheckInReconciliation(store: store,
+                                                         habitID: habitID,
+                                                         pendingIdentifiers: pendingIdentifiers,
+                                                         defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                                         now: now,
+                                                         calendar: calendar)
+        else { return }
+        if !update.removeIdentifiers.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: update.removeIdentifiers)
+        }
 
         let settings = await center.notificationSettings()
         guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
-        center.removePendingNotificationRequests(withIdentifiers: [summaryId])
-        if let daily = dailySummaryPlan(minutes: store.summaryMinutes,
-                                        status: store.dailyStatus(today,
-                                                                  calendar: calendar,
-                                                                  habits: HabitVisibility.visibleActiveHabits(
-                                                                      store.habits,
-                                                                      unlocked: HabitVisibility.sharedEntitlementIsUnlocked)),
-                                        now: now,
-                                        calendar: calendar) {
-            try? await center.add(request(daily))
+        for plan in update.addPlans {
+            do {
+                try await center.add(request(plan))
+            } catch {
+                logScheduleFailure(error, identifier: plan.identifier, context: "external check-in")
+            }
         }
+        await refreshUpcomingSummaryPlans(
+            pendingIdentifiers: update.pendingUpcomingIdentifiers,
+            desiredPlans: update.upcomingPlans,
+            addPlan: { plan in
+                try await center.add(request(plan))
+            },
+            removePending: { identifiers in
+                center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            },
+            logFailure: { error, identifier, context in
+                logScheduleFailure(error, identifier: identifier, context: context)
+            })
         // Auch der Widget-Check-in kann den Tag vollmachen.
         await celebrateIfPerfectDay(store: store, now: now, calendar: calendar)
     }
