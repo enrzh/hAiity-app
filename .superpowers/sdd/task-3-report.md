@@ -3,7 +3,7 @@
 - Status: `DONE_WITH_CONCERNS`
 - Branch: `task-3-cloud-sync`
 - Base commit: `f17b985e2686bc15595eeea93dc426d2c13c591f`
-- Final commit: `PENDING_COMMIT`
+- Commit SHA(s): `b54fdfd4c86b2eca416d34bcc67d4430ef5f9855`
 
 ## Scope
 
