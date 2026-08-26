@@ -157,6 +157,35 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertEqual(selection.duplicateIDs, ["z", "b"])
     }
 
+    func testCanonicalNativeItemSelectionCollapsesIdenticalOwnedIdentifiers() {
+        let selection = SyncWatermark.selectCanonicalItem(
+            candidates: [
+                (id: "series", sortKey: "001"),
+                (id: "series", sortKey: "001"),
+                (id: "newer", sortKey: "002")
+            ],
+            preferredID: nil)
+
+        XCTAssertEqual(selection.retainedID, "series")
+        XCTAssertEqual(selection.duplicateIDs, ["newer"])
+    }
+
+    func testCanonicalNativeItemSelectionIgnoresStoredIdentifierFromAnotherItem() {
+        let selection = SyncWatermark.selectCanonicalItem(
+            candidates: [
+                (id: "first", sortKey: "001"),
+                (id: "second", sortKey: "002")
+            ],
+            preferredID: "missing")
+
+        XCTAssertEqual(selection.retainedID, "first")
+        XCTAssertEqual(selection.duplicateIDs, ["second"])
+    }
+
+    func testLegacyCleanupMarkerTrimsWhitespace() {
+        XCTAssertTrue(SyncWatermark.containsMarker(" \n hAiity \n "))
+    }
+
     func testCalendarReconciliationRepairsAllOwnedDuplicates() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -183,6 +212,17 @@ final class SyncWatermarkTests: XCTestCase {
                        "recurring events must not be validated through event(withIdentifier:)")
     }
 
+    func testCalendarRemovalPathDoesNotSilentlyDropFailedOwnedSeriesRemovals() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        XCTAssertTrue(source.contains("if !removeEvent("),
+                      "failed event removal must abort recreation in the same pass")
+        XCTAssertFalse(source.contains("try? store.remove(event, span: .futureEvents, commit: true)"),
+                       "calendar sync must not silently ignore removal failures")
+    }
+
     func testReinstallDetectionDoesNotTreatFirstInstallAsReinstall() {
         XCTAssertFalse(NativeSyncInstallation.needsCleanup(localID: nil,
                                                             persistentID: nil))
@@ -198,6 +238,12 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertTrue(NativeSyncCleanup.Result(calendar: true, reminders: true).succeeded)
         XCTAssertFalse(NativeSyncCleanup.Result(calendar: true, reminders: false).succeeded)
         XCTAssertFalse(NativeSyncCleanup.Result(calendar: false, reminders: true).succeeded)
+    }
+
+    func testNativeCleanupResultMarksFailedPassesAsRetryable() {
+        XCTAssertFalse(NativeSyncCleanup.Result(calendar: true, reminders: true).needsRetry)
+        XCTAssertTrue(NativeSyncCleanup.Result(calendar: true, reminders: false).needsRetry)
+        XCTAssertTrue(NativeSyncCleanup.Result(calendar: false, reminders: false).needsRetry)
     }
 
     func testNativeServicesUseTheSharedWatermark() throws {

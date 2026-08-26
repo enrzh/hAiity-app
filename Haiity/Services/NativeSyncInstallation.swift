@@ -80,6 +80,7 @@ enum NativeSyncCleanup {
         let reminders: Bool
 
         var succeeded: Bool { calendar && reminders }
+        var needsRetry: Bool { !succeeded }
     }
 
     static func run() async -> Result {

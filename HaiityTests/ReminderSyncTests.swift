@@ -149,6 +149,15 @@ final class ReminderSyncContractTests: XCTestCase {
                       "changed reminders must remove the fetched canonical object directly")
     }
 
+    func testReminderRemovalPathDoesNotSilentlyDropFailedOwnedReminderRemovals() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+
+        XCTAssertTrue(source.contains("if !removeReminder("),
+                      "failed reminder removal must abort recreation in the same pass")
+        XCTAssertFalse(source.contains("try? store.remove(reminder, commit: true)"),
+                       "native reminder sync must not silently ignore removal failures")
+    }
+
     func testReminderCleanupCannotOverlapReconciliation() throws {
         let source = try source("Haiity/Services/ReminderSync.swift")
 

@@ -258,11 +258,13 @@ enum ReminderSync {
             let fingerprintChanged = fingerprints[key] != plan.fingerprint
 
             if fingerprintChanged || linked == nil {
-                removeReminder(for: key,
-                               links: &links,
-                               fingerprints: &fingerprints,
-                               in: list,
-                               existing: linked)
+                if !removeReminder(for: key,
+                                   links: &links,
+                                   fingerprints: &fingerprints,
+                                   in: list,
+                                   existing: linked) {
+                    continue
+                }
                 if let created = createReminder(plan: plan,
                                                 completed: habit?.log[plan.occurrenceDay] != nil,
                                                 in: list) {
@@ -421,9 +423,14 @@ enum ReminderSync {
         var links = ReminderSyncPreferences.links(in: defaults)
         var fingerprints = ReminderSyncPreferences.fingerprints(in: defaults)
         for key in Array(links.keys) {
-            removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
+            _ = removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
         }
-        ReminderSyncPreferences.clearLinks(in: defaults)
+        if links.isEmpty && fingerprints.isEmpty {
+            ReminderSyncPreferences.clearLinks(in: defaults)
+        } else {
+            ReminderSyncPreferences.setLinks(links, in: defaults)
+            ReminderSyncPreferences.setFingerprints(fingerprints, in: defaults)
+        }
     }
 
     private static func storedList() -> EKCalendar? {
@@ -513,13 +520,19 @@ enum ReminderSync {
                                        links: inout [String: ReminderSyncLink],
                                        fingerprints: inout [String: String],
                                        in list: EKCalendar,
-                                       existing: EKReminder? = nil) {
+                                       existing: EKReminder? = nil) -> Bool {
         if let reminder = existing
             ?? links[key].flatMap({ ownedReminder(id: $0.reminderID, in: list) }) {
-            try? store.remove(reminder, commit: true)
+            do {
+                try store.remove(reminder, commit: true)
+            } catch {
+                note(error)
+                return false
+            }
         }
         links[key] = nil
         fingerprints[key] = nil
+        return true
     }
 
     private static func createReminder(plan: ReminderSyncPlan,

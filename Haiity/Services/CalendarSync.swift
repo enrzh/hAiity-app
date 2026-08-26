@@ -389,10 +389,12 @@ enum CalendarSync {
             // Neu schreiben statt umbiegen: eine geänderte Wiederholungs-
             // regel sauber auf einer bestehenden Serie zu ändern ist ein
             // Minenfeld — Entfernen + Anlegen ist idempotent und eindeutig.
-            removeEvent(for: key,
-                        map: &map,
-                        prints: &prints,
-                        existing: validatedEvents[key])
+            if !removeEvent(for: key,
+                            map: &map,
+                            prints: &prints,
+                            existing: validatedEvents[key]) {
+                continue
+            }
             if let id = createEvent(plan: plan, in: calendar) {
                 map[key] = id
                 prints[key] = plan.fingerprint
@@ -473,10 +475,18 @@ enum CalendarSync {
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
         var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]
         for key in Array(map.keys) {
-            removeEvent(for: key, map: &map, prints: &prints)
+            _ = removeEvent(for: key, map: &map, prints: &prints)
         }
-        defaults.removeObject(forKey: mapKey)
-        defaults.removeObject(forKey: fingerprintKey)
+        if map.isEmpty {
+            defaults.removeObject(forKey: mapKey)
+        } else {
+            defaults.set(map, forKey: mapKey)
+        }
+        if prints.isEmpty {
+            defaults.removeObject(forKey: fingerprintKey)
+        } else {
+            defaults.set(prints, forKey: fingerprintKey)
+        }
     }
 
     // MARK: – Bausteine
@@ -534,12 +544,18 @@ enum CalendarSync {
     private static func removeEvent(for key: String,
                                     map: inout [String: String],
                                     prints: inout [String: String],
-                                    existing: EKEvent? = nil) {
+                                    existing: EKEvent? = nil) -> Bool {
         if let event = existing ?? map[key].flatMap({ store.event(withIdentifier: $0) }) {
-            try? store.remove(event, span: .futureEvents, commit: true)
+            do {
+                try store.remove(event, span: .futureEvents, commit: true)
+            } catch {
+                trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
+                return false
+            }
         }
         map[key] = nil
         prints[key] = nil
+        return true
     }
 
     /// Der eigene Kalender — angelegt im Konto des Standardkalenders, damit
