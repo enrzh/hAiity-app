@@ -21,11 +21,20 @@ actor MotivationActivityManager {
 
     private let client: MotivationActivityClient
     private let defaults: UserDefaults
+    private let reportDeliveryIssue: @Sendable (NotificationDeliveryIssue) async -> Void
     private var startingDayKeys = Set<String>()
 
-    init(client: MotivationActivityClient, defaults: UserDefaults) {
+    init(client: MotivationActivityClient,
+         defaults: UserDefaults,
+         reportDeliveryIssue: @escaping @Sendable (NotificationDeliveryIssue) async -> Void = {
+             issue in
+             await MainActor.run {
+                 NotificationDeliveryIssueCenter.note(issue)
+             }
+         }) {
         self.client = client
         self.defaults = defaults
+        self.reportDeliveryIssue = reportDeliveryIssue
     }
 
     func reconcile(motivationMinutes: Int?, name: String?,
@@ -81,9 +90,7 @@ actor MotivationActivityManager {
                 MotivationActivityStorage.markShown(dayKey, in: defaults)
             } catch {
                 NSLog("MotivationActivity: start failed: %@", String(describing: error))
-                await MainActor.run {
-                    NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)
-                }
+                await reportDeliveryIssue(.reminderScheduleFailed)
             }
             startingDayKeys.remove(dayKey)
         }

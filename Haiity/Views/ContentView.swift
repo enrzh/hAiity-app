@@ -1423,10 +1423,12 @@ struct ContentView: View {
     }
 
     private func handlePendingNotificationDeliveryIssue() {
-        guard let issue = NotificationDeliveryIssueCenter.takePending() else { return }
-        Task { @MainActor in
-            await flash(issue.message)
+        let delivered = NotificationDeliveryIssueCenter.deliverPendingMessage { message in
+            Task { @MainActor in
+                await flash(message)
+            }
         }
+        guard delivered else { return }
     }
 
     private func schedulePendingNotificationAction() {

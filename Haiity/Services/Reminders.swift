@@ -236,6 +236,14 @@ enum NotificationDeliveryIssueCenter {
         defaults.removeObject(forKey: pendingKey)
         return issue
     }
+
+    @discardableResult
+    static func deliverPendingMessage(defaults: UserDefaults = sharedDefaults,
+                                      deliver: (String) -> Void) -> Bool {
+        guard let issue = takePending(defaults: defaults) else { return false }
+        deliver(issue.message)
+        return true
+    }
 }
 
 enum NotificationActionRouter {

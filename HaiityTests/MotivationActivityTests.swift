@@ -228,21 +228,28 @@ final class MotivationActivityTests: XCTestCase {
         cleanupDefaults(defaults, suite: "MotivationActivityTests.request-fails")
     }
 
-    func testLiveActivityStartBoundaryStaysServerlessAndDocumentsItsTerminationLimit() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Services/MotivationActivityManager.swift"))
+    func testManagerReportsDeliveryIssueWhenActivityRequestFails() async {
+        let client = RecordedMotivationActivityClient(shouldThrow: true)
+        let defaults = testDefaults("request-fails-reporter")
+        let reporter = RecordedNotificationDeliveryIssueReporter()
+        let manager = MotivationActivityManager(
+            client: client,
+            defaults: defaults,
+            reportDeliveryIssue: { issue in
+                await reporter.record(issue)
+            })
+        let now = DayKey.date(from: "2026-08-17", calendar: calendar)!
+            .addingTimeInterval(9 * 3600)
 
-        XCTAssertTrue(source.contains("pushType: nil"),
-                      "Task 6 keeps motivation delivery on the serverless ActivityKit path")
-        XCTAssertTrue(source.contains("terminated app cannot start a Live Activity"),
-                      "the start boundary must document the terminated-state limit explicitly")
-        XCTAssertTrue(source.contains("notification fallback remains the serverless behavior"),
-                      "the source should state that the fallback stays with notifications until a backend is approved")
-        XCTAssertTrue(source.contains("NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)"),
-                      "a failed motivation start must persist the same delivery issue the app consumes on next activation")
+        await manager.reconcile(motivationMinutes: 8 * 60,
+                                name: nil,
+                                now: now,
+                                calendar: calendar)
+
+        let issues = await reporter.snapshot()
+        XCTAssertEqual(issues, [.reminderScheduleFailed])
+        XCTAssertNil(MotivationActivityStorage.shownDay(in: defaults))
+        cleanupDefaults(defaults, suite: "MotivationActivityTests.request-fails-reporter")
     }
 
     func testConcurrentReconciliationsStartOnlyOnce() async {
@@ -276,6 +283,18 @@ final class MotivationActivityTests: XCTestCase {
 
     private func cleanupDefaults(_ defaults: UserDefaults, suite: String) {
         defaults.removePersistentDomain(forName: suite)
+    }
+}
+
+actor RecordedNotificationDeliveryIssueReporter {
+    private var issues: [NotificationDeliveryIssue] = []
+
+    func record(_ issue: NotificationDeliveryIssue) {
+        issues.append(issue)
+    }
+
+    func snapshot() -> [NotificationDeliveryIssue] {
+        issues
     }
 }
 
