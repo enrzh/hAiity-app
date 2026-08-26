@@ -648,14 +648,18 @@ final class HabitStore {
         merge(remote: fresh)
     }
 
-    func persist(notify: Bool = true, changeKind: HabitStoreChange = .general) {
+    func persist(notify: Bool = true,
+                 changeKind: HabitStoreChange = .general,
+                 touchTimestamp: Bool = true) {
         data.appearancePreferences = data.appearancePreferences.normalizedForStorage()
         data.version = HabitData.currentVersion
-        let now = Date().timeIntervalSince1970
-        if changeKind == .appearance {
-            data.appearanceUpdatedAt = now
-        } else {
-            data.updatedAt = now
+        if touchTimestamp {
+            let now = Date().timeIntervalSince1970
+            if changeKind == .appearance {
+                data.appearanceUpdatedAt = now
+            } else {
+                data.updatedAt = now
+            }
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -1111,6 +1115,7 @@ final class HabitStore {
             data.motivationMinutes = remote.motivationMinutes
             data.motivationDelivery = remote.motivationDelivery
             data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
+            data.updatedAt = remote.updatedAt
             if let remoteShowsUsername = remote.githubShowsUsername {
                 data.githubShowsUsername = remoteShowsUsername
                 GitHubPreferences.setShowsUsername(remoteShowsUsername,
@@ -1162,7 +1167,8 @@ final class HabitStore {
         let localPaletteIds = Set(data.customPalettes.map(\.id))
         mergedPalettes.append(contentsOf: remote.customPalettes.filter { !localPaletteIds.contains($0.id) })
         data.customPalettes = mergedPalettes
-        persist()
+        let mergeChangeKind: HabitStoreChange = remoteAppearanceNewer && !remoteNewer ? .appearance : .general
+        persist(changeKind: mergeChangeKind, touchTimestamp: false)
     }
 
     // MARK: – Export / Import

@@ -177,6 +177,39 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(store.data.appearanceUpdatedAt, appearanceTimestamp)
     }
 
+    func testRemoteAppearanceOnlyMergeDoesNotAdvanceGeneralTimestamp() throws {
+        let localAppearance = AppearancePreferences(
+            backgroundMode: .gradient,
+            gradientStartHex: 0x0D1117,
+            gradientEndHex: 0x161B22)
+        let remoteAppearance = AppearancePreferences(
+            backgroundMode: .color,
+            backgroundColorHex: 0x2EA043)
+        let local = HabitData(version: 2,
+                              updatedAt: 10,
+                              summaryMinutes: nil,
+                              habits: [Habit(name: "Local")],
+                              appearanceUpdatedAt: 10,
+                              appearancePreferences: localAppearance)
+        let remote = HabitData(version: 2,
+                               updatedAt: 10,
+                               summaryMinutes: nil,
+                               habits: [Habit(name: "Local")],
+                               appearanceUpdatedAt: 20,
+                               appearancePreferences: remoteAppearance)
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-appearance-only-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: localURL) }
+        try JSONEncoder().encode(local).write(to: localURL)
+        let store = HabitStore(url: localURL)
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.data.updatedAt, 10)
+        XCTAssertEqual(store.data.appearanceUpdatedAt, 20)
+        XCTAssertEqual(store.appearancePreferences, remoteAppearance)
+    }
+
     private var url: URL!
     private var store: HabitStore!
 
