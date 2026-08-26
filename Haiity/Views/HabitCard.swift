@@ -929,7 +929,7 @@ struct GraphContextMenu: UIViewRepresentable {
                 let measuredHeight = controller.sizeThatFits(
                     in: CGSize(width: width,
                                height: UIView.layoutFittingExpandedSize.height)).height
-                let contentHeight = max(height, ceil(measuredHeight))
+                let contentHeight = measuredHeight > 0 ? ceil(measuredHeight) : height
                 let size = CGSize(width: width, height: contentHeight)
                 controller.view.frame = CGRect(origin: .zero, size: size)
                 controller.view.bounds = CGRect(origin: .zero, size: size)

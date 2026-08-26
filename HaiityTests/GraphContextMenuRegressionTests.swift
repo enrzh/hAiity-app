@@ -57,6 +57,37 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "only the original card surface should disappear during the lift")
     }
 
+    func testAllStatsPreviewCallersHideOnlyTheirActiveSourceSurface() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+
+        XCTAssertTrue(stats.contains("activeContextMenuID"),
+                      "stats previews need per-card visibility state")
+        XCTAssertTrue(stats.contains("onMenuVisibilityChanged"),
+                      "stats previews must report their presentation state")
+        XCTAssertTrue(stats.contains("activeContextMenuID =="),
+                      "a held stats card must hide only its own source")
+    }
+
+    func testSharedPreviewUsesOneRoundedTargetPath() throws {
+        let habit = try source("Haiity/Views/HabitCard.swift")
+        let start = try XCTUnwrap(habit.range(of: "private func targetedPreview"))
+        let preview = habit[start.lowerBound...]
+
+        XCTAssertTrue(preview.contains("parameters.visiblePath = cardPath"))
+        XCTAssertTrue(preview.contains("parameters.shadowPath = cardPath"))
+        XCTAssertFalse(preview.contains("shadowPath = UIBezierPath(rect:"),
+                       "the shared lift must not add a second rectangular shadow")
+    }
+
+    func testPreviewUsesMeasuredContentHeightInsteadOfShadowPadding() throws {
+        let source = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(source.contains("measuredHeight > 0"),
+                      "the preview host must size itself to the visible card")
+        XCTAssertFalse(source.contains("max(height, ceil(measuredHeight))"),
+                       "a larger fallback frame creates the halo below enlarged cards")
+    }
+
     func testHabitReorderingRequiresExplicitSortingMode() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 

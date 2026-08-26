@@ -20,9 +20,14 @@ enum SyncWatermark {
         }
     }
 
-    struct Ownership: Equatable, Sendable {
+    struct Ownership: Equatable, Hashable, Sendable {
         let kind: Kind
         let id: UUID
+    }
+
+    struct NativeItemSelection: Equatable, Sendable {
+        let retainedID: String?
+        let duplicateIDs: Set<String>
     }
 
     static let readablePrefix = "hAiity"
@@ -41,6 +46,24 @@ enum SyncWatermark {
     static func copyText(for kind: Kind) -> String {
         _ = kind
         return copyText
+    }
+
+    /// Keep a previously linked item when it still exists. Otherwise use a
+    /// stable ordering so repeated reconciliation cannot create a new winner.
+    static func selectCanonicalItem(
+        candidates: [(id: String, sortKey: String)],
+        preferredID: String?) -> NativeItemSelection {
+        var unique: [String: String] = [:]
+        for candidate in candidates where unique[candidate.id] == nil {
+            unique[candidate.id] = candidate.sortKey
+        }
+        let ordered = unique.sorted { lhs, rhs in
+            lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value < rhs.value
+        }
+        let retainedID = preferredID.flatMap { unique[$0] != nil ? $0 : nil }
+            ?? ordered.first?.key
+        let duplicateIDs = Set(unique.keys).subtracting(retainedID.map { [$0] } ?? [])
+        return NativeItemSelection(retainedID: retainedID, duplicateIDs: duplicateIDs)
     }
 
     /// Recognizes current invisible ownership metadata and the exact legacy

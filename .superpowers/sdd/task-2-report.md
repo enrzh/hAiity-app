@@ -1,139 +1,172 @@
-# Task 2 Report: Two-Destination Native Tab Shells
+# Task 2 Report: Pro Policy, App Lifecycle, and Scoped Gates
 
 ## Status
 
-Implemented Task 2 in the `navigation-card-interactions` worktree from baseline commit `f6c5227`.
+DONE_WITH_CONCERNS
 
-## RED Evidence
+## Commit SHA(s)
 
-Added `AppNavigationTests.testContentViewDeclaresHabitsAndMoreTabs` before changing production code.
+- `5ff27436fe4c527e78d0ed8d25658f7ef3db54bc` — `fix: reapply pro-gated sync preferences live`
 
-Command:
+## Worktree / Baseline
 
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
-```
+- Isolated worktree: `/Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy`
+- Branch: `codex/task2-pro-policy`
+- Baseline commit: `f17b985` (`Prepare hAiity build 106`)
 
-Result: `AppNavigationTests` executed 4 tests with 3 expected assertion failures, all in the new source-contract test:
+## Scope Owned
 
-- Missing `value: AppTab.habits`.
-- Missing `value: AppTab.more`.
-- Existing `enum NativeTab` was still present.
+- `Haiity/Views/ContentView.swift`
+- `HaiityTests/ProGateTests.swift`
 
-The other three navigation tests passed. `xcodebuild` exited 65 because the new contract was not implemented yet.
+No native sync internals, CloudSync internals, theme appearance controls, widgets, notification services, release files, plan files, or other `.superpowers` artifacts were edited.
 
-## Implementation
+## Files Changed
 
-### `Haiity/Views/ContentView.swift`
+- `Haiity/Views/ContentView.swift`
+- `HaiityTests/ProGateTests.swift`
 
-- Replaced the nested `NativeTab` state with `AppTab` from Task 1.
-- Added persistent native Habits and Mehr tabs to both the iOS 26 and iOS 27 shells.
-- Preserved the iOS 26 search-role create tab and its create zoom anchor.
-- Preserved the measured `CreateCircle` mechanism on iOS 27.
-- Restores the previously selected real tab after iOS 26 intercepts `.create`, so creating from Mehr does not switch to Habits.
-- Added `moreTabContent` with its own `NavigationStack` and nested More sheets through `morePageRoute`.
-- Removed `showMore`, the full-screen More cover, More zoom source/destination state, the top toolbar More menu, and menu-only helpers.
-- Kept `moreSheet` for pre-iOS-26 deep-link sheets and retained the existing `haiity://sync` alias.
-- Updated deep links to select the appropriate native tab; stats/archive select Mehr and open through `morePageRoute` on iOS 26+.
-- Retained the native minimized search and the iOS 27 search field watcher. The pre-iOS-26 fallback keeps a standalone search button.
+## What Changed
 
-### `HaiityTests/AppNavigationTests.swift`
+- Added a focused Task 2 regression test that requires the root entitlement observer to reapply shared cloud preferences when the live Pro entitlement changes.
+- Updated the existing `ContentView` `.onChange(of: proStatus.unlocked)` handler to call `applyCloudPreferences()` immediately before handling the downgrade paywall path.
 
-- Added the source-contract test required by the brief and its repository source URL helper.
+## Why
 
-## GREEN Evidence
+- The branch already contained the major Task 2 Pro-gating work from the brief: shared `ProGate` policy, visible-habit limiting, service-side Pro checks, downgrade refresh hooks, and the active entitlement monitor.
+- One remaining gap was that an entitlement change updated the paywall state, but did not immediately re-derive the device-local paid sync toggles from the shared cloud preferences in the root lifecycle path.
+- This patch keeps the root lifecycle in sync with the existing Pro policy without adding a new entitlement abstraction or touching sync internals.
 
-Focused navigation and search command:
+## Exact Commands / Results
 
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests \
-  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
-```
+1. Read the brief:
 
-Result: 35 tests executed, 0 failures, `** TEST SUCCEEDED **`.
+   - Command:
 
-Full suite command:
+     ```bash
+     sed -n '1,240p' /Users/enrico/Documents/GitHub/haiity/.superpowers/sdd/task-2-brief.md
+     ```
 
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
-```
+   - Result: confirmed the Task 2 scope was limited to Pro policy, app lifecycle, and the listed views/services/tests.
 
-Result: 761 tests executed, 0 failures, `** TEST SUCCEEDED **`. This is the 760-test baseline plus the new Task 2 test.
+2. Verified the main checkout was dirty and created an isolated worktree:
 
-`git diff --check` also completed with no errors.
+   - Commands:
 
-## Self-Review
+     ```bash
+     git -C /Users/enrico/Documents/GitHub/haiity worktree list
+     git -C /Users/enrico/Documents/GitHub/haiity check-ignore -v .worktrees
+     git -C /Users/enrico/Documents/GitHub/haiity worktree add /Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy -b codex/task2-pro-policy f17b985
+     ```
 
-- Confirmed both native shell branches use `AppTab.habits` and `AppTab.more`.
-- Confirmed no `NativeTab`, `showMore`, More cover, top toolbar More menu, or More zoom identifier remains.
-- Confirmed `showAdd`, `moreSheet`, `morePageRoute`, `createZoomAnchor`, `CreateCircle`, and the search state machine/watcher remain.
-- Confirmed iOS 27 `CreateCircle` reads actual tab-bar platter geometry, rather than assuming the former one-tab width.
-- Confirmed `Haiity.xcodeproj` remains ignored and is not part of the staged task files.
+   - Results:
+     - Main checkout had unrelated dirty files and was not used for implementation.
+     - `.worktrees/` is ignored by Git.
+     - New isolated worktree created successfully on branch `codex/task2-pro-policy`.
+
+3. Audited the Task 2 Pro surface in the isolated worktree:
+
+   - Commands included:
+
+     ```bash
+     rg -n "Pro\.isUnlocked|ProStatus|ProGate|freeHabitLimit|Paywall|calendarSync|nativeReminderSync|HabitVisibility|isUnlocked|unlock" ...
+     sed -n '1,260p' Haiity/Models/ProEntitlement.swift
+     sed -n '1,420p' HaiityTests/ProGateTests.swift
+     sed -n '1,320p' Haiity/Views/StatsView.swift
+     sed -n '1,360p' Haiity/Views/MoreView.swift
+     sed -n '1,320p' Haiity/Views/EditHabitSheet.swift
+     sed -n '1,260p' Haiity/Views/ArchiveView.swift
+     sed -n '2580,2645p' Haiity/Views/ContentView.swift
+     sed -n '2748,2785p' Haiity/Views/ContentView.swift
+     ```
+
+   - Result: confirmed most Task 2 brief requirements were already present in the baseline branch.
+
+4. RED check before the production change:
+
+   - Command:
+
+     ```bash
+     python3 - <<'PY'
+     from pathlib import Path
+     text = Path('/Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy/Haiity/Views/ContentView.swift').read_text()
+     start = text.index('.onChange(of: proStatus.unlocked)')
+     end = text.index('.onChange(of: showAdd)', start)
+     block = text[start:end]
+     if 'applyCloudPreferences()' in block:
+         print('unexpected pass: applyCloudPreferences already present')
+         raise SystemExit(1)
+     print('expected red: applyCloudPreferences missing from proStatus change block')
+     raise SystemExit(2)
+     PY
+     ```
+
+   - Result: exited with status `2` and printed `expected red: applyCloudPreferences missing from proStatus change block`.
+
+5. Generated the Xcode project and performed the available non-device build check before and after the patch:
+
+   - Commands:
+
+     ```bash
+     xcodegen generate
+     xcodebuild build-for-testing -project Haiity.xcodeproj -scheme Haiity -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+     ```
+
+   - Results:
+     - `xcodegen generate` succeeded and created `Haiity.xcodeproj`.
+     - `xcodebuild build-for-testing ...` succeeded before the patch with `** TEST BUILD SUCCEEDED **`.
+     - `xcodebuild build-for-testing ...` succeeded again after the patch with `** TEST BUILD SUCCEEDED **`.
+
+6. GREEN check after the production change:
+
+   - Command:
+
+     ```bash
+     python3 - <<'PY'
+     from pathlib import Path
+     text = Path('/Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy/Haiity/Views/ContentView.swift').read_text()
+     start = text.index('.onChange(of: proStatus.unlocked)')
+     end = text.index('.onChange(of: showAdd)', start)
+     block = text[start:end]
+     assert 'applyCloudPreferences()' in block
+     print('green: applyCloudPreferences present in proStatus change block')
+     PY
+     ```
+
+   - Result: printed `green: applyCloudPreferences present in proStatus change block`.
+
+7. Reviewed the diff and committed:
+
+   - Commands:
+
+     ```bash
+     git -C /Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy diff --stat
+     git -C /Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy add Haiity/Views/ContentView.swift HaiityTests/ProGateTests.swift
+     git -C /Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy commit -m "fix: reapply pro-gated sync preferences live"
+     git -C /Users/enrico/Documents/GitHub/haiity/.worktrees/task-2-pro-policy rev-parse HEAD
+     ```
+
+   - Results:
+     - Diff stat before commit:
+
+       ```text
+        Haiity/Views/ContentView.swift |  1 +
+        HaiityTests/ProGateTests.swift | 11 +++++++++++
+        2 files changed, 12 insertions(+)
+       ```
+
+     - Commit succeeded.
+     - Final commit SHA: `5ff27436fe4c527e78d0ed8d25658f7ef3db54bc`
+
+## Test Summary
+
+- Added one focused regression test in `HaiityTests/ProGateTests.swift`.
+- Ran a RED source-contract check for the missing lifecycle hook.
+- Ran a GREEN source-contract check after the patch.
+- Ran `xcodebuild build-for-testing -project Haiity.xcodeproj -scheme Haiity -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` successfully after the patch.
 
 ## Concerns
 
-- Automated tests validate source contracts and search/navigation state, but not the final native tab-bar composition. The two-tab iOS 26 shell and two-tab-plus-measured-circle iOS 27 shell still need repeated on-device or simulator visual/interaction verification, especially minimized tab-bar geometry and CreateCircle placement.
-- Removing `listMenuItems` also removed its reorder entry. The follow-up fix below restores reordering with a native `EditButton` in the Habits toolbar.
-
-## Fix Review: Habit Reordering Regression
-
-### RED Evidence
-
-Added `AppNavigationTests.testContentViewKeepsHabitReorderingReachable` before changing production code. The source contract requires the `editMode` state and environment binding, a native `EditButton`, and the search-safe `.onMove` closure.
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 5 tests executed. The new source-contract test had 4 expected assertion failures because the Task 2 revision had removed `editMode`, its environment binding, `EditButton`, and `.onMove`; the previous four navigation tests passed. `xcodebuild` exited 65.
-
-### Fix
-
-- Restored `editMode` and the existing search rule that exits edit mode when filtering starts.
-- Restored the list's search-safe `.onMove` path to `HabitStore.move`.
-- Added native `EditButton` as a leading Habits toolbar item, keeping the iOS 27 trailing search control clear and without restoring the removed Mehr menu or full-screen Mehr cover.
-- Closes edit mode when the create cover opens, matching the prior list-state hygiene.
-
-### GREEN Evidence
-
-Focused navigation and search command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests \
-  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 36 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-Full suite command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 762 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-### Tracked Follow-Up
-
-- Legacy Mehr reachability remains explicitly assigned to Task 3 and was not changed here.
-- Deep-link route clearing and lifecycle behavior remain explicitly assigned to Task 4 and were not changed here.
+- Per instruction, I did not create or use any simulator and did not use the device hub.
+- Because of that constraint, I did not run `xcodebuild test` against `HaiityTests/ProGateTests` and did not perform the physical-phone “toggle debug entitlement off while gated pages are open” verification from the brief.
+- Status is therefore `DONE_WITH_CONCERNS`, not `DONE`: the scoped code change is implemented, compiled in a non-device build-for-testing pass, and backed by a focused regression test plus RED/GREEN contract checks, but live runtime behavior on a device remains unverified in this turn.

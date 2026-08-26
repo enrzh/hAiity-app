@@ -1,216 +1,147 @@
-# Task 4 Report: Deep-Link Routing Through Tabs
+# Task 4 Report: Decouple Startup Animation From Image and Graph Work
 
 ## Status
 
-Implemented Task 4 from baseline `0e042a4` in the
-`navigation-card-interactions` worktree.
+DONE_WITH_CONCERNS
 
-## RED
+## Worktree
 
-Added the route-effect tests before production changes:
+- Path: `/Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf`
+- Branch: `task-4-startup-splash-perf`
+- Baseline: `f17b985` (`Prepare hAiity build 106`)
 
-- `testStatsAndArchiveRouteViaMoreTab`
-- `testSearchAndCreateHaveExplicitEffects`
+## Commit SHA(s)
 
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: expected compilation failure. `AppRouteEffect` was not in scope and
-`AppDestination` had no `effect` member. `xcodebuild` exited 65.
-
-## GREEN
-
-Added pure `AppRouteEffect` values to `AppDestination`, covering tab selection,
-nested Mehr page, search, and create effects. The legacy `haiity://sync` alias
-now resolves centrally to plain Mehr.
-
-`ContentView` now resolves a URL once and delegates to `handle(_:)`. The
-handler clears old nested presentation routes, selects the effect tab, then
-waits one main-actor turn before opening the requested nested Mehr page,
-search, or create presentation. The pending presentation task is cancelled
-when a newer route arrives.
-
-Focused command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests \
-  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 38 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-## Lifecycle Decisions
-
-- Every accepted route first clears `moreSheet` and `morePageRoute`, including
-  Habits, Search, Create, and plain Mehr. This resolves the Task 2 review
-  finding that an earlier native Mehr page could remain presented.
-- Stats and Archive select `.more` before presenting the exact requested page.
-- `AppMoreDestination` remains UI-independent. Only `ContentView` maps it to
-  the view-local `MoreRoute`.
-- iOS 26+ presents nested Mehr destinations through `morePageRoute`; iOS 17-25
-  retains the existing `moreSheet` fallback.
+- `cdee6d0c12113d23bda2780647eb141e040fb86c` — `Improve startup splash handoff performance`
 
 ## Files
 
-- `Haiity/Models/AppNavigation.swift`
-- `Haiity/Views/ContentView.swift`
-- `HaiityTests/AppNavigationTests.swift`
+- `Haiity/HaiityApp.swift`
+- `Haiity/Models/StartupSplash.swift`
+- `Haiity/Theme.swift`
+- `Haiity/Views/StartupSplashView.swift`
+- `HaiityTests/StartupSplashTests.swift`
 
-## Full Suite
+## What Changed
+
+- Kept `ContentView` mounted under the splash for the whole launch handoff, but removed the separate root opacity animation so the mounted app is revealed only by the splash overlay fade.
+- Replaced the launch-time root `AppearanceImageCache.prewarm(data:)` await with a cancellable `AppearanceImageCache.prewarmTask(data:)` handle stored in `HaiityApp`.
+- Cancelled and released the launch-specific prewarm handle when the splash finishes, when the scene backgrounds, and when the root view disappears.
+- Added in-flight sharing inside `AppearanceImageCache` so duplicate launch consumers reuse one decode task instead of starting parallel decodes for the same image bytes.
+- Moved splash graph raster preparation out of `startAnimation(...)` into the scheduled pre-start task so the animation path no longer rebuilds the launch bitmap right as the handoff begins.
+- Preserved the existing three-graph vertical split/zoom behavior, full-screen safe-area coverage, and reduced-motion immediate handoff.
+- Updated focused splash tests to cover the new handoff contract, cancellable prewarm path, and pre-animation launch-image preparation.
+
+## Commands And Results
+
+1. Read task brief
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
+sed -n '1,240p' /Users/enrico/Documents/GitHub/haiity/.superpowers/sdd/task-4-brief.md
 ```
 
-Result: 764 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-`git diff --check` also passed.
+Result: confirmed Task 4 scope and file ownership.
 
-## Self-Review
+2. Create isolated worktree
 
-- Verified `AppNavigation.swift` remains Foundation-only and does not import
-  SwiftUI or refer to `MoreRoute`/`MoreView`.
-- Verified `ContentView` has one URL-resolution path and one route-effect
-  handler.
-- Verified stale More presentation state is cleared for all routes before the
-  selected tab changes.
-- Verified no tab visuals or card interaction code changed.
+```bash
+cd /Users/enrico/Documents/GitHub/haiity
+git worktree add .worktrees/task-4-startup-splash-perf -b task-4-startup-splash-perf
+```
+
+Result: created isolated worktree on branch `task-4-startup-splash-perf`.
+
+3. Generate the local Xcode project
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+xcodegen generate
+```
+
+Result: `Created project at /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf/Haiity.xcodeproj`
+
+4. Initial focused test attempt before implementation
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'id=00008132-000C08820C8B801C' \
+  -only-testing:HaiityTests/StartupSplashTests \
+  -skipPackagePluginValidation -skipMacroValidation \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Result: build reached install, then failed before tests ran because the local Mac destination could not install an unsigned iPhone app (`IDEInstallLocalMacService`, `0xe800801c`, no code signature found).
+
+5. Focused compile error extraction during implementation
+
+```bash
+set -o pipefail && \
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf && \
+xcodebuild build -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'id=00008132-000C08820C8B801C' \
+  -skipPackagePluginValidation -skipMacroValidation \
+  CODE_SIGNING_ALLOWED=NO 2>&1 | rg -n "error:|warning:"
+```
+
+Result: exposed one real compile error in `Haiity/Views/StartupSplashView.swift` (`initializer for conditional binding must have Optional type, not 'StartupSplashAnimationView'`). Fixed and reran.
+
+6. Focused app build after the fix
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+xcodebuild build -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'id=00008132-000C08820C8B801C' \
+  -skipPackagePluginValidation -skipMacroValidation \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Result: `** BUILD SUCCEEDED **`
+
+7. Focused test-target compile without install/launch
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+xcodebuild build-for-testing -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'id=00008132-000C08820C8B801C' \
+  -only-testing:HaiityTests/StartupSplashTests \
+  -skipPackagePluginValidation -skipMacroValidation \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Result: `** TEST BUILD SUCCEEDED **`
+
+8. Focused runtime test attempt with signing allowed
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'id=00008132-000C08820C8B801C' \
+  -only-testing:HaiityTests/StartupSplashTests \
+  -skipPackagePluginValidation -skipMacroValidation
+```
+
+Result: failed before execution because the local Mac destination is not included in the selected iOS provisioning profiles, and `HaiityTests` / `HaiityUITests` also require signing configuration for that destination.
+
+9. Commit implementation and tests
+
+```bash
+cd /Users/enrico/Documents/GitHub/haiity/.worktrees/task-4-startup-splash-perf
+git add Haiity/HaiityApp.swift Haiity/Models/StartupSplash.swift Haiity/Theme.swift \
+  Haiity/Views/StartupSplashView.swift HaiityTests/StartupSplashTests.swift
+git commit -m "Improve startup splash handoff performance"
+```
+
+Result: committed as `cdee6d0c12113d23bda2780647eb141e040fb86c`.
+
+## Test Summary
+
+- `xcodebuild build ... CODE_SIGNING_ALLOWED=NO`: passed
+- `xcodebuild build-for-testing ... -only-testing:HaiityTests/StartupSplashTests CODE_SIGNING_ALLOWED=NO`: passed
+- `xcodebuild test ... -only-testing:HaiityTests/StartupSplashTests`: could not execute in this environment because install/signing/provisioning failed before test launch
 
 ## Concerns
 
-- The supplied simulator runs iOS 26.5. The iOS 17-25 route fallback is
-  covered structurally and continues to use `moreSheet`, but visual runtime
-  verification still needs an older simulator or device.
-- Xcode continues to emit pre-existing App Group entitlement and App Shortcut
-  metadata notices during tests; they did not cause test failures.
-
-## Route/Search Race Follow-up
-
-### RED
-
-Added `AppNavigationTests.testMoreRouteWinsOverQueuedSearchWork` before the
-production change. The test models a delayed search-route token followed by a
-newer More-route token and requires only the newest token to remain current.
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: expected compile failure, `cannot find 'RouteWork' in scope`;
-`xcodebuild` exited 65.
-
-### GREEN
-
-Added pure `RouteWork` generation tracking. Every accepted deep-link route
-advances its generation; both queued `openSearch` main-queue callbacks verify
-the captured route generation before changing search state. Non-search route
-effects also explicitly dismiss a search that managed to open just before the
-newer route arrived. Toolbar search supplies no route generation, preserving
-its native minimized-toolbar behavior and existing `SearchFlow` path.
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests \
-  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 39 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-`git diff --check` also passed.
-
-### Full Suite
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 765 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-## Create Cover Route Lifecycle Follow-up
-
-### RED
-
-Added the create-cover lifecycle tests before production changes:
-
-- `testNonCreateRoutesWaitForOpenCreateCover`
-- `testLatestRouteWinsOverQueuedCreateCoverDismissal`
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: expected compilation failure. `RouteWork.begin(_:createIsPresented:)`
-and `RouteWork.canDeliverAfterCreateDismissal(_:)` did not exist;
-`xcodebuild` exited 65.
-
-### GREEN
-
-`RouteWork.Item` now carries the effect, generation, and whether a non-create
-route must wait for the Anlegen full-screen cover to finish dismissing.
-`ContentView` holds the latest deferred item, sets `showAdd = false`, and
-delivers it only from the cover's `onDismiss` after one main-actor turn.
-Generation checks prevent an older dismissal callback or queued presentation
-task from applying after a newer route. A separate transition flag keeps routes
-that arrive after `showAdd` becomes false but before `onDismiss` waiting behind
-the still-visible cover. Create routes remain idempotent. The existing
-`showAdd` observer still calls `SearchFlow.coverChanged(open:)` unchanged.
-
-Focused command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests \
-  -only-testing:HaiityTests/SearchFlowTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 41 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-### Full Suite
-
-Command:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'platform=iOS Simulator,id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests CODE_SIGNING_ALLOWED=NO
-```
-
-Result: 767 tests executed, 0 failures, `** TEST SUCCEEDED **`.
-
-### Concerns
-
-- The supplied simulator runs iOS 26.5. The lifecycle ordering is covered by
-  deterministic `RouteWork` tests; visual runtime verification on iOS 17-25
-  still needs an older simulator or device.
+- Physical iPhone launch measurements from process start to first interactive frame were not performed. The task brief asks for those measurements, but this run explicitly avoided simulators/device-hub work and the local environment did not provide a runnable unsigned path for the iPhone app on the Mac destination.
+- `StartupSplashTests` were compiled successfully but not executed end-to-end because local runtime test launch is blocked by signing/provisioning on the available non-simulator destination.
+- I did not add anything to `GesturePerfTests.swift`; the existing local verification path here was source/compile-focused, and there was no runnable performance harness available without stepping outside the destination constraints above.

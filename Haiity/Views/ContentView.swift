@@ -375,12 +375,12 @@ struct ContentView: View {
                         await reconcileMotivationActivity()
                         CalendarSync.reconcile(habits: store.habits,
                                                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                               validate: false)
+                                               validate: true)
                         ReminderSync.pullCompletions(into: store,
                                                      defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-                        ReminderSync.reconcile(habits: store.habits,
-                                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                               validate: false)
+                        await ReminderSync.reconcile(habits: store.habits,
+                                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                                     validate: true)
                         await reconcileAppIcon()
                     }
                     Task { await github.resumeOrRefresh(forced: true) }
@@ -2643,8 +2643,8 @@ struct ContentView: View {
                                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             ReminderSync.pullCompletions(into: store,
                                          defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-            ReminderSync.reconcile(habits: store.habits,
-                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            await ReminderSync.reconcile(habits: store.habits,
+                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         }
         await reconcileAppIcon()
 
@@ -2668,9 +2668,12 @@ struct ContentView: View {
             CalendarSync.reconcile(habits: store.habits,
                                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
                                    validate: false)
-            ReminderSync.reconcile(habits: store.habits,
-                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                   validate: false)
+            Task { @MainActor in
+                await ReminderSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                    validate: false)
+            }
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
@@ -2728,7 +2731,7 @@ struct ContentView: View {
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
             if result.reminders {
-                ReminderSync.reconcile(
+                await ReminderSync.reconcile(
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }

@@ -1,73 +1,130 @@
 # Task 1 Report
 
-## Implementation
+- Status: `DONE_WITH_CONCERNS`
+- Repository: `/private/tmp/haiity-task1-f17b985`
+- Base HEAD: `f17b985e2686bc15595eeea93dc426d2c13c591f`
+- Branch: `codex/task1-native-sync-idempotent`
+- Commit SHA(s):
+  - `5a10332b794f38259368f21ae6a15be0577efb7e` `Finish native sync idempotence handling`
 
-Implemented the pure navigation model requested for Task 1 in a single new source file and a focused test file.
+## Files Changed
 
-The model is intentionally side-effect free:
-- `AppTab` models the three tabs: `habits`, `more`, `create`
-- `AppMoreDestination` models the nested destinations: `stats`, `archive`
-- `AppDestination` resolves `haiity://` URLs into route values and exposes `selectedTab`
+Committed:
+- `Haiity/Services/CalendarSync.swift`
+- `Haiity/Services/NativeSyncInstallation.swift`
+- `Haiity/Services/ReminderSync.swift`
+- `Haiity/Services/SyncWatermark.swift`
+- `HaiityTests/CalendarSyncTests.swift`
+- `HaiityTests/ReminderSyncTests.swift`
 
-## Files
+Preserved but intentionally left unstaged/uncommitted:
+- `Haiity/Views/ContentView.swift`
+- `Haiity/Views/MoreView.swift`
 
-- Created [Haiity/Models/AppNavigation.swift](/Users/enrico/Documents/GitHub/haiity/.worktrees/navigation-card-interactions/Haiity/Models/AppNavigation.swift)
-- Created [HaiityTests/AppNavigationTests.swift](/Users/enrico/Documents/GitHub/haiity/.worktrees/navigation-card-interactions/HaiityTests/AppNavigationTests.swift)
+## What Changed
 
-## RED
+- Kept the existing dirty sync work and finished the idempotence pass instead of replacing it.
+- Added deterministic selection regression coverage for duplicate owned IDs, legacy marker trimming, and stale stored native IDs.
+- Stopped silently discarding failed owned-item removals during calendar/reminder reconciliation so the same pass does not recreate duplicates after a failed delete.
+- Kept failed removal mappings/links around during disable flows so retry remains possible instead of losing ownership state.
+- Exposed `NativeSyncCleanup.Result.needsRetry` for UI retryable cleanup state.
 
-Command:
+## Commands And Results
+
+1. Create isolated worktree and carry Task 1 dirty files into it.
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodegen generate
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
+git -C /Users/enrico/Documents/GitHub/haiity worktree add /private/tmp/haiity-task1-f17b985 -b codex/task1-native-sync-idempotent f17b985
+for f in Haiity/Services/CalendarSync.swift Haiity/Services/ReminderSync.swift Haiity/Services/SyncWatermark.swift HaiityTests/CalendarSyncTests.swift HaiityTests/ReminderSyncTests.swift; do cp "/Users/enrico/Documents/GitHub/haiity/$f" "/private/tmp/haiity-task1-f17b985/$f"; done
+cp /Users/enrico/Documents/GitHub/haiity/Haiity/Views/ContentView.swift /private/tmp/haiity-task1-f17b985/Haiity/Views/ContentView.swift
+cp /Users/enrico/Documents/GitHub/haiity/Haiity/Views/MoreView.swift /private/tmp/haiity-task1-f17b985/Haiity/Views/MoreView.swift
 ```
 
 Result:
-- Build failed because `AppDestination` did not exist yet.
-- Representative errors: `cannot find 'AppDestination' in scope`
+- Worktree created on `codex/task1-native-sync-idempotent` at `f17b985`.
+- Task 1 sync files were brought over from the dirty main checkout.
+- Dirty `ContentView.swift` and `MoreView.swift` were preserved for compilation only and left unstaged.
 
-## GREEN
-
-Command:
+2. Generate the local Xcode project needed in this worktree.
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodegen generate
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  -only-testing:HaiityTests/AppNavigationTests CODE_SIGNING_ALLOWED=NO
+xcodegen generate
 ```
 
 Result:
-- `AppNavigationTests` passed: 3 tests, 0 failures
+- Succeeded.
+- Output: `Created project at /tmp/haiity-task1-f17b985/Haiity.xcodeproj`
 
-## Full Suite
-
-Command:
+3. Requested focused device test command from the brief.
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
-  -project Haiity.xcodeproj -scheme Haiity \
-  -destination 'id=876E667A-7321-41E1-9008-876B53FF9F71' \
-  CODE_SIGNING_ALLOWED=NO
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/CalendarSyncTests -only-testing:HaiityTests/ReminderSyncTests
 ```
 
 Result:
-- `HaiityTests.xctest` passed
-- 760 tests executed
-- 0 failures
+- Initial run failed on generated test-target signing defaults.
 
-## Self-Review
+4. Same requested command with signing overrides from the existing project spec.
 
-- The implementation matches the brief exactly and stays pure.
-- The route mapping covers all requested URLs: `habits`, `more`, `stats`, `archive`, `search`, and `new`.
-- `selectedTab` matches the requested tab routing, including nested more destinations.
-- The test file is focused and does not rely on app UI or side effects.
+```bash
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/CalendarSyncTests -only-testing:HaiityTests/ReminderSyncTests DEVELOPMENT_TEAM=H8FW6W6K2D CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates
+```
+
+Result:
+- Build and device launch succeeded.
+- Xcode treated the file-level `-only-testing` selectors as `0 tests executed` on this setup, so this was not useful evidence.
+
+5. Concrete class-level rerun for the two Task 1 test files.
+
+```bash
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/CalendarSyncSelectionTests -only-testing:HaiityTests/SyncWatermarkTests -only-testing:HaiityTests/CalendarEventPlanTests -only-testing:HaiityTests/ReminderSyncPlanTests -only-testing:HaiityTests/ReminderSyncContractTests -only-testing:HaiityTests/ReminderSyncNativeMappingTests DEVELOPMENT_TEAM=H8FW6W6K2D CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates
+```
+
+Result:
+- The new pure Task 1 regressions passed.
+- Existing source-inspection tests from these files failed on device because the iPhone runner cannot open checkout paths such as `/tmp/haiity-task1-f17b985/...` from the host filesystem.
+
+6. Full compile/build check for the Task 1 slice on the requested physical device target.
+
+```bash
+xcodebuild build-for-testing -project Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' DEVELOPMENT_TEAM=H8FW6W6K2D CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates
+```
+
+Result:
+- Succeeded.
+- Output: `** TEST BUILD SUCCEEDED **`
+
+7. Method-level device execution for the new pure regressions added in this task.
+
+```bash
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/SyncWatermarkTests/testCanonicalNativeItemSelectionCollapsesIdenticalOwnedIdentifiers -only-testing:HaiityTests/SyncWatermarkTests/testCanonicalNativeItemSelectionIgnoresStoredIdentifierFromAnotherItem -only-testing:HaiityTests/SyncWatermarkTests/testLegacyCleanupMarkerTrimsWhitespace -only-testing:HaiityTests/SyncWatermarkTests/testNativeCleanupResultMarksFailedPassesAsRetryable DEVELOPMENT_TEAM=H8FW6W6K2D CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates
+```
+
+Result:
+- Succeeded.
+- Output: `Executed 4 tests, with 0 failures (0 unexpected)`
+
+8. Stage only the allowed Task 1 files and verify the staged patch.
+
+```bash
+git -C /private/tmp/haiity-task1-f17b985 add Haiity/Services/CalendarSync.swift Haiity/Services/ReminderSync.swift Haiity/Services/SyncWatermark.swift Haiity/Services/NativeSyncInstallation.swift HaiityTests/CalendarSyncTests.swift HaiityTests/ReminderSyncTests.swift
+git -C /private/tmp/haiity-task1-f17b985 diff --cached --check
+```
+
+Result:
+- Succeeded with no diff-check errors.
+
+9. Commit the Task 1 implementation.
+
+```bash
+git -C /private/tmp/haiity-task1-f17b985 commit -m "Finish native sync idempotence handling"
+```
+
+Result:
+- Succeeded.
+- Commit: `5a10332b794f38259368f21ae6a15be0577efb7e`
 
 ## Concerns
 
-- `AppMoreDestination` is currently a standalone model type, which is correct for Task 1, but it is not yet wired into the UI navigation flow. That integration is expected in later tasks.
+- The brief’s physical-phone manual verification sequence was not performed in this environment, so reinstall cleanup, duplicate cleanup, edit/delete recovery, and unrelated-entry preservation remain unverified on-device by hand.
+- The two requested test files contain existing source-inspection tests that are not runnable on a physical iPhone because the runner cannot open host checkout paths. I recorded the full device build check and a passing device run for the new pure Task 1 regressions instead.

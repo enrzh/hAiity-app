@@ -697,7 +697,7 @@ struct MoreView: View {
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
             if result.reminders {
-                ReminderSync.reconcile(
+                await ReminderSync.reconcile(
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
@@ -965,16 +965,19 @@ struct MoreView: View {
                 case .requestAccess:
                     Task {
                         let granted = await ReminderSync.requestAccess()
+                        guard granted else {
+                            await MainActor.run { reminderSyncDenied = true }
+                            return
+                        }
                         await MainActor.run {
-                            reminderSyncDenied = !granted
-                            guard granted else { return }
+                            reminderSyncDenied = false
                             ReminderSync.isEnabled = true
                             updateCloudPreferences { $0.nativeReminderSync = true }
                             ReminderSync.startObserving(store: store)
-                            ReminderSync.reconcile(
-                                habits: store.habits,
-                                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                         }
+                        await ReminderSync.reconcile(
+                            habits: store.habits,
+                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                     }
                 }
             })

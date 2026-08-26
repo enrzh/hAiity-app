@@ -309,6 +309,69 @@ enum CalendarSync {
         }
         trace("calsync: reconcile into '\(calendar.title)' source=\(calendar.source?.title ?? "nil")")
 
+        // A stored event ID is only a fast path. Older builds and interrupted
+        // writes can leave several owned series behind, so inventory the
+        // watermark before deciding which ID to reuse.
+        removeLegacyOwnedItems()
+        let plansByOwner = Dictionary(uniqueKeysWithValues: plans.compactMap { entry
+            -> (SyncWatermark.Ownership, CalendarEventPlan)? in
+            guard let id = UUID(uuidString: entry.0) else { return nil }
+            let kind: SyncWatermark.Kind = entry.1.isReminder
+                ? .reminderCalendar : .habitCalendar
+            return (SyncWatermark.Ownership(kind: kind, id: id), entry.1)
+        })
+        let ownedByOwner = ownedEvents().reduce(into: [SyncWatermark.Ownership: [EKEvent]]()) {
+            result, event in
+            guard let notes = event.notes,
+                  let owner = SyncWatermark.ownership(in: notes) else { return }
+            result[owner, default: []].append(event)
+        }
+        var validatedKeys = Set<String>()
+        var validatedEvents: [String: EKEvent] = [:]
+        var removedSeries = Set<String>()
+        for (owner, events) in ownedByOwner {
+            guard plansByOwner[owner] != nil else {
+                for event in events {
+                    removeOwnedEvent(event, removedSeries: &removedSeries)
+                }
+                continue
+            }
+
+            let targetEvents = events.filter {
+                $0.calendar?.calendarIdentifier == calendar.calendarIdentifier
+            }
+            let candidates = targetEvents.compactMap { event
+                -> (id: String, sortKey: String)? in
+                guard let id = nativeID(for: event) else { return nil }
+                return (id: id, sortKey: eventSortKey(event))
+            }
+            let selection = SyncWatermark.selectCanonicalItem(
+                candidates: candidates,
+                preferredID: map[owner.id.uuidString])
+            let retainedID = selection.retainedID
+            let targetIDs = Set(candidates.map { $0.id })
+            for event in events {
+                guard let id = nativeID(for: event) else { continue }
+                let keep = id == retainedID
+                    && targetIDs.contains(id)
+                    && !selection.duplicateIDs.contains(id)
+                if !keep {
+                    removeOwnedEvent(event, removedSeries: &removedSeries)
+                }
+            }
+            if let retainedID,
+               let retainedEvent = targetEvents.first(where: {
+                   nativeID(for: $0) == retainedID
+               }) {
+                let key = owner.id.uuidString
+                map[key] = retainedID
+                validatedKeys.insert(key)
+                validatedEvents[key] = retainedEvent
+            } else {
+                map[owner.id.uuidString] = nil
+            }
+        }
+
         var seen: Set<String> = []
         for habit in active {
             let key = habit.id.uuidString
@@ -320,13 +383,16 @@ enum CalendarSync {
             }
             seen.insert(key)
             if prints[key] == plan.fingerprint, map[key] != nil,
-               !validate || store.event(withIdentifier: map[key]!) != nil {
+               !validate || validatedKeys.contains(key) {
                 continue
             }
             // Neu schreiben statt umbiegen: eine geänderte Wiederholungs-
             // regel sauber auf einer bestehenden Serie zu ändern ist ein
             // Minenfeld — Entfernen + Anlegen ist idempotent und eindeutig.
-            removeEvent(for: key, map: &map, prints: &prints)
+            removeEvent(for: key,
+                        map: &map,
+                        prints: &prints,
+                        existing: validatedEvents[key])
             if let id = createEvent(plan: plan, in: calendar) {
                 map[key] = id
                 prints[key] = plan.fingerprint
@@ -334,7 +400,7 @@ enum CalendarSync {
         }
 
         // Verwaiste (gelöschte/archivierte Habits) räumen.
-        for key in map.keys where !seen.contains(key) {
+        for key in Array(map.keys) where !seen.contains(key) {
             removeEvent(for: key, map: &map, prints: &prints)
         }
 
@@ -415,10 +481,61 @@ enum CalendarSync {
 
     // MARK: – Bausteine
 
+    private static func allEvents() -> [EKEvent] {
+        let calendars = store.calendars(for: .event)
+        guard !calendars.isEmpty else { return [] }
+        let start = Calendar.current.date(byAdding: .year, value: -100, to: .now) ?? .distantPast
+        let end = Calendar.current.date(byAdding: .year, value: 100, to: .now) ?? .distantFuture
+        let predicate = store.predicateForEvents(withStart: start,
+                                                  end: end,
+                                                  calendars: calendars)
+        var seenSeries = Set<String>()
+        return store.events(matching: predicate)
+            .sorted { eventSortKey($0) < eventSortKey($1) }
+            .filter { seenSeries.insert($0.calendarItemIdentifier).inserted }
+    }
+
+    private static func ownedEvents() -> [EKEvent] {
+        allEvents().filter { event in
+            guard let notes = event.notes,
+                  let owner = SyncWatermark.ownership(in: notes) else { return false }
+            return owner.kind == .habitCalendar || owner.kind == .reminderCalendar
+        }
+    }
+
+    private static func removeLegacyOwnedItems() {
+        var removedSeries = Set<String>()
+        for event in allEvents() {
+            guard event.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == SyncWatermark.readablePrefix else { continue }
+            removeOwnedEvent(event, removedSeries: &removedSeries)
+        }
+    }
+
+    private static func nativeID(for event: EKEvent) -> String? {
+        event.eventIdentifier ?? event.calendarItemIdentifier
+    }
+
+    private static func eventSortKey(_ event: EKEvent) -> String {
+        let start = event.startDate?.timeIntervalSinceReferenceDate ?? .greatestFiniteMagnitude
+        return "\(start)|\(nativeID(for: event) ?? event.calendarItemIdentifier)"
+    }
+
+    private static func removeOwnedEvent(_ event: EKEvent,
+                                         removedSeries: inout Set<String>) {
+        guard removedSeries.insert(event.calendarItemIdentifier).inserted else { return }
+        do {
+            try store.remove(event, span: .futureEvents, commit: true)
+        } catch {
+            trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
+        }
+    }
+
     private static func removeEvent(for key: String,
                                     map: inout [String: String],
-                                    prints: inout [String: String]) {
-        if let id = map[key], let event = store.event(withIdentifier: id) {
+                                    prints: inout [String: String],
+                                    existing: EKEvent? = nil) {
+        if let event = existing ?? map[key].flatMap({ store.event(withIdentifier: $0) }) {
             try? store.remove(event, span: .futureEvents, commit: true)
         }
         map[key] = nil

@@ -128,6 +128,45 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertFalse(source.contains("try? store.save(reminder, commit: true)"))
     }
 
+    func testReminderReconciliationRepairsAllOwnedDuplicatesBeforeSaving() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+
+        XCTAssertTrue(source.contains("async"),
+                      "duplicate-safe reminder reconciliation must await the EventKit fetch")
+        XCTAssertTrue(source.contains("selectCanonicalItem"))
+        XCTAssertTrue(source.contains("duplicateIDs"))
+        XCTAssertTrue(source.contains("fetchReminders(matching:"))
+    }
+
+    func testReminderValidationCarriesScannedCanonicalReminderIntoSavePass() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+
+        XCTAssertTrue(source.contains("var validatedReminders"),
+                      "validation must retain the fetched canonical reminder")
+        XCTAssertTrue(source.contains("validatedReminders[key]"),
+                      "the save pass must use the scanned reminder before looking up its ID")
+        XCTAssertTrue(source.contains("existing: linked"),
+                      "changed reminders must remove the fetched canonical object directly")
+    }
+
+    func testReminderCleanupCannotOverlapReconciliation() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+
+        XCTAssertTrue(source.contains("guard hasAccess, !isReconciling, !isPulling else { return false }"),
+                      "cleanup must not race a reconciliation or native pull")
+        XCTAssertTrue(source.contains("isReconciling = true"),
+                      "cleanup must hold the same native-store guard while it runs")
+    }
+
+    func testForegroundNativeReconciliationAwaitsReminderFetch() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("validate: true"),
+                      "foreground reconciliation must inspect native duplicates")
+        XCTAssertTrue(content.contains("await ReminderSync.reconcile"),
+                      "the async EventKit pass must finish before the lifecycle task continues")
+    }
+
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))

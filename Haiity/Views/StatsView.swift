@@ -27,6 +27,7 @@ struct StatsView: View {
     @State private var paywall: PaywallContext?
     @State private var showingCardSettings = false
     @State private var proStatus = ProStatus.shared
+    @State private var activeContextMenuID: String?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -104,8 +105,9 @@ struct StatsView: View {
                 if activeCards.contains(.yearPulse) {
                     heroCard(snapshot)
                         .modifier(StatsCardChrome())
+                        .opacity(activeContextMenuID == StatsCard.yearPulse.rawValue ? 0 : 1)
                         .overlay {
-                            statsContextMenu(preview: {
+                            statsContextMenu(id: StatsCard.yearPulse.rawValue, preview: {
                                 statsPreview(heroCard(snapshot),
                                              height: statsHeroPreviewHeight)
                             }, height: statsHeroPreviewHeight)
@@ -141,8 +143,9 @@ struct StatsView: View {
                     ForEach(visibleActiveTrackedHabits) { habit in
                         StatsRow(habit: habit)
                             .modifier(StatsCardChrome())
+                            .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
                             .overlay {
-                                statsContextMenu(preview: {
+                                statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
                                     statsPreview(
                                         StatsRow(habit: habit),
                                         height: statsRowPreviewHeight)
@@ -153,8 +156,9 @@ struct StatsView: View {
                 } else {
                     perHabitLockCard
                         .modifier(StatsCardChrome())
+                        .opacity(activeContextMenuID == "per-habit-lock" ? 0 : 1)
                         .overlay {
-                            statsContextMenu(preview: {
+                            statsContextMenu(id: "per-habit-lock", preview: {
                                 statsPreview(perHabitLockCard,
                                              height: statsLockPreviewHeight)
                             }, height: statsLockPreviewHeight)
@@ -384,8 +388,9 @@ struct StatsView: View {
                   spacing: Theme.Metrics.gap) {
             ForEach(cards) { card in
                 statsTile(card, snapshot: snapshot)
+                    .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
                     .overlay {
-                        statsContextMenu(preview: {
+                        statsContextMenu(id: card.rawValue, preview: {
                             statsPreview(statsTile(card, snapshot: snapshot),
                                          height: statsTilePreviewHeight,
                                          wrapsSurface: false)
@@ -413,7 +418,8 @@ struct StatsView: View {
                          handler: openStatsAdjustments)]
     }
 
-    private func statsContextMenu(preview: @escaping () -> AnyView,
+    private func statsContextMenu(id: String,
+                                  preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> GraphContextMenu {
         GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
@@ -421,7 +427,14 @@ struct StatsView: View {
                          previewHeight: height,
                          preview: preview,
                          actions: statsContextActions,
-                         commit: openStatsAdjustments)
+                         commit: openStatsAdjustments,
+                         onMenuVisibilityChanged: { visible in
+                             if visible {
+                                 activeContextMenuID = id
+                             } else if activeContextMenuID == id {
+                                 activeContextMenuID = nil
+                             }
+                         })
     }
 
     private func statsPreview<Content: View>(_ content: Content,

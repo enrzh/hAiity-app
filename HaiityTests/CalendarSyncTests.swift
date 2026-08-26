@@ -131,6 +131,58 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertFalse(SyncWatermark.containsMarker("Ein eigener hAiity Hinweis"))
     }
 
+    func testCanonicalNativeItemSelectionPrefersStoredIDAndReturnsOnlyDuplicates() {
+        let selection = SyncWatermark.selectCanonicalItem(
+            candidates: [
+                (id: "older", sortKey: "2026-08-01"),
+                (id: "stored", sortKey: "2026-08-03"),
+                (id: "newer", sortKey: "2026-08-05")
+            ],
+            preferredID: "stored")
+
+        XCTAssertEqual(selection.retainedID, "stored")
+        XCTAssertEqual(selection.duplicateIDs, ["older", "newer"])
+    }
+
+    func testCanonicalNativeItemSelectionIsDeterministicWithoutStoredID() {
+        let selection = SyncWatermark.selectCanonicalItem(
+            candidates: [
+                (id: "z", sortKey: "001"),
+                (id: "a", sortKey: "001"),
+                (id: "b", sortKey: "002")
+            ],
+            preferredID: nil)
+
+        XCTAssertEqual(selection.retainedID, "a")
+        XCTAssertEqual(selection.duplicateIDs, ["z", "b"])
+    }
+
+    func testCalendarReconciliationRepairsAllOwnedDuplicates() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        XCTAssertTrue(source.contains("selectCanonicalItem"))
+        XCTAssertTrue(source.contains("SyncWatermark.ownership(in:"))
+        XCTAssertTrue(source.contains("duplicateIDs"))
+        XCTAssertTrue(source.contains("eventIdentifier"))
+    }
+
+    func testCalendarValidationReusesScannedCanonicalSeries() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        XCTAssertTrue(source.contains("var validatedEvents"),
+                      "validation must carry the fetched canonical event into the save pass")
+        XCTAssertTrue(source.contains("validatedKeys.insert(owner.id.uuidString)"),
+                      "a scanned owner must be trusted even when EventKit ID lookup is unavailable")
+        XCTAssertTrue(source.contains("validatedKeys.contains(key)"),
+                      "the save pass must not recreate a validated recurring series")
+        XCTAssertFalse(source.contains("!validate || store.event(withIdentifier: map[key]!) != nil"),
+                       "recurring events must not be validated through event(withIdentifier:)")
+    }
+
     func testReinstallDetectionDoesNotTreatFirstInstallAsReinstall() {
         XCTAssertFalse(NativeSyncInstallation.needsCleanup(localID: nil,
                                                             persistentID: nil))

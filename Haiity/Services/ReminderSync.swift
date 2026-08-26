@@ -163,7 +163,7 @@ enum ReminderSync {
                           defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true,
                           now: Date = .now,
-                          calendar: Calendar = .current) {
+                          calendar: Calendar = .current) async {
         guard Pro.isUnlocked else { return }
         guard isEnabled, hasAccess, !isReconciling, !isPulling else { return }
         isReconciling = true
@@ -184,6 +184,68 @@ enum ReminderSync {
 
         guard let list = ensureList() else { return }
 
+        var validatedReminders: [String: EKReminder] = [:]
+        if validate {
+            guard let fetched = await fetchAllReminders() else { return }
+            var ownedByOwner = [SyncWatermark.Ownership: [EKReminder]]()
+            var removedIDs = Set<String>()
+            for reminder in fetched {
+                guard let notes = reminder.notes,
+                      SyncWatermark.containsMarker(notes) else { continue }
+                if notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == SyncWatermark.readablePrefix {
+                    removeNativeReminder(reminder, removedIDs: &removedIDs)
+                    continue
+                }
+                guard let owner = SyncWatermark.ownership(in: notes),
+                      owner.kind == .nativeReminder else { continue }
+                ownedByOwner[owner, default: []].append(reminder)
+            }
+
+            let plansByOwner = Dictionary(uniqueKeysWithValues: plans.map { plan in
+                (SyncWatermark.Ownership(kind: .nativeReminder, id: plan.habitID), plan)
+            })
+            for (owner, reminders) in ownedByOwner {
+                guard plansByOwner[owner] != nil else {
+                    for reminder in reminders {
+                        removeNativeReminder(reminder, removedIDs: &removedIDs)
+                    }
+                    continue
+                }
+                let candidates = reminders
+                    .filter { $0.calendar?.calendarIdentifier == list.calendarIdentifier }
+                    .map { (id: $0.calendarItemIdentifier,
+                            sortKey: $0.calendarItemIdentifier) }
+                let preferredID = links[owner.id.uuidString]?.reminderID
+                let selection = SyncWatermark.selectCanonicalItem(
+                    candidates: candidates,
+                    preferredID: preferredID)
+                let targetIDs = Set(candidates.map { $0.id })
+                for reminder in reminders {
+                    let keep = reminder.calendarItemIdentifier == selection.retainedID
+                        && targetIDs.contains(reminder.calendarItemIdentifier)
+                        && !selection.duplicateIDs.contains(reminder.calendarItemIdentifier)
+                    if !keep {
+                        removeNativeReminder(reminder, removedIDs: &removedIDs)
+                    }
+                }
+                if let retainedID = selection.retainedID,
+                   let plan = plansByOwner[owner],
+                   let retainedReminder = reminders.first(where: {
+                       $0.calendarItemIdentifier == retainedID
+                   }) {
+                    let key = owner.id.uuidString
+                    validatedReminders[key] = retainedReminder
+                    links[owner.id.uuidString] = ReminderSyncLink(
+                        habitID: plan.habitID,
+                        reminderID: retainedID,
+                        occurrenceDay: plan.occurrenceDay)
+                } else {
+                    links[owner.id.uuidString] = nil
+                }
+            }
+        }
+
         for key in Array(links.keys) where !activeKeys.contains(key) {
             removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
         }
@@ -191,11 +253,16 @@ enum ReminderSync {
         for plan in plans {
             let key = plan.habitID.uuidString
             let habit = active.first { $0.id == plan.habitID }
-            let linked = links[key].flatMap { ownedReminder(id: $0.reminderID, in: list) }
+            let linked = validatedReminders[key]
+                ?? links[key].flatMap { ownedReminder(id: $0.reminderID, in: list) }
             let fingerprintChanged = fingerprints[key] != plan.fingerprint
 
             if fingerprintChanged || linked == nil {
-                removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
+                removeReminder(for: key,
+                               links: &links,
+                               fingerprints: &fingerprints,
+                               in: list,
+                               existing: linked)
                 if let created = createReminder(plan: plan,
                                                 completed: habit?.log[plan.occurrenceDay] != nil,
                                                 in: list) {
@@ -224,11 +291,6 @@ enum ReminderSync {
 
         ReminderSyncPreferences.setLinks(links, in: defaults)
         ReminderSyncPreferences.setFingerprints(fingerprints, in: defaults)
-
-        // `validate` is intentionally consumed at the boundary. A validating
-        // pass repairs deleted native items; normal store changes still push
-        // completion and title changes through the same owned links.
-        _ = validate
     }
 
     /// Removes every hAiity-owned reminder, including legacy entries from
@@ -236,7 +298,9 @@ enum ReminderSync {
     /// reinstall. The async boundary matches EventKit's reminder fetch API
     /// and guarantees cleanup finishes before recreation.
     static func removeAllOwnedItems() async -> Bool {
-        guard hasAccess else { return false }
+        guard hasAccess, !isReconciling, !isPulling else { return false }
+        isReconciling = true
+        defer { isReconciling = false }
 
         let predicate = store.predicateForReminders(in: nil)
         let fetched: [EKReminder]? = await withCheckedContinuation { continuation in
@@ -346,7 +410,7 @@ enum ReminderSync {
                 Task { @MainActor in
                     guard let habitStore = observedStore else { return }
                     pullCompletions(into: habitStore)
-                    reconcile(habits: habitStore.habits, validate: false)
+                    await reconcile(habits: habitStore.habits, validate: false)
                 }
             }
     }
@@ -369,6 +433,15 @@ enum ReminderSync {
             return nil
         }
         return list
+    }
+
+    private static func fetchAllReminders() async -> [EKReminder]? {
+        let predicate = store.predicateForReminders(in: nil)
+        return await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders)
+            }
+        }
     }
 
     private static func ensureList() -> EKCalendar? {
@@ -425,11 +498,24 @@ enum ReminderSync {
         return reminder
     }
 
+    private static func removeNativeReminder(_ reminder: EKReminder,
+                                             removedIDs: inout Set<String>) {
+        let identity = reminder.calendarItemIdentifier
+        guard removedIDs.insert(identity).inserted else { return }
+        do {
+            try store.remove(reminder, commit: true)
+        } catch {
+            note(error)
+        }
+    }
+
     private static func removeReminder(for key: String,
                                        links: inout [String: ReminderSyncLink],
                                        fingerprints: inout [String: String],
-                                       in list: EKCalendar) {
-        if let link = links[key], let reminder = ownedReminder(id: link.reminderID, in: list) {
+                                       in list: EKCalendar,
+                                       existing: EKReminder? = nil) {
+        if let reminder = existing
+            ?? links[key].flatMap({ ownedReminder(id: $0.reminderID, in: list) }) {
             try? store.remove(reminder, commit: true)
         }
         links[key] = nil
