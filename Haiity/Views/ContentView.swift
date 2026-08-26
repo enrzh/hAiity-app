@@ -232,6 +232,10 @@ struct ContentView: View {
                 schedulePendingNotificationAction()
             }
             .onReceive(NotificationCenter.default.publisher(
+                for: NotificationDeliveryIssueCenter.pendingDidChange)) { _ in
+                schedulePendingNotificationDeliveryIssue()
+            }
+            .onReceive(NotificationCenter.default.publisher(
                 for: HomeShortcuts.pendingDidChange)) { _ in
                 schedulePendingShortcutLink()
             }
@@ -350,6 +354,7 @@ struct ContentView: View {
                 #endif
                 await boot()
                 schedulePendingNotificationAction()
+                schedulePendingNotificationDeliveryIssue()
                 schedulePendingShortcutLink()
                 await github.boot()
                 #if DEBUG
@@ -360,6 +365,7 @@ struct ContentView: View {
                 if phase == .active {
                     becameActiveAt = .now
                     schedulePendingNotificationAction()
+                    schedulePendingNotificationDeliveryIssue()
                     schedulePendingShortcutLink()
                     // Widget-Intent kann data.json extern geändert haben —
                     // purer Re-Read (No-op bei unveränderter mtime).
@@ -1416,6 +1422,13 @@ struct ContentView: View {
         handleNotificationAction(request)
     }
 
+    private func handlePendingNotificationDeliveryIssue() {
+        guard let issue = NotificationDeliveryIssueCenter.takePending() else { return }
+        Task { @MainActor in
+            await flash(issue.message)
+        }
+    }
+
     private func schedulePendingNotificationAction() {
         Task { @MainActor in
             await Task.yield()
@@ -1423,6 +1436,16 @@ struct ContentView: View {
             guard !Task.isCancelled,
                   UIApplication.shared.applicationState == .active else { return }
             handlePendingNotificationAction()
+        }
+    }
+
+    private func schedulePendingNotificationDeliveryIssue() {
+        Task { @MainActor in
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled,
+                  UIApplication.shared.applicationState == .active else { return }
+            handlePendingNotificationDeliveryIssue()
         }
     }
 

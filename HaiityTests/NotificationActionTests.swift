@@ -319,6 +319,25 @@ final class NotificationActionTests: XCTestCase {
         XCTAssertNil(NotificationDeliveryIssueCenter.takePending(defaults: defaults))
     }
 
+    func testContentViewConsumesPersistedDeliveryIssuesViaTheExistingFlashPath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(source.contains("for: NotificationDeliveryIssueCenter.pendingDidChange"),
+                      "delivery issues must wake the app through NotificationCenter as soon as one is persisted")
+        XCTAssertTrue(source.contains("schedulePendingNotificationDeliveryIssue()"),
+                      "startup and foreground re-entry must both retry UI delivery for a persisted issue")
+        XCTAssertTrue(source.contains("private func handlePendingNotificationDeliveryIssue()"),
+                      "ContentView needs a dedicated consumer for the persisted issue")
+        XCTAssertTrue(source.contains("NotificationDeliveryIssueCenter.takePending()"),
+                      "the UI must consume and clear the persisted issue instead of leaving it parked")
+        XCTAssertTrue(source.contains("await flash(issue.message)"),
+                      "delivery failures should surface through the existing toast/flash path")
+    }
+
     func testDebugNotificationSettingsRouteIsScheduledBeforeBoot() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -228,6 +228,23 @@ final class MotivationActivityTests: XCTestCase {
         cleanupDefaults(defaults, suite: "MotivationActivityTests.request-fails")
     }
 
+    func testLiveActivityStartBoundaryStaysServerlessAndDocumentsItsTerminationLimit() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/MotivationActivityManager.swift"))
+
+        XCTAssertTrue(source.contains("pushType: nil"),
+                      "Task 6 keeps motivation delivery on the serverless ActivityKit path")
+        XCTAssertTrue(source.contains("terminated app cannot start a Live Activity"),
+                      "the start boundary must document the terminated-state limit explicitly")
+        XCTAssertTrue(source.contains("notification fallback remains the serverless behavior"),
+                      "the source should state that the fallback stays with notifications until a backend is approved")
+        XCTAssertTrue(source.contains("NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)"),
+                      "a failed motivation start must persist the same delivery issue the app consumes on next activation")
+    }
+
     func testConcurrentReconciliationsStartOnlyOnce() async {
         let client = RecordedMotivationActivityClient()
         let defaults = testDefaults("concurrent")

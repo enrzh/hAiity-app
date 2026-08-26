@@ -81,6 +81,9 @@ actor MotivationActivityManager {
                 MotivationActivityStorage.markShown(dayKey, in: defaults)
             } catch {
                 NSLog("MotivationActivity: start failed: %@", String(describing: error))
+                await MainActor.run {
+                    NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)
+                }
             }
             startingDayKeys.remove(dayKey)
         }
@@ -109,6 +112,9 @@ struct ActivityKitMotivationActivityClient: MotivationActivityClient {
         let content = ActivityContent(
             state: MotivationActivityAttributes.ContentState(displayedAt: .now),
             staleDate: request.staleDate)
+        // This remains the serverless ActivityKit path. A terminated app cannot start a Live Activity
+        // from a local notification when `pushType` stays nil, so the notification fallback remains the serverless behavior
+        // until an explicit backend is approved.
         _ = try Activity.request(attributes: attributes,
                                  content: content,
                                  pushType: nil)

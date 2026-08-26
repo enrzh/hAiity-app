@@ -1,42 +1,51 @@
 # Task 6 Final Fix Report
 
 - Status: implemented
-- Commit SHA: `e9f73ae6f5f338d416de316dbec5e31ef9825399`
 - Files:
-  - `Haiity/Services/Reminders.swift`
+  - `Haiity/Services/MotivationActivityManager.swift`
+  - `Haiity/Views/ContentView.swift`
   - `HaiityTests/NotificationActionTests.swift`
+  - `HaiityTests/MotivationActivityTests.swift`
   - `.superpowers/sdd/task-6-final-fix-report.md`
 
 ## Commands and results
 
-1. `xcodebuild -project /Users/enrico/Documents/GitHub/haiity/Haiity.xcodeproj -scheme Haiity -showdestinations`
+1. `xcodegen generate`
    - Result: succeeded
-   - Evidence: available destinations included `My Mac`, attached iPhone `00008150-000120AC0287801C`, and `Any iOS Simulator Device`; no named `iPhone 16` simulator was available.
+   - Evidence: created `/Users/enrico/Documents/GitHub/haiity-task6-fix/Haiity.xcodeproj` from `project.yml` in the isolated worktree.
 
-2. `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity/Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:HaiityTests/NotificationActionTests`
+2. `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity-task6-fix/Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:HaiityTests/NotificationActionTests/testContentViewConsumesPersistedDeliveryIssuesViaTheExistingFlashPath -only-testing:HaiityTests/MotivationActivityTests/testLiveActivityStartBoundaryStaysServerlessAndDocumentsItsTerminationLimit CODE_SIGNING_ALLOWED=NO`
    - Result: failed
-   - Evidence: `Unable to find a device matching the provided destination specifier`.
+   - Evidence: `Unable to find a device matching the provided destination specifier`; this host currently has no installed iOS simulator devices (`xcrun simctl list devices` returned only `== Devices ==`).
 
-3. `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity/Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/NotificationActionTests`
-   - Result: failed
-   - Evidence: `Signing for "HaiityTests" requires a development team` and `Signing for "HaiityUITests" requires a development team`.
+3. Source-contract red checks (before the production edits):
+   - `python3` check for `Haiity/Views/ContentView.swift`
+   - `python3` check for `Haiity/Services/MotivationActivityManager.swift`
+   - Result: both failed
+   - Evidence:
+     - `ContentView.swift` was missing the delivery-issue wake-up, scheduler, consumer, and `flash(issue.message)` path.
+     - `MotivationActivityManager.swift` was missing the terminated-state boundary wording and the persisted `NotificationDeliveryIssueCenter.note(.reminderScheduleFailed)` hook.
 
-4. `xcodebuild build-for-testing -project /Users/enrico/Documents/GitHub/haiity/Haiity.xcodeproj -scheme Haiity -destination 'generic/platform=iOS Simulator' -only-testing:HaiityTests/NotificationActionTests CODE_SIGNING_ALLOWED=NO`
+4. Source-contract green checks (after the production edits):
+   - `python3` check for `Haiity/Views/ContentView.swift`
+   - `python3` check for `Haiity/Services/MotivationActivityManager.swift`
+   - Result: succeeded
+   - Evidence: both checks returned `PASS`.
+
+5. `xcodebuild build-for-testing -project /Users/enrico/Documents/GitHub/haiity-task6-fix/Haiity.xcodeproj -scheme Haiity -destination 'generic/platform=iOS Simulator' -only-testing:HaiityTests/NotificationActionTests -only-testing:HaiityTests/MotivationActivityTests CODE_SIGNING_ALLOWED=NO`
    - Result: succeeded
    - Evidence: `** TEST BUILD SUCCEEDED **`
 
 ## Fix summary
 
-- Restored the targeted external check-in reconciliation path instead of full delete-all/rebuild behavior.
-- Added deterministic forecast refresh logic for `summary-day-*` requests using `upcomingDailyPlans`.
-- Implemented add-first / remove-obsolete-after-success behavior for upcoming summary forecasts so stale IDs remain in place if any new forecast add fails.
-- Routed forecast scheduling failures through the notification delivery issue persistence path and added focused regression coverage for:
-  - forecast reconciliation payload contents,
-  - successful add-then-prune behavior,
-  - partial failure keeping old forecast IDs,
-  - persisted delivery issue consumption.
+- `ContentView` now consumes persisted `NotificationDeliveryIssue`s on startup, on foreground return, and whenever the issue center posts its wake-up notification, and surfaces them through the existing `flash(...)` toast path.
+- `MotivationActivityManager` now persists the same `NotificationDeliveryIssue` when a Live Activity start fails, instead of logging only.
+- The `Activity.request(..., pushType: nil)` start boundary is explicitly documented to avoid promising impossible terminated-state Live Activity launches from local notifications.
+- Added focused regression coverage for:
+  - persisted delivery-issue consumption through `ContentView`,
+  - the motivation Live Activity source contract (`pushType: nil`, terminated-state limit, notification fallback wording, persisted failure hook).
 
 ## Concerns
 
-- Live execution of `HaiityTests/NotificationActionTests` is currently blocked on this host by project signing configuration for the test targets.
-- The requested simulator destination `iPhone 16` is not installed on this host.
+- Live execution of the two targeted XCTest cases is still blocked on this host because no iOS simulator device is installed for the requested destination.
+- The compile fallback succeeded, but it does not replace a real device/simulator execution pass.
