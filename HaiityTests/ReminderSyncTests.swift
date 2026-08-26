@@ -185,6 +185,8 @@ final class ReminderSyncContractTests: XCTestCase {
                       "store change handling must hop onto the async reminder pass")
         XCTAssertTrue(content.contains("if result.reminders {\n                await ReminderSync.reconcile("),
                       "cleanup should await reminder recreation before reporting completion")
+        XCTAssertTrue(content.contains("guard result.needsRetry else {"),
+                      "Home Screen cleanup should share the retry-aware success path used by settings")
     }
 
     func testMoreViewAwaitsReminderReconciliationInCleanupAndEnableFlows() throws {
