@@ -125,6 +125,9 @@ struct ContentView: View {
     @State private var lastNonSearchTab: AppTab = .habits
     @State private var searchPresentationArmed = false
     @FocusState private var searchFieldFocused: Bool
+    /// Explicit sorting mode for the habit list. Long press remains reserved
+    /// for the card preview and its actions.
+    @State private var editMode: EditMode = .inactive
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
@@ -403,6 +406,12 @@ struct ContentView: View {
                 // verdeckt Liste, Toast und Karte vollständig.
                 undo.clear()
                 backfill = nil
+            }
+            .onChange(of: search) { _, query in
+                if !query.isEmpty { editMode = .inactive }
+            }
+            .onChange(of: habitFilter) { _, filter in
+                if !filter.isEmpty { editMode = .inactive }
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
@@ -1021,13 +1030,26 @@ struct ContentView: View {
                 // Zeilen-Titel blieb beim Scrollen einfach stehen und ließ
                 // eine leere Glasleiste zurück).
                 .navigationTitle("Habits")
+                .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItemGroup(placement: .topBarLeading) {
                         habitFilterMenu
+                        Button {
+                            withAnimation {
+                                editMode = editMode == .active ? .inactive : .active
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                        }
+                        .disabled(!canSortHabits)
+                        .accessibilityLabel(editMode == .active
+                                            ? String(localized: "Sortieren beenden")
+                                            : String(localized: "Habits sortieren"))
+                        .accessibilityIdentifier("reorder-habits")
                     }
                     createToolbarItem
                 }
@@ -1037,13 +1059,23 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button { requestCreate() } label: {
-                Image(systemName: "plus")
+            if editMode == .active {
+                Button {
+                    withAnimation { editMode = .inactive }
+                } label: {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel(String(localized: "Fertig"))
+                .accessibilityIdentifier("finish-reordering")
+            } else {
+                Button { requestCreate() } label: {
+                    Image(systemName: "plus")
+                }
+                .modifier(MoreZoomSource(id: Self.createZoomID,
+                                         namespace: createZoomNamespace))
+                .accessibilityLabel(CreateAccessibility.label)
+                .accessibilityIdentifier(CreateAccessibility.identifier)
             }
-            .modifier(MoreZoomSource(id: Self.createZoomID,
-                                     namespace: createZoomNamespace))
-            .accessibilityLabel(CreateAccessibility.label)
-            .accessibilityIdentifier(CreateAccessibility.identifier)
         }
     }
 
@@ -1058,10 +1090,16 @@ struct ContentView: View {
         return filteredHabits
     }
 
+    private var canSortHabits: Bool {
+        search.isEmpty && habitFilter.isEmpty
+    }
+
     @ViewBuilder
     private var habitFilterMenu: some View {
         Menu {
-            Toggle(String(localized: "Heute"), isOn: $habitFilter.todayOnly)
+            Toggle(isOn: $habitFilter.todayOnly) {
+                Label(String(localized: "Heute"), systemImage: "calendar")
+            }
                 .accessibilityIdentifier("filter-today")
 
             Menu {
@@ -1154,6 +1192,9 @@ struct ContentView: View {
                         row(for: habit, index: index + 1)
                             .id(habit.id)
                     }
+                    .onMove(perform: canSortHabits
+                        ? { store.move(fromOffsets: $0, toOffset: $1) }
+                        : nil)
                 }
             }
             .onAppear { scrollToRequestedHabit(using: proxy) }
@@ -2277,6 +2318,17 @@ struct ContentView: View {
                     undo.present(habitId: UUID(), entries: [], message: "Training erledigt")
                 }
             }
+        }
+        if args.contains("-seed-stats") {
+            // The stats UI regression must reach Stats on a clean simulator;
+            // do not let first-run notification setup hide the rendered cards.
+            UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
+            if store.activeTrackedHabits.isEmpty {
+                var habit = Habit(name: "UI test habit")
+                habit.log[DayKey.today()] = 1
+                store.add(habit)
+            }
+            viewPreferences.update { $0.statsCards = StatsCardPrefs() }
         }
         // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
         // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand

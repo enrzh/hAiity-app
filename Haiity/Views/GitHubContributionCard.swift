@@ -51,7 +51,7 @@ struct GitHubContributionCard: View, Equatable {
             .appSurface()
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            .background {
+            .overlay {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: previewHeight,

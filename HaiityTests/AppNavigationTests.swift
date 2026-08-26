@@ -446,16 +446,16 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("private var createToolbarItem: some ToolbarContent"))
     }
 
-    func testContentViewDoesNotExposeLongPressReordering() throws {
+    func testContentViewExposesExplicitSortingMode() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertFalse(source.contains("@State private var editMode: EditMode"),
-                       "long press must not enter a drag/reorder mode")
-        XCTAssertFalse(source.contains(".environment(\\.editMode"),
-                       "the habit list must not expose SwiftUI reorder handles")
-        XCTAssertFalse(source.contains(".onMove("),
-                       "reordering is removed from the long-press interaction")
-        XCTAssertFalse(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
-        XCTAssertFalse(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
+        XCTAssertTrue(source.contains("@State private var editMode: EditMode"),
+                      "sorting should be explicit, not entered by long press")
+        XCTAssertTrue(source.contains(".environment(\\.editMode"),
+                      "the list needs native reorder handles in sorting mode")
+        XCTAssertTrue(source.contains(".onMove("),
+                      "sorting should use the store's existing move behavior")
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }
 
     func testMainMorePageExposesGitHubConnectionAndLogout() throws {

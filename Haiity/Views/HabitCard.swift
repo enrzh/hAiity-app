@@ -330,7 +330,7 @@ struct HabitCard: View, Equatable {
             // `.contextMenu(preview:)` kennt keinen Vorschau-Tipp. Deshalb
             // die UIKit-Interaktion selbst, angehängt an die Zelle (siehe
             // GraphContextMenu).
-            .background {
+            .overlay {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: Self.contextPreviewHeight,
@@ -816,12 +816,10 @@ struct HabitCard: View, Equatable {
 /// SwiftUI-Gegenstück). `UIContextMenuInteraction` ist exakt die Engine,
 /// die auch Safari für Links benutzt.
 ///
-/// **Wie es hängt.** UIKit erlaubt pro View nur einen verlässlichen
-/// Kontextmenü-Erkenner. Eine Stats-Zeile kann aber mehrere Karten enthalten.
-/// Der Hub hängt deshalb genau eine Interaktion an den echten UIKit-Host und
-/// registriert die Karten einzeln. Beim Halten wird nur die Registrierung unter
-/// dem Finger verwendet; dadurch verschwinden die Geschwister nicht und die
-/// Vorschau bleibt auf die eigene, abgerundete Fläche begrenzt.
+/// **Wie es hängt.** UIKit darf die Interaktion nicht an einer gemeinsamen
+/// Tabellenzelle besitzen: eine Stats-Zeile enthält mehrere Karten, und UIKit
+/// würde beim Anheben der Zelle alle Geschwister mitnehmen. Jeder Bridge-Host
+/// besitzt deshalb genau eine eigene Interaktion.
 struct GraphMenuAction {
     let title: String
     let symbol: String
@@ -856,7 +854,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.detach()
     }
 
-    final class MenuHost: UIView {
+    final class MenuHost: UIView, UIContextMenuInteractionDelegate {
         var cardRadius: CGFloat
         var previewWidth: CGFloat
         var previewHeight: CGFloat
@@ -864,9 +862,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var actions: [GraphMenuAction]
         var commit: () -> Void
         fileprivate let identifier = UUID().uuidString
-        private weak var hub: GraphContextMenuHub?
-        private weak var host: UIView?
-        private var attachScheduled = false
+        private lazy var interaction = UIContextMenuInteraction(delegate: self)
 
         init(cardRadius: CGFloat, previewWidth: CGFloat,
              previewHeight: CGFloat,
@@ -880,65 +876,92 @@ struct GraphContextMenu: UIViewRepresentable {
             self.actions = actions
             self.commit = commit
             super.init(frame: .zero)
-            isUserInteractionEnabled = false
+            isUserInteractionEnabled = true
             isHidden = false
+            addInteraction(interaction)
         }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError() }
 
-        deinit { detach() }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            scheduleAttach()
-        }
-
-        override func didMoveToSuperview() {
-            super.didMoveToSuperview()
-            scheduleAttach()
-        }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            scheduleAttach()
-        }
-
-        private func scheduleAttach() {
-            guard !attachScheduled else { return }
-            attachScheduled = true
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.attachScheduled = false
-                self.attachIfPossible()
-            }
-        }
-
-        private func attachIfPossible() {
-            // Zeilen-Recycling: raus aus dem Fenster -> Registrierung lösen,
-            // wieder rein -> am aktuellen UIKit-Host registrieren.
-            guard window != nil else { detach(); return }
-            if host != nil { return }
-
-            var ancestor = superview
-            var container: UIView?
-            while let view = ancestor {
-                container = view
-                if view is UICollectionViewCell || view is UITableViewCell
-                    || view is UIScrollView { break }
-                ancestor = view.superview
-            }
-            guard let container else { return }
-            let hub = GraphContextMenuHub.for(container)
-            hub.register(self)
-            self.hub = hub
-            host = container
-        }
-
         func detach() {
-            hub?.unregister(self)
-            hub = nil
-            host = nil
+            if interactions.contains(where: { $0 === interaction }) {
+                removeInteraction(interaction)
+            }
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    configurationForMenuAtLocation location: CGPoint)
+            -> UIContextMenuConfiguration? {
+            guard bounds.contains(location) else { return nil }
+            let width = previewWidth
+            let height = max(1, previewHeight)
+            let makePreview = preview
+            let actions = actions
+            let radius = cardRadius
+            return UIContextMenuConfiguration(identifier: identifier as NSString,
+                                               previewProvider: {
+                let root = AnyView(makePreview()
+                    .frame(width: width, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .clipShape(RoundedRectangle(cornerRadius: radius,
+                                                style: .continuous)))
+                let controller = RoundedPreviewHostingController(rootView: root,
+                                                                  cardRadius: radius)
+                controller.view.setNeedsLayout()
+                controller.view.layoutIfNeeded()
+                let measuredHeight = controller.sizeThatFits(
+                    in: CGSize(width: width,
+                               height: UIView.layoutFittingExpandedSize.height)).height
+                let contentHeight = max(height, ceil(measuredHeight))
+                let size = CGSize(width: width, height: contentHeight)
+                controller.view.frame = CGRect(origin: .zero, size: size)
+                controller.view.bounds = CGRect(origin: .zero, size: size)
+                controller.preferredContentSize = size
+                controller.view.setNeedsLayout()
+                controller.view.layoutIfNeeded()
+                return controller
+            }, actionProvider: { _ in
+                UIMenu(children: actions.map { action in
+                    let item = UIAction(title: action.title,
+                                        image: UIImage(systemName: action.symbol)) { _ in
+                        action.handler()
+                    }
+                    if action.destructive { item.attributes = [.destructive] }
+                    return item
+                })
+            })
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+                                    animator: UIContextMenuInteractionCommitAnimating) {
+            let commit = self.commit
+            animator.preferredCommitStyle = .dismiss
+            animator.addCompletion { commit() }
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration)
+            -> UITargetedPreview? {
+            targetedPreview()
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration)
+            -> UITargetedPreview? {
+            targetedPreview()
+        }
+
+        private func targetedPreview() -> UITargetedPreview? {
+            guard window != nil else { return nil }
+            let parameters = UIPreviewParameters()
+            parameters.backgroundColor = .clear
+            let cardPath = UIBezierPath(roundedRect: bounds,
+                                         cornerRadius: cardRadius)
+            parameters.visiblePath = cardPath
+            parameters.shadowPath = cardPath
+            return UITargetedPreview(view: self, parameters: parameters)
         }
 
     }
@@ -975,164 +998,6 @@ private final class RoundedPreviewHostingController: UIHostingController<AnyView
         view.layer.cornerRadius = cardRadius
         view.layer.cornerCurve = .continuous
         view.layer.masksToBounds = true
-    }
-}
-
-/// Coordinates one UIKit context interaction per list/scroll host while
-/// keeping each SwiftUI card's geometry and closures independent.
-private final class GraphContextMenuHub: NSObject, UIContextMenuInteractionDelegate {
-    private weak var container: UIView?
-    private lazy var interaction = UIContextMenuInteraction(delegate: self)
-    private var hosts: [WeakMenuHost] = []
-    private weak var activeMenu: GraphContextMenu.MenuHost?
-
-    private final class WeakMenuHost {
-        weak var value: GraphContextMenu.MenuHost?
-
-        init(_ value: GraphContextMenu.MenuHost) {
-            self.value = value
-        }
-    }
-
-    private static var associationKey: UInt8 = 0
-
-    static func `for`(_ container: UIView) -> GraphContextMenuHub {
-        if let existing = objc_getAssociatedObject(container, &associationKey)
-            as? GraphContextMenuHub {
-            return existing
-        }
-        let hub = GraphContextMenuHub(container: container)
-        objc_setAssociatedObject(container, &associationKey, hub,
-                                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        return hub
-    }
-
-    private init(container: UIView) {
-        self.container = container
-        super.init()
-    }
-
-    func register(_ host: GraphContextMenu.MenuHost) {
-        prune()
-        guard !hosts.contains(where: { $0.value === host }) else { return }
-        hosts.append(WeakMenuHost(host))
-        if let container, !container.interactions.contains(where: { $0 === interaction }) {
-            container.addInteraction(interaction)
-        }
-    }
-
-    func unregister(_ host: GraphContextMenu.MenuHost) {
-        hosts.removeAll { $0.value == nil || $0.value === host }
-        if activeMenu === host { activeMenu = nil }
-        if hosts.isEmpty, let container {
-            container.removeInteraction(interaction)
-        }
-    }
-
-    private func prune() {
-        hosts.removeAll { $0.value == nil }
-        if hosts.isEmpty, let container {
-            container.removeInteraction(interaction)
-        }
-    }
-
-    private func host(at location: CGPoint) -> GraphContextMenu.MenuHost? {
-        prune()
-        guard let container else { return nil }
-        return hosts.compactMap(\.value).last {
-            $0.convert($0.bounds, to: container).contains(location)
-        }
-    }
-
-    private func host(for configuration: UIContextMenuConfiguration)
-        -> GraphContextMenu.MenuHost? {
-        guard let id = configuration.identifier as? NSString else {
-            return activeMenu
-        }
-        return hosts.compactMap(\.value).first { $0.identifier == id as String }
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                configurationForMenuAtLocation location: CGPoint)
-        -> UIContextMenuConfiguration? {
-        guard let host = host(at: location) else { return nil }
-        activeMenu = host
-        let width = host.previewWidth
-        let height = max(1, host.previewHeight)
-        let makePreview = host.preview
-        let actions = host.actions
-        return UIContextMenuConfiguration(identifier: host.identifier as NSString,
-                                           previewProvider: {
-            let root = AnyView(makePreview()
-                .frame(width: width, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-                .clipShape(RoundedRectangle(cornerRadius: host.cardRadius,
-                                            style: .continuous)))
-            let controller = RoundedPreviewHostingController(rootView: root,
-                                                              cardRadius: host.cardRadius)
-            controller.view.setNeedsLayout()
-            controller.view.layoutIfNeeded()
-            let measuredHeight = controller.sizeThatFits(
-                in: CGSize(width: width,
-                           height: UIView.layoutFittingExpandedSize.height)).height
-            let contentHeight = max(height, ceil(measuredHeight))
-            let size = CGSize(width: width, height: contentHeight)
-            controller.view.frame = CGRect(origin: .zero, size: size)
-            controller.view.bounds = CGRect(origin: .zero, size: size)
-            controller.preferredContentSize = size
-            controller.view.setNeedsLayout()
-            controller.view.layoutIfNeeded()
-            return controller
-        }, actionProvider: { _ in
-            UIMenu(children: actions.map { action in
-                let item = UIAction(title: action.title,
-                                    image: UIImage(systemName: action.symbol)) { _ in
-                    action.handler()
-                }
-                if action.destructive { item.attributes = [.destructive] }
-                return item
-            })
-        })
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
-                                animator: UIContextMenuInteractionCommitAnimating) {
-        let commit = host(for: configuration)?.commit ?? {}
-        animator.preferredCommitStyle = .dismiss
-        animator.addCompletion { commit() }
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration)
-        -> UITargetedPreview? {
-        targetedPreview(for: configuration)
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration)
-        -> UITargetedPreview? {
-        targetedPreview(for: configuration)
-    }
-
-    private func targetedPreview(for configuration: UIContextMenuConfiguration)
-        -> UITargetedPreview? {
-        guard let host = host(for: configuration), host.window != nil else {
-            return nil
-        }
-        // MenuHost is an invisible bridge view installed by SwiftUI. Target
-        // the visible UIKit container instead, then cut it to this card's
-        // converted bounds; otherwise UIKit builds the lift shadow from the
-        // bridge and leaves a larger transparent silhouette around the card.
-        guard let container else { return nil }
-        let parameters = UIPreviewParameters()
-        parameters.backgroundColor = .clear
-        let visibleFrame = host.convert(host.bounds, to: container)
-        let cardPath = UIBezierPath(roundedRect: visibleFrame,
-                                     cornerRadius: host.cardRadius)
-        parameters.visiblePath = cardPath
-        parameters.shadowPath = cardPath
-        return UITargetedPreview(view: container, parameters: parameters)
     }
 }
 

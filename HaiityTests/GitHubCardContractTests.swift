@@ -145,13 +145,14 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertFalse(source?.contains("Habit(") ?? true)
     }
 
-    func testHeldGitHubPreviewFitsTheFullYear() throws {
+    func testHeldGitHubPreviewUsesAReadableRecentWindow() throws {
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
-        XCTAssertTrue(card.contains("previewGraphWeeks = 53"))
+        XCTAssertTrue(card.contains("previewGraphWeeks = 16"))
         XCTAssertTrue(card.contains("previewGraphCellSize"))
         XCTAssertTrue(card.contains("weeks: Self.previewGraphWeeks"))
         XCTAssertTrue(card.contains("gap: Self.previewGraphGap"))
+        XCTAssertTrue(card.contains("showsMonthLabels: false"))
     }
 
     private func source(_ relative: String) throws -> String {

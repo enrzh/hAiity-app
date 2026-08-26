@@ -13,14 +13,13 @@ final class HabitCardInteractionSourceTests: XCTestCase {
     /// — dieselbe Engine wie das Halten auf einem Link): SwiftUI-Langdruck
     /// und SwiftUI-contextMenu scheitern hier beide (Gesten feuern in der
     /// List-Zelle-mit-ScrollView-Verschachtelung nicht bzw. es gibt keinen
-    /// Vorschau-Tipp). Die Interaktion hängt an der ZELLE — der eigene
-    /// Wrapper ist nur ein Geschwister des Karteninhalts und sieht keine
-    /// Berührungen (nachgemessen).
+    /// Vorschau-Tipp). Jeder Karten-Wrapper besitzt deshalb seine eigene
+    /// Interaktion und bleibt aus der gemeinsamen Listenzelle heraus.
     func testHeldGraphShowsTheSystemContextMenu() throws {
         let source = try habitCardSource()
         XCTAssertTrue(source.contains("UIContextMenuInteraction"))
         XCTAssertTrue(source.contains("GraphContextMenu"))
-        XCTAssertTrue(source.contains("if view is UICollectionViewCell || view is UITableViewCell"))
+        XCTAssertTrue(source.contains("final class MenuHost: UIView, UIContextMenuInteractionDelegate"))
         // Angehoben wird NUR die Karte (visiblePath), nicht die ganze Zeile.
         XCTAssertTrue(source.contains("visiblePath"))
         XCTAssertTrue(source.contains("habitPreview"))
@@ -92,17 +91,17 @@ final class HabitCardInteractionSourceTests: XCTestCase {
                       "small tiles must not inherit the hero preview height")
     }
 
-    func testContextMenuStaysOnTheTouchReceivingListCell() throws {
+    func testContextMenuDoesNotUseTheSharedListCellAsItsInteractionView() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/HabitCard.swift"))
 
-        XCTAssertTrue(source.contains("if view is UICollectionViewCell || view is UITableViewCell"),
-                      "the interaction must be installed on the UIKit list cell that receives the hold")
-        XCTAssertFalse(source.contains("exactHost"),
-                       "a same-sized representable host can be outside the actual touch path")
-        XCTAssertFalse(source.contains("isBackgroundHost"),
-                       "host selection must not depend on private SwiftUI view type names")
+        XCTAssertTrue(source.contains("isUserInteractionEnabled = true"),
+                      "the interaction must be installed on the card host")
+        XCTAssertFalse(source.contains("UICollectionViewCell"),
+                       "the interaction must not be installed on a shared collection cell")
+        XCTAssertFalse(source.contains("UITableViewCell"),
+                       "the interaction must not be installed on a shared table cell")
     }
 
     func testLongPressMenuDoesNotDuplicatePermanentCheckInActions() throws {

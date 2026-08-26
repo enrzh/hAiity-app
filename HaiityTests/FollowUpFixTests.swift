@@ -11,16 +11,16 @@ final class FollowUpFixTests: XCTestCase {
     func testContextMenuOwnsAnIndependentCardHost() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
 
-        XCTAssertTrue(source.contains("GraphContextMenuHub"),
-                      "a UIKit host may have only one context interaction")
-        XCTAssertTrue(source.contains("register(self)"),
-                      "each card must register its own frame and actions")
-        XCTAssertTrue(source.contains("activeMenu"),
-                      "the hub must resolve the held card before building a preview")
-        XCTAssertTrue(source.contains("UITargetedPreview(view: host"),
-                      "the transition must target the lifted card, not its list-cell siblings")
-        XCTAssertTrue(source.contains("roundedRect: host.bounds"),
-                      "the lifted card must retain its own rounded bounds")
+        XCTAssertTrue(source.contains("final class MenuHost: UIView, UIContextMenuInteractionDelegate"),
+                      "the card host must own the context-menu delegate")
+        XCTAssertTrue(source.contains("private lazy var interaction = UIContextMenuInteraction(delegate: self)"),
+                      "each card must create its own context interaction")
+        XCTAssertTrue(source.contains("addInteraction(interaction)"),
+                      "each card host must receive its own interaction")
+        XCTAssertTrue(source.contains("UITargetedPreview(view: self"),
+                      "the lifted card must be the preview source")
+        XCTAssertFalse(source.contains("GraphContextMenuHub"),
+                       "the interaction must not be attached to a shared list cell")
         XCTAssertTrue(source.contains("isHidden = false"),
                       "the card host must remain in the overlay layout")
     }
@@ -58,8 +58,8 @@ final class FollowUpFixTests: XCTestCase {
 
         XCTAssertTrue(github.contains("previewWidth - 2 * Theme.Metrics.gutter"),
                       "GitHub tiles must use the preview's real inner width")
-        XCTAssertTrue(github.contains("return max(2"),
-                      "the minimum tile size must not force the 53 columns to overflow")
+        XCTAssertTrue(github.contains("return max(8"),
+                      "the minimum tile size must remain readable in the compact preview")
     }
 
     func testNonInteractiveGraphPreviewsDoNotEmbedATrailingScrollView() throws {
@@ -75,14 +75,38 @@ final class FollowUpFixTests: XCTestCase {
     func testHabitToolbarStartsFilterDirectlyAndShowsResetToast() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("ToolbarItem(placement: .topBarLeading) {\n                        habitFilterMenu"),
-                      "the leading toolbar item should be the filter menu itself")
+        XCTAssertTrue(content.contains("ToolbarItemGroup(placement: .topBarLeading)"),
+                      "the leading toolbar group should own filtering and sorting")
+        XCTAssertTrue(content.contains("habitFilterMenu"),
+                      "the leading toolbar group should keep the direct filter menu")
         XCTAssertFalse(content.contains("accessibilityIdentifier(\"habit-management\")"),
                        "the old ellipsis management button must be gone")
         XCTAssertTrue(content.contains("filter-toast"),
                       "active filters need a visible toast hint")
         XCTAssertTrue(content.contains("clear-filters"),
                       "the filter toast needs a direct reset action")
+    }
+
+    func testHabitToolbarRestoresSortingAlongsideFiltering() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("@State private var editMode: EditMode"),
+                      "sorting needs the native list edit state")
+        XCTAssertTrue(content.contains("accessibilityIdentifier(\"reorder-habits\")"),
+                      "sorting needs a stable toolbar action")
+        XCTAssertTrue(content.contains(".environment(\\.editMode, $editMode)"),
+                      "the list must expose native reorder handles only in sorting mode")
+        XCTAssertTrue(content.contains(".onMove("),
+                      "sorting needs the existing store move behavior")
+        XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"),
+                      "sorting needs a way to leave edit mode")
+    }
+
+    func testTodayFilterUsesAnIconLabel() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("Label(String(localized: \"Heute\"), systemImage: \"calendar\")"),
+                      "the Heute filter should have a calendar icon")
     }
 
     func testSetupExposesNativeCalendarAndReminderPermissionActions() throws {
@@ -129,6 +153,34 @@ final class FollowUpFixTests: XCTestCase {
                       "the system can relayout a context preview after creation")
         XCTAssertTrue(menu.contains("parameters.backgroundColor = .clear"),
                       "the system preview background must not square off the card")
+        XCTAssertTrue(menu.contains("UITargetedPreview(view: self"),
+                      "the card-scoped bridge view must own the lift")
+        XCTAssertTrue(menu.contains("roundedRect: bounds"),
+                      "the rounded path must use the card target's local coordinates")
+        XCTAssertTrue(menu.contains("parameters.shadowPath = cardPath"),
+                      "UIKit should use the converted card path for the lift shadow")
+    }
+
+    func testContextPreviewConstrainsItsShadowToTheCardPath() throws {
+        let menu = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(menu.contains("let cardPath = UIBezierPath"),
+                      "the lift needs one explicit rounded card path")
+        XCTAssertTrue(menu.contains("parameters.visiblePath = cardPath"),
+                      "the visible lift must use the card path")
+        XCTAssertTrue(menu.contains("parameters.shadowPath = cardPath"),
+                      "the lift shadow must not be derived from the larger list host")
+    }
+
+    func testGitHubPreviewUsesAReadableRecentWindow() throws {
+        let github = try source("Haiity/Views/GitHubContributionCard.swift")
+
+        XCTAssertTrue(github.contains("previewGraphWeeks = 16"),
+                      "the enlarged GitHub graph should show a readable recent window")
+        XCTAssertTrue(github.contains("return max(8"),
+                      "GitHub preview tiles should stay close to the normal graph size")
+        XCTAssertTrue(github.contains("showsMonthLabels: false"),
+                      "the enlarged GitHub graph should spend its height on tiles")
     }
 
     func testFilterResetUsesTheSameActionToastLayoutAsUndo() throws {
