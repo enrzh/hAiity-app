@@ -387,6 +387,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: proStatus.unlocked) { old, new in
+                applyCloudPreferences()
                 guard old && !new else { return }
                 // StoreKit can revoke an entitlement while the app is alive.
                 // Surface the same global gate used by the feature limits so

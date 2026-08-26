@@ -349,6 +349,17 @@ final class ProGateTests: XCTestCase {
                       "an expiry must show the global Pro gate, not wait for a feature tap")
     }
 
+    func testRootReappliesSharedCloudPreferencesWhenEntitlementChanges() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let start = try XCTUnwrap(content.range(of: ".onChange(of: proStatus.unlocked)"))
+        let end = try XCTUnwrap(content.range(of: ".onChange(of: showAdd)",
+                                              range: start.upperBound..<content.endIndex))
+        let block = String(content[start.lowerBound..<end.lowerBound])
+
+        XCTAssertTrue(block.contains("applyCloudPreferences()"),
+                      "an entitlement flip must immediately re-derive paid sync toggles from the shared Pro gate")
+    }
+
     func testAppleAccountSwitchRechecksProWithDowngradePermission() throws {
         let more = try source("Haiity/Views/MoreView.swift")
 
