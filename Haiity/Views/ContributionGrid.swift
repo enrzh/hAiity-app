@@ -88,36 +88,36 @@ struct ContributionGrid: View, Equatable {
             ContributionGrid.labelWidth(GridCalendar.label(for: mark), scale: labelScale / 100)
         }
 
-        ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 3) {
-                    if showsMonthLabels {
-                        monthRow(marks, width: contentWidth)
-                    }
-                    // EIN Canvas statt 371 Einzel-Ansichten. Der Unterschied
-                    // ist gemessen, nicht geraten: mit einer Shape-Ansicht je
-                    // Zelle trug jede Karte ~371 lebende Views — der Aufbau
-                    // einer Liste, eines Tabs oder eines Suchtreffers
-                    // multiplizierte das mit der Kartenzahl (FrameProbe:
-                    // ~0,5 s Erst-Aufbau des Such-Tabs). Gezeichnet wird aus
-                    // EXAKT derselben Geometrie, aus der auch der
-                    // Tipp-Treffer gerechnet wird.
-                    cellCanvas(snapshot: snapshot, cell: m.cell, gap: m.gap,
-                               width: contentWidth)
-                        .id(Self.gridID)
+        Group {
+            if interactive {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    graphContent(snapshot: snapshot,
+                                 marks: marks,
+                                 cell: m.cell,
+                                 gap: m.gap,
+                                 width: contentWidth)
                 }
-                .padding(.vertical, 2)
+                // Startet AN der rechten Kante — heute — statt nach dem
+                // Aufbau dorthin zu scrollen.
+                .defaultScrollAnchor(.trailing)
+                // Recent habits use a viewport-sized history window. Disable
+                // the gesture once layout confirms there is no extra content.
+                .scrollDisabled(available > 0
+                                && !GridCalendar.needsHorizontalScroll(
+                                    contentWidth: contentWidth,
+                                    viewportWidth: available))
+            } else {
+                // Context-menu previews must not contain a disabled
+                // ScrollView. UIKit can preserve its trailing content offset
+                // while relaying out the lifted preview, clipping the left
+                // half of an otherwise correctly sized graph.
+                graphContent(snapshot: snapshot,
+                             marks: marks,
+                             cell: m.cell,
+                             gap: m.gap,
+                             width: contentWidth)
+            }
         }
-        // Startet AN der rechten Kante — heute — statt nach dem Aufbau
-        // dorthin zu scrollen: das alte `scrollTo` je Karte zwang beim
-        // Listen-/Tab-Aufbau acht breite ScrollViews zu doppeltem Layout
-        // (mitgemessen im Such-Tab-Aufbau).
-        .defaultScrollAnchor(.trailing)
-        // Recent habits use a viewport-sized history window. Disable the
-        // horizontal gesture once layout confirms there is no extra content;
-        // otherwise iOS still gives the graph an empty rubber-band bounce.
-        .scrollDisabled(!interactive || (available > 0
-                        && !GridCalendar.needsHorizontalScroll(contentWidth: contentWidth,
-                                                               viewportWidth: available)))
         .background(widthReader)
         // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
@@ -135,6 +135,24 @@ struct ContributionGrid: View, Equatable {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(summary(filled: snapshot.filledCount))
         .accessibilityIdentifier("contribution-grid")
+    }
+
+    @ViewBuilder
+    private func graphContent(snapshot: GridCalendar.Snapshot,
+                              marks: [GridCalendar.PlacedMark],
+                              cell: CGFloat,
+                              gap: CGFloat,
+                              width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if showsMonthLabels {
+                monthRow(marks, width: width)
+            }
+            // EIN Canvas statt 371 Einzel-Ansichten. Gezeichnet wird aus
+            // EXAKT derselben Geometrie wie der Tipp-Treffer.
+            cellCanvas(snapshot: snapshot, cell: cell, gap: gap, width: width)
+                .id(Self.gridID)
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: – Bausteine

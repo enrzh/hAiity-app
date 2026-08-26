@@ -157,14 +157,21 @@ final class AppNavigationTests: XCTestCase {
                       "the account identity and sign-out action should share a row")
     }
 
-    func testSearchListOwnsTheAppearanceBackground() throws {
+    func testSearchTabUsesOneSharedAppearanceBackground() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let start = try XCTUnwrap(content.range(of: "private var searchList"))
         let end = try XCTUnwrap(content.range(of: "/// Der Inhalt des Habits-Tabs",
                                               range: start.upperBound..<content.endIndex))
         let searchList = content[start.lowerBound..<end.lowerBound]
+        let rootStart = try XCTUnwrap(content.range(of: "private func nativeTabRoot"))
+        let rootEnd = try XCTUnwrap(content.range(of: "/// Der Inhalt des Such-Tabs",
+                                                  range: rootStart.upperBound..<content.endIndex))
+        let root = content[rootStart.lowerBound..<rootEnd.lowerBound]
 
-        XCTAssertTrue(searchList.contains("AppearanceBackground(preferences: store.appearancePreferences)"))
+        XCTAssertTrue(root.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
+                      "the native tab root should own the full-screen background")
+        XCTAssertFalse(searchList.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
+                       "the search list must not mount a second async background layer")
     }
 
     func testMoreRouteWinsOverQueuedSearchWork() {

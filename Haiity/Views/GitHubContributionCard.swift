@@ -76,9 +76,8 @@ struct GitHubContributionCard: View, Equatable {
         // The popup cannot be horizontally scrolled reliably. Fit the full
         // year into the card instead of showing a clipped middle slice.
         let gap = Self.previewGraphGap
-        let graphWidth = max(1, previewWidth
-            - 2 * (Theme.Metrics.gutter + Theme.Metrics.cardPadding))
-        return max(6, (graphWidth + gap) / CGFloat(Self.previewGraphWeeks) - gap)
+        let graphWidth = max(1, previewWidth - 2 * Theme.Metrics.gutter)
+        return max(2, (graphWidth + gap) / CGFloat(Self.previewGraphWeeks) - gap)
     }
 
     private static let previewGraphWeeks = 53

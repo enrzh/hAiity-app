@@ -646,7 +646,6 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
@@ -730,25 +729,15 @@ struct ContentView: View {
     @ViewBuilder
     private var filterToast: some View {
         if !habitFilter.isEmpty {
-            HStack(spacing: Theme.Metrics.gap) {
+            actionToast(label: {
                 Label(String(localized: "Filter aktiv"),
                       systemImage: "line.3.horizontal.decrease.circle.fill")
-                    .font(.footnote.weight(.semibold))
+                    .font(.body)
                     .lineLimit(1)
-                Spacer(minLength: Theme.Metrics.gap)
-                Button {
+            }, actionTitle: String(localized: "Zurücksetzen"),
+                         actionIdentifier: "clear-filters") {
                     withAnimation { habitFilter = HabitListFilter() }
-                } label: {
-                    Text(String(localized: "Zurücksetzen"))
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(effectivePaletteStyle))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("clear-filters")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .modifier(ToastSurface())
             .transition(reduceMotion ? .opacity
                         : .move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
@@ -2005,25 +1994,14 @@ struct ContentView: View {
     @ViewBuilder
     private var undoToast: some View {
         if let toast = undo.current {
-            HStack(spacing: Theme.Metrics.gap) {
+            actionToast(label: {
                 Text(toast.message)
                     .font(.body)
                     .lineLimit(1)
-                Divider().frame(height: 16)
-                Button {
+            }, actionTitle: String(localized: "Rückgängig"),
+                         actionIdentifier: "undo-action") {
                     performUndo()
-                } label: {
-                    Text(String(localized: "Rückgängig"))
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(effectivePaletteStyle))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("undo-action")
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .modifier(ToastSurface())
             .transition(reduceMotion
                         ? AnyTransition.opacity
                         : AnyTransition.move(edge: .bottom).combined(with: .opacity))
@@ -2040,6 +2018,29 @@ struct ContentView: View {
                 withToastAnimation { undo.expire(toast.id) }
             }
         }
+    }
+
+    private func actionToast<Label: View>(
+        @ViewBuilder label: () -> Label,
+        actionTitle: String,
+        actionIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: Theme.Metrics.gap) {
+            label()
+            Divider().frame(height: 16)
+            Button(action: action) {
+                Text(actionTitle)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(effectivePaletteStyle))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(actionIdentifier)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .modifier(ToastSurface())
     }
 
     /// Kurzlebige Sync-Rückmeldung — eine kleine Glas-Pille über dem Chrom.

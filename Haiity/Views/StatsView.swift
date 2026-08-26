@@ -427,19 +427,18 @@ struct StatsView: View {
     private func statsPreview<Content: View>(_ content: Content,
                                              height: CGFloat,
                                              wrapsSurface: Bool = true) -> AnyView {
+        let preview: AnyView
         if wrapsSurface {
-            return AnyView(
-                content
+            preview = AnyView(content
                     .padding(Theme.Metrics.cardPadding)
-                    .appSurface()
-                    .frame(width: statsPreviewWidth,
-                           height: height,
-                           alignment: .topLeading))
+                    .appSurface())
+        } else {
+            preview = AnyView(content)
         }
-        return AnyView(content
-            .frame(width: statsPreviewWidth,
-                   height: height,
-                   alignment: .topLeading))
+
+        return AnyView(preview
+            .frame(width: statsPreviewWidth, alignment: .topLeading)
+            .frame(minHeight: height, alignment: .topLeading))
     }
 
     @ViewBuilder

@@ -46,49 +46,75 @@ struct GitHubContributionGraph: View {
         let contentWidth = CGFloat(max(layout.columns.count, 1)) * pitch - m.gap
         let height = CGFloat(GridCalendar.rows) * pitch - m.gap
 
-        ScrollView(.horizontal, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 3) {
-                if showsMonthLabels {
-                    monthRow(layout.marks, width: contentWidth, pitch: pitch)
+        Group {
+            if interactive {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    graphContent(layout: layout,
+                                 metrics: m,
+                                 pitch: pitch,
+                                 contentWidth: contentWidth,
+                                 height: height)
                 }
-                Canvas { context, _ in
-                    var shading: [Int: GraphicsContext.Shading] = [:]
-                    let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
-                                                            width: m.cell, height: m.cell),
-                                        cornerRadius: GitHubGraphMetrics.cornerRadius)
-                    let dark = scheme == .dark
-                    for (column, week) in layout.columns.enumerated() {
-                        for row in 0..<GridCalendar.rows {
-                            let level = week[row]?.level ?? 0
-                            if shading[level] == nil {
-                                shading[level] = .color(
-                                    Theme.level(level, dark: dark, palette: renderedPalette))
-                            }
-                            var cellContext = context
-                            cellContext.translateBy(x: CGFloat(column) * pitch,
-                                                    y: CGFloat(row) * pitch)
-                            cellContext.fill(cellPath, with: shading[level]!)
-                            if appearancePreferences.material == .adaptive {
-                                cellContext.stroke(
-                                    cellPath,
-                                    with: .color(Theme.adaptiveTileOutline(
-                                        preferences: appearancePreferences,
-                                        dark: dark)),
-                                    lineWidth: 0.5)
-                            }
+                .defaultScrollAnchor(.trailing)
+            } else {
+                // A disabled ScrollView can retain a trailing offset inside a
+                // UIKit context preview. Render the fixed-width canvas
+                // directly so every contribution column remains visible.
+                graphContent(layout: layout,
+                             metrics: m,
+                             pitch: pitch,
+                             contentWidth: contentWidth,
+                             height: height)
+            }
+        }
+        .background(widthReader)
+        .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
+    }
+
+    @ViewBuilder
+    private func graphContent(layout: Layout,
+                              metrics: (cell: CGFloat, gap: CGFloat),
+                              pitch: CGFloat,
+                              contentWidth: CGFloat,
+                              height: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if showsMonthLabels {
+                monthRow(layout.marks, width: contentWidth, pitch: pitch)
+            }
+            Canvas { context, _ in
+                var shading: [Int: GraphicsContext.Shading] = [:]
+                let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
+                                                        width: metrics.cell,
+                                                        height: metrics.cell),
+                                    cornerRadius: GitHubGraphMetrics.cornerRadius)
+                let dark = scheme == .dark
+                for (column, week) in layout.columns.enumerated() {
+                    for row in 0..<GridCalendar.rows {
+                        let level = week[row]?.level ?? 0
+                        if shading[level] == nil {
+                            shading[level] = .color(
+                                Theme.level(level, dark: dark, palette: renderedPalette))
+                        }
+                        var cellContext = context
+                        cellContext.translateBy(x: CGFloat(column) * pitch,
+                                                y: CGFloat(row) * pitch)
+                        cellContext.fill(cellPath, with: shading[level]!)
+                        if appearancePreferences.material == .adaptive {
+                            cellContext.stroke(
+                                cellPath,
+                                with: .color(Theme.adaptiveTileOutline(
+                                    preferences: appearancePreferences,
+                                    dark: dark)),
+                                lineWidth: 0.5)
                         }
                     }
                 }
-                .frame(width: max(contentWidth, 0), height: height)
-                .environment(\.layoutDirection, .leftToRight)
             }
-            .padding(.vertical, 2)
+            .frame(width: max(contentWidth, 0), height: height)
+            .environment(\.layoutDirection, .leftToRight)
         }
+        .padding(.vertical, 2)
         .environment(\.layoutDirection, .leftToRight)
-        .defaultScrollAnchor(.trailing)
-        .scrollDisabled(!interactive)
-        .background(widthReader)
-        .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
     }
 
     private func monthRow(_ marks: [MonthMark], width: CGFloat, pitch: CGFloat) -> some View {

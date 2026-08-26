@@ -406,14 +406,13 @@ struct HabitCard: View, Equatable {
                                      maximumWeeks: 53,
                                      calendar: calendar)
     }
-    private var previewWeeks: Int {
-        let desired = Self.previewMetrics(windowWidth: Self.windowWidth()).weeks
-        return min(desired,
-                   GridCalendar.weeksForDisplay(habit: habit,
-                                                today: today,
-                                                minimumWeeks: 8,
-                                                maximumWeeks: 53,
-                                                calendar: calendar))
+    private static let previewGraphGap: CGFloat = 2
+
+    private var previewGraphCellSize: CGFloat {
+        let weeks = CGFloat(max(gridWeeks, 1))
+        let contentWidth = max(1, previewWidth - 2 * Theme.Metrics.gutter)
+        let gap = Self.previewGraphGap
+        return max(2, (contentWidth + gap) / weeks - gap)
     }
 
     private var habitPreview: some View {
@@ -432,9 +431,9 @@ struct HabitCard: View, Equatable {
                 }
             }
             ContributionGrid(habit: habit,
-                             weeks: previewWeeks,
-                             cellSize: Self.previewCell,
-                             gap: Self.previewGap,
+                             weeks: gridWeeks,
+                             cellSize: previewGraphCellSize,
+                             gap: Self.previewGraphGap,
                              interactive: false,
                              showsMonthLabels: false,
                              calendar: calendar)
@@ -945,6 +944,40 @@ struct GraphContextMenu: UIViewRepresentable {
     }
 }
 
+/// UIKit may lay out a context-menu preview again after the provider returns.
+/// Keeping the mask in the hosting controller makes the rounded card survive
+/// that second layout pass instead of reverting to a rectangular snapshot.
+private final class RoundedPreviewHostingController: UIHostingController<AnyView> {
+    private let cardRadius: CGFloat
+
+    init(rootView: AnyView, cardRadius: CGFloat) {
+        self.cardRadius = cardRadius
+        super.init(rootView: rootView)
+        applyRoundedSurface()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        applyRoundedSurface()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        applyRoundedSurface()
+    }
+
+    private func applyRoundedSurface() {
+        view.backgroundColor = .clear
+        view.clipsToBounds = true
+        view.layer.cornerRadius = cardRadius
+        view.layer.cornerCurve = .continuous
+        view.layer.masksToBounds = true
+    }
+}
+
 /// Coordinates one UIKit context interaction per list/scroll host while
 /// keeping each SwiftUI card's geometry and closures independent.
 private final class GraphContextMenuHub: NSObject, UIContextMenuInteractionDelegate {
@@ -1030,12 +1063,20 @@ private final class GraphContextMenuHub: NSObject, UIContextMenuInteractionDeleg
         let actions = host.actions
         return UIContextMenuConfiguration(identifier: host.identifier as NSString,
                                            previewProvider: {
-            let size = CGSize(width: width, height: height)
             let root = AnyView(makePreview()
-                .frame(width: width, height: height, alignment: .topLeading))
-            let controller = UIHostingController(rootView: root)
-            controller.view.backgroundColor = .clear
-            controller.view.clipsToBounds = false
+                .frame(width: width, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+                .clipShape(RoundedRectangle(cornerRadius: host.cardRadius,
+                                            style: .continuous)))
+            let controller = RoundedPreviewHostingController(rootView: root,
+                                                              cardRadius: host.cardRadius)
+            controller.view.setNeedsLayout()
+            controller.view.layoutIfNeeded()
+            let measuredHeight = controller.sizeThatFits(
+                in: CGSize(width: width,
+                           height: UIView.layoutFittingExpandedSize.height)).height
+            let contentHeight = max(height, ceil(measuredHeight))
+            let size = CGSize(width: width, height: contentHeight)
             controller.view.frame = CGRect(origin: .zero, size: size)
             controller.view.bounds = CGRect(origin: .zero, size: size)
             controller.preferredContentSize = size
@@ -1080,6 +1121,7 @@ private final class GraphContextMenuHub: NSObject, UIContextMenuInteractionDeleg
             return nil
         }
         let parameters = UIPreviewParameters()
+        parameters.backgroundColor = .clear
         parameters.visiblePath = UIBezierPath(
             roundedRect: host.bounds,
             cornerRadius: host.cardRadius)
