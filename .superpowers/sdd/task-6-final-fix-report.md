@@ -1,7 +1,7 @@
 # Task 6 Final Fix Report
 
 - Status: implemented
-- Commit SHA: `39fc16514d247e645d015d124eebf356a5648302`
+- Commit SHA: `e9f73ae6f5f338d416de316dbec5e31ef9825399`
 - Files:
   - `Haiity/Services/Reminders.swift`
   - `HaiityTests/NotificationActionTests.swift`
