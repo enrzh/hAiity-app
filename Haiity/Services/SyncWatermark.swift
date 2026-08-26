@@ -20,6 +20,11 @@ enum SyncWatermark {
         }
     }
 
+    struct Ownership: Equatable, Sendable {
+        let kind: Kind
+        let id: UUID
+    }
+
     static let readablePrefix = "hAiity"
     private static let boundary = "\u{2063}"
     private static let tagBase: UInt32 = 0xE0000
@@ -39,13 +44,45 @@ enum SyncWatermark {
     }
 
     static func containsMarker(_ note: String) -> Bool {
-        note.contains(boundary)
-            && note.unicodeScalars.contains { $0.value >= tagBase && $0.value <= 0xE007F }
+        ownership(in: note) != nil
+    }
+
+    /// Recovers the identity that survives an app reinstall. Native IDs are
+    /// device-local; this payload is deliberately independent of them.
+    static func ownership(in note: String) -> Ownership? {
+        guard note.contains(readablePrefix) else { return nil }
+
+        for segment in note.components(separatedBy: boundary) {
+            guard !segment.isEmpty,
+                  segment.unicodeScalars.allSatisfy({ isEncodedScalar($0) }),
+                  let decoded = decode(segment) else {
+                continue
+            }
+            let parts = decoded.split(separator: "|", maxSplits: 1)
+            guard parts.count == 2,
+                  let kind = Kind(rawValue: String(parts[0])),
+                  let id = UUID(uuidString: String(parts[1])) else {
+                continue
+            }
+            return Ownership(kind: kind, id: id)
+        }
+        return nil
     }
 
     private static func encode(_ value: String) -> String {
         value.unicodeScalars.compactMap { scalar in
             UnicodeScalar(tagBase + scalar.value).map(String.init)
         }.joined()
+    }
+
+    private static func decode(_ value: String) -> String? {
+        String(String.UnicodeScalarView(value.unicodeScalars.compactMap { scalar in
+            guard isEncodedScalar(scalar) else { return nil }
+            return UnicodeScalar(scalar.value - tagBase)
+        }))
+    }
+
+    private static func isEncodedScalar(_ scalar: UnicodeScalar) -> Bool {
+        scalar.value >= tagBase && scalar.value <= 0xE007F
     }
 }

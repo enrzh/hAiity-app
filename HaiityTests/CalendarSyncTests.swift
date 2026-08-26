@@ -109,6 +109,33 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertEqual(SyncWatermark.copyText(for: .nativeReminder), "hAiity")
     }
 
+    func testWatermarkDecodesOwnedItemIdentity() {
+        let id = UUID()
+        let note = SyncWatermark.note(for: id, kind: .nativeReminder)
+
+        XCTAssertEqual(SyncWatermark.ownership(in: note),
+                       SyncWatermark.Ownership(kind: .nativeReminder, id: id))
+        XCTAssertEqual(SyncWatermark.ownership(in: "User note\n\(note)"),
+                       SyncWatermark.Ownership(kind: .nativeReminder, id: id))
+    }
+
+    func testWatermarkRejectsUnrelatedOrMalformedNotes() {
+        XCTAssertNil(SyncWatermark.ownership(in: "hAiity"))
+        XCTAssertNil(SyncWatermark.ownership(in: "hAiity\u{2063}not-a-tag\u{2063}"))
+        XCTAssertNil(SyncWatermark.ownership(in: "Other app\u{2063}marker\u{2063}"))
+    }
+
+    func testReinstallDetectionDoesNotTreatFirstInstallAsReinstall() {
+        XCTAssertFalse(NativeSyncInstallation.needsCleanup(localID: nil,
+                                                            persistentID: nil))
+        XCTAssertFalse(NativeSyncInstallation.needsCleanup(localID: "same",
+                                                            persistentID: "same"))
+        XCTAssertTrue(NativeSyncInstallation.needsCleanup(localID: nil,
+                                                           persistentID: "previous"))
+        XCTAssertTrue(NativeSyncInstallation.needsCleanup(localID: "old",
+                                                           persistentID: "current"))
+    }
+
     func testNativeServicesUseTheSharedWatermark() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

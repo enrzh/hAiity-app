@@ -2552,12 +2552,51 @@ struct ContentView: View {
 
     private func boot() async {
         HaiityShortcuts.updateAppShortcutParameters()
+        let needsNativeSyncRecovery = NativeSyncInstallation.prepare()
         // Kauf-Zustand: der Lauscher zuerst (er muss stehen, BEVOR StoreKit
         // eine ausstehende Transaktion meldet — sonst geht sie verloren).
         // Der Bestandsabgleich hängt am App-Lifecycle, damit auch ein
         // abgelaufener Anspruch beim Vordergrundwechsel wieder gesperrt wird.
         Pro.startTransactionListener()
         Pro.startEntitlementMonitor()
+        viewPreferences.onChange = {
+            store.setViewPreferences(viewPreferences.preferences)
+            NotificationPresenter.configureQuickActions(
+                enabled: viewPreferences.preferences.notificationActionsEnabled,
+                choices: viewPreferences.preferences.notificationActions.slots)
+            schedulePush()
+            Task { await rescheduleReminders() }
+        }
+        applyCloudPreferences()
+        await syncNow(announce: false)
+        applyCloudPreferences()
+        await rescheduleReminders()
+        await reconcileMotivationActivity()
+        var nativeSyncRecoveryReady = true
+        if needsNativeSyncRecovery {
+            let calendarCleaned = CalendarSync.removeAllOwnedItems()
+            let remindersCleaned = await ReminderSync.removeAllOwnedItems()
+            nativeSyncRecoveryReady = calendarCleaned && remindersCleaned
+            if nativeSyncRecoveryReady {
+                NativeSyncInstallation.completeRecovery()
+            }
+        }
+        // Do not recreate entries after a partial cleanup. The pending flag
+        // keeps the retry alive for the next launch, where the old markers can
+        // be removed before the replacement pass runs.
+        if nativeSyncRecoveryReady {
+            CalendarSync.reconcile(habits: store.habits,
+                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            ReminderSync.pullCompletions(into: store,
+                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            ReminderSync.reconcile(habits: store.habits,
+                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        }
+        await reconcileAppIcon()
+
+        // Native callbacks are installed only after the initial iCloud merge,
+        // reinstall cleanup, and replacement pass. Otherwise the merge could
+        // recreate entries before their watermark-based cleanup finished.
         ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()
@@ -2581,26 +2620,6 @@ struct ContentView: View {
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
-        viewPreferences.onChange = {
-            store.setViewPreferences(viewPreferences.preferences)
-            NotificationPresenter.configureQuickActions(
-                enabled: viewPreferences.preferences.notificationActionsEnabled,
-                choices: viewPreferences.preferences.notificationActions.slots)
-            schedulePush()
-            Task { await rescheduleReminders() }
-        }
-        applyCloudPreferences()
-        await syncNow(announce: false)
-        applyCloudPreferences()
-        await rescheduleReminders()
-        await reconcileMotivationActivity()
-        CalendarSync.reconcile(habits: store.habits,
-                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-        ReminderSync.pullCompletions(into: store,
-                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-        ReminderSync.reconcile(habits: store.habits,
-                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-        await reconcileAppIcon()
         if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
             showReminderSetup = true
         }

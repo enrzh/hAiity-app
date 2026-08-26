@@ -342,6 +342,53 @@ enum CalendarSync {
         defaults.set(prints, forKey: fingerprintKey)
     }
 
+    /// Removes every Calendar item carrying hAiity's ownership marker. This
+    /// is used only during reinstall recovery because native event IDs do not
+    /// survive a fresh app-group container.
+    static func removeAllOwnedItems() -> Bool {
+        guard hasAccess else { return false }
+
+        let calendars = store.calendars(for: .event)
+        let start = Calendar.current.date(byAdding: .year, value: -100, to: .now) ?? .distantPast
+        let end = Calendar.current.date(byAdding: .year, value: 100, to: .now) ?? .distantFuture
+        let predicate = store.predicateForEvents(withStart: start,
+                                                  end: end,
+                                                  calendars: calendars)
+        // EventKit can return recurring occurrences in an unspecified order.
+        // Removing the earliest occurrence with `.futureEvents` removes the
+        // whole series, including all entries the app may have created before
+        // the reinstall.
+        let events = store.events(matching: predicate).sorted {
+            ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast)
+        }
+        var removedIDs = Set<String>()
+        var succeeded = true
+        for event in events {
+            guard let notes = event.notes,
+                  let ownership = SyncWatermark.ownership(in: notes),
+                  ownership.kind == .habitCalendar || ownership.kind == .reminderCalendar else {
+                continue
+            }
+            let identity = event.calendarItemIdentifier
+            guard !removedIDs.contains(identity) else { continue }
+            do {
+                try store.remove(event, span: .futureEvents, commit: false)
+                removedIDs.insert(identity)
+            } catch {
+                succeeded = false
+            }
+        }
+        if !removedIDs.isEmpty {
+            do { try store.commit() }
+            catch { succeeded = false }
+        }
+        guard succeeded else { return false }
+        defaults.removeObject(forKey: mapKey)
+        defaults.removeObject(forKey: fingerprintKey)
+        defaults.removeObject(forKey: calendarKey)
+        return true
+    }
+
     /// Ausschalten: alle eigenen Termine entfernen, Kennungen vergessen.
     /// Der (leere) Kalender bleibt stehen — ihn löschen hieße, bei jedem
     /// Umschalten das Konto umzupflügen.

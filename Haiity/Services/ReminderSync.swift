@@ -231,6 +231,46 @@ enum ReminderSync {
         _ = validate
     }
 
+    /// Removes every hAiity-owned reminder, including entries whose native ID
+    /// was lost during reinstall. The async boundary matches EventKit's
+    /// reminder fetch API and guarantees cleanup finishes before recreation.
+    static func removeAllOwnedItems() async -> Bool {
+        guard hasAccess else { return false }
+
+        let predicate = store.predicateForReminders(in: nil)
+        let fetched: [EKReminder]? = await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders)
+            }
+        }
+        guard let reminders = fetched else { return false }
+        var removedIDs = Set<String>()
+        var succeeded = true
+        for reminder in reminders {
+            guard let notes = reminder.notes,
+                  let ownership = SyncWatermark.ownership(in: notes),
+                  ownership.kind == .nativeReminder else {
+                continue
+            }
+            let identity = reminder.calendarItemIdentifier
+            guard !removedIDs.contains(identity) else { continue }
+            do {
+                try store.remove(reminder, commit: false)
+                removedIDs.insert(identity)
+            } catch {
+                succeeded = false
+            }
+        }
+        if !removedIDs.isEmpty {
+            do { try store.commit() }
+            catch { succeeded = false }
+        }
+        guard succeeded else { return false }
+        ReminderSyncPreferences.clearLinks(in: defaults)
+        defaults.removeObject(forKey: listKey)
+        return true
+    }
+
     static func pullCompletions(into habitStore: HabitStore,
                                 defaultTimeZoneIdentifier: String? = nil,
                                 now: Date = .now,
