@@ -1120,12 +1120,19 @@ private final class GraphContextMenuHub: NSObject, UIContextMenuInteractionDeleg
         guard let host = host(for: configuration), host.window != nil else {
             return nil
         }
+        // MenuHost is an invisible bridge view installed by SwiftUI. Target
+        // the visible UIKit container instead, then cut it to this card's
+        // converted bounds; otherwise UIKit builds the lift shadow from the
+        // bridge and leaves a larger transparent silhouette around the card.
+        guard let container else { return nil }
         let parameters = UIPreviewParameters()
         parameters.backgroundColor = .clear
-        parameters.visiblePath = UIBezierPath(
-            roundedRect: host.bounds,
-            cornerRadius: host.cardRadius)
-        return UITargetedPreview(view: host, parameters: parameters)
+        let visibleFrame = host.convert(host.bounds, to: container)
+        let cardPath = UIBezierPath(roundedRect: visibleFrame,
+                                     cornerRadius: host.cardRadius)
+        parameters.visiblePath = cardPath
+        parameters.shadowPath = cardPath
+        return UITargetedPreview(view: container, parameters: parameters)
     }
 }
 

@@ -69,18 +69,18 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var previewHeight: CGFloat {
-        showsUsername ? 190 : 158
+        showsUsername ? 216 : 184
     }
 
     private var previewGraphCellSize: CGFloat {
-        // The popup cannot be horizontally scrolled reliably. Fit the full
-        // year into the card instead of showing a clipped middle slice.
+        // The popup cannot be horizontally scrolled reliably. Show a recent
+        // window with a readable, card-sized tile scale instead.
         let gap = Self.previewGraphGap
         let graphWidth = max(1, previewWidth - 2 * Theme.Metrics.gutter)
-        return max(2, (graphWidth + gap) / CGFloat(Self.previewGraphWeeks) - gap)
+        return max(8, (graphWidth + gap) / CGFloat(Self.previewGraphWeeks) - gap)
     }
 
-    private static let previewGraphWeeks = 53
+    private static let previewGraphWeeks = 16
     private static let previewGraphGap: CGFloat = 2
 
     private var cardPreview: some View {
@@ -91,8 +91,8 @@ struct GitHubContributionCard: View, Equatable {
                     .lineLimit(1)
             }
             GitHubContributionGraph(days: snapshot.days,
-                                    // The complete contribution history fits
-                                    // inside this fixed popup frame.
+                                    // A recent window keeps the seven GitHub
+                                    // rows legible without forcing tiny tiles.
                                     weeks: Self.previewGraphWeeks,
                                     cellSize: previewGraphCellSize,
                                     gap: Self.previewGraphGap,
