@@ -252,6 +252,14 @@ enum AppearanceImageCache {
         }
     }
 
+    private final class InFlight: @unchecked Sendable {
+        let task: Task<Void, Never>
+
+        init(task: Task<Void, Never>) {
+            self.task = task
+        }
+    }
+
     private final class Store: @unchecked Sendable {
         let cache: NSCache<NSData, Entry> = {
             let cache = NSCache<NSData, Entry>()
@@ -261,7 +269,30 @@ enum AppearanceImageCache {
         }()
     }
 
+    private actor InFlightStore {
+        private var inFlight: [Data: InFlight] = [:]
+
+        func task(for data: Data,
+                  start: @escaping @Sendable () -> Void) -> InFlight {
+            if let existing = inFlight[data] {
+                return existing
+            }
+
+            let next = InFlight(task: Task.detached(priority: .userInitiated) {
+                start()
+            })
+            inFlight[data] = next
+            return next
+        }
+
+        func clear(_ task: InFlight, for data: Data) {
+            guard let current = inFlight[data], current === task else { return }
+            inFlight[data] = nil
+        }
+    }
+
     private static let store = Store()
+    private static let inFlightStore = InFlightStore()
 
     static func image(for data: Data) -> UIImage? {
         entry(for: data)?.image
@@ -287,9 +318,14 @@ enum AppearanceImageCache {
     /// still leaves the first SwiftUI draw responsible for the JPEG decode.
     static func prewarm(data: Data?) async {
         guard let data else { return }
-        await Task.detached(priority: .userInitiated) {
-            _ = entry(for: data)
-        }.value
+        await prepareEntry(for: data)
+    }
+
+    static func prewarmTask(data: Data?) -> Task<Void, Never>? {
+        guard let data else { return nil }
+        return Task {
+            await prepareEntry(for: data)
+        }
     }
 
     private static func entry(for data: Data) -> Entry? {
@@ -303,6 +339,16 @@ enum AppearanceImageCache {
         let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? data.count
         store.cache.setObject(entry, forKey: key, cost: cost)
         return entry
+    }
+
+    private static func prepareEntry(for data: Data) async {
+        if store.cache.object(forKey: data as NSData) != nil { return }
+
+        let task = await inFlightStore.task(for: data) {
+            _ = entry(for: data)
+        }
+        await task.task.value
+        await inFlightStore.clear(task, for: data)
     }
 
     private static func decodedImage(from data: Data) -> UIImage? {

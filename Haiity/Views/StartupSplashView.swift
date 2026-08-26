@@ -2,13 +2,11 @@ import SwiftUI
 import UIKit
 
 struct StartupSplashView: View {
-    let onContentReady: () -> Void
     let onFinished: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        StartupSplashAnimationSurface(onContentReady: onContentReady,
-                                      onFinished: onFinished,
+        StartupSplashAnimationSurface(onFinished: onFinished,
                                       reduceMotion: reduceMotion)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
@@ -18,20 +16,17 @@ struct StartupSplashView: View {
 }
 
 private struct StartupSplashAnimationSurface: UIViewRepresentable {
-    let onContentReady: () -> Void
     let onFinished: () -> Void
     let reduceMotion: Bool
 
     func makeUIView(context: Context) -> StartupSplashAnimationView {
         let view = StartupSplashAnimationView()
-        view.onContentReady = onContentReady
         view.onFinished = onFinished
         view.reduceMotion = reduceMotion
         return view
     }
 
     func updateUIView(_ view: StartupSplashAnimationView, context: Context) {
-        view.onContentReady = onContentReady
         view.onFinished = onFinished
         view.reduceMotion = reduceMotion
     }
@@ -47,8 +42,8 @@ private final class StartupSplashAnimationView: UIView {
     private var startTask: Task<Void, Never>?
     private var finishTask: Task<Void, Never>?
     private var hasStarted = false
+    private var scheduledBounds = CGSize.zero
 
-    var onContentReady: (() -> Void)?
     var onFinished: (() -> Void)?
     var reduceMotion = false
 
@@ -70,12 +65,23 @@ private final class StartupSplashAnimationView: UIView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        guard window != nil else {
+            startTask?.cancel()
+            startTask = nil
+            scheduledBounds = .zero
+            return
+        }
         scheduleStartIfReady()
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         backgroundLayer.frame = bounds
+        if !hasStarted, startTask != nil, scheduledBounds != bounds.size {
+            startTask?.cancel()
+            startTask = nil
+            launchImage = nil
+        }
         scheduleStartIfReady()
     }
 
@@ -86,35 +92,38 @@ private final class StartupSplashAnimationView: UIView {
               bounds.width > 0,
               bounds.height > 0 else { return }
 
+        scheduledBounds = bounds.size
         startTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            guard !Task.isCancelled, let self else { return }
-            self.startAnimation()
+            guard let self else { return }
+            let metrics = Metrics(container: self.bounds.size)
+            self.launchImage = self.prepareLaunchImage(
+                size: metrics.gridSize,
+                scale: self.window?.screen.scale ?? UIScreen.main.scale)
+            try? await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.startDelay
+                                                       * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self.startAnimation(metrics: metrics)
         }
     }
 
-    private func startAnimation() {
+    private func startAnimation(metrics: Metrics) {
         guard !hasStarted else { return }
         hasStarted = true
+        startTask = nil
 
         // A reduced-motion launch should not rasterize or animate a graph that
         // the user asked us not to move. The app is already mounted beneath
         // this temporary cover, so the direct handoff is both faster and
         // visually quieter than a different animated sequence.
         if reduceMotion {
-            onContentReady?()
             onFinished?()
             return
         }
 
-        let metrics = Metrics(container: bounds.size)
-        launchImage = rasterizedLaunchImage(size: metrics.gridSize,
-                                            scale: window?.screen.scale ?? UIScreen.main.scale)
         configureLayers(metrics: metrics)
 
         let startTime = layer.convertTime(CACurrentMediaTime(), from: nil)
         addAnimations(startTime: startTime, metrics: metrics)
-        onContentReady?()
 
         finishTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
@@ -122,6 +131,10 @@ private final class StartupSplashAnimationView: UIView {
             guard !Task.isCancelled else { return }
             self?.onFinished?()
         }
+    }
+
+    private func prepareLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
+        rasterizedLaunchImage(size: size, scale: scale)
     }
 
     private func configureLayers(metrics: Metrics) {

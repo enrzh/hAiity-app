@@ -48,17 +48,6 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertEqual(StartupSplashTimeline.overlayOpacity(at: StartupSplashTimeline.duration), 0)
     }
 
-    func testMountedAppFadesInDuringTheZoomHandoff() {
-        let revealStart = StartupSplashTimeline.clusterDuration
-            + StartupSplashTimeline.splitDuration - 0.08
-        let midpoint = revealStart + StartupSplashTimeline.zoomDuration * 0.5
-
-        XCTAssertEqual(StartupSplashTimeline.appOpacity(at: revealStart), 0)
-        XCTAssertGreaterThan(StartupSplashTimeline.appOpacity(at: midpoint), 0)
-        XCTAssertLessThan(StartupSplashTimeline.appOpacity(at: midpoint), 1)
-        XCTAssertEqual(StartupSplashTimeline.appOpacity(at: StartupSplashTimeline.duration), 1)
-    }
-
     func testGraphCopiesAreCenterOnlyBeforeTheSplit() {
         let beforeSplit = StartupSplashTimeline.clusterDuration * 0.5
 
@@ -130,15 +119,16 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StartupSplashView.swift"))
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(splash.contains("startAnimation()"))
+        XCTAssertTrue(splash.contains("startAnimation(metrics:"))
         XCTAssertTrue(splash.contains("CAKeyframeAnimation"))
         XCTAssertTrue(splash.contains("backgroundLayer"))
         XCTAssertFalse(app.contains("startupAppVisible"))
         XCTAssertFalse(app.contains("onAppReveal"))
         XCTAssertFalse(app.contains(".opacity(startupAppVisible ? 1 : 0)"))
         XCTAssertFalse(app.contains(".transition(.opacity)"))
-        XCTAssertTrue(app.contains("startupAppOpacity"))
-        XCTAssertTrue(app.contains(".opacity(startupAppOpacity)"))
+        XCTAssertFalse(app.contains("startupAppOpacity"))
+        XCTAssertFalse(app.contains(".opacity(startupAppOpacity)"))
+        XCTAssertFalse(app.contains("withAnimation(.easeInOut(duration: StartupSplashTimeline.zoomDuration + 0.08)"))
     }
 
     func testSplashReadinessUsesRootSceneLifecycle() throws {
@@ -156,7 +146,7 @@ final class StartupSplashTests: XCTestCase {
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        let callbackStart = try XCTUnwrap(app.range(of: "StartupSplashView(onContentReady:"))
+        let callbackStart = try XCTUnwrap(app.range(of: "StartupSplashView {"))
         let callbackEnd = try XCTUnwrap(app.range(of: ".allowsHitTesting(startupSplashVisible)",
                                                    range: callbackStart.upperBound..<app.endIndex))
         let callback = app[callbackStart.lowerBound..<callbackEnd.lowerBound]
@@ -169,9 +159,9 @@ final class StartupSplashTests: XCTestCase {
         let methodEnd = app.range(of: "\n    }", range: methodStart.upperBound..<app.endIndex)
             .map(\.lowerBound) ?? app.endIndex
         let method = app[methodStart.lowerBound..<methodEnd]
-        XCTAssertTrue(method.contains("startupAnimationFinished = true"))
         XCTAssertTrue(method.contains("startupContentMounted = true"))
         XCTAssertTrue(method.contains("startupSplashVisible = false"))
+        XCTAssertFalse(method.contains("startupAppOpacity = 1"))
     }
 
     func testAppContentKeepsTheFullScreenHandoffSurface() throws {
@@ -316,8 +306,8 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(app.contains("@State private var startupContentMounted = true"),
                       "the app tree must mount while the splash is covering it")
         XCTAssertTrue(app.contains("if startupContentMounted"))
-        XCTAssertTrue(app.contains("StartupSplashView(onContentReady:"))
-        XCTAssertTrue(splash.contains("onContentReady?()"))
+        XCTAssertTrue(app.contains("StartupSplashView {"))
+        XCTAssertFalse(splash.contains("onContentReady?()"))
     }
 
     func testImageBackedLaunchPreparesAppearanceBeforeReveal() throws {
@@ -326,12 +316,12 @@ final class StartupSplashTests: XCTestCase {
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data:"),
-                      "a selected image must be prepared while the splash is visible")
+        XCTAssertTrue(app.contains("AppearanceImageCache.prewarmTask(data:"),
+                      "launch should keep a cancellable prewarm task while the splash is visible")
         XCTAssertFalse(app.contains("startupContentMounted = startupAppearanceReady"),
                        "background preparation must not block mounting the app tree")
-        XCTAssertTrue(app.contains("startupAnimationFinished"),
-                      "the splash still owns the visual handoff")
+        XCTAssertTrue(app.contains("startupBackgroundPrewarmTask"),
+                      "launch-specific prewarm work must be released when it is no longer needed")
     }
 
     func testAppearanceBackgroundDoesNotDecodeOnItsFirstBodyEvaluation() throws {
@@ -363,5 +353,38 @@ final class StartupSplashTests: XCTestCase {
                       "launch motion must respect the system Reduce Motion setting")
         XCTAssertTrue(splash.contains("reduceMotion"),
                       "the UIKit animation surface must receive the reduced-motion state")
+    }
+
+    func testSplashPreparesItsLaunchImageBeforeStartingTheAnimation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("prepareLaunchImage("),
+                      "the graph raster should be prepared before the animation begins")
+
+        let startRange = try XCTUnwrap(splash.range(of: "private func startAnimation("))
+        let configureRange = try XCTUnwrap(splash.range(of: "private func configureLayers",
+                                                        range: startRange.upperBound..<splash.endIndex))
+        let startAnimation = splash[startRange.lowerBound..<configureRange.lowerBound]
+        XCTAssertFalse(startAnimation.contains("rasterizedLaunchImage("),
+                       "animation start must not rebuild the launch graph bitmap on the handoff path")
+    }
+
+    func testAppearancePrewarmCanBeCancelledAndSharedAcrossLaunchConsumers() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+
+        XCTAssertTrue(theme.contains("inFlight"),
+                      "the appearance image cache should reuse one in-flight decode for duplicate launch requests")
+        XCTAssertTrue(theme.contains("prewarmTask(data:"),
+                      "launch prewarm should return a cancellable task handle")
+        XCTAssertTrue(app.contains("cancelStartupBackgroundPrewarm()"),
+                      "the app should release launch-specific prewarm work when the splash is done or leaves the foreground")
     }
 }

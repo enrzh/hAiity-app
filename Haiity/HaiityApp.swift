@@ -7,8 +7,7 @@ struct HaiityApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var startupSplashVisible = true
     @State private var startupContentMounted = true
-    @State private var startupAppOpacity = 0.0
-    @State private var startupAnimationFinished = false
+    @State private var startupBackgroundPrewarmTask: Task<Void, Never>?
     private let startupBackgroundImageData: Data?
     // Übergibt die Szenen an ShortcutSceneDelegate — ohne ihn kommen
     // Schnellaktionen des Homescreens nirgends an.
@@ -45,7 +44,6 @@ struct HaiityApp: App {
                     ContentView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
-                    .opacity(startupAppOpacity)
                     .accessibilityHidden(startupSplashVisible)
                     // Vergessene Sessions aufräumen: eine Live-Aktivität, die
                     // seit über acht Stunden läuft, wird still beendet, ohne
@@ -93,32 +91,23 @@ struct HaiityApp: App {
                 }
 
                 if startupSplashVisible {
-                    StartupSplashView(onContentReady: {
-                        // The app tree is already mounted under the splash. The
-                        // app reveal starts during the tile zoom, not after the
-                        // overlay has disappeared.
-                        startupContentMounted = true
-                        withAnimation(.easeInOut(duration: StartupSplashTimeline.zoomDuration + 0.08)
-                            .delay(StartupSplashTimeline.clusterDuration
-                                   + StartupSplashTimeline.splitDuration - 0.08)) {
-                            startupAppOpacity = 1
-                        }
-                    }) {
+                    StartupSplashView {
                         finishStartupAnimation()
                     }
                     .allowsHitTesting(startupSplashVisible)
                     .zIndex(1)
                 }
             }
-            .task {
-                await AppearanceImageCache.prewarm(data: startupBackgroundImageData)
-            }
             .onAppear {
                 // Scene restoration can retain the previous `false` value;
                 // a new process always gets a fresh launch handoff.
                 startupSplashVisible = true
-                startupAppOpacity = 0
+                startupContentMounted = true
+                restartStartupBackgroundPrewarm()
                 Task { await Pro.refresh(mayDowngrade: true) }
+            }
+            .onDisappear {
+                cancelStartupBackgroundPrewarm()
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -126,10 +115,14 @@ struct HaiityApp: App {
             case .active:
                 Task { await Pro.refresh(mayDowngrade: true) }
                 HabitSessionManager.shared.recoverIfNeeded()
+                if startupSplashVisible {
+                    restartStartupBackgroundPrewarm()
+                }
                 // Icon-Menü auffrischen: seit dem letzten Vordergrund kann
                 // ein Widget/Knopf den heutigen Check erledigt haben.
                 HomeShortcuts.update(habits: HabitStore.read(SharedStorage.dataURL())?.habits ?? [])
             case .background:
+                cancelStartupBackgroundPrewarm()
                 GitHubBackgroundRefresh.schedule()
             default:
                 break
@@ -141,10 +134,20 @@ struct HaiityApp: App {
         // Commit the handoff in one callback. Reading @State immediately after
         // writing it would observe the previous render pass and leave the
         // transparent splash above every control.
-        startupAnimationFinished = true
+        cancelStartupBackgroundPrewarm()
         startupContentMounted = true
-        startupAppOpacity = 1
         startupSplashVisible = false
+    }
+
+    private func restartStartupBackgroundPrewarm() {
+        cancelStartupBackgroundPrewarm()
+        startupBackgroundPrewarmTask = AppearanceImageCache.prewarmTask(
+            data: startupBackgroundImageData)
+    }
+
+    private func cancelStartupBackgroundPrewarm() {
+        startupBackgroundPrewarmTask?.cancel()
+        startupBackgroundPrewarmTask = nil
     }
 }
 

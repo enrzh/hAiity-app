@@ -21,6 +21,7 @@ enum StartupSplashTimeline {
     static let splitDuration: TimeInterval = 0.80 * runtimeScale
     static let zoomDuration: TimeInterval = 0.72 * runtimeScale
     static let handoffDuration: TimeInterval = 0.16 * runtimeScale
+    static let startDelay: TimeInterval = 0.05 * runtimeScale
     static let compactScale: CGFloat = 0.36
     static let zoomScale: CGFloat = 7.5
     static let duration = clusterDuration + splitDuration + zoomDuration + handoffDuration
@@ -94,16 +95,6 @@ enum StartupSplashTimeline {
         let reveal = eased(progress(at: elapsed - revealStart,
                                     duration: revealDuration))
         return 1 - Double(reveal)
-    }
-
-    /// Opacity for the already-mounted app underneath the splash. It follows
-    /// the same handoff window as the overlay so the content appears with the
-    /// zoom instead of popping in after the tiles disappear.
-    static func appOpacity(at elapsed: TimeInterval) -> Double {
-        let revealStart = clusterDuration + splitDuration - 0.08
-        let revealDuration = zoomDuration + 0.08
-        return Double(eased(progress(at: elapsed - revealStart,
-                                     duration: revealDuration)))
     }
 
     private static func progress(at elapsed: TimeInterval,
