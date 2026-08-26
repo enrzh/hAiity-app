@@ -229,6 +229,39 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertEqual(WidgetLogic.summary(habit: yesNo, today: today, calendar: cal).answer, .yes)
     }
 
+    func testSummaryForReminderUsesOpenAndFreeStates() {
+        var due = named("Tabletten")
+        due.itemType = .reminder
+
+        var notDue = named("Arzt", recurrence: .weekdays([2, 4, 6]))
+        notDue.itemType = .reminder
+
+        let dueSummary = WidgetLogic.summary(habit: due, today: today, calendar: cal)
+        let notDueSummary = WidgetLogic.summary(habit: notDue, today: today, calendar: cal)
+
+        XCTAssertEqual(dueSummary.kind, .reminder)
+        XCTAssertEqual(dueSummary.status, .open)
+        XCTAssertEqual(dueSummary.metricText, String(localized: "Heute noch offen"))
+        XCTAssertEqual(notDueSummary.kind, .reminder)
+        XCTAssertEqual(notDueSummary.status, .free(next: 2))
+        XCTAssertTrue(notDueSummary.metricText.contains(
+            RecurrenceText.shortWeekdayName(2, calendar: cal)))
+    }
+
+    func testGitHubWidgetDaysKeepAValidEmptySnapshotStable() {
+        let snapshot = GitHubContributionSnapshot(username: "enrzh",
+                                                  days: [],
+                                                  fetchedAt: Date(timeIntervalSince1970: 0))
+        let anchor = DayKey.date(from: today, calendar: cal)!
+
+        let days = WidgetLogic.gitHubWidgetDays(snapshot: snapshot, anchor: anchor, calendar: cal)
+
+        XCTAssertEqual(days.count, 371)
+        XCTAssertEqual(days.first?.level, 0)
+        XCTAssertEqual(days.last?.level, 0)
+        XCTAssertEqual(days.last?.date, today)
+    }
+
     func testOverviewInteractiveActionsAreOutsideTheFullCardLink() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

@@ -343,6 +343,21 @@ enum WidgetLogic {
         }
     }
 
+    /// Distinguishes a missing GitHub cache (show the connect prompt) from a
+    /// valid cache that simply has no contributions yet (show a blank graph).
+    static func gitHubWidgetDays(snapshot: GitHubContributionSnapshot?,
+                                 anchor: Date = .now,
+                                 calendar: Calendar = .current) -> [GitHubContributionDay] {
+        guard let snapshot else { return [] }
+        guard snapshot.days.isEmpty else { return snapshot.days }
+
+        let today = DayKey.key(for: anchor, calendar: calendar)
+        return (0..<371).reversed().compactMap { offset in
+            guard let date = DayKey.shifted(today, by: -offset, calendar: calendar) else { return nil }
+            return GitHubContributionDay(date: date, count: 0, level: 0)
+        }
+    }
+
     private static func symbol(for status: WidgetStatus) -> String {
         switch status {
         case .done: "checkmark.circle.fill"

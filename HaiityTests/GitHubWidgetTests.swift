@@ -202,6 +202,14 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(graph.contains("GitHubWidgetGraph"))
     }
 
+    func testGitHubWidgetKeepsValidEmptyCachesOutOfTheConnectPromptPath() throws {
+        let logic = try source("HaiityWidget/WidgetLogic.swift")
+        let graph = try source("HaiityWidget/GraphWidgetView.swift")
+
+        XCTAssertTrue(logic.contains("static func gitHubWidgetDays"))
+        XCTAssertTrue(graph.contains("WidgetLogic.gitHubWidgetDays(snapshot: entry.githubSnapshot"))
+    }
+
     func testHomeGraphWidgetsRespectWidgetRenderingMode() throws {
         let graph = try source("HaiityWidget/GraphWidgetView.swift")
         let main = try source("HaiityWidget/HaiityWidgetView.swift")
