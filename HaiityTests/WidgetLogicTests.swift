@@ -262,6 +262,24 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertEqual(days.last?.date, today)
     }
 
+    func testGitHubWidgetContentDistinguishesMissingFromValidEmptySnapshots() {
+        let anchor = DayKey.date(from: today, calendar: cal)!
+        let empty = GitHubContributionSnapshot(username: "enrzh",
+                                               days: [],
+                                               fetchedAt: Date(timeIntervalSince1970: 0))
+
+        XCTAssertEqual(WidgetLogic.gitHubWidgetContent(snapshot: nil,
+                                                       anchor: anchor,
+                                                       calendar: cal),
+                       .connectPrompt)
+        XCTAssertEqual(WidgetLogic.gitHubWidgetContent(snapshot: empty,
+                                                       anchor: anchor,
+                                                       calendar: cal),
+                       .graph(days: WidgetLogic.gitHubWidgetDays(snapshot: empty,
+                                                                 anchor: anchor,
+                                                                 calendar: cal)))
+    }
+
     func testOverviewInteractiveActionsAreOutsideTheFullCardLink() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

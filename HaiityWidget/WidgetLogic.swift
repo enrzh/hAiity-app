@@ -118,6 +118,11 @@ struct WidgetItemSummary: Equatable {
     let metricSymbol: String
 }
 
+enum GitHubWidgetContent: Equatable {
+    case connectPrompt
+    case graph(days: [GitHubContributionDay])
+}
+
 enum HaiityWidgetLink {
     static func habit(_ id: UUID) -> URL {
         URL(string: "haiity://habits?habit=\(id.uuidString)")!
@@ -345,6 +350,15 @@ enum WidgetLogic {
 
     /// Distinguishes a missing GitHub cache (show the connect prompt) from a
     /// valid cache that simply has no contributions yet (show a blank graph).
+    static func gitHubWidgetContent(snapshot: GitHubContributionSnapshot?,
+                                    anchor: Date = .now,
+                                    calendar: Calendar = .current) -> GitHubWidgetContent {
+        guard let snapshot else { return .connectPrompt }
+        return .graph(days: gitHubWidgetDays(snapshot: snapshot,
+                                             anchor: anchor,
+                                             calendar: calendar))
+    }
+
     static func gitHubWidgetDays(snapshot: GitHubContributionSnapshot?,
                                  anchor: Date = .now,
                                  calendar: Calendar = .current) -> [GitHubContributionDay] {

@@ -42,8 +42,8 @@ struct GraphWidgetView: View {
                  dark: Bool,
                  mode: WidgetRenderingMode = .fullColor) -> some View {
         if entry.graphSource == .github {
-            GitHubWidgetGraph(days: WidgetLogic.gitHubWidgetDays(snapshot: entry.githubSnapshot,
-                                                                 anchor: entry.date),
+            GitHubWidgetGraph(content: WidgetLogic.gitHubWidgetContent(snapshot: entry.githubSnapshot,
+                                                                       anchor: entry.date),
                               palette: entry.resolvedGraphPalette,
                               mode: mode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
