@@ -10,6 +10,7 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://archive")!), .archive)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://search")!), .search)
         XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://new")!), .create)
+        XCTAssertEqual(AppDestination.resolve(url: URL(string: "haiity://cleanup")!), .cleanup)
     }
 
     func testHabitWidgetDeepLinksCarryTheHabitIdentifier() throws {
@@ -55,6 +56,13 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.search.effect.tab, .search)
         XCTAssertTrue(AppDestination.search.effect.opensSearch)
         XCTAssertTrue(AppDestination.create.effect.opensCreate)
+    }
+
+    func testCleanupRouteSelectsMoreAndRunsNativeCleanup() {
+        XCTAssertEqual(AppDestination.cleanup.selectedTab, .more)
+        XCTAssertTrue(AppDestination.cleanup.effect.runsNativeSyncCleanup)
+        XCTAssertFalse(AppDestination.cleanup.effect.opensSearch)
+        XCTAssertFalse(AppDestination.cleanup.effect.opensCreate)
     }
 
     func testStatsSettingsUseLeadingToolbarAndContextPreview() throws {

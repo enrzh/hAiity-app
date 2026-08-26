@@ -18,6 +18,7 @@ struct ReminderRow: View, Equatable {
     var onDelete: () -> Void = {}
     var now: Date = .now
     var calendar: Calendar = .current
+    @State private var isContextMenuVisible = false
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -31,13 +32,17 @@ struct ReminderRow: View, Equatable {
 
     var body: some View {
         rowContent
-            .background {
+            .opacity(isContextMenuVisible ? 0 : 1)
+            .overlay {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: 96,
                                  preview: { AnyView(reminderPreview) },
                                  actions: menuActions,
-                                 commit: onEdit)
+                                 commit: onEdit,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
             }
     }
 

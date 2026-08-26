@@ -1192,7 +1192,7 @@ struct ContentView: View {
                         row(for: habit, index: index + 1)
                             .id(habit.id)
                     }
-                    .onMove(perform: canSortHabits
+                    .onMove(perform: canSortHabits && editMode == .active
                         ? { store.move(fromOffsets: $0, toOffset: $1) }
                         : nil)
                 }
@@ -2267,6 +2267,9 @@ struct ContentView: View {
                 // mit der das Limit gar nicht erst gefragt wird.
                 requestCreate()
             }
+            if route.effect.runsNativeSyncCleanup {
+                cleanupNativeEntries()
+            }
         }
     }
 
@@ -2626,9 +2629,8 @@ struct ContentView: View {
         await reconcileMotivationActivity()
         var nativeSyncRecoveryReady = true
         if needsNativeSyncRecovery {
-            let calendarCleaned = CalendarSync.removeAllOwnedItems()
-            let remindersCleaned = await ReminderSync.removeAllOwnedItems()
-            nativeSyncRecoveryReady = calendarCleaned && remindersCleaned
+            let cleanup = await NativeSyncCleanup.run()
+            nativeSyncRecoveryReady = cleanup.calendar && cleanup.reminders
             if nativeSyncRecoveryReady {
                 NativeSyncInstallation.completeRecovery()
             }
@@ -2712,6 +2714,37 @@ struct ContentView: View {
             motivationMinutes: store.motivationMinutes,
             name: PersonalName.effective,
             delivery: store.motivationDelivery)
+    }
+
+    /// Cleans old native entries first, then rebuilds only the integrations
+    /// the user currently has enabled. This is shared by the settings button
+    /// and the Home Screen cleanup action.
+    private func cleanupNativeEntries() {
+        Task { @MainActor in
+            let result = await NativeSyncCleanup.run()
+            if result.calendar {
+                CalendarSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            }
+            if result.reminders {
+                ReminderSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            }
+            await flash(nativeCleanupMessage(for: result))
+        }
+    }
+
+    private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
+        switch (result.calendar, result.reminders) {
+        case (true, true):
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+        case (true, false), (false, true):
+            return String(localized: "Einträge teilweise bereinigt. Prüfe die Berechtigungen.")
+        case (false, false):
+            return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen.")
+        }
     }
 
     private func reconcileAppIcon() async {

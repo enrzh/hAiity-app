@@ -1,8 +1,8 @@
 import UIKit
 
 /// Schnellaktionen des Homescreens: langer Druck aufs App-Icon bietet
-/// direkte Wege in die App („Neues Habit", „Statistik", „Archiv") plus den
-/// ersten noch offenen Habit-Check des Tages.
+/// direkte Wege in die App („Neues Habit", „Statistik", „Einträge aufräumen",
+/// „Archiv") plus den ersten noch offenen Habit-Check des Tages.
 ///
 /// Alles läuft über DIESELBE Tür wie die Deep-Links: die Aktion wird als
 /// `haiity://…`-Link in den App-Group-Defaults geparkt und erst mit
@@ -87,6 +87,12 @@ enum HomeShortcuts {
                                  subtitle: nil,
                                  iconSystemName: "chart.bar",
                                  link: URL(string: "haiity://stats")!,
+                                 checkHabitID: nil))
+        result.append(Descriptor(type: linkTypePrefix + "cleanup",
+                                 title: String(localized: "Einträge aufräumen"),
+                                 subtitle: nil,
+                                 iconSystemName: "arrow.triangle.2.circlepath",
+                                 link: URL(string: "haiity://cleanup")!,
                                  checkHabitID: nil))
         result.append(Descriptor(type: linkTypePrefix + "archive",
                                  title: String(localized: "Archiv"),

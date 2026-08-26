@@ -16,6 +16,7 @@ struct GitHubContributionCard: View, Equatable {
     let openProfile: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @State private var isContextMenuVisible = false
 
     private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
     private var innerGap: CGFloat { collapsed ? 4 : Theme.Metrics.gap }
@@ -45,10 +46,11 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var graph: some View {
-            GitHubContributionGraph(days: snapshot.days)
-                .padding(Theme.Metrics.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        GitHubContributionGraph(days: snapshot.days)
+            .padding(Theme.Metrics.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .appSurface()
+            .opacity(isContextMenuVisible ? 0 : 1)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
             .overlay {
@@ -59,7 +61,10 @@ struct GitHubContributionCard: View, Equatable {
                                  actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
                                                            symbol: "arrow.up.right.square",
                                                            handler: openProfile)],
-                                 commit: openProfile)
+                                 commit: openProfile,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
             }
             .accessibilityIdentifier("github-grid")
     }

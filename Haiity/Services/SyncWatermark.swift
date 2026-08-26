@@ -43,8 +43,13 @@ enum SyncWatermark {
         return copyText
     }
 
+    /// Recognizes current invisible ownership metadata and the exact legacy
+    /// note written by builds before per-item markers existed. A bare product
+    /// name is the only legacy form accepted; arbitrary notes that merely
+    /// mention hAiity remain untouched.
     static func containsMarker(_ note: String) -> Bool {
         ownership(in: note) != nil
+            || note.trimmingCharacters(in: .whitespacesAndNewlines) == readablePrefix
     }
 
     /// Recovers the identity that survives an app reinstall. Native IDs are

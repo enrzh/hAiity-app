@@ -103,6 +103,8 @@ struct MoreView: View {
     @State private var pendingCalendarItemType: HabitItemType = .habit
     @State private var pendingNativeReminder = false
     @State private var copiedSyncHint = false
+    @State private var nativeSyncCleanupInProgress = false
+    @State private var nativeSyncCleanupMessage: String?
     @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
 
@@ -616,6 +618,22 @@ struct MoreView: View {
             }
             .accessibilityIdentifier("native-reminder-sync-toggle")
             syncWatermarkHints
+            Button {
+                cleanupNativeEntries()
+            } label: {
+                Label(nativeSyncCleanupInProgress
+                      ? String(localized: "Einträge werden aufgeräumt …")
+                      : String(localized: "Native Einträge aufräumen"),
+                      systemImage: "arrow.triangle.2.circlepath")
+            }
+            .foregroundStyle(.primary)
+            .disabled(nativeSyncCleanupInProgress)
+            .accessibilityIdentifier("cleanup-native-entries")
+            if let nativeSyncCleanupMessage {
+                Text(nativeSyncCleanupMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if calendarDenied {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
@@ -666,6 +684,37 @@ struct MoreView: View {
             .accessibilityIdentifier("copy-sync-watermark")
         }
         .padding(.vertical, 4)
+    }
+
+    private func cleanupNativeEntries() {
+        nativeSyncCleanupInProgress = true
+        nativeSyncCleanupMessage = nil
+        Task { @MainActor in
+            let result = await NativeSyncCleanup.run()
+            if result.calendar {
+                CalendarSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            }
+            if result.reminders {
+                ReminderSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            }
+            nativeSyncCleanupMessage = nativeCleanupMessage(for: result)
+            nativeSyncCleanupInProgress = false
+        }
+    }
+
+    private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
+        switch (result.calendar, result.reminders) {
+        case (true, true):
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+        case (true, false), (false, true):
+            return String(localized: "Einträge teilweise bereinigt. Prüfe die Berechtigungen.")
+        case (false, false):
+            return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen.")
+        }
     }
 
     private func calendarToggle(type: HabitItemType,

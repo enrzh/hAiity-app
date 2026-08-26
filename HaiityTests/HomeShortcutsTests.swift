@@ -20,9 +20,9 @@ final class HomeShortcutsTests: XCTestCase {
     func testMenuWithoutOpenHabitCarriesTheThreeDestinations() {
         let descriptors = HomeShortcuts.descriptors(habits: [], day: day)
 
-        XCTAssertEqual(descriptors.count, 3)
+        XCTAssertEqual(descriptors.count, 4)
         XCTAssertEqual(descriptors.map(\.title),
-                       ["Neues Habit", "Statistik", "Archiv"])
+                       ["Neues Habit", "Statistik", "Einträge aufräumen", "Archiv"])
         XCTAssertTrue(descriptors.allSatisfy { $0.checkHabitID == nil })
     }
 
@@ -35,6 +35,7 @@ final class HomeShortcutsTests: XCTestCase {
         XCTAssertEqual(descriptors.first?.checkHabitID, reading.id)
         XCTAssertEqual(descriptors.first?.title, "Lesen")
         XCTAssertEqual(descriptors.count, 4)
+        XCTAssertEqual(descriptors.last?.title, "Einträge aufräumen")
     }
 
     func testDoneArchivedAndDeclinedHabitsAreNotOffered() {
@@ -98,5 +99,13 @@ final class HomeShortcutsTests: XCTestCase {
         XCTAssertNil(HomeShortcuts.linkURL(forType: "haiity.link."))
         XCTAssertNil(HomeShortcuts.checkHabitID(forType: "haiity.check.not-a-uuid"))
         XCTAssertNil(HomeShortcuts.checkHabitID(forType: "haiity.link.new"))
+    }
+
+    func testCleanupQuickActionResolvesToTheCleanupRoute() throws {
+        let descriptors = HomeShortcuts.descriptors(habits: [], day: day)
+        let cleanup = try XCTUnwrap(descriptors.first { $0.title == "Einträge aufräumen" })
+
+        XCTAssertEqual(cleanup.link, URL(string: "haiity://cleanup"))
+        XCTAssertEqual(HomeShortcuts.linkURL(forType: cleanup.type), cleanup.link)
     }
 }

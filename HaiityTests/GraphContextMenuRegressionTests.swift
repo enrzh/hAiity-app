@@ -40,6 +40,39 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                        "a card must not delegate ownership to a shared list-cell hub")
     }
 
+    func testContextMenuHidesTheSourceSurfaceWhileItIsPresented() throws {
+        let source = try source("Haiity/Views/HabitCard.swift")
+        let hostStart = try XCTUnwrap(source.range(of: "final class MenuHost: UIView"))
+        let hostEnd = try XCTUnwrap(source.range(of: "/// UIKit may lay out a context-menu preview",
+                                                 range: hostStart.upperBound..<source.endIndex))
+        let host = source[hostStart.lowerBound..<hostEnd.lowerBound]
+
+        XCTAssertTrue(host.contains("willDisplayMenuFor"),
+                      "the source surface must be hidden as the menu is displayed")
+        XCTAssertTrue(host.contains("willEndFor"),
+                      "the source surface must be restored when the menu ends")
+        XCTAssertTrue(source.contains("onMenuVisibilityChanged"),
+                      "the UIKit host needs a visibility callback to the card")
+        XCTAssertTrue(source.contains(".opacity(isContextMenuVisible ? 0 : 1)"),
+                      "only the original card surface should disappear during the lift")
+    }
+
+    func testHabitReorderingRequiresExplicitSortingMode() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("canSortHabits && editMode == .active"),
+                      "drag reordering must be enabled only in explicit sorting mode")
+    }
+
+    func testReminderContextMenuIsLayeredAboveTheRow() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+
+        XCTAssertTrue(row.contains(".overlay {\n                GraphContextMenu"),
+                      "the reminder hold interaction must sit above row content")
+        XCTAssertFalse(row.contains(".background {\n                GraphContextMenu"),
+                       "a background interaction host is blocked by the reminder row")
+    }
+
     func testDebugStatsRouteExistsForTheRenderedCardRegression() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 

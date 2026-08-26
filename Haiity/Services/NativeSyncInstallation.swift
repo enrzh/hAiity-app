@@ -69,3 +69,22 @@ enum NativeSyncInstallation {
         return id
     }
 }
+
+/// One cleanup operation for both EventKit stores. The two stores have
+/// different fetch APIs, so keeping the coordination here avoids every caller
+/// inventing its own partial-cleanup behavior.
+@MainActor
+enum NativeSyncCleanup {
+    struct Result: Equatable, Sendable {
+        let calendar: Bool
+        let reminders: Bool
+
+        var succeeded: Bool { calendar && reminders }
+    }
+
+    static func run() async -> Result {
+        let calendar = CalendarSync.removeAllOwnedItems()
+        let reminders = await ReminderSync.removeAllOwnedItems()
+        return Result(calendar: calendar, reminders: reminders)
+    }
+}

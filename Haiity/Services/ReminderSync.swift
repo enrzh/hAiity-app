@@ -231,9 +231,10 @@ enum ReminderSync {
         _ = validate
     }
 
-    /// Removes every hAiity-owned reminder, including entries whose native ID
-    /// was lost during reinstall. The async boundary matches EventKit's
-    /// reminder fetch API and guarantees cleanup finishes before recreation.
+    /// Removes every hAiity-owned reminder, including legacy entries from
+    /// before invisible markers and entries whose native ID was lost during
+    /// reinstall. The async boundary matches EventKit's reminder fetch API
+    /// and guarantees cleanup finishes before recreation.
     static func removeAllOwnedItems() async -> Bool {
         guard hasAccess else { return false }
 
@@ -248,8 +249,15 @@ enum ReminderSync {
         var succeeded = true
         for reminder in reminders {
             guard let notes = reminder.notes,
-                  let ownership = SyncWatermark.ownership(in: notes),
-                  ownership.kind == .nativeReminder else {
+                  SyncWatermark.containsMarker(notes) else {
+                continue
+            }
+            let isCurrentOwnedItem = SyncWatermark.ownership(in: notes).map {
+                $0.kind == .nativeReminder
+            } ?? false
+            let isLegacyOwnedItem = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                == SyncWatermark.readablePrefix
+            guard isCurrentOwnedItem || isLegacyOwnedItem else {
                 continue
             }
             let identity = reminder.calendarItemIdentifier

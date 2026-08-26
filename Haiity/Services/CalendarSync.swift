@@ -342,9 +342,10 @@ enum CalendarSync {
         defaults.set(prints, forKey: fingerprintKey)
     }
 
-    /// Removes every Calendar item carrying hAiity's ownership marker. This
-    /// is used only during reinstall recovery because native event IDs do not
-    /// survive a fresh app-group container.
+    /// Removes every Calendar item carrying hAiity's current or legacy
+    /// ownership marker. This is used during reinstall recovery and explicit
+    /// cleanup because native event IDs do not survive a fresh app-group
+    /// container.
     static func removeAllOwnedItems() -> Bool {
         guard hasAccess else { return false }
 
@@ -365,8 +366,15 @@ enum CalendarSync {
         var succeeded = true
         for event in events {
             guard let notes = event.notes,
-                  let ownership = SyncWatermark.ownership(in: notes),
-                  ownership.kind == .habitCalendar || ownership.kind == .reminderCalendar else {
+                  SyncWatermark.containsMarker(notes) else {
+                continue
+            }
+            let isCurrentOwnedItem = SyncWatermark.ownership(in: notes).map { ownership in
+                ownership.kind == .habitCalendar || ownership.kind == .reminderCalendar
+            } ?? false
+            let isLegacyOwnedItem = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                == SyncWatermark.readablePrefix
+            guard isCurrentOwnedItem || isLegacyOwnedItem else {
                 continue
             }
             let identity = event.calendarItemIdentifier

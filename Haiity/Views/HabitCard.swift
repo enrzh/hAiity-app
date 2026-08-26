@@ -82,6 +82,9 @@ struct HabitCard: View, Equatable {
     @State private var revealStart: CGFloat = 0
     /// Breite der Karte, für die Voll-Wisch-Schwelle (gemessen, nicht geraten).
     @State private var revealCardWidth: CGFloat = 0
+    /// UIKit lifts the transparent bridge host, while the original SwiftUI
+    /// surface would otherwise remain underneath and draw a second halo.
+    @State private var isContextMenuVisible = false
 
     private var today: String { DayKey.today(calendar: calendar) }
     private var doneToday: Bool {
@@ -316,6 +319,7 @@ struct HabitCard: View, Equatable {
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .appSurface()
+            .opacity(isContextMenuVisible ? 0 : 1)
             // Die Trefferfläche ist die KARTE, nicht nur das, was in ihr
             // gezeichnet ist: ein langer Druck auf eine leere Ecke des
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
@@ -336,7 +340,10 @@ struct HabitCard: View, Equatable {
                                  previewHeight: Self.contextPreviewHeight,
                                  preview: { AnyView(habitPreview) },
                                  actions: menuActions,
-                                 commit: onEdit)
+                                 commit: onEdit,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-grid")
@@ -834,11 +841,13 @@ struct GraphContextMenu: UIViewRepresentable {
     let preview: () -> AnyView
     let actions: [GraphMenuAction]
     let commit: () -> Void
+    var onMenuVisibilityChanged: (Bool) -> Void = { _ in }
 
     func makeUIView(context: Context) -> MenuHost {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
                  previewHeight: previewHeight,
-                 preview: preview, actions: actions, commit: commit)
+                 preview: preview, actions: actions, commit: commit,
+                 onMenuVisibilityChanged: onMenuVisibilityChanged)
     }
 
     func updateUIView(_ view: MenuHost, context: Context) {
@@ -848,6 +857,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.preview = preview
         view.actions = actions
         view.commit = commit
+        view.onMenuVisibilityChanged = onMenuVisibilityChanged
     }
 
     static func dismantleUIView(_ view: MenuHost, coordinator: ()) {
@@ -861,20 +871,24 @@ struct GraphContextMenu: UIViewRepresentable {
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
+        var onMenuVisibilityChanged: (Bool) -> Void
         fileprivate let identifier = UUID().uuidString
         private lazy var interaction = UIContextMenuInteraction(delegate: self)
+        private var menuVisible = false
 
         init(cardRadius: CGFloat, previewWidth: CGFloat,
              previewHeight: CGFloat,
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
-             commit: @escaping () -> Void) {
+             commit: @escaping () -> Void,
+             onMenuVisibilityChanged: @escaping (Bool) -> Void) {
             self.cardRadius = cardRadius
             self.previewWidth = previewWidth
             self.previewHeight = previewHeight
             self.preview = preview
             self.actions = actions
             self.commit = commit
+            self.onMenuVisibilityChanged = onMenuVisibilityChanged
             super.init(frame: .zero)
             isUserInteractionEnabled = true
             isHidden = false
@@ -885,6 +899,7 @@ struct GraphContextMenu: UIViewRepresentable {
         required init?(coder: NSCoder) { fatalError() }
 
         func detach() {
+            setMenuVisible(false)
             if interactions.contains(where: { $0 === interaction }) {
                 removeInteraction(interaction)
             }
@@ -894,6 +909,7 @@ struct GraphContextMenu: UIViewRepresentable {
                                     configurationForMenuAtLocation location: CGPoint)
             -> UIContextMenuConfiguration? {
             guard bounds.contains(location) else { return nil }
+            setMenuVisible(true)
             let width = previewWidth
             let height = max(1, previewHeight)
             let makePreview = preview
@@ -934,6 +950,18 @@ struct GraphContextMenu: UIViewRepresentable {
         }
 
         func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    willDisplayMenuFor configuration: UIContextMenuConfiguration,
+                                    animator: UIContextMenuInteractionAnimating?) {
+            setMenuVisible(true)
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    willEndFor configuration: UIContextMenuConfiguration,
+                                    animator: UIContextMenuInteractionAnimating?) {
+            setMenuVisible(false)
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
                                     willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
                                     animator: UIContextMenuInteractionCommitAnimating) {
             let commit = self.commit
@@ -962,6 +990,12 @@ struct GraphContextMenu: UIViewRepresentable {
             parameters.visiblePath = cardPath
             parameters.shadowPath = cardPath
             return UITargetedPreview(view: self, parameters: parameters)
+        }
+
+        private func setMenuVisible(_ visible: Bool) {
+            guard menuVisible != visible else { return }
+            menuVisible = visible
+            onMenuVisibilityChanged(visible)
         }
 
     }

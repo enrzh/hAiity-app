@@ -125,6 +125,12 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertNil(SyncWatermark.ownership(in: "Other app\u{2063}marker\u{2063}"))
     }
 
+    func testLegacyKeywordIsRecognizedOnlyAsAStandaloneCleanupNote() {
+        XCTAssertTrue(SyncWatermark.containsMarker("hAiity"))
+        XCTAssertFalse(SyncWatermark.containsMarker("hAiity - eigener Termin"))
+        XCTAssertFalse(SyncWatermark.containsMarker("Ein eigener hAiity Hinweis"))
+    }
+
     func testReinstallDetectionDoesNotTreatFirstInstallAsReinstall() {
         XCTAssertFalse(NativeSyncInstallation.needsCleanup(localID: nil,
                                                             persistentID: nil))
@@ -134,6 +140,12 @@ final class SyncWatermarkTests: XCTestCase {
                                                            persistentID: "previous"))
         XCTAssertTrue(NativeSyncInstallation.needsCleanup(localID: "old",
                                                            persistentID: "current"))
+    }
+
+    func testNativeCleanupResultReportsWhetherBothStoresSucceeded() {
+        XCTAssertTrue(NativeSyncCleanup.Result(calendar: true, reminders: true).succeeded)
+        XCTAssertFalse(NativeSyncCleanup.Result(calendar: true, reminders: false).succeeded)
+        XCTAssertFalse(NativeSyncCleanup.Result(calendar: false, reminders: true).succeeded)
     }
 
     func testNativeServicesUseTheSharedWatermark() throws {
@@ -146,6 +158,18 @@ final class SyncWatermarkTests: XCTestCase {
 
         XCTAssertTrue(calendar.contains("SyncWatermark.note(for:"))
         XCTAssertTrue(reminders.contains("SyncWatermark.note(for:"))
+    }
+
+    func testNativeCleanupScansLegacyAndCurrentOwnershipFormats() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let calendar = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/CalendarSync.swift"))
+        let reminders = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/ReminderSync.swift"))
+
+        XCTAssertTrue(calendar.contains("SyncWatermark.containsMarker"))
+        XCTAssertTrue(reminders.contains("SyncWatermark.containsMarker"))
     }
 }
 

@@ -35,17 +35,20 @@ struct AppRouteEffect: Equatable {
     let opensSearch: Bool
     let opensCreate: Bool
     let habitID: UUID?
+    let runsNativeSyncCleanup: Bool
 
     init(tab: AppTab,
          morePage: AppMoreDestination?,
          opensSearch: Bool,
          opensCreate: Bool,
-         habitID: UUID? = nil) {
+         habitID: UUID? = nil,
+         runsNativeSyncCleanup: Bool = false) {
         self.tab = tab
         self.morePage = morePage
         self.opensSearch = opensSearch
         self.opensCreate = opensCreate
         self.habitID = habitID
+        self.runsNativeSyncCleanup = runsNativeSyncCleanup
     }
 }
 
@@ -167,6 +170,7 @@ enum AppDestination: Equatable {
     case archive
     case search
     case create
+    case cleanup
 
     static func resolve(url: URL) -> AppDestination? {
         guard url.scheme?.lowercased() == "haiity" else { return nil }
@@ -184,6 +188,7 @@ enum AppDestination: Equatable {
         case "archive": return .archive
         case "search": return .search
         case "new": return .create
+        case "cleanup": return .cleanup
         default: return nil
         }
     }
@@ -206,6 +211,7 @@ enum AppDestination: Equatable {
         case .archive: host = "archive"
         case .search: host = "search"
         case .create: host = "new"
+        case .cleanup: host = "cleanup"
         }
         return URL(string: "haiity://\(host)")!
     }
@@ -218,7 +224,7 @@ enum AppDestination: Equatable {
             return .search
         case .stats:
             return .stats
-        case .more, .archive:
+        case .more, .archive, .cleanup:
             return .more
         case .create:
             return .create
@@ -242,6 +248,9 @@ enum AppDestination: Equatable {
             .init(tab: .search, morePage: nil, opensSearch: true, opensCreate: false)
         case .create:
             .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: true)
+        case .cleanup:
+            .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false,
+                  runsNativeSyncCleanup: true)
         }
     }
 }
