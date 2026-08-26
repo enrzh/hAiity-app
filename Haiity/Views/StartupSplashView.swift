@@ -95,6 +95,13 @@ private final class StartupSplashAnimationView: UIView {
         scheduledBounds = bounds.size
         startTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            if self.reduceMotion {
+                self.hasStarted = true
+                self.startTask = nil
+                self.launchImage = nil
+                self.onFinished?()
+                return
+            }
             let metrics = Metrics(container: self.bounds.size)
             self.launchImage = self.prepareLaunchImage(
                 size: metrics.gridSize,
@@ -110,15 +117,6 @@ private final class StartupSplashAnimationView: UIView {
         guard !hasStarted else { return }
         hasStarted = true
         startTask = nil
-
-        // A reduced-motion launch should not rasterize or animate a graph that
-        // the user asked us not to move. The app is already mounted beneath
-        // this temporary cover, so the direct handoff is both faster and
-        // visually quieter than a different animated sequence.
-        if reduceMotion {
-            onFinished?()
-            return
-        }
 
         configureLayers(metrics: metrics)
 

@@ -231,6 +231,22 @@ final class AppearanceSettingTests: XCTestCase {
                       "startup should finish preparing the same image SwiftUI will render")
     }
 
+    func testLaunchPrewarmDoesNotSpinDetachedDecodeWork() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let start = try XCTUnwrap(theme.range(of: "private actor InFlightStore"))
+        let end = try XCTUnwrap(theme.range(of: "private static func decodedImage",
+                                            range: start.upperBound..<theme.endIndex))
+        let cache = theme[start.lowerBound..<end.lowerBound]
+
+        XCTAssertFalse(cache.contains("Task.detached"),
+                       "canceling the launch prewarm must stop the actual decode worker, not only its outer wrapper")
+        XCTAssertTrue(cache.contains("withTaskCancellationHandler"),
+                      "prewarm waiters should release shared work when launch is canceled")
+    }
+
     func testSelectingNonImageModeRemovesTheStoredImage() throws {
         let imageData = try validImageData()
         var preferences = AppearancePreferences(backgroundImageData: imageData,

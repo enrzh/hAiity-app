@@ -242,7 +242,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 /// can be mounted during launch. The persisted JPEG remains the source of
 /// truth; this cache is only an in-process rendering optimization.
 enum AppearanceImageCache {
-    private final class Entry {
+    private final class Entry: @unchecked Sendable {
         let image: UIImage
         let averageHex: UInt32?
 
@@ -253,10 +253,12 @@ enum AppearanceImageCache {
     }
 
     private final class InFlight: @unchecked Sendable {
-        let task: Task<Void, Never>
+        let task: Task<Entry?, Never>
+        var waiters: Int
 
-        init(task: Task<Void, Never>) {
+        init(task: Task<Entry?, Never>, waiters: Int) {
             self.task = task
+            self.waiters = waiters
         }
     }
 
@@ -272,22 +274,34 @@ enum AppearanceImageCache {
     private actor InFlightStore {
         private var inFlight: [Data: InFlight] = [:]
 
-        func task(for data: Data,
-                  start: @escaping @Sendable () -> Void) -> InFlight {
+        func acquire(for data: Data,
+                     start: @escaping @Sendable () -> Entry?) -> InFlight {
             if let existing = inFlight[data] {
+                existing.waiters += 1
                 return existing
             }
 
-            let next = InFlight(task: Task.detached(priority: .userInitiated) {
-                start()
-            })
+            let next = InFlight(task: Task(priority: .userInitiated) {
+                guard !Task.isCancelled else { return nil }
+                let prepared = start()
+                guard !Task.isCancelled else { return nil }
+                return prepared
+            }, waiters: 1)
             inFlight[data] = next
             return next
         }
 
-        func clear(_ task: InFlight, for data: Data) {
+        func release(_ task: InFlight,
+                     for data: Data,
+                     cancelIfOrphaned: Bool) {
             guard let current = inFlight[data], current === task else { return }
-            inFlight[data] = nil
+            current.waiters = max(0, current.waiters - 1)
+            if current.waiters == 0 {
+                if cancelIfOrphaned {
+                    current.task.cancel()
+                }
+                inFlight[data] = nil
+            }
         }
     }
 
@@ -334,21 +348,39 @@ enum AppearanceImageCache {
             return cached
         }
 
-        guard let image = decodedImage(from: data) else { return nil }
-        let entry = Entry(image: image, averageHex: averageHex(image))
-        let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? data.count
-        store.cache.setObject(entry, forKey: key, cost: cost)
+        guard let entry = buildEntry(for: data) else { return nil }
+        storeEntry(entry, for: data)
         return entry
     }
 
     private static func prepareEntry(for data: Data) async {
         if store.cache.object(forKey: data as NSData) != nil { return }
 
-        let task = await inFlightStore.task(for: data) {
-            _ = entry(for: data)
+        let inFlight = await inFlightStore.acquire(for: data) {
+            buildEntry(for: data)
         }
-        await task.task.value
-        await inFlightStore.clear(task, for: data)
+        let entry = await withTaskCancellationHandler {
+            await inFlight.task.value
+        } onCancel: {
+            Task {
+                await inFlightStore.release(inFlight, for: data, cancelIfOrphaned: true)
+            }
+        }
+        guard !Task.isCancelled else { return }
+        await inFlightStore.release(inFlight, for: data, cancelIfOrphaned: false)
+        guard let entry,
+              store.cache.object(forKey: data as NSData) == nil else { return }
+        storeEntry(entry, for: data)
+    }
+
+    private static func buildEntry(for data: Data) -> Entry? {
+        guard let image = decodedImage(from: data) else { return nil }
+        return Entry(image: image, averageHex: averageHex(image))
+    }
+
+    private static func storeEntry(_ entry: Entry, for data: Data) {
+        let cost = entry.image.cgImage.map { $0.bytesPerRow * $0.height } ?? data.count
+        store.cache.setObject(entry, forKey: data as NSData, cost: cost)
     }
 
     private static func decodedImage(from data: Data) -> UIImage? {

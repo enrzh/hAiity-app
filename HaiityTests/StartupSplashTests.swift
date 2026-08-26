@@ -355,6 +355,27 @@ final class StartupSplashTests: XCTestCase {
                       "the UIKit animation surface must receive the reduced-motion state")
     }
 
+    func testReducedMotionHandoffSkipsLaunchRasterizationWork() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        let scheduleStart = try XCTUnwrap(splash.range(of: "private func scheduleStartIfReady()"))
+        let startAnimation = try XCTUnwrap(splash.range(of: "private func startAnimation(",
+                                                        range: scheduleStart.upperBound..<splash.endIndex))
+        let scheduleBody = splash[scheduleStart.lowerBound..<startAnimation.lowerBound]
+
+        let reduceMotion = try XCTUnwrap(scheduleBody.range(of: "if self.reduceMotion {"))
+        let raster = try XCTUnwrap(scheduleBody.range(of: "prepareLaunchImage("))
+
+        XCTAssertLessThan(reduceMotion.lowerBound, raster.lowerBound,
+                          "reduce motion should bypass launch-image preparation before any raster work starts")
+        XCTAssertTrue(scheduleBody.contains("self.onFinished?()"),
+                      "reduce motion should hand off immediately once the splash is on screen")
+    }
+
     func testSplashPreparesItsLaunchImageBeforeStartingTheAnimation() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
