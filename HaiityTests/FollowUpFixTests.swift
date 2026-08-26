@@ -53,6 +53,19 @@ final class FollowUpFixTests: XCTestCase {
                       "the popup needs an explicit tile-size calculation")
     }
 
+    func testHabitPreviewUsesTheSelectedSurfaceWithoutASecondOpaqueHalo() throws {
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(habit.contains("habitPreview"),
+                      "the context menu must keep a complete card preview")
+        XCTAssertTrue(habit.contains(".appSurface()"),
+                      "the enlarged card must use the selected appearance material")
+        XCTAssertTrue(habit.contains("appearancePreferences"),
+                      "the preview must inherit the selected appearance outside the list")
+        XCTAssertFalse(habit.contains(".background(Color(scheme == .dark"),
+                       "the preview must not add a second hard-coded opaque surface")
+    }
+
     func testGitHubPreviewTilesFitItsActualInnerWidth() throws {
         let github = try source("Haiity/Views/GitHubContributionCard.swift")
 
@@ -170,6 +183,36 @@ final class FollowUpFixTests: XCTestCase {
                       "the visible lift must use the card path")
         XCTAssertTrue(menu.contains("parameters.shadowPath = cardPath"),
                       "the lift shadow must not be derived from the larger list host")
+    }
+
+    func testStatsUseDynamicTypeAndCombineRowsForVoiceOver() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let rowStart = try XCTUnwrap(stats.range(of: "private struct StatsRow"))
+        let row = stats[rowStart.lowerBound...]
+
+        XCTAssertFalse(stats.contains(".font(.system(size:"),
+                       "large statistics values must scale with Dynamic Type")
+        XCTAssertTrue(row.contains(".accessibilityElement(children: .combine)"),
+                      "each habit statistics row should be one readable VoiceOver element")
+        XCTAssertTrue(stats.contains(".navigationChrome()"),
+                      "statistics navigation must keep the selected header material")
+        XCTAssertFalse(stats.contains(".background(AppearanceBackground(preferences: store.appearancePreferences))"),
+                       "the statistics page must not paint its background twice")
+    }
+
+    func testStatsPreviewsKeepOneSurfaceAndAFlexibleHeight() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let previewStart = try XCTUnwrap(stats.range(of: "private func statsPreview"))
+        let previewEnd = try XCTUnwrap(stats.range(of: "@ViewBuilder\n    private func statsTile",
+                                                    range: previewStart.upperBound..<stats.endIndex))
+        let preview = stats[previewStart.lowerBound..<previewEnd.lowerBound]
+
+        XCTAssertTrue(preview.contains(".frame(minHeight: height"),
+                      "enlarged statistics cards must grow with their content")
+        XCTAssertFalse(preview.contains(".frame(height: height"),
+                       "enlarged statistics cards must not clip at a fixed height")
+        XCTAssertTrue(preview.contains(".appSurface()"),
+                      "the preview wrapper must provide one visible selected-material surface")
     }
 
     func testGitHubPreviewUsesAReadableRecentWindow() throws {

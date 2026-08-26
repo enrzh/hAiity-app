@@ -25,6 +25,7 @@ struct ReminderSetupView: View {
     @State private var calendarPermissionGranted = false
     @State private var remindersPermissionGranted = false
     @State private var requestingPermission: NativePermission?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum NativePermission: Equatable {
         case calendar
@@ -49,6 +50,7 @@ struct ReminderSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .settingsChrome()
+        .navigationChrome()
         .onAppear { refreshPermissions() }
     }
 
@@ -140,8 +142,13 @@ struct ReminderSetupView: View {
                 Toggle(title, isOn: isOn)
                     .labelsHidden()
                     .tint(Theme.accentFill(store.paletteStyle))
+                    .accessibilityLabel(title)
+                    .accessibilityValue(isOn.wrappedValue
+                                        ? String(localized: "Ein")
+                                        : String(localized: "Aus"))
                     .accessibilityIdentifier(identifier)
             }
+            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
         }
     }
 
@@ -225,10 +232,20 @@ struct ReminderSetupView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            .frame(minHeight: Theme.Metrics.hit, alignment: .center)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!unlocked || requestingPermission != nil)
+        .accessibilityLabel(title)
+        .accessibilityValue(
+            requestingPermission == permission
+                ? String(localized: "Wird geladen")
+                : granted
+                    ? String(localized: "Erlaubt")
+                    : unlocked
+                        ? String(localized: "Nicht aktiviert")
+                        : String(localized: "Nur mit hAiity Pro"))
     }
 
     private func card(@ViewBuilder content: () -> some View) -> some View {
@@ -271,11 +288,13 @@ struct ReminderSetupView: View {
             pageDots
             if page < Self.lastPage {
                 Button {
-                    withAnimation { page += 1 }
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) {
+                        page += 1
+                    }
                 } label: {
                     Text(String(localized: "Weiter"))
                         .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accentFill(store.paletteStyle))
@@ -286,14 +305,14 @@ struct ReminderSetupView: View {
                 } label: {
                     Label(String(localized: "Berechtigungen aktivieren"), systemImage: "lock.open")
                         .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accentFill(store.paletteStyle))
                 .accessibilityIdentifier("enable-notifications")
             }
             Button(String(localized: "Jetzt nicht")) { finish() }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit)
                 .accessibilityIdentifier("skip-notification-setup")
         }
         .padding(.horizontal, Theme.Metrics.gutter)
@@ -311,8 +330,11 @@ struct ReminderSetupView: View {
                     .frame(width: 7, height: 7)
             }
         }
-        .animation(.snappy(duration: 0.25), value: page)
-        .accessibilityHidden(true)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: page)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "Einrichtungsseite"))
+        .accessibilityValue(String.localizedStringWithFormat(
+            String(localized: "Seite %d von %d"), page + 1, Self.lastPage + 1))
     }
 
     private func enable() {

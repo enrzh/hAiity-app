@@ -107,6 +107,36 @@ final class SetupFlowTests: XCTestCase {
                        "the footer must not create a separate opaque band")
     }
 
+    func testSetupUsesAppearanceAwareChromeAndReducedMotion() throws {
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+
+        XCTAssertTrue(setup.contains("@Environment(\\.accessibilityReduceMotion)"),
+                      "setup paging must honor the system motion setting")
+        XCTAssertTrue(setup.contains(".navigationChrome()"),
+                      "setup navigation must keep the selected header material")
+        XCTAssertTrue(setup.contains("withAnimation(reduceMotion ? nil"),
+                      "next-page movement must stop animating when motion is reduced")
+        XCTAssertTrue(setup.contains(".animation(reduceMotion ? nil"),
+                      "page progress must stop animating when motion is reduced")
+        XCTAssertTrue(setup.contains("accessibilityLabel(String(localized: \"Einrichtungsseite\"))"),
+                      "VoiceOver needs a name for the page progress")
+        XCTAssertTrue(setup.contains("accessibilityValue(String.localizedStringWithFormat"),
+                      "VoiceOver needs the current page and total page count")
+    }
+
+    func testSetupControlsUseStableNativeHitTargets() throws {
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+
+        XCTAssertTrue(setup.contains(".frame(minHeight: Theme.Metrics.settingsRowMinHeight"),
+                      "setup cards need a readable minimum row height")
+        XCTAssertTrue(setup.contains(".frame(minHeight: Theme.Metrics.hit"),
+                      "permission rows must retain a native hit target")
+        XCTAssertTrue(setup.contains("minHeight: Theme.Metrics.hit"),
+                      "footer actions must remain reachable at normal and large type")
+        XCTAssertTrue(setup.contains("accessibilityValue"),
+                      "setup controls must expose their current state to VoiceOver")
+    }
+
     func testSetupRequestsAllNativePermissionsUsedByTheApp() throws {
         let setup = try source("Haiity/Views/ReminderSetupView.swift")
         XCTAssertTrue(setup.contains("Reminders.ensurePermission()"))

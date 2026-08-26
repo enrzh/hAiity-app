@@ -69,6 +69,7 @@ struct HabitCard: View, Equatable {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var layoutDirection
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
@@ -428,7 +429,8 @@ struct HabitCard: View, Equatable {
                 if !habit.emoji.isEmpty { Text(habit.emoji).font(.title3) }
                 Text(habit.name)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 if habit.streak(today: today, calendar: calendar) > 0 {
                     (Text(Image(systemName: "flame.fill")) +
@@ -448,19 +450,15 @@ struct HabitCard: View, Equatable {
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
-        // Die Vorschau steht im Menü-Fenster auf dem ABGEDUNKELTEN Inhalt.
-        // Die Basisfläche der Karten (#1C1C1E) säuft dort im Dunkelmodus ab
-        // (vom Gerät gemeldet: „kaum sichtbar") — deshalb die ANGEHOBENE
-        // Stufe (#2C2C2E), dieselbe, die das System für erhöhte Flächen wie
-        // Blätter und Menü-Teller benutzt. Hell bleibt alles wie gehabt.
-        .background(Color(scheme == .dark
-                          ? .tertiarySystemBackground
-                          : .secondarySystemGroupedBackground))
+        // The system hosts this preview outside the list. Give it the same
+        // selected material as the source card instead of a second opaque halo.
+        .appSurface()
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
         // der Zeile nicht: ohne diese Zeile fiel das Raster darin auf die
         // Standardpalette zurück und leuchtete grün, während dieselben
         // Zellen zwei Millimeter daneben blau sind.
         .environment(\.palettes, palettes)
+        .environment(\.appearancePreferences, appearancePreferences)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-preview")
     }
@@ -586,20 +584,39 @@ struct HabitCard: View, Equatable {
         .accessibilityRemoveTraits(collapsed ? [] : .isButton)
     }
 
+    @ViewBuilder
     private var nameContent: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if !habit.emoji.isEmpty {
-                Text(habit.emoji)
-                    .font(collapsed ? .subheadline : .title3)
+        Group {
+            if typeSize.isAccessibilitySize && !collapsed {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        if !habit.emoji.isEmpty {
+                            Text(habit.emoji)
+                                .font(.title3)
+                        }
+                        Text(habit.name)
+                            .font(.headline)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    meta
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if !habit.emoji.isEmpty {
+                        Text(habit.emoji)
+                            .font(collapsed ? .subheadline : .title3)
+                    }
+                    Text(habit.name)
+                        .font(collapsed ? .subheadline.weight(.semibold) : .headline)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                    // Der Zustand steht HINTER dem Namen, nicht davor: sonst rückt
+                    // ein Häkchen die Namen der abgehakten Karten ein und die Liste
+                    // fluchtet nicht mehr.
+                    if collapsed { mergedDone }
+                    if !collapsed { meta.fixedSize() }
+                }
             }
-            Text(habit.name)
-                .font(collapsed ? .subheadline.weight(.semibold) : .headline)
-                .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
-            // Der Zustand steht HINTER dem Namen, nicht davor: sonst rückt
-            // ein Häkchen die Namen der abgehakten Karten ein und die Liste
-            // fluchtet nicht mehr.
-            if collapsed { mergedDone }
-            if !collapsed { meta.fixedSize() }
         }
         .contentShape(Rectangle())
     }

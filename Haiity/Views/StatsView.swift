@@ -77,6 +77,7 @@ struct StatsView: View {
                 .accessibilityIdentifier("stats-adjustments")
             }
         }
+        .navigationChrome()
     }
 
     /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
@@ -92,7 +93,7 @@ struct StatsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
+        .settingsChrome()
         .navigationTitle(String(localized: "Statistik"))
     }
 
@@ -178,7 +179,6 @@ struct StatsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
         .settingsSurface()
         .navigationTitle(String(localized: "Statistik"))
     }
@@ -451,7 +451,8 @@ struct StatsView: View {
 
         return AnyView(preview
             .frame(width: statsPreviewWidth, alignment: .topLeading)
-            .frame(minHeight: height, alignment: .topLeading))
+            .frame(minHeight: height, alignment: .topLeading)
+            .environment(\.appearancePreferences, store.appearancePreferences))
     }
 
     @ViewBuilder
@@ -527,7 +528,7 @@ struct StatsView: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(flameColor(snapshot.streak))
                     Text(verbatim: "\(snapshot.streak)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
                         .contentTransition(.numericText())
                 }
                 Text(String(localized: "Best: \(snapshot.bestStreak)"))
@@ -554,7 +555,7 @@ struct StatsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text(verbatim: "\(done)/\(total)")
-                            .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
+                            .font(.system(.title, design: .rounded, weight: .bold).monospacedDigit())
                             .contentTransition(.numericText())
                         if done == total {
                             Label(String(localized: "Alles erledigt"),
@@ -599,7 +600,7 @@ struct StatsView: View {
              value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(visibleActiveTrackedHabits))") {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: "\(StatsMath.totalCheckIns(visibleActiveTrackedHabits))")
-                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
                     .contentTransition(.numericText())
                 Text(String(localized: "Check-ins gesamt"))
                     .font(.caption2)
@@ -774,6 +775,7 @@ private struct StatsRow: View {
             MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12),
                       style: style)
         }
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("stats-row")
     }
 

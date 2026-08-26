@@ -4,6 +4,296 @@
     "": {
       "shouldTranslate": false
     },
+    "Solid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solid"
+          }
+        }
+      }
+    },
+    "Milchglas": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky Glass"
+          }
+        }
+      }
+    },
+    "Liquid Glass": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liquid Glass"
+          }
+        }
+      }
+    },
+    "Bild auswählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose image"
+          }
+        }
+      }
+    },
+    "Verlauf": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradient"
+          }
+        }
+      }
+    },
+    "Bild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image"
+          }
+        }
+      }
+    },
+    "Farbton": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color tone"
+          }
+        }
+      }
+    },
+    "Deckende Flächen in einer ruhigen Farbe.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opaque surfaces in a calm color."
+          }
+        }
+      }
+    },
+    "Milchig getönte Flächen, die den Hintergrund erahnen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Milky tinted surfaces that hint at the background."
+          }
+        }
+      }
+    },
+    "Echtes Liquid Glass mit Tiefenwirkung (ab iOS 26, sonst Milchglas).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "True Liquid Glass with depth (from iOS 26, otherwise Milky Glass)."
+          }
+        }
+      }
+    },
+    "Passt Fläche und Kontrast automatisch an deinen Hintergrund an.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically adapts surfaces and contrast to your background."
+          }
+        }
+      }
+    },
+    "Wähle deine Zusammenfassungen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose your summaries."
+          }
+        }
+      }
+    },
+    "Erledigt und offen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done and open."
+          }
+        }
+      }
+    },
+    "Deine Woche in Zahlen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your week in numbers."
+          }
+        }
+      }
+    },
+    "Du entscheidest, ob hAiity Mitteilungen senden darf.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You decide whether hAiity may send notifications."
+          }
+        }
+      }
+    },
+    "Apple-Apps verbinden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Apple apps"
+          }
+        }
+      }
+    },
+    "Eigene Einträge können mit Kalender und Erinnerungen synchronisiert werden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your entries can sync with Calendar and Reminders."
+          }
+        }
+      }
+    },
+    "Die Uhrzeit stellst du direkt am Eintrag ein.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set the time directly on the entry."
+          }
+        }
+      }
+    },
+    "Berechtigungen aktivieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable permissions"
+          }
+        }
+      }
+    },
+    "Ein": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        }
+      }
+    },
+    "Aus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "Wird geladen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading"
+          }
+        }
+      }
+    },
+    "Erlaubt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed"
+          }
+        }
+      }
+    },
+    "Nicht aktiviert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enabled"
+          }
+        }
+      }
+    },
+    "Einrichtungsseite": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup page"
+          }
+        }
+      }
+    },
+    "Seite %d von %d": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page %d of %d"
+          }
+        }
+      }
+    },
+    "Hintergrund": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background"
+          }
+        }
+      }
+    },
+    "Hintergrundbild entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove background image"
+          }
+        }
+      }
+    },
+    "Ausgewähltes Hintergrundbild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected background image"
+          }
+        }
+      }
+    },
     "Import & Export": {
       "localizations": {
         "en": {

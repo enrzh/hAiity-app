@@ -764,6 +764,9 @@ enum Theme {
         /// Kleinste Trefferfläche (Apple: 44 pt) — auch dort, wo das
         /// Sichtbare kleiner ist.
         static let hit: CGFloat = 44
+        /// Native settings rows may grow with Dynamic Type, but never collapse
+        /// below a readable control height.
+        static let settingsRowMinHeight: CGFloat = 52
         /// Grundabstand.
         static let gap: CGFloat = 8
         /// Spacing between independently interactive settings rows. The
@@ -1069,6 +1072,7 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .scrollContentBackground(.hidden)
             .listRowSpacing(Theme.Metrics.settingsRowGap)
             .listSectionSpacing(Theme.Metrics.settingsSectionGap)
+            .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
             .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
     }

@@ -512,6 +512,44 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
+    func testSettingsMaterialUsesAStableDynamicTypeSafeRowMinimum() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertTrue(theme.contains("settingsRowMinHeight"),
+                      "settings need one shared minimum row height")
+        XCTAssertTrue(theme.contains("environment(\\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)"),
+                      "native lists must keep rows readable without fixing their height")
+    }
+
+    func testAppearanceAndSetupLabelsHaveEnglishCatalogEntries() throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Localizable.xcstrings"))
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(json["strings"] as? [String: Any])
+        let keys = [
+            "Solid", "Milchglas", "Liquid Glass", "Bild auswählen", "Verlauf", "Bild",
+            "Farbton", "Deckende Flächen in einer ruhigen Farbe.",
+            "Milchig getönte Flächen, die den Hintergrund erahnen.",
+            "Echtes Liquid Glass mit Tiefenwirkung (ab iOS 26, sonst Milchglas).",
+            "Passt Fläche und Kontrast automatisch an deinen Hintergrund an.",
+            "Wähle deine Zusammenfassungen.", "Erledigt und offen.",
+            "Deine Woche in Zahlen.", "Berechtigungen aktivieren"
+        ]
+
+        for key in keys {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any], key)
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any], key)
+            XCTAssertEqual(unit["state"] as? String, "translated", key)
+            XCTAssertFalse((unit["value"] as? String ?? "").isEmpty, key)
+        }
+    }
+
     func testSettingsChromeLeavesNavigationBarMaterialToTheSystem() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

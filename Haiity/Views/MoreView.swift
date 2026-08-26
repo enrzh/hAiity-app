@@ -146,6 +146,7 @@ struct MoreView: View {
         }
         .navigationTitle(screen.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationChrome()
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -1037,12 +1038,15 @@ struct MoreView: View {
                 }
                 .accessibilityIdentifier("appearance-picker")
             }
+            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
 
             // Vorschau statt Wortliste: jede Oberfläche als Miniaturfläche
             // in DEM Material, das sie später wirklich hat (siehe
             // MaterialPreviewPicker). Ein segmentiertes Steuerelement trug
             // vier Begriffe ohne jeden Anhaltspunkt, wie sie aussehen.
             MaterialPreviewPicker(selection: materialBinding)
+                .frame(minHeight: Theme.Metrics.settingsRowMinHeight,
+                       alignment: .leading)
                 .accessibilityIdentifier("appearance-material-picker")
 
             backgroundControl
@@ -1061,6 +1065,7 @@ struct MoreView: View {
                     }
                 }
             }
+            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
             .accessibilityIdentifier("match-icon-toggle")
 
             if !store.matchAppIcon {
@@ -1204,6 +1209,8 @@ struct MoreView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .frame(minHeight: Theme.Metrics.settingsRowMinHeight)
+        .accessibilityLabel(String(localized: "Hintergrund"))
         .accessibilityIdentifier("appearance-background-mode-picker")
     }
 
@@ -1231,7 +1238,8 @@ struct MoreView: View {
                     .labelsHidden()
                     .accessibilityIdentifier("appearance-custom-color-\(title)")
             }
-            HStack(spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Theme.Metrics.hit), spacing: 4)],
+                      spacing: 4) {
                 ForEach(Self.backgroundSwatches, id: \.self) { hex in
                     Button {
                         apply(hex)
@@ -1248,10 +1256,16 @@ struct MoreView: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
+                    .contentShape(Circle())
                     .accessibilityLabel(String(localized: "Farbton"))
+                    .accessibilityValue(hex == selectedHex
+                                       ? String(localized: "Ausgewählt")
+                                       : "")
                 }
             }
         }
+        .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .leading)
     }
 
     @ViewBuilder
@@ -1287,7 +1301,7 @@ struct MoreView: View {
             .padding(12)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 82)
+        .frame(minHeight: 82)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1305,19 +1319,12 @@ struct MoreView: View {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
                         .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity,
+                               minHeight: Theme.Metrics.settingsRowMinHeight,
+                               alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .background(.regularMaterial,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
-                        .allowsHitTesting(false)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .buttonStyle(.bordered)
+                .tint(Theme.accentText(palettes.style))
                 .accessibilityIdentifier("appearance-background-picker")
 
                 if hasPersistedBackgroundImage {
@@ -1331,18 +1338,13 @@ struct MoreView: View {
                             .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                     }
                     .buttonStyle(.plain)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
-                            .allowsHitTesting(false)
-                    }
                     .contentShape(Circle())
                     .help(String(localized: "Hintergrundbild entfernen"))
                     .accessibilityLabel(String(localized: "Hintergrundbild entfernen"))
                     .accessibilityIdentifier("appearance-background-remove")
                 }
             }
+            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
             .onChange(of: pickedBackgroundItem) { _, item in
                 guard let item else { return }
                 backgroundImageError = false
@@ -1495,19 +1497,23 @@ struct MoreView: View {
     /// das eingebaute Icon, das daraus wird (iOS kann nur mitgelieferte
     /// Icons setzen), und „Anwenden" setzt genau dieses.
     private var freeIconColorRow: some View {
-        HStack(spacing: 12) {
-            ColorPicker(selection: $freeIconColor, supportsOpacity: false) {
-                Label(String(localized: "Eigene Icon-Farbe"), systemImage: "paintpalette")
-                    .font(.subheadline)
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            HStack(spacing: 12) {
+                ColorPicker(selection: $freeIconColor, supportsOpacity: false) {
+                    Label(String(localized: "Eigene Icon-Farbe"), systemImage: "paintpalette")
+                        .font(.subheadline)
+                }
+                .accessibilityIdentifier("icon-color-picker")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                iconThumbnail(style: AppIcons.style(forIconName: snappedFreeIconName))
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .accessibilityHidden(true)
             }
-            .accessibilityIdentifier("icon-color-picker")
-            .frame(maxWidth: .infinity)
-            iconThumbnail(style: AppIcons.style(forIconName: snappedFreeIconName))
-                .frame(width: 30, height: 30)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .accessibilityHidden(true)
             freeIconColorAction
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .leading)
     }
 
     /// Gegated ist nur das SETZEN. Farbrad und ehrliche Vorschau bleiben —
