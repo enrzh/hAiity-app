@@ -394,6 +394,32 @@ final class StartupSplashTests: XCTestCase {
                        "animation start must not rebuild the launch graph bitmap on the handoff path")
     }
 
+    func testSplashPreparesLaunchBitmapOffTheMainActor() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("Task.detached"),
+                      "launch bitmap work must not compete with the main actor")
+        XCTAssertTrue(splash.contains("await self.prepareLaunchImage"),
+                      "the animation should await the detached bitmap before adding layers")
+    }
+
+    func testSplashDelaysAreCancellationAware() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("do {\n                try await Task.sleep"),
+                      "startup delay should stop immediately when the surface is cancelled")
+        XCTAssertTrue(splash.contains("catch is CancellationError"),
+                      "cancelled launch work must not start or finish the animation")
+    }
+
     func testAppearancePrewarmCanBeCancelledAndSharedAcrossLaunchConsumers() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

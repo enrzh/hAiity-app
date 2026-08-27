@@ -68,6 +68,8 @@ private final class StartupSplashAnimationView: UIView {
         guard window != nil else {
             startTask?.cancel()
             startTask = nil
+            finishTask?.cancel()
+            finishTask = nil
             scheduledBounds = .zero
             return
         }
@@ -103,12 +105,18 @@ private final class StartupSplashAnimationView: UIView {
                 return
             }
             let metrics = Metrics(container: self.bounds.size)
-            self.launchImage = self.prepareLaunchImage(
+            self.launchImage = await self.prepareLaunchImage(
                 size: metrics.gridSize,
                 scale: self.window?.screen.scale ?? UIScreen.main.scale)
-            try? await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.startDelay
-                                                       * 1_000_000_000))
-            guard !Task.isCancelled else { return }
+            do {
+                try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.startDelay
+                                                         * 1_000_000_000))
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, self.window != nil else { return }
             self.startAnimation(metrics: metrics)
         }
     }
@@ -124,15 +132,28 @@ private final class StartupSplashAnimationView: UIView {
         addAnimations(startTime: startTime, metrics: metrics)
 
         finishTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
-                                                       * 1_000_000_000))
-            guard !Task.isCancelled else { return }
+            do {
+                try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
+                                                         * 1_000_000_000))
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, self?.window != nil else { return }
             self?.onFinished?()
         }
     }
 
-    private func prepareLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
-        rasterizedLaunchImage(size: size, scale: scale)
+    private func prepareLaunchImage(size: CGSize, scale: CGFloat) async -> CGImage? {
+        let task = Task.detached(priority: .userInitiated) {
+            Self.rasterizedLaunchImage(size: size, scale: scale)
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     private func configureLayers(metrics: Metrics) {
@@ -262,7 +283,7 @@ private final class StartupSplashAnimationView: UIView {
         CATransform3DMakeScale(scale, scale, 1)
     }
 
-    private func rasterizedLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
+    nonisolated private static func rasterizedLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
         guard size.width > 0, size.height > 0,
               let source = UIImage(named: "LaunchTiles") else { return nil }
 
