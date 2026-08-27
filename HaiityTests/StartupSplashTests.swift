@@ -240,10 +240,10 @@ final class StartupSplashTests: XCTestCase {
                        "a per-frame Canvas rebuilds hundreds of vector paths during launch")
     }
 
-    func testLaunchTilesCacheReturnsAReusableRasterForTheMeasuredWindow() {
+    func testLaunchTilesCacheReturnsAReusableRasterForTheMeasuredWindow() async {
         let size = CGSize(width: 280, height: 94)
-        let first = AppearanceImageCache.launchTilesImage(size: size, scale: 2)
-        let second = AppearanceImageCache.launchTilesImage(size: size, scale: 2)
+        let first = await AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
+        let second = await AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
 
         XCTAssertNotNil(first)
         XCTAssertNotNil(second)
@@ -268,6 +268,32 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertNotNil(results[0])
         XCTAssertTrue(results[0] === results[1],
                       "concurrent launch requests must share the same raster result")
+    }
+
+    func testLaunchTileCacheKeepsCoordinationUntilCancelledWorkerCompletes() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertTrue(theme.contains("inFlight[key] = next"),
+                      "launch work must remain coordinated while its worker is still running")
+        XCTAssertTrue(theme.contains("current.task.value"),
+                      "orphan cancellation must wait for worker completion before dropping coordination")
+        XCTAssertFalse(theme.contains("inFlight[key] = nil\n            }\n        }\n    }\n\n    private static let inFlightStore"),
+                      "cancellation must not remove an active worker immediately")
+    }
+
+    func testLaunchRasterizerUsesTheSharedAppearanceCacheBoundary() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertFalse(theme.contains("launchTilesCache"),
+                       "launch tiles must use the existing appearance cache representation")
+        XCTAssertFalse(theme.contains("static func launchTilesImage("),
+                       "callers must not bypass async cancellation and in-flight coordination")
     }
 
     func testCancelledLaunchTileRequestChecksCancellationBeforeSynchronousRender() throws {

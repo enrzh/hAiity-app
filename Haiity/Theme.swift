@@ -306,12 +306,6 @@ enum AppearanceImageCache {
     }
 
     private static let store = Store()
-    private static let launchTilesCache: NSCache<NSString, UIImage> = {
-        let cache = NSCache<NSString, UIImage>()
-        cache.countLimit = 2
-        cache.totalCostLimit = 8 * 1024 * 1024
-        return cache
-    }()
     private final class LaunchInFlight: @unchecked Sendable {
         let task: Task<CGImage?, Never>
         var waiters: Int
@@ -343,8 +337,16 @@ enum AppearanceImageCache {
             current.waiters = max(0, current.waiters - 1)
             if current.waiters == 0 {
                 if cancelIfOrphaned { current.task.cancel() }
-                inFlight[key] = nil
+                Task { [weak self] in
+                    _ = await current.task.value
+                    await self?.finish(current, key: key)
+                }
             }
+        }
+
+        func finish(_ task: LaunchInFlight, key: String) {
+            guard let current = inFlight[key], current === task else { return }
+            inFlight[key] = nil
         }
     }
 
@@ -373,13 +375,8 @@ enum AppearanceImageCache {
     /// Rasterize the bundled launch graph once for the measured window. Keep
     /// this asset in the same image-cache boundary as user backgrounds so
     /// startup never grows a second ad-hoc image cache.
-    nonisolated static func launchTilesImage(size: CGSize, scale: CGFloat) -> CGImage? {
+    private nonisolated static func rasterizeLaunchTiles(size: CGSize, scale: CGFloat) -> UIImage? {
         guard size.width > 0, size.height > 0, scale > 0 else { return nil }
-
-        let key = "launch-tiles-\(Int((size.width * scale).rounded()))x\(Int((size.height * scale).rounded()))"
-        if let cached = launchTilesCache.object(forKey: key as NSString) {
-            return cached.cgImage
-        }
 
         guard let source = UIImage(named: "LaunchTiles") else { return nil }
         let format = UIGraphicsImageRendererFormat()
@@ -389,14 +386,20 @@ enum AppearanceImageCache {
         let image = renderer.image { _ in
             source.draw(in: CGRect(origin: .zero, size: size))
         }
-        launchTilesCache.setObject(image, forKey: key as NSString)
-        return image.cgImage
+        return image
     }
 
     static func launchTilesImageTask(size: CGSize, scale: CGFloat) async -> CGImage? {
         let key = "launch-tiles-\(Int((size.width * scale).rounded()))x\(Int((size.height * scale).rounded()))"
+        let cacheKeyData = key.data(using: .utf8)!
+        let cacheKey = cacheKeyData as NSData
+        if let cached = store.cache.object(forKey: cacheKey) {
+            return cached.image.cgImage
+        }
         let request = await launchInFlightStore.acquire(key: key) {
-            launchTilesImage(size: size, scale: scale)
+            guard let image = rasterizeLaunchTiles(size: size, scale: scale) else { return nil }
+            store.cache.setObject(Entry(image: image, averageHex: nil), forKey: cacheKeyData as NSData)
+            return image.cgImage
         }
         let result = await withTaskCancellationHandler {
             await request.task.value
