@@ -242,6 +242,10 @@ enum Pro {
     /// damit ein laufender `refresh()` ihn nicht überschreibt.
     static func setDebugUnlocked(_ unlocked: Bool) {
         debugOverride = unlocked
+        // Invalidate an entitlement refresh that started before the override.
+        // The override remains authoritative, but the generation keeps the
+        // normal refresh race from becoming observable when it is removed.
+        writeGeneration &+= 1
         if unlocked {
             defaults.set(true, forKey: unlockedKey)
         } else {

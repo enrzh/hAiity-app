@@ -16,6 +16,25 @@ import XCTest
 ///    zweiter Weg zum selben Ziel, der am Gate vorbeiführt.
 final class ProGateTests: XCTestCase {
 
+    #if DEBUG
+    @MainActor
+    func testProStatusObserverSeesAnEntitlementTransition() async {
+        Pro.setDebugUnlocked(false)
+        defer { Pro.setDebugUnlocked(false) }
+
+        let changed = expectation(description: "ProStatus publishes the entitlement transition")
+        withObservationTracking({
+            _ = ProStatus.shared.unlocked
+        }, onChange: {
+            changed.fulfill()
+        })
+
+        Pro.setDebugUnlocked(true)
+        await fulfillment(of: [changed], timeout: 1)
+        XCTAssertTrue(Pro.isUnlocked)
+    }
+    #endif
+
     // MARK: – Reine Logik: das Limit
 
     func testFreeHabitLimitIsThree() {
