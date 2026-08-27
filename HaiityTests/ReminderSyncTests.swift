@@ -281,9 +281,20 @@ final class ReminderSyncContractTests: XCTestCase {
     }
 
     private func source(_ relative: String) throws -> String {
-        try String(contentsOf: URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent(relative))
+            .appendingPathComponent(relative)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return try String(contentsOf: url)
+        }
+        let resource = url.deletingPathExtension().lastPathComponent
+        let extensionName = url.pathExtension
+        let bundle = Bundle(for: ReminderSyncContractTests.self)
+        guard let bundledURL = bundle.url(forResource: resource, withExtension: extensionName)
+                ?? bundle.url(forResource: resource, withExtension: "txt") else {
+            throw XCTSkip("Source contract unavailable in checkout and test bundle")
+        }
+        return try String(contentsOf: bundledURL)
     }
 }
 

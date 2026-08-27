@@ -2,6 +2,25 @@ import EventKit
 import XCTest
 @testable import Haiity
 
+private func calendarSyncTestSource(_ relativePath: String,
+                                    filePath: String = #filePath) throws -> String {
+    let root = URL(fileURLWithPath: filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let url = root.appendingPathComponent(relativePath)
+    if FileManager.default.fileExists(atPath: url.path) {
+        return try String(contentsOf: url)
+    }
+    let resource = url.deletingPathExtension().lastPathComponent
+    let extensionName = url.pathExtension
+    let bundle = Bundle(for: CalendarSyncSelectionTests.self)
+    guard let bundledURL = bundle.url(forResource: resource, withExtension: extensionName)
+            ?? bundle.url(forResource: resource, withExtension: "txt") else {
+        throw XCTSkip("Source contract unavailable in checkout and test bundle")
+    }
+    return try String(contentsOf: bundledURL)
+}
+
 final class CalendarSyncSelectionTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName = ""
@@ -93,9 +112,7 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 
     func testCalendarSyncKeepsLegacyKeySeparateFromCategoryKeys() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("static let calendarKey = \"calendarSyncCalendar\""))
         XCTAssertTrue(source.contains("static let habitsCalendarKey"))
@@ -105,21 +122,18 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 
     func testCalendarCleanupClearsBothCategoryIDsAndLegacyID() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         let cleanup = try XCTUnwrap(source.range(of: "static func removeAllOwnedItems()"))
         let tail = source[cleanup.lowerBound...]
         XCTAssertTrue(tail.contains("habitsCalendarKey"))
         XCTAssertTrue(tail.contains("remindersCalendarKey"))
         XCTAssertTrue(tail.contains("calendarKey"))
+        XCTAssertTrue(tail.contains("fallbackCalendarKey"))
     }
 
     func testCalendarMigrationBlocksRecreationAfterRemovalFailure() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("var blockedKeys"))
         XCTAssertTrue(source.contains("var removalFailed"))
@@ -128,9 +142,7 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 
     func testLegacyCalendarCleanupMustSucceedBeforeRecreation() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("guard removeLegacyOwnedItems() else"))
         XCTAssertTrue(source.contains("private static func removeLegacyOwnedItems() -> Bool"))
@@ -139,10 +151,33 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertLessThan(cleanup.lowerBound, calendarSetup.lowerBound)
     }
 
+    func testCalendarCreationTriesAnotherWritableSourceAfterPreferredFailure() throws {
+        XCTAssertEqual(CalendarSync.orderedSourceIDs(preferredID: "gmail",
+                                                     fallbackIDs: ["local", "gmail"]),
+                       ["gmail", "local"])
+    }
+
+    func testCalendarSyncHasAnExistingWritableCalendarFallback() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+
+        XCTAssertTrue(source.contains("fallbackCalendarKey"))
+        XCTAssertTrue(source.contains("store.defaultCalendarForNewEvents"))
+        XCTAssertTrue(source.contains("allowsContentModifications"))
+        XCTAssertTrue(source.contains("flatMap { $0.allowsContentModifications ? $0 : nil }"),
+                      "a read-only default must fall through to another writable calendar")
+        XCTAssertTrue(source.contains("defaults.string(forKey: fallbackCalendarKey)"))
+    }
+
+    func testMoreScreenExposesTheActualCalendarDestinationPicker() throws {
+        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(source.contains("calendarDestinationPicker"))
+        XCTAssertTrue(source.contains("CalendarSync.writableCalendarOptions"))
+        XCTAssertTrue(source.contains("calendar-sync-habits-destination"))
+        XCTAssertTrue(source.contains("calendar-sync-reminders-destination"))
+    }
+
     func testMoreScreenExposesIndependentCalendarToggles() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("calendar-sync-habits-toggle"))
         XCTAssertTrue(source.contains("calendar-sync-reminders-toggle"))
         XCTAssertTrue(source.contains("CalendarSync.syncHabits"))
@@ -153,17 +188,13 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertFalse(CalendarFeatureGate.canEnable(unlocked: false))
         XCTAssertTrue(CalendarFeatureGate.canEnable(unlocked: true))
 
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("guard CalendarFeatureGate.canEnable(unlocked: unlocked)"))
         XCTAssertTrue(source.contains("paywall = .calendar"))
     }
 
     func testMoreViewReminderToggleUsesItsBinding() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("Toggle(isOn: reminderSyncBinding)"))
     }
 }
@@ -263,9 +294,7 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testCalendarReconciliationRepairsAllOwnedDuplicates() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("selectCanonicalItem"))
         XCTAssertTrue(source.contains("SyncWatermark.ownership(in:"))
@@ -274,9 +303,7 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testCalendarValidationReusesScannedCanonicalSeries() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("var validatedEvents"),
                       "validation must carry the fetched canonical event into the save pass")
@@ -289,9 +316,7 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testCalendarRemovalPathDoesNotSilentlyDropFailedOwnedSeriesRemovals() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("if !removeEvent("),
                       "failed event removal must abort recreation in the same pass")
@@ -323,24 +348,16 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testNativeServicesUseTheSharedWatermark() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let calendar = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Services/CalendarSync.swift"))
-        let reminders = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Services/ReminderSync.swift"))
+        let calendar = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let reminders = try calendarSyncTestSource("Haiity/Services/ReminderSync.swift")
 
         XCTAssertTrue(calendar.contains("SyncWatermark.note(for:"))
         XCTAssertTrue(reminders.contains("SyncWatermark.note(for:"))
     }
 
     func testNativeCleanupScansLegacyAndCurrentOwnershipFormats() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let calendar = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Services/CalendarSync.swift"))
-        let reminders = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Services/ReminderSync.swift"))
+        let calendar = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let reminders = try calendarSyncTestSource("Haiity/Services/ReminderSync.swift")
 
         XCTAssertTrue(calendar.contains("SyncWatermark.containsMarker"))
         XCTAssertTrue(reminders.contains("SyncWatermark.containsMarker"))
@@ -471,9 +488,7 @@ final class CalendarEventPlanTests: XCTestCase {
     /// Kalendereinträge sind NUR Bild: erinnern tut hAiity selbst — ein
     /// Termin mit eigenem Wecker wäre der zweite Alarm für denselben Habit.
     func testCalendarEventsCarryNoAlarms() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
         XCTAssertTrue(source.contains("event.alarms = nil"))
         XCTAssertFalse(source.contains("EKAlarm"), "kein Wecker am Termin")
         XCTAssertFalse(source.contains("addAlarm"), "kein Wecker am Termin")

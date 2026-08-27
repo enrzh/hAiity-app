@@ -219,7 +219,20 @@ targets:
   HaiityTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [HaiityTests]
+    sources:
+      - path: HaiityTests
+    postBuildScripts:
+      - name: Bundle source contract fixtures
+        basedOnDependencyAnalysis: false
+        script: |
+          set -eu
+          bundle="$TARGET_BUILD_DIR/$WRAPPER_NAME"
+          mkdir -p "$bundle"
+          cp "$PROJECT_DIR/Haiity/Services/CalendarSync.swift" "$bundle/CalendarSync.txt"
+          cp "$PROJECT_DIR/Haiity/Services/ReminderSync.swift" "$bundle/ReminderSync.txt"
+          cp "$PROJECT_DIR/Haiity/Views/ContentView.swift" "$bundle/ContentView.txt"
+          cp "$PROJECT_DIR/Haiity/Views/MoreView.swift" "$bundle/MoreView.txt"
+          cp "$PROJECT_DIR/Haiity/Localizable.xcstrings" "$bundle/Localizable.txt"
     dependencies:
       - target: Haiity
     settings:
@@ -228,6 +241,8 @@ targets:
         SWIFT_VERSION: "5.9"
         # Test-Bundle ohne eigenes Info.plist — Xcode generiert eins.
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: H8FW6W6K2D
   HaiityUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -239,6 +254,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.aiity.haiity.uitests
         SWIFT_VERSION: "5.9"
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: H8FW6W6K2D
 schemes:
   Haiity:
     build:

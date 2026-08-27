@@ -10,6 +10,12 @@ struct CalendarSyncSelection: Equatable {
     }
 }
 
+struct CalendarDestinationOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let sourceTitle: String
+}
+
 enum CalendarFeatureGate {
     static func canEnable(unlocked: Bool) -> Bool { unlocked }
 }
@@ -223,15 +229,66 @@ enum CalendarSync {
     static let remindersEnabledKey = CalendarSyncPreferences.remindersEnabledKey
     nonisolated static let habitsCalendarKey = CalendarSyncPreferences.habitsCalendarKey
     nonisolated static let remindersCalendarKey = CalendarSyncPreferences.remindersCalendarKey
-    static let calendarKey = "calendarSyncCalendar"
+    nonisolated static let calendarKey = "calendarSyncCalendar"
+    nonisolated static let fallbackCalendarKey = "calendarSyncFallbackCalendar"
     static let mapKey = "calendarSyncEvents"
     static let fingerprintKey = "calendarSyncFingerprints"
-    static let calendarTitle = "hAiity"
+    nonisolated static let calendarTitle = "hAiity"
     nonisolated static let habitsCalendarTitle = "hAiity Habits"
     nonisolated static let remindersCalendarTitle = "hAiity Reminders"
 
     nonisolated static func destinationTitle(isReminder: Bool) -> String {
         isReminder ? remindersCalendarTitle : habitsCalendarTitle
+    }
+
+    static func selectedCalendarID(isReminder: Bool) -> String? {
+        CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults)
+    }
+
+    static func setSelectedCalendarID(_ id: String?, isReminder: Bool) {
+        CalendarSyncPreferences.setCalendarID(id, isReminder: isReminder, in: defaults)
+    }
+
+    static func activeCalendarTitle(isReminder: Bool) -> String? {
+        guard hasAccess else { return nil }
+        if let id = selectedCalendarID(isReminder: isReminder),
+           let calendar = store.calendar(withIdentifier: id) {
+            return calendar.title
+        }
+        if let id = defaults.string(forKey: fallbackCalendarKey),
+           let calendar = store.calendar(withIdentifier: id) {
+            return calendar.title
+        }
+        return nil
+    }
+
+    static var writableCalendarOptions: [CalendarDestinationOption] {
+        guard hasAccess else { return [] }
+        return store.calendars(for: .event)
+            .filter {
+                $0.allowsContentModifications
+                    && $0.source?.sourceType != .subscribed
+                    && $0.source?.sourceType != .birthdays
+            }
+            .map {
+                CalendarDestinationOption(id: $0.calendarIdentifier,
+                                           title: $0.title,
+                                           sourceTitle: $0.source?.title ?? "")
+            }
+            .sorted {
+                let titleOrder = $0.title.localizedStandardCompare($1.title)
+                return titleOrder == .orderedSame ? $0.id < $1.id : titleOrder == .orderedAscending
+            }
+    }
+
+    nonisolated static func orderedSourceIDs(preferredID: String?,
+                                             fallbackIDs: [String]) -> [String] {
+        var result: [String] = []
+        for id in ([preferredID].compactMap { $0 } + fallbackIDs)
+            where !result.contains(id) {
+            result.append(id)
+        }
+        return result
     }
 
     private static let store = EKEventStore()
@@ -286,16 +343,18 @@ enum CalendarSync {
     /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
     /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
     static var activeCalendarTitle: String? {
-        activeCalendarTitles.first
+        activeCalendarTitle(isReminder: false) ?? activeCalendarTitle(isReminder: true)
     }
 
     static var activeCalendarTitles: [String] {
         guard hasAccess else { return [] }
-        return [false, true].compactMap { isReminder in
-            guard let id = CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults),
-                  let calendar = store.calendar(withIdentifier: id) else { return nil }
-            return calendar.title
+        var titles: [String] = []
+        for title in [activeCalendarTitle(isReminder: false),
+                      activeCalendarTitle(isReminder: true)].compactMap({ $0 })
+            where !titles.contains(title) {
+            titles.append(title)
         }
+        return titles
     }
 
     /// Alles abgleichen: fehlende Termine anlegen, veränderte neu schreiben,
@@ -409,7 +468,7 @@ enum CalendarSync {
                }) {
                 let key = owner.id.uuidString
                 map[key] = retainedID
-                validatedKeys.insert(key)
+                validatedKeys.insert(owner.id.uuidString)
                 validatedEvents[key] = retainedEvent
             } else {
                 map[owner.id.uuidString] = nil
@@ -422,7 +481,7 @@ enum CalendarSync {
             guard let plan = CalendarEventPlan(
                 habit: habit,
                 defaultTimeZoneIdentifier: defaultTimeZoneIdentifier) else {
-                removeEvent(for: key, map: &map, prints: &prints)
+                _ = removeEvent(for: key, map: &map, prints: &prints)
                 continue
             }
             seen.insert(key)
@@ -452,7 +511,7 @@ enum CalendarSync {
             calendars[plan.isReminder] == nil ? owner.id.uuidString : nil
         })
         for key in Array(map.keys) where !seen.contains(key) && !unavailableKeys.contains(key) {
-            removeEvent(for: key, map: &map, prints: &prints)
+            _ = removeEvent(for: key, map: &map, prints: &prints)
         }
 
         defaults.set(map, forKey: mapKey)
@@ -513,6 +572,7 @@ enum CalendarSync {
         defaults.removeObject(forKey: habitsCalendarKey)
         defaults.removeObject(forKey: remindersCalendarKey)
         defaults.removeObject(forKey: calendarKey)
+        defaults.removeObject(forKey: fallbackCalendarKey)
         return true
     }
 
@@ -522,6 +582,7 @@ enum CalendarSync {
     static func disable() {
         syncHabits = false
         syncReminders = false
+        defaults.removeObject(forKey: fallbackCalendarKey)
         guard hasAccess else { return }
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
         var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]
@@ -616,13 +677,18 @@ enum CalendarSync {
         return true
     }
 
-    /// Der eigene Kalender — angelegt im Konto des Standardkalenders, damit
-    /// er dort erscheint, wo die Termine des Nutzers ohnehin wohnen (bei
-    /// einem Google-Standardkonto also in Google Kalender).
+    /// Creates a category calendar when the provider supports it. Some
+    /// providers, including Google calendars exposed through EventKit, allow
+    /// event writes but reject calendar creation; in that case the existing
+    /// writable event calendar is the only usable destination.
     private static func ensureCalendar(isReminder: Bool) -> EKCalendar? {
         if let id = CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults),
-           let existing = store.calendar(withIdentifier: id) {
+           let existing = store.calendar(withIdentifier: id),
+           existing.allowsContentModifications {
             return existing
+        }
+        if CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults) != nil {
+            CalendarSyncPreferences.setCalendarID(nil, isReminder: isReminder, in: defaults)
         }
         let title = destinationTitle(isReminder: isReminder)
         if let existing = store.calendars(for: .event)
@@ -632,22 +698,43 @@ enum CalendarSync {
                                                    in: defaults)
             return existing
         }
-        let calendar = EKCalendar(for: .event, eventStore: store)
-        calendar.title = title
-        calendar.source = store.defaultCalendarForNewEvents?.source
-            ?? store.sources.first { $0.sourceType == .calDAV }
-            ?? store.sources.first { $0.sourceType == .local }
-        guard calendar.source != nil else { return nil }
-        do {
-            try store.saveCalendar(calendar, commit: true)
-            CalendarSyncPreferences.setCalendarID(calendar.calendarIdentifier,
-                                                   isReminder: isReminder,
-                                                   in: defaults)
-            return calendar
-        } catch {
-            trace("calsync: save category calendar FAILED '\(title)': \(error)")
+        if let id = defaults.string(forKey: fallbackCalendarKey),
+           let existing = store.calendar(withIdentifier: id),
+           existing.allowsContentModifications {
+            return existing
+        }
+        let sourceCandidates = store.sources.filter {
+            $0.sourceType != .subscribed && $0.sourceType != .birthdays
+        }
+        let sourcesByID = Dictionary(uniqueKeysWithValues: sourceCandidates.map {
+            ($0.sourceIdentifier, $0)
+        })
+        let preferredID = store.defaultCalendarForNewEvents?.source?.sourceIdentifier
+        for sourceID in orderedSourceIDs(
+            preferredID: preferredID,
+            fallbackIDs: sourceCandidates.map(\.sourceIdentifier)) {
+            guard let source = sourcesByID[sourceID] else { continue }
+            let calendar = EKCalendar(for: .event, eventStore: store)
+            calendar.title = title
+            calendar.source = source
+            do {
+                try store.saveCalendar(calendar, commit: true)
+                CalendarSyncPreferences.setCalendarID(calendar.calendarIdentifier,
+                                                       isReminder: isReminder,
+                                                       in: defaults)
+                return calendar
+            } catch {
+                trace("calsync: save category calendar FAILED '\(title)' source='\(source.title)': \(error)")
+            }
+        }
+        let fallback = store.defaultCalendarForNewEvents
+            .flatMap { $0.allowsContentModifications ? $0 : nil }
+            ?? store.calendars(for: .event).first(where: { $0.allowsContentModifications })
+        guard let fallback, fallback.allowsContentModifications else {
             return nil
         }
+        defaults.set(fallback.calendarIdentifier, forKey: fallbackCalendarKey)
+        return fallback
     }
 
     private static func createEvent(plan: CalendarEventPlan,

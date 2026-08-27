@@ -152,7 +152,7 @@ enum ReminderSync {
     static func requestAccess() async -> Bool {
         guard Pro.isUnlocked else { return false }
         switch EKEventStore.authorizationStatus(for: .reminder) {
-        case .fullAccess, .authorized:
+        case .fullAccess:
             return true
         case .notDetermined:
             return (try? await store.requestFullAccessToReminders()) ?? false
@@ -276,7 +276,7 @@ enum ReminderSync {
         }
 
         for key in Array(links.keys) where !activeKeys.contains(key) {
-            removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
+            _ = removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
         }
 
         for plan in plans {
@@ -619,7 +619,7 @@ enum ReminderSync {
     }
 
     private static func isAuthorized(_ status: EKAuthorizationStatus) -> Bool {
-        status == .fullAccess || status == .authorized
+        status == .fullAccess
     }
 
     private static func note(_ error: Error) {

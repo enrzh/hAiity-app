@@ -101,6 +101,8 @@ struct MoreView: View {
     /// Moment, in dem sich ein Kauf wie ein Fehler anfühlt.
     @State private var purchased: PaywallContext?
     @State private var pendingCalendarItemType: HabitItemType = .habit
+    @State private var calendarPickerType: HabitItemType = .habit
+    @State private var showCalendarPicker = false
     @State private var pendingNativeReminder = false
     @State private var copiedSyncHint = false
     @State private var nativeSyncCleanupInProgress = false
@@ -196,6 +198,10 @@ struct MoreView: View {
         }
         .fullScreenCover(isPresented: $showReminderSetup) {
             ReminderSetupView(isPresented: $showReminderSetup, store: store)
+                .themed(store, palettes: palettes)
+        }
+        .sheet(isPresented: $showCalendarPicker) {
+            calendarDestinationPicker
                 .themed(store, palettes: palettes)
         }
         .alert(String(localized: "Farbe umbenennen"),
@@ -757,24 +763,114 @@ struct MoreView: View {
     private func calendarToggle(type: HabitItemType,
                                 title: String,
                                 identifier: String) -> some View {
-        Toggle(isOn: calendarBinding(for: type)) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
-                    Text(String(localized: type == .habit
-                                ? "Ziel: hAiity Habits"
-                                : "Ziel: hAiity Reminders"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: calendarBinding(for: type)) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
+                        Text(calendarDestinationText(for: type))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    let enabled = calendarEnabled(for: type)
+                    if !unlocked && !enabled {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        proLock
+                    }
                 }
-                let enabled = calendarEnabled(for: type)
-                if !unlocked && !enabled {
-                    Spacer(minLength: Theme.Metrics.gap)
-                    proLock
+            }
+            .accessibilityIdentifier(identifier)
+            if unlocked && CalendarSync.hasAccess {
+                Button {
+                    calendarPickerType = type
+                    showCalendarPicker = true
+                } label: {
+                    Label(String(localized: "Kalender auswählen"), systemImage: "calendar.badge.gearshape")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier(type == .habit
+                                         ? "calendar-sync-habits-destination"
+                                         : "calendar-sync-reminders-destination")
+            }
+        }
+    }
+
+    private func calendarDestinationText(for type: HabitItemType) -> String {
+        let actual = CalendarSync.activeCalendarTitle(isReminder: type == .reminder)
+            ?? CalendarSync.destinationTitle(isReminder: type == .reminder)
+        return String(format: String(localized: "Ziel: %@"), actual)
+    }
+
+    private var calendarDestinationPicker: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button {
+                        selectCalendar(nil)
+                    } label: {
+                        HStack {
+                            Label(String(localized: "Automatisch"), systemImage: "wand.and.stars")
+                            Spacer()
+                            if CalendarSync.selectedCalendarID(isReminder: calendarPickerType == .reminder) == nil {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
+                Section(String(localized: "Kalenderziel")) {
+                    let options = CalendarSync.writableCalendarOptions
+                    if options.isEmpty {
+                        Text(String(localized: "Keine schreibbaren Kalender verfügbar"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(options) { option in
+                            Button {
+                                selectCalendar(option.id)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(option.title)
+                                        if !option.sourceTitle.isEmpty {
+                                            Text(option.sourceTitle)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if CalendarSync.selectedCalendarID(isReminder: calendarPickerType == .reminder)
+                                        == option.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.tint)
+                                    }
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "Kalenderziel"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Abbrechen")) {
+                        showCalendarPicker = false
+                    }
                 }
             }
         }
-        .accessibilityIdentifier(identifier)
+        .settingsSurface()
+    }
+
+    private func selectCalendar(_ id: String?) {
+        CalendarSync.setSelectedCalendarID(id, isReminder: calendarPickerType == .reminder)
+        CalendarSync.reconcile(
+            habits: store.habits,
+            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        showCalendarPicker = false
     }
 
     private func calendarEnabled(for type: HabitItemType) -> Bool {
