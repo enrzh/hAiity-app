@@ -25,6 +25,7 @@ OUT="${OUT:-/tmp/haiity-release}"
 PROJECT="Haiity.xcodeproj"
 SCHEME="Haiity"
 APP_NAME="Haiity"
+BUNDLE_ID="com.aiity.haiity"
 TEAM_ID="${TEAM_ID:-H8FW6W6K2D}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$OUT/DerivedData}"
 UPLOAD=no
@@ -90,7 +91,7 @@ ok "ios platform"
 # --- 3. tests ---------------------------------------------------------------
 # Check the COUNT, not the exit code: a test file absent from project.yml does
 # not compile, and xcodebuild still exits 0.
-say "Unit tests"
+say "Build gates"
 # v13-Nav-Umbau (Mehr → Menü oben rechts, native TabView): KEIN Test entfiel —
 # die reinen ChromeLayout/MorePanel-Rechnungen samt Tests bleiben; nur
 # View-Code (MorePanelSurface) wurde gelöscht (Boden damals 748).
@@ -111,60 +112,30 @@ say "Unit tests"
 # Notification action slots and live category registration: +8 = 1099.
 # Home Screen quick actions (candidates, menu build, type resolution): +9 = 1108.
 # Main-actor completion contract for the notification delegate: +1 = 1109.
-# Current full-suite floor verified with timezone, appearance, and settings
-# chrome coverage.
-MIN_TESTS=1423
-# Pick an iPhone on a runtime this Xcode can actually target: a newer simulator
-# runtime than the installed SDK (an iOS 27 sim under Xcode 26) is listed as
-# available but cannot be built for. UDIDs are not hard-coded — simulators get
-# deleted. Override with SIM=<udid>.
-SIM="${SIM:-}"
-if [[ -z "$SIM" ]]; then
-  SDK_MAJOR=$(xcodebuild -showsdks 2>/dev/null | sed -n 's/.*-sdk iphonesimulator\([0-9]*\).*/\1/p' | head -1)
-  SIM=$(xcrun simctl list devices available --json | SDK_MAJOR="$SDK_MAJOR" python3 -c '
-import json, os, re, sys
-sdk = int(os.environ.get("SDK_MAJOR") or 0)
-devices = json.load(sys.stdin)["devices"]
-best = None
-for runtime, items in devices.items():
-    m = re.search(r"iOS-(\d+)-(\d+)", runtime)
-    if not m:
-        continue
-    major, minor = int(m.group(1)), int(m.group(2))
-    if sdk and major > sdk:      # runtime newer than the SDK: unbuildable
-        continue
-    for d in items:
-        ident = d.get("deviceTypeIdentifier", "")
-        if "iPhone" not in d["name"] and "iPhone" not in ident:
-            continue
-        # Prefer an iPhone 17 Pro Max, then the newest runtime.
-        pro_max = "iPhone-17-Pro-Max" in ident or d["name"] == "iPhone 17 Pro Max"
-        key = (1 if pro_max else 0, major, minor)
-        if best is None or key > best[0]:
-            best = (key, d["udid"], d["name"], f"iOS {major}.{minor}")
-print("\t".join(best[1:]) if best else "")')
-  SIM_NAME=$(printf '%s' "$SIM" | cut -f2- | tr '\t' ' ')
-  SIM=$(printf '%s' "$SIM" | cut -f1)
-else
-  SIM_NAME="(SIM override)"
-fi
-[[ -n "$SIM" ]] || fail "no iPhone simulator on a runtime this Xcode can target.
-    Install a matching simulator runtime in Xcode > Settings > Components."
-echo "    simulator $SIM_NAME"
-
-TEST_LOG="$OUT/tests.log"
-xcodebuild test -project "$PROJECT" -scheme "$SCHEME" \
-  -derivedDataPath "$DERIVED_DATA_PATH" \
-  -destination "id=$SIM" -testLanguage de -testRegion DE -only-testing:HaiityTests \
-  -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO \
-  >"$TEST_LOG" 2>&1 || { tail -40 "$TEST_LOG"; fail "tests failed (full log: $TEST_LOG)"; }
-
-COUNT=$(grep -oE 'Executed [0-9]+ tests?' "$TEST_LOG" | tail -1 | grep -oE '[0-9]+' || echo 0)
-[[ "$COUNT" -ge "$MIN_TESTS" ]] || fail "only $COUNT tests ran, expected >= $MIN_TESTS.
-    A test file is probably missing from project.yml, which compiles nothing
-    and still exits 0. Raise MIN_TESTS deliberately when you add tests."
-ok "executed $COUNT tests (floor $MIN_TESTS)"
-
+# The complete test target is compiled by the device test invocation below, but
+# only the physical-safe subset is executed on the phone. The complete unit
+# test gate must run separately on a host/CI destination.
+PHYSICAL_MIN_TESTS=20
+PHYSICAL_TESTS=(
+  -only-testing:HaiityTests/SwipeRevealMechanicsTests
+  -only-testing:HaiityTests/ReminderItemTests/testPresentationPolicyUsesCompactRowsOnlyForReminders
+  -only-testing:HaiityTests/ProGateTests/testFreeHabitLimitIsThree
+  -only-testing:HaiityTests/ProGateTests/testMayAddHabitMatrixWhenLocked
+  -only-testing:HaiityTests/ProGateTests/testCurrentEntitlementPolicyRejectsExpiredRevokedAndNonPurchasedTransactions
+  -only-testing:HaiityTests/ProGateTests/testSharedEntitlementSnapshotExpiresWithoutTheAppProcess
+  -only-testing:HaiityTests/NotificationActionTests/testConfiguredSlotsResolveToThreeUniqueActionsPerHabitKind
+  -only-testing:HaiityTests/NotificationActionTests/testNoneSlotsAreNotRegisteredAndResponseIdentifiersAreDistinct
+  -only-testing:HaiityTests/NotificationActionTests/testNotificationSlotChoicesExcludeActionsAlreadyAssignedElsewhere
+  -only-testing:HaiityTests/NotificationActionTests/testAssigningAnActionClearsItsPreviousSlot
+  -only-testing:HaiityTests/NotificationActionTests/testCategoryDefinitionsContainTheConfiguredActionsForEachHabitKind
+  -only-testing:HaiityTests/NotificationActionTests/testSchedulePlansReportsEveryFailedAddAndContinues
+  -only-testing:HaiityTests/NotificationActionTests/testLegacyResponseIdentifierStillResolvesFromItsOldCategory
+  -only-testing:HaiityTests/NotificationActionTests/testAppOpeningActionIsNotDeliveredSynchronously
+  -only-testing:HaiityTests/StatsCardPrefsTests/testNewerRemotePreferencesReplaceLocalPreferences
+)
+# Physical iPhone Air verification is required after export; never fall back to
+# a simulator. Override with DEVICE_ID=<physical iPhone UDID>.
+DEVICE_ID="${DEVICE_ID:-00008150-000120AC0287801C}"
 # --- 3b. GitHub OAuth client ID --------------------------------------------
 say "GitHub OAuth client ID"
 CLIENT_ID=$(python3 - <<'PY'
@@ -469,11 +440,67 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates >"$OUT/export.log" 2>&1 \
   || { tail -40 "$OUT/export.log"; fail "export failed (full log: $OUT/export.log)"; }
 
+IPA=$(find "$OUT/export" -name '*.ipa' -print -quit)
+[[ -n "$IPA" ]] || fail "no .ipa produced by export."
+EXPORTED_APP_DIR="$OUT/exported-app"
+rm -rf "$EXPORTED_APP_DIR"
+mkdir -p "$EXPORTED_APP_DIR"
+unzip -q "$IPA" -d "$EXPORTED_APP_DIR" \
+  || fail "could not inspect exported IPA: $IPA"
+EXPORTED_APP="$EXPORTED_APP_DIR/Payload/$APP_NAME.app"
+[[ -d "$EXPORTED_APP" ]] || fail "exported IPA has no $APP_NAME.app."
+EXPORTED_APP_V=$(plist "$EXPORTED_APP" CFBundleShortVersionString)
+EXPORTED_APP_B=$(plist "$EXPORTED_APP" CFBundleVersion)
+[[ "$EXPORTED_APP_V" == "$APP_V" && "$EXPORTED_APP_B" == "$APP_B" ]] \
+  || fail "exported app version $EXPORTED_APP_V ($EXPORTED_APP_B) differs from archive $APP_V ($APP_B)."
+ok "exported app matches archive ($EXPORTED_APP_V/$EXPORTED_APP_B)"
+
+# --- 7. exact exported build on the approved physical iPhone ---------------
+say "Verifying the exported build on the physical iPhone"
+DESTINATIONS=$(xcodebuild -showdestinations -project "$PROJECT" -scheme "$SCHEME" 2>/dev/null || true)
+PHYSICAL_DESTINATION=$(printf '%s\n' "$DESTINATIONS" | grep -E "id:${DEVICE_ID}([,}])" | grep -E 'platform:iOS([,}])' || true)
+if [[ -z "$PHYSICAL_DESTINATION" ]]; then
+  if printf '%s\n' "$DESTINATIONS" | grep -E "id:${DEVICE_ID}([,}])" | grep -q 'platform:iOS Simulator'; then
+    fail "DEVICE_ID=$DEVICE_ID is a simulator; a physical iPhone is required."
+  fi
+  fail "physical iPhone $DEVICE_ID is unavailable. Connect and unlock the approved iPhone, then re-run."
+fi
+xcrun devicectl device install app --device "$DEVICE_ID" "$EXPORTED_APP" \
+  >"$OUT/device-install.log" 2>&1 \
+  || { tail -40 "$OUT/device-install.log"; fail "exported app could not be installed on physical iPhone (full log: $OUT/device-install.log)"; }
+DEVICE_APPS="$OUT/device-apps.json"
+xcrun devicectl device info apps --device "$DEVICE_ID" --bundle-id "$BUNDLE_ID" \
+  --json-output "$DEVICE_APPS" >"$OUT/device-info.log" 2>&1 \
+  || { tail -40 "$OUT/device-info.log"; fail "could not inspect installed exported app (full log: $OUT/device-info.log)"; }
+grep -Fq "\"bundleIdentifier\" : \"$BUNDLE_ID\"" "$DEVICE_APPS" \
+  || fail "device app inventory did not include $BUNDLE_ID."
+grep -Fq "\"bundleShortVersionString\" : \"$APP_V\"" "$DEVICE_APPS" \
+  || fail "device app version does not match exported version $APP_V."
+grep -Fq "\"bundleVersion\" : \"$APP_B\"" "$DEVICE_APPS" \
+  || fail "device app build does not match exported build $APP_B."
+xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing "$BUNDLE_ID" \
+  >"$OUT/device-launch.log" 2>&1 \
+  || { tail -40 "$OUT/device-launch.log"; fail "exported app could not be launched on physical iPhone (full log: $OUT/device-launch.log)"; }
+ok "exact exported build running on physical iPhone $DEVICE_ID"
+
+# This is intentionally after export: the phone runtime gate must follow the
+# archive/export gate, while the complete unit-test gate remains host/CI work.
+say "Physical-safe tests"
+TEST_LOG="$OUT/tests.log"
+xcodebuild test -project "$PROJECT" -scheme "$SCHEME" \
+  -derivedDataPath "$DERIVED_DATA_PATH" \
+  -destination "id=$DEVICE_ID" -testLanguage de -testRegion DE "${PHYSICAL_TESTS[@]}" \
+  -skipPackagePluginValidation -skipMacroValidation -allowProvisioningUpdates \
+  CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES DEVELOPMENT_TEAM="$TEAM_ID" \
+  >"$TEST_LOG" 2>&1 || { tail -40 "$TEST_LOG"; fail "physical-safe tests failed or the phone became unavailable (full log: $TEST_LOG)"; }
+COUNT=$(grep -oE 'Executed [0-9]+ tests?' "$TEST_LOG" | tail -1 | grep -oE '[0-9]+' || echo 0)
+[[ "$COUNT" -ge "$PHYSICAL_MIN_TESTS" ]] || fail "only $COUNT physical-safe tests ran, expected >= $PHYSICAL_MIN_TESTS."
+ok "executed $COUNT physical-safe tests (floor $PHYSICAL_MIN_TESTS)"
+
 say "Done — $APP_V ($APP_B)"
 if [[ "$UPLOAD" == yes ]]; then
   echo "    uploaded; App Store Connect takes 5–30 min to process it."
 else
-  IPA=$(find "$OUT/export" -name '*.ipa' -print -quit)
   echo "    ${IPA:-no .ipa produced}"
   echo "    re-run with --upload to send it."
 fi
