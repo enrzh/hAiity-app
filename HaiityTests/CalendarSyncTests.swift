@@ -230,6 +230,26 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertNil(SyncWatermark.ownership(in: "hAiity"))
         XCTAssertNil(SyncWatermark.ownership(in: "hAiity\u{2063}not-a-tag\u{2063}"))
         XCTAssertNil(SyncWatermark.ownership(in: "Other app\u{2063}marker\u{2063}"))
+
+        let id = UUID()
+        let note = SyncWatermark.note(for: id, kind: .nativeReminder)
+        let userNoteWithCopiedMarker = note.replacingOccurrences(
+            of: "hAiity\n",
+            with: "User mentioned hAiity\n")
+        XCTAssertNil(SyncWatermark.ownership(in: userNoteWithCopiedMarker),
+                     "a copied marker must not make an otherwise unrelated note hAiity-owned")
+    }
+
+    func testWatermarkRequiresTheReadablePrefixImmediatelyBeforeInvisiblePayload() {
+        let id = UUID()
+        let note = SyncWatermark.note(for: id, kind: .nativeReminder)
+        let payload = note.replacingOccurrences(of: "hAiity\n", with: "")
+
+        XCTAssertEqual(SyncWatermark.ownership(in: "User note\n\(note)"),
+                       SyncWatermark.Ownership(kind: .nativeReminder, id: id))
+        XCTAssertNil(SyncWatermark.ownership(in: "User hAiity\n\(payload)"))
+        XCTAssertNil(SyncWatermark.ownership(in: "hAiity note\n\(payload)"))
+        XCTAssertNil(SyncWatermark.ownership(in: "User note\n hAiity\n\(payload)"))
     }
 
     func testLegacyKeywordIsRecognizedOnlyAsAStandaloneCleanupNote() {

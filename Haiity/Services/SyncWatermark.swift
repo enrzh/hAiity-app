@@ -78,14 +78,17 @@ enum SyncWatermark {
     /// Recovers the identity that survives an app reinstall. Native IDs are
     /// device-local; this payload is deliberately independent of them.
     static func ownership(in note: String) -> Ownership? {
-        guard note.contains(readablePrefix) else { return nil }
-
-        for segment in note.components(separatedBy: boundary) {
-            guard !segment.isEmpty,
-                  segment.unicodeScalars.allSatisfy({ isEncodedScalar($0) }),
-                  let decoded = decode(segment) else {
+        let lines = note.components(separatedBy: "\n")
+        for index in lines.indices where lines[index] == readablePrefix {
+            guard lines.indices.contains(index + 1) else { continue }
+            let markerLine = lines[index + 1]
+            guard markerLine.hasPrefix(boundary), markerLine.hasSuffix(boundary) else {
                 continue
             }
+            let segment = String(markerLine.dropFirst(boundary.count).dropLast(boundary.count))
+            guard !segment.isEmpty,
+                  segment.unicodeScalars.allSatisfy({ isEncodedScalar($0) }),
+                  let decoded = decode(segment) else { continue }
             let parts = decoded.split(separator: "|", maxSplits: 1)
             guard parts.count == 2,
                   let kind = Kind(rawValue: String(parts[0])),
