@@ -265,6 +265,13 @@ final class ReminderSyncContractTests: XCTestCase {
         }
     }
 
+    func testNativeSyncDestinationMessagesAreInTheLocalizationCatalog() throws {
+        let catalog = try source("Haiity/Localizable.xcstrings")
+        XCTAssertTrue(catalog.contains("Native Einträge bereinigt und neu synchronisiert: %@."))
+        XCTAssertTrue(catalog.contains("Ziel: hAiity Habits"))
+        XCTAssertTrue(catalog.contains("Ziel: hAiity Reminders"))
+    }
+
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))
