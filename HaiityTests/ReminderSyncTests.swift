@@ -100,6 +100,11 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertTrue(source.contains("containerVersionKey"))
         XCTAssertTrue(source.contains("fetchAllReminders()"))
         XCTAssertTrue(source.contains("reminder.calendar?.calendarIdentifier == list.calendarIdentifier"))
+        XCTAssertTrue(source.contains("var legacyCleanupSucceeded"))
+        XCTAssertTrue(source.contains("guard legacyCleanupSucceeded else"))
+        let cleanup = try XCTUnwrap(source.range(of: "guard legacyCleanupSucceeded else"))
+        let listSetup = try XCTUnwrap(source.range(of: "guard let list = ensureList() else"))
+        XCTAssertLessThan(cleanup.lowerBound, listSetup.lowerBound)
     }
 
     func testReminderCleanupStillScansEveryListAndClearsTheContainerState() throws {

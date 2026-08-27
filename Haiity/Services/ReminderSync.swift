@@ -184,12 +184,34 @@ enum ReminderSync {
         }
         let activeKeys = Set(plans.map { $0.habitID.uuidString })
 
+        var fetchedForValidation: [EKReminder]?
+        if validate {
+            guard let fetched = await fetchAllReminders() else { return }
+            var removedIDs = Set<String>()
+            var legacyCleanupSucceeded = true
+            for reminder in fetched {
+                guard let notes = reminder.notes,
+                      SyncWatermark.containsMarker(notes),
+                      notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                        == SyncWatermark.readablePrefix else { continue }
+                if !removeNativeReminder(reminder, removedIDs: &removedIDs) {
+                    legacyCleanupSucceeded = false
+                }
+            }
+            guard legacyCleanupSucceeded else {
+                lastError = "Legacy reminder cleanup failed"
+                trace("reminders: legacy cleanup failed; preserving state for retry")
+                return
+            }
+            fetchedForValidation = fetched
+        }
+
         guard let list = ensureList() else { return }
 
         var validatedReminders: [String: EKReminder] = [:]
         var migrationFailedOwners = Set<UUID>()
         if validate {
-            guard let fetched = await fetchAllReminders() else { return }
+            guard let fetched = fetchedForValidation else { return }
             var ownedByOwner = [SyncWatermark.Ownership: [EKReminder]]()
             var removedIDs = Set<String>()
             for reminder in fetched {
@@ -197,7 +219,6 @@ enum ReminderSync {
                       SyncWatermark.containsMarker(notes) else { continue }
                 if notes.trimmingCharacters(in: .whitespacesAndNewlines)
                     == SyncWatermark.readablePrefix {
-                    _ = removeNativeReminder(reminder, removedIDs: &removedIDs)
                     continue
                 }
                 guard let owner = SyncWatermark.ownership(in: notes),
