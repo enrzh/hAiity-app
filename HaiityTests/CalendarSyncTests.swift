@@ -63,6 +63,26 @@ final class CalendarSyncSelectionTests: XCTestCase {
                        CalendarSyncSelection(habits: false, reminders: true))
     }
 
+    func testCalendarDestinationsHaveStableCategoryNames() {
+        XCTAssertEqual(CalendarSync.destinationTitle(isReminder: false), "hAiity Habits")
+        XCTAssertEqual(CalendarSync.destinationTitle(isReminder: true), "hAiity Reminders")
+        XCTAssertNotEqual(CalendarSync.habitsCalendarKey, CalendarSync.remindersCalendarKey)
+        XCTAssertNotEqual(CalendarSync.habitsCalendarKey, CalendarSync.calendarKey)
+        XCTAssertNotEqual(CalendarSync.remindersCalendarKey, CalendarSync.calendarKey)
+    }
+
+    func testCalendarCategoryIDsAreIndependent() {
+        let suite = "calendar-category-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        CalendarSyncPreferences.setCalendarID("habit-id", isReminder: false, in: defaults)
+        CalendarSyncPreferences.setCalendarID("reminder-id", isReminder: true, in: defaults)
+
+        XCTAssertEqual(CalendarSyncPreferences.calendarID(isReminder: false, in: defaults), "habit-id")
+        XCTAssertEqual(CalendarSyncPreferences.calendarID(isReminder: true, in: defaults), "reminder-id")
+    }
+
     func testMoreScreenExposesIndependentCalendarToggles() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

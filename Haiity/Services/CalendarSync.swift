@@ -32,6 +32,17 @@ enum CalendarSyncPreferences {
     static let legacyEnabledKey = "calendarSyncEnabled"
     static let habitsEnabledKey = "calendarSyncHabitsEnabled"
     static let remindersEnabledKey = "calendarSyncRemindersEnabled"
+    static let habitsCalendarKey = "calendarSyncHabitsCalendar"
+    static let remindersCalendarKey = "calendarSyncRemindersCalendar"
+
+    static func calendarID(isReminder: Bool, in defaults: UserDefaults) -> String? {
+        defaults.string(forKey: isReminder ? remindersCalendarKey : habitsCalendarKey)
+    }
+
+    static func setCalendarID(_ id: String?, isReminder: Bool, in defaults: UserDefaults) {
+        let key = isReminder ? remindersCalendarKey : habitsCalendarKey
+        defaults.set(id, forKey: key)
+    }
 
     static func selection(in defaults: UserDefaults) -> CalendarSyncSelection {
         let habits = defaults.object(forKey: habitsEnabledKey) == nil
@@ -210,10 +221,18 @@ enum CalendarSync {
     static let enabledKey = CalendarSyncPreferences.legacyEnabledKey
     static let habitsEnabledKey = CalendarSyncPreferences.habitsEnabledKey
     static let remindersEnabledKey = CalendarSyncPreferences.remindersEnabledKey
+    nonisolated static let habitsCalendarKey = CalendarSyncPreferences.habitsCalendarKey
+    nonisolated static let remindersCalendarKey = CalendarSyncPreferences.remindersCalendarKey
     static let calendarKey = "calendarSyncCalendar"
     static let mapKey = "calendarSyncEvents"
     static let fingerprintKey = "calendarSyncFingerprints"
     static let calendarTitle = "hAiity"
+    nonisolated static let habitsCalendarTitle = "hAiity Habits"
+    nonisolated static let remindersCalendarTitle = "hAiity Reminders"
+
+    nonisolated static func destinationTitle(isReminder: Bool) -> String {
+        isReminder ? remindersCalendarTitle : habitsCalendarTitle
+    }
 
     private static let store = EKEventStore()
 

@@ -124,7 +124,9 @@ enum ReminderSyncPreferences {
 /// modified.
 @MainActor
 enum ReminderSync {
-    static let listTitle = "hAiity"
+    nonisolated static let listTitle = "hAiity Reminders"
+    nonisolated static let legacyListTitle = "hAiity"
+    nonisolated static let containerVersionKey = "nativeReminderSyncContainerVersion"
     static let listKey = "nativeReminderSyncList"
 
     private static let store = EKEventStore()

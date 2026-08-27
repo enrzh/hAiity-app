@@ -87,6 +87,11 @@ final class ReminderSyncPlanTests: XCTestCase {
 }
 
 final class ReminderSyncContractTests: XCTestCase {
+    func testNativeReminderUsesTheDedicatedCategoryName() {
+        XCTAssertEqual(ReminderSync.listTitle, "hAiity Reminders")
+        XCTAssertEqual(ReminderSync.legacyListTitle, "hAiity")
+    }
+
     func testNativeReminderToggleActionDisablesWithoutPro() {
         XCTAssertEqual(NativeReminderToggleAction.action(for: false, unlocked: false), .disable)
     }
