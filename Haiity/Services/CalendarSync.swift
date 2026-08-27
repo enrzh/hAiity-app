@@ -330,6 +330,11 @@ enum CalendarSync {
             if unchanged { return }
         }
 
+        guard removeLegacyOwnedItems() else {
+            trace("calsync: legacy cleanup failed; preserving state for retry")
+            return
+        }
+
         var calendars: [Bool: EKCalendar] = [:]
         for isReminder in Set(plans.map { $0.1.isReminder }) {
             if let calendar = ensureCalendar(isReminder: isReminder) {
@@ -343,10 +348,6 @@ enum CalendarSync {
         // A stored event ID is only a fast path. Older builds and interrupted
         // writes can leave several owned series behind, so inventory the
         // watermark before deciding which ID to reuse.
-        guard removeLegacyOwnedItems() else {
-            trace("calsync: legacy cleanup failed; preserving state for retry")
-            return
-        }
         let plansByOwner = Dictionary(uniqueKeysWithValues: plans.compactMap { entry
             -> (SyncWatermark.Ownership, CalendarEventPlan)? in
             guard let id = UUID(uuidString: entry.0) else { return nil }

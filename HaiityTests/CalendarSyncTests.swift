@@ -134,6 +134,9 @@ final class CalendarSyncSelectionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("guard removeLegacyOwnedItems() else"))
         XCTAssertTrue(source.contains("private static func removeLegacyOwnedItems() -> Bool"))
+        let cleanup = try XCTUnwrap(source.range(of: "guard removeLegacyOwnedItems() else"))
+        let calendarSetup = try XCTUnwrap(source.range(of: "var calendars: [Bool: EKCalendar] = [:]"))
+        XCTAssertLessThan(cleanup.lowerBound, calendarSetup.lowerBound)
     }
 
     func testMoreScreenExposesIndependentCalendarToggles() throws {
