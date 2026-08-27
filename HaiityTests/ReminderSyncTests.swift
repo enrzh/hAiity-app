@@ -258,6 +258,10 @@ final class ReminderSyncContractTests: XCTestCase {
         for source in [content, more] {
             XCTAssertTrue(source.contains("hAiity Habits"))
             XCTAssertTrue(source.contains("hAiity Reminders"))
+            XCTAssertTrue(source.contains("nativeCleanupDestinations(for: result)"))
+            XCTAssertTrue(source.contains("CalendarSync.syncHabits"))
+            XCTAssertTrue(source.contains("CalendarSync.syncReminders"))
+            XCTAssertTrue(source.contains("ReminderSync.isEnabled"))
         }
     }
 

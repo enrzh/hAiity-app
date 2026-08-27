@@ -725,9 +725,10 @@ struct MoreView: View {
 
     private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
         guard result.needsRetry else {
-            var destinations: [String] = []
-            if result.calendar { destinations.append("hAiity Habits / hAiity Reminders") }
-            if result.reminders { destinations.append("hAiity Reminders") }
+            let destinations = nativeCleanupDestinations(for: result)
+            guard !destinations.isEmpty else {
+                return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+            }
             return String(localized: "Native Einträge bereinigt und neu synchronisiert: \(destinations.joined(separator: ", ")).")
         }
         switch (result.calendar, result.reminders) {
@@ -736,8 +737,21 @@ struct MoreView: View {
         case (false, false):
             return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen und versuche es erneut.")
         case (true, true):
-            return String(localized: "Native Einträge bereinigt und neu synchronisiert: hAiity Habits / hAiity Reminders, hAiity Reminders.")
+            let destinations = nativeCleanupDestinations(for: result)
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert: \(destinations.joined(separator: ", ")).")
         }
+    }
+
+    private func nativeCleanupDestinations(for result: NativeSyncCleanup.Result) -> [String] {
+        var destinations: [String] = []
+        if result.calendar {
+            if CalendarSync.syncHabits { destinations.append("hAiity Habits") }
+            if CalendarSync.syncReminders { destinations.append("hAiity Reminders") }
+        }
+        if result.reminders && ReminderSync.isEnabled {
+            destinations.append("hAiity Reminders")
+        }
+        return destinations
     }
 
     private func calendarToggle(type: HabitItemType,
