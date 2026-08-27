@@ -416,7 +416,7 @@ for bundle in "$APP" "$EXT"; do
 done
 
 # --- 6. export --------------------------------------------------------------
-say "Exporting for App Store Connect"
+say "Exporting shipping IPA for App Store Connect"
 DEST=export; [[ "$UPLOAD" == yes ]] && DEST=upload
 cat >"$OUT/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -455,8 +455,45 @@ EXPORTED_APP_B=$(plist "$EXPORTED_APP" CFBundleVersion)
   || fail "exported app version $EXPORTED_APP_V ($EXPORTED_APP_B) differs from archive $APP_V ($APP_B)."
 ok "exported app matches archive ($EXPORTED_APP_V/$EXPORTED_APP_B)"
 
-# --- 7. exact exported build on the approved physical iPhone ---------------
-say "Verifying the exported build on the physical iPhone"
+# The App Store Connect export above is the shipping artifact. Its beta
+# profile is not necessarily installable on a physical device, so never use
+# that IPA for the device smoke check.
+say "Exporting separate development smoke build for the physical iPhone"
+cat >"$OUT/DevelopmentExportOptions.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>method</key><string>development</string>
+  <key>teamID</key><string>$TEAM_ID</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>manageAppVersionAndBuildNumber</key><false/>
+</dict></plist>
+PLIST
+
+DEV_EXPORT="$OUT/development-export"
+rm -rf "$DEV_EXPORT"
+xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+  -exportOptionsPlist "$OUT/DevelopmentExportOptions.plist" -exportPath "$DEV_EXPORT" \
+  -allowProvisioningUpdates >"$OUT/development-export.log" 2>&1 \
+  || { tail -40 "$OUT/development-export.log"; fail "development smoke export failed (full log: $OUT/development-export.log)"; }
+
+DEV_IPA=$(find "$DEV_EXPORT" -name '*.ipa' -print -quit)
+[[ -n "$DEV_IPA" ]] || fail "no development smoke IPA produced."
+DEV_APP_DIR="$OUT/development-exported-app"
+rm -rf "$DEV_APP_DIR"
+mkdir -p "$DEV_APP_DIR"
+unzip -q "$DEV_IPA" -d "$DEV_APP_DIR" \
+  || fail "could not inspect development smoke IPA: $DEV_IPA"
+DEV_APP="$DEV_APP_DIR/Payload/$APP_NAME.app"
+[[ -d "$DEV_APP" ]] || fail "development smoke IPA has no $APP_NAME.app."
+DEV_APP_V=$(plist "$DEV_APP" CFBundleShortVersionString)
+DEV_APP_B=$(plist "$DEV_APP" CFBundleVersion)
+[[ "$DEV_APP_V" == "$APP_V" && "$DEV_APP_B" == "$APP_B" ]] \
+  || fail "development smoke app version $DEV_APP_V ($DEV_APP_B) differs from archive $APP_V ($APP_B)."
+ok "development smoke export matches archive ($DEV_APP_V/$DEV_APP_B)"
+
+# --- 7. development smoke build on the approved physical iPhone ------------
+say "Verifying the development smoke export on the physical iPhone"
 DESTINATIONS=$(xcodebuild -showdestinations -project "$PROJECT" -scheme "$SCHEME" 2>/dev/null || true)
 PHYSICAL_DESTINATION=$(printf '%s\n' "$DESTINATIONS" | grep -E "id:${DEVICE_ID}([,}])" | grep -E 'platform:iOS([,}])' || true)
 if [[ -z "$PHYSICAL_DESTINATION" ]]; then
@@ -465,23 +502,23 @@ if [[ -z "$PHYSICAL_DESTINATION" ]]; then
   fi
   fail "physical iPhone $DEVICE_ID is unavailable. Connect and unlock the approved iPhone, then re-run."
 fi
-xcrun devicectl device install app --device "$DEVICE_ID" "$EXPORTED_APP" \
+xcrun devicectl device install app --device "$DEVICE_ID" "$DEV_APP" \
   >"$OUT/device-install.log" 2>&1 \
-  || { tail -40 "$OUT/device-install.log"; fail "exported app could not be installed on physical iPhone (full log: $OUT/device-install.log)"; }
+  || { tail -40 "$OUT/device-install.log"; fail "development smoke export could not be installed on physical iPhone (full log: $OUT/device-install.log)"; }
 DEVICE_APPS="$OUT/device-apps.json"
 xcrun devicectl device info apps --device "$DEVICE_ID" --bundle-id "$BUNDLE_ID" \
   --json-output "$DEVICE_APPS" >"$OUT/device-info.log" 2>&1 \
-  || { tail -40 "$OUT/device-info.log"; fail "could not inspect installed exported app (full log: $OUT/device-info.log)"; }
+  || { tail -40 "$OUT/device-info.log"; fail "could not inspect installed development smoke app (full log: $OUT/device-info.log)"; }
 grep -Fq "\"bundleIdentifier\" : \"$BUNDLE_ID\"" "$DEVICE_APPS" \
   || fail "device app inventory did not include $BUNDLE_ID."
-grep -Fq "\"bundleShortVersionString\" : \"$APP_V\"" "$DEVICE_APPS" \
+grep -Fq "\"version\" : \"$APP_V\"" "$DEVICE_APPS" \
   || fail "device app version does not match exported version $APP_V."
 grep -Fq "\"bundleVersion\" : \"$APP_B\"" "$DEVICE_APPS" \
   || fail "device app build does not match exported build $APP_B."
 xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing "$BUNDLE_ID" \
   >"$OUT/device-launch.log" 2>&1 \
-  || { tail -40 "$OUT/device-launch.log"; fail "exported app could not be launched on physical iPhone (full log: $OUT/device-launch.log)"; }
-ok "exact exported build running on physical iPhone $DEVICE_ID"
+  || { tail -40 "$OUT/device-launch.log"; fail "development smoke app could not be launched on physical iPhone (full log: $OUT/device-launch.log)"; }
+ok "development smoke build running on physical iPhone $DEVICE_ID"
 
 # This is intentionally after export: the phone runtime gate must follow the
 # archive/export gate, while the complete unit-test gate remains host/CI work.
@@ -501,6 +538,7 @@ say "Done — $APP_V ($APP_B)"
 if [[ "$UPLOAD" == yes ]]; then
   echo "    uploaded; App Store Connect takes 5–30 min to process it."
 else
-  echo "    ${IPA:-no .ipa produced}"
+  echo "    shipping IPA: ${IPA:-no .ipa produced}"
+  echo "    development smoke export: ${DEV_IPA:-no .ipa produced}"
   echo "    re-run with --upload to send it."
 fi
