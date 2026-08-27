@@ -187,6 +187,7 @@ enum ReminderSync {
         guard let list = ensureList() else { return }
 
         var validatedReminders: [String: EKReminder] = [:]
+        var migrationFailedOwners = Set<UUID>()
         if validate {
             guard let fetched = await fetchAllReminders() else { return }
             var ownedByOwner = [SyncWatermark.Ownership: [EKReminder]]()
@@ -196,7 +197,7 @@ enum ReminderSync {
                       SyncWatermark.containsMarker(notes) else { continue }
                 if notes.trimmingCharacters(in: .whitespacesAndNewlines)
                     == SyncWatermark.readablePrefix {
-                    removeNativeReminder(reminder, removedIDs: &removedIDs)
+                    _ = removeNativeReminder(reminder, removedIDs: &removedIDs)
                     continue
                 }
                 guard let owner = SyncWatermark.ownership(in: notes),
@@ -210,7 +211,7 @@ enum ReminderSync {
             for (owner, reminders) in ownedByOwner {
                 guard plansByOwner[owner] != nil else {
                     for reminder in reminders {
-                        removeNativeReminder(reminder, removedIDs: &removedIDs)
+                        _ = removeNativeReminder(reminder, removedIDs: &removedIDs)
                     }
                     continue
                 }
@@ -228,8 +229,13 @@ enum ReminderSync {
                         && targetIDs.contains(reminder.calendarItemIdentifier)
                         && !selection.duplicateIDs.contains(reminder.calendarItemIdentifier)
                     if !keep {
-                        removeNativeReminder(reminder, removedIDs: &removedIDs)
+                        if !removeNativeReminder(reminder, removedIDs: &removedIDs) {
+                            migrationFailedOwners.insert(owner.id)
+                        }
                     }
+                }
+                if migrationFailedOwners.contains(owner.id) {
+                    continue
                 }
                 if let retainedID = selection.retainedID,
                    let plan = plansByOwner[owner],
@@ -254,6 +260,9 @@ enum ReminderSync {
 
         for plan in plans {
             let key = plan.habitID.uuidString
+            if migrationFailedOwners.contains(plan.habitID) {
+                continue
+            }
             let habit = active.first { $0.id == plan.habitID }
             let linked = validatedReminders[key]
                 ?? links[key].flatMap { ownedReminder(id: $0.reminderID, in: list) }
@@ -306,12 +315,7 @@ enum ReminderSync {
         isReconciling = true
         defer { isReconciling = false }
 
-        let predicate = store.predicateForReminders(in: nil)
-        let fetched: [EKReminder]? = await withCheckedContinuation { continuation in
-            store.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: reminders)
-            }
-        }
+        let fetched = await fetchAllReminders()
         guard let reminders = fetched else { return false }
         var removedIDs = Set<String>()
         var succeeded = true
@@ -344,6 +348,7 @@ enum ReminderSync {
         guard succeeded else { return false }
         ReminderSyncPreferences.clearLinks(in: defaults)
         defaults.removeObject(forKey: listKey)
+        defaults.removeObject(forKey: containerVersionKey)
         return true
     }
 
@@ -454,6 +459,7 @@ enum ReminderSync {
     }
 
     private static func ensureList() -> EKCalendar? {
+        let isCurrentContainer = defaults.integer(forKey: containerVersionKey) == 2
         let stored = storedList().map {
             ReminderListCandidate(id: $0.calendarIdentifier,
                                   title: $0.title,
@@ -464,11 +470,15 @@ enum ReminderSync {
                                   title: $0.title,
                                   isWritable: $0.allowsContentModifications)
         }
-        if let id = ReminderListResolver.id(stored: stored,
+        let storedForResolution: ReminderListCandidate? = isCurrentContainer
+            ? stored
+            : nil
+        if let id = ReminderListResolver.id(stored: storedForResolution,
                                              calendars: candidates,
                                              title: listTitle),
            let list = store.calendar(withIdentifier: id) {
             defaults.set(id, forKey: listKey)
+            defaults.set(2, forKey: containerVersionKey)
             return list
         }
 
@@ -479,6 +489,7 @@ enum ReminderSync {
         do {
             try store.saveCalendar(list, commit: true)
             defaults.set(list.calendarIdentifier, forKey: listKey)
+            defaults.set(2, forKey: containerVersionKey)
             return list
         } catch {
             note(error)
@@ -508,13 +519,16 @@ enum ReminderSync {
     }
 
     private static func removeNativeReminder(_ reminder: EKReminder,
-                                             removedIDs: inout Set<String>) {
+                                             removedIDs: inout Set<String>) -> Bool {
         let identity = reminder.calendarItemIdentifier
-        guard removedIDs.insert(identity).inserted else { return }
+        guard removedIDs.insert(identity).inserted else { return true }
         do {
             try store.remove(reminder, commit: true)
+            return true
         } catch {
             note(error)
+            removedIDs.remove(identity)
+            return false
         }
     }
 

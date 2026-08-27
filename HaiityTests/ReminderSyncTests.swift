@@ -87,6 +87,30 @@ final class ReminderSyncPlanTests: XCTestCase {
 }
 
 final class ReminderSyncContractTests: XCTestCase {
+    func testReminderListContractUsesTheDedicatedTitle() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        XCTAssertTrue(source.contains("static let listTitle = \"hAiity Reminders\""))
+        XCTAssertTrue(source.contains("static let legacyListTitle = \"hAiity\""))
+        XCTAssertTrue(source.contains("containerVersionKey"))
+    }
+
+    func testReminderMigrationDoesNotReuseTheLegacyListOnTheFirstNewPass() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        XCTAssertTrue(source.contains("legacyListTitle"))
+        XCTAssertTrue(source.contains("containerVersionKey"))
+        XCTAssertTrue(source.contains("fetchAllReminders()"))
+        XCTAssertTrue(source.contains("reminder.calendar?.calendarIdentifier == list.calendarIdentifier"))
+    }
+
+    func testReminderCleanupStillScansEveryListAndClearsTheContainerState() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        let cleanup = try XCTUnwrap(source.range(of: "static func removeAllOwnedItems()"))
+        let tail = source[cleanup.lowerBound...]
+        XCTAssertTrue(tail.contains("fetchAllReminders()"))
+        XCTAssertTrue(tail.contains("containerVersionKey"))
+        XCTAssertTrue(tail.contains("listKey"))
+    }
+
     func testNativeReminderUsesTheDedicatedCategoryName() {
         XCTAssertEqual(ReminderSync.listTitle, "hAiity Reminders")
         XCTAssertEqual(ReminderSync.legacyListTitle, "hAiity")
