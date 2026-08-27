@@ -245,6 +245,22 @@ final class ReminderSyncContractTests: XCTestCase {
                       "retryable cleanup should keep the action visible as a retry")
     }
 
+    func testNativeSyncSettingsNamesBothCalendarDestinations() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(more.contains("hAiity Habits"))
+        XCTAssertTrue(more.contains("hAiity Reminders"))
+        XCTAssertTrue(more.contains("cleanup-native-entries"))
+    }
+
+    func testNativeCleanupFeedbackNamesEachNativeDestination() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let more = try source("Haiity/Views/MoreView.swift")
+        for source in [content, more] {
+            XCTAssertTrue(source.contains("hAiity Habits"))
+            XCTAssertTrue(source.contains("hAiity Reminders"))
+        }
+    }
+
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))

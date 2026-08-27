@@ -2767,7 +2767,10 @@ struct ContentView: View {
 
     private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
         guard result.needsRetry else {
-            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+            var destinations: [String] = []
+            if result.calendar { destinations.append("hAiity Habits / hAiity Reminders") }
+            if result.reminders { destinations.append("hAiity Reminders") }
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert: \(destinations.joined(separator: ", ")).")
         }
         switch (result.calendar, result.reminders) {
         case (true, false), (false, true):
@@ -2775,7 +2778,7 @@ struct ContentView: View {
         case (false, false):
             return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen und versuche es erneut.")
         case (true, true):
-            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert: hAiity Habits / hAiity Reminders, hAiity Reminders.")
         }
     }
 

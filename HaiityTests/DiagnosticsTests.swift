@@ -341,6 +341,10 @@ final class DiagnosticsTests: XCTestCase {
     func testTheCalendarTitleNeverLeavesTheDeviceAsFreeText() {
         XCTAssertEqual(DiagnosticsReport.calendarTitleToken(CalendarSync.calendarTitle),
                        CalendarSync.calendarTitle, "der unveränderte Kalender ist eine Auskunft")
+        XCTAssertEqual(DiagnosticsReport.calendarTitleToken(CalendarSync.habitsCalendarTitle),
+                       CalendarSync.habitsCalendarTitle, "der Habits-Kalender ist eine Auskunft")
+        XCTAssertEqual(DiagnosticsReport.calendarTitleToken(CalendarSync.remindersCalendarTitle),
+                       CalendarSync.remindersCalendarTitle, "der Erinnerungen-Kalender ist eine Auskunft")
         XCTAssertEqual(DiagnosticsReport.calendarTitleToken("  hAiity  "),
                        CalendarSync.calendarTitle, "Leerraum ist keine Umbenennung")
         for renamed in ["Enricos Gewohnheiten 🌱", "hAiity (alt)", "HAIITY", "Gewohnheiten"] {
@@ -357,6 +361,13 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(report.contains("calendar.title: renamed"))
         XCTAssertFalse(report.contains("Enricos"), "der Name steht im Bericht")
         XCTAssertFalse(report.contains("🌱"), "das Zeichen steht im Bericht")
+    }
+
+    func testDiagnosticsRecognizesEitherNewCalendarTitle() throws {
+        let source = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(source.contains("CalendarSync.activeCalendarTitle"))
+        XCTAssertTrue(source.contains("CalendarSync.habitsCalendarTitle"))
+        XCTAssertTrue(source.contains("CalendarSync.remindersCalendarTitle"))
     }
 
     /// **Aus dem App-Group-Pfad kommt nur sein letzter Teil.** Auf dem iPhone

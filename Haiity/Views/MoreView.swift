@@ -610,8 +610,13 @@ struct MoreView: View {
                            identifier: "calendar-sync-reminders-toggle")
             Toggle(isOn: reminderSyncBinding) {
                 HStack {
-                    Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
-                          systemImage: "checklist")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
+                              systemImage: "checklist")
+                        Text(String(localized: "Ziel: hAiity Reminders"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if !unlocked && !nativeReminderSyncEnabled {
                         Spacer(minLength: Theme.Metrics.gap)
                         proLock
@@ -720,7 +725,10 @@ struct MoreView: View {
 
     private func nativeCleanupMessage(for result: NativeSyncCleanup.Result) -> String {
         guard result.needsRetry else {
-            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+            var destinations: [String] = []
+            if result.calendar { destinations.append("hAiity Habits / hAiity Reminders") }
+            if result.reminders { destinations.append("hAiity Reminders") }
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert: \(destinations.joined(separator: ", ")).")
         }
         switch (result.calendar, result.reminders) {
         case (true, false), (false, true):
@@ -728,7 +736,7 @@ struct MoreView: View {
         case (false, false):
             return String(localized: "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen und versuche es erneut.")
         case (true, true):
-            return String(localized: "Native Einträge bereinigt und neu synchronisiert.")
+            return String(localized: "Native Einträge bereinigt und neu synchronisiert: hAiity Habits / hAiity Reminders, hAiity Reminders.")
         }
     }
 
@@ -737,7 +745,14 @@ struct MoreView: View {
                                 identifier: String) -> some View {
         Toggle(isOn: calendarBinding(for: type)) {
             HStack {
-                Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(title, systemImage: type == .habit ? "calendar.badge.plus" : "bell.badge")
+                    Text(String(localized: type == .habit
+                                ? "Ziel: hAiity Habits"
+                                : "Ziel: hAiity Reminders"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 let enabled = calendarEnabled(for: type)
                 if !unlocked && !enabled {
                     Spacer(minLength: Theme.Metrics.gap)

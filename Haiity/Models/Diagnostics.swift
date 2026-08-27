@@ -369,7 +369,10 @@ enum DiagnosticsReport {
     static func calendarTitleToken(_ title: String?) -> String? {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed == CalendarSync.calendarTitle ? trimmed : "renamed"
+        let stableTitles = [CalendarSync.calendarTitle,
+                            CalendarSync.habitsCalendarTitle,
+                            CalendarSync.remindersCalendarTitle]
+        return stableTitles.contains(trimmed) ? trimmed : "renamed"
     }
 
     private static func proLines(_ facts: DiagnosticsFacts) -> [String] {
