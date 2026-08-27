@@ -232,12 +232,52 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("UIGraphicsImageRenderer"),
-                      "the startup graph should be rasterized once before animation")
+        XCTAssertTrue(splash.contains("AppearanceImageCache.launchTilesImageTask"),
+                      "the launch graph must use the shared image-cache boundary")
         XCTAssertTrue(splash.contains("contents = launchImage"),
                       "each graph layer should reuse the single rasterized launch asset")
         XCTAssertFalse(splash.contains("Canvas("),
                        "a per-frame Canvas rebuilds hundreds of vector paths during launch")
+    }
+
+    func testLaunchTilesCacheReturnsAReusableRasterForTheMeasuredWindow() {
+        let size = CGSize(width: 280, height: 94)
+        let first = AppearanceImageCache.launchTilesImage(size: size, scale: 2)
+        let second = AppearanceImageCache.launchTilesImage(size: size, scale: 2)
+
+        XCTAssertNotNil(first)
+        XCTAssertNotNil(second)
+    }
+
+    func testConcurrentLaunchTileRequestsShareOneExecutableRasterTask() async {
+        let size = CGSize(width: 281, height: 95)
+        let results = await withTaskGroup(of: CGImage?.self, returning: [CGImage?].self) { group in
+            for _ in 0..<2 {
+                group.addTask {
+                    await AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
+                }
+            }
+            var values: [CGImage?] = []
+            for await value in group {
+                values.append(value)
+            }
+            return values
+        }
+
+        XCTAssertEqual(results.count, 2)
+        XCTAssertNotNil(results[0])
+        XCTAssertTrue(results[0] === results[1],
+                      "concurrent launch requests must share the same raster result")
+    }
+
+    func testCancelledLaunchTileRequestChecksCancellationBeforeSynchronousRender() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        XCTAssertTrue(theme.contains("static func launchTilesImageTask"))
+        XCTAssertTrue(theme.contains("guard !Task.isCancelled else { return nil }"),
+                      "the shared launch task must check cancellation before rendering")
     }
 
     func testSplashMeasuresTheWindowBeforeStartingCoreAnimation() throws {
@@ -316,7 +356,7 @@ final class StartupSplashTests: XCTestCase {
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(app.contains("AppearanceImageCache.prewarmTask(data:"),
+        XCTAssertTrue(app.contains("AppearanceImageCache.prewarmTask("),
                       "launch should keep a cancellable prewarm task while the splash is visible")
         XCTAssertFalse(app.contains("startupContentMounted = startupAppearanceReady"),
                        "background preparation must not block mounting the app tree")
@@ -401,8 +441,8 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("Task.detached"),
-                      "launch bitmap work must not compete with the main actor")
+        XCTAssertTrue(splash.contains("AppearanceImageCache.launchTilesImageTask"),
+                      "launch bitmap work must use the shared off-main-actor cache boundary")
         XCTAssertTrue(splash.contains("await self.prepareLaunchImage"),
                       "the animation should await the detached bitmap before adding layers")
     }

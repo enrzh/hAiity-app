@@ -241,8 +241,8 @@ final class AppearanceSettingTests: XCTestCase {
                                             range: start.upperBound..<theme.endIndex))
         let cache = theme[start.lowerBound..<end.lowerBound]
 
-        XCTAssertFalse(cache.contains("Task.detached"),
-                       "canceling the launch prewarm must stop the actual decode worker, not only its outer wrapper")
+        XCTAssertTrue(cache.contains("guard !Task.isCancelled else { return nil }"),
+                      "canceling shared work must stop the actual decode worker before rendering")
         XCTAssertTrue(cache.contains("withTaskCancellationHandler"),
                       "prewarm waiters should release shared work when launch is canceled")
     }

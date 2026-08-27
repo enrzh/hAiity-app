@@ -306,7 +306,50 @@ enum AppearanceImageCache {
     }
 
     private static let store = Store()
+    private static let launchTilesCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 2
+        cache.totalCostLimit = 8 * 1024 * 1024
+        return cache
+    }()
+    private final class LaunchInFlight: @unchecked Sendable {
+        let task: Task<CGImage?, Never>
+        var waiters: Int
+
+        init(task: Task<CGImage?, Never>, waiters: Int) {
+            self.task = task
+            self.waiters = waiters
+        }
+    }
+
+    private actor LaunchInFlightStore {
+        private var inFlight: [String: LaunchInFlight] = [:]
+
+        func acquire(key: String, start: @escaping @Sendable () -> CGImage?) -> LaunchInFlight {
+            if let existing = inFlight[key] {
+                existing.waiters += 1
+                return existing
+            }
+            let next = LaunchInFlight(task: Task.detached(priority: .userInitiated) {
+                guard !Task.isCancelled else { return nil }
+                return start()
+            }, waiters: 1)
+            inFlight[key] = next
+            return next
+        }
+
+        func release(_ task: LaunchInFlight, key: String, cancelIfOrphaned: Bool) {
+            guard let current = inFlight[key], current === task else { return }
+            current.waiters = max(0, current.waiters - 1)
+            if current.waiters == 0 {
+                if cancelIfOrphaned { current.task.cancel() }
+                inFlight[key] = nil
+            }
+        }
+    }
+
     private static let inFlightStore = InFlightStore()
+    private static let launchInFlightStore = LaunchInFlightStore()
 
     static func image(for data: Data) -> UIImage? {
         entry(for: data)?.image
@@ -325,6 +368,43 @@ enum AppearanceImageCache {
 
     static func cachedAverageHex(for data: Data) -> UInt32? {
         store.cache.object(forKey: data as NSData)?.averageHex
+    }
+
+    /// Rasterize the bundled launch graph once for the measured window. Keep
+    /// this asset in the same image-cache boundary as user backgrounds so
+    /// startup never grows a second ad-hoc image cache.
+    nonisolated static func launchTilesImage(size: CGSize, scale: CGFloat) -> CGImage? {
+        guard size.width > 0, size.height > 0, scale > 0 else { return nil }
+
+        let key = "launch-tiles-\(Int((size.width * scale).rounded()))x\(Int((size.height * scale).rounded()))"
+        if let cached = launchTilesCache.object(forKey: key as NSString) {
+            return cached.cgImage
+        }
+
+        guard let source = UIImage(named: "LaunchTiles") else { return nil }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
+        }
+        launchTilesCache.setObject(image, forKey: key as NSString)
+        return image.cgImage
+    }
+
+    static func launchTilesImageTask(size: CGSize, scale: CGFloat) async -> CGImage? {
+        let key = "launch-tiles-\(Int((size.width * scale).rounded()))x\(Int((size.height * scale).rounded()))"
+        let request = await launchInFlightStore.acquire(key: key) {
+            launchTilesImage(size: size, scale: scale)
+        }
+        let result = await withTaskCancellationHandler {
+            await request.task.value
+        } onCancel: {
+            Task { await launchInFlightStore.release(request, key: key, cancelIfOrphaned: true) }
+        }
+        await launchInFlightStore.release(request, key: key, cancelIfOrphaned: false)
+        return Task.isCancelled ? nil : result
     }
 
     /// Decode the selected background while the launch animation is already

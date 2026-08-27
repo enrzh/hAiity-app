@@ -146,14 +146,7 @@ private final class StartupSplashAnimationView: UIView {
     }
 
     private func prepareLaunchImage(size: CGSize, scale: CGFloat) async -> CGImage? {
-        let task = Task.detached(priority: .userInitiated) {
-            Self.rasterizedLaunchImage(size: size, scale: scale)
-        }
-        return await withTaskCancellationHandler {
-            await task.value
-        } onCancel: {
-            task.cancel()
-        }
+        await AppearanceImageCache.launchTilesImageTask(size: size, scale: scale)
     }
 
     private func configureLayers(metrics: Metrics) {
@@ -281,19 +274,6 @@ private final class StartupSplashAnimationView: UIView {
 
     private func scaleTransform(_ scale: CGFloat) -> CATransform3D {
         CATransform3DMakeScale(scale, scale, 1)
-    }
-
-    nonisolated private static func rasterizedLaunchImage(size: CGSize, scale: CGFloat) -> CGImage? {
-        guard size.width > 0, size.height > 0,
-              let source = UIImage(named: "LaunchTiles") else { return nil }
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        format.opaque = false
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { _ in
-            source.draw(in: CGRect(origin: .zero, size: size))
-        }.cgImage
     }
 
     private struct Metrics {
