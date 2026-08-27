@@ -454,6 +454,103 @@ final class WidgetPreferenceTests: XCTestCase {
     }
 }
 
+final class SwipeRevealMechanicsTests: XCTestCase {
+    private let cardWidth: CGFloat = 320
+    private let sideWidth: CGFloat = 80
+
+    func testVerticalMovementStaysWithTheList() {
+        XCTAssertFalse(SwipeReveal.horizontalIntent(dx: 20, dy: 24))
+        XCTAssertFalse(SwipeReveal.canBegin(towardTrailing: true,
+                                            horizontalIntent: false,
+                                            open: false,
+                                            hasLeading: true,
+                                            hasTrailing: true,
+                                            overGrid: false,
+                                            gridAtTrailingEnd: true))
+    }
+
+    func testGridOnlyGivesTheGestureToTrailingAtItsEnd() {
+        XCTAssertFalse(SwipeReveal.canBegin(towardTrailing: true,
+                                            horizontalIntent: true,
+                                            open: false,
+                                            hasLeading: true,
+                                            hasTrailing: true,
+                                            overGrid: true,
+                                            gridAtTrailingEnd: false))
+        XCTAssertTrue(SwipeReveal.canBegin(towardTrailing: true,
+                                           horizontalIntent: true,
+                                           open: false,
+                                           hasLeading: true,
+                                           hasTrailing: true,
+                                           overGrid: true,
+                                           gridAtTrailingEnd: true))
+        XCTAssertFalse(SwipeReveal.canBegin(towardTrailing: false,
+                                            horizontalIntent: true,
+                                            open: false,
+                                            hasLeading: true,
+                                            hasTrailing: true,
+                                            overGrid: true,
+                                            gridAtTrailingEnd: true))
+    }
+
+    func testOpenCardCanAlwaysBeClosedWithAHorizontalGesture() {
+        XCTAssertTrue(SwipeReveal.canBegin(towardTrailing: false,
+                                           horizontalIntent: true,
+                                           open: true,
+                                           hasLeading: false,
+                                           hasTrailing: false,
+                                           overGrid: true,
+                                           gridAtTrailingEnd: false))
+        XCTAssertEqual(SwipeReveal.resting(pull: 0,
+                                           velocity: 0,
+                                           leadingWidth: sideWidth,
+                                           trailingWidth: sideWidth,
+                                           cardWidth: cardWidth),
+                       .closed)
+    }
+
+    func testAShortPullSnapsToTheMatchingSide() {
+        XCTAssertEqual(SwipeReveal.resting(pull: sideWidth * 0.75,
+                                           velocity: 0,
+                                           leadingWidth: sideWidth,
+                                           trailingWidth: sideWidth,
+                                           cardWidth: cardWidth),
+                       .leading)
+        XCTAssertEqual(SwipeReveal.resting(pull: -sideWidth * 0.75,
+                                           velocity: 0,
+                                           leadingWidth: sideWidth,
+                                           trailingWidth: sideWidth,
+                                           cardWidth: cardWidth),
+                       .trailing)
+    }
+
+    func testFullPullCommitsTheFirstActionSide() {
+        XCTAssertEqual(SwipeReveal.resting(pull: cardWidth * 0.7,
+                                           velocity: 0,
+                                           leadingWidth: sideWidth,
+                                           trailingWidth: sideWidth,
+                                           cardWidth: cardWidth),
+                       .commitLeading)
+        XCTAssertEqual(SwipeReveal.resting(pull: -cardWidth * 0.7,
+                                           velocity: 0,
+                                           leadingWidth: sideWidth,
+                                           trailingWidth: sideWidth,
+                                           cardWidth: cardWidth),
+                       .commitTrailing)
+    }
+
+    func testRevealOffsetUsesRubberBandAfterTheVisibleButtons() {
+        let width = SwipeReveal.revealWidth(count: 2)
+        let offset = SwipeReveal.offset(start: 0,
+                                        translation: width + 100,
+                                        leadingWidth: width,
+                                        trailingWidth: width)
+
+        XCTAssertGreaterThan(offset, width)
+        XCTAssertLessThan(offset, width + 100)
+    }
+}
+
 final class ToastLayoutTests: XCTestCase {
     func testNativeToastUsesATopmostOverlayWithTabBarClearance() throws {
         let root = URL(fileURLWithPath: #filePath)

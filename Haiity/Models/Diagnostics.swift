@@ -101,8 +101,8 @@ enum DeveloperAccess {
 
     /// Built-in owner identity. The opaque ID is stable even when Apple
     /// withholds the email on later sign-ins.
-    static let ownerAppleUserID: String? = "000366.5e70aaf77f174436b9c1ad437015d35a.1026"
-    static let ownerAppleEmail = "xianjie.zhan@icloud.com"
+    static let ownerAppleUserID: String? = HabitVisibility.ownerAppleUserID
+    static let ownerAppleEmail = HabitVisibility.ownerAppleEmail
 
     /// Ist der Entwicklerbereich auf DIESEM Gerät erreichbar?
     ///
@@ -119,14 +119,8 @@ enum DeveloperAccess {
     /// herein, hier wird nur verglichen.
     ///
     static func isOwnerDevice(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
-        let storedID = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let ownerID = ownerAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let ownerID, !ownerID.isEmpty, storedID == ownerID { return true }
-
-        let storedEmail = storedAppleEmail?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return storedEmail == ownerAppleEmail.lowercased()
+        HabitVisibility.isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                                      storedAppleEmail: storedAppleEmail)
     }
 }
 

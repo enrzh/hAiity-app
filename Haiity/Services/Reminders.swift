@@ -735,8 +735,30 @@ enum Reminders {
                                 notificationActions: data.viewPreferences.notificationActions.slots,
                                 defaultTimeZoneIdentifier: data.defaultTimeZoneIdentifier)
         }
+        await schedulePlans(
+            plans,
+            addPlan: { plan in
+                try await center.add(request(plan))
+            },
+            logFailure: { error, identifier, context in
+                logScheduleFailure(error, identifier: identifier, context: context)
+            })
+    }
+
+    /// Submit each plan independently so one invalid request cannot hide
+    /// later reminders. The injected closures keep this policy testable
+    /// without requiring a live notification center.
+    static func schedulePlans(
+        _ plans: [ReminderPlan],
+        addPlan: (ReminderPlan) async throws -> Void,
+        logFailure: (Error, String, String) -> Void
+    ) async {
         for plan in plans {
-            try? await center.add(request(plan))
+            do {
+                try await addPlan(plan)
+            } catch {
+                logFailure(error, plan.identifier, "reschedule")
+            }
         }
     }
 

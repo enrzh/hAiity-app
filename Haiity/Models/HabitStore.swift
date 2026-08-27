@@ -415,11 +415,14 @@ enum SharedStorage {
 }
 
 /// Shared app/widget visibility policy. The app's `ProGate` adds the live
-/// StoreKit/owner override; extension processes use the persisted App Group
-/// flag because they cannot observe the app's StoreKit state directly.
+/// StoreKit state; extension processes use the App Group snapshot and the
+/// same verified owner identity because they cannot observe the app process.
 enum HabitVisibility {
     static let freeHabitLimit = 3
     static let proUnlockedKey = "proUnlocked"
+    static let proEntitlementExpirationKey = "proEntitlementExpiration"
+    static let ownerAppleUserID = "000366.5e70aaf77f174436b9c1ad437015d35a.1026"
+    static let ownerAppleEmail = "xianjie.zhan@icloud.com"
 
     static func visibleActiveHabits(_ habits: [Habit], unlocked: Bool) -> [Habit] {
         let active = habits.filter { $0.archivedAt == nil }
@@ -437,8 +440,32 @@ enum HabitVisibility {
     }
 
     static var sharedEntitlementIsUnlocked: Bool {
-        (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
-            .bool(forKey: proUnlockedKey)
+        sharedEntitlementIsUnlocked(at: .now)
+    }
+
+    static func sharedEntitlementIsUnlocked(
+        at now: Date,
+        defaults: UserDefaults? = nil
+    ) -> Bool {
+        let defaults = defaults ?? (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+        if isOwnerDevice(storedAppleUserID: defaults.string(forKey: "personalAppleUserID"),
+                         storedAppleEmail: defaults.string(forKey: "personalAppleEmail")) {
+            return true
+        }
+        guard defaults.bool(forKey: proUnlockedKey) else { return false }
+        guard let rawExpiration = defaults.object(forKey: proEntitlementExpirationKey)
+                as? NSNumber else {
+            return true
+        }
+        return rawExpiration.doubleValue > now.timeIntervalSince1970
+    }
+
+    static func isOwnerDevice(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
+        let userID = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if userID == ownerAppleUserID { return true }
+        let email = storedAppleEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return email == ownerAppleEmail.lowercased()
     }
 }
 

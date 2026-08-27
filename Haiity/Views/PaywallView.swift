@@ -82,7 +82,10 @@ struct PaywallView: View {
     /// `Pro.isUnlocked` ist beobachtbar, und genau hier zählt das — ein Kauf
     /// auf einem anderen Gerät kann bestätigt werden, WÄHREND dieses Blatt
     /// offen steht.
-    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+    private var unlocked: Bool {
+        _ = proStatus.unlocked
+        return Pro.isUnlocked
+    }
 
     private enum Busy {
         case buying

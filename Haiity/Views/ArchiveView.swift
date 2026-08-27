@@ -12,7 +12,10 @@ struct ArchiveView: View {
     @Environment(\.palettes) private var palettes
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
-    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+    private var unlocked: Bool {
+        _ = proStatus.unlocked
+        return Pro.isUnlocked
+    }
 
     var body: some View {
         List {

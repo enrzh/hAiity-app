@@ -36,15 +36,48 @@ final class ReminderItemTests: XCTestCase {
                           "the context preview width must be applied before appSurface")
     }
 
-    func testReminderHasFixedDoneAndRevertSwipeActions() throws {
+    func testReminderUsesTheCardHeightRevealWithFixedDoneAndRevertActions() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
         let source = try source("Haiity/Views/ContentView.swift")
         let reminder = try XCTUnwrap(source.range(of: "case .reminderRow:"))
         let habit = try XCTUnwrap(source.range(of: "case .habitCard:"))
         let branch = source[reminder.lowerBound..<habit.lowerBound]
-        XCTAssertTrue(branch.contains(".swipeActions(edge: .leading, allowsFullSwipe: true)"))
-        XCTAssertTrue(branch.contains("requestReminderCompletion(habit)"))
-        XCTAssertTrue(branch.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
-        XCTAssertTrue(branch.contains("revertReminder(habit)"))
+
+        XCTAssertTrue(row.contains("SwipeRevealPan("),
+                      "reminders must use the same card-height reveal bridge as habits")
+        XCTAssertTrue(row.contains("leadingSwipe"))
+        XCTAssertTrue(row.contains("trailingSwipe"))
+        XCTAssertTrue(row.contains("lhs.leadingSwipe == rhs.leadingSwipe"),
+                      "changing saved reveal actions must update an equatable row")
+        XCTAssertTrue(branch.contains("let reveal = revealActions(for: habit)"))
+        XCTAssertTrue(branch.contains("leadingSwipe: reveal.leading"))
+        XCTAssertTrue(branch.contains("trailingSwipe: reveal.trailing"))
+        XCTAssertFalse(branch.contains(".swipeActions(edge:"),
+                       "the system row swipe buttons are shorter than the reminder card")
+    }
+
+    func testReminderPreviewAndRevealShareTheStableRowHeight() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+
+        XCTAssertTrue(row.contains("static let rowHeight: CGFloat = 64"))
+        XCTAssertTrue(row.contains("previewHeight: Self.rowHeight"),
+                      "the enlarged reminder preview must use the row's measured contract")
+        XCTAssertTrue(row.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
+        XCTAssertTrue(row.contains(".frame(minHeight: Self.rowHeight)"),
+                      "the preview and source row must not drift apart vertically")
+    }
+
+    func testReminderDismissalOverlayDoesNotApplyTheRowOffsetTwice() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+        let start = try XCTUnwrap(row.range(of: "rowContent\n                .offset"))
+        let end = try XCTUnwrap(row.range(of: ".onGeometryChange",
+                                          range: start.upperBound..<row.endIndex))
+        let revealHost = row[start.lowerBound..<end.lowerBound]
+
+        XCTAssertEqual(String(revealHost)
+            .components(separatedBy: ".offset(x: revealOffset * mirror)").count - 1,
+                       1,
+                       "the transparent dismissal target follows the already-offset row")
     }
 
     func testCombinedListBranchesByItemTypeAfterApplyingTheSharedFilter() throws {

@@ -23,10 +23,14 @@ final class ProStatus {
 
     /// Schreiben darf nur `Pro` (siehe `Pro.cache`).
     fileprivate(set) var unlocked: Bool
+    fileprivate(set) var expirationDate: Date?
 
     private init() {
-        unlocked = (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
-            .bool(forKey: Pro.unlockedKey)
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        unlocked = defaults.bool(forKey: Pro.unlockedKey)
+        expirationDate = (defaults.object(forKey: HabitVisibility.proEntitlementExpirationKey)
+            as? NSNumber)
+            .map { Date(timeIntervalSince1970: $0.doubleValue) }
     }
 }
 
@@ -103,15 +107,17 @@ enum Pro {
         #if DEBUG
         if let debugOverride { return debugOverride }
         #endif
-        return DeveloperAccess.isOwnerDevice(
+        if DeveloperAccess.isOwnerDevice(
             storedAppleUserID: PersonalName.appleUserID,
             storedAppleEmail: PersonalName.appleEmail
-        ) || ProStatus.shared.unlocked
+        ) { return true }
+        guard ProStatus.shared.unlocked else { return false }
+        return ProStatus.shared.expirationDate.map { $0 > .now } ?? true
     }
 
     /// Der eine Schreibpunkt. Alles, was StoreKit erfährt, landet hier —
     /// und nur hier steht die Debug-Klammer.
-    private static func cache(_ unlocked: Bool) {
+    private static func cache(_ unlocked: Bool, expirationDate: Date? = nil) {
         #if DEBUG
         if debugOverride != nil { return }
         #endif
@@ -120,14 +126,23 @@ enum Pro {
             storedAppleEmail: PersonalName.appleEmail
         )
         let effectiveUnlocked = unlocked || ownerDevice
+        let effectiveExpirationDate = ownerDevice ? nil : expirationDate
         if !effectiveUnlocked {
             CalendarSync.disable()
             ReminderSync.disable()
         }
-        guard ProStatus.shared.unlocked != effectiveUnlocked else { return }
-        writeGeneration &+= 1
         defaults.set(effectiveUnlocked, forKey: unlockedKey)
+        if let effectiveExpirationDate {
+            defaults.set(effectiveExpirationDate.timeIntervalSince1970,
+                         forKey: HabitVisibility.proEntitlementExpirationKey)
+        } else {
+            defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
+        }
+        guard ProStatus.shared.unlocked != effectiveUnlocked
+                || ProStatus.shared.expirationDate != effectiveExpirationDate else { return }
+        writeGeneration &+= 1
         ProStatus.shared.unlocked = effectiveUnlocked
+        ProStatus.shared.expirationDate = effectiveExpirationDate
     }
 
     /// Bestand prüfen: was steht heute auf diesem Konto? Zurückgezogene oder
@@ -142,18 +157,21 @@ enum Pro {
     static func refresh(mayDowngrade: Bool = false) async {
         let generation = writeGeneration
         var unlocked = false
+        var expirationDate: Date?
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result,
-                  transaction.productID == productID,
-                  transaction.ownershipType == .purchased,
-                  transaction.revocationDate == nil
+                  isCurrent(transaction)
             else { continue }
             unlocked = true
+            if let candidate = transaction.expirationDate,
+               candidate > (expirationDate ?? .distantPast) {
+                expirationDate = candidate
+            }
         }
         // Der Lauscher war schneller: seine Meldung ist die jüngere Aussage.
         guard generation == writeGeneration else { return }
         guard unlocked || mayDowngrade else { return }
-        cache(unlocked)
+        cache(unlocked, expirationDate: expirationDate)
     }
 
     /// Meldungen aus Käufen auf anderen Geräten oder Erstattungen. Ohne
@@ -166,13 +184,48 @@ enum Pro {
         listener = Task { @MainActor in
             for await update in Transaction.updates {
                 guard case .verified(let transaction) = update else { continue }
-                if transaction.productID == productID,
-                   transaction.ownershipType == .purchased {
-                    cache(transaction.revocationDate == nil)
-                }
                 await transaction.finish()
+                // Re-read the complete current set. A product can have more
+                // than one transaction, so caching this single update could
+                // let an older revoked/expired update overwrite a valid one.
+                if transaction.productID == productID {
+                    await refresh(mayDowngrade: true)
+                }
             }
         }
+    }
+
+    static func isCurrent(productID: String,
+                          ownershipIsPurchased: Bool,
+                          revocationDate: Date?,
+                          expirationDate: Date?,
+                          now: Date = .now) -> Bool {
+        productID == Self.productID
+            && ownershipIsPurchased
+            && revocationDate == nil
+            && (expirationDate.map { $0 > now } ?? true)
+    }
+
+    private static func isCurrent(_ transaction: Transaction,
+                                  now: Date = .now) -> Bool {
+        isCurrent(productID: transaction.productID,
+                  ownershipIsPurchased: transaction.ownershipType == .purchased,
+                  revocationDate: transaction.revocationDate,
+                  expirationDate: transaction.expirationDate,
+                  now: now)
+    }
+
+    /// Drop the cached entitlement at an Apple-account boundary before
+    /// StoreKit revalidates the newly signed-in account.
+    static func accountDidChange() {
+        #if DEBUG
+        if debugOverride != nil {
+            writeGeneration &+= 1
+            return
+        }
+        #endif
+        writeGeneration &+= 1
+        cache(false)
     }
 
     /// StoreKit emits revocations promptly, but a process can miss an update
@@ -248,13 +301,16 @@ enum Pro {
         writeGeneration &+= 1
         if unlocked {
             defaults.set(true, forKey: unlockedKey)
+            defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
         } else {
             defaults.removeObject(forKey: unlockedKey)
+            defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
         }
         // Auch der Haken muss beobachtbar sein: er wird NACH dem ersten
         // Rumpf gesetzt (handleLaunchScreenArgument läuft nach `boot()`),
         // sonst stünden die Gates im Simulator auf dem Stand von vorher.
         ProStatus.shared.unlocked = unlocked
+        ProStatus.shared.expirationDate = nil
     }
     #endif
 }

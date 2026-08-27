@@ -120,7 +120,10 @@ struct MoreView: View {
     /// `ProStatus`). Bewusst KEIN gespiegelter Zustand: der Kauf kann von
     /// einem anderen Blatt oder einem anderen Gerät kommen, und dann müssen
     /// die Schlösser hier trotzdem aufgehen.
-    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+    private var unlocked: Bool {
+        _ = proStatus.unlocked
+        return Pro.isUnlocked
+    }
 
     private var localCloudPreferences: CloudPreferences {
         CloudPreferences(calendarSyncHabits: CalendarSync.syncHabits,
@@ -980,6 +983,7 @@ struct MoreView: View {
         PersonalName.appleName = nil
         PersonalName.appleUserID = nil
         PersonalName.appleEmail = nil
+        Pro.accountDidChange()
         storedAppleName = nil
         storedAppleUserID = nil
         storedAppleEmail = nil
@@ -1017,6 +1021,9 @@ struct MoreView: View {
             audience: Bundle.main.bundleIdentifier ?? "com.aiity.haiity")
         PersonalName.appleUserID = credential.user
         PersonalName.appleEmail = resolvedEmail
+        if existingUserID != credential.user {
+            Pro.accountDidChange()
+        }
         storedAppleUserID = PersonalName.appleUserID
         storedAppleEmail = PersonalName.appleEmail
         let aliasEmail = resolvedEmail ?? (DeveloperAccess.isOwnerDevice(

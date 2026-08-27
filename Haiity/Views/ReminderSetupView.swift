@@ -35,7 +35,10 @@ struct ReminderSetupView: View {
     private static let lastPage = 2
 
     private var accent: Color { Theme.accentText(store.paletteStyle) }
-    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+    private var unlocked: Bool {
+        _ = proStatus.unlocked
+        return Pro.isUnlocked
+    }
 
     var body: some View {
         NavigationStack {

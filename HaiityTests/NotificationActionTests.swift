@@ -137,6 +137,52 @@ final class NotificationActionTests: XCTestCase {
         ])
     }
 
+    func testRescheduleReportsFailedPlanAddsInsteadOfDroppingThem() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Services/Reminders.swift"))
+        let start = try XCTUnwrap(source.range(of: "static func reschedule(daily:"))
+        let end = try XCTUnwrap(source.range(of: "static func reschedule(store:",
+                                             range: start.upperBound..<source.endIndex))
+        let body = source[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(body.contains("schedulePlans"),
+                      "reschedule should use the shared reporting path for plan adds")
+        XCTAssertTrue(body.contains("logScheduleFailure"),
+                      "a failed notification add must remain visible to the app")
+        XCTAssertFalse(body.contains("try? await center.add(request(plan))"),
+                       "a silently dropped plan leaves the user without a reminder")
+    }
+
+    func testSchedulePlansReportsEveryFailedAddAndContinues() async {
+        enum StubFailure: Error { case failed }
+
+        let plans = [
+            ReminderPlan(identifier: "first", title: "A", body: "A",
+                         dateMatching: DateComponents(day: 1), repeats: false),
+            ReminderPlan(identifier: "second", title: "B", body: "B",
+                         dateMatching: DateComponents(day: 2), repeats: false)
+        ]
+        var added: [String] = []
+        var failures: [String] = []
+
+        await Reminders.schedulePlans(
+            plans,
+            addPlan: { plan in
+                added.append(plan.identifier)
+                if plan.identifier == "first" { throw StubFailure.failed }
+            },
+            logFailure: { _, identifier, context in
+                XCTAssertEqual(context, "reschedule")
+                failures.append(identifier)
+            })
+
+        XCTAssertEqual(added, ["first", "second"])
+        XCTAssertEqual(failures, ["first"])
+    }
+
     func testLegacyResponseIdentifierStillResolvesFromItsOldCategory() {
         XCTAssertEqual(NotificationQuickAction.responseAction(
             identifier: NotificationQuickAction.actionIdentifier,
@@ -155,6 +201,20 @@ final class NotificationActionTests: XCTestCase {
 
         XCTAssertTrue(body.contains("NotificationPresenter.configureQuickActions"),
                       "changing a slot must update already scheduled notification menus")
+    }
+
+    func testCloudNotificationPreferencesReRegisterCategoriesAfterAdoption() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let adoption = "viewPreferences.adoptRemote(store.data.viewPreferences)"
+        let segments = source.components(separatedBy: adoption).dropFirst()
+        XCTAssertFalse(segments.isEmpty)
+        XCTAssertTrue(segments.allSatisfy { $0.prefix(240).contains(
+            "NotificationPresenter.configureQuickActions") },
+                      "remote notification slots must reach the system category registry")
     }
 
     func testNotificationSettingsShowUniqueChoicesAndTypeAwarePreview() throws {

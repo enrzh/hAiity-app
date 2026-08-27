@@ -89,7 +89,10 @@ struct EditHabitSheet: View {
                                ?? store.defaultTimeZoneIdentifier)
     }
 
-    private var unlocked: Bool { proStatus.unlocked || Pro.isUnlocked }
+    private var unlocked: Bool {
+        _ = proStatus.unlocked
+        return Pro.isUnlocked
+    }
 
     private var calendarSyncBinding: Binding<Bool> {
         Binding(

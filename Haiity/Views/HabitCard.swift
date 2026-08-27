@@ -343,6 +343,10 @@ struct HabitCard: View, Equatable {
                                  actions: menuActions,
                                  commit: onEdit,
                                  onMenuVisibilityChanged: { visible in
+                                     if visible {
+                                         revealOffset = 0
+                                         revealStart = 0
+                                     }
                                      isContextMenuVisible = visible
                                  })
             }
@@ -1082,7 +1086,7 @@ struct RevealAction: Identifiable, Equatable {
     }
 }
 
-private extension View {
+extension View {
     /// VoiceOver kann die eigene Aufzieh-Geste nicht ausführen — jede
     /// Wisch-Aktion steht deshalb als benannte Aktion an der Karte.
     @ViewBuilder

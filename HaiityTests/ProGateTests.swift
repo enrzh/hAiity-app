@@ -703,15 +703,125 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(pro.contains("final class ProStatus"))
         XCTAssertTrue(pro.contains("DeveloperAccess.isOwnerDevice("),
                       "das verifizierte Entwicklerkonto muss Pro immer behalten")
-        XCTAssertTrue(pro.contains("|| ProStatus.shared.unlocked"))
+        XCTAssertTrue(pro.contains("ProStatus.shared.unlocked"))
+        XCTAssertTrue(pro.contains("expirationDate.map"),
+                      "the live gate must account for expiring entitlements")
         for file in ["Haiity/Views/MoreView.swift", "Haiity/Views/StatsView.swift",
-                     "Haiity/Views/PaywallView.swift", "Haiity/Views/EditHabitSheet.swift"] {
+                     "Haiity/Views/PaywallView.swift", "Haiity/Views/EditHabitSheet.swift",
+                     "Haiity/Views/ArchiveView.swift", "Haiity/Views/ReminderSetupView.swift",
+                     "Haiity/Views/ContentView.swift"] {
             let text = try source(file)
-            XCTAssertTrue(text.contains("Pro.isUnlocked") ||
-                          text.contains("proStatus.unlocked"), file)
+            XCTAssertTrue(text.contains("Pro.isUnlocked"), file)
+            XCTAssertFalse(text.contains("proStatus.unlocked || Pro.isUnlocked"),
+                           "\(file) must not bypass expiry with the cached entitlement")
             XCTAssertFalse(text.contains("proUnlocked"),
                            "\(file) liest den Merker an StoreKit vorbei aus den Defaults")
         }
+    }
+
+    func testMoreViewDoesNotBypassExpiryWithTheCachedEntitlement() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(more.contains("return Pro.isUnlocked"))
+        XCTAssertFalse(more.contains("proStatus.unlocked || Pro.isUnlocked"),
+                       "an expired cached entitlement must not keep paid settings enabled")
+    }
+
+    func testSharedExtensionGateRecognizesTheVerifiedOwnerIdentity() {
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        let oldUserID = defaults.object(forKey: PersonalName.appleUserIDKey)
+        let oldEmail = defaults.object(forKey: PersonalName.appleEmailKey)
+        let oldUnlocked = defaults.object(forKey: HabitVisibility.proUnlockedKey)
+        let oldExpiration = defaults.object(forKey: HabitVisibility.proEntitlementExpirationKey)
+        defer {
+            restore(oldUserID, forKey: PersonalName.appleUserIDKey, in: defaults)
+            restore(oldEmail, forKey: PersonalName.appleEmailKey, in: defaults)
+            restore(oldUnlocked, forKey: HabitVisibility.proUnlockedKey, in: defaults)
+            restore(oldExpiration, forKey: HabitVisibility.proEntitlementExpirationKey, in: defaults)
+        }
+
+        defaults.set(DeveloperAccess.ownerAppleUserID, forKey: PersonalName.appleUserIDKey)
+        defaults.removeObject(forKey: PersonalName.appleEmailKey)
+        defaults.removeObject(forKey: HabitVisibility.proUnlockedKey)
+
+        XCTAssertTrue(HabitVisibility.sharedEntitlementIsUnlocked,
+                      "widgets and intents must preserve the verified owner access")
+
+        defaults.set("different-account", forKey: PersonalName.appleUserIDKey)
+        defaults.removeObject(forKey: PersonalName.appleEmailKey)
+        defaults.removeObject(forKey: HabitVisibility.proUnlockedKey)
+        XCTAssertFalse(HabitVisibility.sharedEntitlementIsUnlocked,
+                       "a replacement account must not inherit owner access")
+    }
+
+    func testStoreKitEntitlementContractChecksExpirationDate() throws {
+        let pro = try source("Haiity/Models/ProEntitlement.swift")
+        XCTAssertTrue(pro.contains("transaction.expirationDate"),
+                      "an expired StoreKit entitlement must not remain unlocked")
+        XCTAssertTrue(pro.contains("await refresh(mayDowngrade: true)"),
+                      "transaction updates must aggregate the current entitlement set")
+    }
+
+    @MainActor
+    func testCurrentEntitlementPolicyRejectsExpiredRevokedAndNonPurchasedTransactions() {
+        let now = Date(timeIntervalSince1970: 10_000)
+
+        XCTAssertTrue(Pro.isCurrent(productID: Pro.productID,
+                                    ownershipIsPurchased: true,
+                                    revocationDate: nil,
+                                    expirationDate: now.addingTimeInterval(60),
+                                    now: now))
+        XCTAssertTrue(Pro.isCurrent(productID: Pro.productID,
+                                    ownershipIsPurchased: true,
+                                    revocationDate: nil,
+                                    expirationDate: nil,
+                                    now: now),
+                      "a lifetime purchase has no expiration date")
+        XCTAssertFalse(Pro.isCurrent(productID: Pro.productID,
+                                     ownershipIsPurchased: true,
+                                     revocationDate: nil,
+                                     expirationDate: now,
+                                     now: now))
+        XCTAssertFalse(Pro.isCurrent(productID: Pro.productID,
+                                     ownershipIsPurchased: true,
+                                     revocationDate: now,
+                                     expirationDate: now.addingTimeInterval(60),
+                                     now: now))
+        XCTAssertFalse(Pro.isCurrent(productID: "other.product",
+                                     ownershipIsPurchased: true,
+                                     revocationDate: nil,
+                                     expirationDate: nil,
+                                     now: now))
+        XCTAssertFalse(Pro.isCurrent(productID: Pro.productID,
+                                     ownershipIsPurchased: false,
+                                     revocationDate: nil,
+                                     expirationDate: nil,
+                                     now: now))
+    }
+
+    func testSharedEntitlementSnapshotExpiresWithoutTheAppProcess() {
+        let suiteName = "haiity-pro-expiry-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date(timeIntervalSince1970: 20_000)
+        defaults.set(true, forKey: HabitVisibility.proUnlockedKey)
+        defaults.set(now.addingTimeInterval(-1).timeIntervalSince1970,
+                     forKey: HabitVisibility.proEntitlementExpirationKey)
+
+        XCTAssertFalse(HabitVisibility.sharedEntitlementIsUnlocked(at: now,
+                                                                    defaults: defaults))
+
+        defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
+        XCTAssertTrue(HabitVisibility.sharedEntitlementIsUnlocked(at: now,
+                                                                   defaults: defaults),
+                      "a non-expiring purchase remains unlocked")
+    }
+
+    func testAccountBoundaryResetIsWiredToAppleSignInAndSignOut() throws {
+        let pro = try source("Haiity/Models/ProEntitlement.swift")
+        XCTAssertTrue(pro.contains("static func accountDidChange()"))
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(more.contains("Pro.accountDidChange()"))
+        XCTAssertTrue(more.contains("PersonalName.appleUserID = credential.user"))
     }
 
     /// **Nach dem Kauf läuft weiter, wofür bezahlt wurde.** Sonst bleibt der
@@ -880,5 +990,13 @@ final class ProGateTests: XCTestCase {
         // Der Markenname steht in KEINEM Katalog — er heißt in jeder Sprache
         // gleich und läuft deshalb über `Text(verbatim:)`.
         XCTAssertNil(strings["hAiity Pro"], "der Markenname darf nicht übersetzbar sein")
+    }
+
+    private func restore(_ value: Any?, forKey key: String, in defaults: UserDefaults) {
+        if let value {
+            defaults.set(value, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
     }
 }

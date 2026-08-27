@@ -155,7 +155,7 @@ struct ContentView: View {
     private var collapsed: Bool { viewPreferences.compactMode }
 
     private var effectivePalettes: PaletteBook {
-        let unlocked = proStatus.unlocked || Pro.isUnlocked
+        let unlocked = Pro.isUnlocked
         return unlocked ? store.palettes : store.palettes.withoutCustoms
     }
 
@@ -163,7 +163,7 @@ struct ContentView: View {
     /// which active entries the main app exposes.
     private var visibleActiveHabits: [Habit] {
         ProGate.visibleActiveHabits(store.activeHabits,
-                                    unlocked: proStatus.unlocked || Pro.isUnlocked)
+                                    unlocked: Pro.isUnlocked)
     }
 
     private var visibleActiveTrackedHabits: [Habit] {
@@ -373,6 +373,9 @@ struct ContentView: View {
                     // purer Re-Read (No-op bei unveränderter mtime).
                     store.reloadFromDisk()
                     viewPreferences.adoptRemote(store.data.viewPreferences)
+                    NotificationPresenter.configureQuickActions(
+                        enabled: viewPreferences.preferences.notificationActionsEnabled,
+                        choices: viewPreferences.preferences.notificationActions.slots)
                     // Konto kann sich ausserhalb der App geändert haben
                     // (an-/abgemeldet), und das andere Gerät kann gehakt
                     // haben, während diese App im Hintergrund lag.
@@ -1292,31 +1295,17 @@ struct ContentView: View {
         #endif
         switch ItemPresentation.forItem(habit) {
         case .reminderRow:
+            let reveal = revealActions(for: habit)
             ReminderRow(habit: habit,
                         onToggle: { toggleReminder(habit) },
                         onEdit: { editing = habit },
                         onArchive: { store.archive(habit.id) },
                         onRevert: { revertReminder(habit) },
                         onDelete: { pendingDelete = habit },
-                        calendar: habitCalendar(for: habit))
+                        calendar: habitCalendar(for: habit),
+                        leadingSwipe: reveal.leading,
+                        trailingSwipe: reveal.trailing)
                 .equatable()
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        requestReminderCompletion(habit)
-                    } label: {
-                        Label(String(localized: "Erledigt"), systemImage: "checkmark")
-                    }
-                    .tint(.green)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
-                        revertReminder(habit)
-                    } label: {
-                        Label(String(localized: "Zurücksetzen"),
-                              systemImage: "arrow.uturn.backward")
-                    }
-                    .tint(.gray)
-                }
                 .background { if !inSearchTab { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -1392,6 +1381,18 @@ struct ContentView: View {
     }
 
     private func perform(_ operation: SwipeOperation, on habit: Habit) {
+        if habit.isReminder {
+            switch operation {
+            case .done: requestReminderCompletion(habit)
+            case .reset: revertReminder(habit)
+            case .archive: store.archive(habit.id)
+            case .backfill: openBackfill(habit, day: habitToday(habit), afterMenu: false)
+            case .session: HabitSessionManager.shared.start(habit: habit)
+            case .edit: editing = habit
+            case .increment, .yes, .no: break
+            }
+            return
+        }
         switch operation {
         case .done: markDone(habit)
         case .reset: revert(habit)
@@ -2855,6 +2856,9 @@ struct ContentView: View {
             store.materializeCloudPreferences(fallback: localCloudPreferences)
             applyCloudPreferences()
             viewPreferences.adoptRemote(store.data.viewPreferences)
+            NotificationPresenter.configureQuickActions(
+                enabled: viewPreferences.preferences.notificationActionsEnabled,
+                choices: viewPreferences.preferences.notificationActions.slots)
             // Pull and merge before touching the root payload timestamp. A
             // startup-only local preference write must not make remote habit
             // metadata look older than this device.
@@ -2869,6 +2873,9 @@ struct ContentView: View {
                         store.materializeCloudPreferences(fallback: localCloudPreferences)
                         applyCloudPreferences()
                         viewPreferences.adoptRemote(store.data.viewPreferences)
+                        NotificationPresenter.configureQuickActions(
+                            enabled: viewPreferences.preferences.notificationActionsEnabled,
+                            choices: viewPreferences.preferences.notificationActions.slots)
                     }
                 }
                 return await MainActor.run { store.exportJSON() ?? payload }
