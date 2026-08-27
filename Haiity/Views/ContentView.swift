@@ -83,6 +83,8 @@ struct ContentView: View {
     @State private var nativeTab: AppTab = .habits
     @State private var proStatus = ProStatus.shared
     @State private var showReminderSetup = false
+    @State private var nativeSyncCleanupNeedsRetry = false
+    @State private var nativeSyncCleanupMessage: String?
     /// Das Melde-Blatt (Schütteln). Es hängt hier oben, weil die Geste überall
     /// gilt — sie gehört keinem Bereich, sondern der App.
     @State private var showFeedback = false
@@ -2749,6 +2751,8 @@ struct ContentView: View {
     /// the user currently has enabled. This is shared by the settings button
     /// and the Home Screen cleanup action.
     private func cleanupNativeEntries() {
+        nativeSyncCleanupNeedsRetry = false
+        nativeSyncCleanupMessage = nil
         Task { @MainActor in
             let result = await NativeSyncCleanup.run()
             if result.calendar {
@@ -2761,7 +2765,10 @@ struct ContentView: View {
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
-            await flash(nativeCleanupMessage(for: result))
+            nativeSyncCleanupNeedsRetry = result.needsRetry
+            let message = nativeCleanupMessage(for: result)
+            nativeSyncCleanupMessage = message
+            await flash(message)
         }
     }
 

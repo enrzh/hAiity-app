@@ -447,17 +447,8 @@ enum ReminderSync {
 
     static func disable() {
         isEnabled = false
-        guard hasAccess, let list = storedList() else { return }
-        var links = ReminderSyncPreferences.links(in: defaults)
-        var fingerprints = ReminderSyncPreferences.fingerprints(in: defaults)
-        for key in Array(links.keys) {
-            _ = removeReminder(for: key, links: &links, fingerprints: &fingerprints, in: list)
-        }
-        if links.isEmpty && fingerprints.isEmpty {
-            ReminderSyncPreferences.clearLinks(in: defaults)
-        } else {
-            ReminderSyncPreferences.setLinks(links, in: defaults)
-            ReminderSyncPreferences.setFingerprints(fingerprints, in: defaults)
+        Task { @MainActor in
+            _ = await removeAllOwnedItems()
         }
     }
 

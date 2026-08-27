@@ -193,6 +193,13 @@ final class ReminderSyncContractTests: XCTestCase {
                        "native reminder sync must not silently ignore removal failures")
     }
 
+    func testReminderDisableUsesAsyncMarkerInventoryForStaleLinks() throws {
+        let source = try source("Haiity/Services/ReminderSync.swift")
+        let disable = try XCTUnwrap(source.range(of: "static func disable()"))
+        let tail = source[disable.lowerBound...]
+        XCTAssertTrue(tail.contains("await removeAllOwnedItems()"))
+    }
+
     func testReminderCleanupCannotOverlapReconciliation() throws {
         let source = try source("Haiity/Services/ReminderSync.swift")
 

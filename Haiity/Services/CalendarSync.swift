@@ -583,22 +583,7 @@ enum CalendarSync {
         syncHabits = false
         syncReminders = false
         defaults.removeObject(forKey: fallbackCalendarKey)
-        guard hasAccess else { return }
-        var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
-        var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]
-        for key in Array(map.keys) {
-            _ = removeEvent(for: key, map: &map, prints: &prints)
-        }
-        if map.isEmpty {
-            defaults.removeObject(forKey: mapKey)
-        } else {
-            defaults.set(map, forKey: mapKey)
-        }
-        if prints.isEmpty {
-            defaults.removeObject(forKey: fingerprintKey)
-        } else {
-            defaults.set(prints, forKey: fingerprintKey)
-        }
+        _ = removeAllOwnedItems()
     }
 
     // MARK: – Bausteine

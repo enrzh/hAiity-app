@@ -141,6 +141,13 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("blockedKeys.contains(key)"))
     }
 
+    func testCalendarDisableUsesMarkerInventoryForStaleLinks() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let disable = try XCTUnwrap(source.range(of: "static func disable()"))
+        let tail = source[disable.lowerBound...]
+        XCTAssertTrue(tail.contains("_ = removeAllOwnedItems()"))
+    }
+
     func testLegacyCalendarCleanupMustSucceedBeforeRecreation() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
