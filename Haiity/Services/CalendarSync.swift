@@ -286,7 +286,12 @@ enum CalendarSync {
     /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
     /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
     static var activeCalendarTitle: String? {
-        activeCalendarTitles.first
+        if let title = activeCalendarTitles.first { return title }
+        // Keep diagnostics useful for an install that has not completed the
+        // category migration yet: report the legacy calendar only when it
+        // actually exists.
+        guard hasAccess, let id = defaults.string(forKey: calendarKey) else { return nil }
+        return store.calendar(withIdentifier: id)?.title
     }
 
     static var activeCalendarTitles: [String] {
@@ -360,6 +365,7 @@ enum CalendarSync {
         var validatedKeys = Set<String>()
         var validatedEvents: [String: EKEvent] = [:]
         var removedSeries = Set<String>()
+        var blockedKeys = Set<String>()
         for (owner, events) in ownedByOwner {
             guard let plan = plansByOwner[owner] else {
                 for event in events {
@@ -382,14 +388,21 @@ enum CalendarSync {
                 preferredID: map[owner.id.uuidString])
             let retainedID = selection.retainedID
             let targetIDs = Set(candidates.map { $0.id })
+            var removalFailed = false
             for event in events {
                 guard let id = nativeID(for: event) else { continue }
                 let keep = id == retainedID
                     && targetIDs.contains(id)
                     && !selection.duplicateIDs.contains(id)
                 if !keep {
-                    removeOwnedEvent(event, removedSeries: &removedSeries)
+                    if !removeOwnedEvent(event, removedSeries: &removedSeries) {
+                        removalFailed = true
+                    }
                 }
+            }
+            if removalFailed {
+                blockedKeys.insert(owner.id.uuidString)
+                continue
             }
             if let retainedID,
                let retainedEvent = targetEvents.first(where: {
@@ -415,6 +428,7 @@ enum CalendarSync {
             }
             seen.insert(key)
             guard let calendar = calendars[plan.isReminder] else { continue }
+            if blockedKeys.contains(key) { continue }
             if prints[key] == plan.fingerprint, map[key] != nil,
                !validate || validatedKeys.contains(key) {
                 continue
@@ -569,13 +583,16 @@ enum CalendarSync {
         return "\(start)|\(nativeID(for: event) ?? event.calendarItemIdentifier)"
     }
 
+    @discardableResult
     private static func removeOwnedEvent(_ event: EKEvent,
-                                         removedSeries: inout Set<String>) {
-        guard removedSeries.insert(event.calendarItemIdentifier).inserted else { return }
+                                         removedSeries: inout Set<String>) -> Bool {
+        guard removedSeries.insert(event.calendarItemIdentifier).inserted else { return true }
         do {
             try store.remove(event, span: .futureEvents, commit: true)
+            return true
         } catch {
             trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
+            return false
         }
     }
 
