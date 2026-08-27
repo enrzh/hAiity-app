@@ -18,22 +18,21 @@ final class ReminderItemTests: XCTestCase {
 
     func testReminderUsesFullWidthTappableContextPreview() throws {
         let source = try source("Haiity/Views/ReminderRow.swift")
-        XCTAssertTrue(source.contains("GraphContextMenu("))
-        XCTAssertTrue(source.contains("previewWidth:"))
-        XCTAssertTrue(source.contains("commit: onEdit"))
-        XCTAssertFalse(source.contains(".contextMenu {"))
+        XCTAssertTrue(source.contains(".contextMenu {"),
+                      "the native menu must attach to the row surface")
+        XCTAssertTrue(source.contains("Label(String(localized: \"Bearbeiten\")"))
+        XCTAssertTrue(source.contains("Button(action: onEdit)"),
+                      "editing must remain available from the reminder menu")
+        XCTAssertFalse(source.contains("GraphContextMenu("),
+                       "the transparent overlay must not intercept reminder taps")
     }
 
-    func testReminderPreviewConstrainsItsLayoutBeforeApplyingTheSurface() throws {
+    func testReminderContextMenuKeepsTheStableRowSurface() throws {
         let source = try source("Haiity/Views/ReminderRow.swift")
-        let start = try XCTUnwrap(source.range(of: "private var reminderPreview: some View"))
-        let end = try XCTUnwrap(source.range(of: "private var menuActions:",
-                                             range: start.upperBound..<source.endIndex))
-        let preview = source[start.lowerBound..<end.lowerBound]
-        let frame = try XCTUnwrap(preview.range(of: ".frame(width: previewWidth"))
-        let surface = try XCTUnwrap(preview.range(of: ".appSurface()"))
-        XCTAssertLessThan(frame.lowerBound, surface.lowerBound,
-                          "the context preview width must be applied before appSurface")
+        XCTAssertTrue(source.contains("static let rowHeight: CGFloat = 64"))
+        XCTAssertTrue(source.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
+        XCTAssertTrue(source.contains(".contextMenu {"),
+                      "the native preview must be built from the tappable row")
     }
 
     func testReminderUsesTheCardHeightRevealWithFixedDoneAndRevertActions() throws {
@@ -43,41 +42,38 @@ final class ReminderItemTests: XCTestCase {
         let habit = try XCTUnwrap(source.range(of: "case .habitCard:"))
         let branch = source[reminder.lowerBound..<habit.lowerBound]
 
-        XCTAssertTrue(row.contains("SwipeRevealPan("),
-                      "reminders must use the same card-height reveal bridge as habits")
+        XCTAssertFalse(row.contains("SwipeRevealPan("),
+                       "compact reminders should use the native row swipe interaction")
         XCTAssertTrue(row.contains("leadingSwipe"))
         XCTAssertTrue(row.contains("trailingSwipe"))
+        XCTAssertTrue(row.contains(".swipeActions(edge: .leading"))
+        XCTAssertTrue(row.contains(".swipeActions(edge: .trailing"))
         XCTAssertTrue(row.contains("lhs.leadingSwipe == rhs.leadingSwipe"),
                       "changing saved reveal actions must update an equatable row")
         XCTAssertTrue(branch.contains("let reveal = revealActions(for: habit)"))
         XCTAssertTrue(branch.contains("leadingSwipe: reveal.leading"))
         XCTAssertTrue(branch.contains("trailingSwipe: reveal.trailing"))
-        XCTAssertFalse(branch.contains(".swipeActions(edge:"),
-                       "the system row swipe buttons are shorter than the reminder card")
     }
 
     func testReminderPreviewAndRevealShareTheStableRowHeight() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
 
         XCTAssertTrue(row.contains("static let rowHeight: CGFloat = 64"))
-        XCTAssertTrue(row.contains("previewHeight: Self.rowHeight"),
-                      "the enlarged reminder preview must use the row's measured contract")
         XCTAssertTrue(row.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
-        XCTAssertTrue(row.contains(".frame(minHeight: Self.rowHeight)"),
-                      "the preview and source row must not drift apart vertically")
+        XCTAssertTrue(row.contains(".swipeActions(edge: .leading"),
+                      "the native leading actions must stay attached to the row")
+        XCTAssertTrue(row.contains(".swipeActions(edge: .trailing"),
+                      "the native trailing actions must stay attached to the row")
     }
 
-    func testReminderDismissalOverlayDoesNotApplyTheRowOffsetTwice() throws {
+    func testReminderDoesNotInstallAnInterceptingSwipeOverlay() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
-        let start = try XCTUnwrap(row.range(of: "rowContent\n                .offset"))
-        let end = try XCTUnwrap(row.range(of: ".onGeometryChange",
-                                          range: start.upperBound..<row.endIndex))
-        let revealHost = row[start.lowerBound..<end.lowerBound]
-
-        XCTAssertEqual(String(revealHost)
-            .components(separatedBy: ".offset(x: revealOffset * mirror)").count - 1,
-                       1,
-                       "the transparent dismissal target follows the already-offset row")
+        XCTAssertFalse(row.contains("SwipeRevealPan("),
+                       "reminders should not install a second gesture recognizer")
+        XCTAssertFalse(row.contains("revealOffset"),
+                       "reminders should not render an offset transparent overlay")
+        XCTAssertTrue(row.contains(".contextMenu {"),
+                      "the row keeps its native long-press menu")
     }
 
     func testCombinedListBranchesByItemTypeAfterApplyingTheSharedFilter() throws {

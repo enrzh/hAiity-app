@@ -91,6 +91,19 @@ struct SwipeRevealPan: UIViewRepresentable {
             pan.maximumNumberOfTouches = 1
             pan.delegate = self
             container.addGestureRecognizer(pan)
+
+            // The List/CollectionView pan otherwise wins the race before a
+            // row can reveal its actions. Let this pan make the horizontal
+            // versus vertical decision first; a vertical drag still fails
+            // here and immediately releases the list to scroll.
+            var scrollAncestor: UIView? = container
+            while let view = scrollAncestor, !(view is UIScrollView) {
+                scrollAncestor = view.superview
+            }
+            if let scroll = scrollAncestor as? UIScrollView,
+               scroll.panGestureRecognizer !== pan {
+                scroll.panGestureRecognizer.require(toFail: pan)
+            }
             recognizer = pan
             host = container
         }

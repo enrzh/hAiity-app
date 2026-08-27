@@ -26,9 +26,12 @@ enum ReminderOccurrenceEngine {
         let schedule = reminder.recurrence.schedule(calendar: calendar)
         let today = DayKey.key(for: now, calendar: calendar)
         let cursor = reminder.repeatsWhileIncomplete ? nil : reminder.reminderCursor
-        let floor = [reminder.createdAt, reminder.recurrence.start, cursor]
+        let historyFloor = [reminder.createdAt, reminder.recurrence.start]
             .compactMap { $0 }
             .max() ?? reminder.createdAt
+        let floor = [historyFloor, cursor]
+            .compactMap { $0 }
+            .max() ?? historyFloor
 
         let scheduledThroughToday: [String]
         if floor <= today {
@@ -65,7 +68,7 @@ enum ReminderOccurrenceEngine {
         }
 
         let completed = reminder.log.keys
-            .filter { $0 >= floor && schedule.isScheduled($0) }
+            .filter { $0 >= historyFloor && schedule.isScheduled($0) }
             .sorted()
             .last
             .flatMap { occurrence(day: $0, reminder: reminder, calendar: calendar) }

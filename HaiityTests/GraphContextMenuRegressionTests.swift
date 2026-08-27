@@ -125,13 +125,13 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "drag reordering must be enabled only in explicit sorting mode")
     }
 
-    func testReminderContextMenuIsLayeredAboveTheRow() throws {
+    func testReminderContextMenuIsAttachedToTheTappableRow() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
 
-        XCTAssertTrue(row.contains(".overlay {\n                GraphContextMenu"),
-                      "the reminder hold interaction must sit above row content")
-        XCTAssertFalse(row.contains(".background {\n                GraphContextMenu"),
-                       "a background interaction host is blocked by the reminder row")
+        XCTAssertTrue(row.contains(".contextMenu {"),
+                      "the reminder context menu must share the row's touch path")
+        XCTAssertFalse(row.contains("GraphContextMenu("),
+                       "the reminder must not use an intercepting transparent overlay")
     }
 
     func testDebugStatsRouteExistsForTheRenderedCardRegression() throws {

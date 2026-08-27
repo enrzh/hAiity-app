@@ -141,3 +141,81 @@ final class StatsContextMenuUITests: XCTestCase {
     }
 
 }
+
+final class ReminderInteractionUITests: XCTestCase {
+    private let seededReminderID = "00000000-0000-0000-0000-000000000108"
+
+    override func tearDown() {
+        let cleanup = XCUIApplication()
+        cleanup.launchArguments = ["-screen", "habits", "-cleanup-reminder-interactions"]
+        cleanup.launch()
+        cleanup.terminate()
+        super.tearDown()
+    }
+
+    func testReminderCheckmarkAndRevealButtonsRespondToTouches() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screen", "habits", "-seed-reminder-interactions", "-pro", "on"]
+        app.launch()
+
+        let row = app.descendants(matching: .any)[
+            "reminder-row-\(seededReminderID)"
+        ].firstMatch
+        for _ in 0..<10 where !row.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(row.waitForExistence(timeout: 3),
+                      "the seeded reminder must be reachable after scrolling")
+
+        let check = app.buttons["reminder-check-\(seededReminderID)"]
+        XCTAssertTrue(check.waitForExistence(timeout: 2))
+        let initialValue = check.value as? String
+
+        check.tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "the reminder checkmark must update the occurrence")
+
+        check.tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value == %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "tapping the checkmark again must revert the occurrence")
+
+        // Swipe the row surface itself. Swiping its nested checkmark button
+        // bypasses List's row swipe-action host on iOS 27.
+        row.swipeRight()
+        let done = app.buttons["reveal-action-done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3),
+                      "swiping right must reveal the reminder Done action")
+        done.tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "tapping the revealed Done action must complete the reminder")
+
+        row.swipeLeft()
+        let reset = app.buttons["reveal-action-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 3),
+                      "swiping left must reveal the reminder Reset action")
+        reset.tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value == %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "tapping the revealed Reset action must revert the reminder")
+    }
+
+    private func waitUntil(predicate: NSPredicate,
+                            on element: XCUIElement,
+                            timeout: TimeInterval,
+                            message: String) {
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        XCTAssertEqual(result, .completed, message)
+    }
+}

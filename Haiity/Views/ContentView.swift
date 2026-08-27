@@ -2323,6 +2323,7 @@ struct ContentView: View {
     /// Bereich — für Screenshot-Verifikation ohne UI-Automatisierung.
     private func handleLaunchScreenArgument() {
         let args = ProcessInfo.processInfo.arguments
+        let reminderInteractionID = UUID(uuidString: "00000000-0000-0000-0000-000000000108")!
         if args.contains("-dump-sharecard") { dumpShareCards() }
         if args.contains("-dump-widgets") { dumpWidgets() }
         // Nur Debug: nach extern eingespielter data.json die Widget-Timeline
@@ -2361,6 +2362,21 @@ struct ContentView: View {
                 store.add(habit)
             }
             viewPreferences.update { $0.statsCards = StatsCardPrefs() }
+        }
+        if args.contains("-seed-reminder-interactions") {
+            UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
+            if store.habits.contains(where: { $0.id == reminderInteractionID }) {
+                store.remove(reminderInteractionID)
+            }
+            var reminder = Habit(name: "UI test reminder", itemType: .reminder)
+            reminder.id = reminderInteractionID
+            reminder.repeatsWhileIncomplete = false
+            store.add(reminder)
+        }
+        if args.contains("-cleanup-reminder-interactions") {
+            if store.habits.contains(where: { $0.id == reminderInteractionID }) {
+                store.remove(reminderInteractionID)
+            }
         }
         // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
         // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand
