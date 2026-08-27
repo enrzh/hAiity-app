@@ -286,12 +286,7 @@ enum CalendarSync {
     /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
     /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
     static var activeCalendarTitle: String? {
-        if let title = activeCalendarTitles.first { return title }
-        // Keep diagnostics useful for an install that has not completed the
-        // category migration yet: report the legacy calendar only when it
-        // actually exists.
-        guard hasAccess, let id = defaults.string(forKey: calendarKey) else { return nil }
-        return store.calendar(withIdentifier: id)?.title
+        activeCalendarTitles.first
     }
 
     static var activeCalendarTitles: [String] {
@@ -348,7 +343,10 @@ enum CalendarSync {
         // A stored event ID is only a fast path. Older builds and interrupted
         // writes can leave several owned series behind, so inventory the
         // watermark before deciding which ID to reuse.
-        removeLegacyOwnedItems()
+        guard removeLegacyOwnedItems() else {
+            trace("calsync: legacy cleanup failed; preserving state for retry")
+            return
+        }
         let plansByOwner = Dictionary(uniqueKeysWithValues: plans.compactMap { entry
             -> (SyncWatermark.Ownership, CalendarEventPlan)? in
             guard let id = UUID(uuidString: entry.0) else { return nil }
@@ -565,13 +563,17 @@ enum CalendarSync {
         }
     }
 
-    private static func removeLegacyOwnedItems() {
+    private static func removeLegacyOwnedItems() -> Bool {
         var removedSeries = Set<String>()
+        var succeeded = true
         for event in allEvents() {
             guard event.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
                     == SyncWatermark.readablePrefix else { continue }
-            removeOwnedEvent(event, removedSeries: &removedSeries)
+            if !removeOwnedEvent(event, removedSeries: &removedSeries) {
+                succeeded = false
+            }
         }
+        return succeeded
     }
 
     private static func nativeID(for event: EKEvent) -> String? {

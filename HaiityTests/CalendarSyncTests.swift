@@ -127,6 +127,15 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("blockedKeys.contains(key)"))
     }
 
+    func testLegacyCalendarCleanupMustSucceedBeforeRecreation() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        XCTAssertTrue(source.contains("guard removeLegacyOwnedItems() else"))
+        XCTAssertTrue(source.contains("private static func removeLegacyOwnedItems() -> Bool"))
+    }
+
     func testMoreScreenExposesIndependentCalendarToggles() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
