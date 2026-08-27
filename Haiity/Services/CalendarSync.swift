@@ -286,8 +286,16 @@ enum CalendarSync {
     /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
     /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
     static var activeCalendarTitle: String? {
-        guard hasAccess, let id = defaults.string(forKey: calendarKey) else { return nil }
-        return store.calendar(withIdentifier: id)?.title
+        activeCalendarTitles.first
+    }
+
+    static var activeCalendarTitles: [String] {
+        guard hasAccess else { return [] }
+        return [false, true].compactMap { isReminder in
+            guard let id = CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults),
+                  let calendar = store.calendar(withIdentifier: id) else { return nil }
+            return calendar.title
+        }
     }
 
     /// Alles abgleichen: fehlende Termine anlegen, veränderte neu schreiben,
@@ -322,11 +330,15 @@ enum CalendarSync {
             if unchanged { return }
         }
 
-        guard let calendar = ensureCalendar() else {
-            trace("calsync: no calendar (sources: \(store.sources.map(\.title)))")
-            return
+        var calendars: [Bool: EKCalendar] = [:]
+        for isReminder in Set(plans.map { $0.1.isReminder }) {
+            if let calendar = ensureCalendar(isReminder: isReminder) {
+                calendars[isReminder] = calendar
+                trace("calsync: reconcile into '\(calendar.title)' source=\(calendar.source?.title ?? "nil")")
+            } else {
+                trace("calsync: no category calendar (reminder=\(isReminder), sources: \(store.sources.map(\.title)))")
+            }
         }
-        trace("calsync: reconcile into '\(calendar.title)' source=\(calendar.source?.title ?? "nil")")
 
         // A stored event ID is only a fast path. Older builds and interrupted
         // writes can leave several owned series behind, so inventory the
@@ -349,12 +361,13 @@ enum CalendarSync {
         var validatedEvents: [String: EKEvent] = [:]
         var removedSeries = Set<String>()
         for (owner, events) in ownedByOwner {
-            guard plansByOwner[owner] != nil else {
+            guard let plan = plansByOwner[owner] else {
                 for event in events {
                     removeOwnedEvent(event, removedSeries: &removedSeries)
                 }
                 continue
             }
+            guard let calendar = calendars[plan.isReminder] else { continue }
 
             let targetEvents = events.filter {
                 $0.calendar?.calendarIdentifier == calendar.calendarIdentifier
@@ -401,6 +414,7 @@ enum CalendarSync {
                 continue
             }
             seen.insert(key)
+            guard let calendar = calendars[plan.isReminder] else { continue }
             if prints[key] == plan.fingerprint, map[key] != nil,
                !validate || validatedKeys.contains(key) {
                 continue
@@ -421,7 +435,10 @@ enum CalendarSync {
         }
 
         // Verwaiste (gelöschte/archivierte Habits) räumen.
-        for key in Array(map.keys) where !seen.contains(key) {
+        let unavailableKeys = Set(plansByOwner.compactMap { owner, plan in
+            calendars[plan.isReminder] == nil ? owner.id.uuidString : nil
+        })
+        for key in Array(map.keys) where !seen.contains(key) && !unavailableKeys.contains(key) {
             removeEvent(for: key, map: &map, prints: &prints)
         }
 
@@ -480,6 +497,8 @@ enum CalendarSync {
         guard succeeded else { return false }
         defaults.removeObject(forKey: mapKey)
         defaults.removeObject(forKey: fingerprintKey)
+        defaults.removeObject(forKey: habitsCalendarKey)
+        defaults.removeObject(forKey: remindersCalendarKey)
         defaults.removeObject(forKey: calendarKey)
         return true
     }
@@ -580,30 +599,34 @@ enum CalendarSync {
     /// Der eigene Kalender — angelegt im Konto des Standardkalenders, damit
     /// er dort erscheint, wo die Termine des Nutzers ohnehin wohnen (bei
     /// einem Google-Standardkonto also in Google Kalender).
-    private static func ensureCalendar() -> EKCalendar? {
-        if let id = defaults.string(forKey: calendarKey),
+    private static func ensureCalendar(isReminder: Bool) -> EKCalendar? {
+        if let id = CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults),
            let existing = store.calendar(withIdentifier: id) {
             return existing
         }
+        let title = destinationTitle(isReminder: isReminder)
         if let existing = store.calendars(for: .event)
-            .first(where: { $0.title == calendarTitle }) {
-            defaults.set(existing.calendarIdentifier, forKey: calendarKey)
+            .first(where: { $0.title == title && $0.allowsContentModifications }) {
+            CalendarSyncPreferences.setCalendarID(existing.calendarIdentifier,
+                                                   isReminder: isReminder,
+                                                   in: defaults)
             return existing
         }
         let calendar = EKCalendar(for: .event, eventStore: store)
-        calendar.title = calendarTitle
+        calendar.title = title
         calendar.source = store.defaultCalendarForNewEvents?.source
             ?? store.sources.first { $0.sourceType == .calDAV }
             ?? store.sources.first { $0.sourceType == .local }
         guard calendar.source != nil else { return nil }
         do {
             try store.saveCalendar(calendar, commit: true)
-            defaults.set(calendar.calendarIdentifier, forKey: calendarKey)
+            CalendarSyncPreferences.setCalendarID(calendar.calendarIdentifier,
+                                                   isReminder: isReminder,
+                                                   in: defaults)
             return calendar
         } catch {
-            // Manche Konten verbieten neue Kalender — dann eben der
-            // Standardkalender: lieber Termine im Hauptkalender als keine.
-            return store.defaultCalendarForNewEvents
+            trace("calsync: save category calendar FAILED '\(title)': \(error)")
+            return nil
         }
     }
 

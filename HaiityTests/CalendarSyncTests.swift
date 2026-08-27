@@ -83,6 +83,39 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertEqual(CalendarSyncPreferences.calendarID(isReminder: true, in: defaults), "reminder-id")
     }
 
+    func testCalendarPlansRouteByItemType() {
+        let habit = CalendarEventPlan(habit: Habit(name: "Lesen"), today: "2026-08-09")
+        let reminder = CalendarEventPlan(habit: Habit(name: "Tabletten", itemType: .reminder),
+                                         today: "2026-08-09")
+
+        XCTAssertEqual(CalendarSync.destinationTitle(isReminder: habit?.isReminder ?? true), "hAiity Habits")
+        XCTAssertEqual(CalendarSync.destinationTitle(isReminder: reminder?.isReminder ?? false), "hAiity Reminders")
+    }
+
+    func testCalendarSyncKeepsLegacyKeySeparateFromCategoryKeys() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        XCTAssertTrue(source.contains("static let calendarKey = \"calendarSyncCalendar\""))
+        XCTAssertTrue(source.contains("static let habitsCalendarKey"))
+        XCTAssertTrue(source.contains("static let remindersCalendarKey"))
+        XCTAssertTrue(source.contains("func ensureCalendar(isReminder:"))
+        XCTAssertTrue(source.contains("ownedEvents()"))
+    }
+
+    func testCalendarCleanupClearsBothCategoryIDsAndLegacyID() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Services/CalendarSync.swift"))
+
+        let cleanup = try XCTUnwrap(source.range(of: "static func removeAllOwnedItems()"))
+        let tail = source[cleanup.lowerBound...]
+        XCTAssertTrue(tail.contains("habitsCalendarKey"))
+        XCTAssertTrue(tail.contains("remindersCalendarKey"))
+        XCTAssertTrue(tail.contains("calendarKey"))
+    }
+
     func testMoreScreenExposesIndependentCalendarToggles() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
