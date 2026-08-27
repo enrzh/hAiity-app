@@ -60,7 +60,7 @@ final class CheckOffLogicTests: XCTestCase {
     }
 
     func testResetWidgetActionClearsCheckboxQuantityAndYesNo() {
-        var checkbox = Habit(name: "Lesen")
+        let checkbox = Habit(name: "Lesen")
         store.add(checkbox)
         store.toggle(checkbox.id, day: "2026-08-09")
         XCTAssertTrue(ResetHabitLogic.apply(to: store, habitId: checkbox.id,

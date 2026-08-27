@@ -483,15 +483,21 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(HabitData.empty.matchAppIcon)
     }
 
-    func testStatsPageUsesTheSharedSettingsSurface() throws {
+    func testStatsPageUsesClearSectionsAndIndividualCardSurfaces() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StatsView.swift"))
         let statsList = try XCTUnwrap(source.range(of: "private var statsList"))
         let statsSettings = source[statsList.upperBound...]
-        XCTAssertTrue(statsSettings.contains(".settingsSurface()"),
-                      "the statistics page must use the same material surface as settings")
+        let statsListEnd = try XCTUnwrap(statsSettings.range(of: "private var statsSelectionEmpty"))
+        let list = statsSettings[..<statsListEnd.lowerBound]
+        XCTAssertTrue(list.contains(".listRowBackground(Color.clear)"),
+                      "the stats list must keep its sections clear behind individual cards")
+        XCTAssertTrue(list.contains(".appSurface()"),
+                      "each stats card must own its selected appearance surface")
+        XCTAssertFalse(list.contains(".settingsListRow()"),
+                       "a section-wide surface creates a second background behind held cards")
     }
 
     func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {

@@ -78,6 +78,36 @@ final class StatsContextMenuUITests: XCTestCase {
         XCTAssertTrue(totals.exists)
     }
 
+    func testLongPressingPerHabitStatsRowCapturesItsCardBoundary() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screen", "stats", "-pro", "on", "-seed-stats"]
+        app.launch()
+
+        let row = app.descendants(matching: .any)["stats-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let rowFrame = row.frame
+        XCTAssertGreaterThan(rowFrame.width, 0)
+        XCTAssertGreaterThan(rowFrame.height, 0)
+
+        row.press(forDuration: 1.0)
+
+        XCTAssertTrue(app.buttons["Statistik anpassen"].waitForExistence(timeout: 3))
+        let preview = app.descendants(matching: .any)["stats-preview"].firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 2),
+                      "The enlarged preview must expose its own card boundary")
+        let previewFrame = preview.frame
+        // `stats-row` is the content inside the card. The visible surface
+        // adds one card padding on both sides before it is lifted.
+        XCTAssertEqual(previewFrame.width, rowFrame.width + 24, accuracy: 2)
+        XCTAssertGreaterThan(previewFrame.height, 0)
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "stats-per-habit-context-menu"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        try? XCUIScreen.main.screenshot().image.pngData()?.write(
+            to: URL(fileURLWithPath: "/tmp/haiity-stats-per-habit-context-runtime.png"))
+    }
+
     func testLongPressingGitHubGraphShowsItsReadablePreview() {
         let app = XCUIApplication()
         app.launchArguments = ["-screen", "habits", "-demo-github-card", "-pro"]
@@ -109,4 +139,5 @@ final class StatsContextMenuUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Bearbeiten"].waitForExistence(timeout: 3))
     }
+
 }

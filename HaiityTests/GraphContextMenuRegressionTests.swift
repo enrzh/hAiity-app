@@ -68,6 +68,36 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "a held stats card must hide only its own source")
     }
 
+    func testStatsCardsDoNotInstallASectionWideSurfaceBehindTheLift() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let start = try XCTUnwrap(stats.range(of: "private var statsList"))
+        let end = try XCTUnwrap(stats.range(of: "private var statsSelectionEmpty",
+                                            range: start.upperBound..<stats.endIndex))
+        let list = stats[start.lowerBound..<end.lowerBound]
+
+        XCTAssertFalse(list.contains(".settingsListRow()"),
+                       "a section-wide surface remains visible behind a lifted card")
+        XCTAssertTrue(list.contains(".listRowBackground(Color.clear)"),
+                      "the list background must stay clear behind individual card surfaces")
+    }
+
+    func testContextPreviewProvidesTheSelectedAppearanceBackdrop() throws {
+        let source = try source("Haiity/Views/HabitCard.swift")
+        let start = try XCTUnwrap(source.range(of: "struct GraphContextMenu: UIViewRepresentable"))
+        let end = try XCTUnwrap(source.range(of: "final class MenuHost: UIView",
+                                             range: start.upperBound..<source.endIndex))
+        let menu = source[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(menu.contains("@Environment(\\.appearancePreferences)"),
+                      "the shared preview bridge must receive the selected appearance")
+        XCTAssertTrue(menu.contains("AppearanceBackground(preferences: appearancePreferences)"),
+                      "material previews need the same page backdrop as the source card")
+        XCTAssertTrue(menu.contains("ZStack"),
+                      "the page backdrop must sit behind the preview card")
+        XCTAssertTrue(menu.contains(".clipShape(RoundedRectangle(cornerRadius: radius"),
+                      "the backdrop must remain inside one rounded preview boundary")
+    }
+
     func testSharedPreviewUsesOneRoundedTargetPath() throws {
         let habit = try source("Haiity/Views/HabitCard.swift")
         let start = try XCTUnwrap(habit.range(of: "private func targetedPreview"))

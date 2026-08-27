@@ -79,7 +79,7 @@ final class ProGateTests: XCTestCase {
     }
 
     func testLockedImportCannotAddTrackedHabitsPastTheFreeLimit() {
-        var localHabits = [Habit(name: "A"), Habit(name: "B"), Habit(name: "C")]
+        let localHabits = [Habit(name: "A"), Habit(name: "B"), Habit(name: "C")]
         let local = HabitData(version: HabitData.currentVersion,
                               updatedAt: 10,
                               summaryMinutes: nil,

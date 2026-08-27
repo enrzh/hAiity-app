@@ -883,7 +883,7 @@ private struct MultipleDatePickerSheet: View {
 
     private var validDays: Range<Int> {
         guard isYearly else { return 1..<32 }
-        var components = DateComponents(year: 2000, month: selectedMonth, day: 1)
+        let components = DateComponents(year: 2000, month: selectedMonth, day: 1)
         let date = calendar.date(from: components)
         let count = date.flatMap { calendar.range(of: .day, in: .month, for: $0)?.count } ?? 31
         return 1..<(count + 1)

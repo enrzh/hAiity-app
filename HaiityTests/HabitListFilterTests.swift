@@ -16,7 +16,7 @@ final class HabitListFilterTests: XCTestCase {
         var habit = Habit(name: "Lesen", recurrence: Recurrence(frequency: .daily,
                                                                   start: "2026-08-01"))
         habit.log["2026-08-25"] = 1
-        var reminder = Habit(name: "Wasser", itemType: .reminder,
+        let reminder = Habit(name: "Wasser", itemType: .reminder,
                              recurrence: Recurrence(frequency: .daily,
                                                     start: "2026-08-01"))
 

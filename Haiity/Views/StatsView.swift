@@ -77,7 +77,6 @@ struct StatsView: View {
                 .accessibilityIdentifier("stats-adjustments")
             }
         }
-        .navigationChrome()
     }
 
     /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
@@ -93,7 +92,6 @@ struct StatsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .settingsChrome()
         .navigationTitle(String(localized: "Statistik"))
     }
 
@@ -134,7 +132,7 @@ struct StatsView: View {
                                                   trailing: Theme.Metrics.gutter))
                 }
             }
-            .settingsListRow()
+            .listRowBackground(Color.clear)
             Section {
                 // Der Schnitt liegt auf der SEKTION, nicht mitten in einer
                 // Karte: eine halbe Zeile („Quoten ja, Balken nein") wäre
@@ -175,11 +173,14 @@ struct StatsView: View {
                         .padding(.leading, Theme.Metrics.gutter)
                 }
             }
-            .settingsListRow()
+            .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .settingsSurface()
+        .listRowSpacing(Theme.Metrics.settingsRowGap)
+        .listSectionSpacing(Theme.Metrics.settingsSectionGap)
+        .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
+        .listRowSeparator(.hidden)
         .navigationTitle(String(localized: "Statistik"))
     }
 
@@ -444,6 +445,9 @@ struct StatsView: View {
         if wrapsSurface {
             preview = AnyView(content
                     .padding(Theme.Metrics.cardPadding)
+                    .frame(width: statsPreviewWidth,
+                           alignment: .topLeading)
+                    .frame(minHeight: height, alignment: .topLeading)
                     .appSurface())
         } else {
             preview = AnyView(content)
@@ -452,7 +456,8 @@ struct StatsView: View {
         return AnyView(preview
             .frame(width: statsPreviewWidth, alignment: .topLeading)
             .frame(minHeight: height, alignment: .topLeading)
-            .environment(\.appearancePreferences, store.appearancePreferences))
+            .environment(\.appearancePreferences, store.appearancePreferences)
+            .accessibilityIdentifier("stats-preview"))
     }
 
     @ViewBuilder

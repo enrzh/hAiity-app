@@ -859,11 +859,13 @@ struct GraphContextMenu: UIViewRepresentable {
     let actions: [GraphMenuAction]
     let commit: () -> Void
     var onMenuVisibilityChanged: (Bool) -> Void = { _ in }
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     func makeUIView(context: Context) -> MenuHost {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
                  previewHeight: previewHeight,
                  preview: preview, actions: actions, commit: commit,
+                 appearancePreferences: appearancePreferences,
                  onMenuVisibilityChanged: onMenuVisibilityChanged)
     }
 
@@ -874,6 +876,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.preview = preview
         view.actions = actions
         view.commit = commit
+        view.appearancePreferences = appearancePreferences
         view.onMenuVisibilityChanged = onMenuVisibilityChanged
     }
 
@@ -888,6 +891,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
+        var appearancePreferences: AppearancePreferences
         var onMenuVisibilityChanged: (Bool) -> Void
         fileprivate let identifier = UUID().uuidString
         private lazy var interaction = UIContextMenuInteraction(delegate: self)
@@ -898,6 +902,7 @@ struct GraphContextMenu: UIViewRepresentable {
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void,
+             appearancePreferences: AppearancePreferences,
              onMenuVisibilityChanged: @escaping (Bool) -> Void) {
             self.cardRadius = cardRadius
             self.previewWidth = previewWidth
@@ -905,6 +910,7 @@ struct GraphContextMenu: UIViewRepresentable {
             self.preview = preview
             self.actions = actions
             self.commit = commit
+            self.appearancePreferences = appearancePreferences
             self.onMenuVisibilityChanged = onMenuVisibilityChanged
             super.init(frame: .zero)
             isUserInteractionEnabled = true
@@ -932,11 +938,16 @@ struct GraphContextMenu: UIViewRepresentable {
             let makePreview = preview
             let actions = actions
             let radius = cardRadius
+            let appearancePreferences = appearancePreferences
             return UIContextMenuConfiguration(identifier: identifier as NSString,
                                                previewProvider: {
-                let root = AnyView(makePreview()
+                let root = AnyView(ZStack {
+                    AppearanceBackground(preferences: appearancePreferences)
+                    makePreview()
+                }
                     .frame(width: width, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .environment(\.appearancePreferences, appearancePreferences)
                     .clipShape(RoundedRectangle(cornerRadius: radius,
                                                 style: .continuous)))
                 let controller = RoundedPreviewHostingController(rootView: root,

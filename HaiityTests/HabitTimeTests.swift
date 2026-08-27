@@ -315,7 +315,7 @@ final class EditHabitSheetContractTests: XCTestCase {
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
 
         XCTAssertTrue(source.contains("$draft.endMode"))
-        let daily = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
+        _ = try XCTUnwrap(source.range(of: "Text(String(localized: \"Täglich\")).tag(Recurrence.Frequency.daily)"))
         XCTAssertFalse(source.contains("Text(String(localized: \"Ein Tag\")).tag"))
         XCTAssertTrue(source.contains("Toggle(String(localized: \"Wiederholen\")"))
         XCTAssertTrue(source.contains("repeat-toggle"))
