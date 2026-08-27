@@ -250,24 +250,28 @@ final class StartupSplashTests: XCTestCase {
     }
 
     func testConcurrentLaunchTileRequestsShareOneExecutableRasterTask() async {
-        let size = CGSize(width: 281, height: 95)
-        let results = await withTaskGroup(of: CGImage?.self, returning: [CGImage?].self) { group in
-            for _ in 0..<2 {
-                group.addTask {
-                    await AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
-                }
-            }
-            var values: [CGImage?] = []
-            for await value in group {
-                values.append(value)
-            }
-            return values
+        #if DEBUG
+        AppearanceImageCache.resetLaunchRasterProbe()
+        let started = expectation(description: "rasterizer started")
+        AppearanceImageCache.launchRasterProbe = {
+            started.fulfill()
+            Thread.sleep(forTimeInterval: 0.05)
         }
+        defer { AppearanceImageCache.launchRasterProbe = nil }
+
+        let size = CGSize(width: 281, height: 95)
+        async let first = AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
+        await fulfillment(of: [started], timeout: 1)
+        async let second = AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
+        let results = await [first, second]
 
         XCTAssertEqual(results.count, 2)
         XCTAssertNotNil(results[0])
         XCTAssertTrue(results[0] === results[1],
                       "concurrent launch requests must share the same raster result")
+        XCTAssertEqual(AppearanceImageCache.launchRasterProbeCount, 1,
+                       "concurrent launch requests must execute one rasterizer")
+        #endif
     }
 
     func testLaunchTileCacheKeepsCoordinationUntilCancelledWorkerCompletes() throws {
@@ -282,6 +286,20 @@ final class StartupSplashTests: XCTestCase {
                       "orphan cancellation must wait for worker completion before dropping coordination")
         XCTAssertFalse(theme.contains("inFlight[key] = nil\n            }\n        }\n    }\n\n    private static let inFlightStore"),
                       "cancellation must not remove an active worker immediately")
+        XCTAssertTrue(theme.contains("current.waiters == 0"),
+                      "completed workers may be removed only after all waiters release")
+    }
+
+    func testLaunchAndImageCacheKeysUseDistinctNamespaces() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+
+        XCTAssertTrue(theme.contains("CacheKey.launch"),
+                      "launch rasters must use a typed cache-key namespace")
+        XCTAssertTrue(theme.contains("CacheKey.image"),
+                      "user images must use a separate typed cache-key namespace")
     }
 
     func testLaunchRasterizerUsesTheSharedAppearanceCacheBoundary() throws {

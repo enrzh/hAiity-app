@@ -242,6 +242,24 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 /// can be mounted during launch. The persisted JPEG remains the source of
 /// truth; this cache is only an in-process rendering optimization.
 enum AppearanceImageCache {
+#if DEBUG
+    static var launchRasterProbe: (() -> Void)?
+    private static let launchRasterProbeLock = NSLock()
+    private static var _launchRasterProbeCount = 0
+
+    static var launchRasterProbeCount: Int {
+        launchRasterProbeLock.lock()
+        defer { launchRasterProbeLock.unlock() }
+        return _launchRasterProbeCount
+    }
+
+    static func resetLaunchRasterProbe() {
+        launchRasterProbeLock.lock()
+        _launchRasterProbeCount = 0
+        launchRasterProbeLock.unlock()
+    }
+#endif
+
     private final class Entry: @unchecked Sendable {
         let image: UIImage
         let averageHex: UInt32?
@@ -262,9 +280,39 @@ enum AppearanceImageCache {
         }
     }
 
+    private final class CacheKey: NSObject {
+        private let namespace: UInt8
+        private let value: AnyHashable
+
+        private init(namespace: UInt8, value: AnyHashable) {
+            self.namespace = namespace
+            self.value = value
+        }
+
+        static func image(_ data: Data) -> CacheKey {
+            CacheKey(namespace: 1, value: AnyHashable(data))
+        }
+
+        static func launch(_ key: String) -> CacheKey {
+            CacheKey(namespace: 2, value: AnyHashable(key))
+        }
+
+        override var hash: Int {
+            var hasher = Hasher()
+            hasher.combine(namespace)
+            hasher.combine(value)
+            return hasher.finalize()
+        }
+
+        override func isEqual(_ object: Any?) -> Bool {
+            guard let other = object as? CacheKey else { return false }
+            return namespace == other.namespace && value == other.value
+        }
+    }
+
     private final class Store: @unchecked Sendable {
-        let cache: NSCache<NSData, Entry> = {
-            let cache = NSCache<NSData, Entry>()
+        let cache: NSCache<CacheKey, Entry> = {
+            let cache = NSCache<CacheKey, Entry>()
             cache.countLimit = 4
             cache.totalCostLimit = 32 * 1024 * 1024
             return cache
@@ -346,6 +394,7 @@ enum AppearanceImageCache {
 
         func finish(_ task: LaunchInFlight, key: String) {
             guard let current = inFlight[key], current === task else { return }
+            guard current.waiters == 0 else { return }
             inFlight[key] = nil
         }
     }
@@ -361,7 +410,7 @@ enum AppearanceImageCache {
     /// full-screen background; it must never start JPEG decoding during a
     /// SwiftUI body evaluation.
     static func cachedImage(for data: Data) -> UIImage? {
-        store.cache.object(forKey: data as NSData)?.image
+        store.cache.object(forKey: CacheKey.image(data))?.image
     }
 
     static func averageHex(for data: Data) -> UInt32? {
@@ -369,7 +418,7 @@ enum AppearanceImageCache {
     }
 
     static func cachedAverageHex(for data: Data) -> UInt32? {
-        store.cache.object(forKey: data as NSData)?.averageHex
+        store.cache.object(forKey: CacheKey.image(data))?.averageHex
     }
 
     /// Rasterize the bundled launch graph once for the measured window. Keep
@@ -377,6 +426,13 @@ enum AppearanceImageCache {
     /// startup never grows a second ad-hoc image cache.
     private nonisolated static func rasterizeLaunchTiles(size: CGSize, scale: CGFloat) -> UIImage? {
         guard size.width > 0, size.height > 0, scale > 0 else { return nil }
+
+        #if DEBUG
+        launchRasterProbe?()
+        launchRasterProbeLock.lock()
+        _launchRasterProbeCount += 1
+        launchRasterProbeLock.unlock()
+        #endif
 
         guard let source = UIImage(named: "LaunchTiles") else { return nil }
         let format = UIGraphicsImageRendererFormat()
@@ -391,14 +447,13 @@ enum AppearanceImageCache {
 
     static func launchTilesImageTask(size: CGSize, scale: CGFloat) async -> CGImage? {
         let key = "launch-tiles-\(Int((size.width * scale).rounded()))x\(Int((size.height * scale).rounded()))"
-        let cacheKeyData = key.data(using: .utf8)!
-        let cacheKey = cacheKeyData as NSData
+        let cacheKey = CacheKey.launch(key)
         if let cached = store.cache.object(forKey: cacheKey) {
             return cached.image.cgImage
         }
         let request = await launchInFlightStore.acquire(key: key) {
             guard let image = rasterizeLaunchTiles(size: size, scale: scale) else { return nil }
-            store.cache.setObject(Entry(image: image, averageHex: nil), forKey: cacheKeyData as NSData)
+            store.cache.setObject(Entry(image: image, averageHex: nil), forKey: cacheKey)
             return image.cgImage
         }
         let result = await withTaskCancellationHandler {
@@ -426,8 +481,7 @@ enum AppearanceImageCache {
     }
 
     private static func entry(for data: Data) -> Entry? {
-        let key = data as NSData
-        if let cached = store.cache.object(forKey: key) {
+        if let cached = store.cache.object(forKey: CacheKey.image(data)) {
             return cached
         }
 
@@ -437,7 +491,7 @@ enum AppearanceImageCache {
     }
 
     private static func prepareEntry(for data: Data) async {
-        if store.cache.object(forKey: data as NSData) != nil { return }
+        if store.cache.object(forKey: CacheKey.image(data)) != nil { return }
 
         let inFlight = await inFlightStore.acquire(for: data) {
             buildEntry(for: data)
@@ -452,7 +506,7 @@ enum AppearanceImageCache {
         guard !Task.isCancelled else { return }
         await inFlightStore.release(inFlight, for: data, cancelIfOrphaned: false)
         guard let entry,
-              store.cache.object(forKey: data as NSData) == nil else { return }
+              store.cache.object(forKey: CacheKey.image(data)) == nil else { return }
         storeEntry(entry, for: data)
     }
 
@@ -463,7 +517,7 @@ enum AppearanceImageCache {
 
     private static func storeEntry(_ entry: Entry, for data: Data) {
         let cost = entry.image.cgImage.map { $0.bytesPerRow * $0.height } ?? data.count
-        store.cache.setObject(entry, forKey: data as NSData, cost: cost)
+        store.cache.setObject(entry, forKey: CacheKey.image(data), cost: cost)
     }
 
     private static func decodedImage(from data: Data) -> UIImage? {
