@@ -20,11 +20,10 @@ enum StartupSplashTimeline {
     static let clusterDuration: TimeInterval = 0.24 * runtimeScale
     static let splitDuration: TimeInterval = 0.80 * runtimeScale
     static let zoomDuration: TimeInterval = 0.72 * runtimeScale
-    static let handoffDuration: TimeInterval = 0.16 * runtimeScale
     static let startDelay: TimeInterval = 0.05 * runtimeScale
     static let compactScale: CGFloat = 0.36
     static let zoomScale: CGFloat = 7.5
-    static let duration = clusterDuration + splitDuration + zoomDuration + handoffDuration
+    static let duration = clusterDuration + splitDuration + zoomDuration
 
     static func phase(at elapsed: TimeInterval) -> StartupSplashPhase {
         let elapsed = max(0, elapsed)

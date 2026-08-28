@@ -79,16 +79,21 @@ struct SwipeRevealPan: UIViewRepresentable {
             guard window != nil else { detach(); return }
             guard recognizer == nil else { return }
             var ancestor = superview
-            var container: UIView?
+            var fallbackContainer: UIView?
+            var rowContainer: UIView?
             while let view = ancestor {
-                container = view
-                if view is UICollectionViewCell || view is UITableViewCell
-                    || view is UIScrollView { break }
+                fallbackContainer = fallbackContainer ?? view
+                if view is UICollectionViewCell || view is UITableViewCell {
+                    rowContainer = view
+                    break
+                }
+                if view is UIScrollView { fallbackContainer = view }
                 ancestor = view.superview
             }
-            guard let container else { return }
+            guard let container = rowContainer ?? fallbackContainer else { return }
             let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
             pan.maximumNumberOfTouches = 1
+            pan.cancelsTouchesInView = false
             pan.delegate = self
             container.addGestureRecognizer(pan)
 
@@ -115,7 +120,8 @@ struct SwipeRevealPan: UIViewRepresentable {
         }
 
         @objc private func panned(_ pan: UIPanGestureRecognizer) {
-            let dx = pan.translation(in: self).x * mirror
+            guard let container = host else { return }
+            let dx = pan.translation(in: container).x * mirror
             switch pan.state {
             case .began:
                 beganCallback()
@@ -123,7 +129,7 @@ struct SwipeRevealPan: UIViewRepresentable {
             case .changed:
                 changedCallback(dx)
             case .ended, .cancelled, .failed:
-                endedCallback(dx, pan.velocity(in: self).x * mirror)
+                endedCallback(dx, pan.velocity(in: container).x * mirror)
             default:
                 break
             }
@@ -137,11 +143,18 @@ struct SwipeRevealPan: UIViewRepresentable {
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   pan === recognizer else { return true }
-            // Nur Züge, die ÜBER dieser Zeile beginnen.
-            let location = pan.location(in: self)
-            guard bounds.contains(location) else { return false }
+            // The recognizer is installed on the cell/list container, not on
+            // this hidden SwiftUI bridge view. Validate against the host's
+            // bounds. When List exposes only its shared scroll host, use the
+            // bridge's converted row frame so another row cannot respond.
+            guard let container = host else { return false }
+            let location = pan.location(in: container)
+            let activeFrame = container is UICollectionViewCell || container is UITableViewCell
+                ? container.bounds
+                : convert(bounds, to: container)
+            guard activeFrame.contains(location) else { return false }
 
-            let translation = pan.translation(in: self)
+            let translation = pan.translation(in: container)
             let horizontal = SwipeReveal.horizontalIntent(dx: translation.x, dy: translation.y)
             let towardTrailing = translation.x * mirror < 0
 
@@ -150,20 +163,18 @@ struct SwipeRevealPan: UIViewRepresentable {
             var overGrid = false
             var atEnd = true
             var gridScroll: UIScrollView?
-            if let container = host {
-                let hit = container.hitTest(pan.location(in: container), with: nil)
-                var walk: UIView? = hit
-                while let view = walk, view !== container {
-                    if let scroll = view as? UIScrollView {
-                        overGrid = true
-                        gridScroll = scroll
-                        // Das Raster erzwingt LTR — „Ende" ist rechts.
-                        atEnd = scroll.contentOffset.x
-                            >= scroll.contentSize.width - scroll.bounds.width - 2
-                        break
-                    }
-                    walk = view.superview
+            let hit = container.hitTest(location, with: nil)
+            var walk: UIView? = hit
+            while let view = walk, view !== container {
+                if let scroll = view as? UIScrollView {
+                    overGrid = true
+                    gridScroll = scroll
+                    // Das Raster erzwingt LTR — „Ende" ist rechts.
+                    atEnd = scroll.contentOffset.x
+                        >= scroll.contentSize.width - scroll.bounds.width - 2
+                    break
                 }
+                walk = view.superview
             }
             let verdict = shouldBeginQuery(towardTrailing, horizontal, overGrid, atEnd)
             trace("revealpan: begin? loc=\(location) bounds=\(bounds) dx=\(translation.x) dy=\(translation.y) trailing=\(towardTrailing) horiz=\(horizontal) grid=\(overGrid) end=\(atEnd) -> \(verdict)")
@@ -182,6 +193,22 @@ struct SwipeRevealPan: UIViewRepresentable {
                 gridScroll.panGestureRecognizer.isEnabled = true
             }
             return verdict
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === recognizer,
+                  let container = host,
+                  let otherView = otherGestureRecognizer.view else {
+                return false
+            }
+            guard otherView === container || otherView.isDescendant(of: container) else {
+                return false
+            }
+            // A nested SwiftUI control may own the initial touch. Let the
+            // row pan still observe a horizontal drag without enabling
+            // simultaneous recognition with the surrounding List scroll.
+            return !(otherView is UIScrollView)
         }
     }
 }

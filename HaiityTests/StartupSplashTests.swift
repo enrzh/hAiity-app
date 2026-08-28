@@ -196,10 +196,10 @@ final class StartupSplashTests: XCTestCase {
     }
 
     func testSplashLeavesASettledHandoffAfterTheVisualZoom() {
-        XCTAssertGreaterThan(StartupSplashTimeline.duration,
-                             StartupSplashTimeline.clusterDuration
-                             + StartupSplashTimeline.splitDuration
-                             + StartupSplashTimeline.zoomDuration)
+        XCTAssertEqual(StartupSplashTimeline.duration,
+                       StartupSplashTimeline.clusterDuration
+                       + StartupSplashTimeline.splitDuration
+                       + StartupSplashTimeline.zoomDuration)
     }
 
     func testSplashUsesCoreAnimationForTheFullWindow() throws {
@@ -400,12 +400,30 @@ final class StartupSplashTests: XCTestCase {
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(app.contains("AppearanceImageCache.prewarmTask("),
-                      "launch should keep a cancellable prewarm task while the splash is visible")
+        XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data: data)"),
+                      "launch should prewarm the selected background while the splash is visible")
         XCTAssertFalse(app.contains("startupContentMounted = startupAppearanceReady"),
                        "background preparation must not block mounting the app tree")
         XCTAssertTrue(app.contains("startupBackgroundPrewarmTask"),
                       "launch-specific prewarm work must be released when it is no longer needed")
+    }
+
+    func testStartupPayloadReadWaitsUntilTheSceneIsMounted() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+        let initializerStart = try XCTUnwrap(app.range(of: "    init() {"))
+        let bodyStart = try XCTUnwrap(app.range(of: "    var body: some Scene",
+                                                range: initializerStart.upperBound..<app.endIndex))
+        let initializer = app[initializerStart.lowerBound..<bodyStart.lowerBound]
+
+        XCTAssertFalse(initializer.contains("HabitStore.read("),
+                       "the app initializer must not decode the full payload before the scene mounts")
+        XCTAssertTrue(app.contains("Task.detached(priority: .utility)"),
+                      "appearance prewarming should read the payload off the main actor")
+        XCTAssertTrue(app.contains("readStartupBackgroundImageData()"),
+                      "the deferred prewarm should own the startup-only payload read")
     }
 
     func testAppearanceBackgroundDoesNotDecodeOnItsFirstBodyEvaluation() throws {

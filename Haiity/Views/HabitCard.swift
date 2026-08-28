@@ -192,6 +192,24 @@ struct HabitCard: View, Equatable {
     /// (leading positiv) bleibt davon unberührt.
     private var mirror: CGFloat { layoutDirection == .rightToLeft ? -1 : 1 }
 
+    private func revealShouldBegin(towardTrailing: Bool, horizontal: Bool,
+                                   overGrid: Bool, gridAtTrailingEnd: Bool) -> Bool {
+        SwipeReveal.canBegin(towardTrailing: towardTrailing,
+                             horizontalIntent: horizontal,
+                             open: revealOffset != 0,
+                             hasLeading: !leadingSwipe.isEmpty,
+                             hasTrailing: !trailingSwipe.isEmpty,
+                             overGrid: overGrid,
+                             gridAtTrailingEnd: gridAtTrailingEnd)
+    }
+
+    private func revealChanged(_ translation: CGFloat) {
+        revealOffset = SwipeReveal.offset(
+            start: revealStart, translation: translation,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+    }
+
     @ViewBuilder
     private var revealButtons: some View {
         let leadingOpen = revealOffset > 0
@@ -207,6 +225,9 @@ struct HabitCard: View, Equatable {
         // mit dem Gummiband leicht mit — nichts „steht" hinter der Karte.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: leadingOpen ? .leading : .trailing)
+        // The grid is offset visually while retaining its layout slot; the
+        // exposed action layer must remain the hit-test winner.
+        .zIndex(1)
         .opacity(min(1, exposed / max(resting * 0.6, 1)))
         .scaleEffect(min(1, 0.9 + 0.1 * exposed / max(resting, 1)),
                      anchor: leadingOpen ? .leading : .trailing)
@@ -236,24 +257,7 @@ struct HabitCard: View, Equatable {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(action.title)
-    }
-
-    private func revealShouldBegin(towardTrailing: Bool, horizontal: Bool,
-                                   overGrid: Bool, gridAtTrailingEnd: Bool) -> Bool {
-        SwipeReveal.canBegin(towardTrailing: towardTrailing,
-                             horizontalIntent: horizontal,
-                             open: revealOffset != 0,
-                             hasLeading: !leadingSwipe.isEmpty,
-                             hasTrailing: !trailingSwipe.isEmpty,
-                             overGrid: overGrid,
-                             gridAtTrailingEnd: gridAtTrailingEnd)
-    }
-
-    private func revealChanged(_ translation: CGFloat) {
-        revealOffset = SwipeReveal.offset(
-            start: revealStart, translation: translation,
-            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
-            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+        .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {

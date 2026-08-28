@@ -185,20 +185,48 @@ final class ReminderInteractionUITests: XCTestCase {
             timeout: 3,
             message: "tapping the checkmark again must revert the occurrence")
 
-        // Swipe the row surface itself. Swiping its nested checkmark button
-        // bypasses List's row swipe-action host on iOS 27.
-        row.swipeRight()
+        // Start on the nested control as well as the row surface. The
+        // production pan is attached to the cell, so both touch paths must
+        // reveal the same actions.
+        // XCTest's convenience swipe on an accessibility container can be
+        // claimed by List's own pan before the row surface sees it. Use the
+        // same continuous coordinate drag a user performs instead.
+        let surfaceStart = row.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
+        let surfaceEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        surfaceStart.press(forDuration: 0.1,
+                           thenDragTo: surfaceEnd,
+                         withVelocity: .fast,
+                         thenHoldForDuration: 0)
         let done = app.buttons["reveal-action-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3),
+        let doneAppeared = done.waitForExistence(timeout: 3)
+        if !doneAppeared {
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = "reminder-after-checkmark-swipe"
+            screen.lifetime = .keepAlways
+            add(screen)
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "reminder-after-checkmark-swipe-hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+        }
+        XCTAssertTrue(doneAppeared,
                       "swiping right must reveal the reminder Done action")
+        guard doneAppeared else { return }
+        print("reveal done frame=\(done.frame) hittable=\(done.isHittable) enabled=\(done.isEnabled)")
         done.tap()
+        print("after reveal done value=\(String(describing: check.value))")
         waitUntil(
             predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
             on: check,
             timeout: 3,
             message: "tapping the revealed Done action must complete the reminder")
 
-        row.swipeLeft()
+        let swipeStart = check.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let swipeEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        swipeStart.press(forDuration: 0.1,
+                         thenDragTo: swipeEnd,
+                         withVelocity: .fast,
+                         thenHoldForDuration: 0)
         let reset = app.buttons["reveal-action-reset"]
         XCTAssertTrue(reset.waitForExistence(timeout: 3),
                       "swiping left must reveal the reminder Reset action")
@@ -208,6 +236,40 @@ final class ReminderInteractionUITests: XCTestCase {
             on: check,
             timeout: 3,
             message: "tapping the revealed Reset action must revert the reminder")
+    }
+
+    func testReminderSwipeStartingOnCheckmarkRevealsReset() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screen", "habits", "-seed-reminder-interactions", "-pro", "on"]
+        app.launch()
+
+        let row = app.descendants(matching: .any)[
+            "reminder-row-\(seededReminderID)"
+        ].firstMatch
+        for _ in 0..<10 where !row.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+
+        let check = app.buttons["reminder-check-\(seededReminderID)"]
+        XCTAssertTrue(check.waitForExistence(timeout: 3))
+        let initialValue = check.value as? String
+        check.tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "the reminder must be completed before testing reset")
+
+        let swipeStart = check.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let swipeEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        swipeStart.press(forDuration: 0.1,
+                         thenDragTo: swipeEnd,
+                         withVelocity: .fast,
+                         thenHoldForDuration: 0)
+        let reset = app.buttons["reveal-action-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 3),
+                      "a swipe beginning on the checkmark must reveal Reset")
     }
 
     private func waitUntil(predicate: NSPredicate,

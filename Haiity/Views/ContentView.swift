@@ -353,8 +353,18 @@ struct ContentView: View {
                 // Keep deterministic simulator routes independent of startup
                 // sync, which can legitimately wait on iCloud.
                 handleLaunchScreenArgument()
+                // Seed interaction fixtures before boot as well. Boot may
+                // wait on iCloud, while UI tests need their row in the first
+                // rendered list.
+                handleLaunchTestData()
                 #endif
                 await boot()
+                #if DEBUG
+                // Seeded interaction fixtures must be written after the
+                // initial iCloud merge, otherwise a startup reload can race
+                // the test fixture and hide the item being exercised.
+                handleLaunchTestData()
+                #endif
                 schedulePendingNotificationAction()
                 schedulePendingNotificationDeliveryIssue()
                 schedulePendingShortcutLink()
@@ -2323,7 +2333,6 @@ struct ContentView: View {
     /// Bereich — für Screenshot-Verifikation ohne UI-Automatisierung.
     private func handleLaunchScreenArgument() {
         let args = ProcessInfo.processInfo.arguments
-        let reminderInteractionID = UUID(uuidString: "00000000-0000-0000-0000-000000000108")!
         if args.contains("-dump-sharecard") { dumpShareCards() }
         if args.contains("-dump-widgets") { dumpWidgets() }
         // Nur Debug: nach extern eingespielter data.json die Widget-Timeline
@@ -2356,27 +2365,9 @@ struct ContentView: View {
             // The stats UI regression must reach Stats on a clean simulator;
             // do not let first-run notification setup hide the rendered cards.
             UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
-            if store.activeTrackedHabits.isEmpty {
-                var habit = Habit(name: "UI test habit")
-                habit.log[DayKey.today()] = 1
-                store.add(habit)
-            }
-            viewPreferences.update { $0.statsCards = StatsCardPrefs() }
         }
         if args.contains("-seed-reminder-interactions") {
             UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
-            if store.habits.contains(where: { $0.id == reminderInteractionID }) {
-                store.remove(reminderInteractionID)
-            }
-            var reminder = Habit(name: "UI test reminder", itemType: .reminder)
-            reminder.id = reminderInteractionID
-            reminder.repeatsWhileIncomplete = false
-            store.add(reminder)
-        }
-        if args.contains("-cleanup-reminder-interactions") {
-            if store.habits.contains(where: { $0.id == reminderInteractionID }) {
-                store.remove(reminderInteractionID)
-            }
         }
         // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
         // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand
@@ -2435,6 +2426,33 @@ struct ContentView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(700))
             handleDeepLink(url)
+        }
+    }
+
+    private func handleLaunchTestData() {
+        let args = ProcessInfo.processInfo.arguments
+        let reminderInteractionID = UUID(uuidString: "00000000-0000-0000-0000-000000000108")!
+
+        if args.contains("-seed-stats") {
+            if store.activeTrackedHabits.isEmpty {
+                var habit = Habit(name: "UI test habit")
+                habit.log[DayKey.today()] = 1
+                store.add(habit)
+            }
+            viewPreferences.update { $0.statsCards = StatsCardPrefs() }
+        }
+        if args.contains("-seed-reminder-interactions") {
+            if store.habits.contains(where: { $0.id == reminderInteractionID }) {
+                store.remove(reminderInteractionID)
+            }
+            var reminder = Habit(name: "UI test reminder", itemType: .reminder)
+            reminder.id = reminderInteractionID
+            reminder.repeatsWhileIncomplete = false
+            store.add(reminder)
+        }
+        if args.contains("-cleanup-reminder-interactions"),
+           store.habits.contains(where: { $0.id == reminderInteractionID }) {
+            store.remove(reminderInteractionID)
         }
     }
 

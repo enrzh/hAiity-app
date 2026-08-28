@@ -8,18 +8,11 @@ struct HaiityApp: App {
     @State private var startupSplashVisible = true
     @State private var startupContentMounted = true
     @State private var startupBackgroundPrewarmTask: Task<Void, Never>?
-    private let startupBackgroundImageData: Data?
     // Übergibt die Szenen an ShortcutSceneDelegate — ohne ihn kommen
     // Schnellaktionen des Homescreens nirgends an.
     @UIApplicationDelegateAdaptor(ShortcutAppDelegate.self) private var shortcutDelegate
 
     init() {
-        let appearance = HabitStore.read(SharedStorage.dataURL())?.appearancePreferences
-        let backgroundData = appearance?.backgroundMode == .image
-            ? appearance?.backgroundImageData
-            : nil
-        startupBackgroundImageData = backgroundData
-
         // Ohne Delegat unterdrückt iOS jede geplante Mitteilung, solange die
         // App im Vordergrund ist — der häufigste Grund für „Benachrichtigungen
         // funktionieren nicht". Früh gesetzt, damit auch eine Meldung, die
@@ -141,8 +134,17 @@ struct HaiityApp: App {
 
     private func restartStartupBackgroundPrewarm() {
         cancelStartupBackgroundPrewarm()
-        startupBackgroundPrewarmTask = AppearanceImageCache.prewarmTask(
-            data: startupBackgroundImageData)
+        startupBackgroundPrewarmTask = Task.detached(priority: .utility) {
+            let data = HaiityApp.readStartupBackgroundImageData()
+            guard !Task.isCancelled else { return }
+            await AppearanceImageCache.prewarm(data: data)
+        }
+    }
+
+    private static func readStartupBackgroundImageData() -> Data? {
+        let appearance = HabitStore.read(SharedStorage.dataURL())?.appearancePreferences
+        guard appearance?.backgroundMode == .image else { return nil }
+        return appearance?.backgroundImageData
     }
 
     private func cancelStartupBackgroundPrewarm() {

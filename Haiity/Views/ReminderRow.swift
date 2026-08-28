@@ -22,6 +22,10 @@ struct ReminderRow: View, Equatable {
     var calendar: Calendar = .current
     var leadingSwipe: [RevealAction] = []
     var trailingSwipe: [RevealAction] = []
+    @State private var revealOffset: CGFloat = 0
+    @State private var revealStart: CGFloat = 0
+    @State private var revealRowWidth: CGFloat = 0
+    @Environment(\.layoutDirection) private var layoutDirection
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -33,7 +37,44 @@ struct ReminderRow: View, Equatable {
     }
 
     var body: some View {
-        rowContent
+        ZStack {
+            if revealOffset != 0 {
+                revealButtons
+            }
+            rowContent
+                .offset(x: revealOffset * mirror)
+                .overlay {
+                    if revealOffset != 0 {
+                        Color.clear
+                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                           style: .continuous))
+                            .onTapGesture {
+                                Theme.Haptics.select()
+                                snapReveal(to: 0)
+                            }
+                    }
+                }
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            revealRowWidth = width
+        }
+        .background {
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { revealStart = revealOffset },
+                           changed: revealChanged,
+                           ended: revealEnded)
+        }
+        .accessibilityRevealActions(leadingSwipe + trailingSwipe)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
+    }
+
+    private var rowContent: some View {
+        rowLayout
+            .frame(maxWidth: .infinity, minHeight: Self.rowHeight)
+            .appSurface()
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
             .contextMenu {
                 Button(action: onEdit) {
                     Label(String(localized: "Bearbeiten"), systemImage: "pencil")
@@ -49,38 +90,108 @@ struct ReminderRow: View, Equatable {
                     Label(String(localized: "Löschen"), systemImage: "trash")
                 }
             }
-            // Compact reminders use the system interaction. It owns the
-            // touch arbitration with List and keeps the action buttons
-            // tappable on iOS 27.
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                ForEach(leadingSwipe) { action in
-                    swipeButton(action)
-                }
-            }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                ForEach(trailingSwipe) { action in
-                    swipeButton(action)
-                }
-            }
-            .accessibilityRevealActions(leadingSwipe + trailingSwipe)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
     }
 
-    private func swipeButton(_ action: RevealAction) -> some View {
-        Button(action: action.handler) {
-            Label(action.title, systemImage: action.symbol)
+    private var mirror: CGFloat {
+        layoutDirection == .rightToLeft ? -1 : 1
+    }
+
+    private func revealShouldBegin(towardTrailing: Bool, horizontal: Bool,
+                                   overGrid: Bool, gridAtTrailingEnd: Bool) -> Bool {
+        SwipeReveal.canBegin(towardTrailing: towardTrailing,
+                             horizontalIntent: horizontal,
+                             open: revealOffset != 0,
+                             hasLeading: !leadingSwipe.isEmpty,
+                             hasTrailing: !trailingSwipe.isEmpty,
+                             overGrid: overGrid,
+                             gridAtTrailingEnd: gridAtTrailingEnd)
+    }
+
+    private func revealChanged(_ translation: CGFloat) {
+        revealOffset = SwipeReveal.offset(
+            start: revealStart, translation: translation,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+    }
+
+    @ViewBuilder
+    private var revealButtons: some View {
+        let leadingOpen = revealOffset > 0
+        let actions = leadingOpen ? leadingSwipe : trailingSwipe
+        let exposed = abs(revealOffset)
+        let resting = SwipeReveal.revealWidth(count: actions.count)
+        HStack(spacing: SwipeReveal.buttonGap) {
+            ForEach(actions) { action in
+                Button {
+                    snapReveal(to: 0)
+                    action.handler()
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: action.symbol)
+                            .font(.title3.weight(.semibold))
+                        Text(action.title)
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: SwipeReveal.buttonWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(action.tint,
+                                in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                     style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                   style: .continuous))
         }
-        .tint(action.tint)
+        .buttonStyle(.plain)
+        .accessibilityLabel(action.title)
         .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
     }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity,
+               alignment: leadingOpen ? .leading : .trailing)
+        // The row surface is shifted visually but keeps its original layout
+        // slot. Keep the exposed action layer above that slot for hit testing.
+        .zIndex(1)
+        .opacity(min(1, exposed / max(resting * 0.6, 1)))
+        .scaleEffect(min(1, 0.9 + 0.1 * exposed / max(resting, 1)),
+                     anchor: leadingOpen ? .leading : .trailing)
+    }
 
-    private var rowContent: some View {
-        rowLayout
-            .frame(maxWidth: .infinity, minHeight: Self.rowHeight)
-            .appSurface()
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                           style: .continuous))
+    private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
+        let resting = SwipeReveal.resting(
+            pull: revealStart + translation,
+            velocity: velocity,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count),
+            cardWidth: revealRowWidth)
+        switch resting {
+        case .closed:
+            if revealStart != 0 { Theme.Haptics.select() }
+            snapReveal(to: 0)
+        case .leading:
+            if revealStart == 0 { Theme.Haptics.select() }
+            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count))
+        case .trailing:
+            if revealStart == 0 { Theme.Haptics.select() }
+            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count))
+        case .commitLeading:
+            commitReveal(leadingSwipe.first)
+        case .commitTrailing:
+            commitReveal(trailingSwipe.first)
+        }
+    }
+
+    private func commitReveal(_ action: RevealAction?) {
+        Theme.Haptics.check()
+        snapReveal(to: 0)
+        action?.handler()
+    }
+
+    private func snapReveal(to target: CGFloat) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            revealOffset = target
+        }
     }
 
     private var rowLayout: some View {

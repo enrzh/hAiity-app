@@ -24,7 +24,7 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertTrue(source.contains("Button(action: onEdit)"),
                       "editing must remain available from the reminder menu")
         XCTAssertFalse(source.contains("GraphContextMenu("),
-                       "the transparent overlay must not intercept reminder taps")
+                       "a transparent overlay would intercept the checkmark")
     }
 
     func testReminderContextMenuKeepsTheStableRowSurface() throws {
@@ -42,12 +42,12 @@ final class ReminderItemTests: XCTestCase {
         let habit = try XCTUnwrap(source.range(of: "case .habitCard:"))
         let branch = source[reminder.lowerBound..<habit.lowerBound]
 
-        XCTAssertFalse(row.contains("SwipeRevealPan("),
-                       "compact reminders should use the native row swipe interaction")
+        XCTAssertTrue(row.contains("SwipeRevealPan(shouldBegin:"),
+                      "reminders must receive the card-height swipe through the full-surface bridge")
         XCTAssertTrue(row.contains("leadingSwipe"))
         XCTAssertTrue(row.contains("trailingSwipe"))
-        XCTAssertTrue(row.contains(".swipeActions(edge: .leading"))
-        XCTAssertTrue(row.contains(".swipeActions(edge: .trailing"))
+        XCTAssertFalse(row.contains(".swipeActions(edge:"),
+                       "system row buttons do not cover every nested touch surface")
         XCTAssertTrue(row.contains("lhs.leadingSwipe == rhs.leadingSwipe"),
                       "changing saved reveal actions must update an equatable row")
         XCTAssertTrue(branch.contains("let reveal = revealActions(for: habit)"))
@@ -60,20 +60,98 @@ final class ReminderItemTests: XCTestCase {
 
         XCTAssertTrue(row.contains("static let rowHeight: CGFloat = 64"))
         XCTAssertTrue(row.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
-        XCTAssertTrue(row.contains(".swipeActions(edge: .leading"),
-                      "the native leading actions must stay attached to the row")
-        XCTAssertTrue(row.contains(".swipeActions(edge: .trailing"),
-                      "the native trailing actions must stay attached to the row")
+        XCTAssertTrue(row.contains(".contextMenu {"),
+                      "the long-press menu must share the tappable row")
     }
 
-    func testReminderDoesNotInstallAnInterceptingSwipeOverlay() throws {
+    func testReminderUsesItsOwnRevealAndContextMenuHost() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
-        XCTAssertFalse(row.contains("SwipeRevealPan("),
-                       "reminders should not install a second gesture recognizer")
-        XCTAssertFalse(row.contains("revealOffset"),
-                       "reminders should not render an offset transparent overlay")
+        XCTAssertTrue(row.contains("SwipeRevealPan(shouldBegin:"),
+                      "reminders need the same full-surface bridge as habits")
+        XCTAssertTrue(row.contains("revealOffset"),
+                      "reminders must render their own offset reveal surface")
         XCTAssertTrue(row.contains(".contextMenu {"),
-                      "the row keeps its native long-press menu")
+                      "the row keeps its non-intercepting long-press menu")
+        XCTAssertFalse(row.contains("GraphContextMenu("),
+                       "the transparent graph host must not intercept row controls")
+    }
+
+    func testReminderUsesTheSharedRevealBridgeForEveryTouchSurface() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+
+        XCTAssertTrue(row.contains("SwipeRevealPan(shouldBegin:"),
+                      "reminders must use the same reliable full-surface bridge as habits")
+        XCTAssertFalse(row.contains(".swipeActions(edge:"),
+                       "native row actions lose swipe gestures over tappable controls")
+        XCTAssertTrue(row.contains("revealOffset"),
+                      "the reminder row must render the card-height reveal surface")
+    }
+
+    func testRevealGestureIsOwnedByEachSwiftUISurface() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(reminder.contains("SwipeRevealPan(shouldBegin:"),
+                      "the reminder row needs one full-surface UIKit pan host")
+        XCTAssertTrue(habit.contains("SwipeRevealPan(shouldBegin:"),
+                      "the habit card needs one full-surface UIKit pan host")
+        XCTAssertFalse(reminder.contains("DragGesture(minimumDistance:"),
+                       "a local SwiftUI drag loses the race to List and nested controls")
+        XCTAssertFalse(habit.contains("DragGesture(minimumDistance:"),
+                       "a local SwiftUI drag loses the race to List and the graph scroll")
+    }
+
+    func testSwipeBridgePreservesNestedControlTapsAndWaitsForTheListScroll() throws {
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
+
+        XCTAssertTrue(bridge.contains("pan.cancelsTouchesInView = false"),
+                      "the pan must not swallow a nested checkmark tap")
+        XCTAssertTrue(bridge.contains("scroll.panGestureRecognizer.require(toFail: pan)"),
+                      "the row pan must decide horizontal intent before List scrolls")
+        XCTAssertTrue(bridge.contains("activeFrame.contains(location)"),
+                      "the pan must validate touches inside this row when the host is shared")
+        XCTAssertTrue(bridge.contains("container.hitTest(location, with: nil)"),
+                      "the bridge must inspect the actual nested touch surface")
+        XCTAssertTrue(bridge.contains("shouldRecognizeSimultaneouslyWith"),
+                      "nested controls must not block a horizontal row swipe")
+    }
+
+    func testSwipeBridgeDoesNotExcludeGesturesOnTheRowHost() throws {
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
+
+        XCTAssertTrue(bridge.contains("otherView is UIScrollView"),
+                      "only the enclosing scroll gesture should stay exclusive")
+        XCTAssertFalse(bridge.contains("otherView !== container"),
+                       "control gestures on the row host must be allowed to coexist")
+    }
+
+    func testCustomRevealButtonsExposeStableUIIdentifiers() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+        let identifier = #".accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")"#
+
+        XCTAssertTrue(reminder.contains(identifier),
+                      "reminder reveal actions must remain addressable after a swipe")
+        XCTAssertTrue(habit.contains(identifier),
+                      "habit reveal actions must remain addressable after a swipe")
+    }
+
+    func testRevealBridgeKeepsTheExistingDecisionAndVelocityRules() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        for source in [reminder, habit] {
+            XCTAssertTrue(source.contains("revealShouldBegin"),
+                          "the bridge must keep the shared direction rules")
+            XCTAssertTrue(source.contains("SwipeReveal.offset"),
+                          "the bridge must use the shared rubber-band offset")
+            XCTAssertTrue(source.contains("SwipeReveal.resting"),
+                          "the bridge must preserve the existing velocity projection")
+        }
+
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
+        XCTAssertTrue(bridge.contains("pan.velocity(in: container)"),
+                      "the UIKit pan must forward velocity to the existing resting rules")
     }
 
     func testCombinedListBranchesByItemTypeAfterApplyingTheSharedFilter() throws {
@@ -180,9 +258,18 @@ final class ReminderItemTests: XCTestCase {
     }
 
     private func source(_ relative: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        return try String(contentsOf: root.appendingPathComponent(relative))
+            .appendingPathComponent(relative)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return try String(contentsOf: url)
+        }
+        let resource = url.deletingPathExtension().lastPathComponent
+        let bundle = Bundle(for: ReminderItemTests.self)
+        guard let bundledURL = bundle.url(forResource: resource, withExtension: "txt") else {
+            throw XCTSkip("Source contract unavailable in checkout and test bundle")
+        }
+        return try String(contentsOf: bundledURL)
     }
 }

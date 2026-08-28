@@ -18,7 +18,9 @@ if [[ -d "$ROOT/build" ]]; then
 fi
 
 echo "==> Removing hAiity temporary outputs older than one day"
-find /tmp -maxdepth 1 -type d -name 'haiity-*' -mtime +1 -prune -exec rm -rf {} + 2>/dev/null || true
+# `-mtime +1` means older than two complete 24-hour periods on macOS.
+# Use minutes so the cleanup matches the one-day policy stated above.
+find -H /tmp -maxdepth 1 -type d -name 'haiity-*' -mmin +1440 -prune -exec rm -rf {} + 2>/dev/null || true
 
 echo "==> Remaining simulator inventory"
 xcrun simctl list devices available
