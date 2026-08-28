@@ -10,6 +10,35 @@ import AppIntents
 // MARK: – Lesen
 
 enum WidgetData {
+    static func largeEntry(selectedIDs: [UUID?], limit: Int,
+                           layout: LargeWidgetLayout,
+                           date: Date = .now) -> HaiityEntry {
+        let data = HabitStore.read(SharedStorage.dataURL())
+        let habits = data?.habits ?? []
+        let unlocked = HabitVisibility.sharedEntitlementIsUnlocked
+        let today = DayKey.today()
+        let items = WidgetLogic.resolveLargeItems(habits: habits,
+                                                  selectedIDs: selectedIDs,
+                                                  limit: limit,
+                                                  unlocked: unlocked,
+                                                  today: today,
+                                                  calendar: .current)
+        return HaiityEntry(date: date,
+                           habits: items,
+                           defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier,
+                           palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
+                               ?? PaletteBook(),
+                           widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true,
+                           largeItems: items,
+                           largeLayout: layout)
+    }
+
+    static func largeTimeline(selectedIDs: [UUID?], limit: Int,
+                              layout: LargeWidgetLayout) -> Timeline<HaiityEntry> {
+        Timeline(entries: [largeEntry(selectedIDs: selectedIDs, limit: limit, layout: layout)],
+                 policy: .after(WidgetLogic.nextMidnight()))
+    }
+
     /// EIN Lesevorgang für Habits UND Paletten — zwei getrennte Lesungen
     /// könnten einen Schreibvorgang dazwischen erwischen und ein Raster in
     /// der alten Farbe zeichnen.
@@ -137,6 +166,50 @@ struct HaiityRosterProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HaiityEntry>) -> Void) {
         completion(WidgetData.timeline())
+    }
+}
+
+struct LargeListWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func snapshot(for configuration: LargeWidgetListIntent, in context: Context) async -> HaiityEntry {
+        WidgetData.largeEntry(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
+                                            configuration.slot3?.id, configuration.slot4?.id],
+                              limit: 4, layout: .list)
+    }
+    func timeline(for configuration: LargeWidgetListIntent, in context: Context) async -> Timeline<HaiityEntry> {
+        WidgetData.largeTimeline(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
+                                               configuration.slot3?.id, configuration.slot4?.id],
+                                 limit: 4, layout: .list)
+    }
+}
+
+struct LargeGridWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func snapshot(for configuration: LargeWidgetGridIntent, in context: Context) async -> HaiityEntry {
+        WidgetData.largeEntry(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
+                                            configuration.slot3?.id, configuration.slot4?.id,
+                                            configuration.slot5?.id, configuration.slot6?.id],
+                              limit: 6, layout: .grid)
+    }
+    func timeline(for configuration: LargeWidgetGridIntent, in context: Context) async -> Timeline<HaiityEntry> {
+        WidgetData.largeTimeline(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
+                                               configuration.slot3?.id, configuration.slot4?.id,
+                                               configuration.slot5?.id, configuration.slot6?.id],
+                                 limit: 6, layout: .grid)
+    }
+}
+
+struct LargeFocusWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func snapshot(for configuration: LargeWidgetFocusIntent, in context: Context) async -> HaiityEntry {
+        WidgetData.largeEntry(selectedIDs: [configuration.featured?.id, configuration.queue1?.id,
+                                            configuration.queue2?.id, configuration.queue3?.id],
+                              limit: 4, layout: .focus)
+    }
+    func timeline(for configuration: LargeWidgetFocusIntent, in context: Context) async -> Timeline<HaiityEntry> {
+        WidgetData.largeTimeline(selectedIDs: [configuration.featured?.id, configuration.queue1?.id,
+                                               configuration.queue2?.id, configuration.queue3?.id],
+                                 limit: 4, layout: .focus)
     }
 }
 

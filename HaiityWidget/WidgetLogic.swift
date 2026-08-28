@@ -32,6 +32,10 @@ struct HaiityEntry: TimelineEntry {
     /// User preference transported with the timeline because the extension
     /// cannot observe the app's preference store directly.
     var widgetResetEnabled: Bool = true
+    /// Resolved input for a configurable large widget. Renderers consume this
+    /// ordered list and do not resolve configuration themselves.
+    var largeItems: [Habit] = []
+    var largeLayout: LargeWidgetLayout?
 
     /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Empfehlung,
     /// Empfehlung ist die längste laufende Serie.
@@ -77,6 +81,12 @@ struct HaiityEntry: TimelineEntry {
         }
         return HaiityEntry(date: .now, habits: [reading, water, sport])
     }
+}
+
+enum LargeWidgetLayout: Equatable {
+    case list
+    case grid
+    case focus
 }
 
 // MARK: – Der heutige Zustand EINES Habits
@@ -166,6 +176,53 @@ enum WidgetLogic {
             unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         if let selected, let hit = active.first(where: { $0.id == selected }) { return hit }
         return recommended(habits: active, today: today, calendar: calendar)
+    }
+
+    static func resolveLargeItems(
+        habits: [Habit],
+        selectedIDs: [UUID?],
+        limit: Int,
+        unlocked: Bool,
+        today: String,
+        calendar: Calendar
+    ) -> [Habit] {
+        let visible = HabitVisibility.visibleActiveHabits(habits, unlocked: unlocked)
+        let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
+        var result: [Habit] = []
+        var used = Set<UUID>()
+        let explicitIDs = Set(selectedIDs.compactMap { $0 }.filter { byID[$0] != nil })
+        let recommendedID = recommended(habits: visible, today: today, calendar: calendar)?.id
+        let automatic = visible.sorted { left, right in
+            if left.id == recommendedID { return true }
+            if right.id == recommendedID { return false }
+            return visible.firstIndex(where: { $0.id == left.id })!
+                < visible.firstIndex(where: { $0.id == right.id })!
+        }.filter { !explicitIDs.contains($0.id) }
+        var automaticIndex = 0
+
+        for selectedID in selectedIDs where result.count < limit {
+            if let selectedID,
+               let habit = byID[selectedID],
+               used.insert(selectedID).inserted {
+                result.append(habit)
+            } else {
+                while automaticIndex < automatic.count,
+                      used.contains(automatic[automaticIndex].id) {
+                    automaticIndex += 1
+                }
+                guard automaticIndex < automatic.count else { continue }
+                result.append(automatic[automaticIndex])
+                used.insert(automatic[automaticIndex].id)
+                automaticIndex += 1
+            }
+        }
+        while result.count < limit, automaticIndex < automatic.count {
+            let habit = automatic[automaticIndex]
+            automaticIndex += 1
+            guard used.insert(habit.id).inserted else { continue }
+            result.append(habit)
+        }
+        return result
     }
 
     static func resolve(habits: [Habit],

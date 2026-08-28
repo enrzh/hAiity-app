@@ -58,6 +58,48 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertNil(WidgetLogic.resolve(habits: [], selected: nil))
     }
 
+    func testLargeResolverKeepsExplicitOrderAndFillsAutomaticSlots() {
+        let a = named("A"), b = named("B"), c = named("C")
+        let result = WidgetLogic.resolveLargeItems(
+            habits: [a, b, c], selectedIDs: [b.id, nil, a.id], limit: 3,
+            unlocked: true, today: today, calendar: cal)
+        XCTAssertEqual(result.map(\.id), [b.id, c.id, a.id])
+    }
+
+    func testLargeResolverDeduplicatesExplicitAndAutomaticItems() {
+        let a = named("A"), b = named("B")
+        let result = WidgetLogic.resolveLargeItems(
+            habits: [a, b], selectedIDs: [a.id, a.id, nil, nil], limit: 4,
+            unlocked: true, today: today, calendar: cal)
+        XCTAssertEqual(result.map(\.id), [a.id, b.id])
+    }
+
+    func testLargeResolverDropsArchivedDeletedAndProHiddenSelections() {
+        let archived = named("Archived", archived: today)
+        let live = named("Live")
+        let result = WidgetLogic.resolveLargeItems(
+            habits: [archived, live], selectedIDs: [archived.id, UUID()], limit: 2,
+            unlocked: true, today: today, calendar: cal)
+        XCTAssertEqual(result.map(\.id), [live.id])
+    }
+
+    func testLargeResolverAppliesFreeLimitWhenProIsLocked() {
+        let habits = (1...5).map { named("H\($0)") }
+        let result = WidgetLogic.resolveLargeItems(
+            habits: habits, selectedIDs: habits.suffix(2).map(\.id), limit: 6,
+            unlocked: false, today: today, calendar: cal)
+        XCTAssertEqual(result.count, HabitVisibility.freeHabitLimit)
+        XCTAssertTrue(result.allSatisfy { resultHabit in
+            habits.prefix(HabitVisibility.freeHabitLimit).contains { $0.id == resultHabit.id }
+        })
+    }
+
+    func testLargeResolverReturnsNoItemsForEmptyVisibleStore() {
+        XCTAssertTrue(WidgetLogic.resolveLargeItems(
+            habits: [], selectedIDs: [nil, nil, nil, nil], limit: 4,
+            unlocked: true, today: today, calendar: cal).isEmpty)
+    }
+
     func testWidgetsIncludeReminderItemsButGraphsRemainTrackedOnly() {
         var reminder = named("Tabletten", log: [today: 1])
         reminder.itemType = .reminder
