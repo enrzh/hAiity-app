@@ -474,7 +474,7 @@ final class GitHubContributionStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testUnauthorizedRefreshKeepsCredentialsAndCachedCard() async throws {
+    func testUnauthorizedRefreshRequestsLoginAndKeepsCachedCard() async throws {
         let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
         try write(cached)
         let contributions = FakeGitHubContributions(result: .failure(GitHubContributionsError.unauthorized))
@@ -489,6 +489,28 @@ final class GitHubContributionStoreTests: XCTestCase {
         XCTAssertEqual(store.phase, .connected)
         XCTAssertEqual(store.snapshot, cached)
         XCTAssertEqual(try vault.read(), "gho_dead")
+        XCTAssertEqual(store.refreshFeedback, .reauthenticationRequired)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
+
+    @MainActor
+    func testReauthenticationClearsOnlyTheInvalidCredential() async throws {
+        let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
+        try write(cached)
+        let vault = MemoryGitHubCredentialVault(token: "gho_dead")
+        let store = GitHubContributionStore(vault: vault,
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: FakeGitHubContributions(
+                                                result: .failure(GitHubContributionsError.unauthorized)),
+                                            cacheURL: cacheURL)
+        await store.boot(now: now)
+
+        store.prepareForReauthentication()
+
+        XCTAssertNil(try vault.read())
+        XCTAssertEqual(store.snapshot, cached)
+        XCTAssertEqual(store.refreshFeedback, .none)
+        XCTAssertEqual(store.phase, .disconnected)
         XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 

@@ -5,6 +5,7 @@ import WidgetKit
 enum GitHubRefreshFeedback: Equatable {
     case none
     case success
+    case reauthenticationRequired
     case failure(String)
 }
 
@@ -264,6 +265,12 @@ final class GitHubContributionStore {
         phase = .disconnected
     }
 
+    func prepareForReauthentication() {
+        try? vault.delete()
+        refreshFeedback = .none
+        phase = .disconnected
+    }
+
     private func performRefresh(now: Date, forced: Bool, generation: UInt) async {
         let token: String
         do {
@@ -300,7 +307,7 @@ final class GitHubContributionStore {
             recordRefresh(.success)
         } catch let error as GitHubContributionsError where error == .unauthorized {
             guard generation == refreshGeneration, !Task.isCancelled else { return }
-            recordRefresh(.failure(Self.message(for: error)))
+            recordRefresh(.reauthenticationRequired)
             // A background refresh must not turn a transiently rejected API
             // request into a logout. Keep the token and cached graph visible;
             // only the explicit disconnect action clears credentials.

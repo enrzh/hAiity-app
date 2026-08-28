@@ -91,7 +91,14 @@ struct GitHubSettingsView: View {
                     .accessibilityIdentifier("github-connected-name")
             }
             Button {
-                Task { await store.refresh(forced: true) }
+                Task {
+                    if case .reauthenticationRequired = store.refreshFeedback {
+                        store.prepareForReauthentication()
+                        await store.connect()
+                    } else {
+                        await store.refresh(forced: true)
+                    }
+                }
             } label: {
                 if store.isRefreshing {
                     ProgressView()
@@ -102,6 +109,8 @@ struct GitHubSettingsView: View {
                         .foregroundStyle(.green)
                         .symbolEffect(.bounce, value: store.refreshAnimationToken)
                         .accessibilityIdentifier("github-refresh-success")
+                } else if case .reauthenticationRequired = store.refreshFeedback {
+                    Label(String(localized: "Erneut anmelden"), systemImage: "person.crop.circle.badge.arrow.forward")
                 } else {
                     Label(String(localized: "Aktualisieren"), systemImage: "arrow.clockwise")
                 }

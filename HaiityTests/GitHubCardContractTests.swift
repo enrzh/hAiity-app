@@ -62,6 +62,8 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(settings.contains("store.refreshAnimationToken"))
         XCTAssertTrue(settings.contains("github-refresh-success"))
         XCTAssertTrue(settings.contains("github-refresh-failure"))
+        XCTAssertTrue(settings.contains("Erneut anmelden"))
+        XCTAssertTrue(settings.contains("prepareForReauthentication"))
         XCTAssertTrue(settings.contains(".disabled(store.isRefreshing)"))
         XCTAssertTrue(settings.contains("github-disconnect"))
         XCTAssertTrue(settings.contains("GitHub-Namen anzeigen"))
@@ -109,7 +111,7 @@ final class GitHubCardContractTests: XCTestCase {
             "GitHub verbinden", "Auf GitHub öffnen", "Aktualisieren",
             "Verbindung trennen", "GitHub-Konto trennen?",
             "Der Beitragskalender verschwindet von der Habits-Seite.",
-            "Erneut versuchen", "GitHub-Profil öffnen",
+            "Erneut anmelden", "Erneut versuchen", "GitHub-Profil öffnen",
             "GitHub ist nicht eingerichtet.",
             "GitHub hat die Verbindung abgelehnt.",
             "Der Code ist abgelaufen. Bitte erneut verbinden.",
