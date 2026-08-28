@@ -100,6 +100,21 @@ final class WidgetLogicTests: GridTestCase {
             unlocked: true, today: today, calendar: cal).isEmpty)
     }
 
+    func testLargeResolverUsesUnlockedSnapshotForRecommendation() {
+        let visible = named("Visible")
+        let filler = [named("Filler 1"), named("Filler 2")]
+        var hidden = named("Hidden", log: [today: 1])
+        for offset in 1...20 {
+            hidden.log[DayKey.shifted(today, by: -offset, calendar: cal)!] = 1
+        }
+
+        let result = WidgetLogic.resolveLargeItems(
+            habits: [visible] + filler + [hidden], selectedIDs: [nil], limit: 1,
+            unlocked: false, today: today, calendar: cal)
+
+        XCTAssertEqual(result.map(\.id), [visible.id])
+    }
+
     func testWidgetsIncludeReminderItemsButGraphsRemainTrackedOnly() {
         var reminder = named("Tabletten", log: [today: 1])
         reminder.itemType = .reminder
@@ -458,6 +473,23 @@ final class WidgetLogicTests: GridTestCase {
         let next = WidgetLogic.nextMidnight(after: noon, calendar: cal)
         XCTAssertEqual(DayKey.key(for: next, calendar: cal), "2026-08-10")
         XCTAssertEqual(cal.startOfDay(for: next), next)
+    }
+
+    func testNextMidnightUsesSavedDefaultTimeZone() {
+        var savedCalendar = cal
+        savedCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        var deviceCalendar = cal
+        deviceCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let instant = Date(timeIntervalSince1970: 1_786_344_658) // 2026-08-10 06:50 UTC / Aug 9 23:50 PDT
+
+        let next = WidgetLogic.nextMidnight(after: instant, calendar: savedCalendar)
+        let deviceNext = WidgetLogic.nextMidnight(after: instant, calendar: deviceCalendar)
+
+        XCTAssertEqual(DayKey.key(for: next, calendar: savedCalendar), "2026-08-10")
+        XCTAssertEqual(DayKey.key(for: next, calendar: deviceCalendar), "2026-08-10")
+        XCTAssertEqual(DayKey.key(for: deviceNext, calendar: deviceCalendar), "2026-08-11")
+        XCTAssertNotEqual(next, deviceNext)
+        XCTAssertEqual(next, savedCalendar.startOfDay(for: next))
     }
 
     // MARK: – Rastergeometrie

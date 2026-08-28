@@ -184,19 +184,37 @@ enum WidgetLogic {
         limit: Int,
         unlocked: Bool,
         today: String,
-        calendar: Calendar
+        calendar: Calendar,
+        defaultTimeZoneIdentifier: String? = nil,
+        now: Date? = nil
     ) -> [Habit] {
         let visible = HabitVisibility.visibleActiveHabits(habits, unlocked: unlocked)
         let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
         var result: [Habit] = []
         var used = Set<UUID>()
         let explicitIDs = Set(selectedIDs.compactMap { $0 }.filter { byID[$0] != nil })
-        let recommendedID = recommended(habits: visible, today: today, calendar: calendar)?.id
+        let recommendedID: UUID?
+        if let now {
+            recommendedID = recommended(habits: visible,
+                                        defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                        now: now,
+                                        calendar: calendar)?.id
+        } else {
+            var best: (id: UUID, streak: Int)?
+            for habit in visible where habit.isTrackedHabit {
+                let streak = habit.streak(today: today, calendar: calendar)
+                if best == nil || streak > best!.streak {
+                    best = (habit.id, streak)
+                }
+            }
+            recommendedID = best?.id
+        }
+        var originalIndex = [UUID: Int](minimumCapacity: visible.count)
+        for (index, habit) in visible.enumerated() { originalIndex[habit.id] = index }
         let automatic = visible.sorted { left, right in
             if left.id == recommendedID { return true }
             if right.id == recommendedID { return false }
-            return visible.firstIndex(where: { $0.id == left.id })!
-                < visible.firstIndex(where: { $0.id == right.id })!
+            return originalIndex[left.id]! < originalIndex[right.id]!
         }.filter { !explicitIDs.contains($0.id) }
         var automaticIndex = 0
 

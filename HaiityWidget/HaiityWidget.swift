@@ -16,16 +16,20 @@ enum WidgetData {
         let data = HabitStore.read(SharedStorage.dataURL())
         let habits = data?.habits ?? []
         let unlocked = HabitVisibility.sharedEntitlementIsUnlocked
-        let today = DayKey.today()
+        let defaultTimeZoneIdentifier = data?.defaultTimeZoneIdentifier
+        let calendar = HabitTimeZone.calendar(identifier: defaultTimeZoneIdentifier)
+        let today = DayKey.key(for: date, calendar: calendar)
         let items = WidgetLogic.resolveLargeItems(habits: habits,
                                                   selectedIDs: selectedIDs,
                                                   limit: limit,
                                                   unlocked: unlocked,
                                                   today: today,
-                                                  calendar: .current)
+                                                  calendar: calendar,
+                                                  defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
+                                                  now: date)
         return HaiityEntry(date: date,
                            habits: items,
-                           defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier,
+                           defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
                            widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true,
@@ -36,7 +40,9 @@ enum WidgetData {
     static func largeTimeline(selectedIDs: [UUID?], limit: Int,
                               layout: LargeWidgetLayout) -> Timeline<HaiityEntry> {
         Timeline(entries: [largeEntry(selectedIDs: selectedIDs, limit: limit, layout: layout)],
-                 policy: .after(WidgetLogic.nextMidnight()))
+                 policy: .after(WidgetLogic.nextMidnight(
+                    calendar: HabitTimeZone.calendar(
+                        identifier: HabitStore.read(SharedStorage.dataURL())?.defaultTimeZoneIdentifier))) )
     }
 
     /// EIN Lesevorgang für Habits UND Paletten — zwei getrennte Lesungen
