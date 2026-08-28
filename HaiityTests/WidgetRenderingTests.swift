@@ -10,7 +10,6 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(source.contains("LargeGeometry.gridHeaderGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridColumnGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridRowGap"))
-        XCTAssertTrue(source.contains("LargeGeometry.gridGraphMinimumHeight"))
         XCTAssertTrue(source.contains("entry.largeItems.prefix(6)"))
 
         let geometry = WidgetLogic.LargeGeometry.self
@@ -26,16 +25,27 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(body.contains("VStack(alignment: .leading, spacing: 0)"))
         XCTAssertTrue(body.contains("Color.clear.frame(height: WidgetLogic.LargeGeometry.gridHeaderGap)"))
         XCTAssertTrue(body.contains("LazyVGrid"))
+        let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
+        XCTAssertTrue(item.contains("LazyVGrid(columns:"))
+        XCTAssertTrue(item.contains("frame(width: 44, height: 44)"))
+        XCTAssertTrue(item.contains("frame(width: 88, height: 88"))
+        XCTAssertFalse(item.contains("VStack(spacing: 0)"))
+        XCTAssertTrue(item.contains(".ultraThinMaterial"))
+        XCTAssertTrue(item.contains("if habit.isReminder"))
     }
 
     func testRasterSixGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
         let today = DayKey.today()
+        let customs = (0..<6).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }
         let habits = (0..<6).map { index -> Habit in
             var habit = Habit(name: "Raster Habit \(index)", emoji: index.isMultiple(of: 2) ? "*" : "")
             habit.log[today] = index + 1
+            habit.palette = .custom(customs[index].id)
             return habit
         }
-        let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits, largeLayout: .grid)
+        let entry = HaiityEntry(date: .now, habits: habits,
+                                palettes: PaletteBook(global: .default, customs: customs),
+                                largeItems: habits, largeLayout: .grid)
         let image = try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid-six-regions.png")
         XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
                        CGSize(width: 664, height: 712))
@@ -50,34 +60,46 @@ final class WidgetRenderingTests: XCTestCase {
         let rowGap = WidgetLogic.LargeGeometry.gridRowGap * scale
         let headerBottom = contentY + WidgetLogic.LargeGeometry.gridHeaderHeight * scale
             + WidgetLogic.LargeGeometry.gridHeaderGap * scale
-        for index in 0..<6 {
+        let tiles = (0..<6).map { index -> CGRect in
             let row = index / 2
             let column = index % 2
-            let tileX = contentX + CGFloat(column) * (columnWidth + columnGap)
-            let tileY = headerBottom + CGFloat(row) * (rowHeight + rowGap)
+            return CGRect(x: contentX + CGFloat(column) * (columnWidth + columnGap),
+                          y: headerBottom + CGFloat(row) * (rowHeight + rowGap),
+                          width: columnWidth, height: rowHeight)
+        }
+        for first in 0..<tiles.count {
+            for second in (first + 1)..<tiles.count {
+                XCTAssertFalse(tiles[first].intersects(tiles[second]))
+            }
+        }
+        XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: contentX, y: contentY,
+                                                                      width: 308 * scale,
+                                                                      height: WidgetLogic.LargeGeometry.gridHeaderHeight * scale)), 2)
+        for index in 0..<6 {
+            let tile = tiles[index]
+            let tileX = tile.minX
+            let tileY = tile.minY
             let graph = CGRect(x: tileX, y: tileY + 20 * scale,
                                width: columnWidth - WidgetLogic.LargeGeometry.actionHeight * scale,
                                height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight * scale)
-            XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20, "missing graph (index)")
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20, "missing graph \(index)")
             XCTAssertGreaterThanOrEqual(tileY, headerBottom)
             XCTAssertLessThanOrEqual(tileY + rowHeight, 712 - contentY)
+            XCTAssertEqual(tile.maxX + (index % 2 == 0 ? columnGap : 0),
+                           index % 2 == 0 ? tiles[index + 1].minX : tile.maxX)
+            if index < 4 { XCTAssertEqual(tile.maxY + rowGap, tiles[index + 2].minY) }
         }
-    }
-
-    func testRasterRendersPartialCustomPaletteAndVibrantStates() throws {
-        let custom = CustomPalette(name: "Raster Custom", base: 0xD97706)
-        var habit = Habit(name: "Custom Raster", emoji: "*")
-        habit.palette = .custom(custom.id)
-        let entry = HaiityEntry(date: .now, habits: [habit],
-                                palettes: PaletteBook(global: .custom(custom.id), customs: [custom]),
-                                largeItems: [habit], largeLayout: .grid)
-        let light = try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid-custom-partial.png")
-        let dark = try render(LargeGridWidgetView(entry: entry).environment(\.colorScheme, .dark)
-            .frame(width: 332, height: 356), to: "large-grid-custom-partial-dark.png")
+        let partialEntry = HaiityEntry(date: .now, habits: habits,
+                                       palettes: PaletteBook(global: .default, customs: customs),
+                                       largeItems: Array(habits.prefix(2)), largeLayout: .grid)
+        let partial = try render(LargeGridWidgetView(entry: partialEntry).frame(width: 332, height: 356), to: "large-grid-partial-positions.png")
+        XCTAssertEqual(partial.cgImage.map { CGSize(width: $0.width, height: $0.height) }, CGSize(width: 664, height: 712))
+        XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let vibrant = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .vibrant)
-            .frame(width: 332, height: 356), to: "large-grid-custom-partial-vibrant.png")
-        for image in [light, dark, vibrant] {
-            XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) }, CGSize(width: 664, height: 712))
+            .frame(width: 332, height: 356), to: "large-grid-custom-vibrant.png")
+        let accented = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .accented)
+            .frame(width: 332, height: 356), to: "large-grid-custom-accented.png")
+        for image in [vibrant, accented] {
             XCTAssertGreaterThan(visiblePixelCount(image), 20)
         }
     }
@@ -120,7 +142,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(roster.contains("LargeGeometry.listGraphHeight"))
         XCTAssertTrue(roster.contains("graphHeight: 32"))
         XCTAssertTrue(roster.contains("width: WidgetLogic.LargeGeometry.actionHeight"))
-        XCTAssertTrue(grid.contains("minHeight: 44"))
+        XCTAssertTrue(grid.contains("frame(width: 44, height: 44)"))
     }
 
     func testLargeLayoutsFitTheRealSystemLargeContentBudget() {

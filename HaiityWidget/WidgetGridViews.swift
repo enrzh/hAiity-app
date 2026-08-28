@@ -35,39 +35,46 @@ private struct LargeGridItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        HStack(alignment: .top, spacing: 4) {
+        ZStack(alignment: .topLeading) {
+            if habit.isReminder {
+                Color.primary.opacity(0.04)
+            } else {
+                TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             Link(destination: HaiityWidgetLink.habit(habit.id)) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 3) {
                         if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).frame(width: 18, alignment: .leading) }
                         Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                    }.frame(height: 20, alignment: .leading)
-                    if habit.isReminder {
-                        Label(summary.metricText, systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                        Color.clear.frame(minHeight: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
-                    } else {
-                        Label(summary.metricText, systemImage: summary.metricSymbol).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                        TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
-                            HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                        }
-                        .frame(minHeight: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
                     }
+                    Label(summary.metricText, systemImage: habit.isReminder ? "bell.fill" : summary.metricSymbol)
+                        .font(.caption2).lineLimit(1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            VStack(spacing: 0) {
+            LazyVGrid(columns: [GridItem(.fixed(44), spacing: 0), GridItem(.fixed(44), spacing: 0)], spacing: 0) {
                 switch summary.kind {
                 case .yesNo:
-                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
-                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44) }
-                case .quantity: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus").frame(minWidth: 44, minHeight: 44) }
-                case .checkbox, .reminder: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
+                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
+                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                case .quantity:
+                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus").frame(width: 44, height: 44) }
+                case .checkbox, .reminder:
+                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
                 }
-                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(minWidth: 44, minHeight: 44) } }
-            }.buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
-                .frame(width: WidgetLogic.LargeGeometry.actionHeight)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) } }
+            }
+            .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
+            .frame(width: 88, height: 88, alignment: .bottomTrailing)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
