@@ -214,23 +214,20 @@ struct HabitCard: View, Equatable {
     private var revealButtons: some View {
         let leadingOpen = revealOffset > 0
         let actions = leadingOpen ? leadingSwipe : trailingSwipe
-        let exposed = abs(revealOffset)
-        let resting = SwipeReveal.revealWidth(count: actions.count)
         HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
             }
         }
-        // Die Knöpfe folgen der Kante, hinter der sie wohnen, und wachsen
-        // mit dem Gummiband leicht mit — nichts „steht" hinter der Karte.
+        // Die Karte legt den unveränderten Untergrund durch ihren Versatz frei.
+        // Keine separate Einblendung oder Skalierung: so erscheinen die
+        // Knöpfe direkt an der jeweiligen Kartenkante.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: leadingOpen ? .leading : .trailing)
+        .transition(.identity)
         // The grid is offset visually while retaining its layout slot; the
         // exposed action layer must remain the hit-test winner.
         .zIndex(1)
-        .opacity(min(1, exposed / max(resting * 0.6, 1)))
-        .scaleEffect(min(1, 0.9 + 0.1 * exposed / max(resting, 1)),
-                     anchor: leadingOpen ? .leading : .trailing)
     }
 
     private func revealButton(_ action: RevealAction) -> some View {

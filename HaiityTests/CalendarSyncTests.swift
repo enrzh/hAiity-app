@@ -141,6 +141,51 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("blockedKeys.contains(key)"))
     }
 
+    func testCalendarReconcileUsesStoredIDInventoryWhenDatePredicateOmitsAnEvent() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+
+        XCTAssertTrue(source.contains("eventsIncludingStoredMappings(map)"))
+        XCTAssertTrue(source.contains("let mappedOwners"))
+        XCTAssertTrue(source.contains("mappedOwners[$0]"))
+    }
+
+    func testCalendarCleanupUsesStoredIDsWhenOwnershipMetadataIsMissing() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+
+        XCTAssertTrue(source.contains("let mappedNativeIDs = Set(storedMap.values)"))
+        XCTAssertTrue(source.contains("isMappedCalendarEvent"))
+        XCTAssertTrue(source.contains("event.eventIdentifier.map"))
+        XCTAssertTrue(source.contains("isMappedCalendarEvent || SyncWatermark.isCalendarOwned"))
+    }
+
+    func testCalendarInventoryUsesTenYearWindowsAcrossTheFullCleanupHorizon() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+
+        XCTAssertTrue(source.contains("var startYear = -100"))
+        XCTAssertTrue(source.contains("while startYear < 100"))
+        XCTAssertTrue(source.contains("value: startYear + 10"))
+    }
+
+    func testCalendarCleanupRecognizesTheStableHaiityURLWhenNotesAreMissing() {
+        XCTAssertTrue(SyncWatermark.isCalendarOwned(notes: nil,
+                                                    urlString: "haiity://habits"))
+        XCTAssertFalse(SyncWatermark.isCalendarOwned(notes: nil,
+                                                     urlString: "https://example.com"))
+    }
+
+    func testCalendarCleanupRejectsNativeReminderWatermarks() {
+        let note = SyncWatermark.note(for: UUID(), kind: .nativeReminder)
+        XCTAssertFalse(SyncWatermark.isCalendarOwned(notes: note, urlString: nil))
+    }
+
+    func testInteractionReminderFixtureOptsOutOfNativeSync() throws {
+        let content = try calendarSyncTestSource("Haiity/Views/ContentView.swift")
+        let fixture = try XCTUnwrap(content.range(of: "var reminder = Habit(name: \"UI test reminder\""))
+        let tail = content[fixture.lowerBound...]
+        XCTAssertTrue(tail.contains("reminder.calendarSyncEnabled = false"),
+                      "the UI-test fixture must never create native Calendar or Reminder entries")
+    }
+
     func testCalendarDisableUsesMarkerInventoryForStaleLinks() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
         let disable = try XCTUnwrap(source.range(of: "static func disable()"))
@@ -386,7 +431,7 @@ final class SyncWatermarkTests: XCTestCase {
         let calendar = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
         let reminders = try calendarSyncTestSource("Haiity/Services/ReminderSync.swift")
 
-        XCTAssertTrue(calendar.contains("SyncWatermark.containsMarker"))
+        XCTAssertTrue(calendar.contains("SyncWatermark.isCalendarOwned"))
         XCTAssertTrue(reminders.contains("SyncWatermark.containsMarker"))
     }
 }

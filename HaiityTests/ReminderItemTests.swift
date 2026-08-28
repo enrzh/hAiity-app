@@ -136,6 +136,20 @@ final class ReminderItemTests: XCTestCase {
                       "habit reveal actions must remain addressable after a swipe")
     }
 
+    func testRevealActionsAreExposedByCardMotionInsteadOfFadingOrScaling() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        for source in [reminder, habit] {
+            XCTAssertTrue(source.contains(".transition(.identity)"),
+                          "the action underlay must not use SwiftUI's default fade transition")
+            XCTAssertFalse(source.contains(".opacity(min(1, exposed /"),
+                           "the card motion should reveal actions instead of fading them in")
+            XCTAssertFalse(source.contains(".scaleEffect(min(1, 0.9 +"),
+                           "the action underlay must keep a stable size while the card moves")
+        }
+    }
+
     func testRevealBridgeKeepsTheExistingDecisionAndVelocityRules() throws {
         let reminder = try source("Haiity/Views/ReminderRow.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")

@@ -75,6 +75,28 @@ enum SyncWatermark {
             || note.trimmingCharacters(in: .whitespacesAndNewlines) == readablePrefix
     }
 
+    /// Calendar providers may normalize or drop the invisible note payload.
+    /// The app URL is a stable ownership marker written to every hAiity event,
+    /// so cleanup can still find those entries after that normalization.
+    static func isCalendarOwned(notes: String?, urlString: String?) -> Bool {
+        if let notes, containsMarker(notes) {
+            guard let owner = ownership(in: notes) else {
+                return true
+            }
+            return owner.kind == .habitCalendar || owner.kind == .reminderCalendar
+        }
+        guard let urlString,
+              let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
+              url.scheme?.caseInsensitiveCompare("haiity") == .orderedSame,
+              url.host?.caseInsensitiveCompare("habits") == .orderedSame,
+              url.path.isEmpty,
+              url.query == nil,
+              url.fragment == nil else {
+            return false
+        }
+        return true
+    }
+
     /// Recovers the identity that survives an app reinstall. Native IDs are
     /// device-local; this payload is deliberately independent of them.
     static func ownership(in note: String) -> Ownership? {

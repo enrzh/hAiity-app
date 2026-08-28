@@ -414,10 +414,31 @@ enum CalendarSync {
                 ? .reminderCalendar : .habitCalendar
             return (SyncWatermark.Ownership(kind: kind, id: id), entry.1)
         })
-        let ownedByOwner = ownedEvents().reduce(into: [SyncWatermark.Ownership: [EKEvent]]()) {
+        // iOS 27 can resolve a stored event identifier while omitting the
+        // same event from a date predicate. Include those references in the
+        // inventory so reconciliation can reuse them instead of creating a
+        // second series.
+        let inventory = eventsIncludingStoredMappings(map)
+        let mappedOwners = map.reduce(into: [String: SyncWatermark.Ownership]()) {
+            result, entry in
+            guard let id = UUID(uuidString: entry.key) else { return }
+            let kind: SyncWatermark.Kind = plansByOwner.first(where: { owner, _ in
+                owner.id == id
+            })?.key.kind ?? .habitCalendar
+            result[entry.value] = SyncWatermark.Ownership(kind: kind, id: id)
+        }
+        let ownedByOwner = inventory.reduce(into: [SyncWatermark.Ownership: [EKEvent]]()) {
             result, event in
-            guard let notes = event.notes,
-                  let owner = SyncWatermark.ownership(in: notes) else { return }
+            if let owner = event.notes.flatMap({ SyncWatermark.ownership(in: $0) }),
+               owner.kind == .habitCalendar || owner.kind == .reminderCalendar {
+                result[owner, default: []].append(event)
+                return
+            }
+            let nativeIDs = [event.eventIdentifier, event.calendarItemIdentifier]
+                .compactMap { $0 }
+            guard let owner = nativeIDs.lazy.compactMap({ mappedOwners[$0] }).first else {
+                return
+            }
             result[owner, default: []].append(event)
         }
         var validatedKeys = Set<String>()
@@ -525,32 +546,32 @@ enum CalendarSync {
     static func removeAllOwnedItems() -> Bool {
         guard hasAccess else { return false }
 
-        let calendars = store.calendars(for: .event)
-        let start = Calendar.current.date(byAdding: .year, value: -100, to: .now) ?? .distantPast
-        let end = Calendar.current.date(byAdding: .year, value: 100, to: .now) ?? .distantFuture
-        let predicate = store.predicateForEvents(withStart: start,
-                                                  end: end,
-                                                  calendars: calendars)
+        let storedMap = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
+        let mappedNativeIDs = Set(storedMap.values)
         // EventKit can return recurring occurrences in an unspecified order.
         // Removing the earliest occurrence with `.futureEvents` removes the
         // whole series, including all entries the app may have created before
         // the reinstall.
-        let events = store.events(matching: predicate).sorted {
+        let events = eventsIncludingStoredMappings(storedMap).sorted {
             ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast)
         }
         var removedIDs = Set<String>()
         var succeeded = true
         for event in events {
-            guard let notes = event.notes,
-                  SyncWatermark.containsMarker(notes) else {
+            if let notes = event.notes,
+               SyncWatermark.ownership(in: notes)?.kind == .nativeReminder {
                 continue
             }
-            let isCurrentOwnedItem = SyncWatermark.ownership(in: notes).map { ownership in
-                ownership.kind == .habitCalendar || ownership.kind == .reminderCalendar
+            // The persisted map is written from `eventIdentifier`. Do not
+            // treat a matching series identifier alone as ownership during
+            // reinstall cleanup; it is an internal EventKit identity and is
+            // not the value hAiity persisted.
+            let isMappedCalendarEvent = event.eventIdentifier.map {
+                mappedNativeIDs.contains($0)
             } ?? false
-            let isLegacyOwnedItem = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-                == SyncWatermark.readablePrefix
-            guard isCurrentOwnedItem || isLegacyOwnedItem else {
+            guard isMappedCalendarEvent || SyncWatermark.isCalendarOwned(
+                notes: event.notes,
+                urlString: event.url?.absoluteString) else {
                 continue
             }
             let identity = event.calendarItemIdentifier
@@ -591,15 +612,40 @@ enum CalendarSync {
     private static func allEvents() -> [EKEvent] {
         let calendars = store.calendars(for: .event)
         guard !calendars.isEmpty else { return [] }
-        let start = Calendar.current.date(byAdding: .year, value: -100, to: .now) ?? .distantPast
-        let end = Calendar.current.date(byAdding: .year, value: 100, to: .now) ?? .distantFuture
-        let predicate = store.predicateForEvents(withStart: start,
-                                                  end: end,
-                                                  calendars: calendars)
         var seenSeries = Set<String>()
-        return store.events(matching: predicate)
-            .sorted { eventSortKey($0) < eventSortKey($1) }
-            .filter { seenSeries.insert($0.calendarItemIdentifier).inserted }
+        var events: [EKEvent] = []
+        let now = Date.now
+        var startYear = -100
+        while startYear < 100 {
+            guard let start = Calendar.current.date(byAdding: .year,
+                                                    value: startYear,
+                                                    to: now),
+                  let end = Calendar.current.date(byAdding: .year,
+                                                  value: startYear + 10,
+                                                  to: now) else {
+                startYear += 10
+                continue
+            }
+            let predicate = store.predicateForEvents(withStart: start,
+                                                      end: end,
+                                                      calendars: calendars)
+            for event in store.events(matching: predicate)
+                where seenSeries.insert(event.calendarItemIdentifier).inserted {
+                events.append(event)
+            }
+            startYear += 10
+        }
+        return events.sorted { eventSortKey($0) < eventSortKey($1) }
+    }
+
+    private static func eventsIncludingStoredMappings(_ map: [String: String]) -> [EKEvent] {
+        var events = allEvents()
+        var seenSeries = Set(events.map(\.calendarItemIdentifier))
+        for event in map.values.compactMap({ store.event(withIdentifier: $0) })
+            where seenSeries.insert(event.calendarItemIdentifier).inserted {
+            events.append(event)
+        }
+        return events.sorted { eventSortKey($0) < eventSortKey($1) }
     }
 
     private static func ownedEvents() -> [EKEvent] {
@@ -614,8 +660,10 @@ enum CalendarSync {
         var removedSeries = Set<String>()
         var succeeded = true
         for event in allEvents() {
-            guard event.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    == SyncWatermark.readablePrefix else { continue }
+            guard SyncWatermark.isCalendarOwned(
+                notes: event.notes,
+                urlString: event.url?.absoluteString),
+                  SyncWatermark.ownership(in: event.notes ?? "") == nil else { continue }
             if !removeOwnedEvent(event, removedSeries: &removedSeries) {
                 succeeded = false
             }

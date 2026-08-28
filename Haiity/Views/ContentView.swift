@@ -2449,6 +2449,7 @@ struct ContentView: View {
             var reminder = Habit(name: "UI test reminder", itemType: .reminder)
             reminder.id = reminderInteractionID
             reminder.repeatsWhileIncomplete = false
+            reminder.calendarSyncEnabled = false
             store.add(reminder)
         }
         if args.contains("-cleanup-reminder-interactions"),
