@@ -492,6 +492,19 @@ final class WidgetLogicTests: GridTestCase {
         XCTAssertEqual(next, savedCalendar.startOfDay(for: next))
     }
 
+    func testLargeTimelineReadsOneStoreSnapshotForEntryAndRefresh() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("HaiityWidget/HaiityWidget.swift"))
+        let timeline = try XCTUnwrap(source.range(of: "static func largeTimeline"))
+        let suffix = source[timeline.lowerBound...]
+        let end = suffix.range(of: "    /// EIN Lesevorgang")?.lowerBound ?? suffix.endIndex
+        let implementation = suffix[..<end]
+        XCTAssertEqual(implementation.components(separatedBy: "HabitStore.read").count - 1, 1)
+        XCTAssertTrue(implementation.contains("data: data"))
+        XCTAssertTrue(implementation.contains("calendar: calendar"))
+    }
+
     // MARK: – Rastergeometrie
 
     /// Die drei echten Homescreen-Flächen ABZÜGLICH der Innenränder (16 pt),

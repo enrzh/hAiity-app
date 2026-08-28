@@ -35,3 +35,21 @@ Result: `TEST SUCCEEDED`; 64 tests executed, 0 failures.
 The brief's `iPhone 16 Pro` destination was unavailable on this host, so the existing `sAiity Verification` iOS 26.5 simulator was used.
 
 No separate provider test file exists for Task 2; provider-related code was compiled as part of the same test scheme.
+
+## I-3 Follow-up
+
+`largeTimeline` now performs one `HabitStore.read` and passes the resulting `HabitData?` snapshot to the internal large-entry helper. The same snapshot supplies `defaultTimeZoneIdentifier` for both entry resolution and the next-midnight policy.
+
+Additional contract coverage:
+
+- `testLargeTimelineReadsOneStoreSnapshotForEntryAndRefresh` in `HaiityTests/WidgetLogicTests.swift` verifies that the `largeTimeline` implementation contains one store read and passes the shared snapshot and calendar through.
+
+Updated command and result:
+
+```sh
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,name=sAiity Verification,OS=26.5' \
+  -only-testing:HaiityTests/WidgetLogicTests
+```
+
+Result: `TEST SUCCEEDED`; 65 tests executed, 0 failures.

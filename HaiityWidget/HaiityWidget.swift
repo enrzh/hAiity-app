@@ -14,6 +14,13 @@ enum WidgetData {
                            layout: LargeWidgetLayout,
                            date: Date = .now) -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
+        return largeEntry(selectedIDs: selectedIDs, limit: limit, layout: layout,
+                          data: data, date: date)
+    }
+
+    private static func largeEntry(selectedIDs: [UUID?], limit: Int,
+                                   layout: LargeWidgetLayout,
+                                   data: HabitData?, date: Date) -> HaiityEntry {
         let habits = data?.habits ?? []
         let unlocked = HabitVisibility.sharedEntitlementIsUnlocked
         let defaultTimeZoneIdentifier = data?.defaultTimeZoneIdentifier
@@ -39,10 +46,12 @@ enum WidgetData {
 
     static func largeTimeline(selectedIDs: [UUID?], limit: Int,
                               layout: LargeWidgetLayout) -> Timeline<HaiityEntry> {
-        Timeline(entries: [largeEntry(selectedIDs: selectedIDs, limit: limit, layout: layout)],
+        let data = HabitStore.read(SharedStorage.dataURL())
+        let calendar = HabitTimeZone.calendar(identifier: data?.defaultTimeZoneIdentifier)
+        return Timeline(entries: [largeEntry(selectedIDs: selectedIDs, limit: limit,
+                                              layout: layout, data: data, date: .now)],
                  policy: .after(WidgetLogic.nextMidnight(
-                    calendar: HabitTimeZone.calendar(
-                        identifier: HabitStore.read(SharedStorage.dataURL())?.defaultTimeZoneIdentifier))) )
+                    calendar: calendar)))
     }
 
     /// EIN Lesevorgang für Habits UND Paletten — zwei getrennte Lesungen
