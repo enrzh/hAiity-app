@@ -11,8 +11,9 @@ final class WidgetRenderingTests: XCTestCase {
 
         XCTAssertEqual(roster.components(separatedBy: ".containerBackground(for: .widget)").count - 1, 1)
         XCTAssertTrue(grid.contains(".containerBackground(for: .widget)"))
-        XCTAssertTrue(roster.contains(".frame(height: 172)"))
-        XCTAssertTrue(roster.contains(".frame(height: 32)"))
+        XCTAssertTrue(roster.contains(".frame(height: 60)"))
+        XCTAssertTrue(roster.contains("spacing: 4"))
+        XCTAssertTrue(roster.contains(".frame(height: 100)"))
         XCTAssertTrue(roster.contains("minHeight: 44"))
         XCTAssertTrue(grid.contains("minHeight: 44"))
     }

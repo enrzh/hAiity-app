@@ -326,5 +326,5 @@ struct LargeFocusWidgetView: View {
     let entry: HaiityEntry
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
-    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry).frame(height: 24); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(height: 172) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(height: 32) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
+    var body: some View { VStack(alignment: .leading, spacing: 4) { LargeWidgetHeader(entry: entry).frame(height: 24); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(height: 100) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(height: 60) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
 }
