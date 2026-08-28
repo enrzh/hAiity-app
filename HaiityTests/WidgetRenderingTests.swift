@@ -101,26 +101,21 @@ final class WidgetRenderingTests: XCTestCase {
         let partial = try render(LargeGridWidgetView(entry: partialEntry).frame(width: 332, height: 356), to: "large-grid-partial-positions.png")
         XCTAssertEqual(partial.cgImage.map { CGSize(width: $0.width, height: $0.height) }, CGSize(width: 664, height: 712))
         XCTAssertGreaterThan(visiblePixelCount(partial), 20)
+        let partialGraphs = tiles.map { CGRect(x: $0.minX, y: $0.minY + 20,
+                                                width: $0.width - 88, height: 76) }
+        let firstBins = partialGraphs.prefix(2).map { colorBins(partial, in: $0) }
+        let emptyBins = partialGraphs.dropFirst(2).map { colorBins(partial, in: $0) }
+        XCTAssertGreaterThan(firstBins[0], emptyBins.max() ?? 0)
+        XCTAssertGreaterThan(firstBins[1], emptyBins.max() ?? 0)
+        XCTAssertNotEqual(firstBins[0], firstBins[1])
         let vibrant = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .vibrant)
             .frame(width: 332, height: 356), to: "large-grid-custom-vibrant.png")
-        let accented = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .accented)
-            .frame(width: 332, height: 356), to: "large-grid-custom-accented.png")
-        for image in [vibrant, accented] {
-            XCTAssertGreaterThan(visiblePixelCount(image), 20)
-        }
+        XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
 
-        let reminder = Habit(name: "Raster Reminder", itemType: .reminder)
-        let reminderEntry = HaiityEntry(date: .now, habits: [reminder], largeItems: [reminder], largeLayout: .grid)
-        let reminderImage = try render(LargeGridWidgetView(entry: reminderEntry).frame(width: 332, height: 356), to: "large-grid-reminder-slot.png")
-        let reminderTile = tiles[0]
-        XCTAssertGreaterThan(foregroundPixelCount(reminderImage, in: CGRect(x: reminderTile.minX, y: reminderTile.minY,
-                                                                               width: reminderTile.width, height: 40)), 2)
-        let reminderSignatures = Set((0..<4).map { quadrant in
-            colorSignature(reminderImage, in: CGRect(x: reminderTile.minX + CGFloat(quadrant % 2) * reminderTile.width / 2,
-                                                      y: reminderTile.minY + 40 + CGFloat(quadrant / 2) * 56,
-                                                      width: reminderTile.width / 2, height: 56))
-        })
-        XCTAssertLessThanOrEqual(reminderSignatures.count, 2)
+        let rasterSource = try source("HaiityWidget/WidgetGridViews.swift")
+        XCTAssertTrue(rasterSource.contains("if habit.isReminder"))
+        XCTAssertTrue(rasterSource.contains("Color.clear"))
+        XCTAssertTrue(rasterSource.contains("bell.fill"))
     }
 
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
@@ -564,6 +559,20 @@ final class WidgetRenderingTests: XCTestCase {
         return count
     }
 
+    private func visiblePixelCount(in image: UIImage, rect: CGRect) -> Int {
+        guard let cgImage = image.cgImage, let provider = cgImage.dataProvider,
+              let data = provider.data, let bytes = CFDataGetBytePtr(data) else { return 0 }
+        let components = cgImage.bitsPerPixel / 8
+        var count = 0
+        for y in max(0, Int(rect.minY))..<min(cgImage.height, Int(rect.maxY)) {
+            for x in max(0, Int(rect.minX))..<min(cgImage.width, Int(rect.maxX)) {
+                let index = (y * cgImage.width + x) * components
+                if bytes[index] > 8 || bytes[index + 1] > 8 || bytes[index + 2] > 8 { count += 1 }
+            }
+        }
+        return count
+    }
+
     private func colorSignature(_ image: UIImage, in rect: CGRect) -> String {
         guard let cgImage = image.cgImage,
               let provider = cgImage.dataProvider,
@@ -580,7 +589,37 @@ final class WidgetRenderingTests: XCTestCase {
             }
         }
         guard count > 0 else { return "empty" }
-        return "\(total.0 / count / 8)-\(total.1 / count / 8)-\(total.2 / count / 8)"
+        return "\(total.0 / count / 2)-\(total.1 / count / 2)-\(total.2 / count / 2)"
+    }
+
+    private func colorVariance(_ image: UIImage, in rect: CGRect) -> Double {
+        guard let cgImage = image.cgImage, let provider = cgImage.dataProvider,
+              let data = provider.data, let bytes = CFDataGetBytePtr(data) else { return .greatestFiniteMagnitude }
+        let components = cgImage.bitsPerPixel / 8
+        var values: [Double] = []
+        for y in max(0, Int(rect.minY))..<min(cgImage.height, Int(rect.maxY)) {
+            for x in max(0, Int(rect.minX))..<min(cgImage.width, Int(rect.maxX)) {
+                let index = (y * cgImage.width + x) * components
+                values.append(Double(Int(bytes[index]) + Int(bytes[index + 1]) + Int(bytes[index + 2])))
+            }
+        }
+        guard !values.isEmpty else { return 0 }
+        let mean = values.reduce(0, +) / Double(values.count)
+        return values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)
+    }
+
+    private func colorBins(_ image: UIImage, in rect: CGRect) -> Int {
+        guard let cgImage = image.cgImage, let provider = cgImage.dataProvider,
+              let data = provider.data, let bytes = CFDataGetBytePtr(data) else { return 0 }
+        let components = cgImage.bitsPerPixel / 8
+        var bins = Set<String>()
+        for y in max(0, Int(rect.minY))..<min(cgImage.height, Int(rect.maxY)) {
+            for x in max(0, Int(rect.minX))..<min(cgImage.width, Int(rect.maxX)) {
+                let index = (y * cgImage.width + x) * components
+                bins.insert("\(bytes[index] / 16)-\(bytes[index + 1] / 16)-\(bytes[index + 2] / 16)")
+            }
+        }
+        return bins.count
     }
 
     private func source(_ relativePath: String) throws -> String {

@@ -37,7 +37,7 @@ private struct LargeGridItem: View {
         let palette = entry.palettes.style(for: habit)
         ZStack(alignment: .topLeading) {
             if habit.isReminder {
-                Color.primary.opacity(0.04)
+                Color.clear
             } else {
                 TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
                     HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
