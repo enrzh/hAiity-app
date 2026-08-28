@@ -236,7 +236,9 @@ struct HaiityWidgetBundle: WidgetBundle {
         HaiityWidget()
         HaiityGraphWidget()
         HaiityGitHubWidget()
-        HaiityRosterWidget()
+        HaiityLargeListWidget()
+        HaiityLargeGridWidget()
+        HaiityLargeFocusWidget()
         HaiityRingWidget()
         HaiityStreakWidget()
         // Die Live-Aktivität einer laufenden Session (Sperrbildschirm +
@@ -252,6 +254,39 @@ struct HaiityWidgetBundle: WidgetBundle {
         if #available(iOS 18.0, *) {
             HaiityCheckControl()
         }
+    }
+}
+
+struct HaiityLargeListWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "HaiityLargeListWidget", intent: LargeWidgetListIntent.self, provider: LargeListWidgetProvider()) { entry in
+            LargeListWidgetView(entry: entry)
+        }
+        .configurationDisplayName(String(localized: "Großes Widget: Liste"))
+        .description(String(localized: "Vier Habits als Liste."))
+        .supportedFamilies([.systemLarge])
+    }
+}
+
+struct HaiityLargeGridWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "HaiityLargeGridWidget", intent: LargeWidgetGridIntent.self, provider: LargeGridWidgetProvider()) { entry in
+            LargeGridWidgetView(entry: entry)
+        }
+        .configurationDisplayName(String(localized: "Großes Widget: Raster"))
+        .description(String(localized: "Sechs Habits im Raster."))
+        .supportedFamilies([.systemLarge])
+    }
+}
+
+struct HaiityLargeFocusWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "HaiityLargeFocusWidget", intent: LargeWidgetFocusIntent.self, provider: LargeFocusWidgetProvider()) { entry in
+            LargeFocusWidgetView(entry: entry)
+        }
+        .configurationDisplayName(String(localized: "Großes Widget: Fokus"))
+        .description(String(localized: "Ein Fokus-Habit und drei weitere."))
+        .supportedFamilies([.systemLarge])
     }
 }
 
@@ -303,18 +338,6 @@ struct HaiityGitHubWidget: Widget {
         .configurationDisplayName(String(localized: "GitHub-Graph"))
         .description(String(localized: "Dein GitHub-Beitragsgraph."))
         .supportedFamilies([.systemSmall, .systemMedium])
-    }
-}
-
-/// Mehrere Habits auf einmal.
-struct HaiityRosterWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "HaiityRosterWidget", provider: HaiityRosterProvider()) { entry in
-            RosterWidgetView(entry: entry)
-        }
-        .configurationDisplayName(String(localized: "Übersicht"))
-        .description(String(localized: "Mehrere Habits als Zeilen — was heute ansteht, auf einen Blick."))
-        .supportedFamilies([.systemLarge])
     }
 }
 

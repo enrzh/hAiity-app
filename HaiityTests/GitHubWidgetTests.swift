@@ -4,6 +4,28 @@ import XCTest
 @testable import Haiity
 
 final class GitHubWidgetTests: XCTestCase {
+    func testThreeLargeWidgetsAreRegisteredAndOldOverviewIsNotInGallery() throws {
+        let source = try source("HaiityWidget/HaiityWidget.swift")
+        XCTAssertTrue(source.contains("HaiityLargeListWidget"))
+        XCTAssertTrue(source.contains("HaiityLargeGridWidget"))
+        XCTAssertTrue(source.contains("HaiityLargeFocusWidget"))
+        XCTAssertEqual(source.components(separatedBy: ".supportedFamilies([.systemLarge])").count - 1, 3)
+        XCTAssertFalse(source.contains("HaiityRosterWidget()"))
+    }
+
+    func testLargeRenderersKeepReminderGraphFreeAndUseAllActions() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        for text in [roster, grid] {
+            XCTAssertTrue(text.contains("habit.isReminder"))
+            XCTAssertTrue(text.contains("CheckOffHabitIntent"))
+            XCTAssertTrue(text.contains("AnswerYesHabitIntent"))
+            XCTAssertTrue(text.contains("AnswerNoHabitIntent"))
+            XCTAssertTrue(text.contains("ResetHabitIntent"))
+            XCTAssertTrue(text.contains("HaiityWidgetLink.habit"))
+        }
+    }
+
     func testLargeWidgetIntentsExposeExpectedOptionalSlots() throws {
         let source = try source("Haiity/Intents/LargeWidgetIntent.swift")
         XCTAssertTrue(source.contains("struct LargeWidgetListIntent: WidgetConfigurationIntent"))
@@ -276,15 +298,10 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
     }
 
-    func testOverviewWidgetIsLargeOnly() throws {
+    func testLegacyOverviewIsKeptOutOfTheGallery() throws {
         let widget = try source("HaiityWidget/HaiityWidget.swift")
-        let start = try XCTUnwrap(widget.range(of: "struct HaiityRosterWidget: Widget"))
-        let end = widget.range(of: "// MARK: – Sperrbildschirm", range: start.upperBound..<widget.endIndex)
-            ?? widget.endIndex..<widget.endIndex
-        let roster = widget[start.lowerBound..<end.lowerBound]
-
-        XCTAssertTrue(roster.contains(".supportedFamilies([.systemLarge])"))
-        XCTAssertFalse(roster.contains(".systemMedium"))
+        XCTAssertTrue(widget.contains("struct HaiityRosterProvider"))
+        XCTAssertFalse(widget.contains("struct HaiityRosterWidget: Widget"))
     }
 
     private func source(_ relative: String) throws -> String {

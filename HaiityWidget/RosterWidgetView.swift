@@ -241,3 +241,70 @@ struct RosterWidgetView: View {
     }
 
 }
+
+private struct LargeWidgetHeader: View {
+    let entry: HaiityEntry
+    var body: some View {
+        HStack {
+            Text(String(localized: "Heute")).font(.headline.weight(.semibold))
+            Spacer()
+            Text(verbatim: String(entry.largeItems.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct LargeWidgetItem: View {
+    let habit: Habit
+    let entry: HaiityEntry
+    var compact = false
+    var body: some View {
+        let today = entry.today(for: habit)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
+        let palette = entry.palettes.style(for: habit)
+        HStack(spacing: 8) {
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
+                        Text(verbatim: habit.name).font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
+                    }
+                    if habit.isReminder {
+                        Label(String(localized: "Erinnerung"), systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                            Text(verbatim: String(habit.streak(today: today, calendar: entry.calendar(for: habit))))
+                            Image(systemName: summary.metricSymbol)
+                            Text(verbatim: summary.metricText).lineLimit(1)
+                        }.font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 3) {
+                switch summary.kind {
+                case .yesNo:
+                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark") }
+                case .quantity:
+                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus") }
+                case .checkbox, .reminder:
+                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                }
+                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward") } }
+            }
+            .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
+        }
+        .padding(8).frame(minHeight: compact ? 30 : 52).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct LargeListWidgetView: View {
+    let entry: HaiityEntry
+    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); ForEach(entry.largeItems.prefix(4)) { LargeWidgetItem(habit: $0, entry: entry).frame(maxHeight: .infinity) } }.padding(12) }
+}
+
+struct LargeFocusWidgetView: View {
+    let entry: HaiityEntry
+    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(maxHeight: 220) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(minHeight: 30) } }.padding(12) }
+}

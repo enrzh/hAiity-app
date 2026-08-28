@@ -1,6 +1,43 @@
 import WidgetKit
 import SwiftUI
 
+struct LargeGridWidgetView: View {
+    let entry: HaiityEntry
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+            ForEach(entry.largeItems.prefix(6)) { habit in
+                LargeGridItem(habit: habit, entry: entry).frame(minHeight: 96)
+            }
+        }.padding(12)
+    }
+}
+
+private struct LargeGridItem: View {
+    let habit: Habit
+    let entry: HaiityEntry
+    var body: some View {
+        let today = entry.today(for: habit)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
+        let palette = entry.palettes.style(for: habit)
+        VStack(alignment: .leading, spacing: 6) {
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                HStack(spacing: 3) { if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }; Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7) }
+            }
+            if habit.isReminder { Image(systemName: "bell.fill").foregroundStyle(Theme.accentText(palette)) } else { Label(summary.metricText, systemImage: summary.metricSymbol).font(.caption2).foregroundStyle(.secondary) }
+            HStack(spacing: 3) {
+                switch summary.kind {
+                case .yesNo:
+                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark") }
+                case .quantity: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus") }
+                case .checkbox, .reminder: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                }
+                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward") } }
+            }.buttonStyle(.plain).font(.caption2.weight(.bold))
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 /// Gemeinsame Rasterbausteine für ALLE Widgets. Sie zeichnen dieselben Zellen
 /// wie die App (gleiche Stufen, gleiche gedimmte Zukunft, gleiche erzwungene
 /// Leserichtung) — nur die Größe und die Farbabbildung kommen von außen.

@@ -1,98 +1,51 @@
 # Task 3 Report
 
-- Status: `DONE_WITH_CONCERNS`
-- Branch: `task-3-cloud-sync`
-- Base commit: `f17b985e2686bc15595eeea93dc426d2c13c591f`
-- Commit SHA(s): `b54fdfd4c86b2eca416d34bcc67d4430ef5f9855`
+日期：2026-08-28
+基线：`2b91da0`
 
-## Scope
+## 实现
 
-Implemented only within the allowed slice:
+- `HaiityWidget/HaiityWidget.swift`
+  - 注册 `HaiityLargeListWidget`、`HaiityLargeGridWidget`、`HaiityLargeFocusWidget`。
+  - 三者均使用对应 `AppIntentConfiguration`、`String(localized:)` 与 `.supportedFamilies([.systemLarge])`。
+  - 从 gallery 移除旧 `HaiityRosterWidget`，保留 `HaiityRosterProvider` 作为旧 kind 的兼容读取路径。
+- `HaiityWidget/RosterWidgetView.swift`
+  - 增加 Liste 4 槽与 Fokus 1 大槽加 3 队列 renderer。
+  - reminder 只显示 bell/status，不绘制 graph/streak。
+  - checkbox/count/yes-no/reminder 使用各自 action；reset 只受配置开关控制，从初始状态即可用。
+  - 标题和非操作内容使用精确 habit deeplink，action button 位于 Link 外。
+- `HaiityWidget/WidgetGridViews.swift`
+  - 增加 Raster 2x3、最多 6 槽 renderer，保持相同 action/deeplink 约束。
+- `HaiityTests/GitHubWidgetTests.swift`、`HaiityTests/WidgetRenderingTests.swift`
+  - 增加注册、action/reminder/deeplink 与真实 large geometry 像素测试。
+  - 更新旧 Overview gallery 测试以匹配迁移后的契约。
 
-- `Haiity/Services/CloudSync.swift`
-- `Haiity/Models/HabitStore.swift`
-- `HaiityTests/CloudSyncTests.swift`
-- `HaiityTests/StoreAndMergeTests.swift`
+## 验证
 
-No changes were made to native sync, `ContentView`, `MoreView`, Pro policy, widgets, notifications, startup, release files, the plan, or unrelated dirty work from other slices.
+命令：
 
-## What changed
+```bash
+xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
+  -destination 'platform=iOS Simulator,name=sAiity Verification' \
+  -only-testing:HaiityTests/WidgetRenderingTests \
+  -only-testing:HaiityTests/GitHubWidgetTests
+```
 
-- Stopped `CloudSync.pull()` from caching an unreadable remote record, so a later push cannot reuse that broken server record as an overwrite token.
-- Kept appearance-only persistence from advancing the general habit/settings freshness timestamp, so newer remote habit metadata still merges even when a local appearance write happened later.
-- Added focused deterministic tests for:
-  - temporary CloudKit failure followed by a later successful retry with newer local writes intact
-  - unreadable remote payloads not being cached for later overwrite
-  - remote habit metadata still winning when a local appearance change happens while a remote read is effectively in flight
+结果：`TEST SUCCEEDED`，31 tests，0 failures。
 
-## Files changed
+输出：
 
-- `Haiity/Services/CloudSync.swift`
-- `Haiity/Models/HabitStore.swift`
-- `HaiityTests/CloudSyncTests.swift`
-- `HaiityTests/StoreAndMergeTests.swift`
+- `/tmp/large-list.png`：664x712，43,337 bytes
+- `/tmp/large-grid.png`：664x712，38,648 bytes
+- `/tmp/large-focus.png`：664x712，42,402 bytes
 
-## Commands and results
+三张图均对应 scale 2 的 332x356，均非空；视觉检查未发现内容溢出或槽位重叠。
 
-1. Read the brief and inspected only the allowed files.
+## Commit
 
-2. Generated the Xcode project:
+`feat: add list grid and focus large widgets`
 
-   - Command:
-     - `xcodegen generate --spec /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/project.yml`
-   - Result:
-     - `Created project at /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/Haiity.xcodeproj`
+## 视觉风险
 
-3. Checked available non-simulator destinations:
-
-   - Command:
-     - `xcrun xcodebuild -showdestinations -scheme Haiity -project /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/Haiity.xcodeproj`
-   - Result:
-     - Attached iPhone destination available: `id=00008150-000120AC0287801C`
-     - Mac-designed destination also listed, but was not usable for this target because of provisioning.
-
-4. Tried focused tests on `My Mac` to avoid simulator use:
-
-   - Command:
-     - `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/Haiity.xcodeproj -scheme Haiity -destination 'platform=macOS,name=My Mac' -only-testing:HaiityTests/CloudSyncTests -only-testing:HaiityTests/StoreAndMergeTests`
-   - Result:
-     - Failed before tests because the provisioning profiles do not include the Mac-designed destination, and the generated test bundles had no development team.
-
-5. Tried the attached iPhone with the brief destination:
-
-   - Command:
-     - `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' -only-testing:HaiityTests/CloudSyncTests -only-testing:HaiityTests/StoreAndMergeTests`
-   - Result:
-     - Failed before tests because the generated test bundles had no development team.
-
-6. Ran the same focused iPhone tests with a command-line team override instead of changing project files:
-
-   - Command:
-     - `xcodebuild test -project /Users/enrico/Documents/GitHub/haiity/.worktrees/task-3-cloud-sync/Haiity.xcodeproj -scheme Haiity -destination 'id=00008150-000120AC0287801C' DEVELOPMENT_TEAM=H8FW6W6K2D -only-testing:HaiityTests/CloudSyncTests -only-testing:HaiityTests/StoreAndMergeTests`
-   - Result before new tests:
-     - `34 tests, 0 failures`
-
-7. Added the new red tests and reran the same focused iPhone command:
-
-   - Result:
-     - `37 tests, 3 failures`
-     - Failing tests:
-       - `CloudSyncTests.testUnreadablePullDoesNotCacheServerRecordForLaterOverwrite`
-       - `StoreAndMergeTests.testRemoteHabitMetadataStillWinsWhenLocalAppearanceChangesDuringFetch`
-       - `StoreAndMergeTests.testRemoteHabitMetadataStillWinsWhenLocalAppearanceChangesDuringFetch` (two assertions in one test)
-
-8. Applied the production fixes and reran the same focused iPhone command:
-
-   - Result:
-     - `37 tests, 0 failures`
-     - `** TEST SUCCEEDED **`
-
-## Concerns
-
-- The requested manual physical-phone scenario was **not** performed:
-  - change appearance and a habit offline
-  - terminate/relaunch
-  - reconnect iCloud
-  - verify final local state manually
-- I did not create or use simulators, and I did not use the device hub.
-- The CLI test invocation required `DEVELOPMENT_TEAM=H8FW6W6K2D` as a command-line override because the generated `HaiityTests`/`HaiityUITests` bundles did not carry a team setting. I kept that out of the project files to stay inside scope.
+- 当前渲染测试直接渲染 content view，未注入 WidgetKit 的 container background，因此 PNG 外围显示为黑色；真实 Widget 配置仍由系统容器背景绘制。
+- simulator 输出中 Link 文本使用系统 tint，最终颜色可能随 WidgetKit rendering mode 改变；这属于系统显示行为，不影响布局、操作按钮或 deeplink 分区。

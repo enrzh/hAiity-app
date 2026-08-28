@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testAllLargeRenderersProducePixelsAtRealLargeGeometry() throws {
+        let demo = HaiityEntry.demo
+        let entry = HaiityEntry(date: demo.date, habits: demo.habits,
+                                palettes: demo.palettes, widgetResetEnabled: true,
+                                largeItems: demo.habits, largeLayout: .list)
+        try render(LargeListWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-list.png")
+        try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid.png")
+        try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-focus.png")
+    }
+
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {
         try render(RosterWidgetView(entry: .demo)
             .content(family: .systemLarge, dark: false)
