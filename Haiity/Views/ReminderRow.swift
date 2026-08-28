@@ -38,9 +38,11 @@ struct ReminderRow: View, Equatable {
 
     var body: some View {
         ZStack {
-            revealButtons(actions: leadingSwipe, alignment: .leading)
+            revealButtons(actions: leadingSwipe, alignment: .leading,
+                          exposedWidth: max(revealOffset, 0))
                 .allowsHitTesting(revealOffset > 0)
-            revealButtons(actions: trailingSwipe, alignment: .trailing)
+            revealButtons(actions: trailingSwipe, alignment: .trailing,
+                          exposedWidth: max(-revealOffset, 0))
                 .allowsHitTesting(revealOffset < 0)
             rowContent
                 .offset(x: revealOffset * mirror)
@@ -116,7 +118,8 @@ struct ReminderRow: View, Equatable {
     }
 
     @ViewBuilder
-    private func revealButtons(actions: [RevealAction], alignment: Alignment) -> some View {
+    private func revealButtons(actions: [RevealAction], alignment: Alignment,
+                               exposedWidth: CGFloat) -> some View {
         HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 Button {
@@ -145,6 +148,12 @@ struct ReminderRow: View, Equatable {
         .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
     }
         }
+        // Give the underlay a real exposed width before expanding it to the
+        // row. A mask on a full-width frame still leaves a full-width layout
+        // surface on iOS 27, which can bleed through translucent cards.
+        .frame(width: exposedWidth, alignment: alignment)
+        .frame(maxHeight: .infinity)
+        .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: alignment)
         // The card's horizontal offset is the reveal animation. Keep the

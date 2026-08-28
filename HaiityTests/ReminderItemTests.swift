@@ -156,15 +156,34 @@ final class ReminderItemTests: XCTestCase {
 
         for source in [reminder, habit] {
             XCTAssertTrue(source.contains(
-                "revealButtons(actions: leadingSwipe, alignment: .leading)"
+                "revealButtons(actions: leadingSwipe, alignment: .leading,"
             ))
             XCTAssertTrue(source.contains(
-                "revealButtons(actions: trailingSwipe, alignment: .trailing)"
+                "revealButtons(actions: trailingSwipe, alignment: .trailing,"
             ))
+            XCTAssertTrue(source.contains("exposedWidth:"),
+                          "the permanently mounted action layer must be clipped to the exposed strip")
             XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset > 0)"))
             XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset < 0)"))
             XCTAssertFalse(source.contains("if revealOffset != 0 {\n                revealButtons"),
                            "the action layer must not be inserted after the gesture starts")
+        }
+    }
+
+    func testRevealUnderlaysClipToTheExposedPartOfTranslucentCards() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        for source in [reminder, habit] {
+            let reveal = try revealRenderer(from: source)
+
+            XCTAssertFalse(reveal.contains(".mask"),
+                           "a full-width mask can leave a second translucent layout surface on iOS 27")
+            XCTAssertTrue(reveal.contains(
+                ".frame(width: exposedWidth, alignment: alignment)"
+            ), "the action layer must be sized to the exact card displacement")
+            XCTAssertTrue(reveal.contains(".clipped()"),
+                          "the exposed action strip must not draw outside its width")
         }
     }
 
@@ -287,6 +306,34 @@ final class ReminderItemTests: XCTestCase {
 
     private func editorSource() throws -> String {
         try source("Haiity/Views/EditHabitSheet.swift")
+    }
+
+    private func revealRenderer(from source: String) throws -> String {
+        guard let declaration = source.range(of: "private func revealButtons") else {
+            throw XCTSkip("Reveal renderer unavailable in source contract")
+        }
+        guard let openingBrace = source[declaration.upperBound...].firstIndex(of: "{") else {
+            XCTFail("Reveal renderer has no opening brace")
+            return ""
+        }
+
+        var depth = 0
+        var index = openingBrace
+        while index < source.endIndex {
+            switch source[index] {
+            case "{": depth += 1
+            case "}":
+                depth -= 1
+                if depth == 0 {
+                    return String(source[declaration.lowerBound...index])
+                }
+            default: break
+            }
+            index = source.index(after: index)
+        }
+
+        XCTFail("Reveal renderer has unbalanced braces")
+        return ""
     }
 
     private func source(_ relative: String) throws -> String {

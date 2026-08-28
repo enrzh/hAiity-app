@@ -161,9 +161,11 @@ struct HabitCard: View, Equatable {
     /// stehen — die Knöpfe gehören zur Karte, nicht zur Zeile.
     private var revealingGrid: some View {
         ZStack {
-            revealButtons(actions: leadingSwipe, alignment: .leading)
+            revealButtons(actions: leadingSwipe, alignment: .leading,
+                          exposedWidth: max(revealOffset, 0))
                 .allowsHitTesting(revealOffset > 0)
-            revealButtons(actions: trailingSwipe, alignment: .trailing)
+            revealButtons(actions: trailingSwipe, alignment: .trailing,
+                          exposedWidth: max(-revealOffset, 0))
                 .allowsHitTesting(revealOffset < 0)
             grid
                 .offset(x: revealOffset * mirror)
@@ -212,7 +214,8 @@ struct HabitCard: View, Equatable {
     }
 
     @ViewBuilder
-    private func revealButtons(actions: [RevealAction], alignment: Alignment) -> some View {
+    private func revealButtons(actions: [RevealAction], alignment: Alignment,
+                               exposedWidth: CGFloat) -> some View {
         HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
@@ -221,6 +224,12 @@ struct HabitCard: View, Equatable {
         // Die Karte legt den unveränderten Untergrund durch ihren Versatz frei.
         // Keine separate Einblendung oder Skalierung: so erscheinen die
         // Knöpfe direkt an der jeweiligen Kartenkante.
+        // Give the underlay a real exposed width before expanding it to the
+        // row. A mask on a full-width frame still leaves a full-width layout
+        // surface on iOS 27, which can bleed through translucent cards.
+        .frame(width: exposedWidth, alignment: alignment)
+        .frame(maxHeight: .infinity)
+        .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: alignment)
         .transition(.identity)
