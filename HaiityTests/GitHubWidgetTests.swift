@@ -15,34 +15,33 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testOldOverviewProviderStillReadsTheAutomaticEntryPath() throws {
         let source = try source("HaiityWidget/HaiityWidget.swift")
-        let provider = try XCTUnwrap(source.range(of: "struct HaiityRosterProvider"))
-        let bundle = try XCTUnwrap(source.range(of: "@main\nstruct HaiityWidgetBundle"))
-        let providerSource = source[provider.lowerBound..<bundle.lowerBound]
+        let providerSource = try section(source, startingAt: "struct HaiityRosterProvider", endingAt: "// MARK: – Bundle")
 
-        XCTAssertTrue(providerSource.contains("WidgetData.entry()"))
-        XCTAssertTrue(source.contains("WidgetData.entry()"))
+        XCTAssertTrue(providerSource.contains("completion(context.isPreview ? .demo : WidgetData.entry())"))
+        XCTAssertTrue(providerSource.contains("completion(WidgetData.timeline())"))
         XCTAssertFalse(source.contains("struct HaiityRosterWidget: Widget"))
     }
 
     func testLargeWidgetActionsBindTheCurrentItemAndNeverTheParentCollection() throws {
-        let sources = try [source("HaiityWidget/RosterWidgetView.swift"),
-                           source("HaiityWidget/WidgetGridViews.swift")]
-        for text in sources {
+        for (name, text, marker) in [("roster", try source("HaiityWidget/RosterWidgetView.swift"), "private struct LargeWidgetItem"),
+                                     ("grid", try source("HaiityWidget/WidgetGridViews.swift"), "private struct LargeGridItem")] {
+            let item = try section(text, startingAt: marker, endingAt: "\nprivate ")
             XCTAssertTrue(text.contains("habit: habit"))
-            XCTAssertTrue(text.contains("HaiityWidgetLink.habit(habit.id)"))
+            XCTAssertTrue(item.contains("HaiityWidgetLink.habit(habit.id)"), "\(name) item link is not current habit")
             XCTAssertFalse(text.contains("widgetURL(URL(string: \"haiity://habits\")"))
             for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
                            "AnswerNoHabitIntent", "ResetHabitIntent"] {
-                XCTAssertTrue(text.contains("\(intent)(habit: habit)"),
+                XCTAssertTrue(item.contains("\(intent)(habit: habit)"),
                               "missing current-item binding for \(intent)")
             }
         }
     }
 
     func testLargeWidgetConfigurationIsReadOnlyAndHasNoHabitOrICloudPersistence() throws {
-        let text = try source("HaiityWidget/WidgetLogic.swift")
-        XCTAssertFalse(text.contains("save") && text.contains("selectedIDs"))
-        XCTAssertFalse(text.contains("iCloud") && text.contains("slot"))
+        let text = try section(try source("HaiityWidget/WidgetLogic.swift"), startingAt: "static func resolveLargeItems", endingAt: "\n    static ")
+        XCTAssertFalse(text.contains("save"))
+        XCTAssertFalse(text.contains("UserDefaults"))
+        XCTAssertFalse(text.contains("NSUbiquitous"))
     }
 
     func testLargeRenderersKeepReminderGraphFreeAndUseAllActions() throws {
@@ -340,5 +339,12 @@ final class GitHubWidgetTests: XCTestCase {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(relative))
+    }
+
+    private func section(_ text: String, startingAt start: String, endingAt end: String) throws -> String {
+        let startRange = try XCTUnwrap(text.range(of: start))
+        let tail = text[startRange.lowerBound...]
+        guard let endRange = tail.range(of: end) else { return String(tail) }
+        return String(tail[..<endRange.lowerBound])
     }
 }

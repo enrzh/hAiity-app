@@ -49,19 +49,28 @@ final class WidgetRenderingTests: XCTestCase {
     }
 
     func testAllLargeLayoutsShareTheEmptyAppGroupState() throws {
-        let layouts: [LargeWidgetLayout] = [.list, .grid, .focus]
-        for layout in layouts {
-            let entry = HaiityEntry(date: .now, habits: [], largeItems: [], largeLayout: layout)
-            let view: AnyView
-            switch layout {
-            case .list: view = AnyView(LargeListWidgetView(entry: entry))
-            case .grid: view = AnyView(LargeGridWidgetView(entry: entry))
-            case .focus: view = AnyView(LargeFocusWidgetView(entry: entry))
-            }
-            try render(view.frame(width: 332, height: 356), to: "large-empty-\(layout).png")
+        let cases: [(LargeWidgetLayout, AnyView)] = [
+            (.list, AnyView(LargeListWidgetView(entry: emptyEntry(.list)))),
+            (.grid, AnyView(LargeGridWidgetView(entry: emptyEntry(.grid)))),
+            (.focus, AnyView(LargeFocusWidgetView(entry: emptyEntry(.focus))))
+        ]
+        for (layout, view) in cases {
+            let image = try render(view.frame(width: 332, height: 356), to: "large-empty-\(layout).png")
+            XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712), "wrong \(layout) pixel size")
+            XCTAssertGreaterThan(visiblePixelCount(image), 20, "\(layout) empty state has no visible pixels")
         }
 
-        XCTAssertEqual(layouts.count, 3)
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let bodyRange = try XCTUnwrap(roster.range(of: "func content(family:"))
+        let body = roster[bodyRange.lowerBound...]
+        XCTAssertTrue(body.contains("WidgetEmptyState()"))
+        let emptyRoster = try render(RosterWidgetView(entry: emptyEntry(.list))
+            .content(family: .systemLarge, dark: false)
+            .frame(width: 332, height: 356), to: "large-roster-empty.png")
+        XCTAssertEqual(emptyRoster.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                       CGSize(width: 664, height: 712))
+        XCTAssertGreaterThan(visiblePixelCount(emptyRoster), 20)
     }
 
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {
@@ -152,16 +161,34 @@ final class WidgetRenderingTests: XCTestCase {
                                                                        fetchedAt: .now))
     }
 
-    private func render<Content: View>(_ content: Content, to name: String) throws {
+    private func emptyEntry(_ layout: LargeWidgetLayout) -> HaiityEntry {
+        HaiityEntry(date: .now, habits: [], largeItems: [], largeLayout: layout)
+    }
+
+    private func render<Content: View>(_ content: Content, to name: String) throws -> UIImage {
         let renderer = ImageRenderer(content: content)
         renderer.scale = 2
         guard let image = renderer.uiImage,
               let data = image.pngData(),
               !data.isEmpty else {
             XCTFail("Could not render \(name)")
-            return
+            throw NSError(domain: "WidgetRenderingTests", code: 1)
         }
         try data.write(to: URL(fileURLWithPath: "/tmp/\(name)"), options: .atomic)
+        return image
+    }
+
+    private func visiblePixelCount(_ image: UIImage) -> Int {
+        guard let cgImage = image.cgImage,
+              let provider = cgImage.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else { return 0 }
+        let components = cgImage.bitsPerPixel / 8
+        return stride(from: 0, to: cgImage.width * cgImage.height * components, by: components)
+            .filter { index in
+                let alpha = components == 4 ? bytes[index + 3] : 255
+                return alpha > 8 && (components < 3 || bytes[index] > 8 || bytes[index + 1] > 8 || bytes[index + 2] > 8)
+            }.count
     }
 
     private func source(_ relativePath: String) throws -> String {
