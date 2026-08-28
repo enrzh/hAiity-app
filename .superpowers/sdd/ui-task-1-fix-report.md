@@ -18,10 +18,10 @@ Base: `05eb929`, follow-up corrections on `b456209` and `3cc0896`. Closed the re
 
 - Existing booted simulator: `sAiity Verification` (`AC636497-5EC6-4AD4-BD83-E5E2458FA702`)
 - `xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetRenderingTests`
-- Result: `WidgetRenderingTests` 16/16 passed; `** TEST SUCCEEDED **`.
+- Result: `WidgetRenderingTests` 17/17 passed; `** TEST SUCCEEDED **`.
 - `git diff --check` passed before the final test run.
 - Full `WidgetRenderingTests`: 17/17 passed with `xcodebuild test` on the existing simulator.
 
 ## Commit
 
-Pending isolated test-evidence commit after final scoped diff review. No push performed.
+Test-evidence commit: `2e27bb8`; this wording correction is a report-only follow-up. No push performed.
