@@ -10,10 +10,11 @@ struct LargeGridWidgetView: View {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+                VStack(alignment: .leading, spacing: 0) {
                     LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.gridHeaderHeight)
+                    Color.clear.frame(height: WidgetLogic.LargeGeometry.gridHeaderGap)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
-                    ForEach(entry.largeItems.prefix(6)) { habit in
+                        ForEach(entry.largeItems.prefix(6)) { habit in
                             LargeGridItem(habit: habit, entry: entry).frame(height: WidgetLogic.LargeGeometry.gridRowHeight)
                         }
                     }
@@ -34,23 +35,28 @@ private struct LargeGridItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: 4) {
             Link(destination: HaiityWidgetLink.habit(habit.id)) {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 3) { if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }; Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7) }
+                    HStack(spacing: 3) {
+                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).frame(width: 18, alignment: .leading) }
+                        Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    }.frame(height: 20, alignment: .leading)
                     if habit.isReminder {
                         Label(summary.metricText, systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        Color.clear.frame(minHeight: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
                     } else {
                         Label(summary.metricText, systemImage: summary.metricSymbol).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                         TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
                             HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                         }
-                        .frame(height: 25)
+                        .frame(minHeight: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack(spacing: 3) {
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            VStack(spacing: 0) {
                 switch summary.kind {
                 case .yesNo:
                     Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
@@ -59,8 +65,9 @@ private struct LargeGridItem: View {
                 case .checkbox, .reminder: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
                 }
                 if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(minWidth: 44, minHeight: 44) } }
-            }.buttonStyle(.plain).font(.caption2.weight(.bold))
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
+            }.buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
+                .frame(width: WidgetLogic.LargeGeometry.actionHeight)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

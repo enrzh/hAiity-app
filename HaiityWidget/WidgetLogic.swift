@@ -561,12 +561,13 @@ enum WidgetLogic {
         static let gridHeaderGap: CGFloat = 4
         static let gridRowHeight: CGFloat = 96
         static let gridColumnGap: CGFloat = 8
-        static let gridRowGap: CGFloat = 6
+        static let gridRowGap: CGFloat = 8
+        static let gridGraphMinimumHeight: CGFloat = 48
         static let gridRowSpacing: CGFloat = gridRowGap
 
         static let listContentHeight: CGFloat = 324
         static let focusContentHeight: CGFloat = 312
-        static let gridContentHeight: CGFloat = 324
+        static let gridContentHeight: CGFloat = 328
     }
 
     // MARK: – Zeitplan der Timeline
