@@ -284,27 +284,47 @@ private struct LargeWidgetItem: View {
             HStack(spacing: 3) {
                 switch summary.kind {
                 case .yesNo:
-                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
-                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark") }
+                    largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark")
+                    largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark")
                 case .quantity:
-                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus") }
+                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus")
                 case .checkbox, .reminder:
-                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark")
                 }
-                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward") } }
+                if entry.widgetResetEnabled {
+                    largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward")
+                }
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
         .padding(8).frame(minHeight: compact ? 30 : 52).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
     }
+
+    private func largeActionButton<I: AppIntent>(intent: I, symbol: String) -> some View {
+        Button(intent: intent) { Image(systemName: symbol).frame(minWidth: 44, minHeight: 44) }
+    }
+}
+
+private extension View {
+    func largeWidgetBackground(entry: HaiityEntry, scheme: ColorScheme, mode: WidgetRenderingMode) -> some View {
+        containerBackground(for: .widget) {
+            HomeWidgetBackground(palette: entry.palettes.style,
+                                 dark: scheme == .dark,
+                                 mode: mode)
+        }
+    }
 }
 
 struct LargeListWidgetView: View {
     let entry: HaiityEntry
-    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); ForEach(entry.largeItems.prefix(4)) { LargeWidgetItem(habit: $0, entry: entry).frame(maxHeight: .infinity) } }.padding(12) }
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
+    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); ForEach(entry.largeItems.prefix(4)) { LargeWidgetItem(habit: $0, entry: entry).frame(maxHeight: .infinity) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
 }
 
 struct LargeFocusWidgetView: View {
     let entry: HaiityEntry
-    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(maxHeight: 220) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(minHeight: 30) } }.padding(12) }
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
+    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry).frame(height: 24); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(height: 172) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(height: 32) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
 }

@@ -5,6 +5,38 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+
+        XCTAssertEqual(roster.components(separatedBy: ".containerBackground(for: .widget)").count - 1, 1)
+        XCTAssertTrue(grid.contains(".containerBackground(for: .widget)"))
+        XCTAssertTrue(roster.contains(".frame(height: 172)"))
+        XCTAssertTrue(roster.contains(".frame(height: 32)"))
+        XCTAssertTrue(roster.contains("minHeight: 44"))
+        XCTAssertTrue(grid.contains("minHeight: 44"))
+    }
+
+    func testLargeRenderersCoverSparseAndRepresentativeHabitKinds() throws {
+        let demo = HaiityEntry.demo
+        let empty = HaiityEntry(date: demo.date, habits: [], palettes: demo.palettes,
+                                widgetResetEnabled: true, largeItems: [], largeLayout: .focus)
+        let sparse = HaiityEntry(date: demo.date, habits: demo.habits, palettes: demo.palettes,
+                                 widgetResetEnabled: true, largeItems: Array(demo.habits.prefix(1)), largeLayout: .list)
+        try render(LargeListWidgetView(entry: empty).frame(width: 332, height: 356), to: "large-empty.png")
+        try render(LargeFocusWidgetView(entry: sparse).frame(width: 332, height: 356), to: "large-sparse.png")
+
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        for text in [roster, grid] {
+            for marker in ["case .checkbox, .reminder", "case .quantity", "case .yesNo",
+                           "CheckOffHabitIntent", "AnswerYesHabitIntent", "AnswerNoHabitIntent",
+                           "ResetHabitIntent"] {
+                XCTAssertTrue(text.contains(marker), "missing rendering contract: \(marker)")
+            }
+        }
+    }
+
     func testAllLargeRenderersProducePixelsAtRealLargeGeometry() throws {
         let demo = HaiityEntry.demo
         let entry = HaiityEntry(date: demo.date, habits: demo.habits,
@@ -113,5 +145,11 @@ final class WidgetRenderingTests: XCTestCase {
             return
         }
         try data.write(to: URL(fileURLWithPath: "/tmp/\(name)"), options: .atomic)
+    }
+
+    private func source(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(relativePath))
     }
 }

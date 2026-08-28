@@ -3,12 +3,14 @@ import SwiftUI
 
 struct LargeGridWidgetView: View {
     let entry: HaiityEntry
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
             ForEach(entry.largeItems.prefix(6)) { habit in
                 LargeGridItem(habit: habit, entry: entry).frame(minHeight: 96)
             }
-        }.padding(12)
+        }.padding(12).containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
     }
 }
 
@@ -27,12 +29,12 @@ private struct LargeGridItem: View {
             HStack(spacing: 3) {
                 switch summary.kind {
                 case .yesNo:
-                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
-                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark") }
-                case .quantity: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus") }
-                case .checkbox, .reminder: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark") }
+                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
+                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44) }
+                case .quantity: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus").frame(minWidth: 44, minHeight: 44) }
+                case .checkbox, .reminder: Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(minWidth: 44, minHeight: 44) }
                 }
-                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward") } }
+                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(minWidth: 44, minHeight: 44) } }
             }.buttonStyle(.plain).font(.caption2.weight(.bold))
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
     }
