@@ -45,15 +45,17 @@ private struct LargeGridItem: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Link(destination: HaiityWidgetLink.habit(habit.id)) {
-                VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
                     HStack(spacing: 3) {
                         if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).frame(width: 18, alignment: .leading) }
                         Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     Label(summary.metricText, systemImage: habit.isReminder ? "bell.fill" : summary.metricSymbol)
-                        .font(.caption2).lineLimit(1)
+                        .font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding(4)
+                .frame(height: 20)
+                .padding(.horizontal, 4)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
                 .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
             }

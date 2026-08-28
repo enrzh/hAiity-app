@@ -32,6 +32,9 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(item.contains("VStack(spacing: 0)"))
         XCTAssertTrue(item.contains(".ultraThinMaterial"))
         XCTAssertTrue(item.contains("if habit.isReminder"))
+        XCTAssertTrue(item.contains(".frame(height: 20)"))
+        XCTAssertTrue(item.contains(".lineLimit(1)"))
+        XCTAssertTrue(item.contains("GridItem(.fixed(44)"))
     }
 
     func testRasterSixGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
@@ -89,6 +92,9 @@ final class WidgetRenderingTests: XCTestCase {
                            index % 2 == 0 ? tiles[index + 1].minX : tile.maxX)
             if index < 4 { XCTAssertEqual(tile.maxY + rowGap, tiles[index + 2].minY) }
         }
+        let signatures = Set(tiles.map { colorSignature(image, in: CGRect(x: $0.minX, y: $0.minY + 40,
+                                                                            width: $0.width - 88, height: 96)) })
+        XCTAssertGreaterThanOrEqual(signatures.count, 3)
         let partialEntry = HaiityEntry(date: .now, habits: habits,
                                        palettes: PaletteBook(global: .default, customs: customs),
                                        largeItems: Array(habits.prefix(2)), largeLayout: .grid)
@@ -102,6 +108,19 @@ final class WidgetRenderingTests: XCTestCase {
         for image in [vibrant, accented] {
             XCTAssertGreaterThan(visiblePixelCount(image), 20)
         }
+
+        let reminder = Habit(name: "Raster Reminder", itemType: .reminder)
+        let reminderEntry = HaiityEntry(date: .now, habits: [reminder], largeItems: [reminder], largeLayout: .grid)
+        let reminderImage = try render(LargeGridWidgetView(entry: reminderEntry).frame(width: 332, height: 356), to: "large-grid-reminder-slot.png")
+        let reminderTile = tiles[0]
+        XCTAssertGreaterThan(foregroundPixelCount(reminderImage, in: CGRect(x: reminderTile.minX, y: reminderTile.minY,
+                                                                               width: reminderTile.width, height: 40)), 2)
+        let reminderSignatures = Set((0..<4).map { quadrant in
+            colorSignature(reminderImage, in: CGRect(x: reminderTile.minX + CGFloat(quadrant % 2) * reminderTile.width / 2,
+                                                      y: reminderTile.minY + 40 + CGFloat(quadrant / 2) * 56,
+                                                      width: reminderTile.width / 2, height: 56))
+        })
+        XCTAssertLessThanOrEqual(reminderSignatures.count, 2)
     }
 
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
@@ -543,6 +562,25 @@ final class WidgetRenderingTests: XCTestCase {
             }
         }
         return count
+    }
+
+    private func colorSignature(_ image: UIImage, in rect: CGRect) -> String {
+        guard let cgImage = image.cgImage,
+              let provider = cgImage.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else { return "invalid" }
+        let components = cgImage.bitsPerPixel / 8
+        let minX = max(0, Int(rect.minX)), maxX = min(cgImage.width, Int(rect.maxX))
+        let minY = max(0, Int(rect.minY)), maxY = min(cgImage.height, Int(rect.maxY))
+        var total = (0, 0, 0), count = 0
+        for y in minY..<maxY {
+            for x in minX..<maxX {
+                let index = (y * cgImage.width + x) * components
+                total.0 += Int(bytes[index]); total.1 += Int(bytes[index + 1]); total.2 += Int(bytes[index + 2]); count += 1
+            }
+        }
+        guard count > 0 else { return "empty" }
+        return "\(total.0 / count / 8)-\(total.1 / count / 8)-\(total.2 / count / 8)"
     }
 
     private func source(_ relativePath: String) throws -> String {
