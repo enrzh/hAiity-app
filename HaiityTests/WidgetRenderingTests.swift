@@ -37,6 +37,57 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains(".lineLimit(1)"))
     }
 
+    func testTaskThreeRasterRendersMixedContentInExclusiveRegions() throws {
+        let source = try source("HaiityWidget/WidgetGridViews.swift")
+        let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
+        XCTAssertFalse(item.contains("frame(width: 18"), "emoji must not consume a fixed title width")
+        XCTAssertTrue(item.contains("gridGraphMinimumHeight"))
+
+        let today = DayKey.today()
+        var checkbox = Habit(name: "这是一个需要优先显示的超长中文习惯名称", emoji: "🧑🏽‍💻")
+        checkbox.log[today] = 1
+        let quantity = Habit(name: "数量", emoji: "🏋🏽‍♀️", recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "判断", emoji: "✅", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        let reminder = Habit(name: "提醒事项的长中文名称", emoji: "👩🏽‍🔬", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        let habits = [checkbox, quantity, yesNo, reminder]
+        let entry = HaiityEntry(date: .now, habits: habits, palettes: HaiityEntry.demo.palettes,
+                                widgetResetEnabled: true, largeItems: habits, largeLayout: .grid)
+        let image = try render(LargeGridWidgetView(entry: entry)
+            .frame(width: 332, height: 356), to: "large-grid-task-3-mixed.png")
+
+        let scale: CGFloat = 2
+        let contentX = WidgetLogic.LargeGeometry.outerPadding * scale
+        let contentY = contentX + (WidgetLogic.LargeGeometry.gridHeaderHeight
+                                   + WidgetLogic.LargeGeometry.gridHeaderGap) * scale
+        let tileWidth = ((332 - 2 * WidgetLogic.LargeGeometry.outerPadding
+                          - WidgetLogic.LargeGeometry.gridColumnGap) / 2) * scale
+        let tileHeight = WidgetLogic.LargeGeometry.gridRowHeight * scale
+        let rowPitch = tileHeight + WidgetLogic.LargeGeometry.gridRowGap * scale
+        let columnPitch = tileWidth + WidgetLogic.LargeGeometry.gridColumnGap * scale
+        for index in 0..<4 {
+            let tile = CGRect(x: contentX + CGFloat(index % 2) * columnPitch,
+                              y: contentY + CGFloat(index / 2) * rowPitch,
+                              width: tileWidth, height: tileHeight)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: tile.offsetBy(dx: 0, dy: 0)
+                .intersection(CGRect(x: tile.minX, y: tile.minY, width: tile.width, height: 20 * scale))), 8)
+            let actions = CGRect(x: tile.minX, y: tile.maxY - 44 * scale,
+                                 width: tile.width, height: 44 * scale)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: actions), 8, "missing actions (index)")
+            if index != 3 {
+                let graph = CGRect(x: tile.minX, y: tile.minY + 20 * scale,
+                                   width: tile.width, height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight * scale)
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20, "missing graph (index)")
+            } else {
+                let reminderMiddle = CGRect(x: tile.minX, y: tile.minY + 20 * scale,
+                                            width: tile.width, height: 86 * scale)
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: reminderMiddle), 8,
+                                     "missing reminder timing region")
+            }
+        }
+    }
+
     func testRasterFourGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
         let today = DayKey.today()
         let customs = (0..<4).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }

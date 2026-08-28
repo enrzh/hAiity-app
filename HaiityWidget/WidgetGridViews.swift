@@ -39,7 +39,7 @@ private struct LargeGridItem: View {
                 Link(destination: HaiityWidgetLink.habit(habit.id)) {
                 HStack(spacing: 4) {
                     HStack(spacing: 3) {
-                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).frame(width: 18, alignment: .leading) }
+                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).layoutPriority(1) }
                         Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     Label(summary.metricText, systemImage: habit.isReminder ? "bell.fill" : summary.metricSymbol)
@@ -56,9 +56,13 @@ private struct LargeGridItem: View {
                         HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 86)
+                    .frame(height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
                 } else {
-                    Spacer(minLength: 0)
+                    Text(verbatim: summary.metricText)
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
                 HStack(spacing: 0) {
                 switch summary.kind {
