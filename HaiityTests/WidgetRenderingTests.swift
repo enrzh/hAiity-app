@@ -124,7 +124,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 3 * g.gridRowHeight
                        + 2 * g.gridRowGap, 328)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
-                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 316)
+                       + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
+                       + 2 * g.itemSpacing, 316)
         XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
@@ -137,12 +138,14 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(g.focusFeaturedHeight, 136)
         XCTAssertEqual(g.focusQueueHeight, 48)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
-                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 316)
+                       + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
+                       + 2 * g.itemSpacing, 316)
 
         let source = try source("HaiityWidget/RosterWidgetView.swift")
-        let focus = try sourceSlice(source, from: "struct LargeFocusWidgetView", to: "}")
+        let focus = try sourceSlice(source, from: "struct LargeFocusWidgetView", to: "private extension View")
         XCTAssertTrue(focus.contains("focusHeaderGap"))
         XCTAssertTrue(focus.contains("focusFeaturedGraphMinimumHeight"))
+        XCTAssertTrue(focus.contains("focusFeaturedQueueGap"))
         XCTAssertTrue(focus.contains("dropFirst().prefix(3)"))
         XCTAssertFalse(focus.contains("preserveFocusSurface: true"))
     }
@@ -156,6 +159,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("titleStatusBand"))
         XCTAssertTrue(item.contains(".frame(height: graphHeight)"))
         XCTAssertTrue(item.contains("spacing: WidgetLogic.LargeGeometry.itemSpacing"))
+        XCTAssertTrue(item.contains("HStack(alignment: .top"))
+        XCTAssertTrue(item.contains("HStack(spacing: 3)"))
         XCTAssertFalse(item.contains("background(.ultraThinMaterial"))
     }
 

@@ -271,7 +271,7 @@ private struct LargeWidgetItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        ZStack(alignment: .topTrailing) {
+        HStack(alignment: .top, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
             VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
             let titleStatusBand = HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
@@ -394,6 +394,7 @@ struct LargeFocusWidgetView: View {
                                     graphHeight: WidgetLogic.LargeGeometry.focusFeaturedGraphMinimumHeight)
                         .frame(height: WidgetLogic.LargeGeometry.focusFeaturedHeight)
                 }
+                Color.clear.frame(height: WidgetLogic.LargeGeometry.focusFeaturedQueueGap)
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                     ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
                         LargeWidgetItem(habit: habit, entry: entry, compact: true,
