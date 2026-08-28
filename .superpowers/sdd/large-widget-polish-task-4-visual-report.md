@@ -54,3 +54,9 @@ xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
 新增回归覆盖：AX XXXL 下混合长中文/宽 emoji 的 list、grid、focus 分区与 action 行；grid reminder 标题/middle timing/44pt actions；以及真实 `PaletteBook(customs:)` 在 light、dark、fullColor、vibrant 下的非空和 distinct graph signatures。旧的 `partialGraphs` 自我计数死代码已删除。
 
 最终三套 suite：`132 tests, 0 failures`，其中 WidgetRenderingTests 31、WidgetLogicTests 68，GitHubWidgetTests 包含在总计中。
+
+## Final Test-Only Fix
+
+custom palette 回归现在显式分别渲染并断言 `light`、`dark`、`.fullColor`、`vibrant` 四种状态；`.fullColor` 输出单独命名为 `large-task-4-custom-full-color.png`，不再依赖默认 rendering mode。
+
+最终 test-only 修复验证：WidgetRenderingTests `31 tests, 0 failures`；本次无生产代码改动。

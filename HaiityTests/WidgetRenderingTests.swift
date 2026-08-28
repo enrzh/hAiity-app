@@ -35,7 +35,7 @@ final class WidgetRenderingTests: XCTestCase {
         }
     }
 
-    func testTaskFourCustomPaletteHasDistinctLightDarkAndVibrantGraphRegions() throws {
+    func testTaskFourCustomPaletteHasDistinctLightDarkFullColorAndVibrantGraphRegions() throws {
         let customs = [CustomPalette(name: "Task Four A", base: 0xD97706),
                        CustomPalette(name: "Task Four B", base: 0x2563EB)]
         let today = DayKey.today()
@@ -51,13 +51,15 @@ final class WidgetRenderingTests: XCTestCase {
         let base = LargeGridWidgetView(entry: entry).frame(width: 332, height: 356)
         let light = try render(base, to: "large-task-4-custom-light.png")
         let dark = try render(base.environment(\.colorScheme, .dark), to: "large-task-4-custom-dark.png")
+        let fullColor = try render(base.environment(\.widgetRenderingMode, .fullColor), to: "large-task-4-custom-full-color.png")
         let vibrant = try render(base.environment(\.widgetRenderingMode, .vibrant), to: "large-task-4-custom-vibrant.png")
         let region = CGRect(x: 24, y: 112, width: 248, height: 172)
         XCTAssertGreaterThan(visiblePixelCount(light), 20)
         XCTAssertGreaterThan(visiblePixelCount(dark), 20)
+        XCTAssertGreaterThan(visiblePixelCount(fullColor), 20)
         XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
         XCTAssertGreaterThan(Set([colorSignature(light, in: region), colorSignature(dark, in: region),
-                                  colorSignature(vibrant, in: region)]).count, 1)
+                                  colorSignature(fullColor, in: region), colorSignature(vibrant, in: region)]).count, 1)
     }
 
     func testLargeRenderersCapAccessibilityDynamicTypeForFixedGeometry() throws {
