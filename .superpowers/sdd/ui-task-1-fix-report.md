@@ -2,7 +2,7 @@
 
 ## Scope
 
-Base: `05eb929`, follow-up correction on `b456209`. Fixed the remaining Task1 layout and Fokus presentation findings without changing unrelated work.
+Base: `05eb929`, follow-up corrections on `b456209` and `3cc0896`. Closed the remaining Task1 layout and rendering-test evidence gaps without changing unrelated work.
 
 ## Changes
 
@@ -12,6 +12,7 @@ Base: `05eb929`, follow-up correction on `b456209`. Fixed the remaining Task1 la
 - Fokus calls the shared item with `preserveFocusSurface: true`, restoring the prior `padding(4)` plus rounded 8pt accent background/clip while Liste remains unframed.
 - Raster uses `gridColumnGap` for its actual 8pt column spacing and `gridRowGap` for its 6pt row spacing.
 - Rendering tests now slice the actual LargeWidgetItem/Liste regions, cover per-action hit-target contracts, reset visibility, status branches, and render at both `accessibilityLarge` and `accessibilityExtraExtraExtraLarge` with 664x712 output and visible-content assertions.
+- Liste accessibility tests now inspect scale-2 row bounds for all four 72pt rows: each non-reminder title/status region and graph region has foreground pixels, inter-row gaps remain quiet, content ends at the 332pt bottom, and reminder rows require bell/status foreground without a graph assertion. Reset enabled and disabled states each render independently.
 
 ## Verification
 
@@ -19,7 +20,8 @@ Base: `05eb929`, follow-up correction on `b456209`. Fixed the remaining Task1 la
 - `xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetRenderingTests`
 - Result: `WidgetRenderingTests` 16/16 passed; `** TEST SUCCEEDED **`.
 - `git diff --check` passed before the final test run.
+- Full `WidgetRenderingTests`: 17/17 passed with `xcodebuild test` on the existing simulator.
 
 ## Commit
 
-Pending isolated follow-up commit after final scoped diff review. No push performed.
+Pending isolated test-evidence commit after final scoped diff review. No push performed.

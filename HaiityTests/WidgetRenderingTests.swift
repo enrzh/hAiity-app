@@ -202,6 +202,72 @@ final class WidgetRenderingTests: XCTestCase {
         }
     }
 
+    func testListeDynamicTypeRegionsKeepEachRowBoundedAndReadable() throws {
+        let today = DayKey.today()
+        var habits = (0..<4).map { Habit(name: "Habit \($0)") }
+        for index in habits.indices { habits[index].log[today] = 1 + index }
+        let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits,
+                                largeLayout: .list)
+
+        for (name, category) in [("large", ContentSizeCategory.accessibilityLarge),
+                                  ("xxxl", ContentSizeCategory.accessibilityExtraExtraExtraLarge)] {
+            let image = try render(LargeListWidgetView(entry: entry)
+                .environment(\.sizeCategory, category)
+                .frame(width: 332, height: 356), to: "large-list-regions-\(name).png")
+            let scale: CGFloat = 2
+            let contentTop = Int(WidgetLogic.LargeGeometry.outerPadding * scale)
+            let headerHeight = Int(WidgetLogic.LargeGeometry.listHeaderHeight * scale)
+            let rowHeight = Int(WidgetLogic.LargeGeometry.listRowHeight * scale)
+            let gap = Int(WidgetLogic.LargeGeometry.itemSpacing * scale)
+            let titleHeight = Int(WidgetLogic.LargeGeometry.listTitleHeight * scale)
+            let graphStart = titleHeight + gap
+            let graphHeight = Int(WidgetLogic.LargeGeometry.listGraphHeight * scale)
+            let rowStride = rowHeight + gap
+            let contentBottom = contentTop + Int(WidgetLogic.LargeGeometry.contentHeight * scale)
+
+            for row in 0..<4 {
+                let rowTop = contentTop + headerHeight + gap + row * rowStride
+                let title = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * scale, height: CGFloat(titleHeight))
+                let graph = CGRect(x: 0, y: CGFloat(rowTop + graphStart),
+                                   width: image.size.width * scale, height: CGFloat(graphHeight))
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: title), 2,
+                                     "missing title/status foreground in row \(row) at \(name)")
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20,
+                                     "missing graph foreground in row \(row) at \(name)")
+                if row < 3 {
+                    let nextRowTop = rowTop + rowStride
+                    let interRow = CGRect(x: 0, y: CGFloat(rowTop + rowHeight),
+                                          width: image.size.width * scale,
+                                          height: CGFloat(gap))
+                    XCTAssertLessThanOrEqual(foregroundPixelCount(image, in: interRow), 8,
+                                             "graph escaped row \(row) into the next-row gap at \(name)")
+                    XCTAssertLessThanOrEqual(rowTop + rowHeight, nextRowTop)
+                }
+            }
+            XCTAssertLessThanOrEqual(contentTop + headerHeight + 4 * rowHeight + 4 * gap,
+                                     contentBottom,
+                                     "Liste content exceeds the 332pt content bottom at \(name)")
+        }
+    }
+
+    func testListeReminderRegionsHaveStatusForegroundWithoutGraphRequirement() throws {
+        let reminder = Habit(name: "Reminder", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        let habits = [reminder, Habit(name: "Habit 1"), Habit(name: "Habit 2"), Habit(name: "Habit 3")]
+        let entry = HaiityEntry(date: .now, habits: habits,
+                                largeItems: habits, largeLayout: .list)
+        for category in [ContentSizeCategory.accessibilityLarge,
+                         ContentSizeCategory.accessibilityExtraExtraExtraLarge] {
+            let image = try render(LargeListWidgetView(entry: entry)
+                .environment(\.sizeCategory, category)
+                .frame(width: 332, height: 356), to: "large-list-reminder-\(category).png")
+            let rowTop = (12 + 20 + 4) * 2
+            let reminderRow = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * 2, height: 72 * 2)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: reminderRow), 2,
+                                 "reminder bell/status is missing from its 72pt row")
+        }
+    }
+
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {
         try render(RosterWidgetView(entry: .demo)
             .content(family: .systemLarge, dark: false)
@@ -275,6 +341,21 @@ final class WidgetRenderingTests: XCTestCase {
                        "undo is a configured action, not a post-decision action")
     }
 
+    func testLargeResetEnabledAndDisabledRenderStatesAreCovered() throws {
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("if entry.widgetResetEnabled"))
+        let demo = HaiityEntry.demo
+        let enabled = HaiityEntry(date: demo.date, habits: demo.habits, palettes: demo.palettes,
+                                   widgetResetEnabled: true, largeItems: Array(demo.habits.prefix(1)), largeLayout: .list)
+        let disabled = HaiityEntry(date: demo.date, habits: demo.habits, palettes: demo.palettes,
+                                   widgetResetEnabled: false, largeItems: Array(demo.habits.prefix(1)), largeLayout: .list)
+        XCTAssertGreaterThan(visiblePixelCount(try render(LargeListWidgetView(entry: enabled)
+            .frame(width: 332, height: 356), to: "large-reset-enabled.png")), 20)
+        XCTAssertGreaterThan(visiblePixelCount(try render(LargeListWidgetView(entry: disabled)
+            .frame(width: 332, height: 356), to: "large-reset-disabled.png")), 20)
+    }
+
     func testLargeActionsHaveIndependentHitTargetsAndResetStates() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
@@ -338,6 +419,31 @@ final class WidgetRenderingTests: XCTestCase {
                 let alpha = components == 4 ? bytes[index + 3] : 255
                 return alpha > 8 && (components < 3 || bytes[index] > 8 || bytes[index + 1] > 8 || bytes[index + 2] > 8)
             }.count
+    }
+
+    private func foregroundPixelCount(_ image: UIImage, in rect: CGRect) -> Int {
+        guard let cgImage = image.cgImage,
+              let provider = cgImage.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else { return 0 }
+        let components = cgImage.bitsPerPixel / 8
+        let bounds = CGRect(x: max(0, rect.minX), y: max(0, rect.minY),
+                            width: min(CGFloat(cgImage.width) - max(0, rect.minX), rect.width),
+                            height: min(CGFloat(cgImage.height) - max(0, rect.minY), rect.height))
+        let referenceY = min(cgImage.height - 1, max(0, Int(bounds.midY)))
+        let referenceIndex = (referenceY * cgImage.width + 2) * components
+        let reference = (Int(bytes[referenceIndex]), Int(bytes[referenceIndex + 1]), Int(bytes[referenceIndex + 2]))
+        var count = 0
+        for y in Int(bounds.minY)..<Int(bounds.maxY) {
+            for x in Int(bounds.minX)..<Int(bounds.maxX) {
+                let index = (y * cgImage.width + x) * components
+                let distance = abs(Int(bytes[index]) - reference.0)
+                    + abs(Int(bytes[index + 1]) - reference.1)
+                    + abs(Int(bytes[index + 2]) - reference.2)
+                if distance > 18 { count += 1 }
+            }
+        }
+        return count
     }
 
     private func source(_ relativePath: String) throws -> String {
