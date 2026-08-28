@@ -124,12 +124,27 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 3 * g.gridRowHeight
                        + 2 * g.gridRowGap, 328)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
-                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 312)
+                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 316)
         XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
         XCTAssertEqual(g.listGraphHeight, 38)
         XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 92)
+    }
+
+    func testFokusUsesFixedFeaturedAndQueueGeometry() throws {
+        let g = WidgetLogic.LargeGeometry.self
+        XCTAssertEqual(g.focusFeaturedHeight, 136)
+        XCTAssertEqual(g.focusQueueHeight, 48)
+        XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
+                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 316)
+
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        let focus = try sourceSlice(source, from: "struct LargeFocusWidgetView", to: "}")
+        XCTAssertTrue(focus.contains("focusHeaderGap"))
+        XCTAssertTrue(focus.contains("focusFeaturedGraphMinimumHeight"))
+        XCTAssertTrue(focus.contains("dropFirst().prefix(3)"))
+        XCTAssertFalse(focus.contains("preserveFocusSurface: true"))
     }
 
     func testListeDoesNotUseRepeatedCardTreatmentAndUsesLargeGraphRegion() throws {
@@ -154,7 +169,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(roster.contains("LargeGeometry.itemSpacing"))
         XCTAssertTrue(roster.contains("LargeGeometry.focusFeaturedHeight"))
         XCTAssertTrue(roster.contains("LargeGeometry.listGraphHeight"))
-        XCTAssertTrue(roster.contains("graphHeight: 32"))
+        XCTAssertTrue(roster.contains("focusFeaturedGraphMinimumHeight"))
         XCTAssertTrue(roster.contains("width: WidgetLogic.LargeGeometry.actionHeight"))
         XCTAssertTrue(grid.contains("frame(width: 44, height: 44)"))
     }

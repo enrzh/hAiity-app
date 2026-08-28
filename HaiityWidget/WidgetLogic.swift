@@ -556,7 +556,7 @@ enum WidgetLogic {
         static let focusHeaderGap: CGFloat = 4
         static let focusFeaturedHeight: CGFloat = 136
         static let focusFeaturedGraphMinimumHeight: CGFloat = 92
-        static let focusQueueHeight: CGFloat = 46.666666666666664
+        static let focusQueueHeight: CGFloat = 48
         static let gridHeaderHeight: CGFloat = 20
         static let gridHeaderGap: CGFloat = 4
         static let gridRowHeight: CGFloat = 96
@@ -566,7 +566,7 @@ enum WidgetLogic {
         static let gridRowSpacing: CGFloat = gridRowGap
 
         static let listContentHeight: CGFloat = 324
-        static let focusContentHeight: CGFloat = 312
+        static let focusContentHeight: CGFloat = 316
         static let gridContentHeight: CGFloat = 328
     }
 

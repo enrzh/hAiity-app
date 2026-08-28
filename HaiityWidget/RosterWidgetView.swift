@@ -324,7 +324,7 @@ private struct LargeWidgetItem: View {
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
         .padding(preserveFocusSurface ? 4 : 0)
-        .background(preserveFocusSurface ? AnyShapeStyle(Theme.accent(palette).opacity(0.1)) : AnyShapeStyle(Color.clear),
+        .background(AnyShapeStyle(Color.clear),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .frame(maxHeight: .infinity)
@@ -383,18 +383,23 @@ struct LargeFocusWidgetView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
                 LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.focusHeaderHeight)
+                Color.clear.frame(height: WidgetLogic.LargeGeometry.focusHeaderGap)
                 if let focus = entry.largeItems.first {
-                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 32, preserveFocusSurface: true)
+                    LargeWidgetItem(habit: focus, entry: entry,
+                                    graphHeight: WidgetLogic.LargeGeometry.focusFeaturedGraphMinimumHeight)
                         .frame(height: WidgetLogic.LargeGeometry.focusFeaturedHeight)
                 }
-                ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 12, preserveFocusSurface: true)
-                        .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
+                VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+                    ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
+                        LargeWidgetItem(habit: habit, entry: entry, compact: true,
+                                        graphHeight: 12)
+                            .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
+                    }
                 }
             }
         }
