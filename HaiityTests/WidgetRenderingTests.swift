@@ -251,20 +251,35 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testTaskTwoFokusQueueSuppressesGraphsAndProtectsMixedDynamicTypeIdentity() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let list = try sourceSlice(roster, from: "struct LargeListWidgetView", to: "struct LargeFocusWidgetView")
         let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))
         let focus = String(roster[focusStart.lowerBound...])
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(list.contains("ForEach(entry.largeItems.prefix(4)) { habit in"))
+        XCTAssertTrue(list.contains("graphHeight: WidgetLogic.LargeGeometry.listGraphHeight"))
+        XCTAssertTrue(item.contains("if graph && !habit.isReminder"),
+                      "reminders must remain graph-free in the shared item path")
         XCTAssertTrue(focus.contains("compact: true"))
-        XCTAssertTrue(focus.contains("graph: false"))
-        XCTAssertTrue(item.contains("if graph && !habit.isReminder"))
+        XCTAssertEqual(focus.components(separatedBy: "LargeWidgetItem(habit:").count - 1, 2,
+                       "Fokus must have one featured item and one queue source path")
+        XCTAssertTrue(focus.contains("LargeWidgetItem(habit: focus, entry: entry,"))
+        XCTAssertTrue(focus.contains("ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in"))
+        XCTAssertTrue(focus.contains("LargeWidgetItem(habit: habit, entry: entry, compact: true,"))
+        XCTAssertEqual(focus.components(separatedBy: "graph: false").count - 1, 1,
+                       "the queue source path must explicitly suppress graphs")
+        XCTAssertTrue(focus.contains("graphHeight: WidgetLogic.LargeGeometry.focusFeaturedGraphMinimumHeight"))
         XCTAssertTrue(item.contains(".minimumScaleFactor(0.7)"))
 
-        let habits = [
-            Habit(name: "今日需要完成的中文习惯名称", emoji: "🧑🏽‍💻"),
-            Habit(name: "第二个很长的提醒名称", emoji: "📚"),
-            Habit(name: "第三个数量习惯", emoji: "🏋🏽‍♀️"),
-            Habit(name: "第四个判断习惯", emoji: "✅")
-        ]
+        let today = DayKey.today()
+        var checkbox = Habit(name: "今日需要完成的中文习惯名称", emoji: "🧑🏽‍💻")
+        checkbox.log[today] = 1
+        let quantity = Habit(name: "第三个数量习惯", emoji: "🏋🏽‍♀️",
+                             recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "第四个判断习惯", emoji: "✅", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        let reminder = Habit(name: "第二个很长的提醒名称", emoji: "📚",
+                             itemType: .reminder, recurrence: .weekdays([2, 4, 6]))
+        let habits = [checkbox, reminder, quantity, yesNo]
         let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits,
                                 largeLayout: .focus)
         let image = try render(LargeFocusWidgetView(entry: entry)
@@ -599,7 +614,13 @@ final class WidgetRenderingTests: XCTestCase {
             XCTFail("Could not render \(name)")
             throw NSError(domain: "WidgetRenderingTests", code: 1)
         }
-        try data.write(to: URL(fileURLWithPath: "/tmp/\(name)"), options: .atomic)
+        let outputURL = URL(fileURLWithPath: "/tmp/\(name)")
+        try data.write(to: outputURL, options: .atomic)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path),
+                      "render output missing: \(outputURL.path)")
+        let fileSize = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber
+        XCTAssertGreaterThan(fileSize?.intValue ?? 0, 0,
+                             "render output is empty: \(outputURL.path)")
         return image
     }
 
