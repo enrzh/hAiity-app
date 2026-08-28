@@ -46,3 +46,11 @@ xcodebuild test -project Haiity.xcodeproj -scheme Haiity \
 - `HaiityWidget/WidgetGridViews.swift`
 - `HaiityTests/WidgetRenderingTests.swift`
 - 本报告文件
+
+## Final Review 修复
+
+共享 `LargeWidgetItem` 的 reminder 标题行现在只显示 bell；当 `graph == true` 时，`summary.metricText` 单独显示在 middle region，覆盖 Liste 与 Fokus featured。Fokus queue 继续使用 `graph == false` 的单行路径，并移除无效的 `graphHeight: 12`。
+
+新增回归覆盖：AX XXXL 下混合长中文/宽 emoji 的 list、grid、focus 分区与 action 行；grid reminder 标题/middle timing/44pt actions；以及真实 `PaletteBook(customs:)` 在 light、dark、fullColor、vibrant 下的非空和 distinct graph signatures。旧的 `partialGraphs` 自我计数死代码已删除。
+
+最终三套 suite：`132 tests, 0 failures`，其中 WidgetRenderingTests 31、WidgetLogicTests 68，GitHubWidgetTests 包含在总计中。

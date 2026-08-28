@@ -282,7 +282,7 @@ private struct LargeWidgetItem: View {
                     .layoutPriority(1)
                 Spacer(minLength: 2)
                 if habit.isReminder {
-                    Label(summary.metricText, systemImage: "bell.fill")
+                    Image(systemName: "bell.fill")
                 } else {
                     HStack(spacing: 3) {
                         Image(systemName: summary.metricSymbol)
@@ -298,7 +298,11 @@ private struct LargeWidgetItem: View {
                 Link(destination: HaiityWidgetLink.habit(habit.id)) {
                     VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                         titleStatusBand
-                        if graph && !habit.isReminder {
+                        if graph && habit.isReminder {
+                            Text(verbatim: summary.metricText)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                        } else if graph {
                             TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
                                 HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                             }
@@ -405,7 +409,7 @@ struct LargeFocusWidgetView: View {
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                     ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
                         LargeWidgetItem(habit: habit, entry: entry, compact: true,
-                                        graphHeight: 12, graph: false)
+                                        graph: false)
                             .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
                     }
                 }

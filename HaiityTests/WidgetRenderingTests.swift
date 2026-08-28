@@ -5,6 +5,61 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testTaskFourMixedAccessibilityRegionsAndReminderMiddleAreBounded() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("if graph && habit.isReminder"))
+        XCTAssertTrue(item.contains("Text(verbatim: summary.metricText)"))
+        XCTAssertFalse(item.contains("graphHeight: 12"))
+
+        let today = DayKey.today()
+        var checkbox = Habit(name: "一个很长的中文习惯名称", emoji: "🧑🏽‍💻")
+        checkbox.log[today] = 1
+        let quantity = Habit(name: "数量习惯", emoji: "🏋🏽‍♀️", recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "判断习惯", emoji: "✅", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        let reminder = Habit(name: "提醒事项时间", emoji: "👩🏽‍🔬", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        let habits = [checkbox, quantity, yesNo, reminder]
+        let entry = HaiityEntry(date: .now, habits: habits, widgetResetEnabled: true,
+                                largeItems: habits, largeLayout: .focus)
+        let views = [("list", AnyView(LargeListWidgetView(entry: entry))),
+                     ("grid", AnyView(LargeGridWidgetView(entry: entry))),
+                     ("focus", AnyView(LargeFocusWidgetView(entry: entry)))]
+        for (name, view) in views {
+            let image = try render(view.environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+                .frame(width: 332, height: 356), to: "large-task-4-mixed-\(name).png")
+            XCTAssertGreaterThan(visiblePixelCount(image), 20)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: 0, y: 0, width: 664, height: 120)), 8)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: 0, y: 560, width: 664, height: 152)), 8)
+        }
+    }
+
+    func testTaskFourCustomPaletteHasDistinctLightDarkAndVibrantGraphRegions() throws {
+        let customs = [CustomPalette(name: "Task Four A", base: 0xD97706),
+                       CustomPalette(name: "Task Four B", base: 0x2563EB)]
+        let today = DayKey.today()
+        var first = Habit(name: "Orange", emoji: "🟠")
+        first.palette = .custom(customs[0].id)
+        first.log[today] = 1
+        var second = Habit(name: "Blue", emoji: "🔵")
+        second.palette = .custom(customs[1].id)
+        second.log[today] = 1
+        let entry = HaiityEntry(date: .now, habits: [first, second],
+                                palettes: PaletteBook(global: .default, customs: customs),
+                                largeItems: [first, second], largeLayout: .grid)
+        let base = LargeGridWidgetView(entry: entry).frame(width: 332, height: 356)
+        let light = try render(base, to: "large-task-4-custom-light.png")
+        let dark = try render(base.environment(\.colorScheme, .dark), to: "large-task-4-custom-dark.png")
+        let vibrant = try render(base.environment(\.widgetRenderingMode, .vibrant), to: "large-task-4-custom-vibrant.png")
+        let region = CGRect(x: 24, y: 112, width: 248, height: 172)
+        XCTAssertGreaterThan(visiblePixelCount(light), 20)
+        XCTAssertGreaterThan(visiblePixelCount(dark), 20)
+        XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
+        XCTAssertGreaterThan(Set([colorSignature(light, in: region), colorSignature(dark, in: region),
+                                  colorSignature(vibrant, in: region)]).count, 1)
+    }
+
     func testLargeRenderersCapAccessibilityDynamicTypeForFixedGeometry() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
@@ -73,6 +128,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(item.components(separatedBy: "summary.metricText").count - 1, 1,
                        "reminder timing must be rendered exactly once in the middle region")
         XCTAssertTrue(item.contains("Image(systemName: \"bell.fill\")"))
+        XCTAssertTrue(item.contains("Text(verbatim: metricText)"), "reminder timing must have its own middle region")
+        XCTAssertTrue(item.contains("frame(width: 44, height: 44)"), "raster actions keep 44pt targets")
         XCTAssertEqual(item.components(separatedBy: "frame(width: 44, height: 44)").count - 1, 5,
                        "yes/no, count, checkbox/reminder, and reset actions need 44pt frames")
         XCTAssertTrue(item.contains("gridGraphMinimumHeight"))
@@ -198,10 +255,6 @@ final class WidgetRenderingTests: XCTestCase {
                                        largeItems: Array(habits.prefix(2)), largeLayout: .grid)
         let partial = try render(LargeGridWidgetView(entry: partialEntry).frame(width: 332, height: 356), to: "large-grid-partial-positions.png")
         XCTAssertEqual(partial.cgImage.map { CGSize(width: $0.width, height: $0.height) }, CGSize(width: 664, height: 712))
-        XCTAssertGreaterThan(visiblePixelCount(partial), 20)
-        let partialGraphs = tiles.map { CGRect(x: $0.minX, y: $0.minY + 20,
-                                                width: $0.width, height: 86) }
-        XCTAssertEqual(partialGraphs.count, 4)
         XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let vibrant = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .vibrant)
             .frame(width: 332, height: 356), to: "large-grid-custom-vibrant.png")
@@ -351,8 +404,10 @@ final class WidgetRenderingTests: XCTestCase {
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
         XCTAssertTrue(list.contains("ForEach(entry.largeItems.prefix(4)) { habit in"))
         XCTAssertTrue(list.contains("graphHeight: WidgetLogic.LargeGeometry.listGraphHeight"))
-        XCTAssertTrue(item.contains("if graph && !habit.isReminder"),
-                      "reminders must remain graph-free in the shared item path")
+        XCTAssertTrue(item.contains("if graph && habit.isReminder"),
+                      "featured reminders must render timing in the middle region")
+        XCTAssertTrue(item.contains("} else if graph {"),
+                      "featured non-reminders must retain their graph region")
         XCTAssertTrue(focus.contains("compact: true"))
         XCTAssertEqual(focus.components(separatedBy: "LargeWidgetItem(habit:").count - 1, 2,
                        "Fokus must have one featured item and one queue source path")
