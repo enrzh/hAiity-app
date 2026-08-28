@@ -116,6 +116,7 @@
 		82901A50ED148FCC1D589F56 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 40BC9E9E6D29FB3282CF42EB /* PrivacyInfo.xcprivacy */; };
 		82A64A149C93CABE986F4D18 /* AppNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38C290C30CD19DC5B5339655 /* AppNavigationTests.swift */; };
 		82BFF7C97E97127D9A36447A /* ReminderSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE58C653CC45AF716DE52CF /* ReminderSyncTests.swift */; };
+		83F7D70F31EA5599D405FBAA /* LargeWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298091F217F0747A21F0942F /* LargeWidgetIntent.swift */; };
 		878D834B06971F66AFDFF9C1 /* Reminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AA2D8B217041642946DB00 /* Reminders.swift */; };
 		879441A25F038A78AE283859 /* HaiityShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776A354A7FFDE7DBCF999A81 /* HaiityShortcuts.swift */; };
 		879F20ED582D7F51F9767747 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EEAF0B18FC68A1504725BC /* AppNavigation.swift */; };
@@ -136,6 +137,7 @@
 		A329B78B1388F2586B2C2A0E /* Celebration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64121A2DC3096376A5167146 /* Celebration.swift */; };
 		A6773BBE24E037FDD9F6283F /* HaiityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D438A604A3C7DDB240B66B83 /* HaiityWidget.swift */; };
 		A6A6BA25C27F9874E79A8F73 /* SelectGraphIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7CAADC296C370566092836 /* SelectGraphIntent.swift */; };
+		A76B8955F3E6DA8848A657E6 /* LargeWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298091F217F0747A21F0942F /* LargeWidgetIntent.swift */; };
 		A7ADC0E3D8031FE7C462CA3B /* ThemeAndPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5427538662B90637E98ECF0F /* ThemeAndPaletteTests.swift */; };
 		A9042F5CE206E89FAE6371E7 /* GoalEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72ED21DCE4513A757075B7FE /* GoalEngineTests.swift */; };
 		A93A5E07779BDCC1AD70E003 /* StatsCardPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81A4BCDC427461AF259C07B /* StatsCardPrefs.swift */; };
@@ -270,6 +272,7 @@
 		274F9D55773D83EB0F91C64E /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
 		27F90D885ED3384F88A9ED61 /* FeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackTests.swift; sourceTree = "<group>"; };
 		297E5E4735819FCA2B4D8A70 /* MotifGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotifGrid.swift; sourceTree = "<group>"; };
+		298091F217F0747A21F0942F /* LargeWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeWidgetIntent.swift; sourceTree = "<group>"; };
 		29EBEB42EE87DB84EEC2028D /* PalettePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PalettePicker.swift; sourceTree = "<group>"; };
 		2BD31F7B9130CF4AF3D5894D /* CelebrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelebrationTests.swift; sourceTree = "<group>"; };
 		2E5DABD63C9237AA5A281CF5 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
@@ -476,6 +479,7 @@
 				717A9772F20B32742A0FD6CA /* GraphPaletteEntity.swift */,
 				F8131AA29ECEDC8244184A68 /* HabitSessionIntents.swift */,
 				776A354A7FFDE7DBCF999A81 /* HaiityShortcuts.swift */,
+				298091F217F0747A21F0942F /* LargeWidgetIntent.swift */,
 				40035C1974DEABD743FFE6FC /* MotivationActivityIntents.swift */,
 				C51980D67C62CB3D2EB613CA /* SelectGitHubWidgetIntent.swift */,
 				0A7CAADC296C370566092836 /* SelectGraphIntent.swift */,
@@ -878,6 +882,7 @@
 				C87C5539733460FCE6A4C883 /* HabitTimeZone.swift in Sources */,
 				A6773BBE24E037FDD9F6283F /* HaiityWidget.swift in Sources */,
 				EBDAADC6384498BBA77D60EC /* HaiityWidgetView.swift in Sources */,
+				A76B8955F3E6DA8848A657E6 /* LargeWidgetIntent.swift in Sources */,
 				FD65E42966769C7DA0636B6F /* Motivation.swift in Sources */,
 				44F038D04DBA496F04C1EC3A /* MotivationActivity.swift in Sources */,
 				B7AD8246F4DC1AC4FCA91B94 /* MotivationActivityIntents.swift in Sources */,
@@ -1019,6 +1024,7 @@
 				F41EA03B32F76E00A78A333A /* HomeShortcuts.swift in Sources */,
 				B62804A872A2F940128D4AF1 /* HueTileGrid.swift in Sources */,
 				9C4EAFF361060E0C243E0CDB /* Interaction.swift in Sources */,
+				83F7D70F31EA5599D405FBAA /* LargeWidgetIntent.swift in Sources */,
 				76C20D821211F11B525D4A7B /* MaterialPreviewPicker.swift in Sources */,
 				A2D6BEC0CCC1B13F4511D560 /* ModalPresentation.swift in Sources */,
 				E8095B8DFEEF235003F19883 /* MoreView.swift in Sources */,

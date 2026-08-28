@@ -163,6 +163,7 @@ targets:
       - path: Haiity/Intents/SelectHabitIntent.swift
       - path: Haiity/Intents/SelectGraphIntent.swift
       - path: Haiity/Intents/SelectGitHubWidgetIntent.swift
+      - path: Haiity/Intents/LargeWidgetIntent.swift
       - path: Haiity/Intents/GraphPaletteEntity.swift
       - path: Haiity/Views/GitHubContributionGraph.swift
       - path: Haiity/Theme.swift

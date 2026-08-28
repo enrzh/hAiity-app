@@ -4,6 +4,26 @@ import XCTest
 @testable import Haiity
 
 final class GitHubWidgetTests: XCTestCase {
+    func testLargeWidgetIntentsExposeExpectedOptionalSlots() throws {
+        let source = try source("Haiity/Intents/LargeWidgetIntent.swift")
+        XCTAssertTrue(source.contains("struct LargeWidgetListIntent: WidgetConfigurationIntent"))
+        XCTAssertTrue(source.contains("struct LargeWidgetGridIntent: WidgetConfigurationIntent"))
+        XCTAssertTrue(source.contains("struct LargeWidgetFocusIntent: WidgetConfigurationIntent"))
+        XCTAssertEqual(source.components(separatedBy: "var slot").count - 1, 10)
+        XCTAssertTrue(source.contains("var featured: HabitEntity?"))
+        XCTAssertTrue(source.contains("var queue1: HabitEntity?"))
+        XCTAssertTrue(source.contains("var queue2: HabitEntity?"))
+        XCTAssertTrue(source.contains("var queue3: HabitEntity?"))
+        XCTAssertFalse(source.contains("struct ReminderEntity"))
+    }
+
+    func testLargeWidgetIntentTitlesAreLocalizable() throws {
+        let source = try source("Haiity/Intents/LargeWidgetIntent.swift")
+        XCTAssertTrue(source.contains("LocalizedStringResource"))
+        XCTAssertTrue(source.contains("Automatisch"))
+        XCTAssertTrue(source.contains("Element 1"))
+    }
+
     func testGraphWidgetSourceHasOnlyHabitAndGitHubCases() {
         XCTAssertEqual(GraphWidgetSource.allCases, [.habit, .github])
     }
