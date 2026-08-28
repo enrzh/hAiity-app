@@ -13,7 +13,7 @@
 - 唯一需求源是 `docs/superpowers/specs/2026-08-28-large-widget-ui-redesign.md`；本计划不授权修改 resolver/configuration 的行为或新增产品架构。
 - 参考画布为 `332 x 356pt`；外 inset `12pt`，内容高度预算 `332pt`，内容宽度 `308pt`，header-to-content `4pt`。
 - Liste 为 `20 + 3*4 + 4*72 + 4 = 324pt`；每行 `72pt`，标题/状态 `18pt`，graph `38pt`，底部 breathing room `4pt`。
-- Raster 为 `20 + 4 + 3*96 + 2*8 = 324pt`；精确 `2 x 3`，header 独占 `20pt`，tile 两列，tile graph 至少 `48pt`。
+- Raster 为 `20 + 4 + 2*150 + 8 = 332pt`；精确 `2 x 2`，header 独占 `20pt`，tile 两列，tile graph 至少 `86pt`。
 - Fokus 为 `20 + 4 + 136 + 3*48 + 3*4 = 312pt`；featured graph 至少 `92pt`，queue 不得重排首项。
 - 所有 action 保持独立 `44 x 44pt` hit area；父级 informational `Link` 不得吞掉 action。
 - Graph 仅对有效 contribution habit 使用 `TrailingGrid`；reminder graph-free，只显示 bell、标题、due/missed 和既有 `CheckOffHabitIntent`。
@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | `HaiityWidget/WidgetLogic.swift` | 既有 large 几何常量与纯 widget 逻辑 | 只修正/补充 `LargeGeometry` 常量及预算计算，不改 resolver |
 | `HaiityWidget/RosterWidgetView.swift` | 既有 roster、小中尺寸、Liste、Fokus 视图及共享 item/action 代码 | 将 large item 改为无卡片 contribution-first；保留小中尺寸行为 |
-| `HaiityWidget/WidgetGridViews.swift` | Raster 2x3 renderer、tile 与 `TrailingGrid` | 固定 header band/tile 几何，复用既有 action/link 语义 |
+| `HaiityWidget/WidgetGridViews.swift` | Raster 2x2 renderer、tile 与 `TrailingGrid` | 固定 header band/tile 几何，复用既有 action/link 语义 |
 | `HaiityWidget/HaiityWidgetView.swift` | 既有单 item rendering/accessibility/action 语义 | 仅在共享 primitive 必须复用且不改变现有 family 输出时做最小调整 |
 | `HaiityTests/WidgetRenderingTests.swift` | geometry、render smoke、图像/源码合同和可访问性合同 | 增加可观察的尺寸、边界、reminder、palette、链接/action 回归测试 |
 | `HaiityTests/WidgetLogicTests.swift` | 既有纯逻辑测试 | 仅在 geometry 常量的纯合同需要时增加测试，不测试新的 resolver 行为 |
@@ -161,7 +161,7 @@ git add HaiityWidget/WidgetLogic.swift HaiityWidget/RosterWidgetView.swift Haiit
 git commit -m "feat: make large widget items contribution first"
 ```
 
-### Task 2: Raster Header and Six Graph-Led Tiles
+### Task 2: Raster Header and Four Graph-Led Tiles
 
 **Files:**
 - Modify: `HaiityWidget/WidgetGridViews.swift`
@@ -169,7 +169,7 @@ git commit -m "feat: make large widget items contribution first"
 
 **Interfaces:**
 - Consumes: `entry.largeItems` in resolved order, `LargeWidgetHeader(entry:)`, shared item/action path from Task 1.
-- Produces: `LargeGridWidgetView(entry:)` with exactly six maximum items, a dedicated `20pt` header band, and stable `2 x 3` geometry.
+- Produces: `LargeGridWidgetView(entry:)` with exactly four maximum items, a dedicated `20pt` header band, and stable `2 x 2` geometry.
 
 - [ ] **Step 1: Write failing Raster contract tests.** Add tests that assert the source uses `gridHeaderGap`, `gridColumnGap`, `gridRowGap`, `gridGraphMinimumHeight`, and does not place six tiles in the header's `VStack` slot. Add a rendering test with six habits and assert the image is exactly `664 x 712` and visible. The test must inspect six tile graph regions by rendering six distinct level patterns and assert each of the six non-header tile rectangles has pixels while the header band does not overlap them.
 
@@ -186,7 +186,7 @@ func testRasterUsesDedicatedHeaderAndSixTileBudget() throws {
 
 - [ ] **Step 2: Run focused test and verify failure.** Run `xcodebuild test ... -only-testing:HaiityTests/WidgetRenderingTests/testRasterUsesDedicatedHeaderAndSixTileBudget`; expected `FAIL` because current grid uses the old single spacing constant and does not assert the graph minimum/header separation contract.
 
-- [ ] **Step 3: Implement the fixed Raster matrix.** Use a `VStack(spacing: 0)` with a `20pt` header, a `4pt` header gap, then a `LazyVGrid` with two flexible columns, `8pt` column gap, `8pt` row gap, and each tile `96pt`. Keep the resolved list order and `prefix(6)`. Each tile must reserve title/status `20pt`, graph at least `48pt`, and a separate trailing `44pt` action strip. Do not fabricate absent positions and do not stretch sparse tiles. Do not add a tile/card background; use only existing widget background and palette graph level colors.
+- [ ] **Step 3: Implement the fixed Raster matrix.** Use a `VStack(spacing: 0)` with a `20pt` header, a `4pt` header gap, then a `LazyVGrid` with two flexible columns, `8pt` column gap, `8pt` row gap, and each tile `150pt`. Keep the resolved list order and `prefix(4)`. Each tile must reserve title/status `20pt`, graph at least `86pt`, and a separate bottom `44pt` action strip. Do not fabricate absent positions and do not stretch sparse tiles. Do not add a tile/card background; use only existing widget background and palette graph level colors.
 
 - [ ] **Step 4: Run Raster tests and inspect screenshots.** Run focused plus the full `WidgetRenderingTests` suite. Expected: six tile graphs never intersect y `0...24pt` content coordinates (header plus gap), no two tile rectangles intersect, and light/dark/vibrant output remains non-empty.
 

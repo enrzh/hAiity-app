@@ -5,43 +5,42 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
-    func testRasterUsesDedicatedHeaderAndSixTileBudget() throws {
+    func testRasterUsesDedicatedHeaderAndFourTileBudget() throws {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
         XCTAssertTrue(source.contains("LargeGeometry.gridHeaderGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridColumnGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridRowGap"))
-        XCTAssertTrue(source.contains("entry.largeItems.prefix(6)"))
+        XCTAssertTrue(source.contains("entry.largeItems.prefix(4)"))
 
         let geometry = WidgetLogic.LargeGeometry.self
         XCTAssertEqual(geometry.gridHeaderHeight, 20)
         XCTAssertEqual(geometry.gridHeaderGap, 4)
         XCTAssertEqual(geometry.gridColumnGap, 8)
         XCTAssertEqual(geometry.gridRowGap, 8)
-        XCTAssertEqual(geometry.gridGraphMinimumHeight, 48)
+        XCTAssertEqual(geometry.gridGraphMinimumHeight, 86)
         XCTAssertEqual(geometry.gridHeaderHeight + geometry.gridHeaderGap
-                       + 3 * geometry.gridRowHeight + 2 * geometry.gridRowGap, 328)
+                       + 2 * geometry.gridRowHeight + geometry.gridRowGap, 332)
 
         let body = try sourceSlice(source, from: "struct LargeGridWidgetView", to: "private struct LargeGridItem")
         XCTAssertTrue(body.contains("VStack(alignment: .leading, spacing: 0)"))
         XCTAssertTrue(body.contains("Color.clear.frame(height: WidgetLogic.LargeGeometry.gridHeaderGap)"))
         XCTAssertTrue(body.contains("LazyVGrid"))
         let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
-        XCTAssertTrue(item.contains("LazyVGrid(columns:"))
+        XCTAssertTrue(item.contains("HStack(spacing: 0)"))
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"))
-        XCTAssertTrue(item.contains("frame(width: 88, height: 88"))
-        XCTAssertFalse(item.contains("VStack(spacing: 0)"))
+        XCTAssertTrue(item.contains("minHeight: 44"))
+        XCTAssertTrue(item.contains(".frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44"))
         XCTAssertFalse(item.contains(".ultraThinMaterial"))
-        XCTAssertTrue(item.contains("tileWidth - 88"))
-        XCTAssertTrue(item.contains("if habit.isReminder"))
+        XCTAssertFalse(item.contains("tileWidth - 88"))
+        XCTAssertTrue(item.contains("if !habit.isReminder"))
         XCTAssertTrue(item.contains(".frame(height: 20)"))
         XCTAssertTrue(item.contains(".lineLimit(1)"))
-        XCTAssertTrue(item.contains("GridItem(.fixed(44)"))
     }
 
-    func testRasterSixGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
+    func testRasterFourGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
         let today = DayKey.today()
-        let customs = (0..<6).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }
-        let habits = (0..<6).map { index -> Habit in
+        let customs = (0..<4).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }
+        let habits = (0..<4).map { index -> Habit in
             var habit = Habit(name: "Raster Habit \(index)", emoji: index.isMultiple(of: 2) ? "*" : "")
             for offset in 0...4 {
                 if let day = DayKey.shifted(today, by: -(index * 2 + offset)) {
@@ -54,7 +53,7 @@ final class WidgetRenderingTests: XCTestCase {
         let entry = HaiityEntry(date: .now, habits: habits,
                                 palettes: PaletteBook(global: .default, customs: customs),
                                 largeItems: habits, largeLayout: .grid)
-        let image = try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid-six-regions.png")
+        let image = try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid-four-regions.png")
         XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
                        CGSize(width: 664, height: 712))
         XCTAssertGreaterThan(visiblePixelCount(image), 20)
@@ -68,7 +67,7 @@ final class WidgetRenderingTests: XCTestCase {
         let rowGap = WidgetLogic.LargeGeometry.gridRowGap * scale
         let headerBottom = contentY + WidgetLogic.LargeGeometry.gridHeaderHeight * scale
             + WidgetLogic.LargeGeometry.gridHeaderGap * scale
-        let tiles = (0..<6).map { index -> CGRect in
+        let tiles = (0..<4).map { index -> CGRect in
             let row = index / 2
             let column = index % 2
             return CGRect(x: contentX + CGFloat(column) * (columnWidth + columnGap),
@@ -83,22 +82,22 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: contentX, y: contentY,
                                                                       width: 308 * scale,
                                                                       height: WidgetLogic.LargeGeometry.gridHeaderHeight * scale)), 2)
-        for index in 0..<6 {
+        for index in 0..<4 {
             let tile = tiles[index]
             let tileX = tile.minX
             let tileY = tile.minY
             let graph = CGRect(x: tileX, y: tileY + 20 * scale,
-                               width: columnWidth - WidgetLogic.LargeGeometry.actionHeight * scale,
+                               width: columnWidth,
                                height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight * scale)
             XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20, "missing graph \(index)")
             XCTAssertGreaterThanOrEqual(tileY, headerBottom)
             XCTAssertLessThanOrEqual(tileY + rowHeight, 712 - contentY)
             XCTAssertEqual(tile.maxX + (index % 2 == 0 ? columnGap : 0),
                            index % 2 == 0 ? tiles[index + 1].minX : tile.maxX)
-            if index < 4 { XCTAssertEqual(tile.maxY + rowGap, tiles[index + 2].minY) }
+            if index < 2 { XCTAssertEqual(tile.maxY + rowGap, tiles[index + 2].minY) }
         }
         let signatures = Set(tiles.map { colorSignature(image, in: CGRect(x: $0.minX, y: $0.minY + 40,
-                                                                            width: $0.width - 88, height: 96)) })
+                                                                            width: $0.width, height: 86)) })
         XCTAssertGreaterThanOrEqual(signatures.count, 3)
         let partialEntry = HaiityEntry(date: .now, habits: habits,
                                        palettes: PaletteBook(global: .default, customs: customs),
@@ -107,15 +106,15 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(partial.cgImage.map { CGSize(width: $0.width, height: $0.height) }, CGSize(width: 664, height: 712))
         XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let partialGraphs = tiles.map { CGRect(x: $0.minX, y: $0.minY + 20,
-                                                width: $0.width - 88, height: 76) }
-        XCTAssertEqual(partialGraphs.count, 6)
+                                                width: $0.width, height: 86) }
+        XCTAssertEqual(partialGraphs.count, 4)
         XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let vibrant = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .vibrant)
             .frame(width: 332, height: 356), to: "large-grid-custom-vibrant.png")
         XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
 
         let rasterSource = try source("HaiityWidget/WidgetGridViews.swift")
-        XCTAssertTrue(rasterSource.contains("if habit.isReminder"))
+        XCTAssertTrue(rasterSource.contains("if !habit.isReminder"))
         XCTAssertTrue(rasterSource.contains("Color.clear"))
         XCTAssertTrue(rasterSource.contains("bell.fill"))
     }
@@ -123,8 +122,8 @@ final class WidgetRenderingTests: XCTestCase {
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
         let g = WidgetLogic.LargeGeometry.self
         XCTAssertEqual(g.listHeaderHeight + 4 * g.itemSpacing + 4 * g.listRowHeight, 324)
-        XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 3 * g.gridRowHeight
-                       + 2 * g.gridRowGap, 328)
+        XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 2 * g.gridRowHeight
+                       + g.gridRowGap, 332)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
                        + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
                        + 2 * g.itemSpacing, 316)
@@ -252,9 +251,15 @@ final class WidgetRenderingTests: XCTestCase {
         let entry = HaiityEntry(date: demo.date, habits: demo.habits,
                                 palettes: demo.palettes, widgetResetEnabled: true,
                                 largeItems: demo.habits, largeLayout: .list)
-        try render(LargeListWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-list.png")
-        try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-grid.png")
-        try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-focus.png")
+        try render(LargeListWidgetView(entry: entry)
+            .background(Color.white)
+            .frame(width: 332, height: 356), to: "haiity-ui-redesign-list-composited.png")
+        try render(LargeGridWidgetView(entry: entry)
+            .background(Color.white)
+            .frame(width: 332, height: 356), to: "haiity-ui-redesign-grid-composited.png")
+        try render(LargeFocusWidgetView(entry: entry)
+            .background(Color.white)
+            .frame(width: 332, height: 356), to: "haiity-ui-redesign-focus-composited.png")
     }
 
     func testAllLargeLayoutsShareTheEmptyAppGroupState() throws {
@@ -307,7 +312,7 @@ final class WidgetRenderingTests: XCTestCase {
             XCTAssertTrue(text.contains("TrailingGrid(habit: habit"))
             XCTAssertTrue(text.contains("summary.metricText"))
             XCTAssertTrue(text.contains("bell.fill"))
-            XCTAssertTrue(text.contains("if habit.isReminder"))
+            XCTAssertTrue(text.contains("if !habit.isReminder"))
         }
     }
 

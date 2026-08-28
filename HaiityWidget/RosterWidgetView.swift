@@ -189,10 +189,6 @@ struct RosterWidgetView: View {
         .font(.caption2.weight(.bold))
         .foregroundStyle(Theme.accentText(palette))
         .buttonStyle(.plain)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 4)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay { Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5) }
     }
 
     private func metadata(habit: Habit, summary: WidgetItemSummary,

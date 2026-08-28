@@ -11,7 +11,7 @@ Make contribution history the primary reading surface. A user should understand 
 The three approved layouts remain selectable as `list`, `grid`, and `focus`:
 
 - **Liste:** one vertical sequence, with a materially larger graph per habit and no nested/repeated card treatment.
-- **Raster:** six graph-led tiles in a 2 x 3 matrix. The header has its own reserved row and never overlaps a tile.
+- **Raster:** four graph-led tiles in a 2 x 2 matrix. The header has its own reserved row and never overlaps a tile.
 - **Fokus:** one genuinely dominant graph followed by three lightweight queue rows.
 
 The existing entry resolution, habit ordering, status semantics, palette transport, WidgetKit rendering modes, AppIntents, deep links, and configuration intent remain the source of truth. No new manager, service, protocol, factory, or other architecture layer is part of this design.
@@ -47,13 +47,13 @@ Each row is an unframed layout band, not a card: title and compact status at the
 | --- | ---: | --- |
 | Header | `20pt` | Dedicated, non-overlapping header band |
 | Header gap | `4pt` | Separates header from matrix |
-| Three tile rows | `3 x 96pt` | Exactly six tiles, two columns |
+| Two tile rows | `2 x 150pt` | Exactly four tiles, two columns |
 | Two matrix gaps | `2 x 8pt` | Horizontal and vertical grid spacing |
 | **Total** | **`324pt`** | Leaves `8pt` tolerance inside the `332pt` budget |
 
 Tile width is the available content width minus one `8pt` column gap, divided equally. Each tile reserves its top `20pt` for the name and status, then gives the graph a minimum `48pt` high region. Actions sit in a trailing control strip with a `44pt` hit target and must not consume the header's vertical space. The graph, not the tile background, is the tile's visual anchor.
 
-The six resolved items are shown in resolved list order, limited to six. A tile may be visually quiet, but it must not disappear because its habit is incomplete or has a reminder state.
+The four resolved items are shown in resolved list order, limited to four. A tile may be visually quiet, but it must not disappear because its habit is incomplete or has a reminder state.
 
 ### Fokus budget
 
@@ -101,7 +101,7 @@ Empty `largeItems` uses the existing shared empty state and the existing habits 
 Partial data means fewer than the layout's nominal capacity, stale/missing graph history, or a mixture of habit kinds. Preserve resolved order and preserve geometry:
 
 - Liste shows available rows and leaves remaining budget as breathing room; it does not stretch one habit into a replacement card.
-- Raster keeps the 2 x 3 matrix positions stable; absent positions remain quiet empty space, not fabricated habits.
+- Raster keeps the 2 x 2 matrix positions stable; absent positions remain quiet empty space, not fabricated habits.
 - Fokus keeps one featured slot when at least one item exists and shows only the available queue rows.
 - A valid habit with no contribution history renders an empty seven-row graph using the existing level-zero treatment. Missing history is not “done”.
 - A reminder remains graph-free in every partial-data case.
