@@ -237,7 +237,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("frame(width: WidgetLogic.LargeGeometry.actionHeight"))
         XCTAssertTrue(item.contains("height: WidgetLogic.LargeGeometry.actionHeight"))
 
-        let focus = try sourceSlice(roster, from: "struct LargeFocusWidgetView", to: "struct LargeGridWidgetView")
+        let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))
+        let focus = String(roster[focusStart.lowerBound...])
         XCTAssertTrue(focus.contains("graph: false"))
     }
 
