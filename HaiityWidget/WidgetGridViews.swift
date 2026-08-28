@@ -12,7 +12,7 @@ struct LargeGridWidgetView: View {
             } else {
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                     LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.gridHeaderHeight)
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridRowSpacing), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridRowSpacing)], spacing: WidgetLogic.LargeGeometry.gridRowSpacing) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
                     ForEach(entry.largeItems.prefix(6)) { habit in
                             LargeGridItem(habit: habit, entry: entry).frame(height: WidgetLogic.LargeGeometry.gridRowHeight)
                         }

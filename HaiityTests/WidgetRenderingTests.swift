@@ -22,10 +22,12 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testListeDoesNotUseRepeatedCardTreatmentAndUsesLargeGraphRegion() throws {
         let source = try source("HaiityWidget/RosterWidgetView.swift")
-        XCTAssertTrue(source.contains("LargeGeometry.listGraphHeight"))
-        XCTAssertTrue(source.contains("LargeGeometry.listTitleHeight"))
-        XCTAssertFalse(source.contains("RoundedRectangle(cornerRadius: 10"))
-        XCTAssertFalse(source.contains("background(.ultraThinMaterial, in: Capsule())"))
+        let list = try sourceSlice(source, from: "struct LargeListWidgetView", to: "struct LargeFocusWidgetView")
+        XCTAssertTrue(list.contains("graphHeight: WidgetLogic.LargeGeometry.listGraphHeight"))
+        let item = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("listTitleHeight"))
+        XCTAssertFalse(item.contains("RoundedRectangle(cornerRadius:"))
+        XCTAssertFalse(item.contains("background(.ultraThinMaterial"))
     }
 
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
@@ -39,7 +41,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(roster.contains("LargeGeometry.focusFeaturedHeight"))
         XCTAssertTrue(roster.contains("LargeGeometry.listGraphHeight"))
         XCTAssertTrue(roster.contains("graphHeight: 32"))
-        XCTAssertTrue(roster.contains("minHeight: 44"))
+        XCTAssertTrue(roster.contains("width: WidgetLogic.LargeGeometry.actionHeight"))
         XCTAssertTrue(grid.contains("minHeight: 44"))
     }
 
@@ -174,7 +176,13 @@ final class WidgetRenderingTests: XCTestCase {
             XCTAssertGreaterThan(visiblePixelCount(dark), 20)
             XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
 
-            let dynamicType = try render(view.environment(\.sizeCategory, .accessibilityLarge)
+            let largeType = try render(view.environment(\.sizeCategory, .accessibilityLarge)
+                .frame(width: 332, height: 356), to: "large-\(name)-dynamic-type-large.png")
+            XCTAssertEqual(largeType.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712))
+            XCTAssertGreaterThan(visiblePixelCount(largeType), 20)
+
+            let dynamicType = try render(view.environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
                 .frame(width: 332, height: 356), to: "large-\(name)-dynamic-type.png")
             XCTAssertEqual(dynamicType.cgImage.map { CGSize(width: $0.width, height: $0.height) },
                            CGSize(width: 664, height: 712))
@@ -255,6 +263,26 @@ final class WidgetRenderingTests: XCTestCase {
                        "undo is a configured action, not a post-decision action")
     }
 
+    func testLargeActionsHaveIndependentHitTargetsAndResetStates() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertEqual(item.components(separatedBy: "largeActionButton(intent:").count - 1, 5)
+        XCTAssertTrue(item.contains("frame(width: WidgetLogic.LargeGeometry.actionHeight"))
+        XCTAssertTrue(item.contains("if entry.widgetResetEnabled"))
+        XCTAssertFalse(item.contains(".frame(minWidth: 44, minHeight: 44)"), "actions must not receive the hit frame as a group")
+    }
+
+    func testLargeItemStatusAndDynamicTypeContractsAreObservable() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("case .done"))
+        XCTAssertTrue(item.contains("case .declined"))
+        XCTAssertTrue(item.contains("case .open, .free"))
+        XCTAssertTrue(item.contains("preserveFocusSurface"))
+        XCTAssertTrue(item.contains(".foregroundStyle(statusTint(summary.status"))
+        XCTAssertTrue(item.contains("frame(height: graphHeight)"))
+    }
+
     private var githubEntry: HaiityEntry {
         let today = DayKey.today()
         let days = (0..<371).compactMap { offset -> GitHubContributionDay? in
@@ -304,5 +332,11 @@ final class WidgetRenderingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: root.appendingPathComponent(relativePath))
+    }
+
+    private func sourceSlice(_ source: String, from start: String, to end: String) throws -> String {
+        let start = try XCTUnwrap(source.range(of: start))
+        let end = try XCTUnwrap(source.range(of: end, range: start.upperBound..<source.endIndex))
+        return String(source[start.lowerBound..<end.lowerBound])
     }
 }

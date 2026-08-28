@@ -158,21 +158,21 @@ struct RosterWidgetView: View {
             switch summary.kind {
             case .yesNo:
                 Button(intent: AnswerYesHabitIntent(habit: habit)) {
-                    Image(systemName: "checkmark")
+                    Image(systemName: "checkmark").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(String(localized: "Mit Ja beantworten"))
                 Button(intent: AnswerNoHabitIntent(habit: habit)) {
-                    Image(systemName: "xmark")
+                    Image(systemName: "xmark").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(String(localized: "Mit Nein beantworten"))
             case .quantity:
                 Button(intent: CheckOffHabitIntent(habit: habit)) {
-                    Image(systemName: "plus")
+                    Image(systemName: "plus").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(String(localized: "Menge erhöhen"))
             case .checkbox, .reminder:
                 Button(intent: CheckOffHabitIntent(habit: habit)) {
-                    Image(systemName: "checkmark")
+                    Image(systemName: "checkmark").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(habit.isReminder
                                     ? String(localized: "Erinnerung erledigen")
@@ -181,7 +181,7 @@ struct RosterWidgetView: View {
 
             if entry.widgetResetEnabled {
                 Button(intent: ResetHabitIntent(habit: habit)) {
-                    Image(systemName: "arrow.uturn.backward")
+                    Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(String(localized: "Rückgängig"))
             }
@@ -189,7 +189,6 @@ struct RosterWidgetView: View {
         .font(.caption2.weight(.bold))
         .foregroundStyle(Theme.accentText(palette))
         .buttonStyle(.plain)
-        .frame(minWidth: 44, minHeight: 44)
     }
 
     private func metadata(habit: Habit, summary: WidgetItemSummary,
@@ -265,6 +264,7 @@ private struct LargeWidgetItem: View {
     let entry: HaiityEntry
     var compact = false
     var graphHeight: CGFloat = 22
+    var preserveFocusSurface = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
@@ -284,6 +284,7 @@ private struct LargeWidgetItem: View {
                     .frame(height: compact ? WidgetLogic.LargeGeometry.listTitleHeight : WidgetLogic.LargeGeometry.listTitleHeight, alignment: .leading)
                     if habit.isReminder {
                         Image(systemName: "bell.fill")
+                            .foregroundStyle(statusTint(summary.status, palette: palette))
                             .accessibilityHidden(true)
                             .frame(height: graphHeight)
                     } else {
@@ -292,7 +293,10 @@ private struct LargeWidgetItem: View {
                             Text(verbatim: String(habit.streak(today: today, calendar: entry.calendar(for: habit))))
                             Image(systemName: summary.metricSymbol)
                             Text(verbatim: summary.metricText).lineLimit(1)
-                        }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(statusTint(summary.status, palette: palette))
+                        .lineLimit(1)
                         TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
                             HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                         }
@@ -317,12 +321,29 @@ private struct LargeWidgetItem: View {
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
-        .padding(0)
+        .padding(preserveFocusSurface ? 8 : 0)
+        .background {
+            if preserveFocusSurface {
+                Theme.accent(palette).opacity(0.1)
+            }
+        }
         .frame(maxHeight: .infinity)
     }
 
+    private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
+        switch status {
+        case .done: return AnyShapeStyle(Theme.accentText(palette))
+        case .declined: return AnyShapeStyle(Theme.color(palette.negative(dark: scheme == .dark)))
+        case .open, .free: return AnyShapeStyle(HierarchicalShapeStyle.secondary)
+        }
+    }
+
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String) -> some View {
-        Button(intent: intent) { Image(systemName: symbol).frame(minWidth: 44, minHeight: 44) }
+        Button(intent: intent) {
+            Image(systemName: symbol)
+                .frame(width: WidgetLogic.LargeGeometry.actionHeight,
+                       height: WidgetLogic.LargeGeometry.actionHeight)
+        }
     }
 }
 
@@ -369,11 +390,11 @@ struct LargeFocusWidgetView: View {
             } else {
                 LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.focusHeaderHeight)
                 if let focus = entry.largeItems.first {
-                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 32)
+                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 32, preserveFocusSurface: true)
                         .frame(height: WidgetLogic.LargeGeometry.focusFeaturedHeight)
                 }
                 ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 12)
+                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 12, preserveFocusSurface: true)
                         .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
                 }
             }
