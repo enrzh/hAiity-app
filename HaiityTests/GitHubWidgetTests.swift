@@ -23,9 +23,10 @@ final class GitHubWidgetTests: XCTestCase {
     }
 
     func testLargeWidgetActionsBindTheCurrentItemAndNeverTheParentCollection() throws {
-        for (name, text, marker) in [("roster", try source("HaiityWidget/RosterWidgetView.swift"), "private struct LargeWidgetItem"),
-                                     ("grid", try source("HaiityWidget/WidgetGridViews.swift"), "private struct LargeGridItem")] {
-            let item = try section(text, startingAt: marker, endingAt: "\nprivate ")
+        for (name, text, marker, end) in [("roster", try source("HaiityWidget/RosterWidgetView.swift"), "private struct LargeWidgetItem", "\nstruct LargeListWidgetView"),
+                                          ("grid", try source("HaiityWidget/WidgetGridViews.swift"), "private struct LargeGridItem", "\n/// Gemeinsame Rasterbausteine")]
+        {
+            let item = try section(text, startingAt: marker, endingAt: end)
             XCTAssertTrue(text.contains("habit: habit"))
             XCTAssertTrue(item.contains("HaiityWidgetLink.habit(habit.id)"), "\(name) item link is not current habit")
             XCTAssertFalse(text.contains("widgetURL(URL(string: \"haiity://habits\")"))
@@ -342,9 +343,15 @@ final class GitHubWidgetTests: XCTestCase {
     }
 
     private func section(_ text: String, startingAt start: String, endingAt end: String) throws -> String {
-        let startRange = try XCTUnwrap(text.range(of: start))
+        guard let startRange = text.range(of: start) else {
+            XCTFail("missing section start marker: \(start)")
+            throw NSError(domain: "GitHubWidgetTests", code: 1)
+        }
         let tail = text[startRange.lowerBound...]
-        guard let endRange = tail.range(of: end) else { return String(tail) }
+        guard let endRange = tail.range(of: end) else {
+            XCTFail("missing section end marker: \(end)")
+            throw NSError(domain: "GitHubWidgetTests", code: 2)
+        }
         return String(tail[..<endRange.lowerBound])
     }
 }

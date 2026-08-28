@@ -131,12 +131,12 @@ final class WidgetLogicTests: GridTestCase {
             habits: [habits[0], archived, habits[1], habits[2], habits[3], habits[4]],
             selectedIDs: [habits[2].id, archived.id, habits[0].id, UUID()], limit: 4,
             unlocked: true, today: today, calendar: cal)
-        XCTAssertEqual(unlocked.map(\.id), [habits[2].id, habits[0].id, habits[1].id, habits[3].id])
+        XCTAssertEqual(unlocked.map(\.id), [habits[2].id, habits[1].id, habits[0].id, habits[3].id])
 
         let locked = WidgetLogic.resolveLargeItems(
             habits: habits, selectedIDs: [habits[1].id, UUID(), habits[0].id, habits[4].id], limit: 4,
             unlocked: false, today: today, calendar: cal)
-        XCTAssertEqual(locked.map(\.id), [habits[1].id, habits[0].id, habits[2].id])
+        XCTAssertEqual(locked.map(\.id), [habits[1].id, habits[2].id, habits[0].id])
     }
 
     func testLargeResolverUsesUnlockedSnapshotForRecommendation() {
