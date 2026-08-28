@@ -484,10 +484,10 @@ final class HabitStore {
     /// externe Schreiber (Widget-Intent im Extension-Prozess).
     @ObservationIgnored private var loadedMtime: Date?
 
-    init(url: URL = SharedStorage.dataURL()) {
+    init(url: URL = SharedStorage.dataURL(), loadFromDisk: Bool = true) {
         self.url = url
-        self.data = Self.read(url) ?? .empty
-        self.loadedMtime = Self.mtime(url)
+        self.data = loadFromDisk ? (Self.read(url) ?? .empty) : .empty
+        self.loadedMtime = loadFromDisk ? Self.mtime(url) : nil
     }
 
     /// ALLE Habits, auch archivierte (Export, Sync, Archiv-Ansicht).
@@ -653,6 +653,22 @@ final class HabitStore {
     static func read(_ url: URL) -> HabitData? {
         guard let raw = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(HabitData.self, from: raw)
+    }
+
+    /// Loads the initial payload away from the first SwiftUI render. The
+    /// store is intentionally empty until this finishes so the splash can
+    /// cover a mounted content tree without blocking the main thread.
+    @MainActor
+    func loadFromDisk() async {
+        guard loadedMtime == nil else { return }
+        let url = self.url
+        let snapshot = await Task.detached(priority: .userInitiated) {
+            (Self.read(url), Self.mtime(url))
+        }.value
+        guard !Task.isCancelled, loadedMtime == nil else { return }
+        loadedMtime = snapshot.1
+        guard let fresh = snapshot.0 else { return }
+        data = fresh
     }
 
     private static func mtime(_ url: URL) -> Date? {

@@ -38,7 +38,7 @@ private struct PendingReminderCompletion: Equatable {
 /// linksbündige Glas-Kapsel für Habits und Mehr plus der + rechts in der
 /// Ecke, mit dem gerechneten Zusammenziehen beim Scrollen.
 struct ContentView: View {
-    @State private var store = HabitStore()
+    @State private var store = HabitStore(loadFromDisk: false)
     @State private var github = GitHubContributionStore()
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
@@ -346,6 +346,7 @@ struct ContentView: View {
                     .themed(store, palettes: effectivePalettes)
             }
             .task {
+                await store.loadFromDisk()
                 try? await Task.sleep(for: .milliseconds(250))
                 searchPresentationArmed = true
                 becameActiveAt = .now

@@ -141,7 +141,7 @@ struct HaiityApp: App {
         }
     }
 
-    private static func readStartupBackgroundImageData() -> Data? {
+    private nonisolated static func readStartupBackgroundImageData() -> Data? {
         let appearance = HabitStore.read(SharedStorage.dataURL())?.appearancePreferences
         guard appearance?.backgroundMode == .image else { return nil }
         return appearance?.backgroundImageData

@@ -478,15 +478,15 @@ final class StartupSplashTests: XCTestCase {
                       "reduce motion should hand off immediately once the splash is on screen")
     }
 
-    func testSplashPreparesItsLaunchImageBeforeStartingTheAnimation() throws {
+    func testSplashStartsTheAnimationWhileLaunchImagePreparationContinues() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("prepareLaunchImage("),
-                      "the graph raster should be prepared before the animation begins")
+        XCTAssertTrue(splash.contains("launchImageTask"),
+                      "launch image preparation should have its own cancellable task")
 
         let startRange = try XCTUnwrap(splash.range(of: "private func startAnimation("))
         let configureRange = try XCTUnwrap(splash.range(of: "private func configureLayers",
@@ -505,8 +505,26 @@ final class StartupSplashTests: XCTestCase {
 
         XCTAssertTrue(splash.contains("AppearanceImageCache.launchTilesImageTask"),
                       "launch bitmap work must use the shared off-main-actor cache boundary")
-        XCTAssertTrue(splash.contains("await self.prepareLaunchImage"),
-                      "the animation should await the detached bitmap before adding layers")
+        XCTAssertTrue(splash.contains("Self.prepareLaunchImage"),
+                      "launch bitmap work must use the shared off-main-actor cache boundary")
+        XCTAssertTrue(splash.contains("self.startAnimation(metrics: metrics)"),
+                      "the animation should start without waiting for bitmap preparation")
+    }
+
+    func testContentStoreLoadsAfterItsFirstMountedFrame() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("@State private var store = HabitStore(loadFromDisk: false)"),
+                      "ContentView must not decode the full store during first body construction")
+        let load = try XCTUnwrap(content.range(of: "await store.loadFromDisk()"))
+        let task = try XCTUnwrap(content.range(of: ".task {"))
+        let boot = try XCTUnwrap(content.range(of: "await boot()", range: task.upperBound..<content.endIndex))
+        XCTAssertLessThan(task.lowerBound, load.lowerBound)
+        XCTAssertLessThan(load.lowerBound, boot.lowerBound)
     }
 
     func testSplashDelaysAreCancellationAware() throws {

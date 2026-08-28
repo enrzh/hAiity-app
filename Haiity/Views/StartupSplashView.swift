@@ -40,6 +40,7 @@ private final class StartupSplashAnimationView: UIView {
     private var tileLayers: [CALayer] = []
     private var launchImage: CGImage?
     private var startTask: Task<Void, Never>?
+    private var launchImageTask: Task<Void, Never>?
     private var finishTask: Task<Void, Never>?
     private var hasStarted = false
     private var scheduledBounds = CGSize.zero
@@ -60,6 +61,7 @@ private final class StartupSplashAnimationView: UIView {
 
     deinit {
         startTask?.cancel()
+        launchImageTask?.cancel()
         finishTask?.cancel()
     }
 
@@ -68,6 +70,8 @@ private final class StartupSplashAnimationView: UIView {
         guard window != nil else {
             startTask?.cancel()
             startTask = nil
+            launchImageTask?.cancel()
+            launchImageTask = nil
             finishTask?.cancel()
             finishTask = nil
             scheduledBounds = .zero
@@ -82,6 +86,8 @@ private final class StartupSplashAnimationView: UIView {
         if !hasStarted, startTask != nil, scheduledBounds != bounds.size {
             startTask?.cancel()
             startTask = nil
+            launchImageTask?.cancel()
+            launchImageTask = nil
             launchImage = nil
         }
         scheduleStartIfReady()
@@ -105,9 +111,18 @@ private final class StartupSplashAnimationView: UIView {
                 return
             }
             let metrics = Metrics(container: self.bounds.size)
-            self.launchImage = await self.prepareLaunchImage(
-                size: metrics.gridSize,
-                scale: self.window?.screen.scale ?? UIScreen.main.scale)
+            self.configureLayers(metrics: metrics)
+            self.launchImageTask?.cancel()
+            let scale = self.window?.screen.scale ?? UIScreen.main.scale
+            self.launchImageTask = Task { @MainActor [weak self] in
+                let image = await Self.prepareLaunchImage(size: metrics.gridSize, scale: scale)
+                guard let self,
+                      !Task.isCancelled,
+                      self.window != nil else { return }
+                self.launchImage = image
+                self.tileLayers.forEach { $0.contents = image }
+                self.launchImageTask = nil
+            }
             do {
                 try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.startDelay
                                                          * 1_000_000_000))
@@ -145,7 +160,7 @@ private final class StartupSplashAnimationView: UIView {
         }
     }
 
-    private func prepareLaunchImage(size: CGSize, scale: CGFloat) async -> CGImage? {
+    private static func prepareLaunchImage(size: CGSize, scale: CGFloat) async -> CGImage? {
         await AppearanceImageCache.launchTilesImageTask(size: size, scale: scale)
     }
 
