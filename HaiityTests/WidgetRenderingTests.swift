@@ -249,6 +249,32 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(g.actionHeight, 44)
     }
 
+    func testTaskTwoFokusQueueSuppressesGraphsAndProtectsMixedDynamicTypeIdentity() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))
+        let focus = String(roster[focusStart.lowerBound...])
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(focus.contains("compact: true"))
+        XCTAssertTrue(focus.contains("graph: false"))
+        XCTAssertTrue(item.contains("if graph && !habit.isReminder"))
+        XCTAssertTrue(item.contains(".minimumScaleFactor(0.7)"))
+
+        let habits = [
+            Habit(name: "今日需要完成的中文习惯名称", emoji: "🧑🏽‍💻"),
+            Habit(name: "第二个很长的提醒名称", emoji: "📚"),
+            Habit(name: "第三个数量习惯", emoji: "🏋🏽‍♀️"),
+            Habit(name: "第四个判断习惯", emoji: "✅")
+        ]
+        let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits,
+                                largeLayout: .focus)
+        let image = try render(LargeFocusWidgetView(entry: entry)
+            .environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+            .frame(width: 332, height: 356), to: "large-focus-task-2-mixed-dynamic-type.png")
+        XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                       CGSize(width: 664, height: 712))
+        XCTAssertGreaterThan(visiblePixelCount(image), 20)
+    }
+
     func testLargeProvidersUseLargeDemoPlaceholders() throws {
         let source = try self.source("HaiityWidget/HaiityWidget.swift")
         XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)

@@ -278,7 +278,7 @@ private struct LargeWidgetItem: View {
                 Text(verbatim: habit.name)
                     .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .minimumScaleFactor(0.7)
                     .layoutPriority(1)
                 Spacer(minLength: 2)
                 if habit.isReminder {
