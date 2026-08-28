@@ -242,13 +242,23 @@ struct RosterWidgetView: View {
 
 }
 
-private struct LargeWidgetHeader: View {
+struct LargeWidgetHeader: View {
     let entry: HaiityEntry
+    private var progress: WidgetLogic.DayProgress {
+        WidgetLogic.progress(habits: entry.habits,
+                             defaultTimeZoneIdentifier: entry.defaultTimeZoneIdentifier,
+                             now: entry.date)
+    }
+
     var body: some View {
         HStack {
             Text(String(localized: "Heute")).font(.headline.weight(.semibold))
             Spacer()
-            Text(verbatim: String(entry.largeItems.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            Text(progress.isFree
+                 ? String(localized: "Heute frei")
+                 : String(localized: "\(progress.met) von \(progress.due) heute"))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -304,7 +314,10 @@ private struct LargeWidgetItem: View {
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
-        .padding(8).frame(minHeight: compact ? 30 : 52).background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8)).clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(compact ? 4 : 4)
+        .frame(maxHeight: .infinity)
+        .background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String) -> some View {
@@ -327,14 +340,14 @@ struct LargeListWidgetView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                LargeWidgetHeader(entry: entry)
+                LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.listHeaderHeight)
                 ForEach(entry.largeItems.prefix(4)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: 20)
-                        .frame(maxHeight: .infinity)
+                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: 14)
+                        .frame(height: WidgetLogic.LargeGeometry.listRowHeight)
                 }
             }
         }
@@ -352,13 +365,14 @@ struct LargeFocusWidgetView: View {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                LargeWidgetHeader(entry: entry).frame(height: 24)
+                LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.focusHeaderHeight)
                 if let focus = entry.largeItems.first {
-                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 52).frame(height: 116)
+                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 32)
+                        .frame(height: WidgetLogic.LargeGeometry.focusFeaturedHeight)
                 }
                 ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 18)
-                        .frame(height: 60)
+                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 12)
+                        .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
                 }
             }
         }

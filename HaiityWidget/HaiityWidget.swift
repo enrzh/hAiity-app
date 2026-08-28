@@ -185,7 +185,7 @@ struct HaiityRosterProvider: TimelineProvider {
 }
 
 struct LargeListWidgetProvider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func placeholder(in context: Context) -> HaiityEntry { .demoLarge }
     func snapshot(for configuration: LargeWidgetListIntent, in context: Context) async -> HaiityEntry {
         if context.isPreview { return .demoLarge }
         return WidgetData.largeEntry(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
@@ -200,7 +200,7 @@ struct LargeListWidgetProvider: AppIntentTimelineProvider {
 }
 
 struct LargeGridWidgetProvider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func placeholder(in context: Context) -> HaiityEntry { .demoLarge }
     func snapshot(for configuration: LargeWidgetGridIntent, in context: Context) async -> HaiityEntry {
         if context.isPreview { return .demoLarge }
         return WidgetData.largeEntry(selectedIDs: [configuration.slot1?.id, configuration.slot2?.id,
@@ -217,7 +217,7 @@ struct LargeGridWidgetProvider: AppIntentTimelineProvider {
 }
 
 struct LargeFocusWidgetProvider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> HaiityEntry { .demo }
+    func placeholder(in context: Context) -> HaiityEntry { .demoLarge }
     func snapshot(for configuration: LargeWidgetFocusIntent, in context: Context) async -> HaiityEntry {
         if context.isPreview { return .demoLarge }
         return WidgetData.largeEntry(selectedIDs: [configuration.featured?.id, configuration.queue1?.id,

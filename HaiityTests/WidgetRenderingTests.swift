@@ -11,13 +11,47 @@ final class WidgetRenderingTests: XCTestCase {
 
         XCTAssertEqual(roster.components(separatedBy: ".containerBackground(for: .widget)").count - 1, 1)
         XCTAssertTrue(grid.contains(".containerBackground(for: .widget)"))
-        XCTAssertTrue(roster.contains(".frame(height: 60)"))
-        XCTAssertTrue(roster.contains("spacing: 4"))
-        XCTAssertTrue(roster.contains(".frame(height: 116)"))
-        XCTAssertTrue(roster.contains("graphHeight: 52"))
-        XCTAssertTrue(roster.contains("graphHeight: 20"))
+        XCTAssertTrue(roster.contains("LargeGeometry.focusQueueHeight"))
+        XCTAssertTrue(roster.contains("LargeGeometry.itemSpacing"))
+        XCTAssertTrue(roster.contains("LargeGeometry.focusFeaturedHeight"))
+        XCTAssertTrue(roster.contains("graphHeight: 32"))
+        XCTAssertTrue(roster.contains("graphHeight: 14"))
         XCTAssertTrue(roster.contains("minHeight: 44"))
         XCTAssertTrue(grid.contains("minHeight: 44"))
+    }
+
+    func testLargeLayoutsFitTheRealSystemLargeContentBudget() {
+        XCTAssertEqual(WidgetLogic.LargeGeometry.contentHeight, 332)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.listContentHeight,
+                       WidgetLogic.LargeGeometry.listHeaderHeight
+                       + 4 * WidgetLogic.LargeGeometry.itemSpacing
+                       + 4 * WidgetLogic.LargeGeometry.listRowHeight)
+        XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.listContentHeight,
+                                 WidgetLogic.LargeGeometry.contentHeight)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.focusContentHeight,
+                       WidgetLogic.LargeGeometry.focusHeaderHeight
+                       + 4 * WidgetLogic.LargeGeometry.itemSpacing
+                       + WidgetLogic.LargeGeometry.focusFeaturedHeight
+                       + 3 * WidgetLogic.LargeGeometry.focusQueueHeight)
+        XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.focusContentHeight,
+                                 WidgetLogic.LargeGeometry.contentHeight)
+        XCTAssertGreaterThanOrEqual(WidgetLogic.LargeGeometry.actionHeight, 44)
+    }
+
+    func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        XCTAssertTrue(roster.contains("WidgetLogic.progress"))
+        XCTAssertFalse(roster.contains("String(entry.largeItems.count)"))
+        XCTAssertTrue(roster.contains("met") && roster.contains("due"))
+        XCTAssertTrue(roster.contains("isFree"))
+
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        XCTAssertTrue(grid.contains("LargeWidgetHeader"))
+    }
+
+    func testLargeProvidersUseLargeDemoPlaceholders() throws {
+        let source = try self.source("HaiityWidget/HaiityWidget.swift")
+        XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)
     }
 
     func testLargeRenderersCoverSparseAndRepresentativeHabitKinds() throws {
@@ -115,6 +149,12 @@ final class WidgetRenderingTests: XCTestCase {
                 .frame(width: 332, height: 356), to: "large-\(name)-vibrant.png")
             XCTAssertGreaterThan(visiblePixelCount(dark), 20)
             XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
+
+            let dynamicType = try render(view.environment(\.sizeCategory, .accessibilityLarge)
+                .frame(width: 332, height: 356), to: "large-\(name)-dynamic-type.png")
+            XCTAssertEqual(dynamicType.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712))
+            XCTAssertGreaterThan(visiblePixelCount(dynamicType), 20)
         }
     }
 

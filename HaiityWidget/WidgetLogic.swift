@@ -541,6 +541,27 @@ enum WidgetLogic {
         family == .systemLarge ? rosterRowsLarge : rosterRowsMedium
     }
 
+    /// Fixed systemLarge geometry shared by the three large renderers.
+    /// The 12pt outer inset leaves 332pt in the 356pt reference height.
+    enum LargeGeometry {
+        static let contentHeight: CGFloat = 332
+        static let outerPadding: CGFloat = 12
+        static let itemSpacing: CGFloat = 4
+        static let actionHeight: CGFloat = 44
+        static let listHeaderHeight: CGFloat = 20
+        static let listRowHeight: CGFloat = 72
+        static let focusHeaderHeight: CGFloat = 20
+        static let focusFeaturedHeight: CGFloat = 108
+        static let focusQueueHeight: CGFloat = 56
+        static let gridHeaderHeight: CGFloat = 20
+        static let gridRowHeight: CGFloat = 96
+        static let gridRowSpacing: CGFloat = 8
+
+        static let listContentHeight = listHeaderHeight + 4 * itemSpacing + 4 * listRowHeight
+        static let focusContentHeight = focusHeaderHeight + 4 * itemSpacing + focusFeaturedHeight + 3 * focusQueueHeight
+        static let gridContentHeight = gridHeaderHeight + itemSpacing + 3 * gridRowHeight + 2 * gridRowSpacing
+    }
+
     // MARK: – Zeitplan der Timeline
 
     /// Nächster Refresh: Mitternacht — der „heute"-Rahmen wandert, und ein

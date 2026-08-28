@@ -28723,6 +28723,16 @@
         }
       }
     },
+    "Heute frei": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Free today" } }
+      }
+    },
+    "%lld von %lld heute": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld of %lld today" } }
+      }
+    },
     "Heute beantworten": {
       "localizations": {
         "ar": {
