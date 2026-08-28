@@ -13,7 +13,9 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(grid.contains(".containerBackground(for: .widget)"))
         XCTAssertTrue(roster.contains(".frame(height: 60)"))
         XCTAssertTrue(roster.contains("spacing: 4"))
-        XCTAssertTrue(roster.contains(".frame(height: 100)"))
+        XCTAssertTrue(roster.contains(".frame(height: 116)"))
+        XCTAssertTrue(roster.contains("graphHeight: 52"))
+        XCTAssertTrue(roster.contains("graphHeight: 20"))
         XCTAssertTrue(roster.contains("minHeight: 44"))
         XCTAssertTrue(grid.contains("minHeight: 44"))
     }
@@ -71,6 +73,49 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(emptyRoster.cgImage.map { CGSize(width: $0.width, height: $0.height) },
                        CGSize(width: 664, height: 712))
         XCTAssertGreaterThan(visiblePixelCount(emptyRoster), 20)
+    }
+
+    func testLargeRenderersRenderAllItemKindsAndReminderStatusWithoutGraph() throws {
+        let today = DayKey.today()
+        var checkbox = Habit(name: "Checkbox", emoji: "C")
+        checkbox.log[today] = 1
+        let quantity = Habit(name: "Count", recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "Yes No", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        var reminder = Habit(name: "Reminder", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        reminder.missedDays = [today]
+        let entry = HaiityEntry(date: .now,
+                                habits: [checkbox, quantity, yesNo, reminder],
+                                largeItems: [checkbox, quantity, yesNo, reminder],
+                                largeLayout: .grid)
+
+        try render(LargeListWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-all-kinds-list.png")
+        try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-all-kinds-grid.png")
+        try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-all-kinds-focus.png")
+
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        for text in [roster, grid] {
+            XCTAssertTrue(text.contains("TrailingGrid(habit: habit"))
+            XCTAssertTrue(text.contains("summary.metricText"))
+            XCTAssertTrue(text.contains("bell.fill"))
+            XCTAssertTrue(text.contains("if habit.isReminder"))
+        }
+    }
+
+    func testLargeRenderersRenderDarkAndVibrantStates() throws {
+        let entry = HaiityEntry.demo
+        for (name, view) in [("list", AnyView(LargeListWidgetView(entry: entry))),
+                             ("grid", AnyView(LargeGridWidgetView(entry: entry))),
+                             ("focus", AnyView(LargeFocusWidgetView(entry: entry)))] {
+            let dark = try render(view.environment(\.colorScheme, .dark)
+                .frame(width: 332, height: 356), to: "large-\(name)-dark.png")
+            let vibrant = try render(view.environment(\.widgetRenderingMode, .vibrant)
+                .frame(width: 332, height: 356), to: "large-\(name)-vibrant.png")
+            XCTAssertGreaterThan(visiblePixelCount(dark), 20)
+            XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
+        }
     }
 
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {

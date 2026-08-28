@@ -4,6 +4,69 @@
     "": {
       "shouldTranslate": false
     },
+    "Liste": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "List" } } }
+    },
+    "Raster": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Grid" } } }
+    },
+    "Fokus": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Focus" } } }
+    },
+    "Element 1": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 1" } } }
+    },
+    "Element 2": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 2" } } }
+    },
+    "Element 3": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 3" } } }
+    },
+    "Element 4": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 4" } } }
+    },
+    "Element 5": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 5" } } }
+    },
+    "Element 6": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Item 6" } } }
+    },
+    "Warteschlange 1": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Queue 1" } } }
+    },
+    "Warteschlange 2": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Queue 2" } } }
+    },
+    "Warteschlange 3": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Queue 3" } } }
+    },
+    "Vier Habits oder Erinnerungen auswählen; leer bedeutet Automatisch.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Choose four habits or reminders; empty means Automatic." } } }
+    },
+    "Sechs Habits oder Erinnerungen auswählen; leer bedeutet Automatisch.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Choose six habits or reminders; empty means Automatic." } } }
+    },
+    "Einen Fokus und drei Warteschlangen-Elemente auswählen; leer bedeutet Automatisch.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Choose one focus and three queue items; empty means Automatic." } } }
+    },
+    "Großes Widget: Liste": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Large Widget: List" } } }
+    },
+    "Großes Widget: Raster": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Large Widget: Grid" } } }
+    },
+    "Großes Widget: Fokus": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Large Widget: Focus" } } }
+    },
+    "Vier Habits als Liste.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Four habits in a list." } } }
+    },
+    "Sechs Habits im Raster.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Six habits in a grid." } } }
+    },
+    "Ein Fokus-Habit und drei weitere.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "One focus habit and three more." } } }
+    },
     "Solid": {
       "localizations": {
         "en": {

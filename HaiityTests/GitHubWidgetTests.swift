@@ -78,6 +78,43 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(source.contains("Element 1"))
     }
 
+    func testLargeRenderersUseGraphsOnlyForTrackedHabitsAndLinkAllContent() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+
+        XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
+        XCTAssertTrue(grid.contains("TrailingGrid(habit: habit"))
+        XCTAssertTrue(roster.contains("if !habit.isReminder"))
+        XCTAssertTrue(grid.contains("if habit.isReminder"))
+        XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habit(habit.id))"))
+        XCTAssertTrue(roster.contains("WidgetEmptyState()"))
+        XCTAssertTrue(grid.contains("WidgetEmptyState()"))
+        XCTAssertTrue(roster.contains("HaiityWidgetLink.habits"))
+        XCTAssertTrue(grid.contains("HaiityWidgetLink.habits"))
+    }
+
+    func testLargeIntentStringsArePresentInTheAppLocalizationCatalog() throws {
+        let catalog = try source("Haiity/Localizable.xcstrings")
+        for key in ["Liste", "Raster", "Fokus", "Automatisch",
+                    "Element 1", "Element 2", "Element 3", "Element 4",
+                    "Element 5", "Element 6", "Warteschlange 1",
+                    "Warteschlange 2", "Warteschlange 3",
+                    "Großes Widget: Liste", "Großes Widget: Raster",
+                    "Großes Widget: Fokus"] {
+            XCTAssertTrue(catalog.contains("\"\(key)\""), "missing localization key: \(key)")
+        }
+        XCTAssertTrue(catalog.contains("\"en\""))
+    }
+
+    func testLargeProvidersUseDemoEntriesInPreview() throws {
+        let source = try source("HaiityWidget/HaiityWidget.swift")
+        for marker in ["struct LargeListWidgetProvider", "struct LargeGridWidgetProvider", "struct LargeFocusWidgetProvider"] {
+            let section = try self.section(source, startingAt: marker, endingAt: "\n}\n\n")
+            XCTAssertTrue(section.contains("context.isPreview"), "preview missing for \(marker)")
+            XCTAssertTrue(section.contains("demoLarge"), "demoLarge missing for \(marker)")
+        }
+    }
+
     func testGraphWidgetSourceHasOnlyHabitAndGitHubCases() {
         XCTAssertEqual(GraphWidgetSource.allCases, [.habit, .github])
     }

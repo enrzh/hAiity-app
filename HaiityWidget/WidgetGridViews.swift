@@ -6,26 +6,47 @@ struct LargeGridWidgetView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-            ForEach(entry.largeItems.prefix(6)) { habit in
-                LargeGridItem(habit: habit, entry: entry).frame(minHeight: 96)
+        Group {
+            if entry.largeItems.isEmpty {
+                Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    ForEach(entry.largeItems.prefix(6)) { habit in
+                        LargeGridItem(habit: habit, entry: entry).frame(minHeight: 96)
+                    }
+                }
             }
-        }.padding(12).containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
+        }
+        .padding(12)
+        .containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
     }
 }
 
 private struct LargeGridItem: View {
     let habit: Habit
     let entry: HaiityEntry
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
         VStack(alignment: .leading, spacing: 6) {
             Link(destination: HaiityWidgetLink.habit(habit.id)) {
-                HStack(spacing: 3) { if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }; Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7) }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 3) { if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }; Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7) }
+                    if habit.isReminder {
+                        Label(summary.metricText, systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    } else {
+                        Label(summary.metricText, systemImage: summary.metricSymbol).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
+                            HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                        }
+                        .frame(height: 25)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if habit.isReminder { Image(systemName: "bell.fill").foregroundStyle(Theme.accentText(palette)) } else { Label(summary.metricText, systemImage: summary.metricSymbol).font(.caption2).foregroundStyle(.secondary) }
             HStack(spacing: 3) {
                 switch summary.kind {
                 case .yesNo:

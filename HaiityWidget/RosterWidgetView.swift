@@ -257,6 +257,9 @@ private struct LargeWidgetItem: View {
     let habit: Habit
     let entry: HaiityEntry
     var compact = false
+    var graphHeight: CGFloat = 22
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
@@ -269,14 +272,18 @@ private struct LargeWidgetItem: View {
                         Text(verbatim: habit.name).font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
                     }
                     if habit.isReminder {
-                        Label(String(localized: "Erinnerung"), systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary)
+                        Label(summary.metricText, systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     } else {
                         HStack(spacing: 4) {
                             Image(systemName: "flame.fill")
                             Text(verbatim: String(habit.streak(today: today, calendar: entry.calendar(for: habit))))
                             Image(systemName: summary.metricSymbol)
                             Text(verbatim: summary.metricText).lineLimit(1)
-                        }.font(.caption2).foregroundStyle(.secondary)
+                        }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
+                            HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                        }
+                        .frame(height: graphHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -319,12 +326,43 @@ struct LargeListWidgetView: View {
     let entry: HaiityEntry
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
-    var body: some View { VStack(alignment: .leading, spacing: 8) { LargeWidgetHeader(entry: entry); ForEach(entry.largeItems.prefix(4)) { LargeWidgetItem(habit: $0, entry: entry).frame(maxHeight: .infinity) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if entry.largeItems.isEmpty {
+                Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
+            } else {
+                LargeWidgetHeader(entry: entry)
+                ForEach(entry.largeItems.prefix(4)) { habit in
+                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: 20)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+        }
+        .padding(12)
+        .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
+    }
 }
 
 struct LargeFocusWidgetView: View {
     let entry: HaiityEntry
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
-    var body: some View { VStack(alignment: .leading, spacing: 4) { LargeWidgetHeader(entry: entry).frame(height: 24); if let focus = entry.largeItems.first { LargeWidgetItem(habit: focus, entry: entry).frame(height: 100) }; ForEach(entry.largeItems.dropFirst().prefix(3)) { LargeWidgetItem(habit: $0, entry: entry, compact: true).frame(height: 60) } }.padding(12).largeWidgetBackground(entry: entry, scheme: scheme, mode: mode) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if entry.largeItems.isEmpty {
+                Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
+            } else {
+                LargeWidgetHeader(entry: entry).frame(height: 24)
+                if let focus = entry.largeItems.first {
+                    LargeWidgetItem(habit: focus, entry: entry, graphHeight: 52).frame(height: 116)
+                }
+                ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
+                    LargeWidgetItem(habit: habit, entry: entry, compact: true, graphHeight: 18)
+                        .frame(height: 60)
+                }
+            }
+        }
+        .padding(12)
+        .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
+    }
 }

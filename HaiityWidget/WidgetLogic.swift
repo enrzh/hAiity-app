@@ -81,6 +81,16 @@ struct HaiityEntry: TimelineEntry {
         }
         return HaiityEntry(date: .now, habits: [reading, water, sport])
     }
+
+    static var demoLarge: HaiityEntry {
+        var entry = demo
+        var reminder = Habit(name: String(localized: "Erinnerung"), emoji: "", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        reminder.missedDays = [DayKey.today()]
+        entry.largeItems = entry.habits + [reminder]
+        entry.largeLayout = .list
+        return entry
+    }
 }
 
 enum LargeWidgetLayout: Equatable {
@@ -134,6 +144,8 @@ enum GitHubWidgetContent: Equatable {
 }
 
 enum HaiityWidgetLink {
+    static let habits = URL(string: "haiity://habits")!
+
     static func habit(_ id: UUID) -> URL {
         URL(string: "haiity://habits?habit=\(id.uuidString)")!
     }
