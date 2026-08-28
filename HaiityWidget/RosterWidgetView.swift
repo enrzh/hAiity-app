@@ -248,11 +248,11 @@ struct LargeWidgetHeader: View {
 
     var body: some View {
         HStack {
-            Text(String(localized: "Heute")).font(.headline.weight(.semibold))
+            Text(String(localized: "Heute")).font(.subheadline.weight(.semibold))
             Spacer()
             Text(progress.isFree
-                 ? String(localized: "Heute frei")
-                 : String(localized: "\(progress.met) von \(progress.due) heute"))
+                 ? String(localized: "frei")
+                 : "\(progress.met)/\(progress.due)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
@@ -264,6 +264,7 @@ private struct LargeWidgetItem: View {
     let entry: HaiityEntry
     var compact = false
     var graphHeight: CGFloat = 22
+    var graph = true
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
@@ -278,6 +279,7 @@ private struct LargeWidgetItem: View {
                     .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .layoutPriority(1)
                 Spacer(minLength: 2)
                 if habit.isReminder {
                     Label(summary.metricText, systemImage: "bell.fill")
@@ -296,7 +298,7 @@ private struct LargeWidgetItem: View {
                 Link(destination: HaiityWidgetLink.habit(habit.id)) {
                     VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                         titleStatusBand
-                        if !habit.isReminder {
+                        if graph && !habit.isReminder {
                             TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
                                 HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                             }
@@ -402,7 +404,7 @@ struct LargeFocusWidgetView: View {
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                     ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
                         LargeWidgetItem(habit: habit, entry: entry, compact: true,
-                                        graphHeight: 12)
+                                        graphHeight: 12, graph: false)
                             .frame(height: WidgetLogic.LargeGeometry.focusQueueHeight)
                     }
                 }

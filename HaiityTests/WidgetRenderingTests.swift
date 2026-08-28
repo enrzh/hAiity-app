@@ -221,6 +221,33 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(grid.contains("LargeWidgetHeader"))
     }
 
+    func testTaskOneUsesCompactIdentityAndQueuePresentation() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let header = try sourceSlice(roster, from: "struct LargeWidgetHeader", to: "private struct LargeWidgetItem")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+
+        XCTAssertTrue(header.contains("String(localized: \"frei\")"))
+        XCTAssertTrue(header.contains("progress.met)/\\(progress.due)"))
+        XCTAssertFalse(header.contains("von"))
+        XCTAssertFalse(header.contains("Heute frei"))
+        XCTAssertFalse(item.contains("frame(width: 18"))
+        XCTAssertTrue(item.contains("name"))
+        XCTAssertTrue(item.contains("var graph = true"))
+        XCTAssertTrue(item.contains("if graph"))
+        XCTAssertTrue(item.contains("frame(width: WidgetLogic.LargeGeometry.actionHeight"))
+        XCTAssertTrue(item.contains("height: WidgetLogic.LargeGeometry.actionHeight"))
+
+        let focus = try sourceSlice(roster, from: "struct LargeFocusWidgetView", to: "struct LargeGridWidgetView")
+        XCTAssertTrue(focus.contains("graph: false"))
+    }
+
+    func testTaskOneLargeGeometryKeepsListAndFocusWithinContentHeight() {
+        let g = WidgetLogic.LargeGeometry.self
+        XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
+        XCTAssertEqual(g.actionHeight, 44)
+    }
+
     func testLargeProvidersUseLargeDemoPlaceholders() throws {
         let source = try self.source("HaiityWidget/HaiityWidget.swift")
         XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)
