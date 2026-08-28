@@ -150,6 +150,24 @@ final class ReminderItemTests: XCTestCase {
         }
     }
 
+    func testRevealUnderlaysStayMountedBeforeTheFirstDrag() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        for source in [reminder, habit] {
+            XCTAssertTrue(source.contains(
+                "revealButtons(actions: leadingSwipe, alignment: .leading)"
+            ))
+            XCTAssertTrue(source.contains(
+                "revealButtons(actions: trailingSwipe, alignment: .trailing)"
+            ))
+            XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset > 0)"))
+            XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset < 0)"))
+            XCTAssertFalse(source.contains("if revealOffset != 0 {\n                revealButtons"),
+                           "the action layer must not be inserted after the gesture starts")
+        }
+    }
+
     func testRevealBridgeKeepsTheExistingDecisionAndVelocityRules() throws {
         let reminder = try source("Haiity/Views/ReminderRow.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")

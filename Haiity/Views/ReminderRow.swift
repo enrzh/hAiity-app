@@ -38,9 +38,10 @@ struct ReminderRow: View, Equatable {
 
     var body: some View {
         ZStack {
-            if revealOffset != 0 {
-                revealButtons
-            }
+            revealButtons(actions: leadingSwipe, alignment: .leading)
+                .allowsHitTesting(revealOffset > 0)
+            revealButtons(actions: trailingSwipe, alignment: .trailing)
+                .allowsHitTesting(revealOffset < 0)
             rowContent
                 .offset(x: revealOffset * mirror)
                 .overlay {
@@ -115,9 +116,7 @@ struct ReminderRow: View, Equatable {
     }
 
     @ViewBuilder
-    private var revealButtons: some View {
-        let leadingOpen = revealOffset > 0
-        let actions = leadingOpen ? leadingSwipe : trailingSwipe
+    private func revealButtons(actions: [RevealAction], alignment: Alignment) -> some View {
         HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 Button {
@@ -147,14 +146,11 @@ struct ReminderRow: View, Equatable {
     }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity,
-               alignment: leadingOpen ? .leading : .trailing)
+               alignment: alignment)
         // The card's horizontal offset is the reveal animation. Keep the
         // action layer stable so it appears from the card edge, not by fading
         // or scaling independently.
         .transition(.identity)
-        // The row surface is shifted visually but keeps its original layout
-        // slot. Keep the exposed action layer above that slot for hit testing.
-        .zIndex(1)
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {

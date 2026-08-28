@@ -108,6 +108,6 @@ enum SwipeReveal {
     /// Klar horizontale Absicht: deutlich mehr Weg zur Seite als nach
     /// unten/oben, und überhaupt genug Weg, um kein Zittern zu sein.
     static func horizontalIntent(dx: CGFloat, dy: CGFloat) -> Bool {
-        abs(dx) > abs(dy) * 1.2 && abs(dx) > 4
+        abs(dx) > abs(dy) * 1.08 && abs(dx) > 3
     }
 }

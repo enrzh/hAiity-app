@@ -109,6 +109,11 @@ final class SwipeRevealTests: XCTestCase {
                                             overGrid: false, gridAtTrailingEnd: true))
     }
 
+    func testNearHorizontalIntentStartsResponsively() {
+        XCTAssertTrue(SwipeReveal.horizontalIntent(dx: 8, dy: 7))
+        XCTAssertFalse(SwipeReveal.horizontalIntent(dx: 20, dy: 24))
+    }
+
     func testTrailingOverGridOnlyAtTheEnd() {
         // Am Ende: Aufziehen. Mitten in der Historie: Scrollen.
         XCTAssertTrue(SwipeReveal.canBegin(towardTrailing: true, horizontalIntent: true,

@@ -161,9 +161,10 @@ struct HabitCard: View, Equatable {
     /// stehen — die Knöpfe gehören zur Karte, nicht zur Zeile.
     private var revealingGrid: some View {
         ZStack {
-            if revealOffset != 0 {
-                revealButtons
-            }
+            revealButtons(actions: leadingSwipe, alignment: .leading)
+                .allowsHitTesting(revealOffset > 0)
+            revealButtons(actions: trailingSwipe, alignment: .trailing)
+                .allowsHitTesting(revealOffset < 0)
             grid
                 .offset(x: revealOffset * mirror)
                 // Offen ist die Karte MODAL für sich selbst: ein Tipp auf
@@ -211,9 +212,7 @@ struct HabitCard: View, Equatable {
     }
 
     @ViewBuilder
-    private var revealButtons: some View {
-        let leadingOpen = revealOffset > 0
-        let actions = leadingOpen ? leadingSwipe : trailingSwipe
+    private func revealButtons(actions: [RevealAction], alignment: Alignment) -> some View {
         HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
@@ -223,11 +222,8 @@ struct HabitCard: View, Equatable {
         // Keine separate Einblendung oder Skalierung: so erscheinen die
         // Knöpfe direkt an der jeweiligen Kartenkante.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
-               alignment: leadingOpen ? .leading : .trailing)
+               alignment: alignment)
         .transition(.identity)
-        // The grid is offset visually while retaining its layout slot; the
-        // exposed action layer must remain the hit-test winner.
-        .zIndex(1)
     }
 
     private func revealButton(_ action: RevealAction) -> some View {
