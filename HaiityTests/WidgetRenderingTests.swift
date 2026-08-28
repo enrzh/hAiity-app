@@ -5,6 +5,30 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testLargeRenderersCapAccessibilityDynamicTypeForFixedGeometry() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        XCTAssertEqual(roster.components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.accessibility1)").count - 1, 2,
+                       "list and focus roots must cap text to the widest non-overlapping accessibility size")
+        XCTAssertEqual(grid.components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.accessibility1)").count - 1, 1,
+                       "grid root must cap text to the widest non-overlapping accessibility size")
+
+        let demo = HaiityEntry.demo
+        let entry = HaiityEntry(date: demo.date, habits: demo.habits,
+                                palettes: demo.palettes, widgetResetEnabled: true,
+                                largeItems: Array(demo.habits.prefix(4)), largeLayout: .list)
+        for (layout, view) in [("list", AnyView(LargeListWidgetView(entry: entry))),
+                               ("grid", AnyView(LargeGridWidgetView(entry: entry))),
+                               ("focus", AnyView(LargeFocusWidgetView(entry: entry)))] {
+            let image = try render(view
+                .environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+                .frame(width: 332, height: 356), to: "large-task-4-ax-xxxl-\(layout).png")
+            XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712))
+            XCTAssertGreaterThan(visiblePixelCount(image), 20, "empty \(layout) AX XXXL render")
+        }
+    }
+
     func testRasterUsesDedicatedHeaderAndFourTileBudget() throws {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
         XCTAssertTrue(source.contains("LargeGeometry.gridHeaderGap"))

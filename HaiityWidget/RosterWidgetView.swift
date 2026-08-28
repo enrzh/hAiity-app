@@ -380,6 +380,7 @@ struct LargeListWidgetView: View {
             }
         }
         .padding(WidgetLogic.LargeGeometry.outerPadding)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
     }
 }
@@ -411,6 +412,7 @@ struct LargeFocusWidgetView: View {
             }
         }
         .padding(12)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
     }
 }

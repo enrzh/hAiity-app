@@ -22,6 +22,7 @@ struct LargeGridWidgetView: View {
             }
         }
         .padding(12)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
     }
 }
