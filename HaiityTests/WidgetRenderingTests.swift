@@ -48,6 +48,22 @@ final class WidgetRenderingTests: XCTestCase {
         try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-focus.png")
     }
 
+    func testAllLargeLayoutsShareTheEmptyAppGroupState() throws {
+        let layouts: [LargeWidgetLayout] = [.list, .grid, .focus]
+        for layout in layouts {
+            let entry = HaiityEntry(date: .now, habits: [], largeItems: [], largeLayout: layout)
+            let view: AnyView
+            switch layout {
+            case .list: view = AnyView(LargeListWidgetView(entry: entry))
+            case .grid: view = AnyView(LargeGridWidgetView(entry: entry))
+            case .focus: view = AnyView(LargeFocusWidgetView(entry: entry))
+            }
+            try render(view.frame(width: 332, height: 356), to: "large-empty-\(layout).png")
+        }
+
+        XCTAssertEqual(layouts.count, 3)
+    }
+
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {
         try render(RosterWidgetView(entry: .demo)
             .content(family: .systemLarge, dark: false)

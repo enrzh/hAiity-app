@@ -100,6 +100,29 @@ final class WidgetLogicTests: GridTestCase {
             unlocked: true, today: today, calendar: cal).isEmpty)
     }
 
+    func testLargeResolverTreatsDeletedAndArchivedSelectionsAsAutomaticChoices() {
+        let archived = named("Archived", archived: today)
+        let current = named("Current")
+        let result = WidgetLogic.resolveLargeItems(
+            habits: [archived, current], selectedIDs: [archived.id, UUID(), nil], limit: 3,
+            unlocked: true, today: today, calendar: cal)
+
+        XCTAssertEqual(result.map(\.id), [current.id])
+    }
+
+    func testLargeResolverAppliesProVisibilityBeforeConfiguredSlots() {
+        let habits = (1...5).map { named("H\($0)") }
+        let result = WidgetLogic.resolveLargeItems(
+            habits: habits, selectedIDs: [habits[4].id, nil], limit: 2,
+            unlocked: false, today: today, calendar: cal)
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertFalse(result.contains { $0.id == habits[4].id })
+        XCTAssertTrue(result.allSatisfy { habit in
+            habits.prefix(HabitVisibility.freeHabitLimit).contains { $0.id == habit.id }
+        })
+    }
+
     func testLargeResolverUsesUnlockedSnapshotForRecommendation() {
         let visible = named("Visible")
         let filler = [named("Filler 1"), named("Filler 2")]

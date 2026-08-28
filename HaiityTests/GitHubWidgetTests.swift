@@ -13,6 +13,38 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertFalse(source.contains("HaiityRosterWidget()"))
     }
 
+    func testOldOverviewProviderStillReadsTheAutomaticEntryPath() throws {
+        let source = try source("HaiityWidget/HaiityWidget.swift")
+        let provider = try XCTUnwrap(source.range(of: "struct HaiityRosterProvider"))
+        let bundle = try XCTUnwrap(source.range(of: "@main\nstruct HaiityWidgetBundle"))
+        let providerSource = source[provider.lowerBound..<bundle.lowerBound]
+
+        XCTAssertTrue(providerSource.contains("WidgetData.entry()"))
+        XCTAssertTrue(source.contains("WidgetData.entry()"))
+        XCTAssertFalse(source.contains("struct HaiityRosterWidget: Widget"))
+    }
+
+    func testLargeWidgetActionsBindTheCurrentItemAndNeverTheParentCollection() throws {
+        let sources = try [source("HaiityWidget/RosterWidgetView.swift"),
+                           source("HaiityWidget/WidgetGridViews.swift")]
+        for text in sources {
+            XCTAssertTrue(text.contains("habit: habit"))
+            XCTAssertTrue(text.contains("HaiityWidgetLink.habit(habit.id)"))
+            XCTAssertFalse(text.contains("widgetURL(URL(string: \"haiity://habits\")"))
+            for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
+                           "AnswerNoHabitIntent", "ResetHabitIntent"] {
+                XCTAssertTrue(text.contains("\(intent)(habit: habit)"),
+                              "missing current-item binding for \(intent)")
+            }
+        }
+    }
+
+    func testLargeWidgetConfigurationIsReadOnlyAndHasNoHabitOrICloudPersistence() throws {
+        let text = try source("HaiityWidget/WidgetLogic.swift")
+        XCTAssertFalse(text.contains("save") && text.contains("selectedIDs"))
+        XCTAssertFalse(text.contains("iCloud") && text.contains("slot"))
+    }
+
     func testLargeRenderersKeepReminderGraphFreeAndUseAllActions() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
