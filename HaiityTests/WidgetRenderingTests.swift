@@ -5,6 +5,29 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
+        let g = WidgetLogic.LargeGeometry.self
+        XCTAssertEqual(g.listHeaderHeight + 3 * g.itemSpacing + 4 * g.listRowHeight
+                       + g.listBottomBreathingRoom, 324)
+        XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 3 * g.gridRowHeight
+                       + 2 * g.gridRowGap, 324)
+        XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
+                       + 3 * g.focusQueueHeight + 3 * g.itemSpacing, 312)
+        XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
+        XCTAssertEqual(g.listGraphHeight, 38)
+        XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 92)
+    }
+
+    func testListeDoesNotUseRepeatedCardTreatmentAndUsesLargeGraphRegion() throws {
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        XCTAssertTrue(source.contains("LargeGeometry.listGraphHeight"))
+        XCTAssertTrue(source.contains("LargeGeometry.listTitleHeight"))
+        XCTAssertFalse(source.contains("RoundedRectangle(cornerRadius: 10"))
+        XCTAssertFalse(source.contains("background(.ultraThinMaterial, in: Capsule())"))
+    }
+
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
@@ -14,8 +37,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(roster.contains("LargeGeometry.focusQueueHeight"))
         XCTAssertTrue(roster.contains("LargeGeometry.itemSpacing"))
         XCTAssertTrue(roster.contains("LargeGeometry.focusFeaturedHeight"))
+        XCTAssertTrue(roster.contains("LargeGeometry.listGraphHeight"))
         XCTAssertTrue(roster.contains("graphHeight: 32"))
-        XCTAssertTrue(roster.contains("graphHeight: 14"))
         XCTAssertTrue(roster.contains("minHeight: 44"))
         XCTAssertTrue(grid.contains("minHeight: 44"))
     }
@@ -30,9 +53,10 @@ final class WidgetRenderingTests: XCTestCase {
                                  WidgetLogic.LargeGeometry.contentHeight)
         XCTAssertEqual(WidgetLogic.LargeGeometry.focusContentHeight,
                        WidgetLogic.LargeGeometry.focusHeaderHeight
-                       + 4 * WidgetLogic.LargeGeometry.itemSpacing
+                       + WidgetLogic.LargeGeometry.focusHeaderGap
                        + WidgetLogic.LargeGeometry.focusFeaturedHeight
-                       + 3 * WidgetLogic.LargeGeometry.focusQueueHeight)
+                       + 3 * WidgetLogic.LargeGeometry.focusQueueHeight
+                       + 3 * WidgetLogic.LargeGeometry.itemSpacing)
         XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.focusContentHeight,
                                  WidgetLogic.LargeGeometry.contentHeight)
         XCTAssertGreaterThanOrEqual(WidgetLogic.LargeGeometry.actionHeight, 44)

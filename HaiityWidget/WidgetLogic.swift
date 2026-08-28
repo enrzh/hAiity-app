@@ -550,16 +550,24 @@ enum WidgetLogic {
         static let actionHeight: CGFloat = 44
         static let listHeaderHeight: CGFloat = 20
         static let listRowHeight: CGFloat = 72
+        static let listTitleHeight: CGFloat = 18
+        static let listGraphHeight: CGFloat = 38
+        static let listBottomBreathingRoom: CGFloat = 4
         static let focusHeaderHeight: CGFloat = 20
-        static let focusFeaturedHeight: CGFloat = 108
-        static let focusQueueHeight: CGFloat = 56
+        static let focusHeaderGap: CGFloat = 4
+        static let focusFeaturedHeight: CGFloat = 136
+        static let focusFeaturedGraphMinimumHeight: CGFloat = 92
+        static let focusQueueHeight: CGFloat = 46.666666666666664
         static let gridHeaderHeight: CGFloat = 20
+        static let gridHeaderGap: CGFloat = 4
         static let gridRowHeight: CGFloat = 96
-        static let gridRowSpacing: CGFloat = 8
+        static let gridColumnGap: CGFloat = 8
+        static let gridRowGap: CGFloat = 6
+        static let gridRowSpacing: CGFloat = gridRowGap
 
-        static let listContentHeight = listHeaderHeight + 4 * itemSpacing + 4 * listRowHeight
-        static let focusContentHeight = focusHeaderHeight + 4 * itemSpacing + focusFeaturedHeight + 3 * focusQueueHeight
-        static let gridContentHeight = gridHeaderHeight + itemSpacing + 3 * gridRowHeight + 2 * gridRowSpacing
+        static let listContentHeight: CGFloat = 324
+        static let focusContentHeight: CGFloat = 312
+        static let gridContentHeight: CGFloat = 324
     }
 
     // MARK: – Zeitplan der Timeline

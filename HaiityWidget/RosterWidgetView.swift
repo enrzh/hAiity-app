@@ -95,7 +95,7 @@ struct RosterWidgetView: View {
             ZStack(alignment: .bottomLeading) {
                 Link(destination: HaiityWidgetLink.habit(habit.id)) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
 
                         if habit.isReminder {
@@ -112,7 +112,7 @@ struct RosterWidgetView: View {
                         }
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -138,9 +138,9 @@ struct RosterWidgetView: View {
                 .padding(6)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(Theme.accentText(cellPalette).opacity(0.2), lineWidth: 0.5)
             }
         }
@@ -189,10 +189,7 @@ struct RosterWidgetView: View {
         .font(.caption2.weight(.bold))
         .foregroundStyle(Theme.accentText(palette))
         .buttonStyle(.plain)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 4)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay { Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5) }
+        .frame(minWidth: 44, minHeight: 44)
     }
 
     private func metadata(habit: Habit, summary: WidgetItemSummary,
@@ -279,10 +276,16 @@ private struct LargeWidgetItem: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
                         if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
-                        Text(verbatim: habit.name).font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
+                        Text(verbatim: habit.name)
+                            .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
+                    .frame(height: compact ? WidgetLogic.LargeGeometry.listTitleHeight : WidgetLogic.LargeGeometry.listTitleHeight, alignment: .leading)
                     if habit.isReminder {
-                        Label(summary.metricText, systemImage: "bell.fill").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        Image(systemName: "bell.fill")
+                            .accessibilityHidden(true)
+                            .frame(height: graphHeight)
                     } else {
                         HStack(spacing: 4) {
                             Image(systemName: "flame.fill")
@@ -314,10 +317,8 @@ private struct LargeWidgetItem: View {
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
-        .padding(compact ? 4 : 4)
+        .padding(0)
         .frame(maxHeight: .infinity)
-        .background(Theme.accent(palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String) -> some View {
@@ -346,12 +347,13 @@ struct LargeListWidgetView: View {
             } else {
                 LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.listHeaderHeight)
                 ForEach(entry.largeItems.prefix(4)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: 14)
+                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: WidgetLogic.LargeGeometry.listGraphHeight)
                         .frame(height: WidgetLogic.LargeGeometry.listRowHeight)
                 }
+                Spacer().frame(height: WidgetLogic.LargeGeometry.listBottomBreathingRoom)
             }
         }
-        .padding(12)
+        .padding(WidgetLogic.LargeGeometry.outerPadding)
         .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
     }
 }
