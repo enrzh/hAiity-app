@@ -30,7 +30,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"))
         XCTAssertTrue(item.contains("frame(width: 88, height: 88"))
         XCTAssertFalse(item.contains("VStack(spacing: 0)"))
-        XCTAssertTrue(item.contains(".ultraThinMaterial"))
+        XCTAssertFalse(item.contains(".ultraThinMaterial"))
+        XCTAssertTrue(item.contains("tileWidth - 88"))
         XCTAssertTrue(item.contains("if habit.isReminder"))
         XCTAssertTrue(item.contains(".frame(height: 20)"))
         XCTAssertTrue(item.contains(".lineLimit(1)"))
@@ -384,7 +385,7 @@ final class WidgetRenderingTests: XCTestCase {
         }
     }
 
-    func testListeReminderRegionsHaveStatusForegroundWithoutGraphRequirement() throws {
+    func testListeReminderRegionsHaveBellAndMetricStatusWithoutGraphRequirement() throws {
         let reminder = Habit(name: "Reminder", itemType: .reminder,
                              recurrence: .weekdays([2, 4, 6]))
         let habits = [reminder, Habit(name: "Habit 1"), Habit(name: "Habit 2"), Habit(name: "Habit 3")]
@@ -398,13 +399,14 @@ final class WidgetRenderingTests: XCTestCase {
             let rowTop = (12 + 20 + 4) * 2
             let reminderRow = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * 2, height: 72 * 2)
             XCTAssertGreaterThan(foregroundPixelCount(image, in: reminderRow), 2,
-                                 "reminder bell/status is missing from its 72pt row")
+                                 "reminder bell and metric status are missing from its 72pt row")
         }
     }
 
     func testAffectedWidgetsRenderInspectableLightModeImages() throws {
         try render(RosterWidgetView(entry: .demo)
             .content(family: .systemLarge, dark: false)
+            .background(Color.white)
             .frame(width: 332, height: 356),
                    to: "haiity-roster-large.png")
         try render(RosterWidgetView(entry: .demo)

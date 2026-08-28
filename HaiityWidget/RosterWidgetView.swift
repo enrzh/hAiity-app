@@ -158,21 +158,21 @@ struct RosterWidgetView: View {
             switch summary.kind {
             case .yesNo:
                 Button(intent: AnswerYesHabitIntent(habit: habit)) {
-                    Image(systemName: "checkmark").frame(width: 44, height: 44)
+                    Image(systemName: "checkmark")
                 }
                 .accessibilityLabel(String(localized: "Mit Ja beantworten"))
                 Button(intent: AnswerNoHabitIntent(habit: habit)) {
-                    Image(systemName: "xmark").frame(width: 44, height: 44)
+                    Image(systemName: "xmark")
                 }
                 .accessibilityLabel(String(localized: "Mit Nein beantworten"))
             case .quantity:
                 Button(intent: CheckOffHabitIntent(habit: habit)) {
-                    Image(systemName: "plus").frame(width: 44, height: 44)
+                    Image(systemName: "plus")
                 }
                 .accessibilityLabel(String(localized: "Menge erhöhen"))
             case .checkbox, .reminder:
                 Button(intent: CheckOffHabitIntent(habit: habit)) {
-                    Image(systemName: "checkmark").frame(width: 44, height: 44)
+                    Image(systemName: "checkmark")
                 }
                 .accessibilityLabel(habit.isReminder
                                     ? String(localized: "Erinnerung erledigen")
@@ -181,7 +181,7 @@ struct RosterWidgetView: View {
 
             if entry.widgetResetEnabled {
                 Button(intent: ResetHabitIntent(habit: habit)) {
-                    Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44)
+                    Image(systemName: "arrow.uturn.backward")
                 }
                 .accessibilityLabel(String(localized: "Rückgängig"))
             }
@@ -189,6 +189,10 @@ struct RosterWidgetView: View {
         .font(.caption2.weight(.bold))
         .foregroundStyle(Theme.accentText(palette))
         .buttonStyle(.plain)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay { Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5) }
     }
 
     private func metadata(habit: Habit, summary: WidgetItemSummary,
@@ -280,7 +284,7 @@ private struct LargeWidgetItem: View {
                     .minimumScaleFactor(0.75)
                 Spacer(minLength: 2)
                 if habit.isReminder {
-                    Image(systemName: "bell.fill")
+                    Label(summary.metricText, systemImage: "bell.fill")
                 } else {
                     HStack(spacing: 3) {
                         Image(systemName: summary.metricSymbol)

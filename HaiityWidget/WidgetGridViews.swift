@@ -35,16 +35,11 @@ private struct LargeGridItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        ZStack(alignment: .topLeading) {
-            if habit.isReminder {
-                Color.clear
-            } else {
-                TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
-                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+        GeometryReader { geometry in
+        let tileWidth = geometry.size.width
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
                 HStack(spacing: 4) {
                     HStack(spacing: 3) {
                         if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).frame(width: 18, alignment: .leading) }
@@ -56,10 +51,20 @@ private struct LargeGridItem: View {
                 }
                 .frame(height: 20)
                 .padding(.horizontal, 4)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
                 .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
+                }
+                .frame(height: 20, alignment: .topLeading)
+                if !habit.isReminder {
+                    TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
+                        HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                    }
+                    .frame(height: 76)
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: max(0, tileWidth - 88), alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
             LazyVGrid(columns: [GridItem(.fixed(44), spacing: 0), GridItem(.fixed(44), spacing: 0)], spacing: 0) {
                 switch summary.kind {
                 case .yesNo:
@@ -83,9 +88,10 @@ private struct LargeGridItem: View {
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
             .frame(width: 88, height: 88, alignment: .bottomTrailing)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .frame(maxHeight: .infinity, alignment: .bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
     }
 }
 
