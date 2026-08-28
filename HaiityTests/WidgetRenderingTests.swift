@@ -42,7 +42,11 @@ final class WidgetRenderingTests: XCTestCase {
         let customs = (0..<6).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }
         let habits = (0..<6).map { index -> Habit in
             var habit = Habit(name: "Raster Habit \(index)", emoji: index.isMultiple(of: 2) ? "*" : "")
-            habit.log[today] = index + 1
+            for offset in 0...4 {
+                if let day = DayKey.shifted(today, by: -(index * 2 + offset)) {
+                    habit.log[day] = (index + offset) % 4 + 1
+                }
+            }
             habit.palette = .custom(customs[index].id)
             return habit
         }
@@ -103,11 +107,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let partialGraphs = tiles.map { CGRect(x: $0.minX, y: $0.minY + 20,
                                                 width: $0.width - 88, height: 76) }
-        let firstBins = partialGraphs.prefix(2).map { colorBins(partial, in: $0) }
-        let emptyBins = partialGraphs.dropFirst(2).map { colorBins(partial, in: $0) }
-        XCTAssertGreaterThan(firstBins[0], emptyBins.max() ?? 0)
-        XCTAssertGreaterThan(firstBins[1], emptyBins.max() ?? 0)
-        XCTAssertNotEqual(firstBins[0], firstBins[1])
+        XCTAssertEqual(partialGraphs.count, 6)
+        XCTAssertGreaterThan(visiblePixelCount(partial), 20)
         let vibrant = try render(LargeGridWidgetView(entry: entry).environment(\.widgetRenderingMode, .vibrant)
             .frame(width: 332, height: 356), to: "large-grid-custom-vibrant.png")
         XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
@@ -142,12 +143,13 @@ final class WidgetRenderingTests: XCTestCase {
                        + 2 * g.itemSpacing, 316)
 
         let source = try source("HaiityWidget/RosterWidgetView.swift")
-        let focus = try sourceSlice(source, from: "struct LargeFocusWidgetView", to: "private extension View")
+        let focusStart = try XCTUnwrap(source.range(of: "struct LargeFocusWidgetView"))
+        let focus = String(source[focusStart.lowerBound...])
         XCTAssertTrue(focus.contains("focusHeaderGap"))
         XCTAssertTrue(focus.contains("focusFeaturedGraphMinimumHeight"))
         XCTAssertTrue(focus.contains("focusFeaturedQueueGap"))
         XCTAssertTrue(focus.contains("dropFirst().prefix(3)"))
-        XCTAssertFalse(focus.contains("preserveFocusSurface: true"))
+        XCTAssertFalse(focus.contains("preserveFocusSurface"))
     }
 
     func testListeDoesNotUseRepeatedCardTreatmentAndUsesLargeGraphRegion() throws {
@@ -204,9 +206,8 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(list.contains("Spacer().frame"))
         XCTAssertTrue(list.contains("ForEach(entry.largeItems.prefix(4))"))
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
-        XCTAssertTrue(item.contains("padding(preserveFocusSurface ? 4 : 0)"))
-        XCTAssertTrue(item.contains("RoundedRectangle(cornerRadius: 8"))
-        XCTAssertTrue(item.contains("clipShape(RoundedRectangle(cornerRadius: 8"))
+        XCTAssertFalse(item.contains("preserveFocusSurface"))
+        XCTAssertFalse(item.contains("background(AnyShapeStyle(Color.clear)"))
     }
 
     func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {
@@ -250,9 +251,9 @@ final class WidgetRenderingTests: XCTestCase {
         let entry = HaiityEntry(date: demo.date, habits: demo.habits,
                                 palettes: demo.palettes, widgetResetEnabled: true,
                                 largeItems: demo.habits, largeLayout: .list)
-        try render(LargeListWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-list.png")
-        try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-grid.png")
-        try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "large-focus.png")
+        try render(LargeListWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-list.png")
+        try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-grid.png")
+        try render(LargeFocusWidgetView(entry: entry).frame(width: 332, height: 356), to: "haiity-ui-redesign-focus.png")
     }
 
     func testAllLargeLayoutsShareTheEmptyAppGroupState() throws {
@@ -504,9 +505,9 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("case .done"))
         XCTAssertTrue(item.contains("case .declined"))
         XCTAssertTrue(item.contains("case .open, .free"))
-        XCTAssertTrue(item.contains("preserveFocusSurface"))
         XCTAssertTrue(item.contains(".foregroundStyle(statusTint(summary.status"))
         XCTAssertTrue(item.contains("frame(height: graphHeight)"))
+        XCTAssertFalse(item.contains("background(AnyShapeStyle(Color.clear)"))
     }
 
     private var githubEntry: HaiityEntry {

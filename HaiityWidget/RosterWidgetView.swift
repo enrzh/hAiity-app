@@ -264,7 +264,6 @@ private struct LargeWidgetItem: View {
     let entry: HaiityEntry
     var compact = false
     var graphHeight: CGFloat = 22
-    var preserveFocusSurface = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
@@ -310,24 +309,28 @@ private struct LargeWidgetItem: View {
             HStack(spacing: 3) {
                 switch summary.kind {
                 case .yesNo:
-                    largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark")
-                    largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark")
+                    largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark",
+                                      label: String(localized: "Mit Ja beantworten"))
+                    largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark",
+                                      label: String(localized: "Mit Nein beantworten"))
                 case .quantity:
-                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus")
+                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus",
+                                      label: String(localized: "Menge erhöhen"))
                 case .checkbox, .reminder:
-                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark")
+                    largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark",
+                                      label: habit.isReminder
+                                        ? String(localized: "Erinnerung erledigen")
+                                        : String(localized: "Habit abhaken"))
                 }
                 if entry.widgetResetEnabled {
-                    largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward")
+                    largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward",
+                                      label: String(localized: "Rückgängig"))
                 }
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
-        .padding(preserveFocusSurface ? 4 : 0)
-        .background(AnyShapeStyle(Color.clear),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .frame(maxHeight: .infinity)
+        .clipped()
     }
 
     private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
@@ -338,12 +341,13 @@ private struct LargeWidgetItem: View {
         }
     }
 
-    private func largeActionButton<I: AppIntent>(intent: I, symbol: String) -> some View {
+    private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
         Button(intent: intent) {
             Image(systemName: symbol)
                 .frame(width: WidgetLogic.LargeGeometry.actionHeight,
                        height: WidgetLogic.LargeGeometry.actionHeight)
         }
+        .accessibilityLabel(label)
     }
 }
 

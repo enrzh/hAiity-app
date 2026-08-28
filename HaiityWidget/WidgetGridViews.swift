@@ -64,13 +64,22 @@ private struct LargeGridItem: View {
                 switch summary.kind {
                 case .yesNo:
                     Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel(String(localized: "Mit Ja beantworten"))
                     Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel(String(localized: "Mit Nein beantworten"))
                 case .quantity:
                     Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus").frame(width: 44, height: 44) }
+                        .accessibilityLabel(String(localized: "Menge erhöhen"))
                 case .checkbox, .reminder:
                     Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel(habit.isReminder
+                                            ? String(localized: "Erinnerung erledigen")
+                                            : String(localized: "Habit abhaken"))
                 }
-                if entry.widgetResetEnabled { Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) } }
+                if entry.widgetResetEnabled {
+                    Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) }
+                        .accessibilityLabel(String(localized: "Rückgängig"))
+                }
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
             .frame(width: 88, height: 88, alignment: .bottomTrailing)
