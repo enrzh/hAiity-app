@@ -2,14 +2,14 @@
 
 ## Scope
 
-Base: `05eb929`. Fixed all Important findings and related Minor findings from `ui-task-1-review.md` without changing unrelated work.
+Base: `05eb929`, follow-up correction on `b456209`. Fixed the remaining Task1 layout and Fokus presentation findings without changing unrelated work.
 
 ## Changes
 
-- Liste keeps the approved `20 + 3x4 + 4x72 + 4 = 324pt` budget; each row uses the `18pt` title/status band and `38pt` graph region without a repeated card surface.
+- Liste uses one `titleStatusBand` HStack at `18pt`, then `4pt` spacing and a `38pt` graph, totaling `60pt` per non-reminder item; the list has four natural child gaps: `20 + 4x72 + 4x4 = 324pt`, with no bottom spacer child.
 - Every action in the compact and large paths owns its own `44 x 44pt` frame. Actions remain outside the informational `Link`.
 - Large item status metadata and reminder marks use small done/declined/open/free tints; no full-row status fill is added.
-- Fokus calls the shared item with `preserveFocusSurface: true`, retaining its prior surface presentation while Liste remains unframed.
+- Fokus calls the shared item with `preserveFocusSurface: true`, restoring the prior `padding(4)` plus rounded 8pt accent background/clip while Liste remains unframed.
 - Raster uses `gridColumnGap` for its actual 8pt column spacing and `gridRowGap` for its 6pt row spacing.
 - Rendering tests now slice the actual LargeWidgetItem/Liste regions, cover per-action hit-target contracts, reset visibility, status branches, and render at both `accessibilityLarge` and `accessibilityExtraExtraExtraLarge` with 664x712 output and visible-content assertions.
 
@@ -22,4 +22,4 @@ Base: `05eb929`. Fixed all Important findings and related Minor findings from `u
 
 ## Commit
 
-Pending isolated commit after final scoped diff review. No push performed.
+Pending isolated follow-up commit after final scoped diff review. No push performed.

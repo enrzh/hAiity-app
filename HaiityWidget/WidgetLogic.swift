@@ -552,7 +552,6 @@ enum WidgetLogic {
         static let listRowHeight: CGFloat = 72
         static let listTitleHeight: CGFloat = 18
         static let listGraphHeight: CGFloat = 38
-        static let listBottomBreathingRoom: CGFloat = 4
         static let focusHeaderHeight: CGFloat = 20
         static let focusHeaderGap: CGFloat = 4
         static let focusFeaturedHeight: CGFloat = 136

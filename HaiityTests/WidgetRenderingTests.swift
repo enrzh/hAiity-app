@@ -7,8 +7,7 @@ import XCTest
 final class WidgetRenderingTests: XCTestCase {
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
         let g = WidgetLogic.LargeGeometry.self
-        XCTAssertEqual(g.listHeaderHeight + 3 * g.itemSpacing + 4 * g.listRowHeight
-                       + g.listBottomBreathingRoom, 324)
+        XCTAssertEqual(g.listHeaderHeight + 4 * g.itemSpacing + 4 * g.listRowHeight, 324)
         XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 3 * g.gridRowHeight
                        + 2 * g.gridRowGap, 324)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
@@ -26,7 +25,9 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(list.contains("graphHeight: WidgetLogic.LargeGeometry.listGraphHeight"))
         let item = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
         XCTAssertTrue(item.contains("listTitleHeight"))
-        XCTAssertFalse(item.contains("RoundedRectangle(cornerRadius:"))
+        XCTAssertTrue(item.contains("titleStatusBand"))
+        XCTAssertTrue(item.contains(".frame(height: graphHeight)"))
+        XCTAssertTrue(item.contains("spacing: WidgetLogic.LargeGeometry.itemSpacing"))
         XCTAssertFalse(item.contains("background(.ultraThinMaterial"))
     }
 
@@ -62,6 +63,17 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.focusContentHeight,
                                  WidgetLogic.LargeGeometry.contentHeight)
         XCTAssertGreaterThanOrEqual(WidgetLogic.LargeGeometry.actionHeight, 44)
+    }
+
+    func testListeUsesNaturalFourChildGapsAndFokusRestoresPriorSurface() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let list = try sourceSlice(roster, from: "struct LargeListWidgetView", to: "struct LargeFocusWidgetView")
+        XCTAssertFalse(list.contains("Spacer().frame"))
+        XCTAssertTrue(list.contains("ForEach(entry.largeItems.prefix(4))"))
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("padding(preserveFocusSurface ? 4 : 0)"))
+        XCTAssertTrue(item.contains("RoundedRectangle(cornerRadius: 8"))
+        XCTAssertTrue(item.contains("clipShape(RoundedRectangle(cornerRadius: 8"))
     }
 
     func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {

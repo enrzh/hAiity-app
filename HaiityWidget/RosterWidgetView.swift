@@ -271,36 +271,38 @@ private struct LargeWidgetItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        HStack(spacing: 8) {
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
-                        Text(verbatim: habit.name)
-                            .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+            let titleStatusBand = HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
+                Text(verbatim: habit.name)
+                    .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 2)
+                if habit.isReminder {
+                    Image(systemName: "bell.fill")
+                } else {
+                    HStack(spacing: 3) {
+                        Image(systemName: summary.metricSymbol)
+                        Text(verbatim: summary.metricText)
                     }
-                    .frame(height: compact ? WidgetLogic.LargeGeometry.listTitleHeight : WidgetLogic.LargeGeometry.listTitleHeight, alignment: .leading)
-                    if habit.isReminder {
-                        Image(systemName: "bell.fill")
-                            .foregroundStyle(statusTint(summary.status, palette: palette))
-                            .accessibilityHidden(true)
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(statusTint(summary.status, palette: palette))
+            .lineLimit(1)
+            .frame(height: WidgetLogic.LargeGeometry.listTitleHeight, alignment: .leading)
+
+                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+                        titleStatusBand
+                        if !habit.isReminder {
+                            TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
+                                HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                            }
                             .frame(height: graphHeight)
-                    } else {
-                        HStack(spacing: 4) {
-                            Image(systemName: "flame.fill")
-                            Text(verbatim: String(habit.streak(today: today, calendar: entry.calendar(for: habit))))
-                            Image(systemName: summary.metricSymbol)
-                            Text(verbatim: summary.metricText).lineLimit(1)
                         }
-                        .font(.caption2)
-                        .foregroundStyle(statusTint(summary.status, palette: palette))
-                        .lineLimit(1)
-                        TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
-                            HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                        }
-                        .frame(height: graphHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -321,12 +323,10 @@ private struct LargeWidgetItem: View {
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
         }
-        .padding(preserveFocusSurface ? 8 : 0)
-        .background {
-            if preserveFocusSurface {
-                Theme.accent(palette).opacity(0.1)
-            }
-        }
+        .padding(preserveFocusSurface ? 4 : 0)
+        .background(preserveFocusSurface ? AnyShapeStyle(Theme.accent(palette).opacity(0.1)) : AnyShapeStyle(Color.clear),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .frame(maxHeight: .infinity)
     }
 
@@ -371,7 +371,6 @@ struct LargeListWidgetView: View {
                     LargeWidgetItem(habit: habit, entry: entry, graphHeight: WidgetLogic.LargeGeometry.listGraphHeight)
                         .frame(height: WidgetLogic.LargeGeometry.listRowHeight)
                 }
-                Spacer().frame(height: WidgetLogic.LargeGeometry.listBottomBreathingRoom)
             }
         }
         .padding(WidgetLogic.LargeGeometry.outerPadding)
