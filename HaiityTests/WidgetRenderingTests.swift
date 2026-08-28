@@ -290,6 +290,87 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(visiblePixelCount(image), 20)
     }
 
+    func testTaskTwoMixedFocusAndListeRegionsHaveStableForegroundBounds() throws {
+        let today = DayKey.today()
+        var checkbox = Habit(name: "中文习惯", emoji: "🧑🏽‍💻")
+        checkbox.log[today] = 1
+        let reminder = Habit(name: "提醒", emoji: "📚", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        let quantity = Habit(name: "数量", emoji: "🏋🏽‍♀️",
+                             recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "判断", emoji: "✅", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        let habits = [checkbox, reminder, quantity, yesNo]
+        let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits,
+                                largeLayout: .focus)
+        let scale: CGFloat = 2
+        let contentX = WidgetLogic.LargeGeometry.outerPadding * scale
+        let contentWidth = (332 - 2 * WidgetLogic.LargeGeometry.outerPadding) * scale
+        let focus = try render(LargeFocusWidgetView(entry: entry)
+            .frame(width: 332, height: 356), to: "large-focus-task-2-regions.png")
+
+        let featuredTop = (WidgetLogic.LargeGeometry.focusHeaderHeight
+                           + WidgetLogic.LargeGeometry.focusHeaderGap) * scale
+        let featuredGraph = CGRect(x: contentX,
+                                   y: contentX + featuredTop + WidgetLogic.LargeGeometry.listTitleHeight * scale,
+                                   width: contentWidth,
+                                   height: WidgetLogic.LargeGeometry.focusFeaturedGraphMinimumHeight * scale)
+        let featuredDensity = Double(foregroundPixelCount(focus, in: featuredGraph))
+            / Double(featuredGraph.width * featuredGraph.height)
+        XCTAssertGreaterThan(foregroundPixelCount(focus, in: featuredGraph), 40)
+
+        let queueStart = featuredTop + WidgetLogic.LargeGeometry.focusFeaturedHeight * scale
+            + WidgetLogic.LargeGeometry.focusFeaturedQueueGap * scale
+        let queueHeight = WidgetLogic.LargeGeometry.focusQueueHeight * scale
+        let queueGap = WidgetLogic.LargeGeometry.itemSpacing * scale
+        let queueContent = CGRect(x: contentX, y: contentX + queueStart,
+                                  width: contentWidth, height: queueHeight)
+        let graphOnlyBand = CGRect(x: contentX + 8 * scale,
+                                   y: queueContent.minY + WidgetLogic.LargeGeometry.listTitleHeight * scale,
+                                   width: contentWidth - 56 * scale,
+                                   height: queueHeight - WidgetLogic.LargeGeometry.listTitleHeight * scale)
+        for index in 0..<3 {
+            let row = queueContent.offsetBy(dx: 0, dy: CGFloat(index) * (queueHeight + queueGap))
+            XCTAssertGreaterThan(foregroundPixelCount(focus, in: row), 20,
+                                 "queue row (index) has no foreground")
+            let identity = CGRect(x: row.minX, y: row.minY, width: row.width, height: 20 * scale)
+            XCTAssertGreaterThan(foregroundPixelCount(focus, in: identity), 8,
+                                 "queue identity/status (index) is missing")
+            let actions = CGRect(x: row.maxX - 52 * scale, y: row.minY,
+                                 width: 52 * scale, height: row.height)
+            XCTAssertGreaterThan(foregroundPixelCount(focus, in: actions), 8,
+                                 "queue actions (index) are missing")
+            let band = graphOnlyBand.offsetBy(dx: 0, dy: CGFloat(index) * (queueHeight + queueGap))
+            let queueDensity = Double(foregroundPixelCount(focus, in: band))
+                / Double(band.width * band.height)
+            XCTAssertLessThan(queueDensity, max(0.01, featuredDensity * 0.35),
+                              "queue (index) unexpectedly contains a tile-grid-density graph")
+            if index < 2 {
+                let gap = CGRect(x: contentX, y: row.maxY, width: contentWidth, height: queueGap)
+                XCTAssertLessThanOrEqual(foregroundPixelCount(focus, in: gap), 12,
+                                         "queue row (index) overflows its gap")
+            }
+        }
+
+        let list = try render(LargeListWidgetView(entry: entry)
+            .frame(width: 332, height: 356), to: "large-list-task-2-regions.png")
+        let listRowHeight = WidgetLogic.LargeGeometry.listRowHeight * scale
+        let listGap = WidgetLogic.LargeGeometry.itemSpacing * scale
+        let listStart = contentX + (WidgetLogic.LargeGeometry.listHeaderHeight + listGap) * scale
+        for index in 0..<4 {
+            let row = CGRect(x: contentX, y: listStart + CGFloat(index) * (listRowHeight + listGap),
+                             width: contentWidth, height: listRowHeight)
+            XCTAssertGreaterThan(foregroundPixelCount(list, in: row), 20,
+                                 "Liste row (index) has no foreground")
+            if index != 1 {
+                let graph = CGRect(x: row.minX, y: row.minY + WidgetLogic.LargeGeometry.listTitleHeight * scale,
+                                   width: row.width, height: WidgetLogic.LargeGeometry.listGraphHeight * scale)
+                XCTAssertGreaterThan(foregroundPixelCount(list, in: graph), 20,
+                                     "Liste habit graph (index) is missing")
+            }
+        }
+    }
+
     func testLargeProvidersUseLargeDemoPlaceholders() throws {
         let source = try self.source("HaiityWidget/HaiityWidget.swift")
         XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)
