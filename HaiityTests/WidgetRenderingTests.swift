@@ -41,6 +41,16 @@ final class WidgetRenderingTests: XCTestCase {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
         let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
         XCTAssertFalse(item.contains("frame(width: 18"), "emoji must not consume a fixed title width")
+        XCTAssertTrue(item.contains(".fixedSize(horizontal: true, vertical: false)"))
+        XCTAssertTrue(item.contains("Text(verbatim: habit.name)"))
+        XCTAssertTrue(item.contains(".layoutPriority(1)"))
+        XCTAssertTrue(item.contains("HStack(spacing: 3)"))
+        XCTAssertTrue(item.contains("Label(metricText, systemImage: summary.metricSymbol)"), "non-reminder status remains compact")
+        XCTAssertEqual(item.components(separatedBy: "summary.metricText").count - 1, 1,
+                       "reminder timing must be rendered exactly once in the middle region")
+        XCTAssertTrue(item.contains("Image(systemName: \"bell.fill\")"))
+        XCTAssertEqual(item.components(separatedBy: "frame(width: 44, height: 44)").count - 1, 5,
+                       "yes/no, count, checkbox/reminder, and reset actions need 44pt frames")
         XCTAssertTrue(item.contains("gridGraphMinimumHeight"))
 
         let today = DayKey.today()
@@ -86,6 +96,15 @@ final class WidgetRenderingTests: XCTestCase {
                                      "missing reminder timing region")
             }
         }
+
+        let accessible = try render(LargeGridWidgetView(entry: entry)
+            .environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+            .frame(width: 332, height: 356), to: "large-grid-task-3-accessibility.png")
+        XCTAssertGreaterThan(visiblePixelCount(accessible), 20)
+        let custom = try render(LargeGridWidgetView(entry: entry)
+            .environment(\.widgetRenderingMode, .vibrant)
+            .frame(width: 332, height: 356), to: "large-grid-task-3-vibrant.png")
+        XCTAssertGreaterThan(visiblePixelCount(custom), 20)
     }
 
     func testRasterFourGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {

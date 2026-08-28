@@ -34,37 +34,54 @@ private struct LargeGridItem: View {
     var body: some View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
+        let metricText = summary.metricText
         let palette = entry.palettes.style(for: habit)
         VStack(alignment: .leading, spacing: 0) {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
                 HStack(spacing: 4) {
                     HStack(spacing: 3) {
-                        if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).layoutPriority(1) }
-                        Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                        if !habit.emoji.isEmpty {
+                            Text(verbatim: habit.emoji)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        Text(verbatim: habit.name)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .layoutPriority(1)
                     }
-                    Label(summary.metricText, systemImage: habit.isReminder ? "bell.fill" : summary.metricSymbol)
-                        .font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    .layoutPriority(1)
+                    if habit.isReminder {
+                        Image(systemName: "bell.fill")
+                            .font(.caption2)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    } else {
+                        Label(metricText, systemImage: summary.metricSymbol)
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
                 .frame(height: 20)
                 .padding(.horizontal, 4)
                 .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
+            }
+            .frame(height: 20, alignment: .topLeading)
+            if !habit.isReminder {
+                TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
-                .frame(height: 20, alignment: .topLeading)
-                if !habit.isReminder {
-                    TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
-                        HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
-                } else {
-                    Text(verbatim: summary.metricText)
-                        .font(.title3.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                }
-                HStack(spacing: 0) {
+                .frame(maxWidth: .infinity)
+                .frame(height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
+            } else {
+                Text(verbatim: metricText)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
+            HStack(spacing: 0) {
                 switch summary.kind {
                 case .yesNo:
                     Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
