@@ -2996,10 +2996,8 @@ struct SearchFlow {
     struct Cleanup: Equatable {
         let clearFocus: Bool
         let clearQuery: Bool
-        let leaveSearchTab: Bool
     }
-    static let closeCleanup = Cleanup(clearFocus: true, clearQuery: true,
-                                      leaveSearchTab: true)
+    static let closeCleanup = Cleanup(clearFocus: true, clearQuery: true)
     private(set) var state: State = .closed
 
     /// Länger als die Abklapp-Animation (~0,35 s), kürzer als der schnellste

@@ -33,8 +33,7 @@ final class SearchFlowTests: XCTestCase {
         flow.dismissed(now: t0)
         XCTAssertEqual(flow.state, .closing(since: t0))
         XCTAssertEqual(SearchFlow.closeCleanup,
-                       SearchFlow.Cleanup(clearFocus: true, clearQuery: true,
-                                          leaveSearchTab: true))
+                       SearchFlow.Cleanup(clearFocus: true, clearQuery: true))
     }
 
     // Der frühere Verhaltens-Umschalter (`.automatic` nur für Deep-Links)
