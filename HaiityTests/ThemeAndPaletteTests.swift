@@ -800,7 +800,7 @@ final class AppearanceSettingTests: XCTestCase {
         let setupStart = try XCTUnwrap(
             more.range(of: "Section {\n                Button { showReminderSetup = true }"))
         let setupEnd = try XCTUnwrap(
-            more.range(of: "            .settingsRowSurface()\n            Section {\n                pageRow(MoreRoute.about",
+            more.range(of: "            Section {\n                pageRow(MoreRoute.about",
                     range: setupStart.upperBound..<more.endIndex))
         let mainSetup = String(more[setupStart.lowerBound..<setupEnd.upperBound])
         let screenSwitch = try body(from: "switch screen {",
