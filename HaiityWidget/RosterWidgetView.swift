@@ -295,10 +295,7 @@ private struct LargeWidgetItem: View {
             if habit.isReminder {
                 Image(systemName: "bell.fill")
             } else {
-                HStack(spacing: 3) {
-                    Image(systemName: summary.metricSymbol)
-                    Text(verbatim: summary.metricText).lineLimit(1).minimumScaleFactor(0.7)
-                }
+                compactStatus(summary)
             }
         }
         .font(.caption2)
@@ -309,7 +306,8 @@ private struct LargeWidgetItem: View {
         let visualBand = Group {
             if graph && habit.isReminder {
                 Text(verbatim: summary.metricText)
-                    .font(compact ? .caption : .caption.weight(.semibold))
+                    .font(compact ? .caption2 : .caption.weight(.medium))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -366,6 +364,7 @@ private struct LargeWidgetItem: View {
             .buttonStyle(.plain)
             .font(.caption2.weight(.bold))
             .foregroundStyle(Theme.accentText(palette))
+            .fixedSize(horizontal: true, vertical: false)
             .frame(minWidth: actionHeight,
                    minHeight: actionHeight,
                    maxHeight: actionHeight,
@@ -373,6 +372,20 @@ private struct LargeWidgetItem: View {
             actionBand
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func compactStatus(_ summary: WidgetItemSummary) -> some View {
+        switch summary.kind {
+        case .checkbox:
+            Image(systemName: summary.metricSymbol)
+        case .quantity, .yesNo:
+            Label(summary.metricText, systemImage: summary.metricSymbol)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        case .reminder:
+            EmptyView()
+        }
     }
 
     private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
@@ -389,6 +402,7 @@ private struct LargeWidgetItem: View {
                 .frame(width: WidgetLogic.LargeGeometry.actionHeight,
                        height: WidgetLogic.LargeGeometry.actionHeight)
         }
+        .contentShape(Rectangle())
         .accessibilityLabel(label)
     }
 }

@@ -48,20 +48,29 @@ private struct LargeGridItem: View {
                         Text(verbatim: habit.name)
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .layoutPriority(1)
+                            .truncationMode(.tail)
+                            .minimumScaleFactor(0.75)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)
+                    .clipped()
+                    Spacer(minLength: 2)
                     if habit.isReminder {
                         Image(systemName: "bell.fill")
                             .font(.caption2)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .fixedSize(horizontal: true, vertical: false)
                     } else {
-                        Label(metricText, systemImage: summary.metricSymbol)
-                            .font(.caption2)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        switch summary.kind {
+                        case .checkbox:
+                            Image(systemName: summary.metricSymbol)
+                                .font(.caption2.weight(.semibold))
+                        case .quantity, .yesNo:
+                            Label(metricText, systemImage: summary.metricSymbol)
+                                .font(.caption2.weight(.semibold))
+                                .fixedSize(horizontal: true, vertical: false)
+                        case .reminder:
+                            EmptyView()
+                        }
                     }
                 }
                 .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight)
@@ -78,9 +87,12 @@ private struct LargeGridItem: View {
                 .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight)
             } else {
                 Text(verbatim: metricText)
-                    .font(.title3.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight,
                            alignment: .center)
@@ -106,7 +118,10 @@ private struct LargeGridItem: View {
                         .accessibilityLabel(String(localized: "Rückgängig"))
                 }
             }
-            .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
+            .buttonStyle(.plain)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.secondary)
+            .opacity(0.75)
             .frame(maxWidth: .infinity,
                    minHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
                    maxHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
@@ -114,6 +129,7 @@ private struct LargeGridItem: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+
 }
 
 /// Gemeinsame Rasterbausteine für ALLE Widgets. Sie zeichnen dieselben Zellen

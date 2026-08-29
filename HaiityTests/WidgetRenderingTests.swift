@@ -362,6 +362,25 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(item.contains("background(.ultraThinMaterial"))
     }
 
+    func testLargeListKeepsActionsBesideTheGraphAndRasterKeepsReadableBands() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        XCTAssertTrue(item.contains("HStack(alignment: .top, spacing: WidgetLogic.LargeGeometry.itemSpacing)"),
+                      "fixed-height list items must keep actions beside the graph")
+        XCTAssertTrue(item.contains("titleStatusBand"),
+                      "the title/status band remains a distinct horizontal region")
+
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        let gridItem = try sourceSlice(grid, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
+        XCTAssertFalse(gridItem.contains("frame(width: 48"),
+                       "the compact status column must remain flexible for localization")
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight, 20)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 86)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight
+                       + WidgetLogic.LargeGeometry.gridVisualBandHeight
+                       + WidgetLogic.LargeGeometry.gridActionBandHeight, 150)
+    }
+
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
