@@ -107,7 +107,21 @@ private final class StartupSplashAnimationView: UIView {
                 self.hasStarted = true
                 self.startTask = nil
                 self.launchImage = nil
-                self.onFinished?()
+                self.backgroundLayer.frame = self.bounds
+                self.backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor
+                self.backgroundLayer.opacity = 0
+                self.backgroundLayer.add(self.fadeAnimation(
+                    from: 1,
+                    to: 0,
+                    beginTime: self.layer.convertTime(CACurrentMediaTime(), from: nil),
+                    duration: StartupSplashTimeline.reducedMotionDuration),
+                    forKey: "startupSplashReducedMotionHandoff")
+                self.finishTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(
+                        StartupSplashTimeline.reducedMotionDuration * 1_000_000_000))
+                    guard !Task.isCancelled, self?.window != nil else { return }
+                    self?.onFinished?()
+                }
                 return
             }
             let metrics = Metrics(container: self.bounds.size)
@@ -261,7 +275,7 @@ private final class StartupSplashAnimationView: UIView {
             group.fillMode = .both
             group.isRemovedOnCompletion = false
             group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            tileLayer.add(group, forKey: "startupSplash")
+            tileLayer.add(group, forKey: "startupSplashFinalHandoff")
         }
 
         backgroundLayer.opacity = 0

@@ -20,6 +20,7 @@ enum StartupSplashTimeline {
     static let clusterDuration: TimeInterval = 0.24 * runtimeScale
     static let splitDuration: TimeInterval = 0.80 * runtimeScale
     static let zoomDuration: TimeInterval = 0.72 * runtimeScale
+    static let reducedMotionDuration: TimeInterval = 0.18 * runtimeScale
     static let startDelay: TimeInterval = 0.05 * runtimeScale
     static let compactScale: CGFloat = 0.36
     static let zoomScale: CGFloat = 7.5
@@ -94,6 +95,10 @@ enum StartupSplashTimeline {
         let reveal = eased(progress(at: elapsed - revealStart,
                                     duration: revealDuration))
         return 1 - Double(reveal)
+    }
+
+    static func reducedMotionOpacity(at elapsed: TimeInterval) -> Double {
+        1 - Double(eased(progress(at: elapsed, duration: reducedMotionDuration)))
     }
 
     private static func progress(at elapsed: TimeInterval,

@@ -202,6 +202,43 @@ final class StartupSplashTests: XCTestCase {
                        + StartupSplashTimeline.zoomDuration)
     }
 
+    func testFinalHandoffKeepsSplashVisibleUntilTheAppSurfaceIsReady() {
+        let zoomAt = StartupSplashTimeline.clusterDuration
+            + StartupSplashTimeline.splitDuration
+        let samples = stride(from: zoomAt,
+                             to: StartupSplashTimeline.duration,
+                             by: StartupSplashTimeline.zoomDuration / 4)
+
+        for elapsed in samples {
+            XCTAssertGreaterThan(StartupSplashTimeline.overlayOpacity(at: elapsed), 0,
+                                 "the splash must not expose a zero-opacity gap before completion")
+        }
+        XCTAssertEqual(StartupSplashTimeline.overlayOpacity(at: StartupSplashTimeline.duration), 0)
+    }
+
+    func testReducedMotionUsesOneShortOpacityHandoff() {
+        XCTAssertLessThan(StartupSplashTimeline.reducedMotionDuration,
+                          StartupSplashTimeline.zoomDuration)
+        XCTAssertEqual(StartupSplashTimeline.reducedMotionOpacity(at: 0), 1)
+        XCTAssertGreaterThan(StartupSplashTimeline.reducedMotionOpacity(
+            at: StartupSplashTimeline.reducedMotionDuration * 0.5), 0)
+        XCTAssertEqual(StartupSplashTimeline.reducedMotionOpacity(
+            at: StartupSplashTimeline.reducedMotionDuration), 0)
+    }
+
+    func testSplashUsesOneFinalHandoffAnimation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("finalHandoff"))
+        XCTAssertFalse(splash.contains("forKey: \"startupSplash\"))
+        XCTAssertTrue(splash.contains("forKey: \"startupSplashFinalHandoff\"))
+        XCTAssertTrue(splash.contains("reducedMotionDuration"))
+    }
+
     func testSplashUsesCoreAnimationForTheFullWindow() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
