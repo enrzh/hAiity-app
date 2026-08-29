@@ -234,7 +234,7 @@ final class StartupSplashTests: XCTestCase {
             "Haiity/Views/StartupSplashView.swift"))
 
         XCTAssertTrue(splash.contains("finalHandoff"))
-        XCTAssertFalse(splash.contains("forKey: \"startupSplash\"))
+        XCTAssertFalse(splash.contains("forKey: \"startupSplash\")"))
         XCTAssertTrue(splash.contains("forKey: \"startupSplashFinalHandoff\"))
         XCTAssertTrue(splash.contains("reducedMotionDuration"))
     }
@@ -511,8 +511,25 @@ final class StartupSplashTests: XCTestCase {
 
         XCTAssertLessThan(reduceMotion.lowerBound, raster.lowerBound,
                           "reduce motion should bypass launch-image preparation before any raster work starts")
-        XCTAssertTrue(scheduleBody.contains("self.onFinished?()"),
-                      "reduce motion should hand off immediately once the splash is on screen")
+        XCTAssertTrue(scheduleBody.contains("self?.finishIfNeeded()"),
+                      "reduce motion should complete through the one-shot finish guard")
+    }
+
+    func testSplashFinishesFromCoreAnimationCompletionExactlyOnce() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+
+        XCTAssertTrue(splash.contains("CATransaction.setCompletionBlock"))
+        XCTAssertTrue(splash.contains("private var didFinish = false"))
+        XCTAssertTrue(splash.contains("guard !didFinish, window != nil else { return }"))
+        XCTAssertTrue(splash.contains("didFinish = true"))
+        XCTAssertFalse(splash.contains("finishTask"))
+        XCTAssertFalse(splash.contains("Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration"))
+        XCTAssertFalse(splash.contains("Task.sleep(nanoseconds: UInt64(\n                        StartupSplashTimeline.reducedMotionDuration"))
+        XCTAssertTrue(splash.contains("CATransaction.commit()"))
     }
 
     func testSplashStartsTheAnimationWhileLaunchImagePreparationContinues() throws {

@@ -41,8 +41,8 @@ private final class StartupSplashAnimationView: UIView {
     private var launchImage: CGImage?
     private var startTask: Task<Void, Never>?
     private var launchImageTask: Task<Void, Never>?
-    private var finishTask: Task<Void, Never>?
     private var hasStarted = false
+    private var didFinish = false
     private var scheduledBounds = CGSize.zero
 
     var onFinished: (() -> Void)?
@@ -62,7 +62,6 @@ private final class StartupSplashAnimationView: UIView {
     deinit {
         startTask?.cancel()
         launchImageTask?.cancel()
-        finishTask?.cancel()
     }
 
     override func didMoveToWindow() {
@@ -72,8 +71,6 @@ private final class StartupSplashAnimationView: UIView {
             startTask = nil
             launchImageTask?.cancel()
             launchImageTask = nil
-            finishTask?.cancel()
-            finishTask = nil
             scheduledBounds = .zero
             return
         }
@@ -110,18 +107,17 @@ private final class StartupSplashAnimationView: UIView {
                 self.backgroundLayer.frame = self.bounds
                 self.backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor
                 self.backgroundLayer.opacity = 0
+                CATransaction.begin()
+                CATransaction.setCompletionBlock { [weak self] in
+                    self?.finishIfNeeded()
+                }
                 self.backgroundLayer.add(self.fadeAnimation(
                     from: 1,
                     to: 0,
                     beginTime: self.layer.convertTime(CACurrentMediaTime(), from: nil),
                     duration: StartupSplashTimeline.reducedMotionDuration),
                     forKey: "startupSplashReducedMotionHandoff")
-                self.finishTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: UInt64(
-                        StartupSplashTimeline.reducedMotionDuration * 1_000_000_000))
-                    guard !Task.isCancelled, self?.window != nil else { return }
-                    self?.onFinished?()
-                }
+                CATransaction.commit()
                 return
             }
             let metrics = Metrics(container: self.bounds.size)
@@ -160,18 +156,6 @@ private final class StartupSplashAnimationView: UIView {
         let startTime = layer.convertTime(CACurrentMediaTime(), from: nil)
         addAnimations(startTime: startTime, metrics: metrics)
 
-        finishTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(StartupSplashTimeline.duration
-                                                         * 1_000_000_000))
-            } catch is CancellationError {
-                return
-            } catch {
-                return
-            }
-            guard !Task.isCancelled, self?.window != nil else { return }
-            self?.onFinished?()
-        }
     }
 
     private static func prepareLaunchImage(size: CGSize, scale: CGFloat) async -> CGImage? {
@@ -204,6 +188,10 @@ private final class StartupSplashAnimationView: UIView {
     }
 
     private func addAnimations(startTime: CFTimeInterval, metrics: Metrics) {
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            self?.finishIfNeeded()
+        }
         let visualDuration = StartupSplashTimeline.clusterDuration
             + StartupSplashTimeline.splitDuration
             + StartupSplashTimeline.zoomDuration
@@ -284,6 +272,13 @@ private final class StartupSplashAnimationView: UIView {
                                           beginTime: startTime + splitEnd - 0.08,
                                           duration: StartupSplashTimeline.zoomDuration + 0.08),
                             forKey: "startupSplashBackgroundFade")
+        CATransaction.commit()
+    }
+
+    private func finishIfNeeded() {
+        guard !didFinish, window != nil else { return }
+        didFinish = true
+        onFinished?()
     }
 
     private func fadeAnimation(from: Float,
