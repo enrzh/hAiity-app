@@ -320,6 +320,7 @@ struct ReminderSetupView: View {
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
+        .background(.clear)
     }
 
     /// Eigene Punkte statt der System-Punkte: die stehen sonst UNTER dem

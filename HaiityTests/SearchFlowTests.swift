@@ -27,6 +27,19 @@ final class SearchFlowTests: XCTestCase {
         XCTAssertTrue(source.contains("transaction.disablesAnimations = true"))
     }
 
+    func testSearchCloseClearsPresentationStateWithoutTransientOverlay() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(source.contains("searchFieldFocused = false"),
+                      "closing search must release keyboard focus")
+        XCTAssertTrue(source.contains("search = \"\""),
+                      "closing search must remove stale filtering")
+        XCTAssertFalse(source.contains("searchCloseOverlay"),
+                       "search close must not add a transient blank overlay")
+    }
+
     // Der frühere Verhaltens-Umschalter (`.automatic` nur für Deep-Links)
     // ist mit dem echten Such-Tab gegenstandslos: es gibt nur noch EIN
     // `.searchable`, und es wohnt am Such-Tab selbst.

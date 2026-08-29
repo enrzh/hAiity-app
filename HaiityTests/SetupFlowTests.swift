@@ -101,10 +101,12 @@ final class SetupFlowTests: XCTestCase {
 
         XCTAssertTrue(setup.contains("alignment: .top"),
                       "setup content must begin in a deliberate top composition")
-        XCTAssertFalse(setup.contains("alignment: .center"),
-                       "centering the small intrinsic content creates the reported empty screen")
+        XCTAssertTrue(setup.contains("minHeight: max(0, proxy.size.height - Theme.Metrics.gutter * 2),\n                       alignment: .top"),
+                      "the page container must keep its content in a readable top composition")
         XCTAssertFalse(setup.contains("Color.clear.appSurface(cornerRadius: 0)"),
                        "the footer must not create a separate opaque band")
+        XCTAssertTrue(setup.contains(".background(.clear)"),
+                      "setup footer must remain transparent over the appearance-aware surface")
     }
 
     func testSetupUsesAppearanceAwareChromeAndReducedMotion() throws {

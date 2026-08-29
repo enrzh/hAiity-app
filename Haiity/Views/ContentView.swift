@@ -209,9 +209,6 @@ struct ContentView: View {
             // Toast war sichtbar, aber sein Tipp landete im Vorhang und
             // SCHLOSS die Karte, statt zurückzunehmen (nachgemessen im
             // Simulator; genau das Zurück, das die Kommentare versprechen).
-            // NUR Fallback (iOS < 26): das selbstgebaute Chrom über der
-            // Liste. Ab iOS 26 zeichnet die native TabView die Leiste selbst.
-            .overlay(alignment: .bottom) { legacyBottomChrome }
             .overlay(alignment: .bottom) { nativeToastOverlay }
             // Der Feld-Beobachter (nur iOS 27, nur bei offener Suche) —
             // absichtlich hier oben und nicht an der Liste: er darf nicht
@@ -538,6 +535,7 @@ struct ContentView: View {
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
             // offenen Karte antippbar.
             .overlay { backfillLayer }
+            .overlay(alignment: .bottom) { legacyBottomChrome }
         }
     }
 
@@ -618,17 +616,10 @@ struct ContentView: View {
     private var nativeToastOverlay: some View {
         if #available(iOS 26, *), !searching {
             floatingPills
-                .safeAreaPadding(.bottom, nativeTabBarClearance)
+                .safeAreaPadding(.bottom, ChromeLayout.nativeTabBarClearance)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(200)
         }
-    }
-
-    private var nativeTabBarClearance: CGFloat {
-        // Reserve the expanded native bar even while iOS is animating it from
-        // its compact state. The safe-area padding keeps a newly inserted
-        // toast above that transition instead of letting the bar cover it.
-        Theme.Metrics.control + Theme.Metrics.gutter + Theme.Metrics.gap * 3
     }
 
     /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.

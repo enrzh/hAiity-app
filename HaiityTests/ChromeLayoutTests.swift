@@ -6,6 +6,32 @@ import XCTest
 /// warum die Auswahl-Lasur einem Finger folgen kann — in der Ansicht wären
 /// sie nicht prüfbar.
 final class ChromeLayoutTests: XCTestCase {
+    private func source(_ relative: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(relative))
+    }
+
+    func testNativeShellOwnsBottomChromeAndFallbackOwnsLegacyChrome() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertEqual(content.components(separatedBy: ".overlay(alignment: .bottom) { legacyBottomChrome }").count,
+                       2,
+                       "legacy chrome must have exactly one owner")
+        XCTAssertTrue(content.contains("if #unavailable(iOS 26), !searching"),
+                      "legacy chrome must remain an older-system fallback")
+        XCTAssertTrue(content.contains("TabView(selection: $nativeTab)"),
+                      "iOS 26 must keep one native TabView owner")
+    }
+
+    func testNativeToastClearanceUsesChromeLayoutContract() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("ChromeLayout.nativeTabBarClearance"),
+                      "toast placement must use the shared chrome geometry")
+        XCTAssertTrue(content.contains(".safeAreaPadding(.bottom, ChromeLayout.nativeTabBarClearance)"),
+                      "toast must reserve the native bar during resize")
+    }
 
     // MARK: – Wohin der Anlegen-Knopf fährt
 

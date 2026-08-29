@@ -15,6 +15,11 @@ import CoreGraphics
 ///    und das Treffer-Verfahren muss auch dann eine Antwort geben, wenn der
 ///    Finger etwas über oder unter der Kapsel wandert.
 enum ChromeLayout {
+    /// Clearance reserved below transient feedback while the native bar is
+    /// expanding or collapsing.
+    static let nativeTabBarClearance: CGFloat = Theme.Metrics.control
+        + Theme.Metrics.gutter + Theme.Metrics.gap * 3
+
     /// Der eine Rand, aus dem beide Kapselradien folgen: (52 − 44)/2 = 4.
     /// Er ist auch der Abstand ZWISCHEN den beiden Lasuren.
     static let inset: CGFloat = (Theme.Metrics.control - Theme.Metrics.hit) / 2
