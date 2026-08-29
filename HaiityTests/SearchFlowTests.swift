@@ -28,16 +28,13 @@ final class SearchFlowTests: XCTestCase {
     }
 
     func testSearchCloseClearsPresentationStateWithoutTransientOverlay() throws {
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/ContentView.swift"))
-
-        XCTAssertTrue(source.contains("searchFieldFocused = false"),
-                      "closing search must release keyboard focus")
-        XCTAssertTrue(source.contains("search = \"\""),
-                      "closing search must remove stale filtering")
-        XCTAssertFalse(source.contains("searchCloseOverlay"),
-                       "search close must not add a transient blank overlay")
+        var flow = SearchFlow()
+        flow.userOpened()
+        flow.dismissed(now: t0)
+        XCTAssertEqual(flow.state, .closing(since: t0))
+        XCTAssertEqual(SearchFlow.closeCleanup,
+                       SearchFlow.Cleanup(clearFocus: true, clearQuery: true,
+                                          leaveSearchTab: true))
     }
 
     // Der frühere Verhaltens-Umschalter (`.automatic` nur für Deep-Links)

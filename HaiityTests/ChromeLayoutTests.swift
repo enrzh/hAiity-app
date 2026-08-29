@@ -25,12 +25,22 @@ final class ChromeLayoutTests: XCTestCase {
     }
 
     func testNativeToastClearanceUsesChromeLayoutContract() throws {
-        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertEqual(ChromeLayout.toastBottomPadding(nativeBar: true, searching: false),
+                       ChromeLayout.nativeTabBarClearance)
+        XCTAssertEqual(ChromeLayout.toastBottomPadding(nativeBar: false, searching: false), 0)
+        XCTAssertEqual(ChromeLayout.toastBottomPadding(nativeBar: true, searching: true), 0)
+    }
 
-        XCTAssertTrue(content.contains("ChromeLayout.nativeTabBarClearance"),
-                      "toast placement must use the shared chrome geometry")
-        XCTAssertTrue(content.contains(".safeAreaPadding(.bottom, ChromeLayout.nativeTabBarClearance)"),
-                      "toast must reserve the native bar during resize")
+    func testNativeOwnerAssertionTargetsTheFallbackBranchOnly() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let fallback = try XCTUnwrap(content.range(of: "private var shell: some View"))
+        let native = try XCTUnwrap(content.range(of: "private var nativeShell: some View"))
+        let nativeEnd = try XCTUnwrap(content.range(of: "private func nativeTabRoot"))
+        let fallbackSource = String(content[fallback.lowerBound..<native.lowerBound])
+        let nativeSource = String(content[native.lowerBound..<nativeEnd.lowerBound])
+        XCTAssertEqual(fallbackSource.components(separatedBy: "legacyBottomChrome").count, 2)
+        XCTAssertFalse(nativeSource.contains("legacyBottomChrome"))
+        XCTAssertTrue(nativeSource.contains("TabView(selection: $nativeTab)"))
     }
 
     // MARK: – Wohin der Anlegen-Knopf fährt

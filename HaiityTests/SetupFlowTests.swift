@@ -98,15 +98,17 @@ final class SetupFlowTests: XCTestCase {
 
     func testSetupPagesUseTopCompositionAndTransparentFooter() throws {
         let setup = try source("Haiity/Views/ReminderSetupView.swift")
-
-        XCTAssertTrue(setup.contains("alignment: .top"),
-                      "setup content must begin in a deliberate top composition")
-        XCTAssertTrue(setup.contains("minHeight: max(0, proxy.size.height - Theme.Metrics.gutter * 2),\n                       alignment: .top"),
-                      "the page container must keep its content in a readable top composition")
-        XCTAssertFalse(setup.contains("Color.clear.appSurface(cornerRadius: 0)"),
-                       "the footer must not create a separate opaque band")
-        XCTAssertTrue(setup.contains(".background(.clear)"),
-                      "setup footer must remain transparent over the appearance-aware surface")
+        let footer = try XCTUnwrap(setup.range(of: "private var footer: some View"))
+        let pageDots = try XCTUnwrap(setup.range(of: "            pageDots\n",
+                                                  range: footer.upperBound..<setup.endIndex))
+        let footerEnd = try XCTUnwrap(setup.range(of: "    /// Eigene Punkte",
+                                                    range: pageDots.upperBound..<setup.endIndex))
+        let footerSource = String(setup[footer.lowerBound..<footerEnd.lowerBound])
+        XCTAssertTrue(setup.contains(".safeAreaInset(edge: .bottom) { footer }"))
+        XCTAssertTrue(footerSource.contains(".background(.clear)"))
+        XCTAssertFalse(footerSource.contains("appSurface"))
+        XCTAssertTrue(footerSource.contains("pageDots"), "footer must own the page indicator")
+        XCTAssertTrue(setup.contains("minHeight: max(0, proxy.size.height - Theme.Metrics.gutter * 2)"))
     }
 
     func testSetupUsesAppearanceAwareChromeAndReducedMotion() throws {

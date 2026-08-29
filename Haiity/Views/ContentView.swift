@@ -501,8 +501,8 @@ struct ContentView: View {
                 // `searchFocused`-Binding wahr, präsentiert das System das
                 // Feld sofort wieder (X → Kreis → Leiste klappt wieder auf).
                 if !open {
-                    searchFieldFocused = false
-                    clearSearchTextAfterCollapse()
+                    if SearchFlow.closeCleanup.clearFocus { searchFieldFocused = false }
+                    if SearchFlow.closeCleanup.clearQuery { clearSearchTextAfterCollapse() }
                     // Zuklappen heißt VERLASSEN: zurück auf den vorherigen
                     // Bereich, damit die Leiste in den Such-KREIS
                     // zurückschrumpft — auf dem Such-Tab stehen zu bleiben
@@ -616,7 +616,9 @@ struct ContentView: View {
     private var nativeToastOverlay: some View {
         if #available(iOS 26, *), !searching {
             floatingPills
-                .safeAreaPadding(.bottom, ChromeLayout.nativeTabBarClearance)
+                .safeAreaPadding(.bottom,
+                                  ChromeLayout.toastBottomPadding(nativeBar: true,
+                                                                  searching: searching))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(200)
         }
@@ -947,7 +949,7 @@ struct ContentView: View {
         guard chrome.searchFlow.fieldReading(reading) else { return }
         trace("watcher: system dismissed the search -> isPresented=false")
         searching = false
-        searchFieldFocused = false
+        if SearchFlow.closeCleanup.clearFocus { searchFieldFocused = false }
         // … und den Suchbegriff mit. Auf iOS 26 räumt SwiftUI ihn beim
         // Schließen selbst weg (nachgemessen: getippt, X getippt, Liste
         // wieder vollständig). Auf iOS 27 kommt das Schließen nie bei
@@ -955,7 +957,7 @@ struct ContentView: View {
         // gefiltert, ohne dass noch ein Suchfeld zu sehen wäre, in dem man
         // das ablesen oder rückgängig machen könnte. Genau ein Zustand, in
         // dem Habits verschwunden aussehen.
-        clearSearchTextAfterCollapse()
+        if SearchFlow.closeCleanup.clearQuery { clearSearchTextAfterCollapse() }
     }
 
     /// Der Suchbegriff leert sich erst NACH der Zuklapp-Animation — und
@@ -2991,6 +2993,13 @@ enum SearchOpenOrigin: CustomStringConvertible {
 /// beim Fokus bereits bewährt hat, jetzt auch für die Präsentation selbst.
 struct SearchFlow {
     enum State: Equatable { case closed, open, closing(since: Date) }
+    struct Cleanup: Equatable {
+        let clearFocus: Bool
+        let clearQuery: Bool
+        let leaveSearchTab: Bool
+    }
+    static let closeCleanup = Cleanup(clearFocus: true, clearQuery: true,
+                                      leaveSearchTab: true)
     private(set) var state: State = .closed
 
     /// Länger als die Abklapp-Animation (~0,35 s), kürzer als der schnellste

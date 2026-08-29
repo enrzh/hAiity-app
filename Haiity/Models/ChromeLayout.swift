@@ -20,6 +20,10 @@ enum ChromeLayout {
     static let nativeTabBarClearance: CGFloat = Theme.Metrics.control
         + Theme.Metrics.gutter + Theme.Metrics.gap * 3
 
+    static func toastBottomPadding(nativeBar: Bool, searching: Bool) -> CGFloat {
+        nativeBar && !searching ? nativeTabBarClearance : 0
+    }
+
     /// Der eine Rand, aus dem beide Kapselradien folgen: (52 − 44)/2 = 4.
     /// Er ist auch der Abstand ZWISCHEN den beiden Lasuren.
     static let inset: CGFloat = (Theme.Metrics.control - Theme.Metrics.hit) / 2
