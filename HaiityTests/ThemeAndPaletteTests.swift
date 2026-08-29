@@ -564,7 +564,7 @@ final class AppearanceSettingTests: XCTestCase {
         let chromeStart = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier"))
         let chrome = theme[chromeStart.lowerBound...]
 
-        XCTAssertTrue(chrome.contains("AppearanceBackground(preferences: preferences)"))
+        XCTAssertTrue(chrome.contains("AppearanceBackground(preferences: appearancePreferences)"))
         XCTAssertFalse(chrome.contains("toolbarBackground(.visible"),
                        "settings chrome must not force a separate header band")
         XCTAssertFalse(chrome.contains("toolbarBackground(Color("),
@@ -797,8 +797,12 @@ final class AppearanceSettingTests: XCTestCase {
                                       to: "private var habitBehaviorSettings", in: more)
         let moreTimeZone = try body(from: "private var timeZoneSettings: some View",
                                     to: "private func selectCalendar", in: more)
-        let mainSetup = try body(from: "Section {\n                Button { showReminderSetup = true }",
-                                 to: "private var githubSection", in: more)
+        let setupStart = try XCTUnwrap(
+            more.range(of: "Section {\n                Button { showReminderSetup = true }"))
+        let setupEnd = try XCTUnwrap(
+            more.range(of: "            .settingsRowSurface()\n            Section {\n                pageRow(MoreRoute.about",
+                    range: setupStart.upperBound..<more.endIndex))
+        let mainSetup = String(more[setupStart.lowerBound..<setupEnd.upperBound])
         let screenSwitch = try body(from: "switch screen {",
                                     to: "}\n        }\n        .navigationTitle", in: more)
         XCTAssertTrue(moreMain.contains(".settingsRowSurface()"),
