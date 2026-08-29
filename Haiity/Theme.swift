@@ -961,6 +961,7 @@ extension View {
     /// the same surface to the Section that owns the rows so the selected
     /// material is applied at the actual cell boundary.
     func settingsListRow() -> some View {
+        // Compatibility name for existing Section call sites.
         settingsRowSurface()
     }
 
@@ -1155,49 +1156,36 @@ struct SettingsRowSurface: View {
 
     @ViewBuilder
     var body: some View {
-        switch preferences.material {
-        case .solid:
-            rowShape
-                .fill(Color(.secondarySystemGroupedBackground))
-                .allowsHitTesting(false)
-        case .milky:
-            rowShape
-                .fill(.regularMaterial)
-                .overlay {
-                    rowShape
-                        .fill(Color(.systemBackground).opacity(0.12))
-                        .allowsHitTesting(false)
-                }
-                .allowsHitTesting(false)
-        case .liquid:
-            if #available(iOS 26, *) {
-                Color.clear
-                    .glassEffect(.regular, in: rowShape)
-                    .allowsHitTesting(false)
-            } else {
-                rowShape
-                    .fill(.ultraThinMaterial)
-                    .allowsHitTesting(false)
-            }
-        case .adaptive:
-            let tint = Theme.color(Theme.adaptiveTintHex(
-                preferences: preferences,
-                dark: colorScheme == .dark))
-            if #available(iOS 26, *) {
-                Color.clear
-                    .glassEffect(.regular.tint(tint.opacity(0.18)), in: rowShape)
-                    .allowsHitTesting(false)
-            } else {
+        Group {
+            switch preferences.material {
+            case .solid:
+                rowShape.fill(Color(.secondarySystemGroupedBackground))
+            case .milky:
                 rowShape
                     .fill(.regularMaterial)
-                    .overlay {
-                        rowShape
-                            .fill(tint.opacity(0.16))
-                            .allowsHitTesting(false)
-                    }
-                    .allowsHitTesting(false)
+                    .overlay { rowShape.fill(Color(.systemBackground).opacity(0.12)) }
+            case .liquid:
+                if #available(iOS 26, *) {
+                    Color.clear.glassEffect(.regular, in: rowShape)
+                } else {
+                    rowShape.fill(.ultraThinMaterial)
+                }
+            case .adaptive:
+                let tint = Theme.color(Theme.adaptiveTintHex(
+                    preferences: preferences,
+                    dark: colorScheme == .dark))
+                if #available(iOS 26, *) {
+                    Color.clear.glassEffect(.regular.tint(tint.opacity(0.18)), in: rowShape)
+                } else {
+                    rowShape
+                        .fill(.regularMaterial)
+                        .overlay { rowShape.fill(tint.opacity(0.16)) }
+                }
             }
         }
+        .clipShape(rowShape)
+        .overlay { rowShape.stroke(Color.primary.opacity(0.08), lineWidth: 0.5) }
+        .allowsHitTesting(false)
     }
 }
 

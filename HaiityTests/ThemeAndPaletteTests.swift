@@ -747,7 +747,7 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
     }
 
-    func testTaskOneSharedSettingsSurfaceContractIsAppliedToMoreAndPicker() throws {
+    func testTaskOneSharedSettingsSurfaceContractIsScopedToItsImplementations() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -756,12 +756,66 @@ final class AppearanceSettingTests: XCTestCase {
         let picker = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/MaterialPreviewPicker.swift"))
 
-        XCTAssertTrue(theme.contains("AppearanceBackground(preferences: appearancePreferences)"),
+        func body(from start: String, to end: String, in source: String) throws -> String {
+            let startRange = try XCTUnwrap(source.range(of: start))
+            let endRange = try XCTUnwrap(source.range(of: end,
+                                                       range: startRange.upperBound..<source.endIndex))
+            return String(source[startRange.lowerBound..<endRange.lowerBound])
+        }
+
+        let chromeStart = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier"))
+        let chrome = String(theme[chromeStart.lowerBound...])
+        let row = try body(from: "struct SettingsRowSurface: View",
+                           to: "private struct SettingsSurfaceModifier", in: theme)
+        let settings = try body(from: "private struct SettingsSurfaceModifier",
+                                to: "private struct NavigationChromeModifier", in: theme)
+        let background = try body(from: "struct AppearanceBackground: View",
+                                  to: "private struct AppSurfaceModifier", in: theme)
+
+        XCTAssertTrue(chrome.contains("AppearanceBackground(preferences: appearancePreferences)"),
                       "the shared settings chrome must render the environment appearance background")
+        XCTAssertTrue(row.contains("case .solid") && row.contains("case .milky")
+                      && row.contains("case .liquid") && row.contains("case .adaptive"),
+                      "the row surface must render the selected material")
+        XCTAssertTrue(background.contains("overlay(Color(.systemBackground).opacity(scrim))"),
+                      "image backgrounds need a readable overlay")
+        XCTAssertTrue(background.contains("LinearGradient")
+                      && background.contains("Color(.systemBackground).opacity"),
+                      "gradient backgrounds need a readable overlay")
+        XCTAssertTrue(row.contains("clipShape(rowShape)")
+                      && row.contains("rowShape.stroke"),
+                      "row clipping and border must be owned by the row shape")
+        XCTAssertFalse(settings.contains(".shadow("),
+                       "the list surface must not attach a parent shadow")
         XCTAssertTrue(theme.contains("func settingsRowSurface()"),
                       "settings rows need one reusable material-aware surface entry point")
-        XCTAssertTrue(more.contains(".settingsRowSurface()"),
-                      "More subpages must apply the shared row surface")
+        let moreMain = try body(from: "private var mainSettings: some View",
+                                to: "private var githubSection", in: more)
+        let moreBehavior = try body(from: "private var habitBehaviorSettings: some View",
+                                    to: "private var timeZoneSection", in: more)
+        let moreAppearance = try body(from: "private var appearanceSettings: some View",
+                                      to: "private var habitBehaviorSettings", in: more)
+        let moreTimeZone = try body(from: "private var timeZoneSettings: some View",
+                                    to: "private func selectCalendar", in: more)
+        let mainSetup = try body(from: "Section {\n                Button { showReminderSetup = true }",
+                                 to: "private var githubSection", in: more)
+        let screenSwitch = try body(from: "switch screen {",
+                                    to: "}\n        }\n        .navigationTitle", in: more)
+        XCTAssertTrue(moreMain.contains(".settingsRowSurface()"),
+                      "More main rows must use the shared row surface")
+        XCTAssertTrue(moreBehavior.contains(".settingsRowSurface()"),
+                      "Verhalten & Teilen rows must use the shared row surface")
+        XCTAssertTrue(moreAppearance.contains(".settingsChrome()"),
+                      "Darstellung must use the shared appearance chrome")
+        XCTAssertTrue(moreTimeZone.contains(".settingsSurface()"),
+                      "Zeitzone must use the shared material surface")
+        XCTAssertTrue(mainSetup.contains(".settingsRowSurface()"),
+                      "the setup-related More section must use the shared row surface")
+        for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
+                         "case .habitBehavior: habitBehaviorSettings", "case .timeZone: timeZoneSettings"] {
+            XCTAssertTrue(screenSwitch.contains(caseName),
+                          "More screen routing must retain the appearance-aware subpage: \(caseName)")
+        }
         XCTAssertTrue(picker.contains(".settingsRowSurface()"),
                       "material previews must use the same row surface treatment")
     }
