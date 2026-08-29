@@ -109,12 +109,11 @@ final class WidgetRenderingTests: XCTestCase {
         let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
         XCTAssertTrue(item.contains("HStack(spacing: 0)"))
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"))
-        XCTAssertTrue(item.contains("minHeight: 44"))
-        XCTAssertTrue(item.contains(".frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44"))
+        XCTAssertTrue(item.contains("gridActionBandHeight"))
         XCTAssertFalse(item.contains(".ultraThinMaterial"))
         XCTAssertFalse(item.contains("tileWidth - 88"))
         XCTAssertTrue(item.contains("if !habit.isReminder"))
-        XCTAssertTrue(item.contains(".frame(height: 20)"))
+        XCTAssertTrue(item.contains("gridIdentityBandHeight"))
         XCTAssertTrue(item.contains(".lineLimit(1)"))
     }
 
@@ -134,7 +133,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"), "raster actions keep 44pt targets")
         XCTAssertEqual(item.components(separatedBy: "frame(width: 44, height: 44)").count - 1, 5,
                        "yes/no, count, checkbox/reminder, and reset actions need 44pt frames")
-        XCTAssertTrue(item.contains("gridGraphMinimumHeight"))
+        XCTAssertTrue(item.contains("gridVisualBandHeight"))
 
         let today = DayKey.today()
         var checkbox = Habit(name: "这是一个需要优先显示的超长中文习惯名称", emoji: "🧑🏽‍💻")
@@ -283,6 +282,54 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 92)
     }
 
+    func testLargeLayoutsExposeNonOverlappingReservedBandsWithinContentBudget() throws {
+        let g = WidgetLogic.LargeGeometry.self
+        let geometrySource = try source("HaiityWidget/WidgetLogic.swift")
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+
+        XCTAssertTrue(geometrySource.contains("listIdentityBandHeight"))
+        XCTAssertTrue(geometrySource.contains("listVisualBandHeight"))
+        XCTAssertTrue(geometrySource.contains("listActionBandHeight"))
+        XCTAssertTrue(geometrySource.contains("gridIdentityBandHeight"))
+        XCTAssertTrue(geometrySource.contains("gridVisualBandHeight"))
+        XCTAssertTrue(geometrySource.contains("gridActionBandHeight"))
+        XCTAssertTrue(geometrySource.contains("focusIdentityBandHeight"))
+        XCTAssertTrue(geometrySource.contains("focusVisualBandHeight"))
+        XCTAssertTrue(geometrySource.contains("focusActionBandHeight"))
+
+        XCTAssertLessThanOrEqual(g.listRowHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.gridRowHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.focusFeaturedHeight, g.contentHeight)
+
+        let listItem = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        let gridItem = try sourceSlice(grid, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
+        XCTAssertTrue(listItem.contains("listIdentityBandHeight"))
+        XCTAssertTrue(listItem.contains("listVisualBandHeight"))
+        XCTAssertTrue(listItem.contains("listActionBandHeight"))
+        XCTAssertTrue(gridItem.contains("gridIdentityBandHeight"))
+        XCTAssertTrue(gridItem.contains("gridVisualBandHeight"))
+        XCTAssertTrue(gridItem.contains("gridActionBandHeight"))
+        XCTAssertTrue(gridItem.contains("if !habit.isReminder"))
+        XCTAssertTrue(gridItem.contains("reminder"))
+    }
+
+    func testListeAndFokusKeepIdentityVisualAndActionRegionsSeparate() throws {
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        let listItem = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
+        let focusStart = try XCTUnwrap(source.range(of: "struct LargeFocusWidgetView"))
+        let focus = String(source[focusStart.lowerBound...])
+
+        XCTAssertTrue(listItem.contains("identityBand"))
+        XCTAssertTrue(listItem.contains("visualBand"))
+        XCTAssertTrue(listItem.contains("actionBand"))
+        XCTAssertTrue(listItem.contains("focusIdentityBandHeight"))
+        XCTAssertTrue(listItem.contains("focusVisualBandHeight"))
+        XCTAssertTrue(listItem.contains("focusActionBandHeight"))
+        XCTAssertTrue(focus.contains("graph: false"))
+        XCTAssertFalse(focus.contains("graphHeight: WidgetLogic.LargeGeometry.focusQueueHeight"))
+    }
+
     func testFokusUsesFixedFeaturedAndQueueGeometry() throws {
         let g = WidgetLogic.LargeGeometry.self
         XCTAssertEqual(g.focusFeaturedHeight, 136)
@@ -306,7 +353,7 @@ final class WidgetRenderingTests: XCTestCase {
         let list = try sourceSlice(source, from: "struct LargeListWidgetView", to: "struct LargeFocusWidgetView")
         XCTAssertTrue(list.contains("graphHeight: WidgetLogic.LargeGeometry.listGraphHeight"))
         let item = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
-        XCTAssertTrue(item.contains("listTitleHeight"))
+        XCTAssertTrue(item.contains("listIdentityBandHeight"))
         XCTAssertTrue(item.contains("titleStatusBand"))
         XCTAssertTrue(item.contains(".frame(height: graphHeight)"))
         XCTAssertTrue(item.contains("spacing: WidgetLogic.LargeGeometry.itemSpacing"))

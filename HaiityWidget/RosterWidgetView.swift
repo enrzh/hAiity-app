@@ -271,48 +271,78 @@ private struct LargeWidgetItem: View {
         let today = entry.today(for: habit)
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let palette = entry.palettes.style(for: habit)
-        HStack(alignment: .top, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
-            VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
-            let titleStatusBand = HStack(alignment: .firstTextBaseline, spacing: 4) {
-                if !habit.emoji.isEmpty { Text(verbatim: habit.emoji) }
-                Text(verbatim: habit.name)
-                    .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+        let identityHeight = compact
+            ? WidgetLogic.LargeGeometry.focusIdentityBandHeight
+            : WidgetLogic.LargeGeometry.listIdentityBandHeight
+        let visualHeight = compact
+            ? WidgetLogic.LargeGeometry.focusVisualBandHeight
+            : WidgetLogic.LargeGeometry.listVisualBandHeight
+        let actionHeight = compact
+            ? WidgetLogic.LargeGeometry.focusActionBandHeight
+            : WidgetLogic.LargeGeometry.listActionBandHeight
+        // Reserved bands: listIdentityBandHeight, listVisualBandHeight, listActionBandHeight.
+        // Fokus uses the same identityBand / visualBand / actionBand ownership.
+        let identityBand = HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if !habit.emoji.isEmpty {
+                Text(verbatim: habit.emoji).fixedSize(horizontal: true, vertical: false)
+            }
+            Text(verbatim: habit.name)
+                .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .layoutPriority(1)
+            Spacer(minLength: 2)
+            if habit.isReminder {
+                Image(systemName: "bell.fill")
+            } else {
+                HStack(spacing: 3) {
+                    Image(systemName: summary.metricSymbol)
+                    Text(verbatim: summary.metricText).lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(statusTint(summary.status, palette: palette))
+        .lineLimit(1)
+        .frame(height: identityHeight, alignment: .leading)
+
+        let visualBand = Group {
+            if graph && habit.isReminder {
+                Text(verbatim: summary.metricText)
+                    .font(compact ? .caption : .caption.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .layoutPriority(1)
-                Spacer(minLength: 2)
-                if habit.isReminder {
-                    Image(systemName: "bell.fill")
-                } else {
-                    HStack(spacing: 3) {
-                        Image(systemName: summary.metricSymbol)
-                        Text(verbatim: summary.metricText)
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else if graph {
+                TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Color.clear
             }
-            .font(.caption2)
-            .foregroundStyle(statusTint(summary.status, palette: palette))
-            .lineLimit(1)
-            .frame(height: WidgetLogic.LargeGeometry.listTitleHeight, alignment: .leading)
+        }
 
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
-                    VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
-                        titleStatusBand
-                        if graph && habit.isReminder {
-                            Text(verbatim: summary.metricText)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                        } else if graph {
-                            TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
-                                HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                            }
+        HStack(alignment: .top, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+                    let titleStatusBand = identityBand
+                    titleStatusBand
+                    if graph {
+                        visualBand
                             .frame(height: graphHeight)
-                        }
+                            .frame(maxHeight: visualHeight)
+                    } else {
+                        visualBand
+                            .frame(height: max(0, WidgetLogic.LargeGeometry.focusQueueHeight
+                                                - identityHeight
+                                                - WidgetLogic.LargeGeometry.itemSpacing))
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack(spacing: 3) {
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            let actionBand = HStack(spacing: 3) {
                 switch summary.kind {
                 case .yesNo:
                     largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark",
@@ -333,10 +363,16 @@ private struct LargeWidgetItem: View {
                                       label: String(localized: "Rückgängig"))
                 }
             }
-            .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
+            .buttonStyle(.plain)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(Theme.accentText(palette))
+            .frame(minWidth: actionHeight,
+                   minHeight: actionHeight,
+                   maxHeight: actionHeight,
+                   alignment: .topTrailing)
+            actionBand
         }
-        .frame(maxHeight: .infinity)
-        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {

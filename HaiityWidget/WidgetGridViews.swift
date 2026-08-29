@@ -64,23 +64,26 @@ private struct LargeGridItem: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
-                .frame(height: 20)
+                .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight)
                 .padding(.horizontal, 4)
                 .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
             }
-            .frame(height: 20, alignment: .topLeading)
+            .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight,
+                   alignment: .topLeading)
             if !habit.isReminder {
                 TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
                     HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
+                .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight)
             } else {
                 Text(verbatim: metricText)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight,
+                           alignment: .center)
             }
             HStack(spacing: 0) {
                 switch summary.kind {
@@ -104,7 +107,10 @@ private struct LargeGridItem: View {
                 }
             }
             .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(.secondary).opacity(0.75)
-            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44, alignment: .leading)
+            .frame(maxWidth: .infinity,
+                   minHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
+                   maxHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
+                   alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
