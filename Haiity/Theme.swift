@@ -961,6 +961,10 @@ extension View {
     /// the same surface to the Section that owns the rows so the selected
     /// material is applied at the actual cell boundary.
     func settingsListRow() -> some View {
+        settingsRowSurface()
+    }
+
+    func settingsRowSurface() -> some View {
         listRowBackground(SettingsRowSurface())
     }
 
@@ -1245,9 +1249,9 @@ private struct NavigationChromeModifier: ViewModifier {
 }
 
 private struct SettingsChromeModifier: ViewModifier {
-    @Environment(\.appearancePreferences) private var preferences
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     func body(content: Content) -> some View {
-        content.background(AppearanceBackground(preferences: preferences))
+        content.background(AppearanceBackground(preferences: appearancePreferences))
     }
 }

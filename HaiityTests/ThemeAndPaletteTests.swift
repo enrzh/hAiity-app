@@ -747,6 +747,25 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
     }
 
+    func testTaskOneSharedSettingsSurfaceContractIsAppliedToMoreAndPicker() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let picker = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MaterialPreviewPicker.swift"))
+
+        XCTAssertTrue(theme.contains("AppearanceBackground(preferences: appearancePreferences)"),
+                      "the shared settings chrome must render the environment appearance background")
+        XCTAssertTrue(theme.contains("func settingsRowSurface()"),
+                      "settings rows need one reusable material-aware surface entry point")
+        XCTAssertTrue(more.contains(".settingsRowSurface()"),
+                      "More subpages must apply the shared row surface")
+        XCTAssertTrue(picker.contains(".settingsRowSurface()"),
+                      "material previews must use the same row surface treatment")
+    }
+
     func testAppearanceEditorsNeverDecodeBackgroundImagesDuringBodyEvaluation() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

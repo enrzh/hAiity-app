@@ -163,6 +163,7 @@ private struct MaterialOptionCard: View {
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .settingsRowSurface()
         .accessibilityLabel(material.displayName)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

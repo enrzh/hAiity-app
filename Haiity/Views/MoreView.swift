@@ -250,17 +250,17 @@ struct MoreView: View {
 
     private var mainSettings: some View {
         List {
-            proSection.settingsListRow()
-            personalSection.settingsListRow()
-            githubSection.settingsListRow()
+            proSection.settingsRowSurface()
+            personalSection.settingsRowSurface()
+            githubSection.settingsRowSurface()
             Section {
                 pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
                         symbol: "paintpalette", identifier: "open-appearance")
                 pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
-            .settingsListRow()
-            notificationSettingsSection.settingsListRow()
+            .settingsRowSurface()
+            notificationSettingsSection.settingsRowSurface()
             Section {
                 Button { showReminderSetup = true } label: {
                     Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
@@ -268,12 +268,12 @@ struct MoreView: View {
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("open-reminder-setup")
             }
-            .settingsListRow()
+            .settingsRowSurface()
             Section {
                 pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
                         symbol: "lock.shield", identifier: "open-about")
             }
-            .settingsListRow()
+            .settingsRowSurface()
         }
         .settingsSurface()
     }
@@ -328,10 +328,10 @@ struct MoreView: View {
 
     private var habitBehaviorSettings: some View {
         List {
-            timeZoneSection.settingsListRow()
-            swipeActionsSection.settingsListRow()
-            notificationActionsSection.settingsListRow()
-            calendarSection.settingsListRow()
+            timeZoneSection.settingsRowSurface()
+            swipeActionsSection.settingsRowSurface()
+            notificationActionsSection.settingsRowSurface()
+            calendarSection.settingsRowSurface()
         }
         .settingsSurface()
     }
