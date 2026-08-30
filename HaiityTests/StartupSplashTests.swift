@@ -233,9 +233,9 @@ final class StartupSplashTests: XCTestCase {
         let splash = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(splash.contains("finalHandoff"))
+        XCTAssertTrue(splash.contains("startupSplashFinalHandoff"))
         XCTAssertFalse(splash.contains("forKey: \"startupSplash\")"))
-        XCTAssertTrue(splash.contains("forKey: \"startupSplashFinalHandoff\"))
+        XCTAssertTrue(splash.contains("forKey: \"startupSplashFinalHandoff\""))
         XCTAssertTrue(splash.contains("reducedMotionDuration"))
     }
 
@@ -290,7 +290,13 @@ final class StartupSplashTests: XCTestCase {
         #if DEBUG
         AppearanceImageCache.resetLaunchRasterProbe()
         let started = expectation(description: "rasterizer started")
+        let probeLock = NSLock()
+        var didNotify = false
         AppearanceImageCache.launchRasterProbe = {
+            probeLock.lock()
+            defer { probeLock.unlock() }
+            guard !didNotify else { return }
+            didNotify = true
             started.fulfill()
             Thread.sleep(forTimeInterval: 0.05)
         }
