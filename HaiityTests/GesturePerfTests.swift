@@ -80,15 +80,18 @@ final class HabitCardInteractionSourceTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/StatsView.swift"))
 
-        XCTAssertTrue(source.contains("private func statsContextMenu(preview:"),
+        XCTAssertTrue(source.contains("private func statsContextMenu(id: String,"),
                       "context menus need a dedicated stats preview helper")
-        XCTAssertTrue(source.contains("height: CGFloat)"),
+        XCTAssertTrue(source.contains("preview: @escaping () -> AnyView,\n                                  height: CGFloat)"),
                       "context menus need an explicit height instead of one hero-sized constant")
         XCTAssertTrue(source.contains("statsHeroPreviewHeight"))
         XCTAssertTrue(source.contains("statsTilePreviewHeight"))
         XCTAssertTrue(source.contains("statsRowPreviewHeight"))
         XCTAssertTrue(source.contains("height: statsTilePreviewHeight"),
                       "small tiles must not inherit the hero preview height")
+        XCTAssertTrue(source.contains("height: statsHeroPreviewHeight"))
+        XCTAssertTrue(source.contains("height: statsRowPreviewHeight"))
+        XCTAssertTrue(source.contains("height: statsLockPreviewHeight"))
     }
 
     func testContextMenuDoesNotUseTheSharedListCellAsItsInteractionView() throws {

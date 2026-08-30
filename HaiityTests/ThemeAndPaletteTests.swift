@@ -494,8 +494,14 @@ final class AppearanceSettingTests: XCTestCase {
         let list = statsSettings[..<statsListEnd.lowerBound]
         XCTAssertTrue(list.contains(".listRowBackground(Color.clear)"),
                       "the stats list must keep its sections clear behind individual cards")
-        XCTAssertTrue(list.contains(".appSurface()"),
-                      "each stats card must own its selected appearance surface")
+        let chromeStart = try XCTUnwrap(source.range(of: "private struct StatsCardChrome"))
+        let chrome = source[chromeStart.lowerBound...]
+        XCTAssertTrue(chrome.contains("func body(content: Content)"),
+                      "stats cards must own their chrome through a dedicated modifier")
+        XCTAssertTrue(chrome.contains(".appSurface()"),
+                      "StatsCardChrome must own each card's selected appearance surface")
+        XCTAssertTrue(list.contains(".modifier(StatsCardChrome())"),
+                      "stats card content must apply its owning chrome")
         XCTAssertFalse(list.contains(".settingsListRow()"),
                        "a section-wide surface creates a second background behind held cards")
     }

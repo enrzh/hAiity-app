@@ -106,11 +106,16 @@ final class AppNavigationTests: XCTestCase {
         let end = try XCTUnwrap(content.range(of: "private func statsTile",
                                               range: start.upperBound..<content.endIndex))
         let preview = content[start.lowerBound..<end.lowerBound]
-        let surface = try XCTUnwrap(preview.range(of: ".appSurface()"))
-        let frame = try XCTUnwrap(preview.range(of: ".frame(width: statsPreviewWidth,"))
+        let framed = try XCTUnwrap(preview.range(of: "let framed = AnyView(preview"))
+        let conditionalSurface = try XCTUnwrap(preview.range(
+            of: "return wrapsSurface ? AnyView(framed.appSurface()) : framed"))
 
-        XCTAssertGreaterThan(frame.lowerBound, surface.lowerBound,
-                             "the outer stats preview frame must include its padding")
+        XCTAssertGreaterThan(conditionalSurface.lowerBound, framed.lowerBound,
+                             "the surface must wrap the final preview frame")
+        XCTAssertFalse(preview.contains("return AnyView(preview.appSurface())"),
+                       "unframed previews must not install a second surface")
+        XCTAssertTrue(content.contains("statsPreview(statsTile(card, snapshot: snapshot),\n                                         height: statsTilePreviewHeight,\n                                         wrapsSurface: false"),
+                      "tile previews must rely on their owning card surface")
         XCTAssertTrue(preview.contains("height: CGFloat"),
                       "stats previews need a stable height for UIContextMenu")
         XCTAssertTrue(preview.contains(".frame(width: statsPreviewWidth,"),

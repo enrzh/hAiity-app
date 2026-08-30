@@ -557,11 +557,13 @@ final class ToastLayoutTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
         let content = try String(contentsOf: root.appendingPathComponent("Haiity/Views/ContentView.swift"))
 
-        XCTAssertTrue(content.contains("nativeToastOverlay"),
-                      "the native tab bar needs an explicit topmost toast layer")
-        XCTAssertTrue(content.contains("nativeTabBarClearance"),
-                      "toast positioning must account for the expanded native bar")
-        XCTAssertTrue(content.contains(".zIndex(200)"),
+        XCTAssertTrue(content.contains(".overlay(alignment: .bottom) { nativeToastOverlay }"),
+                      "the native tab bar needs an explicit root toast layer")
+        let overlayStart = try XCTUnwrap(content.range(of: "private var nativeToastOverlay"))
+        let overlay = content[overlayStart.lowerBound...]
+        XCTAssertTrue(overlay.contains("ChromeLayout.toastBottomPadding(nativeBar: true"),
+                      "toast positioning must use the shared tab-bar clearance")
+        XCTAssertTrue(overlay.contains(".zIndex(200)"),
                       "the toast must paint above the native tab bar")
     }
 }

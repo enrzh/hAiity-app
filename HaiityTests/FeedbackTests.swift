@@ -362,12 +362,14 @@ final class FeedbackTests: XCTestCase {
                                                      range: nativeStart.upperBound..<content.endIndex))
         let nativeShell = content[nativeStart.lowerBound..<nativeEnd.lowerBound]
 
-        XCTAssertTrue(nativeShell.contains("floatingPills"),
-                      "the toast must be attached outside individual tab content")
-        XCTAssertTrue(nativeShell.contains(".safeAreaPadding(.bottom"),
-                      "the native tab bar must reserve its own bottom safe area for the toast")
-        XCTAssertTrue(nativeShell.contains("nativeTabBarClearance"),
-                      "the toast needs the native bar footprint below its safe-area inset")
+        XCTAssertTrue(content.contains(".overlay(alignment: .bottom) { nativeToastOverlay }"),
+                      "the toast must be attached to the root shell outside tab content")
+        let overlayStart = try XCTUnwrap(content.range(of: "private var nativeToastOverlay"))
+        let overlay = content[overlayStart.lowerBound...]
+        XCTAssertTrue(overlay.contains("ChromeLayout.toastBottomPadding(nativeBar: true"),
+                      "the native toast must use the shared tab-bar clearance contract")
+        XCTAssertTrue(overlay.contains(".zIndex(200)"),
+                      "the native toast must paint above the tab bar")
 
         let surfaceStart = try XCTUnwrap(content.range(of: "private struct ToastSurface"))
         let surface = content[surfaceStart.lowerBound...]
