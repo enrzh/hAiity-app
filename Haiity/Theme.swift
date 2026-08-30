@@ -243,21 +243,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 /// truth; this cache is only an in-process rendering optimization.
 enum AppearanceImageCache {
 #if DEBUG
-    static var launchRasterProbe: (() -> Void)?
-    private static let launchRasterProbeLock = NSLock()
-    private static var _launchRasterProbeCount = 0
-
-    static var launchRasterProbeCount: Int {
-        launchRasterProbeLock.lock()
-        defer { launchRasterProbeLock.unlock() }
-        return _launchRasterProbeCount
-    }
-
-    static func resetLaunchRasterProbe() {
-        launchRasterProbeLock.lock()
-        _launchRasterProbeCount = 0
-        launchRasterProbeLock.unlock()
-    }
+    static var launchRasterProbe: ((CGSize, CGFloat) -> Void)?
 #endif
 
     private final class Entry: @unchecked Sendable {
@@ -428,10 +414,7 @@ enum AppearanceImageCache {
         guard size.width > 0, size.height > 0, scale > 0 else { return nil }
 
         #if DEBUG
-        launchRasterProbe?()
-        launchRasterProbeLock.lock()
-        _launchRasterProbeCount += 1
-        launchRasterProbeLock.unlock()
+        launchRasterProbe?(size, scale)
         #endif
 
         guard let source = UIImage(named: "LaunchTiles") else { return nil }

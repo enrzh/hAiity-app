@@ -16,7 +16,11 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertEqual(backgroundLayer?.backgroundColor,
                        UIColor.systemGroupedBackground.cgColor)
 
+        view.reduceMotion = true
         window.addSubview(view)
+        XCTAssertTrue(view.reduceMotion)
+        XCTAssertEqual(backgroundLayer?.opacity, 1,
+                       "reduced-motion attachment must preserve the initial compositor state")
         view.frame = window.bounds
         view.setNeedsLayout()
         view.layoutIfNeeded()
@@ -347,21 +351,24 @@ final class StartupSplashTests: XCTestCase {
 
     func testConcurrentLaunchTileRequestsShareOneExecutableRasterTask() async {
         #if DEBUG
-        AppearanceImageCache.resetLaunchRasterProbe()
         let started = expectation(description: "rasterizer started")
         let probeLock = NSLock()
         var didNotify = false
-        AppearanceImageCache.launchRasterProbe = {
+        var matchingProbeCount = 0
+        let size = CGSize(width: 281, height: 95)
+        AppearanceImageCache.launchRasterProbe = { probeSize, probeScale in
+            guard probeSize == size, probeScale == 2 else { return }
             probeLock.lock()
             defer { probeLock.unlock() }
-            guard !didNotify else { return }
-            didNotify = true
-            started.fulfill()
+            matchingProbeCount += 1
+            if !didNotify {
+                didNotify = true
+                started.fulfill()
+            }
             Thread.sleep(forTimeInterval: 0.05)
         }
         defer { AppearanceImageCache.launchRasterProbe = nil }
 
-        let size = CGSize(width: 281, height: 95)
         async let first = AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
         await fulfillment(of: [started], timeout: 1)
         async let second = AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
@@ -371,7 +378,7 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertNotNil(results[0])
         XCTAssertTrue(results[0] === results[1],
                       "concurrent launch requests must share the same raster result")
-        XCTAssertEqual(AppearanceImageCache.launchRasterProbeCount, 1,
+        XCTAssertEqual(matchingProbeCount, 1,
                        "concurrent launch requests must execute one rasterizer")
         #endif
     }
