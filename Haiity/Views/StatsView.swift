@@ -450,8 +450,7 @@ struct StatsView: View {
                     .padding(Theme.Metrics.cardPadding)
                     .frame(width: statsPreviewWidth,
                            alignment: .topLeading)
-                    .frame(minHeight: height, alignment: .topLeading)
-                    .appSurface())
+                    .frame(minHeight: height, alignment: .topLeading))
         } else {
             preview = AnyView(content)
         }
@@ -459,6 +458,7 @@ struct StatsView: View {
         return AnyView(preview
             .frame(width: statsPreviewWidth, alignment: .topLeading)
             .frame(minHeight: height, alignment: .topLeading)
+            .appSurface()
             .environment(\.appearancePreferences, store.appearancePreferences)
             .accessibilityIdentifier("stats-preview"))
     }

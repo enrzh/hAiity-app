@@ -10,7 +10,7 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testPreviewLiftUsesACardOwnedSource() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
-        let start = try XCTUnwrap(source.range(of: "private func targetedPreview"))
+        let start = try XCTUnwrap(source.range(of: "let root = AnyView(ZStack"))
         let preview = source[start.lowerBound...]
 
         XCTAssertTrue(preview.contains("UITargetedPreview(view: self"),
@@ -83,12 +83,10 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testContextPreviewProvidesTheSelectedAppearanceBackdrop() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
-        let start = try XCTUnwrap(source.range(of: "struct GraphContextMenu: UIViewRepresentable"))
-        let end = try XCTUnwrap(source.range(of: "final class MenuHost: UIView",
-                                             range: start.upperBound..<source.endIndex))
-        let menu = source[start.lowerBound..<end.lowerBound]
+        let start = try XCTUnwrap(source.range(of: "let root = AnyView(ZStack"))
+        let menu = source[start.lowerBound...]
 
-        XCTAssertTrue(menu.contains("@Environment(\\.appearancePreferences)"),
+        XCTAssertTrue(source.contains("@Environment(\\.appearancePreferences)"),
                       "the shared preview bridge must receive the selected appearance")
         XCTAssertTrue(menu.contains("AppearanceBackground(preferences: appearancePreferences)"),
                       "material previews need the same page backdrop as the source card")
@@ -107,6 +105,15 @@ final class GraphContextMenuRegressionTests: XCTestCase {
         XCTAssertTrue(preview.contains("parameters.shadowPath = cardPath"))
         XCTAssertFalse(preview.contains("shadowPath = UIBezierPath(rect:"),
                        "the shared lift must not add a second rectangular shadow")
+    }
+
+    func testStatsPreviewAppliesSurfaceAfterItsFinalFrame() throws {
+        let source = try source("Haiity/Views/StatsView.swift")
+        let start = try XCTUnwrap(source.range(of: "return AnyView(preview"))
+        let end = try XCTUnwrap(source.range(of: "@ViewBuilder", range: start.upperBound..<source.endIndex))
+        let returned = source[start.lowerBound..<end.lowerBound]
+        XCTAssertTrue(returned.contains(".frame(minHeight: height, alignment: .topLeading)\n            .appSurface()"),
+                      "the enlarged stats surface must own clipping and shadow after its final frame")
     }
 
     func testPreviewUsesMeasuredContentHeightInsteadOfShadowPadding() throws {

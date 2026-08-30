@@ -314,6 +314,12 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(gridItem.contains("reminder"))
     }
 
+    func testLargeGridKeepsAReadableGraphBand() {
+        XCTAssertGreaterThanOrEqual(WidgetLogic.LargeGeometry.gridGraphMinimumHeight, 86)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight,
+                       WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
+    }
+
     func testListeAndFokusKeepIdentityVisualAndActionRegionsSeparate() throws {
         let source = try source("HaiityWidget/RosterWidgetView.swift")
         let listItem = try sourceSlice(source, from: "private struct LargeWidgetItem", to: "private extension View")
