@@ -4,12 +4,12 @@ import XCTest
 @testable import Haiity
 
 final class GitHubWidgetTests: XCTestCase {
-    func testThreeLargeWidgetsAreRegisteredAndOldOverviewIsNotInGallery() throws {
+    func testTwoLargeWidgetsAreRegisteredAndFocusIsNotInGallery() throws {
         let source = try source("HaiityWidget/HaiityWidget.swift")
         XCTAssertTrue(source.contains("HaiityLargeListWidget"))
         XCTAssertTrue(source.contains("HaiityLargeGridWidget"))
-        XCTAssertTrue(source.contains("HaiityLargeFocusWidget"))
-        XCTAssertEqual(source.components(separatedBy: ".supportedFamilies([.systemLarge])").count - 1, 3)
+        XCTAssertFalse(source.contains("HaiityLargeFocusWidget"))
+        XCTAssertEqual(source.components(separatedBy: ".supportedFamilies([.systemLarge])").count - 1, 2)
         XCTAssertFalse(source.contains("HaiityRosterWidget()"))
     }
 
@@ -62,12 +62,10 @@ final class GitHubWidgetTests: XCTestCase {
         let source = try source("Haiity/Intents/LargeWidgetIntent.swift")
         XCTAssertTrue(source.contains("struct LargeWidgetListIntent: WidgetConfigurationIntent"))
         XCTAssertTrue(source.contains("struct LargeWidgetGridIntent: WidgetConfigurationIntent"))
-        XCTAssertTrue(source.contains("struct LargeWidgetFocusIntent: WidgetConfigurationIntent"))
+        XCTAssertFalse(source.contains("struct LargeWidgetFocusIntent: WidgetConfigurationIntent"))
         XCTAssertEqual(source.components(separatedBy: "var slot").count - 1, 10)
-        XCTAssertTrue(source.contains("var featured: HabitEntity?"))
-        XCTAssertTrue(source.contains("var queue1: HabitEntity?"))
-        XCTAssertTrue(source.contains("var queue2: HabitEntity?"))
-        XCTAssertTrue(source.contains("var queue3: HabitEntity?"))
+        XCTAssertFalse(source.contains("var featured: HabitEntity?"))
+        XCTAssertFalse(source.contains("var queue1: HabitEntity?"))
         XCTAssertFalse(source.contains("struct ReminderEntity"))
     }
 
@@ -108,11 +106,12 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testLargeProvidersUseDemoEntriesInPreview() throws {
         let source = try source("HaiityWidget/HaiityWidget.swift")
-        for marker in ["struct LargeListWidgetProvider", "struct LargeGridWidgetProvider", "struct LargeFocusWidgetProvider"] {
+        for marker in ["struct LargeListWidgetProvider", "struct LargeGridWidgetProvider"] {
             let section = try self.section(source, startingAt: marker, endingAt: "\n}\n\n")
             XCTAssertTrue(section.contains("context.isPreview"), "preview missing for \(marker)")
             XCTAssertTrue(section.contains("demoLarge"), "demoLarge missing for \(marker)")
         }
+        XCTAssertFalse(source.contains("struct LargeFocusWidgetProvider"))
     }
 
     func testGraphWidgetSourceHasOnlyHabitAndGitHubCases() {

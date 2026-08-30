@@ -216,21 +216,6 @@ struct LargeGridWidgetProvider: AppIntentTimelineProvider {
     }
 }
 
-struct LargeFocusWidgetProvider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> HaiityEntry { .demoLarge }
-    func snapshot(for configuration: LargeWidgetFocusIntent, in context: Context) async -> HaiityEntry {
-        if context.isPreview { return .demoLarge }
-        return WidgetData.largeEntry(selectedIDs: [configuration.featured?.id, configuration.queue1?.id,
-                                            configuration.queue2?.id, configuration.queue3?.id],
-                              limit: 4, layout: .focus)
-    }
-    func timeline(for configuration: LargeWidgetFocusIntent, in context: Context) async -> Timeline<HaiityEntry> {
-        WidgetData.largeTimeline(selectedIDs: [configuration.featured?.id, configuration.queue1?.id,
-                                               configuration.queue2?.id, configuration.queue3?.id],
-                                 limit: 4, layout: .focus)
-    }
-}
-
 // MARK: – Bundle
 
 @main
@@ -241,7 +226,6 @@ struct HaiityWidgetBundle: WidgetBundle {
         HaiityGitHubWidget()
         HaiityLargeListWidget()
         HaiityLargeGridWidget()
-        HaiityLargeFocusWidget()
         HaiityRingWidget()
         HaiityStreakWidget()
         // Die Live-Aktivität einer laufenden Session (Sperrbildschirm +
@@ -278,17 +262,6 @@ struct HaiityLargeGridWidget: Widget {
         }
         .configurationDisplayName(String(localized: "Großes Widget: Raster"))
         .description(String(localized: "Sechs Habits im Raster."))
-        .supportedFamilies([.systemLarge])
-    }
-}
-
-struct HaiityLargeFocusWidget: Widget {
-    var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: "HaiityLargeFocusWidget", intent: LargeWidgetFocusIntent.self, provider: LargeFocusWidgetProvider()) { entry in
-            LargeFocusWidgetView(entry: entry)
-        }
-        .configurationDisplayName(String(localized: "Großes Widget: Fokus"))
-        .description(String(localized: "Ein Fokus-Habit und drei weitere."))
         .supportedFamilies([.systemLarge])
     }
 }

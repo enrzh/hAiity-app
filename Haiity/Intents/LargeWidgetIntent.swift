@@ -27,16 +27,3 @@ struct LargeWidgetGridIntent: WidgetConfigurationIntent {
 
     init() {}
 }
-
-struct LargeWidgetFocusIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Fokus"
-    static var description = IntentDescription("Einen Fokus und drei Warteschlangen-Elemente auswählen; leer bedeutet Automatisch.")
-    static var isDiscoverable: Bool { false }
-
-    @Parameter(title: "Fokus") var featured: HabitEntity?
-    @Parameter(title: "Warteschlange 1") var queue1: HabitEntity?
-    @Parameter(title: "Warteschlange 2") var queue2: HabitEntity?
-    @Parameter(title: "Warteschlange 3") var queue3: HabitEntity?
-
-    init() {}
-}
