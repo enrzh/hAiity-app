@@ -54,10 +54,20 @@ final class StartupSplashTests: XCTestCase {
         let splitAt = StartupSplashTimeline.clusterDuration
         let zoomAt = splitAt + StartupSplashTimeline.splitDuration
 
-        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: splitAt), 0)
-        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: zoomAt), 1)
-        XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: zoomAt), 0)
-        XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: StartupSplashTimeline.duration), 1)
+        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: splitAt), 0, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.splitProgress(
+            at: splitAt + StartupSplashTimeline.splitDuration * 0.5),
+                       0.5,
+                       accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.splitProgress(at: zoomAt), 1, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: zoomAt), 0, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.zoomProgress(
+            at: zoomAt + StartupSplashTimeline.zoomDuration * 0.5),
+                       0.5,
+                       accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.zoomProgress(at: StartupSplashTimeline.duration),
+                       1,
+                       accuracy: 0.0001)
         XCTAssertEqual(StartupSplashTimeline.tileOpacity(at: StartupSplashTimeline.duration), 0)
     }
 
@@ -444,7 +454,9 @@ final class StartupSplashTests: XCTestCase {
             "Haiity/Views/StartupSplashView.swift"))
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(splash.contains("Color(.systemGroupedBackground)"))
+        XCTAssertFalse(splash.contains(".background(Color(.systemGroupedBackground))"))
+        XCTAssertTrue(splash.contains(
+            "backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor"))
         XCTAssertTrue(app.contains("Color(.systemGroupedBackground)"))
     }
 
