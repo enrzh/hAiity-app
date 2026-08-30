@@ -2,6 +2,32 @@ import XCTest
 @testable import Haiity
 
 final class StartupSplashTests: XCTestCase {
+    func testSplashOverlayUsesAContinuousTransparentCompositorHandoff() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StartupSplashView.swift"))
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+
+        XCTAssertFalse(splash.contains(".background(Color(.systemGroupedBackground))"))
+        XCTAssertTrue(splash.contains("isOpaque = false"))
+        XCTAssertTrue(splash.contains("backgroundLayer"))
+        XCTAssertTrue(app.contains("ContentView()"))
+    }
+
+    func testSplashHandoffUsesTheShortTransparentTimeline() {
+        XCTAssertEqual(StartupSplashTimeline.clusterDuration, 0.18, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.splitDuration, 0.58, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.zoomDuration, 0.54, accuracy: 0.0001)
+        XCTAssertEqual(StartupSplashTimeline.startDelay, 0.02, accuracy: 0.0001)
+        XCTAssertLessThanOrEqual(StartupSplashTimeline.duration, 1.35)
+        XCTAssertLessThanOrEqual(StartupSplashTimeline.startDelay, 0.02)
+
+        let beforeCompletion = StartupSplashTimeline.duration - 0.001
+        XCTAssertGreaterThan(StartupSplashTimeline.overlayOpacity(at: beforeCompletion), 0)
+    }
+
     func testTimelineMovesFromClusterToSplitToZoomAndFinishes() {
         let splitAt = StartupSplashTimeline.clusterDuration
         let zoomAt = splitAt + StartupSplashTimeline.splitDuration

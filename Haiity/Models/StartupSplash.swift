@@ -17,11 +17,11 @@ enum StartupSplashGraph: CaseIterable {
 enum StartupSplashTimeline {
     private static let runtimeScale: TimeInterval = 1
 
-    static let clusterDuration: TimeInterval = 0.24 * runtimeScale
-    static let splitDuration: TimeInterval = 0.80 * runtimeScale
-    static let zoomDuration: TimeInterval = 0.72 * runtimeScale
+    static let clusterDuration: TimeInterval = 0.18 * runtimeScale
+    static let splitDuration: TimeInterval = 0.58 * runtimeScale
+    static let zoomDuration: TimeInterval = 0.54 * runtimeScale
     static let reducedMotionDuration: TimeInterval = 0.18 * runtimeScale
-    static let startDelay: TimeInterval = 0.05 * runtimeScale
+    static let startDelay: TimeInterval = 0.02 * runtimeScale
     static let compactScale: CGFloat = 0.36
     static let zoomScale: CGFloat = 7.5
     static let duration = clusterDuration + splitDuration + zoomDuration

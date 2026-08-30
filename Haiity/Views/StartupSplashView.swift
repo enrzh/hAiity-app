@@ -9,7 +9,6 @@ struct StartupSplashView: View {
         StartupSplashAnimationSurface(onFinished: onFinished,
                                       reduceMotion: reduceMotion)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground))
             .ignoresSafeArea()
             .accessibilityHidden(true)
     }
@@ -50,7 +49,7 @@ private final class StartupSplashAnimationView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        isOpaque = true
+        isOpaque = false
         backgroundColor = .clear
         layer.addSublayer(backgroundLayer)
     }
