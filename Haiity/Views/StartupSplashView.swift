@@ -31,7 +31,7 @@ private struct StartupSplashAnimationSurface: UIViewRepresentable {
     }
 }
 
-private final class StartupSplashAnimationView: UIView {
+final class StartupSplashAnimationView: UIView {
     private static let columns = 21
     private static let rows = 7
 
@@ -51,6 +51,8 @@ private final class StartupSplashAnimationView: UIView {
         super.init(frame: frame)
         isOpaque = false
         backgroundColor = .clear
+        backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor
+        backgroundLayer.opacity = 1
         layer.addSublayer(backgroundLayer)
     }
 

@@ -2,6 +2,29 @@ import XCTest
 @testable import Haiity
 
 final class StartupSplashTests: XCTestCase {
+    @MainActor
+    func testSplashAnimationViewInitializesItsTransparentCompositorSurface() {
+        let view = StartupSplashAnimationView()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        XCTAssertFalse(view.isOpaque)
+        XCTAssertEqual(view.backgroundColor, UIColor.clear)
+
+        let backgroundLayer = view.layer.sublayers?.first
+        XCTAssertNotNil(backgroundLayer)
+        XCTAssertEqual(backgroundLayer?.opacity, 1)
+        XCTAssertEqual(backgroundLayer?.backgroundColor,
+                       UIColor.systemGroupedBackground.cgColor)
+
+        window.addSubview(view)
+        view.frame = window.bounds
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+
+        XCTAssertEqual(view.bounds, window.bounds)
+        XCTAssertTrue(view.layer.sublayers?.contains(where: { $0 === backgroundLayer }) == true)
+    }
+
     func testSplashOverlayUsesAContinuousTransparentCompositorHandoff() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
