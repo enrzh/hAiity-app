@@ -356,7 +356,7 @@ final class StartupSplashTests: XCTestCase {
         var didNotify = false
         var matchingProbeCount = 0
         let size = CGSize(width: 281, height: 95)
-        AppearanceImageCache.launchRasterProbe = { probeSize, probeScale in
+        AppearanceImageCache.setLaunchRasterProbe { probeSize, probeScale in
             guard probeSize == size, probeScale == 2 else { return }
             probeLock.lock()
             defer { probeLock.unlock() }
@@ -367,7 +367,7 @@ final class StartupSplashTests: XCTestCase {
             }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        defer { AppearanceImageCache.launchRasterProbe = nil }
+        defer { AppearanceImageCache.setLaunchRasterProbe(nil) }
 
         async let first = AppearanceImageCache.launchTilesImageTask(size: size, scale: 2)
         await fulfillment(of: [started], timeout: 1)
@@ -381,6 +381,29 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertEqual(matchingProbeCount, 1,
                        "concurrent launch requests must execute one rasterizer")
         #endif
+    }
+
+    @MainActor
+    func testReducedMotionRuntimeCompletionFiresExactlyOnce() async {
+        let finished = expectation(description: "reduced-motion splash finished")
+        var callbackCount = 0
+        let view = StartupSplashAnimationView()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        view.reduceMotion = true
+        view.onFinished = {
+            callbackCount += 1
+            finished.fulfill()
+        }
+        window.addSubview(view)
+        view.frame = window.bounds
+        window.layoutIfNeeded()
+        view.layoutIfNeeded()
+        defer { view.removeFromSuperview() }
+
+        await fulfillment(of: [finished], timeout: 1)
+        await Task.yield()
+        XCTAssertEqual(callbackCount, 1)
     }
 
     func testLaunchTileCacheKeepsCoordinationUntilCancelledWorkerCompletes() throws {
