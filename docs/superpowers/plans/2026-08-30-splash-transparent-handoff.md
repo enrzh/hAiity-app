@@ -38,4 +38,3 @@
 - [ ] **Step 4: Verify GREEN.** Re-run `StartupSplashTests` with the same bounded command and require a nonzero XCTest count with zero failures. Run `git diff --check`.
 
 - [ ] **Step 5: Commit.** Stage only the three allowed files and commit with `speed up transparent splash handoff`.
-

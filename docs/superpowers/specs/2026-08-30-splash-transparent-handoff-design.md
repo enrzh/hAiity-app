@@ -23,4 +23,3 @@ Make startup faster and reveal the already-mounted app continuously while the sp
 - Timeline tests must assert the shorter duration while retaining a nonzero overlay opacity before completion.
 - `StartupSplashTests` must execute with a nonzero passing count.
 - The generic iOS `build-for-testing` gate must succeed without signing.
-
