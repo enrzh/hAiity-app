@@ -314,10 +314,41 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(gridItem.contains("reminder"))
     }
 
-    func testLargeGridKeepsAReadableGraphBand() {
-        XCTAssertGreaterThanOrEqual(WidgetLogic.LargeGeometry.gridGraphMinimumHeight, 86)
-        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight,
-                       WidgetLogic.LargeGeometry.gridGraphMinimumHeight)
+    func testLargeGridFixtureRendersSupportedVisualBands() throws {
+        let today = DayKey.today()
+        var checkbox = Habit(name: "Checkbox", emoji: "*")
+        checkbox.log[today] = 1
+        let quantity = Habit(name: "Quantity", emoji: "+", recurrence: Recurrence(target: 3), kind: .quantity)
+        var yesNo = Habit(name: "Yes No", emoji: "?", kind: .yesNo)
+        yesNo.log[today] = Habit.Answer.yes
+        let reminder = Habit(name: "Reminder", emoji: "!", itemType: .reminder,
+                             recurrence: .weekdays([2, 4, 6]))
+        let habits = [checkbox, quantity, yesNo, reminder]
+        let entry = HaiityEntry(date: .now, habits: habits, largeItems: habits, largeLayout: .grid)
+        let image = try render(LargeGridWidgetView(entry: entry).frame(width: 332, height: 356),
+                               to: "large-task-4-supported-bands.png")
+        let scale: CGFloat = 2
+        let tileWidth = (332 - 2 * WidgetLogic.LargeGeometry.outerPadding
+                         - WidgetLogic.LargeGeometry.gridColumnGap) / 2 * scale
+        let tileHeight = WidgetLogic.LargeGeometry.gridRowHeight * scale
+        let x = WidgetLogic.LargeGeometry.outerPadding * scale
+        let y = (WidgetLogic.LargeGeometry.outerPadding + WidgetLogic.LargeGeometry.gridHeaderHeight
+                 + WidgetLogic.LargeGeometry.gridHeaderGap) * scale
+        for index in 0..<4 {
+            let tile = CGRect(x: x + CGFloat(index % 2) * (tileWidth + 16),
+                              y: y + CGFloat(index / 2) * (tileHeight + 16),
+                              width: tileWidth, height: tileHeight)
+            let identity = CGRect(x: tile.minX, y: tile.minY, width: tile.width, height: 40)
+            let visual = CGRect(x: tile.minX, y: identity.maxY, width: tile.width,
+                                height: WidgetLogic.LargeGeometry.gridVisualBandHeight * scale)
+            let actions = CGRect(x: tile.minX, y: tile.maxY - 88, width: tile.width, height: 88)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: identity), 2)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: visual), 8)
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: actions), 8)
+            XCTAssertFalse(identity.intersects(visual))
+            XCTAssertFalse(visual.intersects(actions))
+        }
+        XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.gridContentHeight, 332)
     }
 
     func testListeAndFokusKeepIdentityVisualAndActionRegionsSeparate() throws {

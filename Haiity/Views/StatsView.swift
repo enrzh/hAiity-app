@@ -455,12 +455,12 @@ struct StatsView: View {
             preview = AnyView(content)
         }
 
-        return AnyView(preview
+        let framed = AnyView(preview
             .frame(width: statsPreviewWidth, alignment: .topLeading)
             .frame(minHeight: height, alignment: .topLeading)
-            .appSurface()
             .environment(\.appearancePreferences, store.appearancePreferences)
             .accessibilityIdentifier("stats-preview"))
+        return wrapsSurface ? AnyView(framed.appSurface()) : framed
     }
 
     @ViewBuilder

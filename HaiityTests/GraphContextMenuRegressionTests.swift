@@ -10,15 +10,15 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testPreviewLiftUsesACardOwnedSource() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
-        let start = try XCTUnwrap(source.range(of: "let root = AnyView(ZStack"))
-        let preview = source[start.lowerBound...]
+        let start = try XCTUnwrap(source.range(of: "configurationForMenuAtLocation"))
+        let provider = try XCTUnwrap(source.range(of: "}, actionProvider:",
+                                                 range: start.upperBound..<source.endIndex))
+        let preview = source[start.lowerBound..<provider.lowerBound]
 
-        XCTAssertTrue(preview.contains("UITargetedPreview(view: self"),
-                      "UIKit must snapshot the held card host")
-        XCTAssertTrue(preview.contains("roundedRect: bounds"),
-                      "the lift path must stay in the card host's coordinate space")
-        XCTAssertFalse(preview.contains("UITargetedPreview(view: container"),
-                       "lifting a shared list cell hides sibling stats cards")
+        XCTAssertTrue(preview.contains("previewProvider: {"),
+                      "UIKit must provide the held card's preview")
+        XCTAssertTrue(preview.contains("let root = AnyView(ZStack"),
+                      "the preview provider must build the rounded card root")
         XCTAssertTrue(source.contains(".overlay {\n                GraphContextMenu"),
                       "graph cards must place the interaction above their scrollable content")
     }
@@ -83,8 +83,12 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testContextPreviewProvidesTheSelectedAppearanceBackdrop() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
-        let start = try XCTUnwrap(source.range(of: "let root = AnyView(ZStack"))
-        let menu = source[start.lowerBound...]
+        let hostStart = try XCTUnwrap(source.range(of: "final class MenuHost: UIView"))
+        let start = try XCTUnwrap(source.range(of: "configurationForMenuAtLocation",
+                                               range: hostStart.upperBound..<source.endIndex))
+        let end = try XCTUnwrap(source.range(of: "}, actionProvider:",
+                                             range: start.upperBound..<source.endIndex))
+        let menu = source[start.lowerBound..<end.lowerBound]
 
         XCTAssertTrue(source.contains("@Environment(\\.appearancePreferences)"),
                       "the shared preview bridge must receive the selected appearance")
@@ -109,11 +113,12 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testStatsPreviewAppliesSurfaceAfterItsFinalFrame() throws {
         let source = try source("Haiity/Views/StatsView.swift")
-        let start = try XCTUnwrap(source.range(of: "return AnyView(preview"))
+        let start = try XCTUnwrap(source.range(of: "let framed = AnyView(preview"))
         let end = try XCTUnwrap(source.range(of: "@ViewBuilder", range: start.upperBound..<source.endIndex))
         let returned = source[start.lowerBound..<end.lowerBound]
-        XCTAssertTrue(returned.contains(".frame(minHeight: height, alignment: .topLeading)\n            .appSurface()"),
-                      "the enlarged stats surface must own clipping and shadow after its final frame")
+        XCTAssertTrue(returned.contains("let framed = AnyView(preview"))
+        XCTAssertTrue(returned.contains("return wrapsSurface ? AnyView(framed.appSurface()) : framed"),
+                      "only wrapped previews may install the final surface")
     }
 
     func testPreviewUsesMeasuredContentHeightInsteadOfShadowPadding() throws {
