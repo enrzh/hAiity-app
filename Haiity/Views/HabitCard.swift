@@ -161,12 +161,6 @@ struct HabitCard: View, Equatable {
     /// stehen — die Knöpfe gehören zur Karte, nicht zur Zeile.
     private var revealingGrid: some View {
         ZStack {
-            revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0))
-                .allowsHitTesting(revealOffset > 0)
-            revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0))
-                .allowsHitTesting(revealOffset < 0)
             grid
                 .offset(x: revealOffset * mirror)
                 // Offen ist die Karte MODAL für sich selbst: ein Tipp auf
@@ -184,6 +178,12 @@ struct HabitCard: View, Equatable {
                             .offset(x: revealOffset * mirror)
                     }
                 }
+            revealButtons(actions: leadingSwipe, alignment: .leading,
+                          exposedWidth: max(revealOffset, 0))
+                .allowsHitTesting(revealOffset > 0)
+            revealButtons(actions: trailingSwipe, alignment: .trailing,
+                          exposedWidth: max(-revealOffset, 0))
+                .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             revealCardWidth = width
@@ -232,6 +232,7 @@ struct HabitCard: View, Equatable {
         .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: alignment)
+        .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
         .transition(.identity)
     }
 
@@ -460,9 +461,6 @@ struct HabitCard: View, Equatable {
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
-        // The system hosts this preview outside the list. Give it the same
-        // selected material as the source card instead of a second opaque halo.
-        .appSurface()
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
         // der Zeile nicht: ohne diese Zeile fiel das Raster darin auf die
         // Standardpalette zurück und leuchtete grün, während dieselben
@@ -951,17 +949,13 @@ struct GraphContextMenu: UIViewRepresentable {
             let appearancePreferences = appearancePreferences
             return UIContextMenuConfiguration(identifier: identifier as NSString,
                                                previewProvider: {
-                let root = AnyView(ZStack {
-                    AppearanceBackground(preferences: appearancePreferences)
-                    makePreview()
-                }
+                let root = AnyView(makePreview()
                     .frame(width: width, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
                     .environment(\.appearancePreferences, appearancePreferences)
-                    .clipShape(RoundedRectangle(cornerRadius: radius,
-                                                style: .continuous)))
-                let controller = RoundedPreviewHostingController(rootView: root,
-                                                                  cardRadius: radius)
+                    .appSurface(cornerRadius: radius))
+                let controller = UIHostingController(rootView: root)
+                controller.view.backgroundColor = .clear
                 controller.view.setNeedsLayout()
                 controller.view.layoutIfNeeded()
                 let measuredHeight = controller.sizeThatFits(
@@ -1036,40 +1030,6 @@ struct GraphContextMenu: UIViewRepresentable {
             onMenuVisibilityChanged(visible)
         }
 
-    }
-}
-
-/// UIKit may lay out a context-menu preview again after the provider returns.
-/// Keeping the mask in the hosting controller makes the rounded card survive
-/// that second layout pass instead of reverting to a rectangular snapshot.
-private final class RoundedPreviewHostingController: UIHostingController<AnyView> {
-    private let cardRadius: CGFloat
-
-    init(rootView: AnyView, cardRadius: CGFloat) {
-        self.cardRadius = cardRadius
-        super.init(rootView: rootView)
-        applyRoundedSurface()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        applyRoundedSurface()
-    }
-
-    override func viewSafeAreaInsetsDidChange() {
-        super.viewSafeAreaInsetsDidChange()
-        applyRoundedSurface()
-    }
-
-    private func applyRoundedSurface() {
-        view.backgroundColor = .clear
-        view.clipsToBounds = true
-        view.layer.cornerRadius = cardRadius
-        view.layer.cornerCurve = .continuous
-        view.layer.masksToBounds = true
     }
 }
 

@@ -116,6 +116,27 @@ final class ReminderItemTests: XCTestCase {
                       "nested controls must not block a horizontal row swipe")
     }
 
+    func testSwipeBridgeRebindsAfterListCellReuse() throws {
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
+
+        XCTAssertTrue(bridge.contains("override func didMoveToSuperview()"),
+                      "the bridge must notice List reparenting")
+        XCTAssertTrue(bridge.contains("override func layoutSubviews()"),
+                      "the bridge must re-check the host after a cell update")
+        XCTAssertTrue(bridge.contains("guard container !== host else { return }"),
+                      "reconciliation must avoid duplicate recognizers")
+    }
+
+    func testTrailingRevealActionsStayInsideListContentEdge() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+        let card = try source("Haiity/Views/HabitCard.swift")
+
+        XCTAssertTrue(row.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
+                      "reminder trailing actions must stay within the List hit area")
+        XCTAssertTrue(card.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
+                      "habit trailing actions must stay within the card hit area")
+    }
+
     func testSwipeBridgeDoesNotExcludeGesturesOnTheRowHost() throws {
         let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 

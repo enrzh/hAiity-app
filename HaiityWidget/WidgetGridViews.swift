@@ -49,7 +49,7 @@ private struct LargeGridItem: View {
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .minimumScaleFactor(0.75)
+                            .minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)
@@ -60,16 +60,21 @@ private struct LargeGridItem: View {
                             .font(.caption2)
                             .fixedSize(horizontal: true, vertical: false)
                     } else {
-                        switch summary.kind {
-                        case .checkbox:
+                        ViewThatFits(in: .horizontal) {
+                            switch summary.kind {
+                            case .checkbox:
+                                Image(systemName: summary.metricSymbol)
+                                    .font(.caption2.weight(.semibold))
+                            case .quantity, .yesNo:
+                                Label(metricText, systemImage: summary.metricSymbol)
+                                    .font(.caption2.weight(.semibold))
+                                    .fixedSize(horizontal: true, vertical: false)
+                            case .reminder:
+                                EmptyView()
+                            }
                             Image(systemName: summary.metricSymbol)
                                 .font(.caption2.weight(.semibold))
-                        case .quantity, .yesNo:
-                            Label(metricText, systemImage: summary.metricSymbol)
-                                .font(.caption2.weight(.semibold))
-                                .fixedSize(horizontal: true, vertical: false)
-                        case .reminder:
-                            EmptyView()
+                                .accessibilityHidden(true)
                         }
                     }
                 }
@@ -90,7 +95,7 @@ private struct LargeGridItem: View {
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.85)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)

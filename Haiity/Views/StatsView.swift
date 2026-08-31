@@ -460,7 +460,7 @@ struct StatsView: View {
             .frame(minHeight: height, alignment: .topLeading)
             .environment(\.appearancePreferences, store.appearancePreferences)
             .accessibilityIdentifier("stats-preview"))
-        return wrapsSurface ? AnyView(framed.appSurface()) : framed
+        return framed
     }
 
     @ViewBuilder

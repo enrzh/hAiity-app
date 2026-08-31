@@ -572,7 +572,7 @@ final class StartupSplashTests: XCTestCase {
 
         XCTAssertTrue(background.contains("@State private var preparedImage"),
                       "the full-screen background must own asynchronous image readiness")
-        XCTAssertTrue(background.contains(".task(id: imageData)"),
+        XCTAssertTrue(background.contains(".task(id: imageIdentity)"),
                       "image decoding must happen off the first synchronous body pass")
         XCTAssertFalse(background.contains("preferences.backgroundImage}"),
                        "the background must not synchronously decode a JPEG during layout")

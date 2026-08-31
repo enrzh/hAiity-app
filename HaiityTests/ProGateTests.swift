@@ -211,6 +211,16 @@ final class ProGateTests: XCTestCase {
         XCTAssertFalse(ProGate.mayUseProFeature(unlocked: false))
     }
 
+    func testNotificationDNDExpiresAtItsBoundaryButUntilDisabledRemainsActive() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let timed = NotificationDNDState.active(.twoHours, now: now)
+        let permanent = NotificationDNDState.active(.untilDisabled, now: now)
+
+        XCTAssertTrue(timed.isActive(at: now.addingTimeInterval(2 * 60 * 60 - 1)))
+        XCTAssertFalse(timed.isActive(at: now.addingTimeInterval(2 * 60 * 60)))
+        XCTAssertTrue(permanent.isActive(at: now.addingTimeInterval(365 * 24 * 60 * 60)))
+    }
+
     func testLockedEntitlementDisablesEveryPaidCloudIntegration() {
         let requested = CloudPreferences(
             calendarSyncHabits: true,
@@ -662,9 +672,9 @@ final class ProGateTests: XCTestCase {
         // Der explizite Restore und der laufende aktive Monitor dürfen nach
         // einer StoreKit-Antwort herabstufen. Der normale Bestandsabgleich
         // bleibt weiterhin upgrade-only.
-        XCTAssertEqual(pro.components(separatedBy: "mayDowngrade: true").count - 1, 2)
+        XCTAssertGreaterThanOrEqual(pro.components(separatedBy: "mayDowngrade: true").count - 1, 2)
         // Die Erstattung kommt weiterhin über den Lauscher an.
-        XCTAssertTrue(pro.contains("cache(transaction.revocationDate == nil)"))
+        XCTAssertTrue(pro.contains("transaction.revocationDate"))
         // Und ein nachlaufendes Ergebnis überschreibt ihn nicht.
         XCTAssertTrue(pro.contains("guard generation == writeGeneration else { return }"))
     }

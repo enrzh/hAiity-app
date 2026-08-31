@@ -289,7 +289,7 @@ private struct LargeWidgetItem: View {
             Text(verbatim: habit.name)
                 .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.8)
                 .layoutPriority(1)
             Spacer(minLength: 2)
             if habit.isReminder {
@@ -309,7 +309,7 @@ private struct LargeWidgetItem: View {
                     .font(compact ? .caption2 : .caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else if graph {
                 TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
@@ -382,7 +382,7 @@ private struct LargeWidgetItem: View {
         case .quantity, .yesNo:
             Label(summary.metricText, systemImage: summary.metricSymbol)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.8)
         case .reminder:
             EmptyView()
         }

@@ -17,7 +17,7 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
         XCTAssertTrue(preview.contains("previewProvider: {"),
                       "UIKit must provide the held card's preview")
-        XCTAssertTrue(preview.contains("let root = AnyView(ZStack"),
+        XCTAssertTrue(preview.contains("let root = AnyView(makePreview()"),
                       "the preview provider must build the rounded card root")
         XCTAssertTrue(source.contains(".overlay {\n                GraphContextMenu"),
                       "graph cards must place the interaction above their scrollable content")
@@ -26,7 +26,7 @@ final class GraphContextMenuRegressionTests: XCTestCase {
     func testContextInteractionIsOwnedByTheHeldCard() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
         let hostStart = try XCTUnwrap(source.range(of: "final class MenuHost: UIView"))
-        let hostEnd = try XCTUnwrap(source.range(of: "/// UIKit may lay out a context-menu preview",
+        let hostEnd = try XCTUnwrap(source.range(of: "// MARK: – Wisch-Aktionen (Daten)",
                                                  range: hostStart.upperBound..<source.endIndex))
         let host = source[hostStart.lowerBound..<hostEnd.lowerBound]
 
@@ -43,7 +43,7 @@ final class GraphContextMenuRegressionTests: XCTestCase {
     func testContextMenuHidesTheSourceSurfaceWhileItIsPresented() throws {
         let source = try source("Haiity/Views/HabitCard.swift")
         let hostStart = try XCTUnwrap(source.range(of: "final class MenuHost: UIView"))
-        let hostEnd = try XCTUnwrap(source.range(of: "/// UIKit may lay out a context-menu preview",
+        let hostEnd = try XCTUnwrap(source.range(of: "// MARK: – Wisch-Aktionen (Daten)",
                                                  range: hostStart.upperBound..<source.endIndex))
         let host = source[hostStart.lowerBound..<hostEnd.lowerBound]
 
@@ -92,12 +92,10 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("@Environment(\\.appearancePreferences)"),
                       "the shared preview bridge must receive the selected appearance")
-        XCTAssertTrue(menu.contains("AppearanceBackground(preferences: appearancePreferences)"),
-                      "material previews need the same page backdrop as the source card")
-        XCTAssertTrue(menu.contains("ZStack"),
-                      "the page backdrop must sit behind the preview card")
-        XCTAssertTrue(menu.contains(".clipShape(RoundedRectangle(cornerRadius: radius"),
-                      "the backdrop must remain inside one rounded preview boundary")
+        XCTAssertFalse(menu.contains("AppearanceBackground(preferences: appearancePreferences)"),
+                       "the host must not add a second page-sized preview surface")
+        XCTAssertTrue(menu.contains(".appSurface(cornerRadius: radius)"),
+                      "the context-menu root must own the single rounded preview surface")
     }
 
     func testSharedPreviewUsesOneRoundedTargetPath() throws {
@@ -111,14 +109,14 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                        "the shared lift must not add a second rectangular shadow")
     }
 
-    func testStatsPreviewAppliesSurfaceAfterItsFinalFrame() throws {
+    func testStatsPreviewLeavesSurfaceToGraphContextMenuRoot() throws {
         let source = try source("Haiity/Views/StatsView.swift")
         let start = try XCTUnwrap(source.range(of: "let framed = AnyView(preview"))
         let end = try XCTUnwrap(source.range(of: "@ViewBuilder", range: start.upperBound..<source.endIndex))
         let returned = source[start.lowerBound..<end.lowerBound]
         XCTAssertTrue(returned.contains("let framed = AnyView(preview"))
-        XCTAssertTrue(returned.contains("return wrapsSurface ? AnyView(framed.appSurface()) : framed"),
-                      "only wrapped previews may install the final surface")
+        XCTAssertFalse(returned.contains("framed.appSurface()"),
+                       "the shared context-menu root must own the final preview surface")
     }
 
     func testPreviewUsesMeasuredContentHeightInsteadOfShadowPadding() throws {
@@ -128,6 +126,8 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "the preview host must size itself to the visible card")
         XCTAssertFalse(source.contains("max(height, ceil(measuredHeight))"),
                        "a larger fallback frame creates the halo below enlarged cards")
+        XCTAssertFalse(source.contains("RoundedPreviewHostingController"),
+                       "the host bounds must not add a second rounded halo")
     }
 
     func testHabitReorderingRequiresExplicitSortingMode() throws {

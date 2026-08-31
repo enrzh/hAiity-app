@@ -191,13 +191,13 @@ final class ReminderInteractionUITests: XCTestCase {
         // XCTest's convenience swipe on an accessibility container can be
         // claimed by List's own pan before the row surface sees it. Use the
         // same continuous coordinate drag a user performs instead.
-        let surfaceStart = row.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
-        let surfaceEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        let surfaceStart = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        let surfaceEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
         surfaceStart.press(forDuration: 0.1,
                            thenDragTo: surfaceEnd,
                          withVelocity: .fast,
                          thenHoldForDuration: 0)
-        let done = app.buttons["reveal-action-done"]
+        let done = row.buttons["reveal-action-done"]
         let doneAppeared = done.waitForExistence(timeout: 3)
         if !doneAppeared {
             let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -214,6 +214,10 @@ final class ReminderInteractionUITests: XCTestCase {
         guard doneAppeared else { return }
         print("reveal done frame=\(done.frame) hittable=\(done.isHittable) enabled=\(done.isEnabled)")
         done.tap()
+        let earlyCompletion = app.buttons["reminder-early-completion-confirm"]
+        if earlyCompletion.waitForExistence(timeout: 1) {
+            earlyCompletion.tap()
+        }
         print("after reveal done value=\(String(describing: check.value))")
         waitUntil(
             predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
@@ -227,7 +231,7 @@ final class ReminderInteractionUITests: XCTestCase {
                          thenDragTo: swipeEnd,
                          withVelocity: .fast,
                          thenHoldForDuration: 0)
-        let reset = app.buttons["reveal-action-reset"]
+        let reset = row.buttons["reveal-action-reset"]
         XCTAssertTrue(reset.waitForExistence(timeout: 3),
                       "swiping left must reveal the reminder Reset action")
         reset.tap()
@@ -267,7 +271,7 @@ final class ReminderInteractionUITests: XCTestCase {
                          thenDragTo: swipeEnd,
                          withVelocity: .fast,
                          thenHoldForDuration: 0)
-        let reset = app.buttons["reveal-action-reset"]
+        let reset = row.buttons["reveal-action-reset"]
         XCTAssertTrue(reset.waitForExistence(timeout: 3),
                       "a swipe beginning on the checkmark must reveal Reset")
     }

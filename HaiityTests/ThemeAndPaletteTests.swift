@@ -231,6 +231,36 @@ final class AppearanceSettingTests: XCTestCase {
                       "startup should finish preparing the same image SwiftUI will render")
     }
 
+    func testBackgroundImageTasksUseACompactIdentityInsteadOfImageData() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let cachedStart = try XCTUnwrap(theme.range(of: "struct AppearanceCachedImage"))
+        let cachedEnd = try XCTUnwrap(theme.range(of: "enum AppearanceImage",
+                                                   range: cachedStart.upperBound..<theme.endIndex))
+        let cachedImage = theme[cachedStart.lowerBound..<cachedEnd.lowerBound]
+        let backgroundStart = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
+        let backgroundEnd = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier",
+                                                       range: backgroundStart.upperBound..<theme.endIndex))
+        let background = theme[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
+
+        XCTAssertTrue(cachedImage.contains(".task(id: imageIdentity)"),
+                      "cached previews must compare a compact identity")
+        XCTAssertFalse(cachedImage.contains(".task(id: data)"),
+                       "cached previews must not compare the complete image payload")
+        XCTAssertTrue(background.contains(".task(id: imageIdentity)"),
+                      "the full-screen background must use its compact image identity")
+        XCTAssertTrue(theme.contains("var backgroundImageIdentity: AnyHashable?"),
+                      "the background identity must preserve the existing iCloud mutation marker")
+        XCTAssertTrue(theme.contains("for byte in data.prefix(64)"),
+                      "cached image identity must use a bounded prefix sample")
+        XCTAssertTrue(theme.contains("for byte in data.suffix(64)"),
+                      "cached image identity must use a bounded suffix sample")
+        XCTAssertFalse(theme.contains("return data.hashValue"),
+                       "cached image identity must not scan the complete image payload")
+    }
+
     func testLaunchPrewarmDoesNotSpinDetachedDecodeWork() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

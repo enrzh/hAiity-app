@@ -86,6 +86,20 @@ final class WidgetRenderingTests: XCTestCase {
         }
     }
 
+    func testLargeTextKeepsReadableFallbacksWithoutChangingGraphBands() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
+        let gridItem = try sourceSlice(grid, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
+
+        XCTAssertFalse(item.contains(".minimumScaleFactor(0.7)"))
+        XCTAssertTrue(item.contains(".minimumScaleFactor(0.8)"))
+        XCTAssertTrue(gridItem.contains("ViewThatFits(in: .horizontal)"))
+        XCTAssertFalse(gridItem.contains(".minimumScaleFactor(0.75)"))
+        XCTAssertTrue(gridItem.contains("gridVisualBandHeight"))
+        XCTAssertTrue(item.contains("focusVisualBandHeight"))
+    }
+
     func testRasterUsesDedicatedHeaderAndFourTileBudget() throws {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
         XCTAssertTrue(source.contains("LargeGeometry.gridHeaderGap"))
@@ -522,7 +536,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(focus.components(separatedBy: "graph: false").count - 1, 1,
                        "the queue source path must explicitly suppress graphs")
         XCTAssertTrue(focus.contains("graphHeight: WidgetLogic.LargeGeometry.focusFeaturedGraphMinimumHeight"))
-        XCTAssertTrue(item.contains(".minimumScaleFactor(0.7)"))
+        XCTAssertTrue(item.contains(".minimumScaleFactor(0.8)"))
 
         let today = DayKey.today()
         var checkbox = Habit(name: "今日需要完成的中文习惯名称", emoji: "🧑🏽‍💻")
@@ -627,7 +641,7 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testLargeProvidersUseLargeDemoPlaceholders() throws {
         let source = try self.source("HaiityWidget/HaiityWidget.swift")
-        XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)
+        XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 2)
     }
 
     func testLargeRenderersCoverSparseAndRepresentativeHabitKinds() throws {

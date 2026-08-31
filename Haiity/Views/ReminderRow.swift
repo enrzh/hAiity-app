@@ -38,25 +38,26 @@ struct ReminderRow: View, Equatable {
 
     var body: some View {
         ZStack {
+            rowContent
+                .offset(x: revealOffset * mirror)
+                .allowsHitTesting(revealOffset == 0)
+            if revealOffset != 0 {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                   style: .continuous))
+                    .offset(x: revealOffset * mirror)
+                    .onTapGesture {
+                        Theme.Haptics.select()
+                        snapReveal(to: 0)
+                    }
+            }
             revealButtons(actions: leadingSwipe, alignment: .leading,
                           exposedWidth: max(revealOffset, 0))
                 .allowsHitTesting(revealOffset > 0)
             revealButtons(actions: trailingSwipe, alignment: .trailing,
                           exposedWidth: max(-revealOffset, 0))
                 .allowsHitTesting(revealOffset < 0)
-            rowContent
-                .offset(x: revealOffset * mirror)
-                .overlay {
-                    if revealOffset != 0 {
-                        Color.clear
-                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                                           style: .continuous))
-                            .onTapGesture {
-                                Theme.Haptics.select()
-                                snapReveal(to: 0)
-                            }
-                    }
-                }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             revealRowWidth = width
@@ -156,6 +157,10 @@ struct ReminderRow: View, Equatable {
         .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: alignment)
+        // Keep the trailing action inside the List row's effective content
+        // edge. SwiftUI's List can expose a wider accessibility frame than
+        // its hittable trailing area after cell reuse.
+        .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
         // The card's horizontal offset is the reveal animation. Keep the
         // action layer stable so it appears from the card edge, not by fading
         // or scaling independently.

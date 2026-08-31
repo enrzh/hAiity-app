@@ -236,6 +236,17 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     /// Raw persisted bytes for controls that must remain usable even when the
     /// image is corrupt or has not been prepared for rendering yet.
     var imagePayload: Data? { backgroundImageData }
+
+    /// SwiftUI task identity must stay small. New payloads use the existing
+    /// iCloud mutation marker; legacy payloads without it retain data-change
+    /// invalidation through a compact hash.
+    var backgroundImageIdentity: AnyHashable? {
+        guard backgroundMode == .image, let backgroundImageData else { return nil }
+        if let backgroundResetAt {
+            return AnyHashable("reset:\(backgroundResetAt)")
+        }
+        return AnyHashable("legacy:\(AppearanceImageCache.identity(for: backgroundImageData))")
+    }
 }
 
 /// Decoded background images are reused across the many SwiftUI surfaces that
@@ -399,6 +410,21 @@ enum AppearanceImageCache {
         entry(for: data)?.image
     }
 
+    static func identity(for data: Data) -> Int {
+        var digest: UInt64 = 1469598103934665603
+        digest ^= UInt64(data.count)
+        digest &*= 1099511628211
+        for byte in data.prefix(64) {
+            digest ^= UInt64(byte)
+            digest &*= 1099511628211
+        }
+        for byte in data.suffix(64) {
+            digest ^= UInt64(byte)
+            digest &*= 1099511628211
+        }
+        return Int(truncatingIfNeeded: digest)
+    }
+
     /// Read only an already prepared image. This is the hot path used by the
     /// full-screen background; it must never start JPEG decoding during a
     /// SwiftUI body evaluation.
@@ -560,6 +586,7 @@ enum AppearanceImageCache {
 /// scrolling; none of those body evaluations should decode JPEG bytes.
 struct AppearanceCachedImage<Placeholder: View>: View {
     let data: Data?
+    private let imageIdentity: Int?
     let placeholder: () -> Placeholder
 
     @State private var image: UIImage?
@@ -567,6 +594,7 @@ struct AppearanceCachedImage<Placeholder: View>: View {
     init(data: Data?,
          @ViewBuilder placeholder: @escaping () -> Placeholder) {
         self.data = data
+        imageIdentity = data.map(AppearanceImageCache.identity)
         self.placeholder = placeholder
         _image = State(initialValue: data.flatMap(AppearanceImageCache.cachedImage))
     }
@@ -584,7 +612,7 @@ struct AppearanceCachedImage<Placeholder: View>: View {
         // A rendered preview is decoration. Keeping it out of the hit-test
         // tree prevents a cached image from swallowing the controls below it.
         .allowsHitTesting(false)
-        .task(id: data) {
+        .task(id: imageIdentity) {
             image = nil
             guard let data else { return }
             if let cached = AppearanceImageCache.cachedImage(for: data) {
@@ -1011,6 +1039,10 @@ struct AppearanceBackground: View {
         return preferences.backgroundImageData
     }
 
+    private var imageIdentity: AnyHashable? {
+        preferences.backgroundImageIdentity
+    }
+
     private var fallbackColor: Color {
         Color(.systemGroupedBackground)
     }
@@ -1054,7 +1086,7 @@ struct AppearanceBackground: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .task(id: imageData) {
+        .task(id: imageIdentity) {
             preparedImage = nil
             guard let imageData else { return }
             await AppearanceImageCache.prewarm(data: imageData)

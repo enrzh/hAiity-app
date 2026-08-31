@@ -106,9 +106,6 @@ struct GitHubContributionCard: View, Equatable {
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
-        .background(Color(scheme == .dark
-                          ? .tertiarySystemBackground
-                          : .secondarySystemGroupedBackground))
         .accessibilityIdentifier("github-preview")
     }
 }

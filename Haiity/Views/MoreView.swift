@@ -176,7 +176,7 @@ struct MoreView: View {
         .task {
             while !Task.isCancelled {
                 dndNow = .now
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(60))
             }
         }
         .sheet(item: $editingPalette) { palette in

@@ -76,8 +76,23 @@ struct SwipeRevealPan: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            reconcileHost()
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            reconcileHost()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            // A List may reuse its cell after the row model changes while
+            // this hidden bridge stays mounted. Rebind before the next touch.
+            reconcileHost()
+        }
+
+        private func reconcileHost() {
             guard window != nil else { detach(); return }
-            guard recognizer == nil else { return }
             var ancestor = superview
             var fallbackContainer: UIView?
             var rowContainer: UIView?
@@ -90,11 +105,19 @@ struct SwipeRevealPan: UIViewRepresentable {
                 if view is UIScrollView { fallbackContainer = view }
                 ancestor = view.superview
             }
-            guard let container = rowContainer ?? fallbackContainer else { return }
+            guard let container = rowContainer ?? fallbackContainer else {
+                detach()
+                return
+            }
+            guard container !== host else { return }
+
+            detach()
             let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
             pan.maximumNumberOfTouches = 1
             pan.cancelsTouchesInView = false
             pan.delegate = self
+            recognizer = pan
+            host = container
             container.addGestureRecognizer(pan)
 
             // The List/CollectionView pan otherwise wins the race before a
@@ -109,8 +132,6 @@ struct SwipeRevealPan: UIViewRepresentable {
                scroll.panGestureRecognizer !== pan {
                 scroll.panGestureRecognizer.require(toFail: pan)
             }
-            recognizer = pan
-            host = container
         }
 
         func detach() {
