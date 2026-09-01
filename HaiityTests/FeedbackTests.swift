@@ -142,9 +142,9 @@ final class FeedbackTests: XCTestCase {
             XCTAssertFalse(model.contains(dead), "toter Weg im Modell: \(dead)")
             XCTAssertFalse(sheet.contains(dead), "toter Weg im Blatt: \(dead)")
         }
-        // Und die beiden echten Wege stehen beide da.
-        XCTAssertTrue(sheet.contains("MFMailComposeViewController"))
-        XCTAssertTrue(sheet.contains("UIActivityViewController"))
+        XCTAssertTrue(sheet.contains("SFSafariViewController"))
+        XCTAssertTrue(sheet.contains("FeedbackIssue.issueURL"))
+        XCTAssertFalse(sheet.contains("UIActivityViewController"))
     }
 
     /// Eine Quelldatei ohne ihre Kommentarzeilen — ein Wort im Kommentar ist
@@ -516,9 +516,9 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(helper.contains("activationState == .foregroundActive"),
                       "im Split View ist das Fenster nicht der Bildschirm")
 
-        // Das Melde-Blatt baut den Aufstieg nicht selbst nach.
+        // Das Melde-Blatt präsentiert den nativen Safari-Controller als Blatt.
         let sheet = try source("Haiity/Views/FeedbackSheet.swift")
-        XCTAssertTrue(sheet.contains("ModalPresentation.topViewController"))
+        XCTAssertTrue(sheet.contains("FeedbackBrowser(url: FeedbackIssue.issueURL)"))
         XCTAssertFalse(sheet.contains("connectedScenes"),
                        "zwei Wege zum obersten Controller sind einer zu viel")
     }
@@ -534,6 +534,18 @@ final class FeedbackTests: XCTestCase {
         }
     }
 
+    func testFeedbackOpensTheGitHubIssueCreatorInAnInternalBrowser() throws {
+        let sheet = try source("Haiity/Views/FeedbackSheet.swift")
+        let model = try source("Haiity/Models/FeedbackReport.swift")
+
+        XCTAssertTrue(sheet.contains("SFSafariViewController"),
+                      "Fehler melden must use the native in-app browser")
+        XCTAssertTrue(sheet.contains("FeedbackIssue.issueURL"),
+                      "the feedback action must use the shared issue destination")
+        XCTAssertTrue(model.contains("https://github.com/enrzh/hAiity/issues/new"),
+                      "the issue creator URL must point to the hAiity repository")
+    }
+
     /// **Niemand verschickt, was er nicht sehen konnte.** Angezeigter und
     /// mitgeschickter Text kommen aus DERSELBEN Quelle — und diese Quelle ist
     /// der Bericht, den `DiagnosticsTests` schon durchleuchtet hat. Und das
@@ -544,7 +556,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(sheet.contains("facts.map(DiagnosticsReport.text)"),
                       "der angezeigte Text muss der Bericht sein")
         XCTAssertTrue(sheet.contains("FeedbackMail.body(description: text, diagnostics: diagnostics)"),
-                      "verschickt werden muss derselbe Text")
+                      "kopiert werden muss derselbe Text")
         XCTAssertTrue(sheet.contains("await DiagnosticsCollector.local(store: store, cloudStatus: cloudStatus)"))
         XCTAssertFalse(sheet.contains("DiagnosticsFacts()"),
                        "ein eigener Stand neben dem geteilten Sammler")
@@ -558,18 +570,12 @@ final class FeedbackTests: XCTestCase {
         }
     }
 
-    /// **Der Knopf tut immer etwas.** Ohne eingerichtetes Mail-Konto ist
-    /// `canSendMail()` schlicht `false` — täte „Senden" dann nichts, sähe
-    /// ausgerechnet das Blatt kaputt aus, mit dem man Kaputtes meldet.
-    func testSendingFallsBackToTheShareSheetInsteadOfDoingNothing() throws {
+    func testFeedbackUsesTheIssueBrowserAndOffersReportCopying() throws {
         let sheet = try source("Haiity/Views/FeedbackSheet.swift")
-        XCTAssertTrue(sheet.contains("guard MFMailComposeViewController.canSendMail() else"))
-        XCTAssertTrue(sheet.contains("UIActivityViewController(activityItems: [text]"))
-        XCTAssertTrue(sheet.contains("controller.setToRecipients([FeedbackMail.recipient])"))
-        // Das Blatt fährt nur nach dem echten Abschicken zu — Abbrechen darf
-        // den getippten Text nicht mitnehmen.
-        XCTAssertTrue(sheet.contains("onFinish(result == .sent)"))
-        XCTAssertTrue(sheet.contains("guard sent else { return }"))
+        XCTAssertTrue(sheet.contains("showsGitHubIssues = true"))
+        XCTAssertTrue(sheet.contains("UIPasteboard.general.string = reportText"))
+        XCTAssertTrue(sheet.contains("\"feedback-copy\""))
+        XCTAssertFalse(sheet.contains("UIActivityViewController"))
     }
 
     // MARK: – Quell-Verträge: Mehr und die Tür

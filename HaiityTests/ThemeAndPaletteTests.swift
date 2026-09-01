@@ -534,8 +534,10 @@ final class AppearanceSettingTests: XCTestCase {
                       "stats card content must apply its owning chrome")
         XCTAssertFalse(list.contains(".settingsListRow()"),
                        "a section-wide surface creates a second background behind held cards")
-        XCTAssertTrue(list.contains(".contentMargins(.horizontal, Theme.Metrics.gutter, for: .scrollContent)"),
-                      "stats content must be constrained to the viewport on iOS 27")
+        XCTAssertTrue(chrome.contains(".listRowInsets(EdgeInsets(top: 0"),
+                      "stats cards must own the same horizontal inset as habit cards")
+        XCTAssertFalse(list.contains(".contentMargins(.horizontal, Theme.Metrics.gutter, for: .scrollContent)"),
+                       "a list-level horizontal inset would narrow stats cards twice")
     }
 
     func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {

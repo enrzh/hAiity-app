@@ -57117,6 +57117,36 @@
         }
       }
     },
+    "Auf GitHub melden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report on GitHub"
+          }
+        }
+      }
+    },
+    "Bericht kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy report"
+          }
+        }
+      }
+    },
+    "Bericht kopiert.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report copied."
+          }
+        }
+      }
+    },
     "Einmalig anlegen": {
       "localizations": {
         "en": {

@@ -103,3 +103,7 @@ enum FeedbackMail {
     // Tests haben diesen Weg abgesichert und damit eine Prüf-Sicherheit
     // vorgetäuscht, die für den WIRKLICHEN Rückfallweg nicht galt.
 }
+
+enum FeedbackIssue {
+    static let issueURL = URL(string: "https://github.com/enrzh/hAiity/issues/new")!
+}

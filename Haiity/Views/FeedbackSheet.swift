@@ -1,4 +1,4 @@
-import MessageUI
+import SafariServices
 import SwiftUI
 import UIKit
 
@@ -40,7 +40,8 @@ struct FeedbackSheet: View {
     /// Zugeklappt beginnen: die Beschreibung ist das Wichtige, die Technik
     /// der Beleg dahinter.
     @State private var showsDiagnostics = false
-    @State private var showsMail = false
+    @State private var showsGitHubIssues = false
+    @State private var reportCopied = false
     /// Rückfrage vor „nicht mehr fragen" — nur, wenn dabei etwas verloren
     /// ginge (siehe `muteSection`).
     @State private var asksBeforeMuting = false
@@ -51,17 +52,13 @@ struct FeedbackSheet: View {
     /// „sieh selbst, was mitgeht" ein Schlüsselloch.
     @ScaledMetric(relativeTo: .footnote) private var diagnosticsHeight: CGFloat = 220
 
-    /// Genau der Text, der verschickt wird — eine Quelle für Anzeige und Mail.
+    /// Genau der Text, den der Nutzer bei Bedarf in das GitHub-Issue kopiert.
     private var diagnostics: String { facts.map(DiagnosticsReport.text) ?? "" }
 
     private var isCollected: Bool { facts != nil }
 
-    private var subject: String {
-        FeedbackMail.subject(version: AppBuildInfo.version, build: AppBuildInfo.build)
-    }
-
     /// Nicht `body` — der Name gehört in einer Ansicht dem Bildschirm.
-    private var mailBody: String {
+    private var reportText: String {
         FeedbackMail.body(description: text, diagnostics: diagnostics)
     }
 
@@ -84,19 +81,9 @@ struct FeedbackSheet: View {
             }
         }
         .task { facts = await DiagnosticsCollector.local(store: store, cloudStatus: cloudStatus) }
-        // Das Mail-Fenster ist eine eigene Präsentation ÜBER diesem Blatt —
-        // ein Blatt aus einem Blatt heraus ist erlaubt, ein zweites NEBEN
-        // demselben Blatt nicht.
-        .sheet(isPresented: $showsMail) {
-            MailComposer(subject: subject, body: mailBody) { sent in
-                showsMail = false
-                // Nur nach dem Abschicken zufahren: wer im Mail-Fenster
-                // abbricht, will meist zurück in seinen Text.
-                guard sent else { return }
-                Theme.Haptics.success()
-                dismiss()
-            }
-            .ignoresSafeArea()
+        .sheet(isPresented: $showsGitHubIssues) {
+            FeedbackBrowser(url: FeedbackIssue.issueURL)
+                .ignoresSafeArea()
         }
     }
 
@@ -146,20 +133,24 @@ struct FeedbackSheet: View {
         }
     }
 
-    // MARK: – (3) Senden
+    // MARK: – (3) GitHub
 
     private var sendSection: some View {
         Section {
-            Button {
-                send()
-            } label: {
-                Label(String(localized: "Senden"), systemImage: "paperplane")
+            Button { showsGitHubIssues = true } label: {
+                Label(String(localized: "Auf GitHub melden"),
+                      systemImage: "exclamationmark.bubble")
             }
             .foregroundStyle(.primary)
-            // Vor dem Sammeln gäbe es nur die Beschreibung — eine Meldung
-            // ohne Version und Gerät ist eine Frage ohne Zeitpunkt.
-            .disabled(!isCollected)
             .accessibilityIdentifier("feedback-send")
+
+            Button { copyReport() } label: {
+                Label(String(localized: reportCopied ? "Bericht kopiert." : "Bericht kopieren"),
+                      systemImage: reportCopied ? "checkmark" : "doc.on.doc")
+                    .symbolEffect(.bounce, value: reportCopied)
+            }
+            .disabled(!isCollected)
+            .accessibilityIdentifier(reportCopied ? "feedback-copy-confirmation" : "feedback-copy")
         }
     }
 
@@ -209,83 +200,23 @@ struct FeedbackSheet: View {
         dismiss()
     }
 
-    // MARK: – Der Weg nach draußen
-
-    /// Erst das Mail-Fenster, sonst das Teilen-Blatt — aber NIE nichts.
-    ///
-    /// **Warum es überhaupt einen zweiten Weg gibt.** `canSendMail()` ist auf
-    /// jedem Gerät ohne eingerichtetes Mail-Konto `false`, und das ist keine
-    /// Ausnahme: viele Menschen lesen ihre Mail nur in einer anderen App.
-    /// Täte der Knopf dann nichts, sähe das Blatt kaputt aus — ausgerechnet
-    /// das Blatt, mit dem man Kaputtes meldet. Das Teilen-Blatt nimmt
-    /// denselben Text und lässt ihn in jede App, die Text annimmt.
-    private func send() {
-        guard MFMailComposeViewController.canSendMail() else {
-            share()
-            return
+    private func copyReport() {
+        UIPasteboard.general.string = reportText
+        reportCopied = true
+        Theme.Haptics.success()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            reportCopied = false
         }
-        showsMail = true
-    }
-
-    /// Der Rückfallweg über das System-Teilen-Blatt.
-    ///
-    /// Die Adresse steht als erste Zeile im Text: Wer den Bericht in eine
-    /// Mail-App schiebt, hat sonst zwar den Inhalt, aber keinen Empfänger.
-    private func share() {
-        let text = "\(FeedbackMail.recipient)\n\(subject)\n\n\(mailBody)"
-        // Über den OBERSTEN Controller — das ist dieses Blatt selbst. Von der
-        // Wurzel aus präsentiert, käme das Teilen-Blatt hinter dem Melde-Blatt
-        // zu liegen und wäre nicht zu sehen (siehe `ModalPresentation`).
-        guard let top = ModalPresentation.topViewController else { return }
-        top.present(UIActivityViewController(activityItems: [text],
-                                             applicationActivities: nil),
-                    animated: true)
     }
 }
 
-// MARK: – Das Mail-Fenster
+private struct FeedbackBrowser: UIViewControllerRepresentable {
+    let url: URL
 
-/// `MFMailComposeViewController` in SwiftUI.
-///
-/// **Warum Apples Fenster und keine eigene `mailto:`-URL.** Der Rumpf trägt
-/// den ganzen Diagnosetext; als URL sind das schnell zwei Kilobyte, und
-/// einzelne Mail-Programme kürzen lange `mailto:`-Rümpfe stillschweigend —
-/// beim Empfänger käme ein halber Bericht an. Das Fenster nimmt Empfänger,
-/// Betreff und Text als Werte entgegen, zeigt sie dem Absender und schickt
-/// über sein eigenes Konto: nichts verlässt das Gerät, ohne dass er es
-/// gesehen und selbst auf Senden getippt hat.
-private struct MailComposer: UIViewControllerRepresentable {
-    let subject: String
-    let body: String
-    /// `true` = wirklich abgeschickt. Abbrechen, Sichern und ein Fehler beim
-    /// Verschicken sind ausdrücklich KEIN Erfolg — sonst schlösse sich das
-    /// Blatt samt getipptem Text über einer Meldung, die nie ankam.
-    let onFinish: (Bool) -> Void
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let controller = MFMailComposeViewController()
-        controller.mailComposeDelegate = context.coordinator
-        controller.setToRecipients([FeedbackMail.recipient])
-        controller.setSubject(subject)
-        controller.setMessageBody(body, isHTML: false)
-        return controller
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
     }
 
-    /// Bewusst leer: Betreff und Rumpf stehen beim Öffnen fest. Sie später
-    /// nachzuschieben überschriebe, was der Absender im Fenster getippt hat.
-    func updateUIViewController(_ controller: MFMailComposeViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
-
-    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        private let onFinish: (Bool) -> Void
-
-        init(onFinish: @escaping (Bool) -> Void) { self.onFinish = onFinish }
-
-        func mailComposeController(_ controller: MFMailComposeViewController,
-                                   didFinishWith result: MFMailComposeResult,
-                                   error: Error?) {
-            onFinish(result == .sent)
-        }
-    }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
