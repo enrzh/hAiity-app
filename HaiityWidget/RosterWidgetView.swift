@@ -476,7 +476,7 @@ struct LargeFocusWidgetView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(WidgetLogic.LargeGeometry.outerPadding)
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
     }

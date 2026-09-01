@@ -291,7 +291,7 @@ struct MoreView: View {
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
             .settingsRowSurface()
-            notificationSettingsSection.settingsRowSurface()
+            notificationSettingsSection
             Section {
                 Button { showReminderSetup = true } label: {
                     Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
@@ -375,12 +375,15 @@ struct MoreView: View {
 
     private var autoArchiveSection: some View {
         Section {
-            Toggle(String(localized: "Einmalige Einträge automatisch archivieren"), isOn: Binding(
-                get: { statsCards.preferences.autoArchiveCompletedItems },
-                set: { enabled in
-                    statsCards.update { $0.autoArchiveCompletedItems = enabled }
-                }))
-            .accessibilityIdentifier("auto-archive-completed-items-toggle")
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                Toggle(String(localized: "Einmalige Einträge automatisch archivieren"), isOn: Binding(
+                    get: { statsCards.preferences.autoArchiveCompletedItems },
+                    set: { enabled in
+                        statsCards.update { $0.autoArchiveCompletedItems = enabled }
+                    }))
+                    .accessibilityIdentifier("auto-archive-completed-items-toggle")
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } footer: {
             Text(String(localized: "Erledigte einmalige und letzte Wiederholungen landen automatisch im Archiv."))
         }
@@ -388,11 +391,14 @@ struct MoreView: View {
 
     private var timeZoneSection: some View {
         Section {
-            pageRow(.timeZone,
-                    title: String(localized: "Standardzeitzone"),
-                    symbol: "globe",
-                    identifier: "open-timezone",
-                    badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                pageRow(.timeZone,
+                        title: String(localized: "Standardzeitzone"),
+                        symbol: "globe",
+                        identifier: "open-timezone",
+                        badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } footer: {
             Text(String(localized: "Neue Habits übernehmen diese Zeitzone. Einzelne Habits können sie überschreiben."))
         }
@@ -430,30 +436,33 @@ struct MoreView: View {
 
     private var swipeActionsSection: some View {
         Section {
-            Toggle(String(localized: "Wischaktionen"), isOn: Binding(
-                get: { statsCards.preferences.swipeActions.enabled },
-                set: { enabled in
-                    statsCards.update { $0.swipeActions.enabled = enabled }
-                }))
-            .accessibilityIdentifier("swipe-actions-toggle")
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                Toggle(String(localized: "Wischaktionen"), isOn: Binding(
+                    get: { statsCards.preferences.swipeActions.enabled },
+                    set: { enabled in
+                        statsCards.update { $0.swipeActions.enabled = enabled }
+                    }))
+                    .accessibilityIdentifier("swipe-actions-toggle")
 
-            if statsCards.preferences.swipeActions.enabled {
-                Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
-                    ForEach(SwipeActionChoice.selectable) { choice in
-                        Text(choice.displayName).tag(choice)
+                if statsCards.preferences.swipeActions.enabled {
+                    Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
+                        ForEach(SwipeActionChoice.selectable) { choice in
+                            Text(choice.displayName).tag(choice)
+                        }
                     }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("swipe-leading-picker")
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("swipe-leading-picker")
 
-                Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
-                    ForEach(SwipeActionChoice.selectable) { choice in
-                        Text(choice.displayName).tag(choice)
+                    Picker(String(localized: "Nach links wischen"), selection: swipeTrailingBinding) {
+                        ForEach(SwipeActionChoice.selectable) { choice in
+                            Text(choice.displayName).tag(choice)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("swipe-trailing-picker")
                 }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("swipe-trailing-picker")
             }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             Text(String(localized: "Wischaktionen"))
         }
@@ -461,30 +470,33 @@ struct MoreView: View {
 
     private var notificationActionsSection: some View {
         Section {
-            Toggle(String(localized: "Schnellaktionen in Mitteilungen"), isOn: Binding(
-                get: { statsCards.preferences.notificationActionsEnabled },
-                set: { enabled in
-                    statsCards.update { $0.notificationActionsEnabled = enabled }
-                    NotificationPresenter.configureQuickActions(
-                        enabled: enabled,
-                        choices: statsCards.preferences.notificationActions.slots)
-                }))
-            .accessibilityIdentifier("notification-actions-toggle")
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                Toggle(String(localized: "Schnellaktionen in Mitteilungen"), isOn: Binding(
+                    get: { statsCards.preferences.notificationActionsEnabled },
+                    set: { enabled in
+                        statsCards.update { $0.notificationActionsEnabled = enabled }
+                        NotificationPresenter.configureQuickActions(
+                            enabled: enabled,
+                            choices: statsCards.preferences.notificationActions.slots)
+                    }))
+                    .accessibilityIdentifier("notification-actions-toggle")
 
-            if statsCards.preferences.notificationActionsEnabled {
-                ForEach(0..<NotificationActionPreferences.slotCount, id: \.self) { index in
-                    Picker(notificationSlotTitle(index),
-                           selection: notificationActionBinding(at: index)) {
-                        ForEach(statsCards.preferences.notificationActions
-                            .availableChoices(for: index)) { choice in
-                            Text(choice.notificationDisplayName).tag(choice)
+                if statsCards.preferences.notificationActionsEnabled {
+                    ForEach(0..<NotificationActionPreferences.slotCount, id: \.self) { index in
+                        Picker(notificationSlotTitle(index),
+                               selection: notificationActionBinding(at: index)) {
+                            ForEach(statsCards.preferences.notificationActions
+                                .availableChoices(for: index)) { choice in
+                                Text(choice.notificationDisplayName).tag(choice)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("notification-action-picker-\(index + 1)")
                     }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("notification-action-picker-\(index + 1)")
+                    notificationActionsPreview
                 }
-                notificationActionsPreview
             }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             Text(String(localized: "Mitteilungen"))
         }
@@ -661,78 +673,81 @@ struct MoreView: View {
 
     private var calendarSection: some View {
         Section {
-            calendarToggle(type: .habit,
-                           title: String(localized: "Habits im Kalender"),
-                           identifier: "calendar-sync-habits-toggle")
-            calendarToggle(type: .reminder,
-                           title: String(localized: "Erinnerungen im Kalender"),
-                           identifier: "calendar-sync-reminders-toggle")
-            Toggle(isOn: reminderSyncBinding) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
-                              systemImage: "checklist")
-                        Text(String(localized: "Ziel: hAiity Reminders"))
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                calendarToggle(type: .habit,
+                               title: String(localized: "Habits im Kalender"),
+                               identifier: "calendar-sync-habits-toggle")
+                calendarToggle(type: .reminder,
+                               title: String(localized: "Erinnerungen im Kalender"),
+                               identifier: "calendar-sync-reminders-toggle")
+                Toggle(isOn: reminderSyncBinding) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(String(localized: "Erinnerungen mit Apple synchronisieren"),
+                                  systemImage: "checklist")
+                            Text(String(localized: "Ziel: hAiity Reminders"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if !unlocked && !nativeReminderSyncEnabled {
+                            Spacer(minLength: Theme.Metrics.gap)
+                            proLock
+                        }
+                    }
+                }
+                .accessibilityIdentifier("native-reminder-sync-toggle")
+                Button(role: .destructive) {
+                    showNativeSyncDeleteConfirmation = true
+                } label: {
+                    Label(String(localized: "Native Einträge löschen"), systemImage: "trash")
+                }
+                .foregroundStyle(.primary)
+                .disabled(nativeSyncCleanupInProgress)
+                .accessibilityIdentifier("delete-native-entries")
+                Button {
+                    cleanupNativeEntries()
+                } label: {
+                    Label(nativeSyncCleanupButtonTitle,
+                          systemImage: "arrow.triangle.2.circlepath")
+                }
+                .foregroundStyle(.primary)
+                .disabled(nativeSyncCleanupInProgress)
+                .accessibilityIdentifier("cleanup-native-entries")
+                if let nativeSyncCleanupMessage {
+                    Text(nativeSyncCleanupMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if calendarDenied {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !unlocked && !nativeReminderSyncEnabled {
-                        Spacer(minLength: Theme.Metrics.gap)
-                        proLock
-                    }
-                }
-            }
-            .accessibilityIdentifier("native-reminder-sync-toggle")
-            Button(role: .destructive) {
-                showNativeSyncDeleteConfirmation = true
-            } label: {
-                Label(String(localized: "Native Einträge löschen"), systemImage: "trash")
-            }
-            .foregroundStyle(.primary)
-            .disabled(nativeSyncCleanupInProgress)
-            .accessibilityIdentifier("delete-native-entries")
-            Button {
-                cleanupNativeEntries()
-            } label: {
-                Label(nativeSyncCleanupButtonTitle,
-                      systemImage: "arrow.triangle.2.circlepath")
-            }
-            .foregroundStyle(.primary)
-            .disabled(nativeSyncCleanupInProgress)
-            .accessibilityIdentifier("cleanup-native-entries")
-            if let nativeSyncCleanupMessage {
-                Text(nativeSyncCleanupMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if calendarDenied {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    Button(String(localized: "iOS-Einstellungen öffnen")) {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
+                            .foregroundStyle(.orange)
+                        Button(String(localized: "iOS-Einstellungen öffnen")) {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
                         }
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("open-calendar-settings")
                     }
-                    .font(.caption.weight(.semibold))
-                    .accessibilityIdentifier("open-calendar-settings")
                 }
-            }
-            if reminderSyncDenied {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(String(localized: "Der Zugriff auf Erinnerungen ist in den iOS-Einstellungen deaktiviert."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    Button(String(localized: "iOS-Einstellungen öffnen")) {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
+                if reminderSyncDenied {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(localized: "Der Zugriff auf Erinnerungen ist in den iOS-Einstellungen deaktiviert."))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Button(String(localized: "iOS-Einstellungen öffnen")) {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
                         }
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("open-reminder-settings")
                     }
-                    .font(.caption.weight(.semibold))
-                    .accessibilityIdentifier("open-reminder-settings")
                 }
             }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         }
     }
 
@@ -2011,22 +2026,25 @@ struct MoreView: View {
 
     private var notificationSettingsSection: some View {
         Section {
-            // One notification block keeps the related controls together;
-            // spacing separates the groups without the cramped divider stack.
-            VStack(alignment: .leading, spacing: Theme.Metrics.gutter + 6) {
-                notificationOptOutRows
-                dailySummaryRows
-                weeklySummaryRows
-                motivationRows
-            }
-            .padding(.vertical, Theme.Metrics.gap)
+            notificationOptOutRows
+                .settingsRowSurface()
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            dailySummaryRows
+                .settingsRowSurface()
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            weeklySummaryRows
+                .settingsRowSurface()
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            motivationRows
+                .settingsRowSurface()
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
         } header: {
             Text(String(localized: "Mitteilungen"))
         }
     }
 
     private var notificationOptOutRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: dndEnabled) {
                 Label(NotificationDNDPresentation.title,
                       systemImage: NotificationDNDPresentation.symbolName)
@@ -2050,6 +2068,7 @@ struct MoreView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
     private var dndActive: Bool { notificationDND.isActive() }
@@ -2134,7 +2153,7 @@ struct MoreView: View {
     }
 
     private var dailySummaryRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: dailyEnabled) {
                 Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
             }
@@ -2148,10 +2167,11 @@ struct MoreView: View {
             }
             if summaryDenied { permissionHint }
         }
+        .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
     private var weeklySummaryRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: weeklyEnabled) {
                 Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
             }
@@ -2171,10 +2191,11 @@ struct MoreView: View {
             }
             if weeklyDenied { permissionHint }
         }
+        .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
     private var motivationRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: motivationEnabled) {
                 Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
             }
@@ -2217,6 +2238,7 @@ struct MoreView: View {
             }
             if motivationDenied { permissionHint }
         }
+        .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
     private var openSourceMotivationEnabled: Binding<Bool> {

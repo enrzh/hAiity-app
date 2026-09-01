@@ -109,8 +109,8 @@ final class WidgetRenderingTests: XCTestCase {
         let geometry = WidgetLogic.LargeGeometry.self
         XCTAssertEqual(geometry.gridColumnGap, 8)
         XCTAssertEqual(geometry.gridRowGap, 8)
-        XCTAssertEqual(geometry.gridGraphMinimumHeight, 82)
-        XCTAssertEqual(2 * geometry.gridRowHeight + geometry.gridRowGap, 332)
+        XCTAssertEqual(geometry.gridGraphMinimumHeight, 94)
+        XCTAssertEqual(2 * geometry.gridRowHeight + geometry.gridRowGap, 344)
 
         let body = try sourceSlice(source, from: "struct LargeGridWidgetView", to: "private struct LargeGridItem")
         XCTAssertFalse(body.contains("LargeWidgetHeader"))
@@ -273,16 +273,16 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
         let g = WidgetLogic.LargeGeometry.self
-        XCTAssertEqual(3 * g.itemSpacing + 4 * g.listRowHeight, 332)
-        XCTAssertEqual(2 * g.gridRowHeight + g.gridRowGap, 332)
+        XCTAssertEqual(3 * g.itemSpacing + 4 * g.listRowHeight, 344)
+        XCTAssertEqual(2 * g.gridRowHeight + g.gridRowGap, 344)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
                        + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
-                       + 2 * g.itemSpacing, 316)
+                       + 2 * g.itemSpacing, 340)
         XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
-        XCTAssertEqual(g.listGraphHeight, 46)
-        XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 92)
+        XCTAssertEqual(g.listGraphHeight, 61)
+        XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 104)
     }
 
     func testLargeLayoutsExposeNonOverlappingReservedBandsWithinContentBudget() throws {
@@ -350,7 +350,8 @@ final class WidgetRenderingTests: XCTestCase {
             XCTAssertFalse(identity.intersects(visual))
             XCTAssertFalse(visual.intersects(actions))
         }
-        XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.gridContentHeight, 332)
+        XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.gridContentHeight,
+                                 WidgetLogic.LargeGeometry.contentHeight)
     }
 
     func testListeAndFokusKeepIdentityVisualAndActionRegionsSeparate() throws {
@@ -371,11 +372,11 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testFokusUsesFixedFeaturedAndQueueGeometry() throws {
         let g = WidgetLogic.LargeGeometry.self
-        XCTAssertEqual(g.focusFeaturedHeight, 136)
-        XCTAssertEqual(g.focusQueueHeight, 48)
+        XCTAssertEqual(g.focusFeaturedHeight, 148)
+        XCTAssertEqual(g.focusQueueHeight, 52)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
                        + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
-                       + 2 * g.itemSpacing, 316)
+                       + 2 * g.itemSpacing, 340)
 
         let source = try source("HaiityWidget/RosterWidgetView.swift")
         let focusStart = try XCTUnwrap(source.range(of: "struct LargeFocusWidgetView"))
@@ -413,13 +414,14 @@ final class WidgetRenderingTests: XCTestCase {
         let gridItem = try sourceSlice(grid, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
         XCTAssertFalse(gridItem.contains("frame(width: 48"),
                        "the compact status column must remain flexible for localization")
-        XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight, 20)
-        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 82)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight, 18)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 94)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridItemPadding, 4)
         XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight
                        + WidgetLogic.LargeGeometry.gridVisualBandHeight
                        + WidgetLogic.LargeGeometry.gridActionBandHeight
                        + 2 * WidgetLogic.LargeGeometry.gridItemSpacing
-                       + 2 * WidgetLogic.LargeGeometry.gridItemPadding, 162)
+                       + 2 * WidgetLogic.LargeGeometry.gridItemPadding, 168)
     }
 
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
@@ -438,7 +440,7 @@ final class WidgetRenderingTests: XCTestCase {
     }
 
     func testLargeLayoutsFitTheRealSystemLargeContentBudget() {
-        XCTAssertEqual(WidgetLogic.LargeGeometry.contentHeight, 332)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.contentHeight, 344)
         XCTAssertEqual(WidgetLogic.LargeGeometry.listContentHeight,
                        3 * WidgetLogic.LargeGeometry.itemSpacing
                        + 4 * WidgetLogic.LargeGeometry.listRowHeight)
@@ -861,7 +863,7 @@ final class WidgetRenderingTests: XCTestCase {
         }
 
         let source = try source("HaiityWidget/GraphWidgetView.swift")
-        XCTAssertTrue(source.contains("family == .systemLarge ? 12 : 0"))
+        XCTAssertTrue(source.contains("family == .systemLarge ? WidgetLogic.LargeGeometry.outerPadding : 0"))
     }
 
     func testHomeWidgetInkPreservesOpacityLevelsOutsideFullColor() {

@@ -82,7 +82,7 @@ struct GraphWidgetView: View {
         }
         // The large family earns its larger tiles, with a restrained inset
         // that keeps the graph from touching the widget edge.
-        .padding(family == .systemLarge ? 12 : 0)
+        .padding(family == .systemLarge ? WidgetLogic.LargeGeometry.outerPadding : 0)
     }
 
     private func label(_ habit: Habit?) -> String {

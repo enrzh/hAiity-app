@@ -542,37 +542,37 @@ enum WidgetLogic {
     }
 
     /// Fixed systemLarge geometry shared by the three large renderers.
-    /// The 12pt outer inset leaves 332pt in the 356pt reference height.
+    /// The 6pt outer inset leaves 344pt in the 356pt reference height.
     enum LargeGeometry {
-        static let contentHeight: CGFloat = 332
-        static let outerPadding: CGFloat = 12
+        static let contentHeight: CGFloat = 344
+        static let outerPadding: CGFloat = 6
         static let itemSpacing: CGFloat = 4
         static let actionHeight: CGFloat = 44
         static let listHeaderHeight: CGFloat = 20
-        static let listRowHeight: CGFloat = 80
+        static let listRowHeight: CGFloat = 83
         static let listTitleHeight: CGFloat = 18
-        static let listGraphHeight: CGFloat = 46
+        static let listGraphHeight: CGFloat = 61
         static let listIdentityBandHeight: CGFloat = listTitleHeight
         static let listVisualBandHeight: CGFloat = listGraphHeight
         static let listActionBandHeight: CGFloat = actionHeight
         static let focusHeaderHeight: CGFloat = 20
         static let focusHeaderGap: CGFloat = 4
-        static let focusFeaturedHeight: CGFloat = 136
-        static let focusFeaturedGraphMinimumHeight: CGFloat = 92
+        static let focusFeaturedHeight: CGFloat = 148
+        static let focusFeaturedGraphMinimumHeight: CGFloat = 104
         static let focusFeaturedQueueGap: CGFloat = 4
-        static let focusQueueHeight: CGFloat = 48
+        static let focusQueueHeight: CGFloat = 52
         static let focusIdentityBandHeight: CGFloat = listTitleHeight
         static let focusVisualBandHeight: CGFloat = focusFeaturedGraphMinimumHeight
         static let focusActionBandHeight: CGFloat = actionHeight
-        static let gridRowHeight: CGFloat = 162
+        static let gridRowHeight: CGFloat = 168
         static let gridColumnGap: CGFloat = 8
         static let gridRowGap: CGFloat = 8
         // Raster tiles reserve exclusive identity, visual, and action bands.
-        static let gridIdentityBandHeight: CGFloat = 20
-        static let gridVisualBandHeight: CGFloat = 82
+        static let gridIdentityBandHeight: CGFloat = 18
+        static let gridVisualBandHeight: CGFloat = 94
         static let gridActionBandHeight: CGFloat = 44
         static let gridItemSpacing: CGFloat = 2
-        static let gridItemPadding: CGFloat = 6
+        static let gridItemPadding: CGFloat = 4
         static let gridGraphMinimumHeight: CGFloat = gridVisualBandHeight
         static let listContentHeight: CGFloat = 4 * listRowHeight + 3 * itemSpacing
         static let focusContentHeight: CGFloat = focusHeaderHeight + focusHeaderGap

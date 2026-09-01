@@ -686,6 +686,56 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
     }
 
+    func testNotificationSettingsKeepControlsInSeparateListRows() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let start = try XCTUnwrap(more.range(of: "private var notificationSettingsSection: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var notificationOptOutRows: some View",
+                                           range: start.upperBound..<more.endIndex))
+        let section = more[start.lowerBound..<end.lowerBound]
+
+        for row in ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"] {
+            XCTAssertTrue(section.contains("\(row)\n                .settingsRowSurface()"),
+                          "\(row) needs its own material row and hit area")
+        }
+        XCTAssertFalse(more.contains("notificationSettingsSection.settingsRowSurface()"),
+                       "the section-wide surface lets a picker capture unrelated taps")
+    }
+
+    func testBehaviorAndDeveloperCategoriesUseOneMaterialRow() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+
+        func categoryBody(_ source: String, _ marker: String, _ nextDeclaration: String) throws -> String {
+            let start = try XCTUnwrap(source.range(of: "private var \(marker): some View"))
+            let end = try XCTUnwrap(source.range(of: nextDeclaration,
+                                                range: start.upperBound..<source.endIndex))
+            return String(source[start.lowerBound..<end.lowerBound])
+        }
+
+        for (category, next) in [("timeZoneSection", "private var compactModeSection: some View"),
+                                 ("autoArchiveSection", "private var timeZoneSection: some View"),
+                                 ("swipeActionsSection", "private var notificationActionsSection: some View"),
+                                 ("notificationActionsSection", "private func notificationSlotTitle"),
+                                 ("calendarSection", "private func cleanupNativeEntries")] {
+            let body = try categoryBody(more, category, next)
+            XCTAssertTrue(body.contains("Section {\n            VStack("), category)
+        }
+
+        let developerCategories = [("appSection", "private var dataSection: some View"),
+                                   ("dataSection", "private var fileSize"),
+                                   ("cloudSection", "private var notificationSection: some View"),
+                                   ("notificationSection", "private var testNotificationButton: some View"),
+                                   ("calendarSection", "private var proSection: some View"),
+                                   ("proSection", "private var dataTransferSection: some View"),
+                                   ("dataTransferSection", "private var actionSection: some View"),
+                                   ("actionSection", "private var ownerSection: some View"),
+                                   ("ownerSection", "private func handleImport")]
+        for (category, next) in developerCategories {
+            let body = try categoryBody(developer, category, next)
+            XCTAssertTrue(body.contains("Section {\n            VStack("), category)
+        }
+    }
+
     func testOwnerDeveloperAccessHasNoNonWorkingHideControl() throws {
         let developer = try source("Haiity/Views/DeveloperView.swift")
         XCTAssertFalse(developer.contains("lockSection"))

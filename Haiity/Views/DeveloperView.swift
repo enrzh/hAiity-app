@@ -99,12 +99,15 @@ struct DeveloperView: View {
 
     private var appSection: some View {
         Section {
-            factRow(Text(String(localized: "Version")), facts.appVersion.isEmpty
-                    ? nil : "\(facts.appVersion) (\(facts.build))")
-            factRow(Text(verbatim: "Bundle-ID"), facts.bundleID)
-            factRow(Text(String(localized: "Konfiguration")), facts.configuration)
-            factRow(Text(verbatim: "iOS"), facts.systemVersion)
-            factRow(Text(String(localized: "Gerät")), facts.deviceModel)
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                factRow(Text(String(localized: "Version")), facts.appVersion.isEmpty
+                        ? nil : "\(facts.appVersion) (\(facts.build))")
+                factRow(Text(verbatim: "Bundle-ID"), facts.bundleID)
+                factRow(Text(String(localized: "Konfiguration")), facts.configuration)
+                factRow(Text(verbatim: "iOS"), facts.systemVersion)
+                factRow(Text(String(localized: "Gerät")), facts.deviceModel)
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "App"), symbol: "app.badge")
         }
@@ -114,13 +117,16 @@ struct DeveloperView: View {
 
     private var dataSection: some View {
         Section {
-            factRow(Text(String(localized: "Aktive Habits")), count(facts.activeHabits))
-            factRow(Text(String(localized: "Archivierte Habits")), count(facts.archivedHabits))
-            factRow(Text(String(localized: "Log-Einträge")), count(facts.logEntries))
-            factRow(Text(String(localized: "Ältester Tag")), facts.oldestLogDay)
-            factRow(Text(verbatim: "data.json"), fileSize)
-            factRow(Text(String(localized: "Geändert")), shortDate(facts.dataFileModified))
-            factRow(Text(verbatim: "App-Group"), facts.appGroupContainer)
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                factRow(Text(String(localized: "Aktive Habits")), count(facts.activeHabits))
+                factRow(Text(String(localized: "Archivierte Habits")), count(facts.archivedHabits))
+                factRow(Text(String(localized: "Log-Einträge")), count(facts.logEntries))
+                factRow(Text(String(localized: "Ältester Tag")), facts.oldestLogDay)
+                factRow(Text(verbatim: "data.json"), fileSize)
+                factRow(Text(String(localized: "Geändert")), shortDate(facts.dataFileModified))
+                factRow(Text(verbatim: "App-Group"), facts.appGroupContainer)
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Daten"), symbol: "externaldrive")
         }
@@ -137,7 +143,10 @@ struct DeveloperView: View {
 
     private var cloudSection: some View {
         Section {
-            factRow(Text(String(localized: "Status")), facts.cloudStatus)
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                factRow(Text(String(localized: "Status")), facts.cloudStatus)
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader("iCloud", symbol: "icloud", localized: false)
         }
@@ -147,6 +156,7 @@ struct DeveloperView: View {
 
     private var notificationSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Berechtigung")), facts.notificationAuthorization)
             factRow(Text(String(localized: "Geplant")), count(facts.pendingNotifications))
             // Kennung und Zeitpunkt — mehr trägt `nextNotifications` nicht,
@@ -166,6 +176,8 @@ struct DeveloperView: View {
                     .foregroundStyle(.secondary)
             }
             if testFailed || isNotificationAccessDenied { notificationSettingsLink }
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Mitteilungen"), symbol: "bell")
         }
@@ -233,9 +245,12 @@ struct DeveloperView: View {
 
     private var calendarSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Habits im Kalender")), yesNo(facts.calendarEnabled))
             factRow(Text(String(localized: "Kalendertitel")), facts.calendarTitle)
             factRow(Text(String(localized: "Gespiegelte Termine")), count(facts.calendarEvents))
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Kalender"), symbol: "calendar")
         }
@@ -245,9 +260,12 @@ struct DeveloperView: View {
 
     private var proSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Freigeschaltet")), yesNo(facts.proUnlocked))
             factRow(Text(verbatim: "Produkt-ID"), facts.proProductID)
             factRow(Text(String(localized: "Preis")), facts.proPrice)
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader("hAiity Pro", symbol: "checkmark.seal", localized: false)
         }
@@ -257,6 +275,7 @@ struct DeveloperView: View {
 
     private var dataTransferSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             ShareLink(item: HabitExport(data: store.exportJSON() ?? Data()),
                       preview: SharePreview(String(localized: "hAiity-Export"))) {
                 Label(String(localized: "Exportieren"), systemImage: "square.and.arrow.up")
@@ -277,6 +296,8 @@ struct DeveloperView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Import & Export"), symbol: "arrow.up.arrow.down")
         }
@@ -284,6 +305,7 @@ struct DeveloperView: View {
 
     private var actionSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Button {
                 WidgetCenter.shared.reloadAllTimelines()
                 actionMessage = String(localized: "Widgets neu geladen.")
@@ -361,6 +383,8 @@ struct DeveloperView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Aktionen"), symbol: "wrench.and.screwdriver")
         }
@@ -381,6 +405,7 @@ struct DeveloperView: View {
     /// NICHT im Diagnosetext: dieser wird verschickt, diese Seite nicht.
     private var ownerSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Apple-Kennung dieses Geräts")),
                     appleUserID ?? String(localized: "Nicht angemeldet"))
             Button {
@@ -402,6 +427,8 @@ struct DeveloperView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             sectionHeader(String(localized: "Besitzer"), symbol: "person.badge.key")
         }
