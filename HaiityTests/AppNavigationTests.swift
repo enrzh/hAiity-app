@@ -187,6 +187,17 @@ final class AppNavigationTests: XCTestCase {
                        "the search list must not mount a second async background layer")
     }
 
+    func testHabitsListDoesNotMountASecondAppearanceBackground() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let start = try XCTUnwrap(content.range(of: "private var habitList: some View"))
+        let end = try XCTUnwrap(content.range(of: "/// Fußabdruck des Chroms",
+                                              range: start.upperBound..<content.endIndex))
+        let habitList = content[start.lowerBound..<end.lowerBound]
+
+        XCTAssertFalse(habitList.contains(".background(AppearanceBackground"),
+                       "the fixed page shell must own the only async appearance background")
+    }
+
     func testMoreRouteWinsOverQueuedSearchWork() {
         var work = RouteWork()
         let searchRoute = work.begin()

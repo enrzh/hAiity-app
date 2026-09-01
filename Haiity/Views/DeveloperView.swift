@@ -54,6 +54,7 @@ struct DeveloperView: View {
     @State private var appleUserID: String?
     @State private var showImporter = false
     @State private var importMessage: String?
+    @State private var copiedSyncHint = false
 
     private enum ImportError: LocalizedError {
         case trackedHabitLimit
@@ -314,6 +315,25 @@ struct DeveloperView: View {
             }
             .foregroundStyle(.primary)
             .accessibilityIdentifier("force-remove-background-image")
+
+            HStack(spacing: Theme.Metrics.gap) {
+                Label(String(localized: "Kennzeichnung für eigene Einträge"),
+                      systemImage: "tag")
+                Spacer(minLength: Theme.Metrics.gap)
+                Button {
+                    UIPasteboard.general.string = SyncWatermark.copyText
+                    copiedSyncHint = true
+                    Theme.Haptics.success()
+                } label: {
+                    Label(copiedSyncHint ? String(localized: "Kopiert")
+                                         : String(localized: "Kopieren"),
+                          systemImage: copiedSyncHint ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("copy-sync-watermark")
+            }
+            .padding(.vertical, 4)
 
             Button {
                 // Bewusst das ALLGEMEINE Pasteboard, ohne `.localOnly`: Der

@@ -45587,6 +45587,44 @@
         }
       }
     },
+    "Zusätzliche Motivation": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Zusätzliche Motivation" } }
+      }
+    },
+    "Quelle: mubaris/motivate · MIT-Lizenz": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Quelle: mubaris/motivate · MIT-Lizenz" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Source: mubaris/motivate · MIT license" } }
+      }
+    },
+    "Optional; ohne Internet bleiben integrierte Nachrichten aktiv.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Optional; ohne Internet bleiben integrierte Nachrichten aktiv." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Optional; built-in messages remain active offline." } }
+      }
+    },
+    "Integrierte Nachrichten": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Integrierte Nachrichten" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Built-in messages" } }
+      }
+    },
+    "Laden…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Laden…" } }
+      }
+    },
+    "Geladen": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Geladen" } }
+      }
+    },
+    "Fehler – integrierte Nachrichten bleiben aktiv": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Fehler – integrierte Nachrichten bleiben aktiv" } }
+      }
+    },
     "Uhrzeit": {
       "localizations": {
         "ar": {
@@ -56915,6 +56953,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "Native entries cleaned up and resynced: %@."
+          }
+        }
+      }
+    },
+    "Native Einträge gelöscht. Synchronisierung ausgeschaltet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native entries deleted. Sync disabled."
+          }
+        }
+      }
+    },
+    "Native Einträge löschen?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete native entries?"
+          }
+        }
+      }
+    },
+    "Native Einträge löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete native entries"
+          }
+        }
+      }
+    },
+    "Alle von hAiity erstellten Kalender- und Erinnerungs-Einträge werden gelöscht. Die Synchronisierung wird ausgeschaltet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All calendar and reminder entries created by hAiity will be deleted. Sync will be disabled."
+          }
+        }
+      }
+    },
+    "Alle löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all"
+          }
+        }
+      }
+    },
+    "Kennzeichnung für eigene Einträge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marker for own entries"
+          }
+        }
+      }
+    },
+    "Kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      }
+    },
+    "Kopiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        }
+      }
+    },
+    "Einträge konnten nicht vollständig gelöscht werden. Prüfe die Berechtigungen und versuche es erneut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some entries could not be deleted. Check permissions and try again."
           }
         }
       }

@@ -46,7 +46,7 @@ struct EditHabitSheet: View {
     @State private var emoji = ""
     @State private var itemType: HabitItemType = .reminder
     @State private var calendarSyncEnabled = true
-    @State private var notificationsEnabled = true
+    @State private var notificationMode: HabitNotificationMode = .standard
     @State private var repeatsWhileIncomplete = true
     /// Nil inherits the global default; `device` is an explicit per-item
     /// choice that remains stable when the global setting changes.
@@ -277,11 +277,11 @@ struct EditHabitSheet: View {
         // aufträte.
         .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
         .onChange(of: draft.hasTime) { _, enabled in
-            guard enabled, notificationsEnabled else { return }
+            guard enabled, notificationMode != .off else { return }
             requestNotificationPermissionIfNeeded()
         }
-        .onChange(of: notificationsEnabled) { _, enabled in
-            guard enabled, draft.hasTime else { return }
+        .onChange(of: notificationMode) { _, mode in
+            guard mode != .off, draft.hasTime else { return }
             requestNotificationPermissionIfNeeded()
         }
         .alert(String(localized: "Mitteilungen aktivieren"),
@@ -378,8 +378,13 @@ struct EditHabitSheet: View {
                 DatePicker(String(localized: "Zeit"), selection: $draft.time,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
-                Toggle(String(localized: "Benachrichtigung"), isOn: $notificationsEnabled)
-                    .accessibilityIdentifier("habit-notification-toggle")
+                Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
+                    Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
+                    Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
+                    Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("habit-notification-mode")
             }
             Button {
                 showTimeZonePicker = true
@@ -774,7 +779,7 @@ struct EditHabitSheet: View {
         emoji = habit.emoji
         itemType = habit.itemType
         calendarSyncEnabled = habit.calendarSyncEnabled
-        notificationsEnabled = habit.notificationsEnabled
+        notificationMode = habit.notificationMode
         timeZoneIdentifier = habit.timeZoneIdentifier
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
@@ -819,7 +824,7 @@ struct EditHabitSheet: View {
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
         habit.calendarSyncEnabled = unlocked && calendarSyncEnabled
-        habit.notificationsEnabled = notificationsEnabled
+        habit.notificationMode = notificationMode
         habit.timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(timeZoneIdentifier)
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
         if itemType != .reminder || existing?.recurrence != recurrence {

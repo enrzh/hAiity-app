@@ -63,6 +63,35 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertFalse(back.notificationsEnabled)
     }
 
+    func testNotificationModeMigratesLegacyBooleanAndMissingValues() throws {
+        let id = UUID().uuidString
+        let base = "\"id\":\"\(id)\",\"name\":\"Lesen\",\"emoji\":\"\",\"createdAt\":\"2026-01-01\",\"log\":{}"
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: "{\(base)}".data(using: .utf8)!).notificationMode, .standard)
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: "{\(base),\"notificationsEnabled\":true}".data(using: .utf8)!).notificationMode, .standard)
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: "{\(base),\"notificationsEnabled\":false}".data(using: .utf8)!).notificationMode, .off)
+    }
+
+    func testNotificationModeRoundTripsAndKeepsLegacyMirror() throws {
+        var habit = Habit(name: "Lesen")
+        habit.notificationMode = .timeSensitive
+        let text = String(data: try JSONEncoder().encode(habit), encoding: .utf8)!
+        XCTAssertTrue(text.contains("\"notificationMode\":\"timeSensitive\""))
+        XCTAssertTrue(text.contains("\"notificationsEnabled\":true"))
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: text.data(using: .utf8)!).notificationMode, .timeSensitive)
+
+        habit.notificationMode = .off
+        let offText = String(data: try JSONEncoder().encode(habit), encoding: .utf8)!
+        XCTAssertTrue(offText.contains("\"notificationsEnabled\":false"))
+        XCTAssertEqual(try JSONDecoder().decode(Habit.self, from: offText.data(using: .utf8)!).notificationMode, .off)
+    }
+
+    func testInitializerAcceptsExplicitNotificationMode() {
+        let habit = Habit(name: "Laufen", notificationsEnabled: false,
+                          notificationMode: .timeSensitive)
+        XCTAssertEqual(habit.notificationMode, .timeSensitive)
+        XCTAssertTrue(habit.notificationsEnabled)
+    }
+
     func testGarbageTimesAreDropped() throws {
         XCTAssertNil(Habit(name: "X", timeMinutes: 1500).timeMinutes)
         XCTAssertNil(Habit(name: "X", timeMinutes: -5).timeMinutes)
@@ -331,8 +360,16 @@ final class EditHabitSheetContractTests: XCTestCase {
         XCTAssertTrue(source.contains("if draft.frequency != .once"))
         XCTAssertTrue(source.contains("itemType = .reminder"))
         XCTAssertTrue(source.contains("Text(String(localized: \"Ende\"))"))
-        XCTAssertTrue(source.contains("$notificationsEnabled"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-notification-toggle\")"))
+        XCTAssertTrue(source.contains("$notificationMode"))
+        XCTAssertTrue(source.contains("Picker(String(localized: \"Benachrichtigung\"), selection: $notificationMode)"))
+        XCTAssertTrue(source.contains(".pickerStyle(.segmented)"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"habit-notification-mode\")"))
+        XCTAssertTrue(source.contains("Text(String(localized: \"Aus\")).tag(HabitNotificationMode.off)"))
+        XCTAssertTrue(source.contains("Text(String(localized: \"Standard\")).tag(HabitNotificationMode.standard)"))
+        XCTAssertTrue(source.contains("Text(String(localized: \"Zeitkritisch\")).tag(HabitNotificationMode.timeSensitive)"))
+        XCTAssertTrue(source.contains("if draft.hasTime"))
+        XCTAssertFalse(source.contains("notificationsEnabled = habit.notificationsEnabled"))
+        XCTAssertFalse(source.contains("habit.notificationsEnabled = notificationsEnabled"))
         XCTAssertTrue(source.contains("draft.frequency != .once"))
     }
 

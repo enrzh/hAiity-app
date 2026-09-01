@@ -434,6 +434,17 @@ final class SyncWatermarkTests: XCTestCase {
         XCTAssertTrue(calendar.contains("SyncWatermark.isCalendarOwned"))
         XCTAssertTrue(reminders.contains("SyncWatermark.containsMarker"))
     }
+
+    func testNativeDeleteDisablesEveryNativeSyncDestinationWithoutRecreation() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/NativeSyncInstallation.swift")
+
+        XCTAssertTrue(source.contains("static func deleteAllOwnedItems() async -> Result"))
+        XCTAssertTrue(source.contains("CalendarSync.syncHabits = false"))
+        XCTAssertTrue(source.contains("CalendarSync.syncReminders = false"))
+        XCTAssertTrue(source.contains("ReminderSync.isEnabled = false"))
+        XCTAssertFalse(source.contains("CalendarSync.reconcile"))
+        XCTAssertFalse(source.contains("ReminderSync.reconcile"))
+    }
 }
 
 /// Die Abbildung Habit -> Kalender-Termin (`CalendarEventPlan`) — pur, ohne

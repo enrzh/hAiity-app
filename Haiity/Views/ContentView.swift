@@ -264,11 +264,13 @@ struct ContentView: View {
                 PaywallView(context: context, store: store,
                             onUnlocked: { purchasedIntent = context })
                     .themed(store, palettes: effectivePalettes)
+                    .environment(\.appearanceBackgroundOwned, false)
                     .onAppear { paywallDidPresent(context) }
             }
             .sheet(item: $editing) {
                 EditHabitSheet(store: store, existing: $0)
                     .themed(store, palettes: effectivePalettes)
+                    .environment(\.appearanceBackgroundOwned, false)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -319,11 +321,13 @@ struct ContentView: View {
                         }
                 }
                 .themed(store, palettes: effectivePalettes)
+                .environment(\.appearanceBackgroundOwned, false)
                 .onAppear { moreSheetDidPresent(route) }
             }
             .fullScreenCover(isPresented: $showReminderSetup) {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store)
                     .themed(store, palettes: effectivePalettes)
+                    .environment(\.appearanceBackgroundOwned, false)
             }
             // Schütteln meldet einen Fehler — für JEDEN Nutzer, nicht nur für
             // den Entwickler. Die Geste hängt an der Wurzel, weil sie überall
@@ -341,6 +345,7 @@ struct ContentView: View {
                    onDismiss: { feedbackClosedAt = .now }) {
                 FeedbackSheet(store: store, cloudStatus: cloudStatus)
                     .themed(store, palettes: effectivePalettes)
+                    .environment(\.appearanceBackgroundOwned, false)
             }
             .task {
                 await store.loadFromDisk()
@@ -531,6 +536,7 @@ struct ContentView: View {
                 fallbackTabLayer(.habits) { habitsStack }
                 fallbackTabLayer(.more) { fallbackMoreContent }
             }
+            .environment(\.appearanceBackgroundOwned, true)
             // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
             // offenen Karte antippbar.
@@ -607,6 +613,7 @@ struct ContentView: View {
             content()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.appearanceBackgroundOwned, true)
     }
 
     /// The native tab bar paints outside a TabView's content overlay. Keep
@@ -712,6 +719,7 @@ struct ContentView: View {
             }
             .navigationChrome()
             .themed(store, palettes: effectivePalettes)
+            .environment(\.appearanceBackgroundOwned, false)
             .onAppear { moreSheetDidPresent(route) }
         }
     }
@@ -787,6 +795,7 @@ struct ContentView: View {
     private var createPage: some View {
         EditHabitSheet(store: store, asPage: true)
             .themed(store, palettes: effectivePalettes)
+            .environment(\.appearanceBackgroundOwned, false)
             .modifier(MoreZoomDestination(id: Self.createZoomID,
                                           namespace: createZoomNamespace))
     }
@@ -1231,7 +1240,6 @@ struct ContentView: View {
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
@@ -1847,7 +1855,6 @@ struct ContentView: View {
             .accessibilityIdentifier("add-first-habit")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppearanceBackground(preferences: store.appearancePreferences))
     }
 
     // MARK: – Fallback-Chrom unten (iOS < 26): Navigation links, + rechts
@@ -2774,7 +2781,9 @@ struct ContentView: View {
         await MotivationActivityManager.shared.reconcile(
             motivationMinutes: store.motivationMinutes,
             name: PersonalName.effective,
-            delivery: store.motivationDelivery)
+            delivery: store.motivationDelivery,
+            additionalEntries: MotivationFeedCache.load(
+                in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
     }
 
     /// Cleans old native entries first, then rebuilds only the integrations

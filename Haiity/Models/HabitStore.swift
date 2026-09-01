@@ -166,6 +166,8 @@ struct HabitData: Codable {
     /// Auslieferungsart der täglichen Motivation. Alte Dateien fallen auf
     /// lokale Mitteilungen zurück, damit ihr bisheriges Verhalten bleibt.
     var motivationDelivery: MotivationDelivery
+    /// Optional opt-in for additional messages from an open-source feed.
+    var openSourceMotivationEnabled: Bool
     /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
     var weeklySummaryWeekday: Int
     var habits: [Habit]
@@ -228,7 +230,8 @@ struct HabitData: Codable {
          cloudPreferences: CloudPreferences? = nil,
          sessionHistory: [HabitSessionRecord] = [],
          motivationMinutes: Int? = nil,
-         motivationDelivery: MotivationDelivery = .notification) {
+         motivationDelivery: MotivationDelivery = .notification,
+         openSourceMotivationEnabled: Bool = false) {
         self.version = version
         self.updatedAt = updatedAt
         self.appearanceUpdatedAt = appearanceUpdatedAt
@@ -237,6 +240,7 @@ struct HabitData: Codable {
         self.weeklySummaryMinutes = weeklySummaryMinutes
         self.motivationMinutes = motivationMinutes
         self.motivationDelivery = motivationDelivery
+        self.openSourceMotivationEnabled = openSourceMotivationEnabled
         self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
             ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
@@ -276,7 +280,7 @@ extension HabitData {
         case cloudPreferences
         // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
         // sie überliest den Schlüssel, kein Versionssprung nötig.
-        case motivationMinutes, motivationDelivery
+        case motivationMinutes, motivationDelivery, openSourceMotivationEnabled
         // Nur zum Einlesen alter Wurzel-Einstellungen; encode schreibt sie
         // nie wieder, weil die neue Konfiguration in viewPreferences liegt.
         case leadingSwipe, trailingSwipe
@@ -303,6 +307,8 @@ extension HabitData {
         motivationMinutes = try c.decodeIfPresent(Int.self, forKey: .motivationMinutes)
         motivationDelivery = try c.decodeIfPresent(MotivationDelivery.self,
                                                     forKey: .motivationDelivery) ?? .notification
+        openSourceMotivationEnabled = try c.decodeIfPresent(Bool.self,
+                                                            forKey: .openSourceMotivationEnabled) ?? false
         let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
@@ -349,6 +355,9 @@ extension HabitData {
         try c.encodeIfPresent(motivationMinutes, forKey: .motivationMinutes)
         if motivationMinutes != nil || motivationDelivery != .notification {
             try c.encode(motivationDelivery, forKey: .motivationDelivery)
+        }
+        if openSourceMotivationEnabled {
+            try c.encode(true, forKey: .openSourceMotivationEnabled)
         }
         // Der Wochentag steht nur da, wenn die Wochenzusammenfassung
         // überhaupt läuft — sonst wäre er eine Einstellung ohne Wirkung in
@@ -520,6 +529,15 @@ final class HabitStore {
     var motivationDelivery: MotivationDelivery {
         get { data.motivationDelivery }
         set { data.motivationDelivery = newValue; persist() }
+    }
+
+    var openSourceMotivationEnabled: Bool {
+        get { data.openSourceMotivationEnabled }
+        set {
+            guard data.openSourceMotivationEnabled != newValue else { return }
+            data.openSourceMotivationEnabled = newValue
+            persist()
+        }
     }
 
     var defaultTimeZoneIdentifier: String? {
@@ -1120,7 +1138,7 @@ final class HabitStore {
                     lh.itemType = rh.itemType
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
-                    lh.notificationsEnabled = rh.notificationsEnabled
+                    lh.notificationMode = rh.notificationMode
                     lh.calendarSyncEnabled = rh.calendarSyncEnabled
                     lh.timeZoneIdentifier = rh.timeZoneIdentifier
                     lh.repeatsWhileIncomplete = rh.repeatsWhileIncomplete
@@ -1157,6 +1175,7 @@ final class HabitStore {
             data.weeklySummaryWeekday = remote.weeklySummaryWeekday
             data.motivationMinutes = remote.motivationMinutes
             data.motivationDelivery = remote.motivationDelivery
+            data.openSourceMotivationEnabled = remote.openSourceMotivationEnabled
             data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
             data.updatedAt = remote.updatedAt
             if let remoteShowsUsername = remote.githubShowsUsername {

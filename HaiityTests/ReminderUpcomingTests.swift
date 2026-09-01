@@ -162,6 +162,26 @@ final class ReminderUpcomingTests: XCTestCase {
                        NotificationQuickAction.checkbox.categoryIdentifier)
     }
 
+    func testNotificationModesMapToPlansAndInterruptionLevel() {
+        var standard = Habit(name: "Standard", timeMinutes: 18 * 60, recurrence: .daily,
+                             notificationMode: .standard)
+        standard.createdAt = "2026-08-08"
+        var urgent = standard
+        urgent.name = "Urgent"
+        urgent.notificationMode = .timeSensitive
+        var off = standard
+        off.name = "Off"
+        off.notificationMode = .off
+
+        let standardPlan = Reminders.habitPlans(habits: [standard], now: now, calendar: calendar).first
+        let urgentPlan = Reminders.habitPlans(habits: [urgent], now: now, calendar: calendar).first
+        XCTAssertEqual(standardPlan?.timeSensitive, false)
+        XCTAssertEqual(urgentPlan?.timeSensitive, true)
+        XCTAssertTrue(Reminders.habitPlans(habits: [off], now: now, calendar: calendar).isEmpty)
+        XCTAssertEqual(standardPlan.map(Reminders.request)?.content.interruptionLevel, .active)
+        XCTAssertEqual(urgentPlan.map(Reminders.request)?.content.interruptionLevel, .timeSensitive)
+    }
+
     func testNotificationActionChoiceUsesTheConfiguredSwipeSemantic() {
         let habit = Habit(name: "Lesen", timeMinutes: 18 * 60,
                           recurrence: .daily)

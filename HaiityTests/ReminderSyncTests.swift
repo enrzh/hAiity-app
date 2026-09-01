@@ -279,6 +279,18 @@ final class ReminderSyncContractTests: XCTestCase {
         XCTAssertTrue(catalog.contains("Ziel: hAiity Reminders"))
     }
 
+    func testNativeDeleteIsSeparateAndWatermarkCopyLivesOnDeveloperPage() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+
+        XCTAssertTrue(more.contains("Native Einträge löschen"))
+        XCTAssertTrue(more.contains("showNativeSyncDeleteConfirmation"))
+        XCTAssertTrue(more.contains("NativeSyncCleanup.deleteAllOwnedItems()"))
+        XCTAssertFalse(more.contains("syncWatermarkHints"))
+        XCTAssertTrue(developer.contains("SyncWatermark.copyText"))
+        XCTAssertTrue(developer.contains("copy-sync-watermark"))
+    }
+
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
         let source = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))

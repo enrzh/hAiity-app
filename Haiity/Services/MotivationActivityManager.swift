@@ -39,6 +39,7 @@ actor MotivationActivityManager {
 
     func reconcile(motivationMinutes: Int?, name: String?,
                    delivery: MotivationDelivery = .liveActivity,
+                   additionalEntries: [MotivationFeedEntry] = [],
                    now: Date = .now,
                    calendar: Calendar = .current) async {
         let today = DayKey.key(for: now, calendar: calendar)
@@ -80,7 +81,8 @@ actor MotivationActivityManager {
             // foreground callbacks cannot create duplicate activities.
             guard startingDayKeys.insert(dayKey).inserted else { return }
 
-            let message = Motivation.message(name: name, today: dayKey)
+            let message = Motivation.message(name: name, today: dayKey,
+                                             additionalEntries: additionalEntries)
             let request = MotivationActivityRequest(dayKey: dayKey,
                                                      title: message.title,
                                                      body: message.body,

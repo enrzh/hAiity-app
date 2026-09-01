@@ -233,6 +233,7 @@ struct StatsView: View {
             }
         }
         .themed(store, palettes: palettes)
+        .environment(\.appearanceBackgroundOwned, false)
         .presentationDetents([.medium, .large])
     }
 

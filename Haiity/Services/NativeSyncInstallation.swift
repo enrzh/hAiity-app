@@ -88,4 +88,15 @@ enum NativeSyncCleanup {
         let reminders = await ReminderSync.removeAllOwnedItems()
         return Result(calendar: calendar, reminders: reminders)
     }
+
+    /// Destructive removal is intentionally separate from `run()`: cleanup
+    /// removes stale entries and then callers may rebuild enabled syncs, while
+    /// this action must leave both native stores disabled and empty.
+    static func deleteAllOwnedItems() async -> Result {
+        let result = await run()
+        CalendarSync.syncHabits = false
+        CalendarSync.syncReminders = false
+        ReminderSync.isEnabled = false
+        return result
+    }
 }

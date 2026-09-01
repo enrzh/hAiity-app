@@ -25,6 +25,21 @@ final class MotivationTests: XCTestCase {
         XCTAssertFalse(plain.title.contains("%@"))
     }
 
+    func testAdditionalMatchingEntriesAreStableAndEmptyFallsBack() {
+        let entries = [MotivationFeedEntry(text: "Cached one", language: "en", author: nil),
+                       MotivationFeedEntry(text: "Cached two", language: "en-US", author: nil)]
+        let first = Motivation.message(name: nil, today: "2026-08-14", additionalEntries: entries,
+                                       languageCode: "en")
+        let repeated = Motivation.message(name: nil, today: "2026-08-14", additionalEntries: entries,
+                                          languageCode: "en")
+        XCTAssertEqual(first.title, repeated.title)
+        XCTAssertEqual(first.body, repeated.body)
+        XCTAssertTrue(["Cached one", "Cached two"].contains(first.body))
+        XCTAssertEqual(Motivation.message(name: nil, today: "2026-08-14", additionalEntries: [],
+                                          languageCode: "de").body,
+                       Motivation.message(name: nil, today: "2026-08-14", languageCode: "de").body)
+    }
+
     func testSaltedIndicesCoverMostCombinationsAcrossThreeYears() {
         var pairs = Set<String>()
         var day = "2026-01-01"
@@ -47,10 +62,28 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(more.contains("\"motivation-delivery\""))
         XCTAssertTrue(more.contains("Live-Aktivitäten starten"))
         XCTAssertTrue(more.contains("Reminders.ensurePermission()"))
+        XCTAssertTrue(more.contains("motivation-open-source-toggle"))
+        XCTAssertTrue(more.contains("MotivationFeed.refreshIfNeeded"))
+        XCTAssertTrue(more.contains("MotivationFeedCache.clear"))
+        XCTAssertTrue(more.contains("Reminders.reschedule(store: store)"))
+        XCTAssertTrue(more.contains("MotivationActivityManager.shared.reconcile"))
+        XCTAssertTrue(more.contains("Fehler – integrierte Nachrichten bleiben aktiv"))
+        XCTAssertTrue(more.contains("letzter Bestand bleibt aktiv"))
+        XCTAssertTrue(more.contains("MIT-Lizenz"))
+        XCTAssertTrue(more.contains("https://github.com/mubaris/motivate"))
+        XCTAssertTrue(more.contains("guard store.openSourceMotivationEnabled else"))
+        XCTAssertTrue(more.contains("throw CancellationError()"))
+        XCTAssertTrue(more.contains("openSourceMotivationEnabled"))
+        let manager = try source("Haiity/Services/MotivationActivityManager.swift")
+        XCTAssertTrue(manager.contains("additionalEntries: [MotivationFeedEntry] = []"))
+        XCTAssertTrue(manager.contains("Motivation.message(name: name, today: dayKey,"))
+        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertTrue(content.contains("additionalEntries: MotivationFeedCache.load"))
         XCTAssertTrue(more.contains("NotificationDNDPresentation.title"))
         XCTAssertTrue(more.contains("NotificationDNDPresentation.symbolName"))
         XCTAssertFalse(more.contains("DND (Do not disturb)"))
-        XCTAssertTrue(more.contains("copy-sync-watermark"))
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+        XCTAssertTrue(developer.contains("copy-sync-watermark"))
         XCTAssertFalse(more.contains("ForEach(SyncWatermark.Kind.allCases"))
         XCTAssertTrue(more.contains("notification-actions-toggle"))
     }
@@ -67,8 +100,72 @@ final class MotivationTests: XCTestCase {
         XCTAssertFalse(more.contains("systemImage: \"moon.zzz.fill\""))
     }
 
+    func testDoNotDisturbSuppressesOnlyWhileActive() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        XCTAssertFalse(Reminders.shouldScheduleNotifications(
+            state: .active(.twoHours, now: now), now: now))
+        XCTAssertFalse(Reminders.shouldScheduleNotifications(
+            state: .active(.untilDisabled, now: now), now: now.addingTimeInterval(365 * 24 * 60 * 60)))
+        XCTAssertTrue(Reminders.shouldScheduleNotifications(
+            state: .active(.twoHours, now: now), now: now.addingTimeInterval(2 * 60 * 60)))
+    }
+
+    func testApplyingDNDReschedulesImmediately() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        XCTAssertTrue(more.contains("NotificationPromptPreference.state = state"))
+        XCTAssertTrue(more.contains("await Reminders.reschedule(store: store)"))
+    }
+
     func testMotivationLinesStayShortEnoughForNotifications() {
         XCTAssertTrue(Motivation.lines.allSatisfy { $0.count <= 84 })
+    }
+
+    func testOpenSourceMotivationDefaultsOffForLegacyJSON() throws {
+        let raw = try XCTUnwrap("{\"version\":2,\"updatedAt\":1,\"habits\":[]}".data(using: .utf8))
+        let data = try JSONDecoder().decode(HabitData.self, from: raw)
+        XCTAssertFalse(data.openSourceMotivationEnabled)
+    }
+
+    func testOpenSourceMotivationPersistsWhenEnabled() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("motivation-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = HabitStore(url: url, loadFromDisk: false)
+        store.openSourceMotivationEnabled = true
+
+        XCTAssertTrue(HabitStore(url: url).openSourceMotivationEnabled)
+    }
+
+    func testNewerRemoteOpenSourceMotivationSettingWins() {
+        let store = HabitStore(loadFromDisk: false)
+        store.openSourceMotivationEnabled = false
+        let remote = HabitData(version: HabitData.currentVersion,
+                               updatedAt: 2,
+                               summaryMinutes: nil,
+                               habits: [],
+                               openSourceMotivationEnabled: true)
+
+        store.merge(remote: remote)
+
+        XCTAssertTrue(store.openSourceMotivationEnabled)
+    }
+
+    func testNewerRemoteHabitMergePreservesAllNotificationModes() {
+        for mode in HabitNotificationMode.allCases {
+            var localHabit = Habit(name: "Local", notificationMode: .off)
+            var remoteHabit = localHabit
+            remoteHabit.notificationMode = mode
+            let store = HabitStore(loadFromDisk: false)
+            store.add(localHabit)
+            let remote = HabitData(version: HabitData.currentVersion,
+                                   updatedAt: store.data.updatedAt + 1,
+                                   summaryMinutes: nil, habits: [remoteHabit])
+
+            store.merge(remote: remote)
+
+            XCTAssertEqual(store.habits.first?.notificationMode, mode)
+        }
     }
 
     func testTargetAndCatalogCarryMotivation() throws {

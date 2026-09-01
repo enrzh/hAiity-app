@@ -91,13 +91,20 @@ enum Motivation {
 
     /// Titel (Anrede) und Text (Zeile) der Nachricht des Tages.
     /// `name` = nil oder leer ⇒ die neutrale Fassung der Anrede.
-    static func message(name: String?, today: String) -> (title: String, body: String) {
+    static func message(name: String?, today: String,
+                        additionalEntries: [MotivationFeedEntry] = [],
+                        languageCode: String? = nil) -> (title: String, body: String) {
         // Über die kleinere der beiden Anrede-Listen indizieren: die Listen
         // sind gleich lang (Vertrag im Test), aber ein Griff ins Leere darf
         // auch dann nicht passieren, wenn jemand eine Zeile vergisst.
         let openerCount = min(openersNamed.count, openersPlain.count)
         let opener = index(for: today, salt: openerSalt, count: openerCount)
-        let line = index(for: today, salt: lineSalt, count: lines.count)
+        let language = (languageCode ?? Locale.current.language.languageCode?.identifier ?? "en").lowercased()
+        let matching = additionalEntries.filter {
+            $0.language.lowercased().split(separator: "-").first.map(String.init)
+                == language.split(separator: "-").first.map(String.init)
+        }
+        let line = index(for: today, salt: lineSalt, count: matching.isEmpty ? lines.count : matching.count)
 
         let title: String
         if let name, !name.isEmpty {
@@ -105,7 +112,7 @@ enum Motivation {
         } else {
             title = openersPlain[opener]
         }
-        return (title, lines[line])
+        return (title, matching.isEmpty ? lines[line] : matching[line].text)
     }
 
     // MARK: - Vorrat: Anrede

@@ -61,6 +61,7 @@ enum NotificationPromptPreference {
     static func setSuppressed(_ suppressed: Bool, in defaults: UserDefaults) {
         setState(suppressed ? .active(.untilDisabled) : .off, in: defaults)
     }
+
 }
 
 enum NotificationDNDPresentation {
@@ -91,6 +92,7 @@ struct ReminderPlan: Equatable {
     /// Habit notifications use the habit-kind category, whose action list is
     /// configured once for all three slots. Other plans leave this nil.
     var notificationCategoryIdentifier: String? = nil
+    var timeSensitive: Bool = false
 
     var isWeekly: Bool { dateMatching.weekday != nil }
     /// Einmalig gestellt und bei jedem `reschedule` neu gesetzt.
@@ -304,6 +306,11 @@ enum NotificationActionRouter {
 /// werden nur für anstehende Termine vorausgeplant und nach jedem App-Start
 /// aktualisiert.
 enum Reminders {
+    static func shouldScheduleNotifications(state: NotificationDNDState,
+                                            now: Date = .now) -> Bool {
+        !state.isActive(at: now)
+    }
+
     static let summaryId = "summary"
     static let weeklySummaryId = "summary-weekly"
 
@@ -471,6 +478,7 @@ enum Reminders {
     /// vorbei, fällt der Tag über `fire > now` von selbst heraus.
     static func motivationPlans(minutes: Int?,
                                 name: String?,
+                                additionalEntries: [MotivationFeedEntry] = [],
                                 days: Int = motivationDays,
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> [ReminderPlan] {
@@ -491,7 +499,8 @@ enum Reminders {
             // Stunde (Zeitumstellung) nil liefern — dann fällt genau dieser
             // Tag aus, statt dass die ganze Reihe abbricht.
             guard let fire = calendar.date(from: c), fire > now else { continue }
-            let message = Motivation.message(name: name, today: day)
+            let message = Motivation.message(name: name, today: day,
+                                             additionalEntries: additionalEntries)
             plans.append(ReminderPlan(identifier: motivationId(day: day),
                                       title: message.title,
                                       body: message.body,
@@ -642,7 +651,8 @@ enum Reminders {
     private static func habitPlan(habit: Habit, day: String, minutes: Int,
                                   notificationActions: [SwipeActionChoice],
                                   calendar: Calendar) -> ReminderPlan? {
-        guard let date = DayKey.date(from: day, calendar: calendar) else { return nil }
+        guard let date = DayKey.date(from: day, calendar: calendar),
+              habit.notificationMode != .off else { return nil }
         var components = calendar.dateComponents([.year, .month, .day], from: date)
         components.hour = minutes / 60
         components.minute = minutes % 60
@@ -657,7 +667,8 @@ enum Reminders {
                                 for: habit,
                                 choices: notificationActions).first,
                             notificationCategoryIdentifier: NotificationQuickAction
-                                .forHabit(habit).categoryIdentifier)
+                                .forHabit(habit).categoryIdentifier,
+                            timeSensitive: habit.notificationMode == .timeSensitive)
     }
 
     static func habitTarget(for identifier: String) -> NotificationHabitTarget? {
@@ -709,6 +720,9 @@ enum Reminders {
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
 
+        guard shouldScheduleNotifications(
+            state: NotificationPromptPreference.state) else { return }
+
         let settings = await center.notificationSettings()
         guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
 
@@ -724,9 +738,13 @@ enum Reminders {
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
             // nicht die Nachricht von morgen früh.
+            let feed = data.openSourceMotivationEnabled
+                ? MotivationFeedCache.load(in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+                : []
             if data.motivationDelivery == .notification {
                 plans += motivationPlans(minutes: data.motivationMinutes,
-                                         name: PersonalName.effective)
+                                         name: PersonalName.effective,
+                                         additionalEntries: feed)
             }
             let reservingMotivation = data.motivationMinutes != nil
                 && data.motivationDelivery == .notification
@@ -1053,6 +1071,9 @@ enum Reminders {
         content.title = plan.title
         content.body = plan.body
         content.sound = .default
+        if plan.timeSensitive {
+            content.interruptionLevel = .timeSensitive
+        }
         if let category = plan.notificationCategoryIdentifier {
             content.categoryIdentifier = category
         } else if let quickAction = plan.quickAction {

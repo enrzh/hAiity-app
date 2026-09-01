@@ -65,6 +65,7 @@ struct MoreView: View {
     @State private var reminderSyncDenied = false
     @State private var weeklyDenied = false
     @State private var motivationDenied = false
+    @State private var motivationFeedStatus: String?
     @State private var notificationDND = NotificationPromptPreference.state
     @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
     @State private var dndNow = Date()
@@ -104,10 +105,10 @@ struct MoreView: View {
     @State private var calendarPickerType: HabitItemType = .habit
     @State private var showCalendarPicker = false
     @State private var pendingNativeReminder = false
-    @State private var copiedSyncHint = false
     @State private var nativeSyncCleanupInProgress = false
     @State private var nativeSyncCleanupNeedsRetry = false
     @State private var nativeSyncCleanupMessage: String?
+    @State private var showNativeSyncDeleteConfirmation = false
     @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
 
@@ -156,7 +157,9 @@ struct MoreView: View {
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
         .sheet(isPresented: $creatingPalette) {
-            CustomPaletteSheet(store: store).themed(store, palettes: palettes)
+            CustomPaletteSheet(store: store)
+                .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         .onAppear {
             dndNow = .now
@@ -164,6 +167,9 @@ struct MoreView: View {
                 ?? NotificationPromptPreference.state
             if notificationDND.mode == .custom, let until = notificationDND.until {
                 dndCustomDate = until
+            }
+            if store.openSourceMotivationEnabled {
+                refreshMotivationFeedIfNeeded()
             }
             #if DEBUG
             // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
@@ -182,11 +188,13 @@ struct MoreView: View {
         .sheet(item: $editingPalette) { palette in
             CustomPaletteSheet(store: store, existing: palette)
                 .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         .sheet(item: $paywall, onDismiss: resumeAfterPurchase) { context in
             PaywallView(context: context, store: store,
                         onUnlocked: { purchased = context })
                 .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         // Ein Deep-Link gewinnt gegen jedes offene Kaufblatt: der Tab
         // wechselt darunter, also darf es nicht darüber liegen bleiben.
@@ -202,10 +210,12 @@ struct MoreView: View {
         .fullScreenCover(isPresented: $showReminderSetup) {
             ReminderSetupView(isPresented: $showReminderSetup, store: store)
                 .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         .sheet(isPresented: $showCalendarPicker) {
             calendarDestinationPicker
                 .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         .alert(String(localized: "Farbe umbenennen"),
                isPresented: Binding(get: { renamingPalette != nil },
@@ -231,6 +241,15 @@ struct MoreView: View {
             Button(String(localized: "Abbrechen"), role: .cancel) { deletingPalette = nil }
         } message: {
             Text(String(localized: "Alles, was diese Farbe benutzt, fällt auf die Standardfarbe zurück."))
+        }
+        .alert(String(localized: "Native Einträge löschen?"),
+               isPresented: $showNativeSyncDeleteConfirmation) {
+            Button(String(localized: "Alle löschen"), role: .destructive) {
+                deleteNativeEntries()
+            }
+            Button(String(localized: "Abbrechen"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "Alle von hAiity erstellten Kalender- und Erinnerungs-Einträge werden gelöscht. Die Synchronisierung wird ausgeschaltet."))
         }
         // Das App-Icon folgt der GLOBALEN Farbe — egal ob sie umgestellt oder
         // die aktive eigene Farbe umgefärbt wurde. Eine Stelle statt einer
@@ -633,7 +652,14 @@ struct MoreView: View {
                 }
             }
             .accessibilityIdentifier("native-reminder-sync-toggle")
-            syncWatermarkHints
+            Button(role: .destructive) {
+                showNativeSyncDeleteConfirmation = true
+            } label: {
+                Label(String(localized: "Native Einträge löschen"), systemImage: "trash")
+            }
+            .foregroundStyle(.primary)
+            .disabled(nativeSyncCleanupInProgress)
+            .accessibilityIdentifier("delete-native-entries")
             Button {
                 cleanupNativeEntries()
             } label: {
@@ -679,27 +705,6 @@ struct MoreView: View {
         }
     }
 
-    private var syncWatermarkHints: some View {
-        HStack(spacing: Theme.Metrics.gap) {
-            Label(String(localized: "Kennzeichnung für eigene Einträge"),
-                  systemImage: "tag")
-            Spacer(minLength: Theme.Metrics.gap)
-            Button {
-                UIPasteboard.general.string = SyncWatermark.copyText
-                copiedSyncHint = true
-                Theme.Haptics.success()
-            } label: {
-                Label(copiedSyncHint ? String(localized: "Kopiert")
-                                     : String(localized: "Kopieren"),
-                      systemImage: copiedSyncHint ? "checkmark" : "doc.on.doc")
-                    .font(.caption.weight(.semibold))
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("copy-sync-watermark")
-        }
-        .padding(.vertical, 4)
-    }
-
     private func cleanupNativeEntries() {
         nativeSyncCleanupInProgress = true
         nativeSyncCleanupNeedsRetry = false
@@ -718,6 +723,23 @@ struct MoreView: View {
             }
             nativeSyncCleanupNeedsRetry = result.needsRetry
             nativeSyncCleanupMessage = nativeCleanupMessage(for: result)
+            nativeSyncCleanupInProgress = false
+        }
+    }
+
+    private func deleteNativeEntries() {
+        nativeSyncCleanupInProgress = true
+        nativeSyncCleanupNeedsRetry = false
+        nativeSyncCleanupMessage = nil
+        Task { @MainActor in
+            let result = await NativeSyncCleanup.deleteAllOwnedItems()
+            updateCloudPreferences {
+                $0.calendarSyncHabits = false
+                $0.calendarSyncReminders = false
+                $0.nativeReminderSync = false
+            }
+            nativeSyncCleanupNeedsRetry = result.needsRetry
+            nativeSyncCleanupMessage = nativeDeleteMessage(for: result)
             nativeSyncCleanupInProgress = false
         }
     }
@@ -761,6 +783,12 @@ struct MoreView: View {
             destinations.append("hAiity Reminders")
         }
         return destinations
+    }
+
+    private func nativeDeleteMessage(for result: NativeSyncCleanup.Result) -> String {
+        result.succeeded
+            ? String(localized: "Native Einträge gelöscht. Synchronisierung ausgeschaltet.")
+            : String(localized: "Einträge konnten nicht vollständig gelöscht werden. Prüfe die Berechtigungen und versuche es erneut.")
     }
 
     private func calendarToggle(type: HabitItemType,
@@ -2069,6 +2097,9 @@ struct MoreView: View {
         notificationDND = state
         NotificationPromptPreference.state = state
         updateCloudPreferences { $0.notificationDND = state }
+        Task {
+            await Reminders.reschedule(store: store)
+        }
     }
 
     private var dailySummaryRows: some View {
@@ -2136,7 +2167,96 @@ struct MoreView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Toggle(isOn: openSourceMotivationEnabled) {
+                Label(String(localized: "Zusätzliche Motivation"), systemImage: "arrow.down.circle")
+            }
+            .accessibilityIdentifier("motivation-open-source-toggle")
+            Link(destination: URL(string: "https://github.com/mubaris/motivate")!) {
+                Label(String(localized: "Quelle: mubaris/motivate · MIT-Lizenz"), systemImage: "link")
+                    .font(.caption)
+            }
+            Text(String(localized: "Optional; ohne Internet bleiben integrierte Nachrichten aktiv."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let motivationFeedStatus {
+                Text(motivationFeedStatus)
+                    .font(.caption)
+                    .foregroundStyle(motivationFeedStatus == String(localized: "Fehler – integrierte Nachrichten bleiben aktiv") ? .orange : .secondary)
+                    .accessibilityIdentifier("motivation-open-source-status")
+            }
             if motivationDenied { permissionHint }
+        }
+    }
+
+    private var openSourceMotivationEnabled: Binding<Bool> {
+        Binding(
+            get: { store.openSourceMotivationEnabled },
+            set: { enabled in
+                store.openSourceMotivationEnabled = enabled
+                let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+                guard enabled else {
+                    MotivationFeedCache.clear(in: defaults)
+                    motivationFeedStatus = String(localized: "Integrierte Nachrichten")
+                    Task {
+                        await Reminders.reschedule(store: store)
+                        await MotivationActivityManager.shared.reconcile(
+                            motivationMinutes: store.motivationMinutes,
+                            name: PersonalName.effective,
+                            delivery: store.motivationDelivery,
+                            additionalEntries: MotivationFeedCache.load(
+                                in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
+                    }
+                    return
+                }
+                motivationFeedStatus = String(localized: "Laden…")
+                refreshMotivationFeedIfNeeded()
+            })
+    }
+
+    private func refreshMotivationFeedIfNeeded() {
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        Task {
+            do {
+                _ = try await MotivationFeed.refreshIfNeeded(
+                    enabled: true, now: .now, defaults: defaults) { request in
+                        let (data, rawResponse) = try await URLSession.shared.data(for: request)
+                        guard store.openSourceMotivationEnabled else {
+                            throw CancellationError()
+                        }
+                        guard let response = rawResponse as? HTTPURLResponse else {
+                            throw MotivationFeed.Error.invalidFeed
+                        }
+                        return (data, response)
+                    }
+                guard store.openSourceMotivationEnabled else {
+                    MotivationFeedCache.clear(in: defaults)
+                    return
+                }
+                await MainActor.run {
+                    motivationFeedStatus = String(localized: "Geladen")
+                }
+            } catch {
+                guard store.openSourceMotivationEnabled else {
+                    MotivationFeedCache.clear(in: defaults)
+                    return
+                }
+                await MainActor.run {
+                    motivationFeedStatus = MotivationFeedCache.load(in: defaults).isEmpty
+                        ? String(localized: "Fehler – integrierte Nachrichten bleiben aktiv")
+                        : String(localized: "Aktualisierung fehlgeschlagen – letzter Bestand bleibt aktiv")
+                }
+            }
+            guard store.openSourceMotivationEnabled else {
+                MotivationFeedCache.clear(in: defaults)
+                return
+            }
+            await Reminders.reschedule(store: store)
+            await MotivationActivityManager.shared.reconcile(
+                motivationMinutes: store.motivationMinutes,
+                name: PersonalName.effective,
+                delivery: store.motivationDelivery,
+                additionalEntries: MotivationFeedCache.load(
+                    in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
         }
     }
 

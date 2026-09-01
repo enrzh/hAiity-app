@@ -29,6 +29,10 @@ enum HabitItemType: String, Codable, CaseIterable, Sendable {
     case reminder
 }
 
+enum HabitNotificationMode: String, Codable, CaseIterable, Sendable {
+    case off, standard, timeSensitive
+}
+
 /// Ein Habit ist ein Jahr aus Quadraten. `log` hält Check-ins als lokale
 /// Tagesschlüssel ("2026-08-09") — nie UTC, sonst rutscht ein
 /// Abend-Check-in auf morgen. Log-Werte sind Zähler: 1 für Checkbox-Habits,
@@ -50,7 +54,11 @@ struct Habit: Codable, Identifiable, Equatable {
     var timeMinutes: Int?
     /// Ob dieses Element eine eigene lokale Mitteilung planen darf. Kalender-
     /// und Apple-Erinnerungen-Sync bleiben davon unberührt.
-    var notificationsEnabled: Bool
+    var notificationMode: HabitNotificationMode
+    var notificationsEnabled: Bool {
+        get { notificationMode != .off }
+        set { notificationMode = newValue ? .standard : .off }
+    }
     /// Individuelle Teilnahme am Kalender-Spiegel. Der Standard ist an,
     /// damit bestehende Habits und Erinnerungen ihr Verhalten behalten.
     var calendarSyncEnabled: Bool
@@ -126,7 +134,8 @@ struct Habit: Codable, Identifiable, Equatable {
          recurrence: Recurrence = .daily,
          kind: HabitKind = .checkbox,
          durationMinutes: Int? = nil,
-         notificationsEnabled: Bool = true) {
+         notificationsEnabled: Bool = true,
+         notificationMode: HabitNotificationMode? = nil) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -134,7 +143,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
-        self.notificationsEnabled = notificationsEnabled
+        self.notificationMode = notificationMode ?? (notificationsEnabled ? .standard : .off)
         self.calendarSyncEnabled = true
         self.timeZoneIdentifier = nil
         self.repeatsWhileIncomplete = true
@@ -176,7 +185,7 @@ extension Habit {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
-             notificationsEnabled,
+             notificationMode, notificationsEnabled,
              calendarSyncEnabled, timeZoneIdentifier, repeatsWhileIncomplete, reminderCursor,
              log, missedDays, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
@@ -220,8 +229,12 @@ extension Habit {
         // Fehlt der Schlüssel (jede Datei vor der Habit-Uhrzeit) oder steht
         // dort Unsinn: keine Uhrzeit statt eines Fehlers.
         timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
-        notificationsEnabled = try c.decodeIfPresent(Bool.self,
-                                                      forKey: .notificationsEnabled) ?? true
+        if let mode = try c.decodeIfPresent(HabitNotificationMode.self, forKey: .notificationMode) {
+            notificationMode = mode
+        } else {
+            notificationMode = (try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true)
+                ? .standard : .off
+        }
         calendarSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarSyncEnabled) ?? true
         timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(
             try c.decodeIfPresent(String.self, forKey: .timeZoneIdentifier))
@@ -271,7 +284,8 @@ extension Habit {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
-        if !notificationsEnabled { try c.encode(false, forKey: .notificationsEnabled) }
+        try c.encode(notificationMode, forKey: .notificationMode)
+        try c.encode(notificationMode != .off, forKey: .notificationsEnabled)
         if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }
         try c.encodeIfPresent(timeZoneIdentifier, forKey: .timeZoneIdentifier)
         if !repeatsWhileIncomplete { try c.encode(false, forKey: .repeatsWhileIncomplete) }

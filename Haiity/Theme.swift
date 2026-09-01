@@ -1026,6 +1026,20 @@ private struct AppearancePreferencesKey: EnvironmentKey {
     static let defaultValue = AppearancePreferences.default
 }
 
+private struct AppearanceBackgroundOwnedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Root page shells set this after mounting the one fixed background. A
+    /// nested settings list must then style its rows without painting a
+    /// second image/material layer that can move with scrolling.
+    var appearanceBackgroundOwned: Bool {
+        get { self[AppearanceBackgroundOwnedKey.self] }
+        set { self[AppearanceBackgroundOwnedKey.self] = newValue }
+    }
+}
+
 /// Background and card surfaces share one switch. Liquid Glass falls back to
 /// material on older iOS versions, while every mode keeps a subtle readability
 /// tint over a user image.
@@ -1191,9 +1205,14 @@ struct SettingsRowSurface: View {
                     .overlay { rowShape.fill(Color(.systemBackground).opacity(0.12)) }
             case .liquid:
                 if #available(iOS 26, *) {
-                    Color.clear.glassEffect(.regular, in: rowShape)
+                    Color.clear.glassEffect(
+                        .regular.tint(Color(.systemBackground)
+                            .opacity(colorScheme == .dark ? 0.32 : 0.18)),
+                        in: rowShape)
                 } else {
-                    rowShape.fill(.ultraThinMaterial)
+                    rowShape
+                        .fill(.ultraThinMaterial)
+                        .overlay { rowShape.fill(Color(.systemBackground).opacity(0.16)) }
                 }
             case .adaptive:
                 let tint = Theme.color(Theme.adaptiveTintHex(
@@ -1263,8 +1282,13 @@ private struct NavigationChromeModifier: ViewModifier {
 
 private struct SettingsChromeModifier: ViewModifier {
     @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.appearanceBackgroundOwned) private var appearanceBackgroundOwned
 
     func body(content: Content) -> some View {
-        content.background(AppearanceBackground(preferences: appearancePreferences))
+        if appearanceBackgroundOwned {
+            content
+        } else {
+            content.background(AppearanceBackground(preferences: appearancePreferences))
+        }
     }
 }

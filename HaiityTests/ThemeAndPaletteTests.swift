@@ -554,6 +554,22 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
+    func testSettingsRowsMatchAppSurfaceMaterialTintAndFallback() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let start = try XCTUnwrap(theme.range(of: "struct SettingsRowSurface: View"))
+        let end = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier",
+                                            range: start.upperBound..<theme.endIndex))
+        let row = theme[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(row.contains("opacity(colorScheme == .dark ? 0.32 : 0.18)"),
+                      "Liquid Glass settings rows need the same system tint as app surfaces")
+        XCTAssertTrue(row.contains("Color(.systemBackground).opacity(0.16)"),
+                      "older systems need the same readable Milky fallback overlay")
+    }
+
     func testSettingsMaterialUsesAStableDynamicTypeSafeRowMinimum() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
