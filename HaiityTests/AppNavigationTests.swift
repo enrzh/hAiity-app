@@ -91,19 +91,30 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
     }
 
-    func testNativeRootPagesKeepTitlesClearOfContentAndMoreHasOneRootTitle() throws {
+    func testNativeRootPagesUseSharedCenteredScrollingTitles() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
 
-        XCTAssertTrue(content.contains(".contentMargins(.top, Theme.Metrics.rootTitleInset"),
-                      "the habits root list needs space below the large title")
-        XCTAssertTrue(stats.contains(".contentMargins(.top, Theme.Metrics.rootTitleInset"),
-                      "the stats root list needs space below the large title")
-        XCTAssertTrue(content.contains(".navigationBarTitleDisplayMode(.large)"),
-                      "native root pages should use the same large-title treatment")
-        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(screen == .main ? .large : .inline)"),
-                      "Mehr needs a large root title and compact sheet titles")
+        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\"))"),
+                      "the habits root list needs the shared centered title")
+        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\"))"),
+                      "the stats root list needs the shared centered title")
+        XCTAssertTrue(more.contains("RootPageTitle(title: screen.title)"),
+                      "the Mehr root list needs the shared centered title")
+        XCTAssertTrue(content.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
+        XCTAssertTrue(stats.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
+        XCTAssertTrue(more.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
+        XCTAssertTrue(content.contains(".navigationBarTitleDisplayMode(.inline)"),
+                      "the habits root navigation title should remain centered and compact")
+        XCTAssertTrue(stats.contains(".navigationBarTitleDisplayMode(.inline)"),
+                      "the stats root navigation title should remain centered and compact")
+        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(.inline)"),
+                      "the Mehr root navigation title should remain centered and compact")
+
+        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
+        XCTAssertTrue(theme.contains("struct RootPageTitle: View"))
+        XCTAssertTrue(theme.contains("accessibilityReduceMotion"))
 
         let start = try XCTUnwrap(content.range(of: "private var moreTabContent"))
         let end = try XCTUnwrap(content.range(of: "private var fallbackMoreContent",

@@ -96,6 +96,7 @@ struct StatsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(String(localized: "Statistik"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var statsList: some View {
@@ -103,6 +104,10 @@ struct StatsView: View {
         let activeCards = viewPreferences.statsCards.active
         let tileCards = activeCards.filter { $0 != .yearPulse }
         return List {
+            RootPageTitle(title: String(localized: "Statistik"))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             Section {
                 if activeCards.contains(.yearPulse) {
                     heroCard(snapshot)
@@ -187,7 +192,8 @@ struct StatsView: View {
         .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
         .listRowSeparator(.hidden)
         .navigationTitle(String(localized: "Statistik"))
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .coordinateSpace(.named(RootPageTitle.coordinateSpace))
     }
 
     private var statsSelectionEmpty: some View {

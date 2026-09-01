@@ -151,7 +151,7 @@ struct MoreView: View {
             }
         }
         .navigationTitle(screen.title)
-        .navigationBarTitleDisplayMode(screen == .main ? .large : .inline)
+        .navigationBarTitleDisplayMode(.inline)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -268,6 +268,10 @@ struct MoreView: View {
 
     private var mainSettings: some View {
         List {
+            RootPageTitle(title: screen.title)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             proSection.settingsRowSurface()
             personalSection.settingsRowSurface()
             githubSection.settingsRowSurface()
@@ -294,6 +298,7 @@ struct MoreView: View {
             .settingsRowSurface()
         }
         .settingsSurface()
+        .coordinateSpace(.named(RootPageTitle.coordinateSpace))
     }
 
     private var githubSection: some View {

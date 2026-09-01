@@ -935,8 +935,7 @@ enum Theme {
         static let settingsSectionGap: CGFloat = 18
         /// Seitenrand von Liste und Chrom.
         static let gutter: CGFloat = 16
-        /// Keeps the first native root-page row below the large navigation title
-        /// while still allowing it to scroll away with the list.
+        /// Breathing room above a root page's scrollable title.
         static let rootTitleInset: CGFloat = 16
         /// Innenabstand der Rasterfläche.
         static let cardPadding: CGFloat = 12
@@ -946,6 +945,34 @@ enum Theme {
         /// auf einer Linie sitzen; die Punktgrößen darin sind optisch
         /// abgeglichen (siehe ContentView.glyph).
         static let glyph: CGFloat = 32
+    }
+}
+
+/// Shared title treatment for the three root tabs. The navigation bar keeps a
+/// centered inline title while this larger title scrolls naturally with the
+/// page content and yields space to the compact title above.
+struct RootPageTitle: View {
+    static let coordinateSpace = "haiity.root-page-scroll"
+
+    let title: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            let offset = proxy.frame(in: .named(Self.coordinateSpace)).minY
+            let progress = min(max(-offset / 52, 0), 1)
+            Text(title)
+                .font(.largeTitle.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.28)
+                .offset(y: reduceMotion ? 0 : -progress * 8)
+                .opacity(1 - progress * 0.85)
+        }
+        .frame(height: 64)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 

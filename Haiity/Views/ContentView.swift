@@ -1061,7 +1061,7 @@ struct ContentView: View {
         if visibleActiveHabits.isEmpty && github.snapshot == nil {
             emptyState
                 .navigationTitle("Habits")
-                .navigationBarTitleDisplayMode(.large)
+                .navigationBarTitleDisplayMode(.inline)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
@@ -1069,14 +1069,10 @@ struct ContentView: View {
                 .toolbar { createToolbarItem }
         } else {
             habitList
-                // Wieder der ECHTE große Titel: die Statistik-Karten, die
-                // einst ÜBER ihm scrollen mussten, wohnen im eigenen Tab —
-                // damit gehört „Habits" der Navigationsleiste und bekommt
-                // das native Einklappen beim Scrollen zurück (der
-                // Zeilen-Titel blieb beim Scrollen einfach stehen und ließ
-                // eine leere Glasleiste zurück).
+                // The large title is part of the scrollable list; the native
+                // navigation title stays centered and compact above it.
                 .navigationTitle("Habits")
-                .navigationBarTitleDisplayMode(.large)
+                .navigationBarTitleDisplayMode(.inline)
                 .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
@@ -1213,6 +1209,10 @@ struct ContentView: View {
     private var habitList: some View {
         ScrollViewReader { proxy in
             List {
+                RootPageTitle(title: String(localized: "Habits"))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 if let snapshot = github.snapshot {
                     GitHubContributionCard(snapshot: snapshot,
                                            collapsed: collapsed,
@@ -1264,6 +1264,7 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
+        .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
