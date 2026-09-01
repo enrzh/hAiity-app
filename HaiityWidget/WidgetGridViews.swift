@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 struct LargeGridWidgetView: View {
     let entry: HaiityEntry
@@ -33,110 +34,94 @@ private struct LargeGridItem: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let metricText = summary.metricText
         let palette = entry.palettes.style(for: habit)
-        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.gridItemSpacing) {
-            Link(destination: HaiityWidgetLink.habits) {
-                HStack(spacing: 4) {
-                    HStack(spacing: 3) {
-                        if !habit.emoji.isEmpty {
-                            Text(verbatim: habit.emoji)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                        Text(verbatim: habit.name)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-                    .clipped()
-                    Spacer(minLength: 2)
-                    if habit.isReminder {
-                        Image(systemName: "bell.fill")
-                            .font(.caption2)
-                            .fixedSize(horizontal: true, vertical: false)
-                    } else {
-                        ViewThatFits(in: .horizontal) {
-                            switch summary.kind {
-                            case .checkbox:
-                                Image(systemName: summary.metricSymbol)
-                                    .font(.caption2.weight(.semibold))
-                            case .quantity, .yesNo:
-                                Label(metricText, systemImage: summary.metricSymbol)
-                                    .font(.caption2.weight(.semibold))
-                                    .fixedSize(horizontal: true, vertical: false)
-                            case .reminder:
-                                EmptyView()
-                            }
-                            Image(systemName: summary.metricSymbol)
-                                .font(.caption2.weight(.semibold))
-                                .accessibilityHidden(true)
-                        }
-                    }
+        let identityBand = Link(destination: HaiityWidgetLink.habits) {
+            HStack(spacing: 4) {
+                if !habit.emoji.isEmpty {
+                    Text(verbatim: habit.emoji).fixedSize(horizontal: true, vertical: false)
                 }
-                .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight)
-                .padding(.horizontal, 4)
-                .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
-            }
-            .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight,
-                   alignment: .topLeading)
-            if !habit.isReminder {
-                TrailingGrid(habit: habit, maxWeeks: 10, today: today, radius: nil) { level in
-                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight)
-            } else {
-                Text(verbatim: metricText)
+                Text(verbatim: habit.name)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+                if habit.isReminder {
+                    Image(systemName: "bell.fill")
+                } else {
+                    Image(systemName: summary.metricSymbol)
+                }
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
+        }
+        let visualBand = Group {
+            if habit.isReminder {
+                Label(metricText, systemImage: "bell.fill")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight,
-                           alignment: .center)
-            }
-            HStack(spacing: 0) {
-                switch summary.kind {
-                case .yesNo:
-                    Button(intent: AnswerYesHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
-                        .accessibilityLabel(String(localized: "Mit Ja beantworten"))
-                    Button(intent: AnswerNoHabitIntent(habit: habit)) { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                        .accessibilityLabel(String(localized: "Mit Nein beantworten"))
-                case .quantity:
-                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "plus").frame(width: 44, height: 44) }
-                        .accessibilityLabel(String(localized: "Menge erhöhen"))
-                case .checkbox, .reminder:
-                    Button(intent: CheckOffHabitIntent(habit: habit)) { Image(systemName: "checkmark").frame(width: 44, height: 44) }
-                        .accessibilityLabel(habit.isReminder
-                                            ? String(localized: "Erinnerung erledigen")
-                                            : String(localized: "Habit abhaken"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                TrailingGrid(habit: habit, maxWeeks: 11, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
-                if entry.widgetResetEnabled {
-                    Button(intent: ResetHabitIntent(habit: habit)) { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) }
-                        .accessibilityLabel(String(localized: "Rückgängig"))
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .buttonStyle(.plain)
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(.secondary)
-            .opacity(0.75)
-            .frame(maxWidth: .infinity,
-                   minHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
-                   maxHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
-                   alignment: .leading)
-            .padding(.horizontal, 4)
-            .background(.thinMaterial, in: Capsule())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        let actionBand = HStack(spacing: 0) {
+            Label(metricText, systemImage: summary.metricSymbol)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            switch summary.kind {
+            case .yesNo:
+                largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
+                largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark", label: String(localized: "Mit Nein beantworten"))
+            case .quantity:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus", label: String(localized: "Menge erhöhen"))
+            case .checkbox, .reminder:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
+            }
+            if entry.widgetResetEnabled {
+                largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
+            }
+        }
+        .buttonStyle(.plain)
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(.secondary)
+        .opacity(0.75)
+
+        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.gridItemSpacing) {
+            identityBand
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight, alignment: .leading)
+            visualBand
+                .frame(maxWidth: .infinity)
+                .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight)
+            Divider()
+            actionBand
+                .frame(maxWidth: .infinity)
+                .frame(height: WidgetLogic.LargeGeometry.gridActionBandHeight)
+        }
         .padding(WidgetLogic.LargeGeometry.gridItemPadding)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Theme.accentText(palette).opacity(0.18), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.accentText(palette).opacity(0.16), lineWidth: 0.5)
         }
+    }
+
+    private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
+        Button(intent: intent) {
+            Image(systemName: symbol).frame(width: 44, height: 44)
+        }
+        .contentShape(Rectangle())
+        .accessibilityLabel(label)
     }
 
 }

@@ -134,15 +134,15 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains(".fixedSize(horizontal: true, vertical: false)"))
         XCTAssertTrue(item.contains("Text(verbatim: habit.name)"))
         XCTAssertTrue(item.contains(".layoutPriority(1)"))
-        XCTAssertTrue(item.contains("HStack(spacing: 3)"))
+        XCTAssertTrue(item.contains("Divider()"))
         XCTAssertTrue(item.contains("Label(metricText, systemImage: summary.metricSymbol)"), "non-reminder status remains compact")
-        XCTAssertEqual(item.components(separatedBy: "summary.metricText").count - 1, 1,
-                       "reminder timing must be rendered exactly once in the middle region")
+        XCTAssertTrue(item.contains("Label(metricText, systemImage: \"bell.fill\")"),
+                      "reminder timing must be rendered in the middle region")
         XCTAssertTrue(item.contains("Image(systemName: \"bell.fill\")"))
-        XCTAssertTrue(item.contains("Text(verbatim: metricText)"), "reminder timing must have its own middle region")
+        XCTAssertFalse(item.contains("Text(verbatim: metricText)"), "reminder timing uses the centered Label")
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"), "raster actions keep 44pt targets")
-        XCTAssertEqual(item.components(separatedBy: "frame(width: 44, height: 44)").count - 1, 5,
-                       "yes/no, count, checkbox/reminder, and reset actions need 44pt frames")
+        XCTAssertEqual(item.components(separatedBy: "frame(width: 44, height: 44)").count - 1, 1,
+                       "the shared action helper keeps 44pt frames")
         XCTAssertTrue(item.contains("gridVisualBandHeight"))
 
         let today = DayKey.today()
@@ -266,8 +266,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(visiblePixelCount(vibrant), 20)
 
         let rasterSource = try source("HaiityWidget/WidgetGridViews.swift")
-        XCTAssertTrue(rasterSource.contains("if !habit.isReminder"))
-        XCTAssertTrue(rasterSource.contains("Color.clear"))
+        XCTAssertTrue(rasterSource.contains("if habit.isReminder"))
         XCTAssertTrue(rasterSource.contains("bell.fill"))
     }
 
