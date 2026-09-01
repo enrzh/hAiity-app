@@ -294,8 +294,6 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(list.contains("LargeFeaturedWidgetItem"))
         XCTAssertTrue(list.contains("LargeCompactWidgetRow"))
         XCTAssertTrue(list.contains("entry.largeItems.dropFirst().prefix(3)"))
-        XCTAssertTrue(list.contains("featuredListHeight"))
-        XCTAssertTrue(list.contains("compactListRowHeight"))
         XCTAssertTrue(list.contains("LargeWidgetHeader(entry: entry)"))
 
         let featured = try sourceSlice(source,
@@ -305,8 +303,13 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(featured.contains("if habit.isReminder"))
         XCTAssertTrue(featured.contains("summary.metricText"))
         XCTAssertTrue(featured.contains("frame(width: 44, height: 44)"))
+        XCTAssertTrue(featured.contains("featuredListHeight"))
         let reminderBranch = try sourceSlice(featured, from: "if habit.isReminder", to: "} else")
         XCTAssertFalse(reminderBranch.contains("TrailingGrid(habit: habit"))
+        let compact = try sourceSlice(source,
+                                     from: "private struct LargeCompactWidgetRow",
+                                     to: "struct LargeListWidgetView")
+        XCTAssertTrue(compact.contains("compactListRowHeight"))
     }
 
     func testRasterUsesGraphFirstTilesWithoutNestedActionCapsules() throws {

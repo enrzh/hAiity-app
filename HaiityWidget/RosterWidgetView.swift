@@ -429,18 +429,174 @@ private extension View {
     }
 }
 
+private struct LargeFeaturedWidgetItem: View {
+    let habit: Habit
+    let entry: HaiityEntry
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var mode
+
+    var body: some View {
+        let today = entry.today(for: habit)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
+        let palette = entry.palettes.style(for: habit)
+        let identityBand = HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).fixedSize(horizontal: true, vertical: false) }
+            Text(verbatim: habit.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                .minimumScaleFactor(0.8).layoutPriority(1)
+            Spacer(minLength: 2)
+            if habit.isReminder { Image(systemName: "bell.fill") } else { compactStatus(summary) }
+        }
+        .font(.caption2).foregroundStyle(statusTint(summary.status, palette: palette)).lineLimit(1)
+        let visualBand = Group {
+            if habit.isReminder {
+                Label(summary.metricText, systemImage: "bell.fill")
+                    .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+                    .minimumScaleFactor(0.8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else {
+                TrailingGrid(habit: habit, maxWeeks: 18, today: today, radius: nil) { level in
+                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        let actionBand = actions(summary: summary, palette: palette)
+
+        VStack(alignment: .leading, spacing: 0) {
+            identityBand.frame(height: WidgetLogic.LargeGeometry.featuredIdentityBandHeight)
+            visualBand.frame(maxWidth: .infinity)
+                .frame(height: WidgetLogic.LargeGeometry.featuredVisualBandHeight)
+            actionBand.frame(height: WidgetLogic.LargeGeometry.featuredActionBandHeight)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: WidgetLogic.LargeGeometry.featuredListHeight, alignment: .topLeading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func compactStatus(_ summary: WidgetItemSummary) -> some View {
+        switch summary.kind {
+        case .checkbox: Image(systemName: summary.metricSymbol)
+        case .quantity, .yesNo: Label(summary.metricText, systemImage: summary.metricSymbol).lineLimit(1).minimumScaleFactor(0.8)
+        case .reminder: EmptyView()
+        }
+    }
+
+    private func actions(summary: WidgetItemSummary, palette: PaletteStyle) -> some View {
+        HStack(spacing: 3) {
+            switch summary.kind {
+            case .yesNo:
+                largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
+                largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark", label: String(localized: "Mit Nein beantworten"))
+            case .quantity:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus", label: String(localized: "Menge erhöhen"))
+            case .checkbox, .reminder:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
+            }
+            if entry.widgetResetEnabled {
+                largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
+            }
+        }
+        .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
+        .fixedSize(horizontal: true, vertical: false).frame(height: WidgetLogic.LargeGeometry.featuredActionBandHeight, alignment: .topTrailing)
+    }
+
+    private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
+        Button(intent: intent) { Image(systemName: symbol).frame(width: 44, height: 44) }
+            .contentShape(Rectangle()).accessibilityLabel(label)
+    }
+
+    private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
+        switch status {
+        case .done: return AnyShapeStyle(Theme.accentText(palette))
+        case .declined: return AnyShapeStyle(Theme.color(palette.negative(dark: scheme == .dark)))
+        case .open, .free: return AnyShapeStyle(HierarchicalShapeStyle.secondary)
+        }
+    }
+}
+
+private struct LargeCompactWidgetRow: View {
+    let habit: Habit
+    let entry: HaiityEntry
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let today = entry.today(for: habit)
+        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
+        let palette = entry.palettes.style(for: habit)
+        HStack(spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+            Link(destination: HaiityWidgetLink.habits) {
+                HStack(spacing: 4) {
+                    if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).fixedSize(horizontal: true, vertical: false) }
+                    Text(verbatim: habit.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 2)
+                    if habit.isReminder {
+                        Label(summary.metricText, systemImage: "bell.fill")
+                    } else {
+                        Label(summary.metricText, systemImage: summary.metricSymbol)
+                    }
+                }
+                .lineLimit(1).minimumScaleFactor(0.8).foregroundStyle(statusTint(summary.status, palette: palette))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            actions(summary: summary, palette: palette)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: WidgetLogic.LargeGeometry.compactListRowHeight)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func actions(summary: WidgetItemSummary, palette: PaletteStyle) -> some View {
+        HStack(spacing: 3) {
+            switch summary.kind {
+            case .yesNo:
+                largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
+                largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark", label: String(localized: "Mit Nein beantworten"))
+            case .quantity:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus", label: String(localized: "Menge erhöhen"))
+            case .checkbox, .reminder:
+                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
+            }
+            if entry.widgetResetEnabled {
+                largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
+            }
+        }
+        .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
+        .fixedSize(horizontal: true, vertical: false).frame(height: WidgetLogic.LargeGeometry.compactListRowHeight)
+    }
+
+    private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
+        Button(intent: intent) { Image(systemName: symbol).frame(width: 44, height: 44) }
+            .contentShape(Rectangle()).accessibilityLabel(label)
+    }
+
+    private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
+        switch status {
+        case .done: return AnyShapeStyle(Theme.accentText(palette))
+        case .declined: return AnyShapeStyle(Theme.color(palette.negative(dark: scheme == .dark)))
+        case .open, .free: return AnyShapeStyle(HierarchicalShapeStyle.secondary)
+        }
+    }
+}
+
 struct LargeListWidgetView: View {
     let entry: HaiityEntry
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
     var body: some View {
-        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
+        VStack(alignment: .leading, spacing: 0) {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                ForEach(entry.largeItems.prefix(4)) { habit in
-                    LargeWidgetItem(habit: habit, entry: entry, graphHeight: WidgetLogic.LargeGeometry.listGraphHeight)
-                        .frame(height: WidgetLogic.LargeGeometry.listRowHeight)
+                LargeWidgetHeader(entry: entry)
+                    .frame(height: WidgetLogic.LargeGeometry.featuredListHeaderHeight)
+                Color.clear.frame(height: WidgetLogic.LargeGeometry.featuredListHeaderGap)
+                if let featured = entry.largeItems.first {
+                    LargeFeaturedWidgetItem(habit: featured, entry: entry)
+                }
+                VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.compactListRowGap) {
+                    ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
+                        LargeCompactWidgetRow(habit: habit, entry: entry)
+                    }
                 }
             }
         }
