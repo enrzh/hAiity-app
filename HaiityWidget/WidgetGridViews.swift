@@ -10,13 +10,9 @@ struct LargeGridWidgetView: View {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.gridHeaderHeight)
-                    Color.clear.frame(height: WidgetLogic.LargeGeometry.gridHeaderGap)
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
-                        ForEach(entry.largeItems.prefix(4)) { habit in
-                            LargeGridItem(habit: habit, entry: entry).frame(height: WidgetLogic.LargeGeometry.gridRowHeight)
-                        }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
+                    ForEach(entry.largeItems.prefix(4)) { habit in
+                        LargeGridItem(habit: habit, entry: entry).frame(height: WidgetLogic.LargeGeometry.gridRowHeight)
                     }
                 }
             }

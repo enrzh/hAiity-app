@@ -41,26 +41,36 @@ struct GraphWidgetView: View {
     func content(family: WidgetFamily,
                  dark: Bool,
                  mode: WidgetRenderingMode = .fullColor) -> some View {
-        if entry.graphSource == .github {
-            GitHubWidgetGraph(content: WidgetLogic.gitHubWidgetContent(snapshot: entry.githubSnapshot,
-                                                                       anchor: entry.date),
-                              palette: entry.resolvedGraphPalette,
-                              mode: mode)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
-        } else {
-            let habit = entry.habit
-            let cellPalette = entry.resolvedGraphPalette
-            let level: (Int) -> Color = {
-                HomeWidgetInk.level($0, mode: mode, dark: dark, palette: cellPalette)
-            }
-            // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
-            // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
-            // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
-            if let habit {
-                Link(destination: HaiityWidgetLink.habits) {
-                    TrailingGrid(habit: habit,
+        Group {
+            if entry.graphSource == .github {
+                GitHubWidgetGraph(content: WidgetLogic.gitHubWidgetContent(snapshot: entry.githubSnapshot,
+                                                                           anchor: entry.date),
+                                  palette: entry.resolvedGraphPalette,
+                                  mode: mode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
+            } else {
+                let habit = entry.habit
+                let cellPalette = entry.resolvedGraphPalette
+                let level: (Int) -> Color = {
+                    HomeWidgetInk.level($0, mode: mode, dark: dark, palette: cellPalette)
+                }
+                // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
+                // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
+                // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
+                if let habit {
+                    Link(destination: HaiityWidgetLink.habits) {
+                        TrailingGrid(habit: habit,
+                                     radius: nil,
+                                     alignment: .center,
+                                     level: level)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(label(habit))
+                    }
+                } else {
+                    TrailingGrid(habit: Self.blank,
                                  radius: nil,
                                  alignment: .center,
                                  level: level)
@@ -68,16 +78,11 @@ struct GraphWidgetView: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(label(habit))
                 }
-            } else {
-                TrailingGrid(habit: Self.blank,
-                             radius: nil,
-                             alignment: .center,
-                             level: level)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(label(habit))
             }
         }
+        // The large family earns its larger tiles, with a restrained inset
+        // that keeps the graph from touching the widget edge.
+        .padding(family == .systemLarge ? 12 : 0)
     }
 
     private func label(_ habit: Habit?) -> String {

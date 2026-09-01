@@ -293,12 +293,7 @@ struct HaiityGraphWidget: Widget {
         }
         .configurationDisplayName(String(localized: "Habit-Graph"))
         .description(String(localized: "Nur das Habit-Raster — sieben Zeilen, randlos."))
-        // Kein systemLarge: Die Zellgröße kommt aus der Höhe, und auf der
-        // fast quadratischen großen Fläche ergibt das ein 7x7-Brett aus
-        // 40-pt-Quadraten — weniger Historie als die mittlere Größe und
-        // optisch ein Schachbrett statt eines Contribution-Graphen. Wer die
-        // große Fläche will, nimmt Übersicht oder das Haupt-Widget.
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -313,7 +308,7 @@ struct HaiityGitHubWidget: Widget {
         }
         .configurationDisplayName(String(localized: "GitHub-Graph"))
         .description(String(localized: "Dein GitHub-Beitragsgraph."))
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 

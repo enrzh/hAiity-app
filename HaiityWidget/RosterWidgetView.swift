@@ -438,7 +438,6 @@ struct LargeListWidgetView: View {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
-                LargeWidgetHeader(entry: entry).frame(height: WidgetLogic.LargeGeometry.listHeaderHeight)
                 ForEach(entry.largeItems.prefix(4)) { habit in
                     LargeWidgetItem(habit: habit, entry: entry, graphHeight: WidgetLogic.LargeGeometry.listGraphHeight)
                         .frame(height: WidgetLogic.LargeGeometry.listRowHeight)

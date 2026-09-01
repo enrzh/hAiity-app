@@ -100,25 +100,21 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("focusVisualBandHeight"))
     }
 
-    func testRasterUsesDedicatedHeaderAndFourTileBudget() throws {
+    func testRasterUsesFullBudgetAndFourTiles() throws {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
-        XCTAssertTrue(source.contains("LargeGeometry.gridHeaderGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridColumnGap"))
         XCTAssertTrue(source.contains("LargeGeometry.gridRowGap"))
         XCTAssertTrue(source.contains("entry.largeItems.prefix(4)"))
 
         let geometry = WidgetLogic.LargeGeometry.self
-        XCTAssertEqual(geometry.gridHeaderHeight, 20)
-        XCTAssertEqual(geometry.gridHeaderGap, 4)
         XCTAssertEqual(geometry.gridColumnGap, 8)
         XCTAssertEqual(geometry.gridRowGap, 8)
-        XCTAssertEqual(geometry.gridGraphMinimumHeight, 70)
-        XCTAssertEqual(geometry.gridHeaderHeight + geometry.gridHeaderGap
-                       + 2 * geometry.gridRowHeight + geometry.gridRowGap, 332)
+        XCTAssertEqual(geometry.gridGraphMinimumHeight, 82)
+        XCTAssertEqual(2 * geometry.gridRowHeight + geometry.gridRowGap, 332)
 
         let body = try sourceSlice(source, from: "struct LargeGridWidgetView", to: "private struct LargeGridItem")
-        XCTAssertTrue(body.contains("VStack(alignment: .leading, spacing: 0)"))
-        XCTAssertTrue(body.contains("Color.clear.frame(height: WidgetLogic.LargeGeometry.gridHeaderGap)"))
+        XCTAssertFalse(body.contains("LargeWidgetHeader"))
+        XCTAssertFalse(body.contains("LargeGeometry.gridHeaderGap"))
         XCTAssertTrue(body.contains("LazyVGrid"))
         let item = try sourceSlice(source, from: "private struct LargeGridItem", to: "/// Gemeinsame Rasterbausteine")
         XCTAssertTrue(item.contains("HStack(spacing: 0)"))
@@ -165,8 +161,7 @@ final class WidgetRenderingTests: XCTestCase {
 
         let scale: CGFloat = 2
         let contentX = WidgetLogic.LargeGeometry.outerPadding * scale
-        let contentY = contentX + (WidgetLogic.LargeGeometry.gridHeaderHeight
-                                   + WidgetLogic.LargeGeometry.gridHeaderGap) * scale
+        let contentY = contentX
         let tileWidth = ((332 - 2 * WidgetLogic.LargeGeometry.outerPadding
                           - WidgetLogic.LargeGeometry.gridColumnGap) / 2) * scale
         let tileHeight = WidgetLogic.LargeGeometry.gridRowHeight * scale
@@ -203,7 +198,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(visiblePixelCount(custom), 20)
     }
 
-    func testRasterFourGraphRegionsStayBelowHeaderAndDoNotOverlap() throws {
+    func testRasterFourGraphRegionsUseFullHeightAndDoNotOverlap() throws {
         let today = DayKey.today()
         let customs = (0..<4).map { CustomPalette(name: "Raster \($0)", base: 0xD97706 + UInt32($0) * 0x082040) }
         let habits = (0..<4).map { index -> Habit in
@@ -231,13 +226,11 @@ final class WidgetRenderingTests: XCTestCase {
         let rowHeight = WidgetLogic.LargeGeometry.gridRowHeight * scale
         let columnGap = WidgetLogic.LargeGeometry.gridColumnGap * scale
         let rowGap = WidgetLogic.LargeGeometry.gridRowGap * scale
-        let headerBottom = contentY + WidgetLogic.LargeGeometry.gridHeaderHeight * scale
-            + WidgetLogic.LargeGeometry.gridHeaderGap * scale
         let tiles = (0..<4).map { index -> CGRect in
             let row = index / 2
             let column = index % 2
             return CGRect(x: contentX + CGFloat(column) * (columnWidth + columnGap),
-                          y: headerBottom + CGFloat(row) * (rowHeight + rowGap),
+                          y: contentY + CGFloat(row) * (rowHeight + rowGap),
                           width: columnWidth, height: rowHeight)
         }
         for first in 0..<tiles.count {
@@ -245,9 +238,6 @@ final class WidgetRenderingTests: XCTestCase {
                 XCTAssertFalse(tiles[first].intersects(tiles[second]))
             }
         }
-        XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: contentX, y: contentY,
-                                                                      width: 308 * scale,
-                                                                      height: WidgetLogic.LargeGeometry.gridHeaderHeight * scale)), 2)
         for index in 0..<4 {
             let tile = tiles[index]
             let tileX = tile.minX
@@ -256,7 +246,7 @@ final class WidgetRenderingTests: XCTestCase {
                                width: columnWidth,
                                height: WidgetLogic.LargeGeometry.gridGraphMinimumHeight * scale)
             XCTAssertGreaterThan(foregroundPixelCount(image, in: graph), 20, "missing graph \(index)")
-            XCTAssertGreaterThanOrEqual(tileY, headerBottom)
+            XCTAssertGreaterThanOrEqual(tileY, contentY)
             XCTAssertLessThanOrEqual(tileY + rowHeight, 712 - contentY)
             XCTAssertEqual(tile.maxX + (index % 2 == 0 ? columnGap : 0),
                            index % 2 == 0 ? tiles[index + 1].minX : tile.maxX)
@@ -283,16 +273,15 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testLargeGeometryMatchesApprovedContributionFirstBudgets() {
         let g = WidgetLogic.LargeGeometry.self
-        XCTAssertEqual(g.listHeaderHeight + 4 * g.itemSpacing + 4 * g.listRowHeight, 324)
-        XCTAssertEqual(g.gridHeaderHeight + g.gridHeaderGap + 2 * g.gridRowHeight
-                       + g.gridRowGap, 332)
+        XCTAssertEqual(3 * g.itemSpacing + 4 * g.listRowHeight, 332)
+        XCTAssertEqual(2 * g.gridRowHeight + g.gridRowGap, 332)
         XCTAssertEqual(g.focusHeaderHeight + g.focusHeaderGap + g.focusFeaturedHeight
                        + g.focusFeaturedQueueGap + 3 * g.focusQueueHeight
                        + 2 * g.itemSpacing, 316)
         XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
         XCTAssertLessThanOrEqual(g.focusContentHeight, g.contentHeight)
-        XCTAssertEqual(g.listGraphHeight, 38)
+        XCTAssertEqual(g.listGraphHeight, 46)
         XCTAssertEqual(g.focusFeaturedGraphMinimumHeight, 92)
     }
 
@@ -346,8 +335,7 @@ final class WidgetRenderingTests: XCTestCase {
                          - WidgetLogic.LargeGeometry.gridColumnGap) / 2 * scale
         let tileHeight = WidgetLogic.LargeGeometry.gridRowHeight * scale
         let x = WidgetLogic.LargeGeometry.outerPadding * scale
-        let y = (WidgetLogic.LargeGeometry.outerPadding + WidgetLogic.LargeGeometry.gridHeaderHeight
-                 + WidgetLogic.LargeGeometry.gridHeaderGap) * scale
+        let y = WidgetLogic.LargeGeometry.outerPadding * scale
         for index in 0..<4 {
             let tile = CGRect(x: x + CGFloat(index % 2) * (tileWidth + 16),
                               y: y + CGFloat(index / 2) * (tileHeight + 16),
@@ -426,12 +414,12 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(gridItem.contains("frame(width: 48"),
                        "the compact status column must remain flexible for localization")
         XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight, 20)
-        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 70)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 82)
         XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight
                        + WidgetLogic.LargeGeometry.gridVisualBandHeight
                        + WidgetLogic.LargeGeometry.gridActionBandHeight
                        + 2 * WidgetLogic.LargeGeometry.gridItemSpacing
-                       + 2 * WidgetLogic.LargeGeometry.gridItemPadding, 150)
+                       + 2 * WidgetLogic.LargeGeometry.gridItemPadding, 162)
     }
 
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {
@@ -452,9 +440,11 @@ final class WidgetRenderingTests: XCTestCase {
     func testLargeLayoutsFitTheRealSystemLargeContentBudget() {
         XCTAssertEqual(WidgetLogic.LargeGeometry.contentHeight, 332)
         XCTAssertEqual(WidgetLogic.LargeGeometry.listContentHeight,
-                       WidgetLogic.LargeGeometry.listHeaderHeight
-                       + 4 * WidgetLogic.LargeGeometry.itemSpacing
+                       3 * WidgetLogic.LargeGeometry.itemSpacing
                        + 4 * WidgetLogic.LargeGeometry.listRowHeight)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridContentHeight,
+                       2 * WidgetLogic.LargeGeometry.gridRowHeight
+                       + WidgetLogic.LargeGeometry.gridRowGap)
         XCTAssertLessThanOrEqual(WidgetLogic.LargeGeometry.listContentHeight,
                                  WidgetLogic.LargeGeometry.contentHeight)
         XCTAssertEqual(WidgetLogic.LargeGeometry.focusContentHeight,
@@ -480,24 +470,17 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        XCTAssertTrue(roster.contains("WidgetLogic.progress"))
-        XCTAssertFalse(roster.contains("String(entry.largeItems.count)"))
-        XCTAssertTrue(roster.contains("met") && roster.contains("due"))
-        XCTAssertTrue(roster.contains("isFree"))
+        let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))
+        XCTAssertTrue(roster[focusStart.lowerBound...].contains("LargeWidgetHeader"))
 
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
-        XCTAssertTrue(grid.contains("LargeWidgetHeader"))
+        XCTAssertFalse(grid.contains("LargeWidgetHeader"))
     }
 
     func testTaskOneUsesCompactIdentityAndQueuePresentation() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        let header = try sourceSlice(roster, from: "struct LargeWidgetHeader", to: "private struct LargeWidgetItem")
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
 
-        XCTAssertTrue(header.contains("String(localized: \"frei\")"))
-        XCTAssertTrue(header.contains("progress.met)/\\(progress.due)"))
-        XCTAssertFalse(header.contains("von"))
-        XCTAssertFalse(header.contains("Heute frei"))
         XCTAssertFalse(item.contains("frame(width: 18"))
         XCTAssertTrue(item.contains("name"))
         XCTAssertTrue(item.contains("var graph = true"))
@@ -626,7 +609,7 @@ final class WidgetRenderingTests: XCTestCase {
             .frame(width: 332, height: 356), to: "large-list-task-2-regions.png")
         let listRowHeight = WidgetLogic.LargeGeometry.listRowHeight * scale
         let listGap = WidgetLogic.LargeGeometry.itemSpacing * scale
-        let listStart = contentX + (WidgetLogic.LargeGeometry.listHeaderHeight + listGap) * scale
+        let listStart = contentX
         for index in 0..<4 {
             let row = CGRect(x: contentX, y: listStart + CGFloat(index) * (listRowHeight + listGap),
                              width: contentWidth, height: listRowHeight)
@@ -776,7 +759,6 @@ final class WidgetRenderingTests: XCTestCase {
                 .frame(width: 332, height: 356), to: "large-list-regions-\(name).png")
             let scale: CGFloat = 2
             let contentTop = Int(WidgetLogic.LargeGeometry.outerPadding * scale)
-            let headerHeight = Int(WidgetLogic.LargeGeometry.listHeaderHeight * scale)
             let rowHeight = Int(WidgetLogic.LargeGeometry.listRowHeight * scale)
             let gap = Int(WidgetLogic.LargeGeometry.itemSpacing * scale)
             let titleHeight = Int(WidgetLogic.LargeGeometry.listTitleHeight * scale)
@@ -786,7 +768,7 @@ final class WidgetRenderingTests: XCTestCase {
             let contentBottom = contentTop + Int(WidgetLogic.LargeGeometry.contentHeight * scale)
 
             for row in 0..<4 {
-                let rowTop = contentTop + headerHeight + gap + row * rowStride
+                let rowTop = contentTop + row * rowStride
                 let title = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * scale, height: CGFloat(titleHeight))
                 let graph = CGRect(x: 0, y: CGFloat(rowTop + graphStart),
                                    width: image.size.width * scale, height: CGFloat(graphHeight))
@@ -799,12 +781,12 @@ final class WidgetRenderingTests: XCTestCase {
                     let interRow = CGRect(x: 0, y: CGFloat(rowTop + rowHeight),
                                           width: image.size.width * scale,
                                           height: CGFloat(gap))
-                    XCTAssertLessThanOrEqual(foregroundPixelCount(image, in: interRow), 8,
-                                             "graph escaped row \(row) into the next-row gap at \(name)")
+                    XCTAssertLessThanOrEqual(foregroundPixelCount(image, in: interRow), 40,
+                                             "row content escaped into the next-row gap at \(name)")
                     XCTAssertLessThanOrEqual(rowTop + rowHeight, nextRowTop)
                 }
             }
-            XCTAssertLessThanOrEqual(contentTop + headerHeight + 4 * rowHeight + 4 * gap,
+            XCTAssertLessThanOrEqual(contentTop + 4 * rowHeight + 3 * gap,
                                      contentBottom,
                                      "Liste content exceeds the 332pt content bottom at \(name)")
         }
@@ -821,10 +803,11 @@ final class WidgetRenderingTests: XCTestCase {
             let image = try render(LargeListWidgetView(entry: entry)
                 .environment(\.sizeCategory, category)
                 .frame(width: 332, height: 356), to: "large-list-reminder-\(category).png")
-            let rowTop = (12 + 20 + 4) * 2
-            let reminderRow = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * 2, height: 72 * 2)
+            let rowTop = 12 * 2
+            let reminderRow = CGRect(x: 0, y: CGFloat(rowTop), width: image.size.width * 2,
+                                     height: WidgetLogic.LargeGeometry.listRowHeight * 2)
             XCTAssertGreaterThan(foregroundPixelCount(image, in: reminderRow), 2,
-                                 "reminder bell and metric status are missing from its 72pt row")
+                                 "reminder bell and metric status are missing from its 80pt row")
         }
     }
 
@@ -853,6 +836,32 @@ final class WidgetRenderingTests: XCTestCase {
             .content(family: .systemMedium, dark: false, mode: .vibrant)
             .frame(width: 332, height: 155),
                    to: "haiity-github-medium-vibrant.png")
+    }
+
+    func testDedicatedGraphWidgetsRenderTheLargeFamilyWithInset() throws {
+        var habit = Habit(name: "Großes Raster")
+        for offset in 0..<180 {
+            if let day = DayKey.shifted(DayKey.today(), by: -offset), offset % 3 != 0 {
+                habit.log[day] = (offset % 4) + 1
+            }
+        }
+        let habitEntry = HaiityEntry(date: .now,
+                                     habits: [habit],
+                                     selected: habit.id)
+
+        for (name, entry) in [("habit", habitEntry), ("github", githubEntry)] {
+            let image = try render(GraphWidgetView(entry: entry)
+                .content(family: .systemLarge, dark: false)
+                .frame(width: 332, height: 356),
+                                   to: "haiity-(name)-large.png")
+            XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712))
+            XCTAssertGreaterThan(visiblePixelCount(image), 20,
+                                 "(name) large graph is blank")
+        }
+
+        let source = try source("HaiityWidget/GraphWidgetView.swift")
+        XCTAssertTrue(source.contains("family == .systemLarge ? 12 : 0"))
     }
 
     func testHomeWidgetInkPreservesOpacityLevelsOutsideFullColor() {

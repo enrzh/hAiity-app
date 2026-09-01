@@ -549,9 +549,9 @@ enum WidgetLogic {
         static let itemSpacing: CGFloat = 4
         static let actionHeight: CGFloat = 44
         static let listHeaderHeight: CGFloat = 20
-        static let listRowHeight: CGFloat = 72
+        static let listRowHeight: CGFloat = 80
         static let listTitleHeight: CGFloat = 18
-        static let listGraphHeight: CGFloat = 38
+        static let listGraphHeight: CGFloat = 46
         static let listIdentityBandHeight: CGFloat = listTitleHeight
         static let listVisualBandHeight: CGFloat = listGraphHeight
         static let listActionBandHeight: CGFloat = actionHeight
@@ -564,23 +564,21 @@ enum WidgetLogic {
         static let focusIdentityBandHeight: CGFloat = listTitleHeight
         static let focusVisualBandHeight: CGFloat = focusFeaturedGraphMinimumHeight
         static let focusActionBandHeight: CGFloat = actionHeight
-        static let gridHeaderHeight: CGFloat = 20
-        static let gridHeaderGap: CGFloat = 4
-        static let gridRowHeight: CGFloat = 150
+        static let gridRowHeight: CGFloat = 162
         static let gridColumnGap: CGFloat = 8
         static let gridRowGap: CGFloat = 8
         // Raster tiles reserve exclusive identity, visual, and action bands.
         static let gridIdentityBandHeight: CGFloat = 20
-        static let gridVisualBandHeight: CGFloat = 70
+        static let gridVisualBandHeight: CGFloat = 82
         static let gridActionBandHeight: CGFloat = 44
         static let gridItemSpacing: CGFloat = 2
         static let gridItemPadding: CGFloat = 6
         static let gridGraphMinimumHeight: CGFloat = gridVisualBandHeight
-        static let listContentHeight: CGFloat = 324
+        static let listContentHeight: CGFloat = 4 * listRowHeight + 3 * itemSpacing
         static let focusContentHeight: CGFloat = focusHeaderHeight + focusHeaderGap
             + focusFeaturedHeight + focusFeaturedQueueGap
             + 3 * focusQueueHeight + 2 * itemSpacing
-        static let gridContentHeight: CGFloat = 332
+        static let gridContentHeight: CGFloat = 2 * gridRowHeight + gridRowGap
     }
 
     // MARK: – Zeitplan der Timeline
