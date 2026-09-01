@@ -105,12 +105,18 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(content.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
         XCTAssertTrue(stats.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
         XCTAssertTrue(more.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
-        XCTAssertTrue(content.contains(".navigationBarTitleDisplayMode(.inline)"),
-                      "the habits root navigation title should remain centered and compact")
-        XCTAssertTrue(stats.contains(".navigationBarTitleDisplayMode(.inline)"),
-                      "the stats root navigation title should remain centered and compact")
+        let habitsStart = try XCTUnwrap(content.range(of: "private var habitsScreen"))
+        let habitsEnd = try XCTUnwrap(content.range(of: "private var habitsTabSource",
+                                                      range: habitsStart.upperBound..<content.endIndex))
+        let habitsScreen = content[habitsStart.lowerBound..<habitsEnd.lowerBound]
+        XCTAssertFalse(habitsScreen.contains(".navigationTitle(\"Habits\")"),
+                       "the habits root must have one visible title owner")
+        XCTAssertFalse(stats.contains(".navigationTitle(String(localized: \"Statistik\"))"),
+                       "the stats root must have one visible title owner")
         XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(.inline)"),
-                      "the Mehr root navigation title should remain centered and compact")
+                      "Mehr subpages should keep the compact native title treatment")
+        XCTAssertTrue(more.contains("screen == .main ? \"\" : screen.title"),
+                      "the Mehr root must hide the native title while subpages keep theirs")
 
         let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
         XCTAssertTrue(theme.contains("struct RootPageTitle: View"))

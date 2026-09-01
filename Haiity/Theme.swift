@@ -948,9 +948,9 @@ enum Theme {
     }
 }
 
-/// Shared title treatment for the three root tabs. The navigation bar keeps a
-/// centered inline title while this larger title scrolls naturally with the
-/// page content and yields space to the compact title above.
+/// Shared title treatment for the three root tabs. The root navigation title
+/// is intentionally empty; this view is the single
+/// visible title and scrolls naturally with the page content.
 struct RootPageTitle: View {
     static let coordinateSpace = "haiity.root-page-scroll"
 

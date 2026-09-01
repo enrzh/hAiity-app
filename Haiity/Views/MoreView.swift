@@ -150,7 +150,7 @@ struct MoreView: View {
             case .timeZone: timeZoneSettings
             }
         }
-        .navigationTitle(screen.title)
+        .navigationTitle(screen == .main ? "" : screen.title)
         .navigationBarTitleDisplayMode(.inline)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe

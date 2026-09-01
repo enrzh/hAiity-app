@@ -95,7 +95,6 @@ struct StatsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(String(localized: "Statistik"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -191,7 +190,6 @@ struct StatsView: View {
         .listSectionSpacing(Theme.Metrics.settingsSectionGap)
         .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
         .listRowSeparator(.hidden)
-        .navigationTitle(String(localized: "Statistik"))
         .navigationBarTitleDisplayMode(.inline)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
     }

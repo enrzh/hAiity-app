@@ -1060,7 +1060,6 @@ struct ContentView: View {
     private var habitsScreen: some View {
         if visibleActiveHabits.isEmpty && github.snapshot == nil {
             emptyState
-                .navigationTitle("Habits")
                 .navigationBarTitleDisplayMode(.inline)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
@@ -1070,8 +1069,8 @@ struct ContentView: View {
         } else {
             habitList
                 // The large title is part of the scrollable list; the native
-                // navigation title stays centered and compact above it.
-                .navigationTitle("Habits")
+                // navigation title is intentionally omitted so it cannot
+                // duplicate the centered scrolling title.
                 .navigationBarTitleDisplayMode(.inline)
                 .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
