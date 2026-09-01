@@ -153,6 +153,7 @@
 		B7AD8246F4DC1AC4FCA91B94 /* MotivationActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40035C1974DEABD743FFE6FC /* MotivationActivityIntents.swift */; };
 		B7EDEA4387EA8334A1FCC7EB /* HabitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75BC07C243B30F6C8A1872C /* HabitActivityAttributes.swift */; };
 		B871794D9153A5093C913B11 /* WidgetLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7613678A8DDAD7F9206A2E95 /* WidgetLogic.swift */; };
+		BA7C6B159A682F3CBC535A52 /* AutoResolveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373B86DCE12350EB54E3EC41 /* AutoResolveTests.swift */; };
 		BB71B3D9BB0E552B72A08B2C /* AccessoryWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19A6E456F0D7E4772A545F8 /* AccessoryWidgetViews.swift */; };
 		BCC2B42C5972789807C807A7 /* GitHubDeviceFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89EF580C614DFA83CAEDDFC /* GitHubDeviceFlow.swift */; };
 		BDCB2AEA456D508EC741E413 /* MotivationFeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30073F08F0ED11932482B8DD /* MotivationFeedTests.swift */; };
@@ -283,6 +284,7 @@
 		320A4172742A2F21F993DF2E /* RosterWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterWidgetView.swift; sourceTree = "<group>"; };
 		32AA2D8B217041642946DB00 /* Reminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reminders.swift; sourceTree = "<group>"; };
 		35319B79D181865AF7B0BEE4 /* StatsCardPrefsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsCardPrefsTests.swift; sourceTree = "<group>"; };
+		373B86DCE12350EB54E3EC41 /* AutoResolveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoResolveTests.swift; sourceTree = "<group>"; };
 		382481585951999E4BD937F3 /* ChromeLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeLayout.swift; sourceTree = "<group>"; };
 		3899E978F911B0CF69FA88A8 /* HabitTimeZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTimeZone.swift; sourceTree = "<group>"; };
 		38C290C30CD19DC5B5339655 /* AppNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationTests.swift; sourceTree = "<group>"; };
@@ -571,6 +573,7 @@
 			isa = PBXGroup;
 			children = (
 				38C290C30CD19DC5B5339655 /* AppNavigationTests.swift */,
+				373B86DCE12350EB54E3EC41 /* AutoResolveTests.swift */,
 				CA2E8C619A3B62D692EDFF89 /* BackfillTests.swift */,
 				4F1BBD320448B2BFAB12082B /* CalendarSyncTests.swift */,
 				2BD31F7B9130CF4AF3D5894D /* CelebrationTests.swift */,
@@ -919,6 +922,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82A64A149C93CABE986F4D18 /* AppNavigationTests.swift in Sources */,
+				BA7C6B159A682F3CBC535A52 /* AutoResolveTests.swift in Sources */,
 				D77CD7B901B863EF24F72500 /* BackfillTests.swift in Sources */,
 				405D07BD96DB0F995962A9A5 /* CalendarSyncTests.swift in Sources */,
 				42F54D6890F6BC61C39D81C4 /* CelebrationTests.swift in Sources */,
@@ -1204,7 +1208,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 142;
+				CURRENT_PROJECT_VERSION = 143;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;
@@ -1225,7 +1229,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 142;
+				CURRENT_PROJECT_VERSION = 143;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1267,7 +1271,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 142;
+				CURRENT_PROJECT_VERSION = 143;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1390,7 +1394,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 142;
+				CURRENT_PROJECT_VERSION = 143;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;

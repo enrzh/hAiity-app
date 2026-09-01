@@ -759,6 +759,7 @@ final class HabitStore {
         if data.habits[i].log[day] != nil { data.habits[i].log[day] = nil }
         else {
             data.habits[i].log[day] = 1
+            data.habits[i].missedDays.removeAll { $0 == day }
             autoArchiveIfNeeded(at: i, day: day)
         }
         persist()
@@ -775,6 +776,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         let next = (data.habits[i].log[day] ?? 0) + 1
         data.habits[i].log[day] = min(next, Habit.Answer.maxCount)
+        data.habits[i].missedDays.removeAll { $0 == day }
         autoArchiveIfNeeded(at: i, day: day)
         persist()
     }
@@ -789,6 +791,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         let value = yes ? Habit.Answer.yes : Habit.Answer.no
         data.habits[i].log[day] = data.habits[i].log[day] == value ? nil : value
+        data.habits[i].missedDays.removeAll { $0 == day }
         if yes { autoArchiveIfNeeded(at: i, day: day) }
         persist()
     }
@@ -808,8 +811,10 @@ final class HabitStore {
     func setValue(_ id: UUID, day: String, value: Int?) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         let normalized = value.flatMap { $0 >= 1 ? $0 : nil }
-        guard data.habits[i].log[day] != normalized else { return }
+        let wasMissed = data.habits[i].missedDays.contains(day)
+        guard data.habits[i].log[day] != normalized || wasMissed else { return }
         data.habits[i].log[day] = normalized
+        data.habits[i].missedDays.removeAll { $0 == day }
         if normalized != nil { autoArchiveIfNeeded(at: i, day: day) }
         persist()
     }
@@ -863,6 +868,54 @@ final class HabitStore {
         return changed
     }
 
+    /// Applies each item's selected result to occurrences whose local
+    /// schedule boundary has passed. The method is idempotent, so activation
+    /// and repeated notification rescheduling are safe.
+    @discardableResult
+    func resolveExpiredOccurrences(now: Date = .now) -> Bool {
+        var changed = false
+        for index in data.habits.indices {
+            let habit = data.habits[index]
+            guard let configuredChoice = habit.autoResolveChoice else { continue }
+            let choices = HabitAutoResolveChoice.choices(for: habit.kind,
+                                                         itemType: habit.itemType)
+            let choice = choices.contains(configuredChoice)
+                ? configuredChoice
+                : HabitAutoResolveChoice.defaultChoice(for: habit.kind,
+                                                       itemType: habit.itemType)
+            let calendar = HabitTimeZone.calendar(
+                for: habit,
+                defaultIdentifier: data.defaultTimeZoneIdentifier)
+            let days = ReminderOccurrenceEngine.expiredOccurrences(
+                for: habit, now: now, calendar: calendar)
+            for day in days {
+                switch choice {
+                case .done:
+                    let value = habit.kind == .quantity
+                        ? (habit.recurrence.target ?? 1) : 1
+                    data.habits[index].log[day] = value
+                    data.habits[index].missedDays.removeAll { $0 == day }
+                    autoArchiveIfNeeded(at: index, day: day)
+                case .notDone:
+                    data.habits[index].missedDays.append(day)
+                case .yes:
+                    data.habits[index].log[day] = Habit.Answer.yes
+                    data.habits[index].missedDays.removeAll { $0 == day }
+                    autoArchiveIfNeeded(at: index, day: day)
+                case .no:
+                    data.habits[index].log[day] = Habit.Answer.no
+                    data.habits[index].missedDays.removeAll { $0 == day }
+                }
+                changed = true
+            }
+            if !days.isEmpty {
+                data.habits[index].missedDays = Array(Set(data.habits[index].missedDays)).sorted()
+            }
+        }
+        if changed { persist() }
+        return changed
+    }
+
     /// Schreibt tatsächliche Session-Minuten an einen Tag. MAX statt
     /// Überschreiben — dieselbe Regel wie im Merge: eine zweite, kürzere
     /// Session am selben Tag darf die längere nicht kleinrechnen, und ein
@@ -888,6 +941,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
               data.habits[i].log[day] != nil else { return }
         data.habits[i].log[day] = nil
+        data.habits[i].missedDays.removeAll { $0 == day }
         persist()
     }
 
@@ -1162,6 +1216,7 @@ final class HabitStore {
                     lh.timeZoneIdentifier = rh.timeZoneIdentifier
                     lh.repeatsWhileIncomplete = rh.repeatsWhileIncomplete
                     lh.reminderCursor = rh.reminderCursor
+                    lh.autoResolveChoice = rh.autoResolveChoice
                     lh.recurrence = rh.recurrence
                     lh.durationMinutes = rh.durationMinutes
                     lh.archivedAt = rh.archivedAt

@@ -126,6 +126,44 @@ enum ReminderOccurrenceEngine {
             }
     }
 
+    /// Scheduled occurrences whose own boundary has passed without a user
+    /// decision. An explicit time closes the occurrence at that local time;
+    /// without one, the local day closes at the next midnight.
+    static func expiredOccurrences(for habit: Habit,
+                                   now: Date = .now,
+                                   calendar: Calendar = .current) -> [String] {
+        let today = DayKey.key(for: now, calendar: calendar)
+        let cursor = habit.isReminder && !habit.repeatsWhileIncomplete
+            ? habit.reminderCursor : nil
+        let floor = [habit.createdAt, habit.recurrence.start, cursor]
+            .compactMap { $0 }
+            .max() ?? habit.createdAt
+        guard floor <= today else { return [] }
+
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        return schedule.occurrences(in: floor...today, limit: historyLimit)
+            .filter { day in
+                guard habit.log[day] == nil,
+                      !habit.missedDays.contains(day),
+                      let start = DayKey.date(from: day, calendar: calendar) else {
+                    return false
+                }
+                let boundary: Date
+                if let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) {
+                    guard let timed = calendar.date(byAdding: .minute,
+                                                    value: minutes,
+                                                    to: start) else { return false }
+                    boundary = timed
+                } else {
+                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else {
+                        return false
+                    }
+                    boundary = nextDay
+                }
+                return boundary <= now
+            }
+    }
+
     static func dueDate(day: String,
                         reminder: Habit,
                         calendar: Calendar = .current) -> Date? {

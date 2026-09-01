@@ -33,6 +33,32 @@ enum HabitNotificationMode: String, Codable, CaseIterable, Sendable {
     case off, standard, timeSensitive
 }
 
+enum HabitAutoResolveChoice: String, Codable, CaseIterable, Sendable {
+    case done
+    case notDone
+    case yes
+    case no
+
+    var displayName: String {
+        switch self {
+        case .done: return String(localized: "Erledigt")
+        case .notDone: return String(localized: "Nicht erledigt")
+        case .yes: return String(localized: "Ja")
+        case .no: return String(localized: "Nein")
+        }
+    }
+
+    static func choices(for kind: HabitKind,
+                        itemType: HabitItemType = .habit) -> [Self] {
+        itemType == .reminder || kind != .yesNo ? [.done, .notDone] : [.yes, .no]
+    }
+
+    static func defaultChoice(for kind: HabitKind,
+                              itemType: HabitItemType = .habit) -> Self {
+        itemType == .reminder || kind != .yesNo ? .notDone : .no
+    }
+}
+
 /// Ein Habit ist ein Jahr aus Quadraten. `log` hält Check-ins als lokale
 /// Tagesschlüssel ("2026-08-09") — nie UTC, sonst rutscht ein
 /// Abend-Check-in auf morgen. Log-Werte sind Zähler: 1 für Checkbox-Habits,
@@ -76,8 +102,12 @@ struct Habit: Codable, Identifiable, Equatable {
     var reminderCursor: String?
     var log: [String: Int]
     /// Scheduled reminder days that passed without a completion. Kept outside
-    /// `log` so a missed reminder can never look like a successful check-in.
+    /// `log` so an automatically negative occurrence can never look like a
+    /// successful check-in. This also stores missed habits, not only reminders.
     var missedDays: [String]
+    /// Optional per-item result for open occurrences after their scheduled
+    /// boundary. nil keeps the existing behavior and disables this new rule.
+    var autoResolveChoice: HabitAutoResolveChoice?
     /// Geplante Dauer einer Session in Minuten; nil = ohne Dauer
     /// („limitless" — eine Session zählt dann nur hoch). Rein additiv und
     /// tolerant dekodiert, KEIN Versionssprung: ein ausgelieferter Build
@@ -152,6 +182,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.reminderCursor = nil
         self.log = [:]
         self.missedDays = []
+        self.autoResolveChoice = nil
         self.durationMinutes = Habit.sanitizedDuration(durationMinutes)
         self.minutes = [:]
         self.archivedAt = nil
@@ -189,7 +220,7 @@ extension Habit {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
              notificationMode, notificationsEnabled,
              calendarSyncEnabled, timeZoneIdentifier, repeatsWhileIncomplete, reminderCursor,
-             log, missedDays, archivedAt, goal, palette, swipeActions
+             log, missedDays, autoResolveChoice, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
         // additiv — ein ausgelieferter Build überliest beide Schlüssel.
         case durationMinutes, minutes
@@ -253,6 +284,8 @@ extension Habit {
         log = rawLog.filter { $0.value >= 1 && DayKey.isValid($0.key) }
         let rawMissedDays = try c.decodeIfPresent([String].self, forKey: .missedDays) ?? []
         missedDays = Array(Set(rawMissedDays.filter { DayKey.isValid($0) })).sorted()
+        autoResolveChoice = try c.decodeIfPresent(HabitAutoResolveChoice.self,
+                                                 forKey: .autoResolveChoice)
         // Session-Felder: fehlend (jede Datei vor den Sessions) oder kaputt
         // -> Standard statt Fehler. Die Minuten-Karte durchläuft dieselbe
         // Müllabfuhr wie der Log.
@@ -294,6 +327,7 @@ extension Habit {
         try c.encodeIfPresent(reminderCursor, forKey: .reminderCursor)
         try c.encode(log, forKey: .log)
         if !missedDays.isEmpty { try c.encode(missedDays, forKey: .missedDays) }
+        try c.encodeIfPresent(autoResolveChoice, forKey: .autoResolveChoice)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         // Der Standard bleibt implizit — Dateien sehen für einfache Habits
         // exakt aus wie v1 (plus Versionsnummer). Alles andere schreibt die
@@ -419,7 +453,7 @@ extension Habit {
     }
 
     func isMissed(_ key: String) -> Bool {
-        isReminder && missedDays.contains(key)
+        missedDays.contains(key)
     }
 
     /// Überhaupt beantwortet (Ja ODER Nein)? Bei allen anderen Arten immer

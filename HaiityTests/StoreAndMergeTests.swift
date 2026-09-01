@@ -161,6 +161,27 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(store.appearancePreferences.backgroundColorHex, 0x2EA043)
     }
 
+    func testNewerRemoteHabitMergeCarriesAutoResolveChoice() throws {
+        var localHabit = Habit(name: "Lesen")
+        localHabit.autoResolveChoice = nil
+        let local = HabitData(version: 2, updatedAt: 10, summaryMinutes: nil,
+                              habits: [localHabit])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-auto-resolve-merge-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONEncoder().encode(local).write(to: url)
+        let store = HabitStore(url: url)
+
+        var remoteHabit = localHabit
+        remoteHabit.autoResolveChoice = .done
+        let remote = HabitData(version: 2, updatedAt: 20, summaryMinutes: nil,
+                               habits: [remoteHabit])
+
+        store.merge(remote: remote)
+
+        XCTAssertEqual(store.habits[0].autoResolveChoice, .done)
+    }
+
     func testAppearancePersistenceUpdatesOnlyItsOwnTimestamp() throws {
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-appearance-timestamp-\(UUID().uuidString).json")

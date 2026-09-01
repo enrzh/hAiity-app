@@ -2807,6 +2807,9 @@ struct ContentView: View {
     private func rescheduleReminders() async {
         // Close completed past occurrences before deriving summaries and
         // notification plans. The current day remains actionable.
+        store.resolveExpiredOccurrences()
+        // Preserve the legacy reminder behavior for items that have not
+        // opted into a custom result yet.
         store.materializeMissedReminderDays()
         let calendar = Calendar.current
         let today = DayKey.today(calendar: calendar)

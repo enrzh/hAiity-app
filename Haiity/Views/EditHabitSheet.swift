@@ -48,6 +48,7 @@ struct EditHabitSheet: View {
     @State private var calendarSyncEnabled = true
     @State private var notificationMode: HabitNotificationMode = .standard
     @State private var repeatsWhileIncomplete = true
+    @State private var autoResolveChoice: HabitAutoResolveChoice?
     /// Nil inherits the global default; `device` is an explicit per-item
     /// choice that remains stable when the global setting changes.
     @State private var timeZoneIdentifier: String?
@@ -134,6 +135,35 @@ struct EditHabitSheet: View {
                     itemType = .reminder
                 }
             })
+    }
+
+    private var autoResolveEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { autoResolveChoice != nil },
+            set: { enabled in
+                autoResolveChoice = enabled
+                    ? (validAutoResolveChoice ?? HabitAutoResolveChoice.defaultChoice(
+                        for: kind, itemType: itemType))
+                    : nil
+            })
+    }
+
+    private var validAutoResolveChoice: HabitAutoResolveChoice? {
+        guard let autoResolveChoice,
+              HabitAutoResolveChoice.choices(for: kind, itemType: itemType)
+                .contains(autoResolveChoice) else {
+            return nil
+        }
+        return autoResolveChoice
+    }
+
+    private var autoResolveChoiceBinding: Binding<HabitAutoResolveChoice> {
+        Binding(
+            get: {
+                validAutoResolveChoice ?? HabitAutoResolveChoice.defaultChoice(
+                    for: kind, itemType: itemType)
+            },
+            set: { autoResolveChoice = $0 })
     }
 
     private var dateBinding: Binding<Date> {
@@ -275,7 +305,22 @@ struct EditHabitSheet: View {
         // Widerspruch, den die Rechnung zwar aushält (die Art gewinnt), der
         // aber beim nächsten Umschalten auf „Menge" aus dem Nichts wieder
         // aufträte.
-        .onChange(of: kind) { _, new in draft.quantity = (new == .quantity) }
+        .onChange(of: kind) { _, new in
+            draft.quantity = (new == .quantity)
+            if let choice = autoResolveChoice,
+               !HabitAutoResolveChoice.choices(for: new, itemType: itemType).contains(choice) {
+                autoResolveChoice = HabitAutoResolveChoice.defaultChoice(
+                    for: new, itemType: itemType)
+            }
+        }
+        .onChange(of: itemType) { _, new in
+            guard new == .reminder,
+                  let choice = autoResolveChoice,
+                  !HabitAutoResolveChoice.choices(for: .checkbox).contains(choice) else {
+                return
+            }
+            autoResolveChoice = .notDone
+        }
         .onChange(of: draft.hasTime) { _, enabled in
             guard enabled, notificationMode != .off else { return }
             requestNotificationPermissionIfNeeded()
@@ -418,6 +463,19 @@ struct EditHabitSheet: View {
                 Toggle(String(localized: "Trotz offenem Termin wiederholen"),
                        isOn: $repeatsWhileIncomplete)
                     .accessibilityIdentifier("repeats-while-incomplete-toggle")
+            }
+            Toggle(String(localized: "Offene Termine automatisch abschließen"),
+                   isOn: autoResolveEnabledBinding)
+                .accessibilityIdentifier("auto-resolve-toggle")
+            if autoResolveChoice != nil {
+                Picker(String(localized: "Beim Ablauf als"),
+                       selection: autoResolveChoiceBinding) {
+                    ForEach(HabitAutoResolveChoice.choices(for: kind, itemType: itemType),
+                            id: \.rawValue) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .accessibilityIdentifier("auto-resolve-choice")
             }
         } header: {
             Text(String(localized: "Zeitraum"))
@@ -782,6 +840,7 @@ struct EditHabitSheet: View {
         notificationMode = habit.notificationMode
         timeZoneIdentifier = habit.timeZoneIdentifier
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
+        autoResolveChoice = habit.autoResolveChoice
         // Die Uhrzeit reist MIT dem Entwurf: sie steht im selben Abschnitt
         // und im selben Satz wie die Regel.
         draft = RecurrenceDraft(habit.recurrence,
@@ -827,6 +886,7 @@ struct EditHabitSheet: View {
         habit.notificationMode = notificationMode
         habit.timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(timeZoneIdentifier)
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
+        habit.autoResolveChoice = validAutoResolveChoice
         if itemType != .reminder || existing?.recurrence != recurrence {
             habit.reminderCursor = nil
         }
