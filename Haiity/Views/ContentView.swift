@@ -669,6 +669,7 @@ struct ContentView: View {
                     }
                 }
                 .navigationTitle(String(localized: "Suchen"))
+                .navigationBarTitleDisplayMode(.large)
                 .searchable(text: $search,
                             isPresented: $searching,
                             prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
@@ -693,6 +694,7 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
     }
 
@@ -719,7 +721,6 @@ struct ContentView: View {
                          statsCards: viewPreferences,
                          onOpen: presentMoreSheet,
                          routeToken: routeToken)
-                    .navigationTitle(String(localized: "Mehr"))
             }
         }
         .navigationChrome()
@@ -750,7 +751,6 @@ struct ContentView: View {
                      statsCards: viewPreferences,
                      onOpen: presentMoreSheet,
                      routeToken: routeToken)
-                .navigationTitle(String(localized: "Mehr"))
         }
         .navigationChrome()
     }
@@ -1061,6 +1061,7 @@ struct ContentView: View {
         if visibleActiveHabits.isEmpty && github.snapshot == nil {
             emptyState
                 .navigationTitle("Habits")
+                .navigationBarTitleDisplayMode(.large)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
@@ -1075,6 +1076,7 @@ struct ContentView: View {
                 // Zeilen-Titel blieb beim Scrollen einfach stehen und ließ
                 // eine leere Glasleiste zurück).
                 .navigationTitle("Habits")
+                .navigationBarTitleDisplayMode(.large)
                 .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
@@ -1260,6 +1262,7 @@ struct ContentView: View {
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
+        .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RowOffsetKey.self) { frames in

@@ -935,6 +935,9 @@ enum Theme {
         static let settingsSectionGap: CGFloat = 18
         /// Seitenrand von Liste und Chrom.
         static let gutter: CGFloat = 16
+        /// Keeps the first native root-page row below the large navigation title
+        /// while still allowing it to scroll away with the list.
+        static let rootTitleInset: CGFloat = 16
         /// Innenabstand der Rasterfläche.
         static let cardPadding: CGFloat = 12
         /// Eckradius der Rasterfläche.

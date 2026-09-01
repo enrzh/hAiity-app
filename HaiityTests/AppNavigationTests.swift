@@ -91,6 +91,28 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
     }
 
+    func testNativeRootPagesKeepTitlesClearOfContentAndMoreHasOneRootTitle() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(content.contains(".contentMargins(.top, Theme.Metrics.rootTitleInset"),
+                      "the habits root list needs space below the large title")
+        XCTAssertTrue(stats.contains(".contentMargins(.top, Theme.Metrics.rootTitleInset"),
+                      "the stats root list needs space below the large title")
+        XCTAssertTrue(content.contains(".navigationBarTitleDisplayMode(.large)"),
+                      "native root pages should use the same large-title treatment")
+        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(screen == .main ? .large : .inline)"),
+                      "Mehr needs a large root title and compact sheet titles")
+
+        let start = try XCTUnwrap(content.range(of: "private var moreTabContent"))
+        let end = try XCTUnwrap(content.range(of: "private var fallbackMoreContent",
+                                              range: start.upperBound..<content.endIndex))
+        let moreTab = content[start.lowerBound..<end.lowerBound]
+        XCTAssertFalse(moreTab.contains(".navigationTitle(String(localized: \"Mehr\"))"),
+                       "the root Mehr title must have one owner")
+    }
+
     func testHabitDeepLinkRetriesAfterItsListRowsMount() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 

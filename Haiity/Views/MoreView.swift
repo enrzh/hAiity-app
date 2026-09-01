@@ -151,8 +151,7 @@ struct MoreView: View {
             }
         }
         .navigationTitle(screen.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationChrome()
+        .navigationBarTitleDisplayMode(screen == .main ? .large : .inline)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).

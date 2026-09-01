@@ -181,6 +181,7 @@ struct StatsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .softScrollEdges()
+        .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         // Plain List rows can ignore their row-inset proposal on iOS 27.
         // Constrain the scroll content itself so every card receives the
         // actual viewport width and cannot render beyond the trailing edge.
@@ -190,6 +191,7 @@ struct StatsView: View {
         .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
         .listRowSeparator(.hidden)
         .navigationTitle(String(localized: "Statistik"))
+        .navigationBarTitleDisplayMode(.large)
     }
 
     private var statsSelectionEmpty: some View {
