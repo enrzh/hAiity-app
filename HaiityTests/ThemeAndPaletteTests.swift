@@ -534,6 +534,8 @@ final class AppearanceSettingTests: XCTestCase {
                       "stats card content must apply its owning chrome")
         XCTAssertFalse(list.contains(".settingsListRow()"),
                        "a section-wide surface creates a second background behind held cards")
+        XCTAssertTrue(list.contains(".contentMargins(.horizontal, Theme.Metrics.gutter, for: .scrollContent)"),
+                      "stats content must be constrained to the viewport on iOS 27")
     }
 
     func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {

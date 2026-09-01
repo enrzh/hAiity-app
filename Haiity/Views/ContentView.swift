@@ -581,38 +581,27 @@ struct ContentView: View {
     /// nur, wenn er wirklich ein Zuklappen misst.
     @available(iOS 26, *)
     private var nativeShell: some View {
-        ZStack {
-            // iOS 26's native TabView owns an opaque content backdrop. A
-            // background attached only to each tab sits underneath that
-            // backdrop and becomes black, especially for image mode. Keep
-            // one shared background at the shell level instead.
-            AppearanceBackground(preferences: store.appearancePreferences)
-
-            TabView(selection: $nativeTab) {
-                Tab(String(localized: "Statistik"), systemImage: "chart.bar",
-                    value: AppTab.stats) {
-                    nativeTabRoot { statsTabContent }
-                }
-                Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                    value: AppTab.habits) {
-                    nativeTabRoot { habitsTabContent }
-                }
-                Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                    value: AppTab.more) {
-                    nativeTabRoot { moreTabContent }
-                }
-                // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
-                // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
-                Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
-                    value: AppTab.search, role: .search) {
-                    nativeTabRoot { searchTabContent }
-                }
+        TabView(selection: $nativeTab) {
+            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
+                value: AppTab.stats) {
+                nativeTabRoot { statsTabContent }
             }
-            .tabBarMinimizeBehavior(.onScrollDown)
-            .background(Color.clear)
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                value: AppTab.habits) {
+                nativeTabRoot { habitsTabContent }
+            }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) {
+                nativeTabRoot { moreTabContent }
+            }
+            // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
+            // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
+            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .search) {
+                nativeTabRoot { searchTabContent }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.appearanceBackgroundOwned, true)
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 
     @available(iOS 26, *)
@@ -620,6 +609,21 @@ struct ContentView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.appearanceBackgroundOwned, true)
+    }
+
+    /// The native tab host can add an opaque backdrop around a NavigationStack.
+    /// Put the wallpaper in the stack's actual page root so Lists and the
+    /// navigation header cannot cover it with a system page color.
+    @available(iOS 26, *)
+    private func nativePageRoot<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack {
+            AppearanceBackground(preferences: store.appearancePreferences)
+            content()
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -642,8 +646,10 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var statsTabContent: some View {
         NavigationStack {
-            StatsView(store: store, viewPreferences: viewPreferences,
-                      routeToken: routeToken)
+            nativePageRoot {
+                StatsView(store: store, viewPreferences: viewPreferences,
+                          routeToken: routeToken)
+            }
         }
         .navigationChrome()
     }
@@ -654,18 +660,20 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var searchTabContent: some View {
         NavigationStack {
-            Group {
-                if visibleActiveHabits.isEmpty {
-                    emptyState
-                } else {
-                    searchList
+            nativePageRoot {
+                Group {
+                    if visibleActiveHabits.isEmpty {
+                        emptyState
+                    } else {
+                        searchList
+                    }
                 }
+                .navigationTitle(String(localized: "Suchen"))
+                .searchable(text: $search,
+                            isPresented: $searching,
+                            prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
+                .searchFocused($searchFieldFocused)
             }
-            .navigationTitle(String(localized: "Suchen"))
-            .searchable(text: $search,
-                        isPresented: $searching,
-                        prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
-            .searchFocused($searchFieldFocused)
         }
         .navigationChrome()
     }
@@ -690,7 +698,9 @@ struct ContentView: View {
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
     @available(iOS 26, *)
     private var habitsTabContent: some View {
-        habitsStack
+        NavigationStack {
+            nativePageRoot { habitsScreen }
+        }
         // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
         // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
         // genau dem, was die Karte gerade geschrieben hat, und muss
@@ -703,11 +713,13 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var moreTabContent: some View {
         NavigationStack {
-            MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences,
-                     onOpen: presentMoreSheet,
-                     routeToken: routeToken)
-                .navigationTitle(String(localized: "Mehr"))
+            nativePageRoot {
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences,
+                         onOpen: presentMoreSheet,
+                         routeToken: routeToken)
+                    .navigationTitle(String(localized: "Mehr"))
+            }
         }
         .navigationChrome()
         .sheet(item: $morePageRoute,

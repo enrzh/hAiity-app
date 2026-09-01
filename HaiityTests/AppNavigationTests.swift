@@ -171,12 +171,18 @@ final class AppNavigationTests: XCTestCase {
 
     func testNativePagesUseTheAppearanceBackgroundAtTheirVisibleRoots() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let shellStart = try XCTUnwrap(content.range(of: "private var nativeShell: some View"))
-        let tabStart = try XCTUnwrap(content.range(of: "TabView(selection: $nativeTab)",
-                                                   range: shellStart.upperBound..<content.endIndex))
-        let shellPrelude = content[shellStart.lowerBound..<tabStart.lowerBound]
-        XCTAssertTrue(shellPrelude.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
-                      "the shared background must sit above the native TabView backdrop")
+        let nativeRoot = try XCTUnwrap(content.range(of: "private func nativePageRoot"))
+        let nextFunction = content.range(of: "private var nativeToastOverlay",
+                                         range: nativeRoot.upperBound..<content.endIndex)
+        let rootBody = content[nativeRoot.lowerBound..<(nextFunction?.lowerBound ?? content.endIndex)]
+        XCTAssertTrue(rootBody.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
+                      "the shared background must be inside each native NavigationStack page")
+        XCTAssertTrue(content.contains("nativePageRoot {\n                StatsView"),
+                      "the stats page must mount the page-level background")
+        XCTAssertTrue(content.contains("nativePageRoot { habitsScreen }"),
+                      "the habits page must mount the page-level background")
+        XCTAssertTrue(content.contains("nativePageRoot {\n                MoreView"),
+                      "the more page must mount the page-level background")
 
         let start = try XCTUnwrap(content.range(of: "private var searchList"))
         let end = try XCTUnwrap(content.range(of: "/// Der Inhalt des Habits-Tabs",

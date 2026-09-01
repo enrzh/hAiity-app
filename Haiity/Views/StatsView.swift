@@ -180,6 +180,10 @@ struct StatsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        // Plain List rows can ignore their row-inset proposal on iOS 27.
+        // Constrain the scroll content itself so every card receives the
+        // actual viewport width and cannot render beyond the trailing edge.
+        .contentMargins(.horizontal, Theme.Metrics.gutter, for: .scrollContent)
         .listRowSpacing(Theme.Metrics.settingsRowGap)
         .listSectionSpacing(Theme.Metrics.settingsSectionGap)
         .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
