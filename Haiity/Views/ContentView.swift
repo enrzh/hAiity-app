@@ -133,6 +133,7 @@ struct ContentView: View {
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
+    @State private var rootTitleProgress: CGFloat = 0
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
@@ -1065,7 +1066,12 @@ struct ContentView: View {
                                     isPresented: $searching,
                                     focus: $searchFieldFocused,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
-                .toolbar { createToolbarItem }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        RootPageCompactTitle(title: String(localized: "Habits"), progress: 1)
+                    }
+                    createToolbarItem
+                }
         } else {
             habitList
                 // The large title is part of the scrollable list; the native
@@ -1078,6 +1084,10 @@ struct ContentView: View {
                                     focus: $searchFieldFocused,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        RootPageCompactTitle(title: String(localized: "Habits"),
+                                             progress: rootTitleProgress)
+                    }
                     ToolbarItemGroup(placement: .topBarLeading) {
                         habitFilterMenu
                         Button {
@@ -1265,6 +1275,9 @@ struct ContentView: View {
         .softScrollEdges()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .coordinateSpace(.named(Self.listSpace))
+        .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
+            if let progress { rootTitleProgress = progress }
+        }
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
         }

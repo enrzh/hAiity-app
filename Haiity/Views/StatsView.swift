@@ -28,6 +28,7 @@ struct StatsView: View {
     @State private var showingCardSettings = false
     @State private var proStatus = ProStatus.shared
     @State private var activeContextMenuID: String?
+    @State private var rootTitleProgress: CGFloat = 0
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -72,6 +73,10 @@ struct StatsView: View {
         }
         .onChange(of: routeToken) { _, _ in paywall = nil }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                RootPageCompactTitle(title: String(localized: "Statistik"),
+                                     progress: rootTitleProgress)
+            }
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: openStatsAdjustments) {
                     Image(systemName: "slider.horizontal.3")
@@ -192,6 +197,9 @@ struct StatsView: View {
         .listRowSeparator(.hidden)
         .navigationBarTitleDisplayMode(.inline)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
+        .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
+            if let progress { rootTitleProgress = progress }
+        }
     }
 
     private var statsSelectionEmpty: some View {

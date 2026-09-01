@@ -969,10 +969,41 @@ struct RootPageTitle: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.28)
                 .offset(y: reduceMotion ? 0 : -progress * 8)
-                .opacity(1 - progress * 0.85)
+                .opacity(1 - progress)
+                .blur(radius: reduceMotion ? 0 : progress * 0.25)
+                .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
         .frame(height: 64)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct RootPageTitleProgressKey: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
+    }
+}
+
+/// Compact title shown in the native navigation header after the scrollable
+/// title has moved away. Its opacity is driven by the same title progress, so
+/// the handoff is one centered title instead of two competing titles.
+struct RootPageCompactTitle: View {
+    let title: String
+    let progress: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Text(title)
+            .font(.headline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .opacity(progress)
+            .scaleEffect(reduceMotion ? 1 : 0.96 + progress * 0.04)
+            .blur(radius: reduceMotion ? 0 : 0.2)
+            .accessibilityHidden(progress < 0.5)
     }
 }
 

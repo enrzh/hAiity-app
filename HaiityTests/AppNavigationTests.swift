@@ -121,6 +121,8 @@ final class AppNavigationTests: XCTestCase {
         let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
         XCTAssertTrue(theme.contains("struct RootPageTitle: View"))
         XCTAssertTrue(theme.contains("accessibilityReduceMotion"))
+        XCTAssertTrue(theme.contains("RootPageTitleProgressKey"),
+                      "the shared title must report scroll progress to its compact toolbar title")
 
         let start = try XCTUnwrap(content.range(of: "private var moreTabContent"))
         let end = try XCTUnwrap(content.range(of: "private var fallbackMoreContent",
@@ -128,6 +130,22 @@ final class AppNavigationTests: XCTestCase {
         let moreTab = content[start.lowerBound..<end.lowerBound]
         XCTAssertFalse(moreTab.contains(".navigationTitle(String(localized: \"Mehr\"))"),
                        "the root Mehr title must have one owner")
+    }
+
+    func testRootPagesHandOffToCenteredCompactTitles() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
+
+        XCTAssertTrue(content.contains("rootTitleProgress"))
+        XCTAssertTrue(stats.contains("rootTitleProgress"))
+        XCTAssertTrue(more.contains("rootTitleProgress"))
+        XCTAssertTrue(content.contains("ToolbarItem(placement: .principal)"))
+        XCTAssertTrue(stats.contains("ToolbarItem(placement: .principal)"))
+        XCTAssertTrue(more.contains("ToolbarItem(placement: .principal)"))
+        XCTAssertTrue(theme.contains("scrollEdgeEffectStyle(.soft, for: .all)"),
+                      "the native root should retain the progressive edge blur")
     }
 
     func testHabitDeepLinkRetriesAfterItsListRowsMount() throws {

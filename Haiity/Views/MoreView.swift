@@ -110,6 +110,7 @@ struct MoreView: View {
     @State private var nativeSyncCleanupMessage: String?
     @State private var showNativeSyncDeleteConfirmation = false
     @State private var proStatus = ProStatus.shared
+    @State private var rootTitleProgress: CGFloat = 0
     @Environment(\.palettes) private var palettes
 
     private var currentAppearance: AppearancePreferences { store.appearancePreferences }
@@ -152,6 +153,14 @@ struct MoreView: View {
         }
         .navigationTitle(screen == .main ? "" : screen.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if screen == .main {
+                ToolbarItem(placement: .principal) {
+                    RootPageCompactTitle(title: screen.title,
+                                         progress: rootTitleProgress)
+                }
+            }
+        }
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -299,6 +308,9 @@ struct MoreView: View {
         }
         .settingsSurface()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
+        .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
+            if let progress { rootTitleProgress = progress }
+        }
     }
 
     private var githubSection: some View {
