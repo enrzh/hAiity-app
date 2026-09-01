@@ -37,8 +37,8 @@ private struct LargeGridItem: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
         let metricText = summary.metricText
         let palette = entry.palettes.style(for: habit)
-        VStack(alignment: .leading, spacing: 0) {
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.gridItemSpacing) {
+            Link(destination: HaiityWidgetLink.habits) {
                 HStack(spacing: 4) {
                     HStack(spacing: 3) {
                         if !habit.emoji.isEmpty {
@@ -131,8 +131,16 @@ private struct LargeGridItem: View {
                    minHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
                    maxHeight: WidgetLogic.LargeGeometry.gridActionBandHeight,
                    alignment: .leading)
+            .padding(.horizontal, 4)
+            .background(.thinMaterial, in: Capsule())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(WidgetLogic.LargeGeometry.gridItemPadding)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Theme.accentText(palette).opacity(0.18), lineWidth: 0.5)
+        }
     }
 
 }

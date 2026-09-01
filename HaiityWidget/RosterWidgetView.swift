@@ -93,7 +93,7 @@ struct RosterWidgetView: View {
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
@@ -117,7 +117,7 @@ struct RosterWidgetView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .top, spacing: 4) {
-                        Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                        Link(destination: HaiityWidgetLink.habits) {
                             Text(verbatim: habit.name)
                                 .font(.caption.weight(.semibold))
                                 .lineLimit(1)
@@ -130,7 +130,7 @@ struct RosterWidgetView: View {
                                       dark: dark)
                     }
                     Spacer(minLength: 0)
-                    Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                    Link(destination: HaiityWidgetLink.habits) {
                         metadata(habit: habit, summary: summary,
                                  palette: cellPalette, dark: dark)
                     }
@@ -322,7 +322,7 @@ private struct LargeWidgetItem: View {
         }
 
         HStack(alignment: .top, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+            Link(destination: HaiityWidgetLink.habits) {
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.itemSpacing) {
                     let titleStatusBand = identityBand
                     titleStatusBand
@@ -338,7 +338,7 @@ private struct LargeWidgetItem: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
 
             let actionBand = HStack(spacing: 3) {
                 switch summary.kind {
@@ -371,7 +371,19 @@ private struct LargeWidgetItem: View {
                    alignment: .topTrailing)
             actionBand
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, compact ? 0 : 6)
+        .background(.thinMaterial,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            if !compact {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Theme.accentText(palette).opacity(0.18), lineWidth: 0.5)
+            }
+        }
+        .frame(maxWidth: .infinity,
+               minHeight: compact ? nil : WidgetLogic.LargeGeometry.listRowHeight,
+               maxHeight: compact ? nil : WidgetLogic.LargeGeometry.listRowHeight,
+               alignment: .topLeading)
     }
 
     @ViewBuilder

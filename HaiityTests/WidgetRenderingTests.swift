@@ -112,7 +112,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertEqual(geometry.gridHeaderGap, 4)
         XCTAssertEqual(geometry.gridColumnGap, 8)
         XCTAssertEqual(geometry.gridRowGap, 8)
-        XCTAssertEqual(geometry.gridGraphMinimumHeight, 86)
+        XCTAssertEqual(geometry.gridGraphMinimumHeight, 70)
         XCTAssertEqual(geometry.gridHeaderHeight + geometry.gridHeaderGap
                        + 2 * geometry.gridRowHeight + geometry.gridRowGap, 332)
 
@@ -124,7 +124,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("HStack(spacing: 0)"))
         XCTAssertTrue(item.contains("frame(width: 44, height: 44)"))
         XCTAssertTrue(item.contains("gridActionBandHeight"))
-        XCTAssertFalse(item.contains(".ultraThinMaterial"))
+        XCTAssertTrue(item.contains(".thinMaterial"))
         XCTAssertFalse(item.contains("tileWidth - 88"))
         XCTAssertTrue(item.contains("if !habit.isReminder"))
         XCTAssertTrue(item.contains("gridIdentityBandHeight"))
@@ -426,10 +426,12 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(gridItem.contains("frame(width: 48"),
                        "the compact status column must remain flexible for localization")
         XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight, 20)
-        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 86)
+        XCTAssertEqual(WidgetLogic.LargeGeometry.gridVisualBandHeight, 70)
         XCTAssertEqual(WidgetLogic.LargeGeometry.gridIdentityBandHeight
                        + WidgetLogic.LargeGeometry.gridVisualBandHeight
-                       + WidgetLogic.LargeGeometry.gridActionBandHeight, 150)
+                       + WidgetLogic.LargeGeometry.gridActionBandHeight
+                       + 2 * WidgetLogic.LargeGeometry.gridItemSpacing
+                       + 2 * WidgetLogic.LargeGeometry.gridItemPadding, 150)
     }
 
     func testLargeRenderersDeclareWidgetBackgroundAndBoundFocusLayout() throws {

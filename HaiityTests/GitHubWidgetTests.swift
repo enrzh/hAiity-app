@@ -28,7 +28,8 @@ final class GitHubWidgetTests: XCTestCase {
         {
             let item = try section(text, startingAt: marker, endingAt: end)
             XCTAssertTrue(text.contains("habit: habit"))
-            XCTAssertTrue(item.contains("HaiityWidgetLink.habit(habit.id)"), "\(name) item link is not current habit")
+            XCTAssertTrue(item.contains("HaiityWidgetLink.habits"), "\(name) item must open the habits page")
+            XCTAssertFalse(item.contains("HaiityWidgetLink.habit("), "\(name) must not deep-link to one item")
             XCTAssertFalse(text.contains("widgetURL(URL(string: \"haiity://habits\")"))
             for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
                            "AnswerNoHabitIntent", "ResetHabitIntent"] {
@@ -54,7 +55,8 @@ final class GitHubWidgetTests: XCTestCase {
             XCTAssertTrue(text.contains("AnswerYesHabitIntent"))
             XCTAssertTrue(text.contains("AnswerNoHabitIntent"))
             XCTAssertTrue(text.contains("ResetHabitIntent"))
-            XCTAssertTrue(text.contains("HaiityWidgetLink.habit"))
+            XCTAssertTrue(text.contains("HaiityWidgetLink.habits"))
+            XCTAssertFalse(text.contains("HaiityWidgetLink.habit("))
         }
     }
 
@@ -84,7 +86,7 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(grid.contains("TrailingGrid(habit: habit"))
         XCTAssertTrue(roster.contains("if !habit.isReminder"))
         XCTAssertTrue(grid.contains("if !habit.isReminder"))
-        XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habit(habit.id))"))
+        XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habits)"))
         XCTAssertTrue(roster.contains("WidgetEmptyState()"))
         XCTAssertTrue(grid.contains("WidgetEmptyState()"))
         XCTAssertTrue(roster.contains("HaiityWidgetLink.habits"))
@@ -227,14 +229,16 @@ final class GitHubWidgetTests: XCTestCase {
         XCTAssertTrue(intent.contains("struct AnswerNoHabitIntent"))
     }
 
-    func testHabitSpecificWidgetsUseHabitDeepLinks() throws {
+    func testWidgetsOpenHabitsPageWithoutItemSelection() throws {
         let main = try source("HaiityWidget/HaiityWidgetView.swift")
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
 
-        XCTAssertTrue(main.contains("HaiityWidgetLink.habit"),
-                      "the selected habit widget must open its habit")
-        XCTAssertTrue(roster.contains("HaiityWidgetLink.habit"),
-                      "overview rows must open the habit they represent")
+        XCTAssertTrue(main.contains("HaiityWidgetLink.habits"),
+                      "the selected habit widget must open the habits page")
+        XCTAssertTrue(roster.contains("HaiityWidgetLink.habits"),
+                      "overview rows must open the habits page")
+        XCTAssertFalse(main.contains("HaiityWidgetLink.habit("))
+        XCTAssertFalse(roster.contains("HaiityWidgetLink.habit("))
     }
 
     func testOverviewWidgetSupportsAllInteractiveItemKinds() throws {
@@ -278,10 +282,12 @@ final class GitHubWidgetTests: XCTestCase {
         let main = try source("HaiityWidget/HaiityWidgetView.swift")
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
 
-        XCTAssertTrue(main.contains("Link(destination: HaiityWidgetLink.habit"),
+        XCTAssertTrue(main.contains("Link(destination: HaiityWidgetLink.habits"),
                       "the main widget needs a link around non-action content")
-        XCTAssertTrue(roster.contains("Link(destination: HaiityWidgetLink.habit"),
-                      "each overview row needs its own non-action link")
+        XCTAssertTrue(roster.contains("Link(destination: HaiityWidgetLink.habits"),
+                      "each overview row needs a non-item link")
+        XCTAssertFalse(main.contains("Link(destination: HaiityWidgetLink.habit("))
+        XCTAssertFalse(roster.contains("Link(destination: HaiityWidgetLink.habit("))
         XCTAssertFalse(main.contains(".widgetURL(entry.habit.map"),
                        "a parent widget URL can swallow AppIntent buttons")
         XCTAssertFalse(roster.contains(".widgetURL(URL(string: \"haiity://habits\")"),

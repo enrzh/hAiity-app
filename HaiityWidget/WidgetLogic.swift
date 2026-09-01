@@ -571,8 +571,10 @@ enum WidgetLogic {
         static let gridRowGap: CGFloat = 8
         // Raster tiles reserve exclusive identity, visual, and action bands.
         static let gridIdentityBandHeight: CGFloat = 20
-        static let gridVisualBandHeight: CGFloat = 86
+        static let gridVisualBandHeight: CGFloat = 70
         static let gridActionBandHeight: CGFloat = 44
+        static let gridItemSpacing: CGFloat = 2
+        static let gridItemPadding: CGFloat = 6
         static let gridGraphMinimumHeight: CGFloat = gridVisualBandHeight
         static let listContentHeight: CGFloat = 324
         static let focusContentHeight: CGFloat = focusHeaderHeight + focusHeaderGap

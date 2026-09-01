@@ -386,10 +386,10 @@ final class WidgetLogicTests: GridTestCase {
                                                       range: rowStart.upperBound..<source.endIndex))
         let row = source[rowStart.lowerBound..<actionsStart.lowerBound]
         let linkCount = row.components(separatedBy:
-            "Link(destination: HaiityWidgetLink.habit(habit.id))").count - 1
+            "Link(destination: HaiityWidgetLink.habits)").count - 1
 
         XCTAssertEqual(linkCount, 3,
-                       "the graph, title, and metadata may navigate, but a link must not cover widget buttons")
+                       "the graph, title, and metadata may open the habits page, but a link must not cover widget buttons")
     }
 
     func testOverviewUsesTheItemNegativePaletteForNo() throws {

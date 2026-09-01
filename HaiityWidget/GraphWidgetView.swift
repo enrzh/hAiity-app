@@ -59,7 +59,7 @@ struct GraphWidgetView: View {
             // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
             // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
             if let habit {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     TrailingGrid(habit: habit,
                                  radius: nil,
                                  alignment: .center,

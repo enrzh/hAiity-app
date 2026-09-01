@@ -76,7 +76,7 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     nameRun(habit, font: family == .systemMedium
                             ? .headline : .subheadline.weight(.semibold))
                 }
@@ -84,7 +84,7 @@ struct HaiityWidgetView: View {
                 checkButton(habit, dark: dark)
             }
             Spacer(minLength: 0)
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+            Link(destination: HaiityWidgetLink.habits) {
                 metricLine(summary,
                            palette: entry.palettes.style(for: habit),
                            dark: dark)
@@ -102,13 +102,13 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     nameRun(habit, font: .subheadline.weight(.semibold))
                 }
                 Spacer(minLength: 4)
                 checkButton(habit, dark: dark)
             }
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+            Link(destination: HaiityWidgetLink.habits) {
                 VStack(alignment: .leading, spacing: 5) {
                     streakRun(habit)
                         .font(.title2.weight(.bold).monospacedDigit())
@@ -135,18 +135,18 @@ struct HaiityWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Theme.Metrics.gap) {
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     nameRun(habit, font: .headline)
                 }
                 Spacer(minLength: Theme.Metrics.gap)
-                Link(destination: HaiityWidgetLink.habit(habit.id)) {
+                Link(destination: HaiityWidgetLink.habits) {
                     streakRun(habit)
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
                 checkButton(habit, dark: dark)
             }
-            Link(destination: HaiityWidgetLink.habit(habit.id)) {
+            Link(destination: HaiityWidgetLink.habits) {
                 VStack(alignment: .leading, spacing: 6) {
                     metricLine(summary,
                                palette: entry.palettes.style(for: habit),
