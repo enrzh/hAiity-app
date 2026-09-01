@@ -757,7 +757,10 @@ final class HabitStore {
     func toggle(_ id: UUID, day: String = DayKey.today()) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         if data.habits[i].log[day] != nil { data.habits[i].log[day] = nil }
-        else { data.habits[i].log[day] = 1 }
+        else {
+            data.habits[i].log[day] = 1
+            autoArchiveIfNeeded(at: i, day: day)
+        }
         persist()
     }
 
@@ -772,6 +775,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         let next = (data.habits[i].log[day] ?? 0) + 1
         data.habits[i].log[day] = min(next, Habit.Answer.maxCount)
+        autoArchiveIfNeeded(at: i, day: day)
         persist()
     }
 
@@ -785,6 +789,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
         let value = yes ? Habit.Answer.yes : Habit.Answer.no
         data.habits[i].log[day] = data.habits[i].log[day] == value ? nil : value
+        if yes { autoArchiveIfNeeded(at: i, day: day) }
         persist()
     }
 
@@ -805,6 +810,7 @@ final class HabitStore {
         let normalized = value.flatMap { $0 >= 1 ? $0 : nil }
         guard data.habits[i].log[day] != normalized else { return }
         data.habits[i].log[day] = normalized
+        if normalized != nil { autoArchiveIfNeeded(at: i, day: day) }
         persist()
     }
 
@@ -818,7 +824,20 @@ final class HabitStore {
         if !data.habits[i].repeatsWhileIncomplete {
             data.habits[i].reminderCursor = completed ? nextCursor : day
         }
+        if completed { autoArchiveIfNeeded(at: i, day: day) }
         persist()
+    }
+
+    private func autoArchiveIfNeeded(at index: Int, day: String) {
+        guard data.viewPreferences.autoArchiveCompletedItems,
+              data.habits.indices.contains(index),
+              data.habits[index].archivedAt == nil else { return }
+        let habit = data.habits[index]
+        let calendar = HabitTimeZone.calendar(for: habit,
+                                              defaultIdentifier: data.defaultTimeZoneIdentifier)
+        guard GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar),
+              habit.recurrence.isFinalOccurrence(on: day, calendar: calendar) else { return }
+        data.habits[index].archivedAt = day
     }
 
     /// Converts stale open reminder occurrences into explicit negative days.

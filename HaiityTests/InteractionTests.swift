@@ -376,6 +376,22 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertEqual(decoded.habits[0].swipeActions, habit.swipeActions)
     }
 
+    func testLongPressMenusExposeOneTimeCopyAndSortingActions() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let card = try String(contentsOf: root.appendingPathComponent("Haiity/Views/HabitCard.swift"))
+        let row = try String(contentsOf: root.appendingPathComponent("Haiity/Views/ReminderRow.swift"))
+
+        XCTAssertTrue(card.contains("onCreateOneTime"))
+        XCTAssertTrue(card.contains("onEnableSorting"))
+        XCTAssertTrue(row.contains("onCreateOneTime"))
+        XCTAssertTrue(row.contains("onEnableSorting"))
+        XCTAssertTrue(card.contains("Einmalig anlegen"))
+        XCTAssertTrue(row.contains("Einmalig anlegen"))
+        XCTAssertTrue(card.contains("Sortieren"))
+        XCTAssertTrue(row.contains("Sortieren"))
+    }
+
     func testLegacyFilesWithRootSwipeKeysDecodeToDefaults() throws {
         let raw = Data(#"""
         {"version":2,"updatedAt":1,

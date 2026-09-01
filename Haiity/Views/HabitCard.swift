@@ -54,6 +54,8 @@ struct HabitCard: View, Equatable {
     let onEdit: () -> Void
     let onArchive: () -> Void
     var onDelete: () -> Void = {}
+    var onCreateOneTime: () -> Void = {}
+    var onEnableSorting: () -> Void = {}
     /// Heute mit Ja bzw. Nein beantworten (Habit-Art „Ja/Nein"). Umschaltend:
     /// dieselbe Antwort ein zweites Mal nimmt sie zurück. Steht mit einem
     /// Standardwert ganz am Ende, damit Vorschauen und Tests die Karte ohne
@@ -475,9 +477,9 @@ struct HabitCard: View, Equatable {
     /// erreichbar ist, bleibt inhaltlich dasselbe wie zuvor im Blatt:
     /// Nacharbeiten, Session, Bearbeiten, Archivieren, Teilen.
     private var menuActions: [GraphMenuAction] {
-        [GraphMenuAction(title: String(localized: "Nacharbeiten"),
-                         symbol: "calendar.badge.plus",
-                         handler: onBackfill),
+        var actions = [GraphMenuAction(title: String(localized: "Nacharbeiten"),
+                                       symbol: "calendar.badge.plus",
+                                       handler: onBackfill),
          // Session: „ich mache das JETZT" — startet die Live-Aktivität.
          // Direkt am Manager statt als Closure aus ContentView — die Session
          // hat keinen UI-Zustand, den die Liste kennen müsste.
@@ -486,7 +488,13 @@ struct HabitCard: View, Equatable {
                          handler: { HabitSessionManager.shared.start(habit: habit) }),
          GraphMenuAction(title: String(localized: "Bearbeiten"),
                          symbol: "pencil",
-                         handler: onEdit),
+                         handler: onEdit)]
+        if habit.recurrence.frequency != .once {
+            actions.append(GraphMenuAction(title: String(localized: "Einmalig anlegen"),
+                                           symbol: "plus.square",
+                                           handler: onCreateOneTime))
+        }
+        actions += [
          GraphMenuAction(title: String(localized: "Rückgängig"),
                          symbol: "arrow.uturn.backward",
                          handler: onClear),
@@ -497,9 +505,13 @@ struct HabitCard: View, Equatable {
                          symbol: "trash",
                          handler: onDelete,
                          destructive: true),
+         GraphMenuAction(title: String(localized: "Sortieren"),
+                         symbol: "arrow.up.arrow.down",
+                         handler: onEnableSorting),
          GraphMenuAction(title: String(localized: "Als Bild teilen"),
                          symbol: "square.and.arrow.up",
                          handler: shareCard)]
+        return actions
     }
 
     /// Teilen aus einem UIMenu: das fertige Kartenbild in das System-Blatt.

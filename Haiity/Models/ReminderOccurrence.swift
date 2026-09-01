@@ -130,7 +130,8 @@ enum ReminderOccurrenceEngine {
                         reminder: Habit,
                         calendar: Calendar = .current) -> Date? {
         guard let start = DayKey.date(from: day, calendar: calendar) else { return nil }
-        let minutes = Habit.sanitizedMinutes(reminder.timeMinutes ?? reminder.reminderMinutes) ?? 0
+        let minutes = Habit.sanitizedMinutes(reminder.timeMinutes ?? reminder.reminderMinutes)
+            ?? Habit.defaultNotificationMinutes
         return calendar.date(byAdding: .minute, value: minutes, to: start)
     }
 

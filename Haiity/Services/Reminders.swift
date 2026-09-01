@@ -580,26 +580,26 @@ enum Reminders {
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
         var plans: [ReminderPlan] = []
-        let timed = habits.filter {
+        let notified = habits.filter {
             $0.archivedAt == nil
                 && $0.notificationsEnabled
-                && Habit.sanitizedMinutes($0.timeMinutes ?? $0.reminderMinutes) != nil
         }
         let budget = habitRequestBudget(reservingMotivation: reservingMotivation)
-        let window = reminderWindow(timedHabitCount: timed.count,
+        let window = reminderWindow(timedHabitCount: notified.count,
                                     reservingMotivation: reservingMotivation)
         // Das Fenster allein reicht als Deckel NICHT: es kann nicht unter
         // einen Tag fallen, also ergäben 50 Habits mit Uhrzeit 50 Anfragen —
         // mehr, als den Habits zusteht. Ab hier zählt zusätzlich die
         // GESAMTZAHL. Abgeschnitten wird am Ende der Liste; ohne diese Zeile
         // schnitte iOS selbst ab, nur stumm und ohne zu sagen, wo.
-        outer: for habit in timed {
+        outer: for habit in notified {
             guard plans.count < budget else { break outer }
             let habitCalendar = HabitTimeZone.calendar(for: habit,
                                                        defaultIdentifier: defaultTimeZoneIdentifier,
                                                        base: calendar)
             let today = DayKey.key(for: now, calendar: habitCalendar)
-            guard let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) else { continue }
+            let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes)
+                ?? Habit.defaultNotificationMinutes
             if habit.isReminder, !habit.repeatsWhileIncomplete {
                 let state = ReminderOccurrenceEngine.state(for: habit, now: now,
                                                            calendar: habitCalendar)

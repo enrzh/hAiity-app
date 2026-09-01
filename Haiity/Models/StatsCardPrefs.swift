@@ -138,6 +138,9 @@ struct ViewPreferences: Codable, Equatable {
     var compactMode: Bool
     /// Allows the main widget to expose an explicit reset/revert control.
     var widgetResetEnabled: Bool
+    /// Automatically archive an item after its one-time or final scheduled
+    /// occurrence is completed.
+    var autoArchiveCompletedItems: Bool
     /// Globale Wischgesten. Die Auswahl ist absichtlich semantisch
     /// (Haupt-/Nebenaktion), damit sie bei jeder Habit-Art richtig bleibt.
     var swipeActions: SwipeActionsPreferences
@@ -157,6 +160,7 @@ struct ViewPreferences: Codable, Equatable {
          statsCards: StatsCardPrefs = StatsCardPrefs(),
          compactMode: Bool = false,
          widgetResetEnabled: Bool = true,
+         autoArchiveCompletedItems: Bool = true,
          swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
          notificationActionsEnabled: Bool = true,
          notificationActions: NotificationActionPreferences = NotificationActionPreferences(),
@@ -165,6 +169,7 @@ struct ViewPreferences: Codable, Equatable {
         self.statsCards = statsCards
         self.compactMode = compactMode
         self.widgetResetEnabled = widgetResetEnabled
+        self.autoArchiveCompletedItems = autoArchiveCompletedItems
         self.swipeActions = swipeActions
         self.notificationActionsEnabled = notificationActionsEnabled
         self.notificationActions = notificationActions
@@ -174,7 +179,7 @@ struct ViewPreferences: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case updatedAt, statsCards, compactMode, widgetResetEnabled, swipeActions, notificationActionsEnabled,
+        case updatedAt, statsCards, compactMode, widgetResetEnabled, autoArchiveCompletedItems, swipeActions, notificationActionsEnabled,
              notificationActions, notificationAction
     }
 
@@ -186,6 +191,8 @@ struct ViewPreferences: Codable, Equatable {
         statsCards = decodedCards.isCustomized ? decodedCards : StatsCardPrefs()
         compactMode = try c.decodeIfPresent(Bool.self, forKey: .compactMode) ?? false
         widgetResetEnabled = try c.decodeIfPresent(Bool.self, forKey: .widgetResetEnabled) ?? true
+        autoArchiveCompletedItems = try c.decodeIfPresent(Bool.self,
+                                                          forKey: .autoArchiveCompletedItems) ?? true
         swipeActions = try c.decodeIfPresent(SwipeActionsPreferences.self, forKey: .swipeActions)
             ?? SwipeActionsPreferences()
         notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
@@ -211,6 +218,9 @@ struct ViewPreferences: Codable, Equatable {
         try c.encode(compactMode, forKey: .compactMode)
         if !widgetResetEnabled {
             try c.encode(false, forKey: .widgetResetEnabled)
+        }
+        if !autoArchiveCompletedItems {
+            try c.encode(false, forKey: .autoArchiveCompletedItems)
         }
         if swipeActions != SwipeActionsPreferences() {
             try c.encode(swipeActions, forKey: .swipeActions)
@@ -295,6 +305,7 @@ final class ViewPreferencesStore {
         guard next.statsCards != preferences.statsCards
                 || next.compactMode != preferences.compactMode
                 || next.widgetResetEnabled != preferences.widgetResetEnabled
+                || next.autoArchiveCompletedItems != preferences.autoArchiveCompletedItems
                 || next.swipeActions != preferences.swipeActions
                 || next.notificationActionsEnabled != preferences.notificationActionsEnabled
                 || next.notificationActions != preferences.notificationActions

@@ -370,5 +370,5 @@ struct RecurrenceDraft: Equatable {
     }
 
     /// Vorgabe-Uhrzeit, wenn der Schalter eingeschaltet wird.
-    static let defaultHour = 9
+    static let defaultHour = Habit.defaultNotificationMinutes / 60
 }

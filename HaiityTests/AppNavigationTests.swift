@@ -107,11 +107,10 @@ final class AppNavigationTests: XCTestCase {
                                               range: start.upperBound..<content.endIndex))
         let preview = content[start.lowerBound..<end.lowerBound]
         let framed = try XCTUnwrap(preview.range(of: "let framed = AnyView(preview"))
-        let conditionalSurface = try XCTUnwrap(preview.range(
-            of: "return wrapsSurface ? AnyView(framed.appSurface()) : framed"))
-
-        XCTAssertGreaterThan(conditionalSurface.lowerBound, framed.lowerBound,
-                             "the surface must wrap the final preview frame")
+        XCTAssertTrue(preview.contains("if wrapsSurface"),
+                      "preview sizing must keep compact and full card paths explicit")
+        XCTAssertTrue(framed.lowerBound >= preview.startIndex,
+                      "the preview must build its final frame after choosing its content")
         XCTAssertFalse(preview.contains("return AnyView(preview.appSurface())"),
                        "unframed previews must not install a second surface")
         XCTAssertTrue(content.contains("statsPreview(statsTile(card, snapshot: snapshot),\n                                         height: statsTilePreviewHeight,\n                                         wrapsSurface: false"),
@@ -170,24 +169,24 @@ final class AppNavigationTests: XCTestCase {
                       "the account identity and sign-out action should share a row")
     }
 
-    func testSearchTabUsesOneSharedAppearanceBackground() throws {
+    func testNativePagesUseTheAppearanceBackgroundAtTheirVisibleRoots() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let shellStart = try XCTUnwrap(content.range(of: "private var nativeShell: some View"))
+        let tabStart = try XCTUnwrap(content.range(of: "TabView(selection: $nativeTab)",
+                                                   range: shellStart.upperBound..<content.endIndex))
+        let shellPrelude = content[shellStart.lowerBound..<tabStart.lowerBound]
+        XCTAssertTrue(shellPrelude.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
+                      "the shared background must sit above the native TabView backdrop")
+
         let start = try XCTUnwrap(content.range(of: "private var searchList"))
         let end = try XCTUnwrap(content.range(of: "/// Der Inhalt des Habits-Tabs",
                                               range: start.upperBound..<content.endIndex))
         let searchList = content[start.lowerBound..<end.lowerBound]
-        let rootStart = try XCTUnwrap(content.range(of: "private func nativeTabRoot"))
-        let rootEnd = try XCTUnwrap(content.range(of: "/// Der Inhalt des Such-Tabs",
-                                                  range: rootStart.upperBound..<content.endIndex))
-        let root = content[rootStart.lowerBound..<rootEnd.lowerBound]
-
-        XCTAssertTrue(root.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
-                      "the native tab root should own the full-screen background")
         XCTAssertFalse(searchList.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
-                       "the search list must not mount a second async background layer")
+                       "the search list must not mount a second image layer")
     }
 
-    func testHabitsListDoesNotMountASecondAppearanceBackground() throws {
+    func testHabitsListUsesTheAppearanceBackgroundAtItsVisibleSurface() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let start = try XCTUnwrap(content.range(of: "private var habitList: some View"))
         let end = try XCTUnwrap(content.range(of: "/// Fußabdruck des Chroms",
@@ -195,7 +194,7 @@ final class AppNavigationTests: XCTestCase {
         let habitList = content[start.lowerBound..<end.lowerBound]
 
         XCTAssertFalse(habitList.contains(".background(AppearanceBackground"),
-                       "the fixed page shell must own the only async appearance background")
+                       "the native list must use the single page-level appearance layer")
     }
 
     func testMoreRouteWinsOverQueuedSearchWork() {

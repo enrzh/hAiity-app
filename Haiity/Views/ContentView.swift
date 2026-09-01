@@ -581,39 +581,46 @@ struct ContentView: View {
     /// nur, wenn er wirklich ein Zuklappen misst.
     @available(iOS 26, *)
     private var nativeShell: some View {
-        TabView(selection: $nativeTab) {
-            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
-                value: AppTab.stats) {
-                nativeTabRoot { statsTabContent }
+        ZStack {
+            // iOS 26's native TabView owns an opaque content backdrop. A
+            // background attached only to each tab sits underneath that
+            // backdrop and becomes black, especially for image mode. Keep
+            // one shared background at the shell level instead.
+            AppearanceBackground(preferences: store.appearancePreferences)
+
+            TabView(selection: $nativeTab) {
+                Tab(String(localized: "Statistik"), systemImage: "chart.bar",
+                    value: AppTab.stats) {
+                    nativeTabRoot { statsTabContent }
+                }
+                Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                    value: AppTab.habits) {
+                    nativeTabRoot { habitsTabContent }
+                }
+                Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                    value: AppTab.more) {
+                    nativeTabRoot { moreTabContent }
+                }
+                // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
+                // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
+                Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                    value: AppTab.search, role: .search) {
+                    nativeTabRoot { searchTabContent }
+                }
             }
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: AppTab.habits) {
-                nativeTabRoot { habitsTabContent }
-            }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) {
-                nativeTabRoot { moreTabContent }
-            }
-            // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
-            // Beschriftung in der Kapsel („Habits durchsuchen" sprengte sie).
-            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
-                value: AppTab.search, role: .search) {
-                nativeTabRoot { searchTabContent }
-            }
+            .tabBarMinimizeBehavior(.onScrollDown)
+            .background(Color.clear)
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.appearanceBackgroundOwned, true)
     }
 
     @available(iOS 26, *)
     private func nativeTabRoot<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        ZStack {
-            AppearanceBackground(preferences: store.appearancePreferences)
-            content()
-        }
+        content()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.appearanceBackgroundOwned, true)
     }
 
     /// The native tab bar paints outside a TabView's content overlay. Keep
@@ -1292,6 +1299,18 @@ struct ContentView: View {
         DayKey.today(calendar: habitCalendar(for: habit))
     }
 
+    private func enableSorting() {
+        withAnimation { editMode = .active }
+    }
+
+    private func createOneTime(from habit: Habit) {
+        guard habit.recurrence.frequency != .once else { return }
+        let calendar = habitCalendar(for: habit)
+        let today = DayKey.today(calendar: calendar)
+        let day = habit.recurrence.schedule(calendar: calendar).first(onOrAfter: today) ?? today
+        store.add(habit.oneTimeCopy(on: day))
+    }
+
     // Die Statistik-Karten über dem Titel sind in den eigenen
     // Statistik-Tab umgezogen (siehe StatsView) — die Habit-Liste beginnt
     // wieder mit ihrem Titel.
@@ -1314,6 +1333,8 @@ struct ContentView: View {
                         onArchive: { store.archive(habit.id) },
                         onRevert: { revertReminder(habit) },
                         onDelete: { pendingDelete = habit },
+                        onCreateOneTime: { createOneTime(from: habit) },
+                        onEnableSorting: enableSorting,
                         calendar: habitCalendar(for: habit),
                         leadingSwipe: reveal.leading,
                         trailingSwipe: reveal.trailing)
@@ -1341,6 +1362,8 @@ struct ContentView: View {
                 onEdit: { editing = habit },
                 onArchive: { store.archive(habit.id) },
                 onDelete: { pendingDelete = habit },
+                onCreateOneTime: { createOneTime(from: habit) },
+                onEnableSorting: enableSorting,
                 onAnswer: { answer(habit, yes: $0) },
                 leadingSwipe: reveal.leading,
                 trailingSwipe: reveal.trailing,

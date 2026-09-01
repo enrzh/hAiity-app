@@ -263,6 +263,14 @@ struct Recurrence: Equatable {
         schedule(calendar: calendar).next(after: day)
     }
 
+    /// True only for a scheduled occurrence after which this finite rule has
+    /// no later occurrence. An unscheduled manual check-in cannot end a cycle.
+    func isFinalOccurrence(on day: String, calendar: Calendar = .current) -> Bool {
+        guard frequency == .once || end != .never,
+              isScheduled(on: day, calendar: calendar) else { return false }
+        return nextOccurrence(after: day, calendar: calendar) == nil
+    }
+
     /// Einmal aufgelöste Regel — siehe `Schedule`.
     func schedule(calendar: Calendar = .current) -> Schedule {
         Schedule(self, calendar: calendar)

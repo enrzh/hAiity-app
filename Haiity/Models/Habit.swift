@@ -40,6 +40,8 @@ enum HabitNotificationMode: String, Codable, CaseIterable, Sendable {
 /// `recurrence.target`) — und für Ja/Nein-Habits zwei RESERVIERTE Codes weit
 /// oberhalb jedes menschlichen Zählers (siehe `Habit.Answer`).
 struct Habit: Codable, Identifiable, Equatable {
+    static let defaultNotificationMinutes = 9 * 60
+
     var id: UUID
     var name: String
     var emoji: String
@@ -530,6 +532,21 @@ enum DayKey {
 }
 
 extension Habit {
+    /// Creates a fresh one-time item without carrying completion history.
+    /// Metadata stays intact so the copy behaves like the source item.
+    func oneTimeCopy(on day: String) -> Habit {
+        var copy = self
+        copy.id = UUID()
+        copy.createdAt = DayKey.today()
+        copy.reminderCursor = nil
+        copy.log = [:]
+        copy.missedDays = []
+        copy.minutes = [:]
+        copy.archivedAt = nil
+        copy.recurrence = Recurrence(frequency: .once, start: day)
+        return copy
+    }
+
     /// „Steht an diesem Tag etwas Positives?"
     ///
     /// Für Checkbox und Menge unverändert „es gibt einen Eintrag" (bei

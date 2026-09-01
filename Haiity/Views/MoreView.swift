@@ -348,11 +348,25 @@ struct MoreView: View {
     private var habitBehaviorSettings: some View {
         List {
             timeZoneSection.settingsRowSurface()
+            autoArchiveSection.settingsRowSurface()
             swipeActionsSection.settingsRowSurface()
             notificationActionsSection.settingsRowSurface()
             calendarSection.settingsRowSurface()
         }
         .settingsSurface()
+    }
+
+    private var autoArchiveSection: some View {
+        Section {
+            Toggle(String(localized: "Einmalige Einträge automatisch archivieren"), isOn: Binding(
+                get: { statsCards.preferences.autoArchiveCompletedItems },
+                set: { enabled in
+                    statsCards.update { $0.autoArchiveCompletedItems = enabled }
+                }))
+            .accessibilityIdentifier("auto-archive-completed-items-toggle")
+        } footer: {
+            Text(String(localized: "Erledigte einmalige und letzte Wiederholungen landen automatisch im Archiv."))
+        }
     }
 
     private var timeZoneSection: some View {

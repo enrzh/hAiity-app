@@ -197,7 +197,7 @@ final class FollowUpFixTests: XCTestCase {
         XCTAssertTrue(stats.contains(".navigationChrome()"),
                       "statistics navigation must keep the selected header material")
         XCTAssertFalse(stats.contains(".background(AppearanceBackground(preferences: store.appearancePreferences))"),
-                       "the statistics page must not paint its background twice")
+                       "the statistics page must use the single page-level appearance layer")
     }
 
     func testStatsPreviewsKeepOneSurfaceAndAFlexibleHeight() throws {

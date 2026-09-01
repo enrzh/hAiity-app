@@ -1048,6 +1048,13 @@ struct AppearanceBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var preparedImage: UIImage?
 
+    init(preferences: AppearancePreferences) {
+        self.preferences = preferences
+        _preparedImage = State(initialValue: preferences.backgroundMode == .image
+            ? preferences.backgroundImageData.flatMap(AppearanceImageCache.cachedImage)
+            : nil)
+    }
+
     private var imageData: Data? {
         guard preferences.backgroundMode == .image else { return nil }
         return preferences.backgroundImageData
@@ -1098,11 +1105,16 @@ struct AppearanceBackground: View {
                 Color(.systemBackground).opacity(colorScheme == .dark ? 0.08 : 0.04)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .task(id: imageIdentity) {
-            preparedImage = nil
             guard let imageData else { return }
+            if let cached = AppearanceImageCache.cachedImage(for: imageData) {
+                preparedImage = cached
+                return
+            }
+            preparedImage = nil
             await AppearanceImageCache.prewarm(data: imageData)
             guard !Task.isCancelled else { return }
             preparedImage = AppearanceImageCache.cachedImage(for: imageData)
@@ -1234,13 +1246,17 @@ struct SettingsRowSurface: View {
 }
 
 private struct SettingsSurfaceModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.appearanceBackgroundOwned) private var appearanceBackgroundOwned
+
     @ViewBuilder
     private var settingsRowBackground: some View {
         SettingsRowSurface()
     }
 
+    @ViewBuilder
     private func listSurface(_ content: Content) -> some View {
-        content
+        let list = content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .listRowSpacing(Theme.Metrics.settingsRowGap)
@@ -1248,6 +1264,11 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
             .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
+        if appearanceBackgroundOwned {
+            list
+        } else {
+            list.background(AppearanceBackground(preferences: appearancePreferences))
+        }
     }
 
     func body(content: Content) -> some View {

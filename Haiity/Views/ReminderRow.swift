@@ -18,6 +18,8 @@ struct ReminderRow: View, Equatable {
     let onArchive: () -> Void
     let onRevert: () -> Void
     var onDelete: () -> Void = {}
+    var onCreateOneTime: () -> Void = {}
+    var onEnableSorting: () -> Void = {}
     var now: Date = .now
     var calendar: Calendar = .current
     var leadingSwipe: [RevealAction] = []
@@ -83,6 +85,11 @@ struct ReminderRow: View, Equatable {
                 Button(action: onEdit) {
                     Label(String(localized: "Bearbeiten"), systemImage: "pencil")
                 }
+                if habit.recurrence.frequency != .once {
+                    Button(action: onCreateOneTime) {
+                        Label(String(localized: "Einmalig anlegen"), systemImage: "plus.square")
+                    }
+                }
                 Button(action: onRevert) {
                     Label(String(localized: "Rückgängig"),
                           systemImage: "arrow.uturn.backward")
@@ -92,6 +99,9 @@ struct ReminderRow: View, Equatable {
                 }
                 Button(role: .destructive, action: onDelete) {
                     Label(String(localized: "Löschen"), systemImage: "trash")
+                }
+                Button(action: onEnableSorting) {
+                    Label(String(localized: "Sortieren"), systemImage: "arrow.up.arrow.down")
                 }
             }
     }

@@ -57116,6 +57116,36 @@
           }
         }
       }
+    },
+    "Einmalig anlegen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create once"
+          }
+        }
+      }
+    },
+    "Sortieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reorder"
+          }
+        }
+      }
+    },
+    "Einmalige Einträge automatisch archivieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically archive one-time items"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

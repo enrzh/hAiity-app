@@ -14,6 +14,7 @@ final class StatsCardPrefsTests: XCTestCase {
         XCTAssertEqual(prefs.swipeActions.leading, .primary)
         XCTAssertEqual(prefs.swipeActions.trailing, .secondary)
         XCTAssertTrue(prefs.notificationActionsEnabled)
+        XCTAssertTrue(prefs.autoArchiveCompletedItems)
     }
 
     func testViewPreferencesStorePersistsCompactModeAndCards() {
@@ -66,6 +67,18 @@ final class StatsCardPrefsTests: XCTestCase {
 
         XCTAssertEqual(ViewPreferencesStore(defaults: defaults)
             .preferences.notificationAction, .archive)
+    }
+
+    func testViewPreferencesStorePersistsAutoArchivePreference() {
+        let suite = "ViewPreferencesAutoArchiveTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = ViewPreferencesStore(defaults: defaults)
+        store.update { $0.autoArchiveCompletedItems = false }
+
+        XCTAssertFalse(ViewPreferencesStore(defaults: defaults)
+            .preferences.autoArchiveCompletedItems)
     }
 
     func testNotificationActionsDefaultToTwoVisibleSlotsAndAnOptionalThird() {

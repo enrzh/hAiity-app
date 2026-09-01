@@ -281,7 +281,7 @@ struct EditHabitSheet: View {
             requestNotificationPermissionIfNeeded()
         }
         .onChange(of: notificationMode) { _, mode in
-            guard mode != .off, draft.hasTime else { return }
+            guard mode != .off else { return }
             requestNotificationPermissionIfNeeded()
         }
         .alert(String(localized: "Mitteilungen aktivieren"),
@@ -378,14 +378,14 @@ struct EditHabitSheet: View {
                 DatePicker(String(localized: "Zeit"), selection: $draft.time,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
-                Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
-                    Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
-                    Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
-                    Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("habit-notification-mode")
             }
+            Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
+                Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
+                Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
+                Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("habit-notification-mode")
             Button {
                 showTimeZonePicker = true
             } label: {

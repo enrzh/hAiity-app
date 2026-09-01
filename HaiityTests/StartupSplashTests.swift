@@ -578,6 +578,23 @@ final class StartupSplashTests: XCTestCase {
                        "the background must not synchronously decode a JPEG during layout")
     }
 
+    func testAppearanceBackgroundUsesAnAlreadyPreparedImageImmediately() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let start = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
+        let end = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier",
+                                            range: start.upperBound..<theme.endIndex))
+        let background = theme[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(background.contains("init(preferences: AppearancePreferences)"),
+                      "the shared background should accept a prepared cache value")
+        XCTAssertTrue(background.contains("State(initialValue: preferences.backgroundMode == .image")
+                      && background.contains("AppearanceImageCache.cachedImage"),
+                      "a launch-prepared image must not flash black while the task starts")
+    }
+
     func testSplashHasAnAccessibilityReduceMotionPath() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

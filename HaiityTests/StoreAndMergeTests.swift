@@ -470,6 +470,80 @@ final class StoreV2Tests: XCTestCase {
 
     // MARK: – increment / clear
 
+    func testOneTimeCopyHasNewIdentityAndNoCompletionHistory() {
+        var source = Habit(name: "Sport", emoji: "🏋️", itemType: .reminder,
+                           timeMinutes: 8 * 60,
+                           recurrence: .daily,
+                           kind: .checkbox)
+        source.log["2026-08-01"] = 1
+        source.missedDays = ["2026-08-02"]
+        source.minutes["2026-08-01"] = 30
+
+        let copy = source.oneTimeCopy(on: "2026-09-12")
+
+        XCTAssertNotEqual(copy.id, source.id)
+        XCTAssertEqual(copy.name, source.name)
+        XCTAssertEqual(copy.itemType, .reminder)
+        XCTAssertEqual(copy.recurrence.frequency, .once)
+        XCTAssertEqual(copy.recurrence.start, "2026-09-12")
+        XCTAssertTrue(copy.log.isEmpty)
+        XCTAssertTrue(copy.missedDays.isEmpty)
+        XCTAssertTrue(copy.minutes.isEmpty)
+    }
+
+    func testCompletedOneTimeItemArchivesWhenPreferenceIsEnabled() {
+        var preferences = ViewPreferences()
+        preferences.autoArchiveCompletedItems = true
+        let data = HabitData(version: HabitData.currentVersion, updatedAt: 0,
+                             summaryMinutes: nil, habits: [],
+                             viewPreferences: preferences)
+        try! JSONEncoder().encode(data).write(to: url)
+        store = HabitStore(url: url)
+
+        let habit = Habit(name: "Einmal", recurrence: Recurrence(frequency: .once,
+                                                                    start: "2026-08-09"))
+        store.add(habit)
+        store.toggle(habit.id, day: "2026-08-09")
+
+        XCTAssertNotNil(store.habits[0].archivedAt)
+    }
+
+    func testFinalFiniteOccurrenceArchivesButEarlierOccurrenceDoesNot() {
+        var preferences = ViewPreferences()
+        preferences.autoArchiveCompletedItems = true
+        let data = HabitData(version: HabitData.currentVersion, updatedAt: 0,
+                             summaryMinutes: nil, habits: [],
+                             viewPreferences: preferences)
+        try! JSONEncoder().encode(data).write(to: url)
+        store = HabitStore(url: url)
+
+        let habit = Habit(name: "Ende", recurrence: Recurrence(frequency: .daily,
+                                                                  start: "2026-08-09",
+                                                                  end: .after(2)))
+        store.add(habit)
+        store.toggle(habit.id, day: "2026-08-09")
+        XCTAssertNil(store.habits[0].archivedAt)
+        store.toggle(habit.id, day: "2026-08-10")
+        XCTAssertEqual(store.habits[0].archivedAt, "2026-08-10")
+    }
+
+    func testCompletedOneTimeItemStaysActiveWhenAutoArchiveIsDisabled() {
+        var preferences = ViewPreferences()
+        preferences.autoArchiveCompletedItems = false
+        let data = HabitData(version: HabitData.currentVersion, updatedAt: 0,
+                             summaryMinutes: nil, habits: [],
+                             viewPreferences: preferences)
+        try! JSONEncoder().encode(data).write(to: url)
+        store = HabitStore(url: url)
+
+        let habit = Habit(name: "Einmal", recurrence: Recurrence(frequency: .once,
+                                                                    start: "2026-08-09"))
+        store.add(habit)
+        store.toggle(habit.id, day: "2026-08-09")
+
+        XCTAssertNil(store.habits[0].archivedAt)
+    }
+
     func testIncrementCountsUpWithoutWrap() {
         let h = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
         store.add(h)

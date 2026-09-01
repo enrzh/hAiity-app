@@ -265,6 +265,17 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertTrue(Reminders.habitPlans(habits: [habit], now: now, calendar: calendar).isEmpty)
     }
 
+    func testNotificationEnabledItemWithoutHourUsesTheDefaultNotificationTime() {
+        var habit = Habit(name: "Lesen", recurrence: .daily)
+        habit.createdAt = "2026-08-01"
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+
+        XCTAssertFalse(plans.isEmpty)
+        XCTAssertEqual(plans.first?.dateMatching.hour, RecurrenceDraft.defaultHour)
+        XCTAssertEqual(plans.first?.dateMatching.minute, 0)
+    }
+
     func testReminderItemGetsTheSamePerItemNotificationSchedule() {
         let tracked = Habit(name: "Lesen", timeMinutes: 18 * 60,
                             recurrence: .weekdays([2, 4]))
