@@ -564,17 +564,27 @@ enum WidgetLogic {
         static let focusIdentityBandHeight: CGFloat = listTitleHeight
         static let focusVisualBandHeight: CGFloat = focusFeaturedGraphMinimumHeight
         static let focusActionBandHeight: CGFloat = actionHeight
+        static let featuredListHeaderHeight: CGFloat = 20
+        static let featuredListHeaderGap: CGFloat = 4
+        static let featuredListHeight: CGFloat = 168
+        static let featuredIdentityBandHeight: CGFloat = 22
+        static let featuredVisualBandHeight: CGFloat = 102
+        static let featuredActionBandHeight: CGFloat = 44
+        static let compactListRowHeight: CGFloat = 48
+        static let compactListRowGap: CGFloat = 4
         static let gridRowHeight: CGFloat = 168
         static let gridColumnGap: CGFloat = 8
         static let gridRowGap: CGFloat = 8
         // Raster tiles reserve exclusive identity, visual, and action bands.
-        static let gridIdentityBandHeight: CGFloat = 18
-        static let gridVisualBandHeight: CGFloat = 94
+        static let gridIdentityBandHeight: CGFloat = 20
+        static let gridVisualBandHeight: CGFloat = 98
         static let gridActionBandHeight: CGFloat = 44
-        static let gridItemSpacing: CGFloat = 2
-        static let gridItemPadding: CGFloat = 4
+        static let gridItemSpacing: CGFloat = 1
+        static let gridItemPadding: CGFloat = 2
         static let gridGraphMinimumHeight: CGFloat = gridVisualBandHeight
-        static let listContentHeight: CGFloat = 4 * listRowHeight + 3 * itemSpacing
+        static let listContentHeight: CGFloat = featuredListHeaderHeight
+            + featuredListHeaderGap + featuredListHeight
+            + 3 * compactListRowHeight + 2 * compactListRowGap
         static let focusContentHeight: CGFloat = focusHeaderHeight + focusHeaderGap
             + focusFeaturedHeight + focusFeaturedQueueGap
             + 3 * focusQueueHeight + 2 * itemSpacing

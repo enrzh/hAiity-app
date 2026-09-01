@@ -331,19 +331,17 @@ final class WidgetRenderingTests: XCTestCase {
     }
 
     func testFeaturedAndRasterGeometryUsesTheFullLargeCanvas() {
-        let source = try! source("HaiityWidget/WidgetLogic.swift")
         let g = WidgetLogic.LargeGeometry.self
-        XCTAssertTrue(source.contains("featuredListHeaderHeight"))
-        XCTAssertTrue(source.contains("featuredListHeaderGap"))
-        XCTAssertTrue(source.contains("featuredListHeight"))
-        XCTAssertTrue(source.contains("featuredIdentityBandHeight"))
-        XCTAssertTrue(source.contains("featuredVisualBandHeight"))
-        XCTAssertTrue(source.contains("featuredActionBandHeight"))
-        XCTAssertTrue(source.contains("compactListRowHeight"))
-        XCTAssertTrue(source.contains("compactListRowGap"))
-        XCTAssertTrue(source.contains("gridIdentityBandHeight"))
-        XCTAssertTrue(source.contains("gridVisualBandHeight"))
-        XCTAssertTrue(source.contains("gridActionBandHeight"))
+        XCTAssertEqual(g.featuredListHeaderHeight + g.featuredListHeaderGap
+                       + g.featuredListHeight + 3 * g.compactListRowHeight
+                       + 2 * g.compactListRowGap, g.contentHeight)
+        XCTAssertEqual(g.featuredIdentityBandHeight + g.featuredVisualBandHeight
+                       + g.featuredActionBandHeight, g.featuredListHeight)
+        XCTAssertEqual(g.gridIdentityBandHeight + g.gridVisualBandHeight
+                       + g.gridActionBandHeight + 2 * g.gridItemSpacing
+                       + 2 * g.gridItemPadding, g.gridRowHeight)
+        XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
+        XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
         XCTAssertEqual(g.outerPadding, 6)
         XCTAssertEqual(g.actionHeight, 44)
     }
