@@ -46,6 +46,7 @@ struct PalettePicker: View {
             // Ein Chip an der Kante darf nicht angeschnitten wirken.
             .padding(.horizontal, 1)
         }
+        .softScrollEdges()
         // Ohne .contain schluckt der Container seine Kinder: die Chips
         // palette-global / palette-<name> / palette-custom-<uuid> wären im
         // AX-Baum unauffindbar. Auf HabitCard und ArchiveView jeweils mit

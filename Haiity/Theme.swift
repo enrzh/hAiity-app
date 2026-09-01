@@ -1003,6 +1003,17 @@ extension View {
     func navigationChrome() -> some View {
         modifier(NavigationChromeModifier())
     }
+
+    /// Keep scroll edges soft wherever a page meets navigation or bottom
+    /// chrome. Older deployment targets simply retain their system behavior.
+    @ViewBuilder
+    func softScrollEdges() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectStyle(.soft, for: .all)
+        } else {
+            self
+        }
+    }
 }
 
 extension EnvironmentValues {
@@ -1259,6 +1270,7 @@ private struct SettingsSurfaceModifier: ViewModifier {
         let list = content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
+            .softScrollEdges()
             .listRowSpacing(Theme.Metrics.settingsRowGap)
             .listSectionSpacing(Theme.Metrics.settingsSectionGap)
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)

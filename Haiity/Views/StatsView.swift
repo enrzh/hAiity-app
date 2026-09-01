@@ -180,6 +180,7 @@ struct StatsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .softScrollEdges()
         // Plain List rows can ignore their row-inset proposal on iOS 27.
         // Constrain the scroll content itself so every card receives the
         // actual viewport width and cannot render beyond the trailing edge.

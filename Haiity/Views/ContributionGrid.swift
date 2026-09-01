@@ -97,6 +97,7 @@ struct ContributionGrid: View, Equatable {
                                  gap: m.gap,
                                  width: contentWidth)
                 }
+                .softScrollEdges()
                 // Startet AN der rechten Kante — heute — statt nach dem
                 // Aufbau dorthin zu scrollen.
                 .defaultScrollAnchor(.trailing)

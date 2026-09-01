@@ -136,6 +136,7 @@ struct FeedbackSheet: View {
                         .textSelection(.enabled)
                 }
                 .frame(maxHeight: diagnosticsHeight)
+                .softScrollEdges()
             } label: {
                 Label(String(localized: "Diese technischen Angaben werden mitgeschickt"),
                       systemImage: "doc.text.magnifyingglass")

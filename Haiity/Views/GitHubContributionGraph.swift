@@ -55,6 +55,7 @@ struct GitHubContributionGraph: View {
                                  contentWidth: contentWidth,
                                  height: height)
                 }
+                .softScrollEdges()
                 .defaultScrollAnchor(.trailing)
             } else {
                 // A disabled ScrollView can retain a trailing offset inside a

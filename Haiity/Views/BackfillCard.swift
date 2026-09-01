@@ -120,6 +120,7 @@ struct BackfillCard: View {
         ViewThatFits(in: .vertical) {
             cardBody
             ScrollView { cardBody }
+                .softScrollEdges()
         }
         .frame(maxWidth: Self.maxWidth)
         .background(Color(.secondarySystemGroupedBackground),

@@ -76,6 +76,7 @@ struct ReminderSetupView: View {
                 .padding(.bottom, Theme.Metrics.gutter)
             }
         }
+        .softScrollEdges()
     }
 
     private var introPage: some View {

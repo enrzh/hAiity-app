@@ -342,6 +342,7 @@ struct MoreView: View {
             .padding(.vertical, Theme.Metrics.gap)
         }
         .scrollIndicators(.hidden)
+        .softScrollEdges()
         .settingsChrome()
     }
 

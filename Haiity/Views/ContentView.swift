@@ -693,6 +693,7 @@ struct ContentView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .softScrollEdges()
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
@@ -1259,6 +1260,7 @@ struct ContentView: View {
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
+        .softScrollEdges()
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)

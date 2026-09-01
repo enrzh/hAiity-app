@@ -556,6 +556,30 @@ final class AppearanceSettingTests: XCTestCase {
                       "the reminder setup page must follow the selected material too")
     }
 
+    func testAppScrollSurfacesUseTheSoftEdgeEffect() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let stats = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StatsView.swift"))
+        let setup = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ReminderSetupView.swift"))
+        let paywall = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/PaywallView.swift"))
+
+        XCTAssertTrue(theme.contains("scrollEdgeEffectStyle(.soft, for: .all)"),
+                      "the shared modifier must use the requested soft edge effect")
+        XCTAssertTrue(theme.contains(".softScrollEdges()"),
+                      "settings Lists must inherit the shared edge effect")
+        for source in [content, stats, setup, paywall] {
+            XCTAssertTrue(source.contains(".softScrollEdges()"),
+                          "every primary scroll surface must keep the soft edge effect")
+        }
+    }
+
     func testSettingsRowsMatchAppSurfaceMaterialTintAndFallback() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

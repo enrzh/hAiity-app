@@ -118,6 +118,7 @@ struct PaywallView: View {
                 .padding(Theme.Metrics.gutter)
             }
             .background(AppearanceBackground(preferences: store.appearancePreferences))
+            .softScrollEdges()
             .safeAreaInset(edge: .bottom) { footer }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
