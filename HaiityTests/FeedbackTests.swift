@@ -686,41 +686,57 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
     }
 
-    func testNotificationSettingsUseSharedGlassInsetsInSeparateRows() throws {
+    func testNotificationSettingsUseOneSharedGlassGroup() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let start = try XCTUnwrap(more.range(of: "private var notificationSettingsSection: some View"))
         let end = try XCTUnwrap(more.range(of: "private var notificationOptOutRows: some View",
                                            range: start.upperBound..<more.endIndex))
         let section = more[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(section.contains("Group {"),
-                      "notification controls must be direct list content")
-        XCTAssertFalse(section.contains("Section {"),
-                       "an outer Section lets the weekly picker capture unrelated taps")
+        XCTAssertTrue(section.contains("Section {"),
+                      "notification controls need one native grouped list row")
+        XCTAssertTrue(section.contains("VStack(alignment: .leading, spacing: 0)"),
+                      "notification controls need one shared material group")
         XCTAssertTrue(section.contains("Text(String(localized: \"Mitteilungen\"))"),
                       "the notification title must remain visible")
-        XCTAssertTrue(section.contains(".listRowBackground(Color.clear)"),
-                      "the title row must not add a fifth material card")
-        XCTAssertTrue(section.contains("leading: Theme.Metrics.gutter"),
-                      "the notification heading must align with the glass rows")
-        XCTAssertEqual(section.components(separatedBy: ".listRowInsets(moreRowInsets)").count - 1, 4,
-                       "all notification rows need the shared outer inset")
+        XCTAssertTrue(section.contains("notificationDivider"),
+                      "rows need subtle internal separators instead of four floating cards")
+        XCTAssertTrue(section.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
+                      "the shared group needs balanced horizontal insets")
+        XCTAssertEqual(section.components(separatedBy: ".settingsRowSurface()").count - 1, 1,
+                       "the notification group should own one material surface")
         let rows = ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"]
         let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows", "openSourceMotivationEnabled"]
         for (row, nextRow) in zip(rows, nextRows) {
-            XCTAssertTrue(section.contains("\(row)\n                .settingsRowSurface()"),
-                          "\(row) needs its own material row and hit area")
             let rowStart = try XCTUnwrap(more.range(of: "private var \(row): some View"))
             let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
                                                   range: rowStart.upperBound..<more.endIndex))
             let rowSource = more[rowStart.lowerBound..<rowEnd.lowerBound]
-            XCTAssertFalse(rowSource.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
-                           "\(row) must not add a second horizontal inset")
+            XCTAssertFalse(rowSource.contains(".settingsRowSurface()"),
+                           "\(row) must not create a nested material surface")
             XCTAssertTrue(rowSource.contains(".padding(.vertical, Theme.Metrics.gap / 2)"),
                           "\(row) needs the shared vertical breathing room")
         }
-        XCTAssertFalse(more.contains("notificationSettingsSection.settingsRowSurface()"),
-                       "the section-wide surface lets a picker capture unrelated taps")
+    }
+
+    func testWeeklySummaryWeekdayHasItsOwnBoundedMenuTarget() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let start = try XCTUnwrap(more.range(of: "private var weeklySummaryRows: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var motivationRows: some View",
+                                           range: start.upperBound..<more.endIndex))
+        let rows = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(rows.contains("weeklyWeekdayButton"),
+                      "the weekday choice must be an explicitly bounded control")
+        XCTAssertFalse(rows.contains("Picker(String(localized: \"Wochentag\")"),
+                       "the default Picker can claim the entire notification row")
+        XCTAssertFalse(more.contains("private var weeklyWeekdayMenu: some View"),
+                       "the flexible Menu label can claim the surrounding glass group")
+        XCTAssertTrue(more.contains("private var weeklyWeekdayButton: some View"))
+        XCTAssertTrue(more.contains(".fixedSize(horizontal: true, vertical: false)"),
+                      "the weekday button must keep an intrinsic hit target")
+        XCTAssertTrue(more.contains("showWeeklyWeekdayPicker"),
+                      "weekday choices should be presented independently from the list row")
     }
 
     func testBehaviorAndDeveloperCategoriesUseOneMaterialRow() throws {

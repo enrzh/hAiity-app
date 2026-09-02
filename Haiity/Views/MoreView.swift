@@ -70,6 +70,7 @@ struct MoreView: View {
     @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
+    @State private var showWeeklyWeekdayPicker = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
     @State private var backgroundImageError = false
     @State private var backgroundImageImportToken = UUID()
@@ -334,6 +335,23 @@ struct MoreView: View {
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
+        }
+        .confirmationDialog(String(localized: "Wochentag auswählen"),
+                            isPresented: $showWeeklyWeekdayPicker,
+                            titleVisibility: .visible) {
+            ForEach(orderedWeekdays, id: \.self) { day in
+                Button {
+                    weeklyWeekday.wrappedValue = day
+                } label: {
+                    let title = RecurrenceText.weekdayName(day)
+                    if day == store.weeklySummaryWeekday {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+            }
+            Button(String(localized: "Abbrechen"), role: .cancel) {}
         }
     }
 
@@ -1009,33 +1027,48 @@ struct MoreView: View {
 
     private var personalSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
-                TextField(String(localized: "Alias"),
-                          text: aliasBinding,
-                          prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
-                    .textInputAutocapitalization(.words)
-                    .textContentType(.nickname)
-                    .submitLabel(.done)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("personal-alias")
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: Theme.Metrics.gap + 2) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.accentText(palettes.style))
+                        .frame(width: Theme.Metrics.glyph,
+                               height: Theme.Metrics.glyph)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "Alias"))
+                            .font(.subheadline.weight(.semibold))
+                        TextField(String(localized: "Alias"),
+                                  text: aliasBinding,
+                                  prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
+                            .textInputAutocapitalization(.words)
+                            .textContentType(.nickname)
+                            .submitLabel(.done)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("personal-alias")
+                    }
+                }
+                .frame(minHeight: Theme.Metrics.hit)
                 if let storedAppleUserID {
                     let displayName = PersonalName.resolve(alias: aliasDraft,
                                                             appleName: storedAppleName)
                         ?? String(localized: "Apple-ID")
                     Divider()
+                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 2)
+                        .padding(.vertical, Theme.Metrics.gap / 2)
                     HStack(spacing: Theme.Metrics.gap) {
                         Label(String(format: String(localized: "Angemeldet als %@"), displayName),
                               systemImage: "person.crop.circle.badge.checkmark")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(2)
                         Spacer(minLength: Theme.Metrics.gap)
                         Button(String(localized: "Abmelden"), role: .destructive) {
                             signOutFromApple()
                         }
                         .buttonStyle(.borderless)
+                        .fixedSize(horizontal: true, vertical: false)
                         .accessibilityIdentifier("apple-signout")
                     }
+                    .frame(minHeight: Theme.Metrics.hit)
                     if appleSignInCameBackEmpty && PersonalName.effective == nil {
                         Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
                             .font(.caption)
@@ -1054,7 +1087,11 @@ struct MoreView: View {
                         .accessibilityIdentifier("copy-unrecognized-apple-user-id")
                     }
                 } else {
+                    Divider()
+                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 2)
+                        .padding(.vertical, Theme.Metrics.gap / 2)
                     appleSignInButton
+                        .padding(.vertical, 2)
                     if appleSignInCameBackEmpty {
                         Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
                             .font(.caption)
@@ -1081,7 +1118,9 @@ struct MoreView: View {
             handleAppleSignIn(result)
         }
         .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-        .frame(height: 40)
+        .frame(maxWidth: .infinity)
+        .frame(height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityIdentifier("apple-signin")
     }
 
@@ -2086,6 +2125,7 @@ struct MoreView: View {
             }
             .padding(.horizontal, Theme.Metrics.cardPadding)
             .padding(.vertical, Theme.Metrics.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
         } header: {
             Text(String(localized: "Mitteilungen"))
                 .font(.footnote.weight(.semibold))
@@ -2104,7 +2144,7 @@ struct MoreView: View {
     }
 
     private var notificationDetailsInset: CGFloat {
-        Theme.Metrics.glyph + Theme.Metrics.gap
+        Theme.Metrics.glyph + Theme.Metrics.gap + 4
     }
 
     private var notificationOptOutRows: some View {
@@ -2248,13 +2288,7 @@ struct MoreView: View {
             .disabled(dndActive)
             .accessibilityIdentifier("weekly-summary-toggle")
             if store.weeklySummaryMinutes != nil {
-                Picker(String(localized: "Wochentag"), selection: weeklyWeekday) {
-                    ForEach(orderedWeekdays, id: \.self) { day in
-                        Text(RecurrenceText.weekdayName(day)).tag(day)
-                    }
-                }
-                .padding(.leading, notificationDetailsInset)
-                .accessibilityIdentifier("weekly-summary-weekday")
+                weeklyWeekdayButton
                 DatePicker(String(localized: "Uhrzeit"),
                            selection: weeklyTime,
                            displayedComponents: .hourAndMinute)
@@ -2264,6 +2298,36 @@ struct MoreView: View {
             if weeklyDenied { permissionHint }
         }
         .padding(.vertical, Theme.Metrics.gap / 2)
+    }
+
+    /// Keep the selector's button intrinsic-sized. A flexible Menu label in a
+    /// single iOS 27 List row can inherit the hit region of the whole group.
+    private var weeklyWeekdayButton: some View {
+        HStack(spacing: Theme.Metrics.gap) {
+            Text(String(localized: "Wochentag"))
+            Spacer(minLength: Theme.Metrics.gap)
+            Button {
+                showWeeklyWeekdayPicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Text(RecurrenceText.weekdayName(store.weeklySummaryWeekday))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.tint)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 36)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityIdentifier("weekly-summary-weekday")
+        }
+        .frame(maxWidth: .infinity,
+               minHeight: Theme.Metrics.hit,
+               alignment: .leading)
+        .padding(.leading, notificationDetailsInset)
     }
 
     private var motivationRows: some View {
