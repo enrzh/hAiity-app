@@ -84,8 +84,8 @@ final class GitHubWidgetTests: XCTestCase {
 
         XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
         XCTAssertTrue(grid.contains("TrailingGrid(habit: habit"))
-        XCTAssertTrue(roster.contains("if !habit.isReminder"))
-        XCTAssertTrue(grid.contains("if !habit.isReminder"))
+        XCTAssertTrue(roster.contains("if habit.isReminder"))
+        XCTAssertTrue(grid.contains("if habit.isReminder"))
         XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habits)"))
         XCTAssertTrue(roster.contains("WidgetEmptyState()"))
         XCTAssertTrue(grid.contains("WidgetEmptyState()"))
