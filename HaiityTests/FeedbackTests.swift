@@ -686,7 +686,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
     }
 
-    func testNotificationSettingsKeepControlsInSeparateListRows() throws {
+    func testNotificationSettingsUseSharedGlassInsetsInSeparateRows() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let start = try XCTUnwrap(more.range(of: "private var notificationSettingsSection: some View"))
         let end = try XCTUnwrap(more.range(of: "private var notificationOptOutRows: some View",
@@ -701,8 +701,10 @@ final class FeedbackTests: XCTestCase {
                       "the notification title must remain visible")
         XCTAssertTrue(section.contains(".listRowBackground(Color.clear)"),
                       "the title row must not add a fifth material card")
-        XCTAssertEqual(section.components(separatedBy: "leading: Theme.Metrics.gutter").count - 1, 4,
-                       "all notification rows need the same outer horizontal inset")
+        XCTAssertTrue(section.contains("leading: Theme.Metrics.gutter"),
+                      "the notification heading must align with the glass rows")
+        XCTAssertEqual(section.components(separatedBy: ".listRowInsets(moreRowInsets)").count - 1, 4,
+                       "all notification rows need the shared outer inset")
         let rows = ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"]
         let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows", "openSourceMotivationEnabled"]
         for (row, nextRow) in zip(rows, nextRows) {
@@ -712,8 +714,10 @@ final class FeedbackTests: XCTestCase {
             let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
                                                   range: rowStart.upperBound..<more.endIndex))
             let rowSource = more[rowStart.lowerBound..<rowEnd.lowerBound]
-            XCTAssertTrue(rowSource.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
-                          "\(row) needs the shared inner horizontal padding")
+            XCTAssertFalse(rowSource.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
+                           "\(row) must not add a second horizontal inset")
+            XCTAssertTrue(rowSource.contains(".padding(.vertical, Theme.Metrics.gap / 2)"),
+                          "\(row) needs the shared vertical breathing room")
         }
         XCTAssertFalse(more.contains("notificationSettingsSection.settingsRowSurface()"),
                        "the section-wide surface lets a picker capture unrelated taps")

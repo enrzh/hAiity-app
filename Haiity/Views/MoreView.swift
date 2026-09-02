@@ -282,8 +282,11 @@ struct MoreView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             proSection.settingsRowSurface()
+                .listRowInsets(moreRowInsets)
             personalSection.settingsRowSurface()
+                .listRowInsets(moreRowInsets)
             githubSection.settingsRowSurface()
+                .listRowInsets(moreRowInsets)
             Section {
                 pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
                         symbol: "paintpalette", identifier: "open-appearance")
@@ -291,6 +294,7 @@ struct MoreView: View {
                         symbol: "hand.draw", identifier: "open-habit-behavior")
             }
             .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
             notificationSettingsSection
             Section {
                 Button { showReminderSetup = true } label: {
@@ -300,17 +304,26 @@ struct MoreView: View {
                 .accessibilityIdentifier("open-reminder-setup")
             }
             .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
             Section {
                 pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
                         symbol: "lock.shield", identifier: "open-about")
             }
             .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
         }
         .settingsSurface()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
         }
+    }
+
+    private var moreRowInsets: EdgeInsets {
+        EdgeInsets(top: Theme.Metrics.gap / 2,
+                   leading: Theme.Metrics.gutter,
+                   bottom: Theme.Metrics.gap / 2,
+                   trailing: Theme.Metrics.gutter)
     }
 
     private var githubSection: some View {
@@ -2031,25 +2044,21 @@ struct MoreView: View {
                 .foregroundStyle(.secondary)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
-                                          leading: 0,
+                                          leading: Theme.Metrics.gutter,
                                           bottom: 0,
-                                          trailing: 0))
+                                          trailing: Theme.Metrics.gutter))
             notificationOptOutRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
-                                          bottom: 6, trailing: Theme.Metrics.gutter))
+                .listRowInsets(moreRowInsets)
             dailySummaryRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
-                                          bottom: 6, trailing: Theme.Metrics.gutter))
+                .listRowInsets(moreRowInsets)
             weeklySummaryRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
-                                          bottom: 6, trailing: Theme.Metrics.gutter))
+                .listRowInsets(moreRowInsets)
             motivationRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
-                                          bottom: 6, trailing: Theme.Metrics.gutter))
+                .listRowInsets(moreRowInsets)
         }
     }
 
@@ -2078,7 +2087,6 @@ struct MoreView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2178,7 +2186,6 @@ struct MoreView: View {
             }
             if summaryDenied { permissionHint }
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2203,7 +2210,6 @@ struct MoreView: View {
             }
             if weeklyDenied { permissionHint }
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2251,7 +2257,6 @@ struct MoreView: View {
             }
             if motivationDenied { permissionHint }
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
