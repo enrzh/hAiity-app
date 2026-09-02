@@ -313,6 +313,31 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(compact.contains("compactListRowHeight"))
     }
 
+    func testFeaturedItemLinksIdentityAndVisualContentToHabits() throws {
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        let featured = try sourceSlice(source,
+                                       from: "private struct LargeFeaturedWidgetItem",
+                                       to: "private struct LargeCompactWidgetRow")
+        XCTAssertTrue(featured.contains("Link(destination: HaiityWidgetLink.habits)"))
+        XCTAssertTrue(featured.contains("let visualBand = Group"))
+        XCTAssertTrue(featured.contains("identityBand"))
+        XCTAssertFalse(try sourceSlice(featured,
+                                       from: "private func actions",
+                                       to: "private func largeActionButton").contains("Link(destination: HaiityWidgetLink.habits)"))
+    }
+
+    func testFeaturedActionBandShowsCurrentMetricAlongsideActions() throws {
+        let source = try source("HaiityWidget/RosterWidgetView.swift")
+        let featured = try sourceSlice(source,
+                                       from: "private struct LargeFeaturedWidgetItem",
+                                       to: "private struct LargeCompactWidgetRow")
+        let actions = try sourceSlice(featured,
+                                      from: "private func actions",
+                                      to: "private func largeActionButton")
+        XCTAssertTrue(actions.contains("summary.metricText"))
+        XCTAssertTrue(actions.contains("Label(summary.metricText, systemImage: summary.metricSymbol)"))
+    }
+
     func testRasterUsesGraphFirstTilesWithoutNestedActionCapsules() throws {
         let source = try source("HaiityWidget/WidgetGridViews.swift")
         let body = try sourceSlice(source,

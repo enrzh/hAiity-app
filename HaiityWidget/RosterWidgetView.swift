@@ -462,9 +462,13 @@ private struct LargeFeaturedWidgetItem: View {
         let actionBand = actions(summary: summary, palette: palette)
 
         VStack(alignment: .leading, spacing: 0) {
-            identityBand.frame(height: WidgetLogic.LargeGeometry.featuredIdentityBandHeight)
-            visualBand.frame(maxWidth: .infinity)
-                .frame(height: WidgetLogic.LargeGeometry.featuredVisualBandHeight)
+            Link(destination: HaiityWidgetLink.habits) {
+                VStack(alignment: .leading, spacing: 0) {
+                    identityBand.frame(height: WidgetLogic.LargeGeometry.featuredIdentityBandHeight)
+                    visualBand.frame(maxWidth: .infinity)
+                        .frame(height: WidgetLogic.LargeGeometry.featuredVisualBandHeight)
+                }
+            }
             actionBand.frame(height: WidgetLogic.LargeGeometry.featuredActionBandHeight)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -483,6 +487,10 @@ private struct LargeFeaturedWidgetItem: View {
 
     private func actions(summary: WidgetItemSummary, palette: PaletteStyle) -> some View {
         HStack(spacing: 3) {
+            Label(summary.metricText, systemImage: summary.metricSymbol)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             switch summary.kind {
             case .yesNo:
                 largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
