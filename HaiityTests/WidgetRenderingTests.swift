@@ -559,6 +559,17 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(item.contains("background(AnyShapeStyle(Color.clear)"))
     }
 
+    func testLargeDualUsesTheNativeWidgetBackgroundWithoutInsetCardSurfaces() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let item = try sourceSlice(roster, from: "private struct LargeFeaturedWidgetItem", to: "private struct LargeCompactWidgetRow")
+        let dual = try sourceSlice(roster, from: "struct LargeDualWidgetView", to: "struct LargeFocusWidgetView")
+
+        XCTAssertTrue(item.contains("var showsSurface: Bool = true"))
+        XCTAssertTrue(item.contains("if showsSurface"))
+        XCTAssertTrue(dual.contains("showsSurface: false"),
+                      "the dual widget should rely on WidgetKit's container background")
+    }
+
     func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))

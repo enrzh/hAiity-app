@@ -693,9 +693,27 @@ final class FeedbackTests: XCTestCase {
                                            range: start.upperBound..<more.endIndex))
         let section = more[start.lowerBound..<end.lowerBound]
 
-        for row in ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"] {
+        XCTAssertTrue(section.contains("Group {"),
+                      "notification controls must be direct list content")
+        XCTAssertFalse(section.contains("Section {"),
+                       "an outer Section lets the weekly picker capture unrelated taps")
+        XCTAssertTrue(section.contains("Text(String(localized: \"Mitteilungen\"))"),
+                      "the notification title must remain visible")
+        XCTAssertTrue(section.contains(".listRowBackground(Color.clear)"),
+                      "the title row must not add a fifth material card")
+        XCTAssertEqual(section.components(separatedBy: "leading: Theme.Metrics.gutter").count - 1, 4,
+                       "all notification rows need the same outer horizontal inset")
+        let rows = ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"]
+        let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows", "openSourceMotivationEnabled"]
+        for (row, nextRow) in zip(rows, nextRows) {
             XCTAssertTrue(section.contains("\(row)\n                .settingsRowSurface()"),
                           "\(row) needs its own material row and hit area")
+            let rowStart = try XCTUnwrap(more.range(of: "private var \(row): some View"))
+            let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
+                                                  range: rowStart.upperBound..<more.endIndex))
+            let rowSource = more[rowStart.lowerBound..<rowEnd.lowerBound]
+            XCTAssertTrue(rowSource.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
+                          "\(row) needs the shared inner horizontal padding")
         }
         XCTAssertFalse(more.contains("notificationSettingsSection.settingsRowSurface()"),
                        "the section-wide surface lets a picker capture unrelated taps")

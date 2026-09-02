@@ -2025,21 +2025,31 @@ struct MoreView: View {
     // aktiven Einschalten, nie beim Start.
 
     private var notificationSettingsSection: some View {
-        Section {
+        Group {
+            Text(String(localized: "Mitteilungen"))
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
+                                          leading: 0,
+                                          bottom: 0,
+                                          trailing: 0))
             notificationOptOutRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
+                                          bottom: 6, trailing: Theme.Metrics.gutter))
             dailySummaryRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
+                                          bottom: 6, trailing: Theme.Metrics.gutter))
             weeklySummaryRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
+                                          bottom: 6, trailing: Theme.Metrics.gutter))
             motivationRows
                 .settingsRowSurface()
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-        } header: {
-            Text(String(localized: "Mitteilungen"))
+                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Metrics.gutter,
+                                          bottom: 6, trailing: Theme.Metrics.gutter))
         }
     }
 
@@ -2068,6 +2078,7 @@ struct MoreView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2167,6 +2178,7 @@ struct MoreView: View {
             }
             if summaryDenied { permissionHint }
         }
+        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2191,6 +2203,7 @@ struct MoreView: View {
             }
             if weeklyDenied { permissionHint }
         }
+        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -2238,6 +2251,7 @@ struct MoreView: View {
             }
             if motivationDenied { permissionHint }
         }
+        .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 

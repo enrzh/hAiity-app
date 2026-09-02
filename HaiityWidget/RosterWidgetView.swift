@@ -433,6 +433,7 @@ private struct LargeFeaturedWidgetItem: View {
     let habit: Habit
     let entry: HaiityEntry
     var maxWeeks: Int = 18
+    var showsSurface: Bool = true
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
 
@@ -468,7 +469,7 @@ private struct LargeFeaturedWidgetItem: View {
         }
         let actionBand = actions(summary: summary, palette: palette)
 
-        VStack(alignment: .leading, spacing: 0) {
+        let card = VStack(alignment: .leading, spacing: 0) {
             Link(destination: HaiityWidgetLink.habits) {
                 VStack(alignment: .leading, spacing: 0) {
                     identityBand.frame(height: WidgetLogic.LargeGeometry.featuredIdentityBandHeight)
@@ -480,7 +481,13 @@ private struct LargeFeaturedWidgetItem: View {
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: WidgetLogic.LargeGeometry.featuredListHeight, alignment: .topLeading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+        if showsSurface {
+            card.background(.thinMaterial,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        } else {
+            card
+        }
     }
 
     @ViewBuilder
@@ -638,7 +645,8 @@ struct LargeDualWidgetView: View {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else {
                 ForEach(entry.largeItems.prefix(2)) { habit in
-                    LargeFeaturedWidgetItem(habit: habit, entry: entry, maxWeeks: 24)
+                    LargeFeaturedWidgetItem(habit: habit, entry: entry, maxWeeks: 24,
+                                            showsSurface: false)
                 }
             }
         }
