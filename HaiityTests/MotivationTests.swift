@@ -88,6 +88,14 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(more.contains("notification-actions-toggle"))
     }
 
+    func testMoreNotificationSettingsUseAUnifiedAppleStyleHierarchy() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains(".font(.footnote.weight(.semibold))"))
+        XCTAssertTrue(more.contains("notificationSymbolSurface"))
+        XCTAssertTrue(more.contains("notificationDetailsInset"))
+    }
+
     func testDoNotDisturbUsesOneLocalizedPresentationSource() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let reminders = try source("Haiity/Services/Reminders.swift")

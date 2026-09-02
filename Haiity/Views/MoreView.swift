@@ -288,17 +288,31 @@ struct MoreView: View {
             githubSection.settingsRowSurface()
                 .listRowInsets(moreRowInsets)
             Section {
-                pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
-                        symbol: "paintpalette", identifier: "open-appearance")
-                pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
-                        symbol: "hand.draw", identifier: "open-habit-behavior")
+                VStack(alignment: .leading, spacing: 0) {
+                    pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
+                            symbol: "paintpalette", identifier: "open-appearance")
+                    Divider()
+                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
+                    pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
+                            symbol: "hand.draw", identifier: "open-habit-behavior")
+                }
+                .padding(.vertical, Theme.Metrics.gap / 2)
             }
             .settingsRowSurface()
             .listRowInsets(moreRowInsets)
             notificationSettingsSection
             Section {
                 Button { showReminderSetup = true } label: {
-                    Label(String(localized: "Setup wiederholen"), systemImage: "arrow.clockwise")
+                    HStack(spacing: Theme.Metrics.gap + 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.accentText(palettes.style))
+                            .frame(width: Theme.Metrics.glyph,
+                                   height: Theme.Metrics.glyph)
+                        Text(String(localized: "Setup wiederholen"))
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: Theme.Metrics.hit)
                 }
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("open-reminder-setup")
@@ -313,6 +327,10 @@ struct MoreView: View {
             .listRowInsets(moreRowInsets)
         }
         .settingsSurface()
+        .listRowSpacing(12)
+        .listSectionSpacing(12)
+        .contentMargins(.bottom, ChromeLayout.nativeTabBarClearance,
+                        for: .scrollContent)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
@@ -320,19 +338,23 @@ struct MoreView: View {
     }
 
     private var moreRowInsets: EdgeInsets {
-        EdgeInsets(top: Theme.Metrics.gap / 2,
-                   leading: Theme.Metrics.gutter,
-                   bottom: Theme.Metrics.gap / 2,
-                   trailing: Theme.Metrics.gutter)
+        EdgeInsets(top: 0,
+                   leading: Theme.Metrics.gutter + 4,
+                   bottom: 0,
+                   trailing: Theme.Metrics.gutter + 4)
     }
 
     private var githubSection: some View {
         Section {
             HStack(spacing: Theme.Metrics.gap) {
                 Button { onOpen(.github) } label: {
-                    HStack(spacing: Theme.Metrics.gap) {
-                        Label(String(localized: "GitHub"),
-                              systemImage: "chevron.left.forwardslash.chevron.right")
+                    HStack(spacing: Theme.Metrics.gap + 4) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.accentText(palettes.style))
+                            .frame(width: Theme.Metrics.glyph,
+                                   height: Theme.Metrics.glyph)
+                        Text(String(localized: "GitHub"))
                         Spacer(minLength: 0)
                         Text(github.snapshot?.username ?? String(localized: "Verbinden"))
                             .foregroundStyle(.secondary)
@@ -351,6 +373,7 @@ struct MoreView: View {
                     .accessibilityIdentifier("disconnect-github")
                 }
             }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         }
     }
 
@@ -368,7 +391,7 @@ struct MoreView: View {
                     .appSurface(cornerRadius: Theme.Metrics.cardRadius)
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.vertical, Theme.Metrics.gap)
+            .padding(.vertical, Theme.Metrics.cardPadding)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -986,56 +1009,60 @@ struct MoreView: View {
 
     private var personalSection: some View {
         Section {
-            TextField(String(localized: "Alias"),
-                      text: aliasBinding,
-                      prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
-                .textInputAutocapitalization(.words)
-                .textContentType(.nickname)
-                .submitLabel(.done)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("personal-alias")
-            if let storedAppleUserID {
-                let displayName = PersonalName.resolve(alias: aliasDraft,
-                                                        appleName: storedAppleName)
-                    ?? String(localized: "Apple-ID")
-                HStack(spacing: Theme.Metrics.gap) {
-                    Label(String(format: String(localized: "Angemeldet als %@"), displayName),
-                          systemImage: "person.crop.circle.badge.checkmark")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: Theme.Metrics.gap)
-                    Button(String(localized: "Abmelden"), role: .destructive) {
-                        signOutFromApple()
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+                TextField(String(localized: "Alias"),
+                          text: aliasBinding,
+                          prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
+                    .textInputAutocapitalization(.words)
+                    .textContentType(.nickname)
+                    .submitLabel(.done)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("personal-alias")
+                if let storedAppleUserID {
+                    let displayName = PersonalName.resolve(alias: aliasDraft,
+                                                            appleName: storedAppleName)
+                        ?? String(localized: "Apple-ID")
+                    Divider()
+                    HStack(spacing: Theme.Metrics.gap) {
+                        Label(String(format: String(localized: "Angemeldet als %@"), displayName),
+                              systemImage: "person.crop.circle.badge.checkmark")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer(minLength: Theme.Metrics.gap)
+                        Button(String(localized: "Abmelden"), role: .destructive) {
+                            signOutFromApple()
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("apple-signout")
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("apple-signout")
-                }
-                if appleSignInCameBackEmpty && PersonalName.effective == nil {
-                    Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                if !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
-                                                  storedAppleEmail: storedAppleEmail) {
-                    Button {
-                        UIPasteboard.general.string = storedAppleUserID
-                        appleIdentityCopied = true
-                        Theme.Haptics.success()
-                    } label: {
-                        Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
-                              systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
+                    if appleSignInCameBackEmpty && PersonalName.effective == nil {
+                        Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
-                    .accessibilityIdentifier("copy-unrecognized-apple-user-id")
-                }
-            } else {
-                appleSignInButton
-                if appleSignInCameBackEmpty {
-                    Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    if !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                                                      storedAppleEmail: storedAppleEmail) {
+                        Button {
+                            UIPasteboard.general.string = storedAppleUserID
+                            appleIdentityCopied = true
+                            Theme.Haptics.success()
+                        } label: {
+                            Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
+                                  systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
+                        }
+                        .accessibilityIdentifier("copy-unrecognized-apple-user-id")
+                    }
+                } else {
+                    appleSignInButton
+                    if appleSignInCameBackEmpty {
+                        Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
+            .padding(.vertical, Theme.Metrics.gap / 2)
         } header: {
             Text(String(localized: "Anrede"))
         }
@@ -1979,18 +2006,27 @@ struct MoreView: View {
         Button {
             onOpen(route)
         } label: {
-            HStack {
-                Label(title, systemImage: symbol)
-                Spacer()
+            HStack(spacing: Theme.Metrics.gap + 4) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(palettes.style))
+                    .frame(width: Theme.Metrics.glyph,
+                           height: Theme.Metrics.glyph)
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
                 if let badge {
                     Text(badge)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
+            .frame(minHeight: Theme.Metrics.hit)
             .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
@@ -2038,35 +2074,44 @@ struct MoreView: View {
     // aktiven Einschalten, nie beim Start.
 
     private var notificationSettingsSection: some View {
-        Group {
+        Section {
+            VStack(alignment: .leading, spacing: 0) {
+                notificationOptOutRows
+                notificationDivider
+                dailySummaryRows
+                notificationDivider
+                weeklySummaryRows
+                notificationDivider
+                motivationRows
+            }
+            .padding(.horizontal, Theme.Metrics.cardPadding)
+            .padding(.vertical, Theme.Metrics.cardPadding)
+        } header: {
             Text(String(localized: "Mitteilungen"))
-                .font(.headline)
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
-                                          leading: Theme.Metrics.gutter,
-                                          bottom: 0,
-                                          trailing: Theme.Metrics.gutter))
-            notificationOptOutRows
-                .settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            dailySummaryRows
-                .settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            weeklySummaryRows
-                .settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            motivationRows
-                .settingsRowSurface()
-                .listRowInsets(moreRowInsets)
+                .textCase(nil)
         }
+        .settingsRowSurface()
+        .listRowInsets(moreRowInsets)
+    }
+
+    private var notificationDivider: some View {
+        Divider()
+            .opacity(0.55)
+            .padding(.leading, notificationDetailsInset)
+            .padding(.vertical, 3)
+    }
+
+    private var notificationDetailsInset: CGFloat {
+        Theme.Metrics.glyph + Theme.Metrics.gap
     }
 
     private var notificationOptOutRows: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: dndEnabled) {
-                Label(NotificationDNDPresentation.title,
-                      systemImage: NotificationDNDPresentation.symbolName)
+                notificationLabel(NotificationDNDPresentation.title,
+                                  symbol: NotificationDNDPresentation.symbolName)
             }
                 .accessibilityIdentifier("dnd-toggle")
             if dndActive {
@@ -2077,14 +2122,17 @@ struct MoreView: View {
                 }
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("dnd-duration-picker")
+                .padding(.leading, notificationDetailsInset)
                 if notificationDND.mode == .custom {
                     DatePicker(String(localized: "Bis"), selection: dndCustomDateBinding,
                                in: Date().addingTimeInterval(60)...)
                         .accessibilityIdentifier("dnd-custom-date")
+                        .padding(.leading, notificationDetailsInset)
                 }
                 Text(dndEndText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.leading, notificationDetailsInset)
             }
         }
         .padding(.vertical, Theme.Metrics.gap / 2)
@@ -2174,7 +2222,8 @@ struct MoreView: View {
     private var dailySummaryRows: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: dailyEnabled) {
-                Label(String(localized: "Tageszusammenfassung"), systemImage: "sun.max")
+                notificationLabel(String(localized: "Tageszusammenfassung"),
+                                  symbol: "sun.max")
             }
             .disabled(dndActive)
             .accessibilityIdentifier("summary-toggle")
@@ -2182,6 +2231,7 @@ struct MoreView: View {
                 DatePicker(String(localized: "Uhrzeit"),
                            selection: dailyTime,
                            displayedComponents: .hourAndMinute)
+                    .padding(.leading, notificationDetailsInset)
                     .accessibilityIdentifier("summary-time")
             }
             if summaryDenied { permissionHint }
@@ -2192,7 +2242,8 @@ struct MoreView: View {
     private var weeklySummaryRows: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: weeklyEnabled) {
-                Label(String(localized: "Wochenzusammenfassung"), systemImage: "calendar")
+                notificationLabel(String(localized: "Wochenzusammenfassung"),
+                                  symbol: "calendar")
             }
             .disabled(dndActive)
             .accessibilityIdentifier("weekly-summary-toggle")
@@ -2202,10 +2253,12 @@ struct MoreView: View {
                         Text(RecurrenceText.weekdayName(day)).tag(day)
                     }
                 }
+                .padding(.leading, notificationDetailsInset)
                 .accessibilityIdentifier("weekly-summary-weekday")
                 DatePicker(String(localized: "Uhrzeit"),
                            selection: weeklyTime,
                            displayedComponents: .hourAndMinute)
+                    .padding(.leading, notificationDetailsInset)
                     .accessibilityIdentifier("weekly-summary-time")
             }
             if weeklyDenied { permissionHint }
@@ -2216,48 +2269,79 @@ struct MoreView: View {
     private var motivationRows: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Toggle(isOn: motivationEnabled) {
-                Label(String(localized: "Tägliche Motivation"), systemImage: "quote.bubble")
+                notificationLabel(String(localized: "Tägliche Motivation"),
+                                  symbol: "quote.bubble")
             }
             .disabled(dndActive)
             .accessibilityIdentifier("motivation-toggle")
             if store.motivationMinutes != nil {
-                DatePicker(String(localized: "Uhrzeit"),
-                           selection: motivationTime,
-                           displayedComponents: .hourAndMinute)
-                    .accessibilityIdentifier("motivation-time")
-                Picker(String(localized: "Darstellung"), selection: motivationDelivery) {
-                    ForEach(MotivationDelivery.allCases, id: \.self) { delivery in
-                        Text(delivery.displayName).tag(delivery)
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+                    DatePicker(String(localized: "Uhrzeit"),
+                               selection: motivationTime,
+                               displayedComponents: .hourAndMinute)
+                        .accessibilityIdentifier("motivation-time")
+                    Picker(String(localized: "Darstellung"), selection: motivationDelivery) {
+                        ForEach(MotivationDelivery.allCases, id: \.self) { delivery in
+                            Text(delivery.displayName).tag(delivery)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("motivation-delivery")
+                    if store.motivationDelivery == .liveActivity {
+                        Text(String(localized: "Live-Aktivitäten starten, sobald hAiity einmal geöffnet wurde."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle(isOn: openSourceMotivationEnabled) {
+                        notificationLabel(String(localized: "Zusätzliche Motivation"),
+                                          symbol: "arrow.down.circle")
+                    }
+                    .accessibilityIdentifier("motivation-open-source-toggle")
+                    if store.openSourceMotivationEnabled {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Link(destination: URL(string: "https://github.com/mubaris/motivate")!) {
+                                Label(String(localized: "Quelle: mubaris/motivate · MIT-Lizenz"),
+                                      systemImage: "link")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            if let motivationFeedStatus {
+                                Text(motivationFeedStatus)
+                                    .font(.caption2)
+                                    .foregroundStyle(motivationFeedStatus == String(localized: "Fehler – integrierte Nachrichten bleiben aktiv") ? .orange : .secondary)
+                                    .accessibilityIdentifier("motivation-open-source-status")
+                            }
+                        }
+                        .padding(.top, 2)
                     }
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("motivation-delivery")
-                if store.motivationDelivery == .liveActivity {
-                    Text(String(localized: "Live-Aktivitäten starten, sobald hAiity einmal geöffnet wurde."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Toggle(isOn: openSourceMotivationEnabled) {
-                Label(String(localized: "Zusätzliche Motivation"), systemImage: "arrow.down.circle")
-            }
-            .accessibilityIdentifier("motivation-open-source-toggle")
-            Link(destination: URL(string: "https://github.com/mubaris/motivate")!) {
-                Label(String(localized: "Quelle: mubaris/motivate · MIT-Lizenz"), systemImage: "link")
-                    .font(.caption)
-            }
-            Text(String(localized: "Optional; ohne Internet bleiben integrierte Nachrichten aktiv."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if let motivationFeedStatus {
-                Text(motivationFeedStatus)
-                    .font(.caption)
-                    .foregroundStyle(motivationFeedStatus == String(localized: "Fehler – integrierte Nachrichten bleiben aktiv") ? .orange : .secondary)
-                    .accessibilityIdentifier("motivation-open-source-status")
+                .padding(.leading, notificationDetailsInset)
             }
             if motivationDenied { permissionHint }
         }
         .padding(.vertical, Theme.Metrics.gap / 2)
+    }
+
+    private func notificationSymbolSurface(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Theme.accentText(palettes.style))
+            .frame(width: Theme.Metrics.glyph,
+                   height: Theme.Metrics.glyph)
+            .background(
+                Theme.accentText(palettes.style).opacity(0.12),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private func notificationLabel(_ title: String, symbol: String) -> some View {
+        HStack(spacing: Theme.Metrics.gap + 4) {
+            notificationSymbolSurface(symbol)
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .layoutPriority(1)
+        }
     }
 
     private var openSourceMotivationEnabled: Binding<Bool> {
