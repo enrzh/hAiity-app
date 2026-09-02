@@ -36,6 +36,23 @@ struct SelectHabitIntent: WidgetConfigurationIntent {
     }
 }
 
+/// Die Hauptansicht kann auf dem Homescreen zwei eigene Karten zeigen. Beide
+/// Parameter bleiben optional, damit eine neue Widget-Instanz automatisch
+/// sinnvolle aktive Habits auswählt.
+struct SelectHaiityWidgetIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "hAiity"
+    static var description = IntentDescription("Zwei Habits oder Erinnerungen auswählen; leer bedeutet Automatisch.")
+    static var isDiscoverable: Bool { false }
+
+    @Parameter(title: "Element 1")
+    var first: HabitEntity?
+
+    @Parameter(title: "Element 2")
+    var second: HabitEntity?
+
+    init() {}
+}
+
 /// Dasselbe für die Steuerungselemente (Kontrollzentrum, iOS 18+).
 /// `ControlConfigurationIntent` ist ein eigener Typ als
 /// `WidgetConfigurationIntent` — deshalb steht hier ein zweiter, sehr kurzer

@@ -39,6 +39,7 @@ enum WidgetData {
                            defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
                            palettes: data.map { PaletteBook(global: $0.palette, customs: $0.customPalettes) }
                                ?? PaletteBook(),
+                           selected: items.first?.id,
                            widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true,
                            largeItems: items,
                            largeLayout: layout)
@@ -126,6 +127,29 @@ struct HaiityHabitProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: SelectHabitIntent, in context: Context) async -> Timeline<HaiityEntry> {
         WidgetData.timeline(selected: configuration.habit?.id)
+    }
+}
+
+/// Provider für die Hauptansicht. Die Auswahl wird einmal in `largeItems`
+/// aufgelöst; die View entscheidet danach nur noch anhand der Widget-Familie.
+struct HaiityWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> HaiityEntry { .demoLarge }
+
+    func snapshot(for configuration: SelectHaiityWidgetIntent,
+                  in context: Context) async -> HaiityEntry {
+        if context.isPreview { return .demoLarge }
+        return WidgetData.largeEntry(selectedIDs: [configuration.first?.id,
+                                                   configuration.second?.id],
+                                     limit: 2,
+                                     layout: .dual)
+    }
+
+    func timeline(for configuration: SelectHaiityWidgetIntent,
+                  in context: Context) async -> Timeline<HaiityEntry> {
+        WidgetData.largeTimeline(selectedIDs: [configuration.first?.id,
+                                                configuration.second?.id],
+                                  limit: 2,
+                                  layout: .dual)
     }
 }
 
@@ -224,8 +248,6 @@ struct HaiityWidgetBundle: WidgetBundle {
         HaiityWidget()
         HaiityGraphWidget()
         HaiityGitHubWidget()
-        HaiityLargeListWidget()
-        HaiityLargeGridWidget()
         HaiityRingWidget()
         HaiityStreakWidget()
         // Die Live-Aktivität einer laufenden Session (Sperrbildschirm +
@@ -244,28 +266,6 @@ struct HaiityWidgetBundle: WidgetBundle {
     }
 }
 
-struct HaiityLargeListWidget: Widget {
-    var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: "HaiityLargeListWidget", intent: LargeWidgetListIntent.self, provider: LargeListWidgetProvider()) { entry in
-            LargeListWidgetView(entry: entry)
-        }
-        .configurationDisplayName(String(localized: "Großes Widget: Liste"))
-        .description(String(localized: "Vier Habits als Liste."))
-        .supportedFamilies([.systemLarge])
-    }
-}
-
-struct HaiityLargeGridWidget: Widget {
-    var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: "HaiityLargeGridWidget", intent: LargeWidgetGridIntent.self, provider: LargeGridWidgetProvider()) { entry in
-            LargeGridWidgetView(entry: entry)
-        }
-        .configurationDisplayName(String(localized: "Großes Widget: Raster"))
-        .description(String(localized: "Sechs Habits im Raster."))
-        .supportedFamilies([.systemLarge])
-    }
-}
-
 // MARK: – Homescreen
 
 /// Das ursprüngliche Widget: Name, Serie, heutiger Zustand, Raster und
@@ -273,13 +273,13 @@ struct HaiityLargeGridWidget: Widget {
 struct HaiityWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: "HaiityWidget",
-                               intent: SelectHabitIntent.self,
-                               provider: HaiityHabitProvider()) { entry in
+                               intent: SelectHaiityWidgetIntent.self,
+                               provider: HaiityWidgetProvider()) { entry in
             HaiityWidgetView(entry: entry)
         }
         .configurationDisplayName("hAiity")
-        .description(String(localized: "Ein Habit mit Serie, heutigem Stand und Abhak-Knopf."))
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description(String(localized: "Zwei Habits oder Erinnerungen mit Stand und Abhak-Knöpfen."))
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 

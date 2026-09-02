@@ -4,12 +4,44 @@ import XCTest
 @testable import Haiity
 
 final class GitHubWidgetTests: XCTestCase {
-    func testTwoLargeWidgetsAreRegisteredAndFocusIsNotInGallery() throws {
+    func testHaiityWidgetOffersTwoSelectableItemsForItsLargeFamily() throws {
+        let widget = try source("HaiityWidget/HaiityWidget.swift")
+        let view = try source("HaiityWidget/HaiityWidgetView.swift")
+        let intent = try source("Haiity/Intents/SelectHabitIntent.swift")
+
+        XCTAssertTrue(intent.contains("struct SelectHaiityWidgetIntent: WidgetConfigurationIntent"))
+        XCTAssertTrue(intent.contains("var first: HabitEntity?"))
+        XCTAssertTrue(intent.contains("var second: HabitEntity?"))
+        XCTAssertTrue(widget.contains("SelectHaiityWidgetIntent.self"))
+        XCTAssertTrue(view.contains("LargeDualWidgetView(entry: entry)"))
+        XCTAssertTrue(widget.contains(".supportedFamilies([.systemSmall, .systemMedium, .systemLarge])"))
+    }
+
+    func testHaiityLargePresentationUsesTwoFullCardsAndOmitsOpenCopy() throws {
+        let roster = try source("HaiityWidget/RosterWidgetView.swift")
+        let main = try source("HaiityWidget/HaiityWidgetView.swift")
+        XCTAssertTrue(roster.contains("struct LargeDualWidgetView"))
+        XCTAssertTrue(roster.contains("entry.largeItems.prefix(2)"))
+
+        let metricLine = try section(main, startingAt: "private func metricLine", endingAt: "private func statusTint")
+        XCTAssertTrue(metricLine.contains("summary.status == .open"))
+        XCTAssertTrue(metricLine.contains("EmptyView()"))
+    }
+
+    func testLargeListAndGridWidgetsAreNotRegisteredInTheGallery() throws {
         let source = try source("HaiityWidget/HaiityWidget.swift")
-        XCTAssertTrue(source.contains("HaiityLargeListWidget"))
-        XCTAssertTrue(source.contains("HaiityLargeGridWidget"))
+
+        XCTAssertFalse(source.contains("HaiityLargeListWidget()"))
+        XCTAssertFalse(source.contains("HaiityLargeGridWidget()"))
+        XCTAssertFalse(source.contains("struct HaiityLargeListWidget: Widget"))
+        XCTAssertFalse(source.contains("struct HaiityLargeGridWidget: Widget"))
+    }
+
+    func testLargeWidgetsAreNotRegisteredAndFocusIsNotInGallery() throws {
+        let source = try source("HaiityWidget/HaiityWidget.swift")
+        XCTAssertFalse(source.contains("HaiityLargeListWidget"))
+        XCTAssertFalse(source.contains("HaiityLargeGridWidget"))
         XCTAssertFalse(source.contains("HaiityLargeFocusWidget"))
-        XCTAssertEqual(source.components(separatedBy: ".supportedFamilies([.systemLarge])").count - 1, 2)
         XCTAssertFalse(source.contains("HaiityRosterWidget()"))
     }
 

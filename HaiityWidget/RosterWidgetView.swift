@@ -432,6 +432,7 @@ private extension View {
 private struct LargeFeaturedWidgetItem: View {
     let habit: Habit
     let entry: HaiityEntry
+    var maxWeeks: Int = 18
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
 
@@ -449,11 +450,17 @@ private struct LargeFeaturedWidgetItem: View {
         .font(.caption2).foregroundStyle(statusTint(summary.status, palette: palette)).lineLimit(1)
         let visualBand = Group {
             if habit.isReminder {
-                Label(summary.metricText, systemImage: "bell.fill")
-                    .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
-                    .minimumScaleFactor(0.8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                if summary.status == .open {
+                    Label("", systemImage: summary.metricSymbol)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                } else {
+                    Label(summary.metricText, systemImage: "bell.fill")
+                        .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+                        .minimumScaleFactor(0.8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                }
             } else {
-                TrailingGrid(habit: habit, maxWeeks: 18, today: today, radius: nil) { level in
+                TrailingGrid(habit: habit, maxWeeks: maxWeeks, today: today, radius: nil) { level in
                     HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -487,10 +494,14 @@ private struct LargeFeaturedWidgetItem: View {
 
     private func actions(summary: WidgetItemSummary, palette: PaletteStyle) -> some View {
         HStack(spacing: 3) {
-            Label(summary.metricText, systemImage: summary.metricSymbol)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if summary.status == .open && (summary.kind == .checkbox || summary.kind == .reminder) {
+                Color.clear.frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Label(summary.metricText, systemImage: summary.metricSymbol)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             switch summary.kind {
             case .yesNo:
                 largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
@@ -611,6 +622,28 @@ struct LargeListWidgetView: View {
         .padding(WidgetLogic.LargeGeometry.outerPadding)
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .largeWidgetBackground(entry: entry, scheme: scheme, mode: mode)
+    }
+}
+
+/// Die Hauptansicht des hAiity-Widgets im großen Format: zwei ausgewählte
+/// Karten mit derselben vollständigen Darstellung wie die bestehende Habit-
+/// Karte. Es gibt bewusst keine zusätzliche „Heute“-Kopfzeile, damit beide
+/// Karten den verfügbaren Platz für ihren Graphen nutzen.
+struct LargeDualWidgetView: View {
+    let entry: HaiityEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.compactListRowGap) {
+            if entry.largeItems.isEmpty {
+                Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
+            } else {
+                ForEach(entry.largeItems.prefix(2)) { habit in
+                    LargeFeaturedWidgetItem(habit: habit, entry: entry, maxWeeks: 24)
+                }
+            }
+        }
+        .padding(WidgetLogic.LargeGeometry.outerPadding)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 }
 

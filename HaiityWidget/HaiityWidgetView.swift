@@ -54,7 +54,9 @@ struct HaiityWidgetView: View {
     func content(family: WidgetFamily,
                  dark: Bool,
                  mode: WidgetRenderingMode = .fullColor) -> some View {
-        if let habit = entry.habit {
+        if family == .systemLarge {
+            LargeDualWidgetView(entry: entry)
+        } else if let habit = entry.habit {
             if habit.isReminder {
                 reminderContent(habit, family: family, dark: dark)
             } else {
@@ -183,17 +185,22 @@ struct HaiityWidgetView: View {
             + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))")
     }
 
+    @ViewBuilder
     private func metricLine(_ summary: WidgetItemSummary,
                             palette: PaletteStyle,
                             dark: Bool) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: summary.metricSymbol)
-            Text(verbatim: summary.metricText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+        if summary.status == .open && (summary.kind == .checkbox || summary.kind == .reminder) {
+            EmptyView()
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: summary.metricSymbol)
+                Text(verbatim: summary.metricText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(statusTint(summary.status, palette: palette, dark: dark))
         }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(statusTint(summary.status, palette: palette, dark: dark))
     }
 
     private func statusTint(_ status: WidgetStatus,

@@ -65,8 +65,8 @@ final class WidgetRenderingTests: XCTestCase {
     func testLargeRenderersCapAccessibilityDynamicTypeForFixedGeometry() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
-        XCTAssertEqual(roster.components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.accessibility1)").count - 1, 2,
-                       "list and focus roots must cap text to the widest non-overlapping accessibility size")
+        XCTAssertEqual(roster.components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.accessibility1)").count - 1, 3,
+                       "large roots must cap text to the widest non-overlapping accessibility size")
         XCTAssertEqual(grid.components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.accessibility1)").count - 1, 1,
                        "grid root must cap text to the widest non-overlapping accessibility size")
 
@@ -716,7 +716,7 @@ final class WidgetRenderingTests: XCTestCase {
 
     func testLargeProvidersUseLargeDemoPlaceholders() throws {
         let source = try self.source("HaiityWidget/HaiityWidget.swift")
-        XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 2)
+        XCTAssertEqual(source.components(separatedBy: "func placeholder(in context: Context) -> HaiityEntry { .demoLarge }").count - 1, 3)
     }
 
     func testLargeRenderersCoverSparseAndRepresentativeHabitKinds() throws {
@@ -833,6 +833,40 @@ final class WidgetRenderingTests: XCTestCase {
                            CGSize(width: 664, height: 712))
             XCTAssertGreaterThan(visiblePixelCount(dynamicType), 20)
         }
+    }
+
+    func testHaiityDualWidgetRendersTwoFullCardsInTheLargeCanvas() throws {
+        let today = DayKey.today()
+        var first = Habit(name: "Lesen", emoji: "L")
+        first.log[today] = 1
+        var second = Habit(name: "Sport", emoji: "S")
+        second.log[today] = 1
+        let entry = HaiityEntry(date: .now,
+                                habits: [first, second],
+                                largeItems: [first, second],
+                                largeLayout: .dual)
+
+        let image = try render(LargeDualWidgetView(entry: entry)
+            .background(Color.white)
+            .frame(width: 332, height: 356), to: "haiity-dual-large.png")
+        XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                       CGSize(width: 664, height: 712))
+
+        let scale: CGFloat = 2
+        let firstVisual = CGRect(x: 0,
+                                 y: (WidgetLogic.LargeGeometry.outerPadding
+                                     + WidgetLogic.LargeGeometry.featuredIdentityBandHeight) * scale,
+                                 width: image.size.width * scale,
+                                 height: WidgetLogic.LargeGeometry.featuredVisualBandHeight * scale)
+        let secondTop = WidgetLogic.LargeGeometry.outerPadding
+            + WidgetLogic.LargeGeometry.featuredListHeight
+            + WidgetLogic.LargeGeometry.compactListRowGap
+        let secondVisual = CGRect(x: 0,
+                                  y: (secondTop + WidgetLogic.LargeGeometry.featuredIdentityBandHeight) * scale,
+                                  width: image.size.width * scale,
+                                  height: WidgetLogic.LargeGeometry.featuredVisualBandHeight * scale)
+        XCTAssertGreaterThan(foregroundPixelCount(image, in: firstVisual), 20)
+        XCTAssertGreaterThan(foregroundPixelCount(image, in: secondVisual), 20)
     }
 
     func testListeDynamicTypeRegionsKeepEachRowBoundedAndReadable() throws {

@@ -97,6 +97,7 @@ enum LargeWidgetLayout: Equatable {
     case list
     case grid
     case focus
+    case dual
 }
 
 // MARK: – Der heutige Zustand EINES Habits
