@@ -827,20 +827,36 @@ final class WidgetRenderingTests: XCTestCase {
             let header = Int((WidgetLogic.LargeGeometry.featuredListHeaderHeight
                              + WidgetLogic.LargeGeometry.featuredListHeaderGap) * scale)
             let featuredHeight = Int(WidgetLogic.LargeGeometry.featuredListHeight * scale)
+            let featuredIdentityHeight = Int(WidgetLogic.LargeGeometry.featuredIdentityBandHeight * scale)
+            let featuredVisualHeight = Int(WidgetLogic.LargeGeometry.featuredVisualBandHeight * scale)
+            let featuredActionHeight = Int(WidgetLogic.LargeGeometry.featuredActionBandHeight * scale)
             let compactHeight = Int(WidgetLogic.LargeGeometry.compactListRowHeight * scale)
             let gap = Int(WidgetLogic.LargeGeometry.compactListRowGap * scale)
             let contentBottom = contentTop + Int(WidgetLogic.LargeGeometry.contentHeight * scale)
 
-            let featured = CGRect(x: 0, y: CGFloat(contentTop + header),
-                                  width: image.size.width * scale, height: CGFloat(featuredHeight))
-            XCTAssertGreaterThan(foregroundPixelCount(image, in: featured), 20,
-                                 "missing featured foreground at \(name)")
+            let featuredTop = contentTop + header
+            let featuredIdentity = CGRect(x: 0, y: CGFloat(featuredTop),
+                                          width: image.size.width * scale, height: CGFloat(featuredIdentityHeight))
+            let featuredVisual = CGRect(x: 0, y: CGFloat(featuredTop + featuredIdentityHeight),
+                                        width: image.size.width * scale, height: CGFloat(featuredVisualHeight))
+            let featuredActions = CGRect(x: 0, y: CGFloat(featuredTop + featuredHeight - featuredActionHeight),
+                                         width: image.size.width * scale, height: CGFloat(featuredActionHeight))
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: featuredIdentity), 2,
+                                 "missing featured identity foreground at \(name)")
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: featuredVisual), 20,
+                                 "missing featured visual foreground at \(name)")
+            XCTAssertGreaterThan(foregroundPixelCount(image, in: featuredActions), 8,
+                                 "missing featured action foreground at \(name)")
             for row in 0..<3 {
-                let rowTop = contentTop + header + featuredHeight + row * (compactHeight + gap)
-                let rowRect = CGRect(x: 0, y: CGFloat(rowTop),
-                                     width: image.size.width * scale, height: CGFloat(compactHeight))
-                XCTAssertGreaterThan(foregroundPixelCount(image, in: rowRect), 8,
-                                     "missing compact row foreground in row \(row) at \(name)")
+                let rowTop = featuredTop + featuredHeight + row * (compactHeight + gap)
+                let identity = CGRect(x: 0, y: CGFloat(rowTop),
+                                      width: image.size.width * scale, height: CGFloat(featuredIdentityHeight))
+                let actions = CGRect(x: 0, y: CGFloat(rowTop + compactHeight - featuredActionHeight),
+                                     width: image.size.width * scale, height: CGFloat(featuredActionHeight))
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: identity), 2,
+                                     "missing compact identity foreground in row \(row) at \(name)")
+                XCTAssertGreaterThan(foregroundPixelCount(image, in: actions), 8,
+                                     "missing compact action foreground in row \(row) at \(name)")
                 if row < 2 {
                     let interRow = CGRect(x: 0, y: CGFloat(rowTop + compactHeight),
                                           width: image.size.width * scale,

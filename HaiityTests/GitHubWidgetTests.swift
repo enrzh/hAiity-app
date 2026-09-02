@@ -82,10 +82,19 @@ final class GitHubWidgetTests: XCTestCase {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
 
-        XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
-        XCTAssertTrue(grid.contains("TrailingGrid(habit: habit"))
-        XCTAssertTrue(roster.contains("if habit.isReminder"))
-        XCTAssertTrue(grid.contains("if habit.isReminder"))
+        let featured = try section(roster,
+                                   startingAt: "private struct LargeFeaturedWidgetItem",
+                                   endingAt: "private struct LargeCompactWidgetRow")
+        let gridItem = try section(grid,
+                                   startingAt: "private struct LargeGridItem",
+                                   endingAt: "/// Gemeinsame Rasterbausteine")
+        for (name, item) in [("roster", featured), ("grid", gridItem)] {
+            let visualBand = try section(item, startingAt: "let visualBand = Group", endingAt: "let actionBand")
+            let reminderBranch = try section(visualBand, startingAt: "if habit.isReminder", endingAt: "} else")
+            XCTAssertTrue(reminderBranch.contains("Label"), "\(name) reminder branch must render timing")
+            XCTAssertFalse(reminderBranch.contains("TrailingGrid"), "\(name) reminder branch must be graph-free")
+            XCTAssertTrue(visualBand.contains("TrailingGrid(habit: habit"), "\(name) tracked branch must render a graph")
+        }
         XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habits)"))
         XCTAssertTrue(roster.contains("WidgetEmptyState()"))
         XCTAssertTrue(grid.contains("WidgetEmptyState()"))
