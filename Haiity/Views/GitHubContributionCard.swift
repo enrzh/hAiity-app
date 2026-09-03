@@ -8,65 +8,92 @@ struct GitHubContributionCard: View, Equatable {
         a.snapshot == b.snapshot
             && a.collapsed == b.collapsed
             && a.showsUsername == b.showsUsername
+            && a.showsMonthLabels == b.showsMonthLabels
     }
 
     let snapshot: GitHubContributionSnapshot
     var collapsed: Bool = false
     let showsUsername: Bool
+    let showsMonthLabels: Bool
     let openProfile: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.palettes) private var palettes
     @State private var isContextMenuVisible = false
 
     private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
-    private var innerGap: CGFloat { collapsed ? 4 : Theme.Metrics.gap }
     private var outerGap: CGFloat { collapsed ? 12 : Theme.Metrics.gutter }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: innerGap) {
+        cardSurface
+            .padding(.top, 4)
+            .padding(.bottom, outerGap)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("github-contribution-card")
+    }
+
+    private var cardSurface: some View {
+        VStack(alignment: .leading, spacing: 0) {
             if showsUsername {
                 header
+                Divider()
+                    .opacity(0.45)
+                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
+                    .padding(.vertical, 4)
             }
             graph
         }
-        .padding(.top, 4)
-        .padding(.bottom, outerGap)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("github-contribution-card")
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .padding(.vertical, Theme.Metrics.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .opacity(isContextMenuVisible ? 0 : 1)
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                       style: .continuous))
+        .overlay {
+            GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                             previewWidth: previewWidth,
+                             previewHeight: previewHeight,
+                             preview: { AnyView(cardPreview) },
+                             actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
+                                                       symbol: "arrow.up.right.square",
+                                                       handler: openProfile)],
+                             commit: openProfile,
+                             onMenuVisibilityChanged: { visible in
+                                 isContextMenuVisible = visible
+                             })
+        }
+        .accessibilityIdentifier("github-grid")
     }
 
     private var header: some View {
-        Text(snapshot.username)
-            .font(collapsed ? .subheadline.weight(.semibold) : .headline)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .leading)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("github-username")
+        HStack(spacing: 10) {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.accentText(palettes.style))
+                .frame(width: 28, height: 28)
+                .background(Theme.accentFill(palettes.style).opacity(0.14),
+                            in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                }
+            Text(snapshot.username)
+                .font(collapsed ? .subheadline.weight(.semibold) : .headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .leading)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("github-username")
     }
 
     private var graph: some View {
-        GitHubContributionGraph(days: snapshot.days)
-            .padding(Theme.Metrics.cardPadding)
+        GitHubContributionGraph(days: snapshot.days,
+                                showsMonthLabels: showsMonthLabels)
+            .equatable()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface()
-            .opacity(isContextMenuVisible ? 0 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                           style: .continuous))
-            .overlay {
-                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                                 previewWidth: previewWidth,
-                                 previewHeight: previewHeight,
-                                 preview: { AnyView(cardPreview) },
-                                 actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
-                                                           symbol: "arrow.up.right.square",
-                                                           handler: openProfile)],
-                                 commit: openProfile,
-                                 onMenuVisibilityChanged: { visible in
-                                     isContextMenuVisible = visible
-                                 })
-            }
-            .accessibilityIdentifier("github-grid")
     }
 
     private var previewWidth: CGFloat {
@@ -89,11 +116,13 @@ struct GitHubContributionCard: View, Equatable {
     private static let previewGraphGap: CGFloat = 2
 
     private var cardPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             if showsUsername {
-                Text(snapshot.username)
-                    .font(.headline)
-                    .lineLimit(1)
+                header
+                Divider()
+                    .opacity(0.45)
+                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
+                    .padding(.vertical, 4)
             }
             GitHubContributionGraph(days: snapshot.days,
                                     // A recent window keeps the seven GitHub
@@ -104,7 +133,8 @@ struct GitHubContributionCard: View, Equatable {
                                     showsMonthLabels: false,
                                     interactive: false)
         }
-        .padding(Theme.Metrics.gutter)
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .padding(.vertical, Theme.Metrics.cardPadding)
         .frame(width: previewWidth)
         .accessibilityIdentifier("github-preview")
     }

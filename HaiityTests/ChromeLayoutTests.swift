@@ -43,6 +43,16 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertTrue(nativeSource.contains("TabView(selection: $nativeTab)"))
     }
 
+    func testSortingModeAddsEdgeAutoScrollWithoutEnablingItElsewhere() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+
+        XCTAssertTrue(content.contains("sortingAutoScrollTask"))
+        XCTAssertTrue(content.contains("simultaneousGesture("))
+        XCTAssertTrue(content.contains("DragGesture(minimumDistance: 1)"))
+        XCTAssertTrue(content.contains("editMode == .active"))
+        XCTAssertTrue(content.contains("proxy.scrollTo"))
+    }
+
     // MARK: – Wohin der Anlegen-Knopf fährt
 
     func testFallbackSelectorContainsTwoMinimumHitTargets() {

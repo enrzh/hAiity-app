@@ -96,6 +96,22 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(more.contains("notificationDetailsInset"))
     }
 
+    func testMotivationSourceLinkCannotOwnTheWholeNotificationGroup() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"))
+        XCTAssertTrue(more.contains("Text(String(localized: \"Quelle: mubaris/motivate · MIT-Lizenz\"))"),
+                      "the source label must remain visible")
+        XCTAssertTrue(more.contains("Button(action: openMotivationSource)"),
+                      "the source action must be an explicit local control")
+        XCTAssertTrue(more.contains(".buttonStyle(.borderless)"),
+                      "the source button must keep its intrinsic hit target")
+        XCTAssertFalse(more.contains(".onTapGesture(perform: openMotivationSource)"),
+                       "a gesture on the source label can expand across the List row")
+        XCTAssertFalse(more.contains("Link(destination: URL(string: \"https://github.com/mubaris/motivate\")!"),
+                       "a SwiftUI Link can expand its hit region across the List row")
+    }
+
     func testDoNotDisturbUsesOneLocalizedPresentationSource() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let reminders = try source("Haiity/Services/Reminders.swift")

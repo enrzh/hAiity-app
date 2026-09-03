@@ -40,6 +40,7 @@ private struct PendingReminderCompletion: Equatable {
 struct ContentView: View {
     @State private var store = HabitStore(loadFromDisk: false)
     @State private var github = GitHubContributionStore()
+    @State private var graphShowsMonthLabels = GitHubPreferences.showsMonthLabels
     /// iCloud-Spiegel. Der lokale Stand in `store` ist die Wahrheit; das hier
     /// trägt ihn nur zur Apple-ID hinüber (siehe CloudSync).
     @State private var cloud = CloudSync()
@@ -99,6 +100,7 @@ struct ContentView: View {
     /// Bleibt bis zum gemeinsamen sheet-onDismiss wahr. Damit startet eine
     /// Ersatzroute weder im Abgang des Fallback- noch des nativen Blatts.
     @State private var moreSheetIsPresented = false
+    @State private var moreRoutePresentationTask: Task<Void, Never>?
     /// Das Unterziel bleibt während des Abgangs bekannt. So kann dieselbe
     /// Route vom bereits sichtbaren Ziel unterschieden werden, ohne neu zu
     /// präsentieren.
@@ -118,6 +120,11 @@ struct ContentView: View {
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
     @State private var search = ""
+    @State private var searchPresentationTask: Task<Void, Never>?
+    /// Keeps keystrokes out of the large lazy list until the user pauses.
+    @State private var committedSearch = ""
+    @State private var searchCommitTask: Task<Void, Never>?
+    @State private var searchCloseTask: Task<Void, Never>?
     @State private var habitFilter = HabitListFilter()
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
@@ -130,6 +137,8 @@ struct ContentView: View {
     /// Explicit sorting mode for the habit list. Long press remains reserved
     /// for the card preview and its actions.
     @State private var editMode: EditMode = .inactive
+    @State private var sortingAutoScrollTask: Task<Void, Never>?
+    @State private var sortingAutoScrollDirection: Int?
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
     /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
     @State private var chrome = ChromeScrollBox()
@@ -163,8 +172,9 @@ struct ContentView: View {
     /// The store retains the complete payload; the current entitlement decides
     /// which active entries the main app exposes.
     private var visibleActiveHabits: [Habit] {
-        ProGate.visibleActiveHabits(store.activeHabits,
-                                    unlocked: Pro.isUnlocked)
+        _ = proStatus.heartbeat
+        return ProGate.visibleActiveHabits(store.activeHabits,
+                                           unlocked: Pro.isUnlocked)
     }
 
     private var visibleActiveTrackedHabits: [Habit] {
@@ -178,6 +188,15 @@ struct ContentView: View {
     private var githubUsernameBinding: Binding<Bool> {
         Binding(get: { store.githubShowsUsername },
                 set: { store.githubShowsUsername = $0 })
+    }
+
+    private var githubMonthLabelsBinding: Binding<Bool> {
+        Binding(get: { graphShowsMonthLabels },
+                set: { value in
+                    graphShowsMonthLabels = value
+                    GitHubPreferences.setShowsMonthLabels(value,
+                                                          in: GitHubPreferences.defaults)
+                })
     }
 
     private static let listSpace = "habit-list"
@@ -312,7 +331,7 @@ struct ContentView: View {
             .sheet(item: $moreSheet,
                    onDismiss: deliverPendingMoreDismissalRoute) { route in
                 NavigationStack {
-                    moreDestination(route)
+                    moreSheetRoot(fallback: route)
                         .navigationDestination(for: MoreRoute.self, destination: moreDestination)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
@@ -413,13 +432,7 @@ struct ContentView: View {
             }
             .onChange(of: proStatus.unlocked) { old, new in
                 applyCloudPreferences()
-                guard old && !new else { return }
-                // StoreKit can revoke an entitlement while the app is alive.
-                // Surface the same global gate used by the feature limits so
-                // the user is not left inside a stale Pro-only surface until
-                // the next launch.
-                guard paywall == nil else { return }
-                paywall = .settings
+                handleProEntitlementChange(old: old, new: new)
             }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
@@ -435,12 +448,22 @@ struct ContentView: View {
             }
             .onChange(of: search) { _, query in
                 if !query.isEmpty { editMode = .inactive }
+                searchCommitTask?.cancel()
+                let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                searchCommitTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(140))
+                    guard !Task.isCancelled else { return }
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { committedSearch = trimmed }
+                }
             }
             .onChange(of: habitFilter) { _, filter in
                 if !filter.isEmpty { editMode = .inactive }
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
+                if tab != .search { searchPresentationTask?.cancel() }
                 // Wohin das Zuklappen der Suche zurückkehrt: der letzte
                 // echte Bereich, nicht stur „Habits".
                 if tab != .search { lastNonSearchTab = tab }
@@ -507,6 +530,8 @@ struct ContentView: View {
                 // `searchFocused`-Binding wahr, präsentiert das System das
                 // Feld sofort wieder (X → Kreis → Leiste klappt wieder auf).
                 if !open {
+                    searchPresentationTask?.cancel()
+                    searchPresentationTask = nil
                     if SearchFlow.closeCleanup.clearFocus { searchFieldFocused = false }
                     if SearchFlow.closeCleanup.clearQuery { clearSearchTextAfterCollapse() }
                     // Zuklappen heißt VERLASSEN: zurück auf den vorherigen
@@ -582,27 +607,30 @@ struct ContentView: View {
     /// nur, wenn er wirklich ein Zuklappen misst.
     @available(iOS 26, *)
     private var nativeShell: some View {
-        TabView(selection: $nativeTab) {
-            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
-                value: AppTab.stats) {
-                nativeTabRoot { statsTabContent }
+        ZStack {
+            TabView(selection: $nativeTab) {
+                Tab(String(localized: "Statistik"), systemImage: "chart.bar",
+                    value: AppTab.stats) {
+                    nativeTabRoot { statsTabContent }
+                }
+                Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                    value: AppTab.habits) {
+                    nativeTabRoot { habitsTabContent }
+                }
+                Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                    value: AppTab.more) {
+                    nativeTabRoot { moreTabContent }
+                }
+                // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
+                // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
+                Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                    value: AppTab.search, role: .search) {
+                    nativeTabRoot { searchTabContent }
+                }
             }
-            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
-                value: AppTab.habits) {
-                nativeTabRoot { habitsTabContent }
-            }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) {
-                nativeTabRoot { moreTabContent }
-            }
-            // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
-            // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
-            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
-                value: AppTab.search, role: .search) {
-                nativeTabRoot { searchTabContent }
-            }
+            .tabBarMinimizeBehavior(.onScrollDown)
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @available(iOS 26, *)
@@ -626,6 +654,7 @@ struct ContentView: View {
             content()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.appearanceBackgroundOwned, true)
     }
 
     /// The native tab bar paints outside a TabView's content overlay. Keep
@@ -662,19 +691,23 @@ struct ContentView: View {
     private var searchTabContent: some View {
         NavigationStack {
             nativePageRoot {
-                Group {
-                    if visibleActiveHabits.isEmpty {
-                        emptyState
-                    } else {
-                        searchList
+                // The native TabView may keep non-selected tabs alive. Do
+                // not keep a second graph-heavy list mounted off screen.
+                if nativeTab == .search {
+                    Group {
+                        if visibleActiveHabits.isEmpty {
+                            emptyState
+                        } else {
+                            searchList
+                        }
                     }
+                    .navigationTitle(String(localized: "Suchen"))
+                    .navigationBarTitleDisplayMode(.large)
+                    .searchable(text: $search,
+                                isPresented: $searching,
+                                prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
+                    .searchFocused($searchFieldFocused)
                 }
-                .navigationTitle(String(localized: "Suchen"))
-                .navigationBarTitleDisplayMode(.large)
-                .searchable(text: $search,
-                            isPresented: $searching,
-                            prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
-                .searchFocused($searchFieldFocused)
             }
         }
         .navigationChrome()
@@ -721,6 +754,7 @@ struct ContentView: View {
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
                          statsCards: viewPreferences,
                          onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken)
             }
         }
@@ -728,7 +762,7 @@ struct ContentView: View {
         .sheet(item: $morePageRoute,
                onDismiss: deliverPendingMoreDismissalRoute) { route in
             NavigationStack {
-                moreDestination(route)
+                moreSheetRoot(fallback: route)
                     // Die versteckte Tür in „Über" SCHIEBT den
                     // Entwicklerbereich in dieses Blatt (siehe MoreRoute).
                     .navigationDestination(for: MoreRoute.self, destination: moreDestination)
@@ -739,6 +773,7 @@ struct ContentView: View {
                         }
                     }
             }
+            .id("more-sheet-\(route)")
             .navigationChrome()
             .themed(store, palettes: effectivePalettes)
             .environment(\.appearanceBackgroundOwned, false)
@@ -751,6 +786,7 @@ struct ContentView: View {
             MoreView(store: store, github: github, cloudStatus: cloudStatus,
                      statsCards: viewPreferences,
                      onOpen: presentMoreSheet,
+                     graphShowsMonthLabels: githubMonthLabelsBinding,
                      routeToken: routeToken)
         }
         .navigationChrome()
@@ -844,18 +880,22 @@ struct ContentView: View {
             case .about: AboutView(store: store)
             case .github:
                 GitHubSettingsView(store: github,
-                                   showsUsername: githubUsernameBinding)
+                                   showsUsername: githubUsernameBinding,
+                                   showsMonthLabels: githubMonthLabelsBinding)
             case .appearance:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .appearance)
             case .habitBehavior:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .habitBehavior)
             case .timeZone:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .timeZone)
             // Check ownership at the destination too, not only at the row that
             // opens it. A stale local flag must never build this page.
@@ -866,6 +906,15 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func moreSheetRoot(fallback: MoreRoute) -> some View {
+        // The sheet item is the source of truth. Reading a second, delayed
+        // destination state let a new Darstellung sheet reuse Verhalten's
+        // already-mounted view tree.
+        moreDestination(fallback)
+            .id("more-destination-\(fallback)")
     }
 
     // MARK: – Schütteln meldet einen Fehler
@@ -937,17 +986,22 @@ struct ContentView: View {
     /// Präsentation (nachgemessen, gilt unverändert).
     private func openSearch(origin: SearchOpenOrigin, routeGeneration: Int? = nil) {
         trace("openSearch(\(origin)) showAdd=\(showAdd)")
+        searchPresentationTask?.cancel()
         // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
         // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
         chrome.searchFlow.userOpened()
         if #available(iOS 26, *), nativeTab != .search { nativeTab = .search }
-        DispatchQueue.main.async {
-            guard routeWorkIsCurrent(routeGeneration) else { return }
-            withAnimation { searching = true }
-            DispatchQueue.main.async {
-                guard routeWorkIsCurrent(routeGeneration) else { return }
-                searchFieldFocused = true
-            }
+        searchPresentationTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled, nativeTab == .search, !showAdd,
+                  routeWorkIsCurrent(routeGeneration) else { return }
+            // `searchable` owns the system transition. A second animation
+            // makes iOS 27 animate the tab chrome and field twice.
+            searching = true
+            await Task.yield()
+            guard !Task.isCancelled, nativeTab == .search, !showAdd,
+                  routeWorkIsCurrent(routeGeneration) else { return }
+            searchFieldFocused = true
         }
     }
 
@@ -1001,15 +1055,22 @@ struct ContentView: View {
     /// gemeldet). Verzögert und ohne Animation ist das Auffüllen reine
     /// Buchhaltung hinter einer bereits ruhigen Oberfläche.
     private func clearSearchTextAfterCollapse() {
-        guard !search.isEmpty else { return }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(450))
+        guard !search.isEmpty || !committedSearch.isEmpty else { return }
+        searchCommitTask?.cancel()
+        searchCloseTask?.cancel()
+        searchCloseTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
             // Wieder offen (oder längst geleert): nichts anfassen — sonst
             // frisst der Nachzügler eine frisch getippte Suche.
             guard !searching else { return }
             var transaction = Transaction()
             transaction.disablesAnimations = true
-            withTransaction(transaction) { search = "" }
+            withTransaction(transaction) {
+                search = ""
+                committedSearch = ""
+            }
+            searchCloseTask = nil
         }
     }
 
@@ -1018,12 +1079,15 @@ struct ContentView: View {
     /// transaction makes iOS 27 briefly interpolate a detached glass circle
     /// through the content area.
     private func returnFromSearchAfterCollapse() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(420))
+        searchCloseTask?.cancel()
+        searchCloseTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(90))
+            guard !Task.isCancelled else { return }
             guard !searching, nativeTab == .search else { return }
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { nativeTab = lastNonSearchTab }
+            searchCloseTask = nil
         }
     }
 
@@ -1033,7 +1097,10 @@ struct ContentView: View {
     private func redirectBackfillFromSearch(_ habit: Habit, day: String) {
         if searching { searching = false }
         searchFieldFocused = false
+        searchCommitTask?.cancel()
+        searchCloseTask?.cancel()
         search = ""
+        committedSearch = ""
         nativeTab = .habits
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
@@ -1043,7 +1110,7 @@ struct ContentView: View {
 
     private var filteredHabits: [Habit] {
         let active = listFilteredHabits
-        let q = search.trimmingCharacters(in: .whitespaces)
+        let q = committedSearch
         guard !q.isEmpty else { return active }
         return active.filter {
             $0.name.localizedCaseInsensitiveContains(q) || $0.emoji.contains(q)
@@ -1143,7 +1210,7 @@ struct ContentView: View {
     }
 
     private var canSortHabits: Bool {
-        search.isEmpty && habitFilter.isEmpty
+        committedSearch.isEmpty && habitFilter.isEmpty
     }
 
     @ViewBuilder
@@ -1217,41 +1284,54 @@ struct ContentView: View {
 
     private var habitList: some View {
         ScrollViewReader { proxy in
-            List {
-                RootPageTitle(title: String(localized: "Habits"))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                if let snapshot = github.snapshot {
-                    GitHubContributionCard(snapshot: snapshot,
-                                           collapsed: collapsed,
-                                           showsUsername: store.githubShowsUsername,
-                                           openProfile: { GitHubLink.open(snapshot.profileURL) })
-                        .equatable()
+            GeometryReader { viewport in
+                List {
+                    RootPageTitle(title: String(localized: "Habits"))
+                        .id("habit-list-top")
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 0,
-                                                  leading: Theme.Metrics.gutter,
-                                                  bottom: 0,
-                                                  trailing: Theme.Metrics.gutter))
-                }
-                if habitsTabSource.isEmpty {
-                    if github.snapshot == nil || !search.isEmpty {
-                        ContentUnavailableView.search(text: search)
+                        .listRowInsets(EdgeInsets())
+                    if let snapshot = github.snapshot {
+                        GitHubContributionCard(snapshot: snapshot,
+                                               collapsed: collapsed,
+                                               showsUsername: store.githubShowsUsername,
+                                               showsMonthLabels: graphShowsMonthLabels,
+                                               openProfile: { GitHubLink.open(snapshot.profileURL) })
+                            .equatable()
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0,
+                                                      leading: Theme.Metrics.gutter,
+                                                      bottom: 0,
+                                                      trailing: Theme.Metrics.gutter))
                     }
-                } else {
-                    ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
-                        // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
-                        // da und damit der stabile Anker der Scroll-Messung).
-                        row(for: habit, index: index + 1)
-                            .id(habit.id)
+                    if habitsTabSource.isEmpty {
+                        if github.snapshot == nil || !search.isEmpty {
+                            ContentUnavailableView.search(text: search)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
+                    } else {
+                        ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
+                            // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
+                            // da und damit der stabile Anker der Scroll-Messung).
+                            row(for: habit, index: index + 1)
+                                .id(rowIdentity(habit))
+                        }
+                        .onMove(perform: canSortHabits && editMode == .active
+                            ? { store.move(fromOffsets: $0, toOffset: $1) }
+                            : nil)
                     }
-                    .onMove(perform: canSortHabits && editMode == .active
-                        ? { store.move(fromOffsets: $0, toOffset: $1) }
-                        : nil)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .modifier(SortingAutoScrollModifier(
+                    enabled: editMode == .active && canSortHabits,
+                    onChanged: { value in
+                        sortingAutoScroll(locationY: value.location.y,
+                                          viewportHeight: viewport.size.height,
+                                          proxy: proxy)
+                    },
+                    onEnded: stopSortingAutoScroll))
             }
             .onAppear { scrollToRequestedHabit(using: proxy) }
             .onChange(of: requestedHabitID) { _, _ in
@@ -1262,6 +1342,13 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        // Row insertion/removal must stay instantaneous while the user
+        // scrolls. Explicit edits and the search field own their animations.
+        .transaction { transaction in
+            if editMode != .active {
+                transaction.animation = nil
+            }
+        }
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
@@ -1280,6 +1367,9 @@ struct ContentView: View {
         }
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
+        }
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: rootTitleProgress)
         }
     }
 
@@ -1329,6 +1419,11 @@ struct ContentView: View {
         DayKey.today(calendar: habitCalendar(for: habit))
     }
 
+    private func rowIdentity(_ habit: Habit) -> String {
+        guard habit.isReminder else { return habit.id.uuidString }
+        return "\(habit.id.uuidString)-\(habit.log[habitToday(habit)] ?? -1)-\(habit.reminderCursor ?? "")"
+    }
+
     private func enableSorting() {
         withAnimation { editMode = .active }
     }
@@ -1338,7 +1433,74 @@ struct ContentView: View {
         let calendar = habitCalendar(for: habit)
         let today = DayKey.today(calendar: calendar)
         let day = habit.recurrence.schedule(calendar: calendar).first(onOrAfter: today) ?? today
-        store.add(habit.oneTimeCopy(on: day))
+        store.add(habit.oneTimeCopy(on: day), after: habit.id)
+    }
+
+    private func sortingAutoScroll(locationY: CGFloat,
+                                   viewportHeight: CGFloat,
+                                   proxy: ScrollViewProxy) {
+        guard editMode == .active, canSortHabits else {
+            stopSortingAutoScroll()
+            return
+        }
+
+        let edge = min(128, max(72, viewportHeight * 0.16))
+        let direction: Int
+        if locationY < edge {
+            direction = -1
+        } else if locationY > viewportHeight - edge {
+            direction = 1
+        } else {
+            stopSortingAutoScroll()
+            return
+        }
+
+        guard sortingAutoScrollDirection != direction || sortingAutoScrollTask == nil else {
+            return
+        }
+        stopSortingAutoScroll()
+        sortingAutoScrollDirection = direction
+        sortingAutoScrollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                let visibleIndexes = chrome.rowFrames.keys
+                    .filter { $0 > 0 && habitsTabSource.indices.contains($0 - 1) }
+                guard !visibleIndexes.isEmpty else {
+                    try? await Task.sleep(for: .milliseconds(80))
+                    continue
+                }
+                let target: String?
+                if direction < 0 {
+                    let first = visibleIndexes.min() ?? 1
+                    if first <= 1 {
+                        target = "habit-list-top"
+                    } else {
+                        let candidate = first - 2
+                        target = habitsTabSource.indices.contains(candidate)
+                            ? rowIdentity(habitsTabSource[candidate]) : nil
+                    }
+                } else {
+                    let last = visibleIndexes.max() ?? -1
+                    let candidate = last
+                    target = habitsTabSource.indices.contains(candidate)
+                        ? rowIdentity(habitsTabSource[candidate]) : nil
+                }
+                if let target {
+                    let distance = direction < 0 ? locationY : viewportHeight - locationY
+                    let intensity = max(0.25, min(1, (edge - distance) / edge))
+                    let duration = 0.18 - (0.08 * intensity)
+                    withAnimation(.linear(duration: duration)) {
+                        proxy.scrollTo(target, anchor: direction < 0 ? .top : .bottom)
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    private func stopSortingAutoScroll() {
+        sortingAutoScrollTask?.cancel()
+        sortingAutoScrollTask = nil
+        sortingAutoScrollDirection = nil
     }
 
     // Die Statistik-Karten über dem Titel sind in den eigenen
@@ -1368,7 +1530,10 @@ struct ContentView: View {
                         calendar: habitCalendar(for: habit),
                         leadingSwipe: reveal.leading,
                         trailingSwipe: reveal.trailing)
-                .equatable()
+                // Keep the row identity stable. The reminder's value and
+                // cursor are ordinary inputs, so SwiftUI updates the button
+                // state without leaving XCTest/VoiceOver with a stale node.
+                .id("reminder-row-\(habit.id.uuidString)")
                 .background { if !inSearchTab { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -1381,6 +1546,7 @@ struct ContentView: View {
             HabitCard(
                 habit: habit,
                 collapsed: collapsed,
+                showsMonthLabels: graphShowsMonthLabels,
                 onToggleDay: { toggleDay(habit, day: $0) },
                 onBackfill: {
                     if inSearchTab { redirectBackfillFromSearch(habit, day: habitToday(habit)) }
@@ -1621,14 +1787,15 @@ struct ContentView: View {
     }
 
     private func requestReminderCompletion(_ reminder: Habit) {
-        let calendar = habitCalendar(for: reminder)
-        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
+        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        let calendar = habitCalendar(for: current)
+        let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
         guard let occurrence = state.actionable else { return }
         if occurrence.dueDate > .now {
-            earlyReminderCompletion = PendingReminderCompletion(habitID: reminder.id,
+            earlyReminderCompletion = PendingReminderCompletion(habitID: current.id,
                                                                 day: occurrence.day)
         } else {
-            completeReminder(reminder, occurrence: occurrence)
+            completeReminder(current, occurrence: occurrence)
         }
     }
 
@@ -1649,21 +1816,28 @@ struct ContentView: View {
     }
 
     private func completeReminder(_ reminder: Habit, occurrence: ReminderOccurrence) {
-        let calendar = habitCalendar(for: reminder)
-        let cursor = reminder.repeatsWhileIncomplete ? nil
+        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        let calendar = habitCalendar(for: current)
+        let cursor = current.repeatsWhileIncomplete ? nil
             : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
-                                                             reminder: reminder,
+                                                             reminder: current,
                                                              calendar: calendar)
-        store.setReminderCompletion(reminder.id, day: occurrence.day,
+        store.setReminderCompletion(current.id, day: occurrence.day,
                                     completed: true, nextCursor: cursor)
         Theme.Haptics.check()
     }
 
     private func revertReminder(_ reminder: Habit) {
-        let calendar = habitCalendar(for: reminder)
-        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
-        guard let completed = state.mostRecentCompleted else { return }
-        store.setReminderCompletion(reminder.id, day: completed.day,
+        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        let calendar = habitCalendar(for: current)
+        let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
+        // Use the current log as a fallback for a reused List action. The
+        // occurrence projection can briefly lag the store while a reminder
+        // row is being re-keyed after completion, but the log still contains
+        // the exact occurrence that must be reverted.
+        guard let completedDay = state.mostRecentCompleted?.day
+                ?? current.log.keys.sorted().last else { return }
+        store.setReminderCompletion(current.id, day: completedDay,
                                     completed: false, nextCursor: nil)
         Theme.Haptics.select()
     }
@@ -2269,12 +2443,47 @@ struct ContentView: View {
     }
 
     private func presentMoreSheet(_ route: MoreRoute) {
-        presentedMoreDestination = appMoreDestination(for: route)
         if #available(iOS 26, *) {
-            morePageRoute = route
+            moreRoutePresentationTask?.cancel()
+            // A presented sheet keeps its original content closure alive when
+            // its item changes. Unmount first, then present the new route so
+            // Darstellung can never reuse Verhalten & Teilen's view tree.
+            if morePageRoute != nil {
+                morePageRoute = nil
+                moreRoutePresentationTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(220))
+                    guard !Task.isCancelled else { return }
+                    presentedMoreDestination = appMoreDestination(for: route)
+                    morePageRoute = route
+                }
+            } else {
+                presentedMoreDestination = appMoreDestination(for: route)
+                morePageRoute = route
+            }
         } else {
-            moreSheet = route
+            guard moreSheet != route else { return }
+            if moreSheet != nil {
+                moreSheet = nil
+                moreRoutePresentationTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(220))
+                    guard !Task.isCancelled else { return }
+                    presentedMoreDestination = appMoreDestination(for: route)
+                    moreSheet = route
+                }
+            } else {
+                presentedMoreDestination = appMoreDestination(for: route)
+                moreSheet = route
+            }
         }
+    }
+
+    private func handleProEntitlementChange(old: Bool, new: Bool) {
+        applyCloudPreferences()
+        guard old && !new else { return }
+        // StoreKit can revoke an entitlement while the app is alive. Surface
+        // the same global gate used by the feature limits immediately.
+        guard paywall == nil else { return }
+        paywall = .settings
     }
 
     private func moreSheetDidPresent(_ route: MoreRoute) {
@@ -2284,6 +2493,8 @@ struct ContentView: View {
     }
 
     private func dismissMoreSheet() {
+        moreRoutePresentationTask?.cancel()
+        moreRoutePresentationTask = nil
         moreSheet = nil
         morePageRoute = nil
     }
@@ -2343,6 +2554,7 @@ struct ContentView: View {
 
     private func apply(_ route: RouteWork.Item) {
         guard routeWork.isCurrent(route) else { return }
+        searchPresentationTask?.cancel()
         nativeTab = route.effect.tab
         requestedHabitID = route.effect.habitID
 
@@ -2372,13 +2584,24 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .timeZone, .github: nil
+        case .about: .about
+        case .developer: .developer
+        case .appearance: .appearance
+        case .habitBehavior: .habitBehavior
+        case .timeZone: .timeZone
+        case .github: .github
         }
     }
 
     private func moreRoute(for destination: AppMoreDestination) -> MoreRoute {
         switch destination {
         case .archive: .archive
+        case .about: .about
+        case .developer: .developer
+        case .appearance: .appearance
+        case .habitBehavior: .habitBehavior
+        case .timeZone: .timeZone
+        case .github: .github
         }
     }
 
@@ -2501,6 +2724,9 @@ struct ContentView: View {
             }
             var reminder = Habit(name: "UI test reminder", itemType: .reminder)
             reminder.id = reminderInteractionID
+            // Keep the fixture actionable without invoking the production
+            // early-completion confirmation, regardless of the test clock.
+            reminder.timeMinutes = 0
             reminder.repeatsWhileIncomplete = false
             reminder.calendarSyncEnabled = false
             store.add(reminder)
@@ -3270,22 +3496,26 @@ private struct ChromeGlass: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        switch appearancePreferences.material {
-        case .solid:
+        if appearancePreferences.performanceMode {
             solid(content)
-        case .milky:
-            material(content)
-        case .liquid:
-            if #available(iOS 26, *) {
-                glass(content)
-            } else {
+        } else {
+            switch Theme.effectiveMaterial(appearancePreferences) {
+            case .solid:
+                solid(content)
+            case .milky:
                 material(content)
-            }
-        case .adaptive:
-            if #available(iOS 26, *) {
-                glass(content)
-            } else {
-                material(content)
+            case .liquid:
+                if #available(iOS 26, *) {
+                    glass(content)
+                } else {
+                    material(content)
+                }
+            case .adaptive:
+                if #available(iOS 26, *) {
+                    glass(content)
+                } else {
+                    material(content)
+                }
             }
         }
     }
@@ -3330,13 +3560,15 @@ private struct ChromeGlass: ViewModifier {
     private var glassTint: Color {
         if let accent {
             return Theme.accent(accent)
-        } else if appearancePreferences.material == .adaptive {
+        } else if Theme.effectiveMaterial(appearancePreferences) == .adaptive {
             return Theme.color(Theme.adaptiveTintHex(preferences: appearancePreferences,
                                                      dark: colorScheme == .dark))
                 .opacity(Theme.adaptiveSurfaceOpacity(preferences: appearancePreferences,
                                                        dark: colorScheme == .dark))
         } else {
-            return Color(.systemBackground).opacity(0.5)
+            return Color(.systemBackground).opacity(
+                Theme.surfaceTintOpacity(preferences: appearancePreferences,
+                                         dark: colorScheme == .dark))
         }
     }
 
@@ -3842,6 +4074,25 @@ private final class PlatterProbe: UIView {
     }
 }
 
+/// Prevents the reorder observer from competing with ordinary list scrolling
+/// and graph gestures when the list is in its normal viewing state.
+private struct SortingAutoScrollModifier: ViewModifier {
+    let enabled: Bool
+    let onChanged: (DragGesture.Value) -> Void
+    let onEnded: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.simultaneousGesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged(onChanged)
+                    .onEnded { _ in onEnded() })
+        } else {
+            content
+        }
+    }
+}
+
 /// Der Anlegen-Kreis auf iOS 27: eigenes Glas, auf der Linie der gemessenen
 /// Leiste — und zugleich die Quelle der Zoom-Transition der Anlegen-Seite.
 @available(iOS 27, *)
@@ -3855,6 +4106,7 @@ private struct CreateCircle: View {
     let action: () -> Void
 
     @State private var platters = TabBarPlatters()
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     var body: some View {
         GeometryReader { geo in
@@ -3893,8 +4145,9 @@ private struct CreateCircle: View {
     private static let fallbackCenterInset: CGFloat = 52
     private static let fallbackDiameter: CGFloat = 62
 
+    @ViewBuilder
     private func circle(diameter: CGFloat) -> some View {
-        Button(action: action) {
+        let button = Button(action: action) {
             Image(systemName: "plus")
                 .font(.system(size: 19, weight: .semibold))
                 // Wie das System-Zeichen der Leiste, NICHT wie die
@@ -3907,11 +4160,18 @@ private struct CreateCircle: View {
         }
         // Halten-Blase wie an den eigenen Chrom-Knöpfen: das Zeichen atmet,
         // die Glasscheibe antwortet über `.interactive()`.
-        .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
-        .glassEffect(.regular.interactive(), in: .circle)
-        .modifier(MoreZoomSource(id: zoomID, namespace: zoomNamespace))
-        .accessibilityLabel(CreateAccessibility.label)
-        .accessibilityIdentifier(CreateAccessibility.identifier)
+        let styledButton = button
+            .buttonStyle(BubbleButtonStyle(reduceMotion: reduceMotion))
+            .modifier(MoreZoomSource(id: zoomID, namespace: zoomNamespace))
+            .accessibilityLabel(CreateAccessibility.label)
+            .accessibilityIdentifier(CreateAccessibility.identifier)
+        if appearancePreferences.performanceMode {
+            styledButton
+        } else if #available(iOS 26, *) {
+            styledButton.glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            styledButton
+        }
     }
 }
 

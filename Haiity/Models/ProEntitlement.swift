@@ -24,6 +24,13 @@ final class ProStatus {
     /// Schreiben darf nur `Pro` (siehe `Pro.cache`).
     fileprivate(set) var unlocked: Bool
     fileprivate(set) var expirationDate: Date?
+    /// Changes while the entitlement monitor is alive so views re-evaluate a
+    /// cached expiration at the moment it passes without needing a restart.
+    private(set) var heartbeat = Date()
+
+    fileprivate func markHeartbeat() {
+        heartbeat = .now
+    }
 
     private init() {
         let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -237,6 +244,7 @@ enum Pro {
         guard entitlementMonitor == nil else { return }
         entitlementMonitor = Task { @MainActor in
             while !Task.isCancelled {
+                ProStatus.shared.markHeartbeat()
                 await refresh(mayDowngrade: true)
                 do {
                     try await Task.sleep(for: entitlementPollInterval)

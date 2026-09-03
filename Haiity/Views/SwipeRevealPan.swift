@@ -37,6 +37,10 @@ struct SwipeRevealPan: UIViewRepresentable {
         view.beganCallback = began
         view.changedCallback = changed
         view.endedCallback = ended
+        // A List can keep the bridge view while replacing the row's content
+        // after a completion. Reconcile immediately so the recognizer and its
+        // callbacks belong to the current cell before the next swipe.
+        view.reconcileHostForUpdate()
     }
 
     static func dismantleUIView(_ view: PanHost, coordinator: ()) {
@@ -91,6 +95,10 @@ struct SwipeRevealPan: UIViewRepresentable {
             reconcileHost()
         }
 
+        fileprivate func reconcileHostForUpdate() {
+            reconcileHost()
+        }
+
         private func reconcileHost() {
             guard window != nil else { detach(); return }
             var ancestor = superview
@@ -114,7 +122,11 @@ struct SwipeRevealPan: UIViewRepresentable {
             detach()
             let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
             pan.maximumNumberOfTouches = 1
-            pan.cancelsTouchesInView = false
+            // A horizontal reveal must cancel a Button that began tracking
+            // under the finger; otherwise a drag from the title can also
+            // open the editor. A simple tap never begins this pan and still
+            // reaches the nested checkmark/content button.
+            pan.cancelsTouchesInView = true
             pan.delegate = self
             recognizer = pan
             host = container
@@ -226,10 +238,14 @@ struct SwipeRevealPan: UIViewRepresentable {
             guard otherView === container || otherView.isDescendant(of: container) else {
                 return false
             }
-            // A nested SwiftUI control may own the initial touch. Let the
-            // row pan still observe a horizontal drag without enabling
-            // simultaneous recognition with the surrounding List scroll.
-            return !(otherView is UIScrollView)
+            // Only the enclosing scroll view stays exclusive. Buttons and
+            // other controls may recognize alongside this directional pan;
+            // UIKit cancels their tracking only after the gesture commits to
+            // a horizontal reveal, while a tap remains a tap.
+            if otherView is UIScrollView {
+                return false
+            }
+            return true
         }
     }
 }

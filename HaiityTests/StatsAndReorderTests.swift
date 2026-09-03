@@ -49,6 +49,18 @@ final class ReorderTests: XCTestCase {
         store.unarchive(b.id)
         XCTAssertEqual(store.activeHabits.map(\.name), ["A", "B", "C"]) // Platz bleibt
     }
+
+    func testAddingOneTimeCopyCanPlaceItImmediatelyAfterItsSource() {
+        let source = Habit(name: "Quelle")
+        let other = Habit(name: "Andere")
+        store.add(source)
+        store.add(other)
+
+        store.add(source.oneTimeCopy(on: "2026-09-02"), after: source.id)
+
+        XCTAssertEqual(store.activeHabits.map(\.name), ["Quelle", "Quelle", "Andere"])
+        XCTAssertEqual(store.activeHabits[1].recurrence.frequency, .once)
+    }
 }
 
 /// Statistik-Mathematik: Monats-Bucketing, Summen und Quoten-Fenster gegen

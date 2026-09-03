@@ -201,9 +201,9 @@ final class FeedbackTests: XCTestCase {
     func testTheOwnerRuleNeverComparesLoosely() throws {
         let diagnostics = try source("Haiity/Models/Diagnostics.swift")
         XCTAssertTrue(diagnostics.contains(
-            "static let ownerAppleUserID: String? = \"000366.5e70aaf77f174436b9c1ad437015d35a.1026\""))
+            "static let ownerAppleUserID: String? = HabitVisibility.ownerAppleUserID"))
         XCTAssertTrue(diagnostics.contains(
-            "static let ownerAppleEmail = \"xianjie.zhan@icloud.com\""))
+            "static let ownerAppleEmail = HabitVisibility.ownerAppleEmail"))
 
         // Nur der Vergleichspfad, und darin nur der CODE: die Kommentare
         // erklären ja gerade, warum es das lose Prüfen NICHT gibt.
@@ -686,7 +686,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
     }
 
-    func testNotificationSettingsUseOneSharedGlassGroup() throws {
+    func testNotificationSettingsUseIndependentNativeRows() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let start = try XCTUnwrap(more.range(of: "private var notificationSettingsSection: some View"))
         let end = try XCTUnwrap(more.range(of: "private var notificationOptOutRows: some View",
@@ -695,16 +695,12 @@ final class FeedbackTests: XCTestCase {
 
         XCTAssertTrue(section.contains("Section {"),
                       "notification controls need one native grouped list row")
-        XCTAssertTrue(section.contains("VStack(alignment: .leading, spacing: 0)"),
-                      "notification controls need one shared material group")
         XCTAssertTrue(section.contains("Text(String(localized: \"Mitteilungen\"))"),
                       "the notification title must remain visible")
-        XCTAssertTrue(section.contains("notificationDivider"),
-                      "rows need subtle internal separators instead of four floating cards")
-        XCTAssertTrue(section.contains(".padding(.horizontal, Theme.Metrics.cardPadding)"),
-                      "the shared group needs balanced horizontal insets")
-        XCTAssertEqual(section.components(separatedBy: ".settingsRowSurface()").count - 1, 1,
-                       "the notification group should own one material surface")
+        XCTAssertEqual(section.components(separatedBy: ".notificationSettingsRow()").count - 1, 4,
+                       "each notification group needs its own native hit boundary")
+        XCTAssertFalse(section.contains("notificationDivider"),
+                       "internal dividers are no longer needed between separate rows")
         let rows = ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"]
         let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows", "openSourceMotivationEnabled"]
         for (row, nextRow) in zip(rows, nextRows) {
@@ -712,8 +708,6 @@ final class FeedbackTests: XCTestCase {
             let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
                                                   range: rowStart.upperBound..<more.endIndex))
             let rowSource = more[rowStart.lowerBound..<rowEnd.lowerBound]
-            XCTAssertFalse(rowSource.contains(".settingsRowSurface()"),
-                           "\(row) must not create a nested material surface")
             XCTAssertTrue(rowSource.contains(".padding(.vertical, Theme.Metrics.gap / 2)"),
                           "\(row) needs the shared vertical breathing room")
         }
@@ -737,6 +731,23 @@ final class FeedbackTests: XCTestCase {
                       "the weekday button must keep an intrinsic hit target")
         XCTAssertTrue(more.contains("showWeeklyWeekdayPicker"),
                       "weekday choices should be presented independently from the list row")
+    }
+
+    func testMotivationSourceLinkCannotClaimTheWholeNotificationRow() throws {
+        let more = try source("Haiity/Views/MoreView.swift")
+        let start = try XCTUnwrap(more.range(of: "private var motivationRows: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var motivationSourceURL: URL",
+                                           range: start.upperBound..<more.endIndex))
+        let rows = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"),
+                      "the source action must stay local to its visible label")
+        XCTAssertTrue(rows.contains("Label(String(localized: \"Quelle: mubaris/motivate · MIT-Lizenz\")"),
+                      "the source label must remain visible")
+        XCTAssertTrue(rows.contains(".fixedSize(horizontal: true, vertical: false)"),
+                      "only the visible source label should open the repository")
+        XCTAssertTrue(rows.contains("Button(action: openMotivationSource)"),
+                      "the source must be a bounded control, not a row-wide gesture")
     }
 
     func testBehaviorAndDeveloperCategoriesUseOneMaterialRow() throws {

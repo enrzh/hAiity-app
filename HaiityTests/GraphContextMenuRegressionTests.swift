@@ -111,10 +111,10 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testStatsPreviewLeavesSurfaceToGraphContextMenuRoot() throws {
         let source = try source("Haiity/Views/StatsView.swift")
-        let start = try XCTUnwrap(source.range(of: "let framed = AnyView(preview"))
+        let start = try XCTUnwrap(source.range(of: "let framed = AnyView(surfaced"))
         let end = try XCTUnwrap(source.range(of: "@ViewBuilder", range: start.upperBound..<source.endIndex))
         let returned = source[start.lowerBound..<end.lowerBound]
-        XCTAssertTrue(returned.contains("let framed = AnyView(preview"))
+        XCTAssertTrue(returned.contains("let framed = AnyView(surfaced"))
         XCTAssertFalse(returned.contains("framed.appSurface()"),
                        "the shared context-menu root must own the final preview surface")
     }
@@ -126,8 +126,8 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "the preview host must size itself to the visible card")
         XCTAssertFalse(source.contains("max(height, ceil(measuredHeight))"),
                        "a larger fallback frame creates the halo below enlarged cards")
-        XCTAssertFalse(source.contains("RoundedPreviewHostingController"),
-                       "the host bounds must not add a second rounded halo")
+        XCTAssertTrue(source.contains("RoundedPreviewHostingController"),
+                      "the preview host must reapply the card mask after UIKit relayout")
     }
 
     func testHabitReorderingRequiresExplicitSortingMode() throws {

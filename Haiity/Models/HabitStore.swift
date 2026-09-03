@@ -412,6 +412,10 @@ struct SummaryStatus: Equatable {
 enum SharedStorage {
     static let appGroup = "group.com.aiity.haiity"
 
+    static var defaults: UserDefaults {
+        UserDefaults(suiteName: appGroup) ?? .standard
+    }
+
     static func dataURL(fileManager: FileManager = .default) -> URL {
         if let container = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroup) {
             return container.appendingPathComponent("data.json")
@@ -739,7 +743,15 @@ final class HabitStore {
 
     // MARK: – Mutationen
 
-    func add(_ habit: Habit) { data.habits.append(habit); persist() }
+    func add(_ habit: Habit, after sourceID: UUID? = nil) {
+        if let sourceID,
+           let index = data.habits.firstIndex(where: { $0.id == sourceID }) {
+            data.habits.insert(habit, at: index + 1)
+        } else {
+            data.habits.append(habit)
+        }
+        persist()
+    }
 
     func update(_ habit: Habit) {
         guard let i = data.habits.firstIndex(where: { $0.id == habit.id }) else { return }

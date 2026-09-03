@@ -157,6 +157,75 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(card.contains("showsMonthLabels: false"))
     }
 
+    func testGitHubMonthLabelsAreUserSelectableAndReachTheHabitPageCard() throws {
+        let settings = try source("Haiity/Views/GitHubSettingsView.swift")
+        let content = try source("Haiity/Views/ContentView.swift")
+        let card = try source("Haiity/Views/GitHubContributionCard.swift")
+
+        XCTAssertTrue(settings.contains("GitHub-Monate anzeigen"))
+        XCTAssertTrue(settings.contains("github-month-labels-toggle"))
+        XCTAssertTrue(content.contains("githubMonthLabelsBinding"))
+        XCTAssertTrue(content.contains("showsMonthLabels: graphShowsMonthLabels"))
+        XCTAssertTrue(card.contains("let showsMonthLabels: Bool"))
+        XCTAssertTrue(card.contains("showsMonthLabels: showsMonthLabels"))
+    }
+
+    func testGitHubGraphUsesTheSharedGraphMetricsAndEquatableRendering() throws {
+        let graph = try source("Haiity/Views/GitHubContributionGraph.swift")
+        let card = try source("Haiity/Views/GitHubContributionCard.swift")
+
+        XCTAssertTrue(graph.contains("struct GitHubContributionGraph: View, Equatable"))
+        XCTAssertTrue(graph.contains("GridCell.size"))
+        XCTAssertTrue(graph.contains("GridCell.gap"))
+        XCTAssertTrue(graph.contains("GridCell.radius"))
+        XCTAssertTrue(graph.contains("@Environment(\\.palettes)"))
+        XCTAssertTrue(card.contains("GitHubContributionGraph(days: snapshot.days,"))
+        XCTAssertTrue(card.contains("showsMonthLabels: showsMonthLabels"))
+        XCTAssertTrue(card.contains(".equatable()"))
+    }
+
+    func testHabitAndGitHubGraphsUseOneCanvasRenderer() throws {
+        let habit = try source("Haiity/Views/ContributionGrid.swift")
+        let github = try source("Haiity/Views/GitHubContributionGraph.swift")
+
+        XCTAssertTrue(habit.contains("ContributionGridRenderer("),
+                      "habit graphs should use the shared renderer")
+        XCTAssertTrue(github.contains("ContributionGridRenderer("),
+                      "GitHub graphs should use the same renderer as habits")
+        XCTAssertTrue(github.contains("GridCalendar.snapshot(levelsByDay:"),
+                      "GitHub data should be converted into the shared grid snapshot")
+    }
+
+    func testGitHubDisplayOptionsShareOneSettingsGroup() throws {
+        let settings = try source("Haiity/Views/GitHubSettingsView.swift")
+
+        XCTAssertTrue(settings.contains("github-display-settings"),
+                      "GitHub display controls should have one cohesive settings group")
+        XCTAssertTrue(settings.contains("GitHub-Namen anzeigen"))
+        XCTAssertTrue(settings.contains("GitHub-Monate anzeigen"))
+    }
+
+    func testMonthLabelPreferenceReachesHabitAndGitHubGraphs() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+        let more = try source("Haiity/Views/MoreView.swift")
+
+        XCTAssertTrue(content.contains("graphShowsMonthLabels"))
+        XCTAssertTrue(content.contains("showsMonthLabels: graphShowsMonthLabels"))
+        XCTAssertTrue(habit.contains("showsMonthLabels: Bool"))
+        XCTAssertTrue(more.contains("graphShowsMonthLabels"))
+        XCTAssertTrue(more.contains("Monate anzeigen"))
+    }
+
+    func testGitHubMonthLabelPreferenceIsPersistedInSharedDefaults() throws {
+        let preferences = try source("Haiity/Models/GitHubPreferences.swift")
+
+        XCTAssertTrue(preferences.contains("showsMonthLabelsKey"))
+        XCTAssertTrue(preferences.contains("showsMonthLabels(in defaults: UserDefaults)"))
+        XCTAssertTrue(preferences.contains("setShowsMonthLabels(_ value: Bool"))
+        XCTAssertTrue(preferences.contains("SharedStorage.appGroup"))
+    }
+
     private func source(_ relative: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

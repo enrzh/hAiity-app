@@ -21,7 +21,7 @@ enum MoreRoute: Hashable, Identifiable {
     var id: Self { self }
 }
 
-enum MoreScreen: Equatable {
+enum MoreScreen: Hashable {
     case main, appearance, habitBehavior, timeZone
 
     var title: String {
@@ -53,6 +53,8 @@ struct MoreView: View {
     let statsCards: StatsCardStore
     /// Ein seitenartiges Ziel öffnen (Statistik, Archiv, Über).
     let onOpen: (MoreRoute) -> Void
+    /// Shared app/widget preference for month labels on both graph types.
+    let graphShowsMonthLabels: Binding<Bool>
     /// Zählt die eingetroffenen Deep-Links (siehe ContentView). Ein Link ist
     /// eine Absage an das, was gerade offen ist: der Tab wechselt unter dem
     /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
@@ -125,6 +127,7 @@ struct MoreView: View {
     /// die Schlösser hier trotzdem aufgehen.
     private var unlocked: Bool {
         _ = proStatus.unlocked
+        _ = proStatus.heartbeat
         return Pro.isUnlocked
     }
 
@@ -152,6 +155,8 @@ struct MoreView: View {
             case .timeZone: timeZoneSettings
             }
         }
+        // A presented More screen must not reuse the previous screen's view tree.
+        .id(screen)
         .navigationTitle(screen == .main ? "" : screen.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -289,15 +294,14 @@ struct MoreView: View {
             githubSection.settingsRowSurface()
                 .listRowInsets(moreRowInsets)
             Section {
-                VStack(alignment: .leading, spacing: 0) {
-                    pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
-                            symbol: "paintpalette", identifier: "open-appearance")
-                    Divider()
-                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
-                    pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
-                            symbol: "hand.draw", identifier: "open-habit-behavior")
-                }
-                .padding(.vertical, Theme.Metrics.gap / 2)
+                pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
+                        symbol: "paintpalette", identifier: "open-appearance")
+            }
+            .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
+            Section {
+                pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
+                        symbol: "hand.draw", identifier: "open-habit-behavior")
             }
             .settingsRowSurface()
             .listRowInsets(moreRowInsets)
@@ -336,22 +340,8 @@ struct MoreView: View {
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
         }
-        .confirmationDialog(String(localized: "Wochentag auswählen"),
-                            isPresented: $showWeeklyWeekdayPicker,
-                            titleVisibility: .visible) {
-            ForEach(orderedWeekdays, id: \.self) { day in
-                Button {
-                    weeklyWeekday.wrappedValue = day
-                } label: {
-                    let title = RecurrenceText.weekdayName(day)
-                    if day == store.weeklySummaryWeekday {
-                        Label(title, systemImage: "checkmark")
-                    } else {
-                        Text(title)
-                    }
-                }
-            }
-            Button(String(localized: "Abbrechen"), role: .cancel) {}
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: rootTitleProgress)
         }
     }
 
@@ -648,7 +638,7 @@ struct MoreView: View {
                 Button {
                     paywall = .settings
                 } label: {
-                    HStack(spacing: Theme.Metrics.gap) {
+                    HStack(spacing: Theme.Metrics.gap + 2) {
                         proRow(symbol: "checkmark.seal.fill",
                                detail: String(localized: "Freigeschaltet. Danke."),
                                highlighted: true)
@@ -755,7 +745,10 @@ struct MoreView: View {
                 } label: {
                     Label(String(localized: "Native Einträge löschen"), systemImage: "trash")
                 }
-                .foregroundStyle(.primary)
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .tint(.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .disabled(nativeSyncCleanupInProgress)
                 .accessibilityIdentifier("delete-native-entries")
                 Button {
@@ -764,7 +757,10 @@ struct MoreView: View {
                     Label(nativeSyncCleanupButtonTitle,
                           systemImage: "arrow.triangle.2.circlepath")
                 }
-                .foregroundStyle(.primary)
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .tint(Theme.accentText(palettes.style))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .disabled(nativeSyncCleanupInProgress)
                 .accessibilityIdentifier("cleanup-native-entries")
                 if let nativeSyncCleanupMessage {
@@ -1028,12 +1024,8 @@ struct MoreView: View {
     private var personalSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: Theme.Metrics.gap + 2) {
-                    Image(systemName: "person.crop.circle")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.accentText(palettes.style))
-                        .frame(width: Theme.Metrics.glyph,
-                               height: Theme.Metrics.glyph)
+                HStack(spacing: Theme.Metrics.gap) {
+                    personalLeadingIcon("person.crop.circle")
                     VStack(alignment: .leading, spacing: 2) {
                         Text(String(localized: "Alias"))
                             .font(.subheadline.weight(.semibold))
@@ -1053,13 +1045,15 @@ struct MoreView: View {
                                                             appleName: storedAppleName)
                         ?? String(localized: "Apple-ID")
                     Divider()
-                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 2)
+                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
                         .padding(.vertical, Theme.Metrics.gap / 2)
                     HStack(spacing: Theme.Metrics.gap) {
-                        Label(String(format: String(localized: "Angemeldet als %@"), displayName),
-                              systemImage: "person.crop.circle.badge.checkmark")
-                            .font(.subheadline)
-                            .lineLimit(2)
+                        personalLeadingIcon("person.crop.circle.badge.checkmark")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(String(format: String(localized: "Angemeldet als %@"), displayName))
+                                .font(.subheadline)
+                                .lineLimit(2)
+                        }
                         Spacer(minLength: Theme.Metrics.gap)
                         Button(String(localized: "Abmelden"), role: .destructive) {
                             signOutFromApple()
@@ -1088,9 +1082,12 @@ struct MoreView: View {
                     }
                 } else {
                     Divider()
-                        .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 2)
+                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
                         .padding(.vertical, Theme.Metrics.gap / 2)
-                    appleSignInButton
+                    HStack(spacing: Theme.Metrics.gap) {
+                        personalLeadingIcon("person.crop.circle.badge.checkmark")
+                        appleSignInButton
+                    }
                         .padding(.vertical, 2)
                     if appleSignInCameBackEmpty {
                         Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
@@ -1334,9 +1331,20 @@ struct MoreView: View {
                        alignment: .leading)
                 .accessibilityIdentifier("appearance-material-picker")
 
-            backgroundControl
+            Toggle(isOn: performanceModeBinding) {
+                Label(String(localized: "Performance-Modus"), systemImage: "speedometer")
+            }
+            .accessibilityIdentifier("performance-mode-toggle")
 
-            Toggle(isOn: matchIconBinding) {
+                backgroundControl
+
+                Toggle(isOn: graphShowsMonthLabels) {
+                    Label(String(localized: "Monate anzeigen"),
+                          systemImage: "calendar")
+                }
+                .accessibilityIdentifier("graph-month-labels-toggle")
+
+                Toggle(isOn: matchIconBinding) {
                 HStack(alignment: .center, spacing: Theme.Metrics.gap) {
                     Image(systemName: "app.badge")
                         .font(.body.weight(.semibold))
@@ -1370,6 +1378,14 @@ struct MoreView: View {
             get: { store.appearancePreferences.material },
             set: { material in
                 updateAppearance { $0.material = material }
+            })
+    }
+
+    private var performanceModeBinding: Binding<Bool> {
+        Binding(
+            get: { store.appearancePreferences.performanceMode },
+            set: { enabled in
+                updateAppearance { $0.performanceMode = enabled }
             })
     }
 
@@ -1608,7 +1624,11 @@ struct MoreView: View {
                                minHeight: Theme.Metrics.settingsRowMinHeight,
                                alignment: .leading)
                 }
-                .buttonStyle(.bordered)
+                // Bordered buttons inside an inset-grouped List row can lose
+                // their hit target on iOS 27. Keep the native picker control,
+                // but make the whole row the explicit, plain hit surface.
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
                 .tint(Theme.accentText(palettes.style))
                 .accessibilityIdentifier("appearance-background-picker")
 
@@ -2113,34 +2133,48 @@ struct MoreView: View {
     // aktiven Einschalten, nie beim Start.
 
     private var notificationSettingsSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 0) {
+        Group {
+            Section {
                 notificationOptOutRows
-                notificationDivider
-                dailySummaryRows
-                notificationDivider
-                weeklySummaryRows
-                notificationDivider
-                motivationRows
+                    .notificationSettingsRow()
+                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                    .padding(.vertical, Theme.Metrics.gap)
+            } header: {
+                Text(String(localized: "Mitteilungen"))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
             }
-            .padding(.horizontal, Theme.Metrics.cardPadding)
-            .padding(.vertical, Theme.Metrics.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } header: {
-            Text(String(localized: "Mitteilungen"))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(nil)
-        }
-        .settingsRowSurface()
-        .listRowInsets(moreRowInsets)
-    }
+            .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
 
-    private var notificationDivider: some View {
-        Divider()
-            .opacity(0.55)
-            .padding(.leading, notificationDetailsInset)
-            .padding(.vertical, 3)
+            Section {
+                dailySummaryRows
+                    .notificationSettingsRow()
+                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                    .padding(.vertical, Theme.Metrics.gap)
+            }
+            .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
+
+            Section {
+                weeklySummaryRows
+                    .notificationSettingsRow()
+                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                    .padding(.vertical, Theme.Metrics.gap)
+            }
+            .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
+
+            Section {
+                motivationRows
+                    .notificationSettingsRow()
+                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                    .padding(.vertical, Theme.Metrics.gap)
+            }
+            .settingsRowSurface()
+            .listRowInsets(moreRowInsets)
+        }
     }
 
     private var notificationDetailsInset: CGFloat {
@@ -2303,7 +2337,7 @@ struct MoreView: View {
     /// Keep the selector's button intrinsic-sized. A flexible Menu label in a
     /// single iOS 27 List row can inherit the hit region of the whole group.
     private var weeklyWeekdayButton: some View {
-        HStack(spacing: Theme.Metrics.gap) {
+        HStack(spacing: Theme.Metrics.gap + 2) {
             Text(String(localized: "Wochentag"))
             Spacer(minLength: Theme.Metrics.gap)
             Button {
@@ -2319,10 +2353,28 @@ struct MoreView: View {
                 .padding(.horizontal, 10)
                 .frame(minHeight: 36)
                 .background(Color.primary.opacity(0.06), in: Capsule())
+                .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityIdentifier("weekly-summary-weekday")
+            .confirmationDialog(String(localized: "Wochentag auswählen"),
+                                isPresented: $showWeeklyWeekdayPicker,
+                                titleVisibility: .visible) {
+                ForEach(orderedWeekdays, id: \.self) { day in
+                    Button {
+                        weeklyWeekday.wrappedValue = day
+                    } label: {
+                        let title = RecurrenceText.weekdayName(day)
+                        if day == store.weeklySummaryWeekday {
+                            Label(title, systemImage: "checkmark")
+                        } else {
+                            Text(title)
+                        }
+                    }
+                }
+                Button(String(localized: "Abbrechen"), role: .cancel) {}
+            }
         }
         .frame(maxWidth: .infinity,
                minHeight: Theme.Metrics.hit,
@@ -2362,13 +2414,19 @@ struct MoreView: View {
                     }
                     .accessibilityIdentifier("motivation-open-source-toggle")
                     if store.openSourceMotivationEnabled {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Link(destination: URL(string: "https://github.com/mubaris/motivate")!) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            // Keep the hit target on the visible label. A
+                            // nested List button can inherit the whole row on
+                            // iOS 27 and steal taps from the other controls.
+                            Button(action: openMotivationSource) {
                                 Label(String(localized: "Quelle: mubaris/motivate · MIT-Lizenz"),
                                       systemImage: "link")
-                                    .font(.caption)
                                     .lineLimit(1)
+                                    .font(.caption)
                             }
+                            .buttonStyle(.borderless)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .accessibilityIdentifier("motivation-source-link")
                             if let motivationFeedStatus {
                                 Text(motivationFeedStatus)
                                     .font(.caption2)
@@ -2376,6 +2434,7 @@ struct MoreView: View {
                                     .accessibilityIdentifier("motivation-open-source-status")
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 2)
                     }
                 }
@@ -2385,6 +2444,25 @@ struct MoreView: View {
         }
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
+
+    private var motivationSourceURL: URL {
+        URL(string: "https://github.com/mubaris/motivate")!
+    }
+
+    private func openMotivationSource() {
+        UIApplication.shared.open(motivationSourceURL)
+    }
+
+    private func personalLeadingIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Theme.accentText(palettes.style))
+            .frame(width: personalLeadingColumnWidth,
+                   height: personalLeadingColumnWidth,
+                   alignment: .center)
+    }
+
+    private var personalLeadingColumnWidth: CGFloat { 44 }
 
     private func notificationSymbolSurface(_ symbol: String) -> some View {
         Image(systemName: symbol)
@@ -2413,7 +2491,7 @@ struct MoreView: View {
             get: { store.openSourceMotivationEnabled },
             set: { enabled in
                 store.openSourceMotivationEnabled = enabled
-                let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+                let defaults = SharedStorage.defaults
                 guard enabled else {
                     MotivationFeedCache.clear(in: defaults)
                     motivationFeedStatus = String(localized: "Integrierte Nachrichten")
@@ -2424,7 +2502,7 @@ struct MoreView: View {
                             name: PersonalName.effective,
                             delivery: store.motivationDelivery,
                             additionalEntries: MotivationFeedCache.load(
-                                in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
+                                in: SharedStorage.defaults))
                     }
                     return
                 }
@@ -2434,7 +2512,7 @@ struct MoreView: View {
     }
 
     private func refreshMotivationFeedIfNeeded() {
-        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        let defaults = SharedStorage.defaults
         Task {
             do {
                 _ = try await MotivationFeed.refreshIfNeeded(
@@ -2476,7 +2554,7 @@ struct MoreView: View {
                 name: PersonalName.effective,
                 delivery: store.motivationDelivery,
                 additionalEntries: MotivationFeedCache.load(
-                    in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
+                    in: SharedStorage.defaults))
         }
     }
 
@@ -2631,6 +2709,15 @@ struct MoreView: View {
             })
     }
 
+}
+
+private extension View {
+    /// Keep each notification group as one native List row. Nested controls
+    /// inside a single List row can otherwise inherit the row's full hit area.
+    func notificationSettingsRow() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, Theme.Metrics.gap / 2)
+    }
 }
 
 /// Export als teilbare JSON-Datei — die Daten entstehen erst beim Teilen.

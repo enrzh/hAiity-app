@@ -402,10 +402,19 @@ struct BackfillCard: View {
 /// `.ultraThinMaterial` mit Haarlinie — dieselbe Rezeptur wie die
 /// Glas-Pillen des Chroms, nur lokal, weil deren Modifier dort privat ist.
 private struct FertigGlass: ViewModifier {
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if appearancePreferences.performanceMode {
+            content
+                .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary))
+        } else if #available(iOS 26, *) {
             content.glassEffect(
-                .regular.tint(Color(.systemBackground).opacity(0.5)).interactive(),
+                .regular.tint(Color(.systemBackground).opacity(
+                    Theme.surfaceTintOpacity(preferences: appearancePreferences,
+                                             dark: colorScheme == .dark))).interactive(),
                 in: .capsule)
         } else {
             content

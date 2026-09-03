@@ -24,7 +24,7 @@ enum GridCalendar {
     static let rows = 7
 
     /// Fertiges Raster für genau eine Kombination aus Habit und Fenster.
-    struct Snapshot {
+    struct Snapshot: Equatable {
         let weeks: Int
         let today: String
         /// [Spalte][Zeile]; nil = Zukunft (nach `today`).
@@ -91,6 +91,27 @@ enum GridCalendar {
         guard let earliestDate = DayKey.date(from: earliestKey, calendar: calendar) else {
             return minimum
         }
+
+        let firstWeek = weekStart(for: earliestDate, calendar: calendar)
+        let currentWeek = weekStart(for: todayDate, calendar: calendar)
+        let days = calendar.dateComponents([.day], from: firstWeek, to: currentWeek).day ?? 0
+        let naturalWeeks = max(1, days / rows + 1)
+        return min(maximumWeeks, max(minimum, naturalWeeks))
+    }
+
+    /// Same window calculation for external contribution data. Keeping the
+    /// date window here means GitHub and habits use the same seven-row grid
+    /// instead of maintaining two subtly different calendars.
+    static func weeksForDisplay(dates: [String],
+                                today: String,
+                                minimumWeeks: Int = 1,
+                                maximumWeeks: Int = 53,
+                                calendar: Calendar = .current) -> Int {
+        guard maximumWeeks > 0 else { return 0 }
+        let minimum = min(maximumWeeks, max(1, minimumWeeks))
+        guard let todayDate = DayKey.date(from: today, calendar: calendar),
+              let earliestDate = dates.compactMap({ DayKey.date(from: $0, calendar: calendar) }).min()
+        else { return minimum }
 
         let firstWeek = weekStart(for: earliestDate, calendar: calendar)
         let currentWeek = weekStart(for: todayDate, calendar: calendar)
@@ -264,6 +285,30 @@ enum GridCalendar {
         computeCount += 1
         lock.unlock()
         return built
+    }
+
+    /// Converts any date-keyed contribution source into the same snapshot
+    /// consumed by the habit graph renderer. Missing past days are level 0;
+    /// future cells remain nil and are drawn with the same dimming rule.
+    static func snapshot(levelsByDay: [String: Int],
+                         weeks: Int,
+                         today: String,
+                         calendar: Calendar = .current) -> Snapshot {
+        let grid = keys(weeks: weeks, today: today, calendar: calendar)
+        var filled = 0
+        let levels = grid.map { column in
+            column.map { key -> Int in
+                guard let key else { return 0 }
+                if levelsByDay[key] != nil { filled += 1 }
+                return levelsByDay[key] ?? 0
+            }
+        }
+        return Snapshot(weeks: weeks,
+                        today: today,
+                        keys: grid,
+                        levels: levels,
+                        marks: rawMarks(weeks: weeks, today: today, calendar: calendar),
+                        filledCount: filled)
     }
 
     /// Nur für Tests: Cache und Zähler zurücksetzen.

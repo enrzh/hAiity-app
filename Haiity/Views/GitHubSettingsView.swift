@@ -5,6 +5,7 @@ import UIKit
 struct GitHubSettingsView: View {
     let store: GitHubContributionStore
     @Binding var showsUsername: Bool
+    @Binding var showsMonthLabels: Bool
     @State private var confirmDisconnect = false
     @State private var codeCopied = false
 
@@ -17,8 +18,26 @@ struct GitHubSettingsView: View {
             }
             .settingsListRow()
             Section {
-                Toggle(String(localized: "GitHub-Namen anzeigen"), isOn: $showsUsername)
+                VStack(spacing: 0) {
+                    Toggle(isOn: $showsUsername) {
+                        Label(String(localized: "GitHub-Namen anzeigen"),
+                              systemImage: "person.crop.circle")
+                    }
                     .accessibilityIdentifier("github-username-toggle")
+
+                    Divider()
+                        .padding(.leading, 32)
+
+                    Toggle(isOn: $showsMonthLabels) {
+                        Label(String(localized: "GitHub-Monate anzeigen"),
+                              systemImage: "calendar")
+                    }
+                    .accessibilityIdentifier("github-month-labels-toggle")
+                }
+                .padding(.vertical, 2)
+                .accessibilityIdentifier("github-display-settings")
+            } header: {
+                Text(String(localized: "Darstellung"))
             }
             .settingsListRow()
             Section {

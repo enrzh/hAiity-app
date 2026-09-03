@@ -551,4 +551,20 @@ final class GitHubGraphPerformanceTests: XCTestCase {
         XCTAssertEqual(GitHubContributionGraph.layoutComputeCount, 2)
         GitHubContributionGraph.resetLayoutCache()
     }
+
+    func testGitHubDataMapsIntoTheSharedSevenRowSnapshot() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let snapshot = GridCalendar.snapshot(
+            levelsByDay: ["2026-08-02": 1, "2026-08-05": 4],
+            weeks: 2,
+            today: "2026-08-08",
+            calendar: calendar)
+
+        XCTAssertEqual(snapshot.keys.count, 2)
+        XCTAssertTrue(snapshot.keys.allSatisfy { $0.count == GridCalendar.rows })
+        XCTAssertTrue(snapshot.levels.allSatisfy { $0.count == GridCalendar.rows })
+        XCTAssertEqual(snapshot.filledCount, 2)
+        XCTAssertEqual(snapshot.levels.flatMap { $0 }.max(), 4)
+    }
 }

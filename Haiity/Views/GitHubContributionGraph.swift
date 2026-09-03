@@ -1,134 +1,270 @@
 import Foundation
 import SwiftUI
+import UIKit
+
+/// One Canvas renderer for every contribution graph in the app. The source
+/// data may be a Habit or GitHub, but the expensive view tree and tile styling
+/// should not diverge between them.
+struct ContributionGridRenderer: View, Equatable {
+    let snapshot: GridCalendar.Snapshot
+    let cell: CGFloat
+    let gap: CGFloat
+    let width: CGFloat
+    let showsMonthLabels: Bool
+    let labelScale: CGFloat
+    let palette: PaletteStyle
+    let highlightsToday: Bool
+    let checkPulse: Bool
+
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.appearancePreferences) private var appearancePreferences
+
+    static func == (a: ContributionGridRenderer, b: ContributionGridRenderer) -> Bool {
+        a.snapshot == b.snapshot
+            && a.cell == b.cell
+            && a.gap == b.gap
+            && a.width == b.width
+            && a.showsMonthLabels == b.showsMonthLabels
+            && a.labelScale == b.labelScale
+            && a.palette == b.palette
+            && a.highlightsToday == b.highlightsToday
+            && a.checkPulse == b.checkPulse
+    }
+
+    var body: some View {
+        let pitch = cell + gap
+        let marks = GridCalendar.placeMarks(snapshot.marks,
+                                             pitch: pitch,
+                                             contentWidth: width) { mark in
+            Self.labelWidth(GridCalendar.label(for: mark), scale: labelScale)
+        }
+        let todayRect = todayRect(pitch: pitch)
+
+        VStack(alignment: .leading, spacing: 3) {
+            if showsMonthLabels {
+                monthRow(marks)
+            }
+            Canvas { context, _ in
+                var shading: [Int: GraphicsContext.Shading] = [:]
+                var dimmedShading: [Int: GraphicsContext.Shading] = [:]
+                let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
+                                                        width: cell,
+                                                        height: cell),
+                                    cornerRadius: GridCell.radius)
+                let dark = scheme == .dark
+                let usesAdaptiveOutline = Theme.effectiveMaterial(appearancePreferences) == .adaptive
+                let outline = Theme.adaptiveTileOutline(
+                    preferences: appearancePreferences,
+                    dark: dark)
+
+                for (columnIndex, column) in snapshot.keys.enumerated() {
+                    guard columnIndex < snapshot.levels.count else { continue }
+                    for row in 0..<GridCalendar.rows {
+                        guard row < column.count,
+                              row < snapshot.levels[columnIndex].count else { continue }
+                        let level = snapshot.levels[columnIndex][row]
+                        let future = column[row] == nil
+                        let fill: GraphicsContext.Shading
+                        if future {
+                            if dimmedShading[level] == nil {
+                                dimmedShading[level] = .color(
+                                    Theme.level(level, dark: dark, palette: palette).opacity(0.35))
+                            }
+                            fill = dimmedShading[level]!
+                        } else {
+                            if shading[level] == nil {
+                                shading[level] = .color(
+                                    Theme.level(level, dark: dark, palette: palette))
+                            }
+                            fill = shading[level]!
+                        }
+                        var cellContext = context
+                        cellContext.translateBy(x: CGFloat(columnIndex) * pitch,
+                                                y: CGFloat(row) * pitch)
+                        cellContext.fill(cellPath, with: fill)
+                        if usesAdaptiveOutline {
+                            cellContext.stroke(cellPath,
+                                               with: .color(outline),
+                                               lineWidth: 0.5)
+                        }
+                    }
+                }
+
+                if highlightsToday, let todayRect {
+                    context.stroke(Path(roundedRect: todayRect.insetBy(dx: 0.6, dy: 0.6),
+                                        cornerRadius: GridCell.radius),
+                                   with: .color(.primary),
+                                   lineWidth: 1.2)
+                }
+            }
+            .frame(width: max(width, 0), height: gridHeight(pitch: pitch))
+            .overlay(alignment: .topLeading) {
+                if highlightsToday, let todayRect {
+                    RoundedRectangle(cornerRadius: GridCell.radius, style: .continuous)
+                        .strokeBorder(Theme.accentText(palette), lineWidth: 1.4)
+                        .frame(width: todayRect.width, height: todayRect.height)
+                        .offset(x: todayRect.minX, y: todayRect.minY)
+                        .scaleEffect(checkPulse ? 1.9 : 1)
+                        .opacity(checkPulse ? 0.9 : 0)
+                        .allowsHitTesting(false)
+                }
+            }
+            .id("grid-canvas")
+        }
+        .padding(.vertical, 2)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+
+    private func gridHeight(pitch: CGFloat) -> CGFloat {
+        CGFloat(GridCalendar.rows) * pitch - gap
+    }
+
+    private func todayRect(pitch: CGFloat) -> CGRect? {
+        for (columnIndex, column) in snapshot.keys.enumerated() {
+            if let row = column.firstIndex(of: snapshot.today) {
+                return CGRect(x: CGFloat(columnIndex) * pitch,
+                              y: CGFloat(row) * pitch,
+                              width: cell,
+                              height: cell)
+            }
+        }
+        return nil
+    }
+
+    private func monthRow(_ marks: [GridCalendar.PlacedMark]) -> some View {
+        ZStack(alignment: .topLeading) {
+            Text(verbatim: "Mmm").font(.caption2).hidden()
+            ForEach(marks, id: \.mark) { placed in
+                Text(verbatim: GridCalendar.label(for: placed.mark))
+                    .font(.caption2)
+                    .foregroundStyle(Color.primary.opacity(0.7))
+                    .fixedSize()
+                    .offset(x: placed.x)
+            }
+        }
+        .frame(width: max(width, 0), alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
+    private static func labelWidth(_ text: String, scale: CGFloat) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let size = max(1, 11 * scale)
+        return (text as NSString)
+            .size(withAttributes: [.font: UIFont.systemFont(ofSize: size)]).width
+    }
+}
 
 /// 7-Zeilen-Raster der GitHub-Tage. Chronologie bleibt links->rechts, auch
 /// in RTL, und benutzt die GitHub-Grunrampe - kein nachgebautes Habit.
-struct GitHubContributionGraph: View {
+struct GitHubContributionGraph: View, Equatable {
+    static func == (a: GitHubContributionGraph, b: GitHubContributionGraph) -> Bool {
+        a.days == b.days
+            && a.weeks == b.weeks
+            && a.cellSize == b.cellSize
+            && a.gap == b.gap
+            && a.showsMonthLabels == b.showsMonthLabels
+            && a.interactive == b.interactive
+            && a.palette == b.palette
+    }
+
     let days: [GitHubContributionDay]
     var weeks: Int?
     var cellSize: CGFloat?
     var gap: CGFloat?
     var showsMonthLabels: Bool = true
     var interactive: Bool = true
-    var palette: PaletteStyle = .default
+    var palette: PaletteStyle? = nil
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.palettes) private var palettes
     @State private var available: CGFloat = 0
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
     private static let referenceColumns: CGFloat = 24
-    private static let referencePitch: CGFloat = 14
+    private static let referencePitch: CGFloat = GridCell.size + GridCell.gap
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize {
-            return (cellSize, gap ?? GitHubGraphMetrics.gap)
+            return (cellSize, gap ?? GridCell.gap)
         }
         let pitch = available > 0
             ? available / Self.referenceColumns
             : Self.referencePitch
-        return (min(GitHubGraphMetrics.cell,
+        return (min(GridCell.size,
                     max(8, pitch * 11 / Self.referencePitch)),
-                min(GitHubGraphMetrics.gap,
+                min(GridCell.gap,
                     max(2, pitch * 3 / Self.referencePitch)))
     }
 
     private var renderedPalette: PaletteStyle {
-        Theme.adaptivePalette(palette,
+        Theme.adaptivePalette(palette ?? palettes.style,
                               preferences: appearancePreferences,
                               dark: scheme == .dark)
     }
 
+    private static let contributionCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
+
     var body: some View {
-        let layout = Self.layout(days: days, weekLimit: weeks)
+        // Habit and GitHub graphs share the same notion of today. The latest
+        // fetched contribution can be older than today and must not freeze
+        // the graph's future-cell behavior in that case.
+        let today = DayKey.today(calendar: Self.contributionCalendar)
+        let displayWeeks = weeks ?? GridCalendar.weeksForDisplay(
+            dates: days.map(\.date),
+            today: today,
+            calendar: Self.contributionCalendar)
+        let levelsByDay = days.reduce(into: [String: Int]()) { result, day in
+            result[day.date] = day.level
+        }
+        let snapshot = GridCalendar.snapshot(levelsByDay: levelsByDay,
+                                             weeks: displayWeeks,
+                                             today: today,
+                                             calendar: Self.contributionCalendar)
         let m = metrics
         let pitch = m.cell + m.gap
-        let contentWidth = CGFloat(max(layout.columns.count, 1)) * pitch - m.gap
-        let height = CGFloat(GridCalendar.rows) * pitch - m.gap
+        let contentWidth = CGFloat(max(snapshot.keys.count, 1)) * pitch - m.gap
 
         Group {
             if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    graphContent(layout: layout,
-                                 metrics: m,
-                                 pitch: pitch,
-                                 contentWidth: contentWidth,
-                                 height: height)
+                    ContributionGridRenderer(snapshot: snapshot,
+                                             cell: m.cell,
+                                             gap: m.gap,
+                                             width: contentWidth,
+                                             showsMonthLabels: showsMonthLabels,
+                                             labelScale: labelScale / 100,
+                                             palette: renderedPalette,
+                                             highlightsToday: false,
+                                             checkPulse: false)
                 }
                 .softScrollEdges()
                 .defaultScrollAnchor(.trailing)
+                .scrollDisabled(available > 0
+                                && !GridCalendar.needsHorizontalScroll(
+                                    contentWidth: contentWidth,
+                                    viewportWidth: available))
             } else {
                 // A disabled ScrollView can retain a trailing offset inside a
                 // UIKit context preview. Render the fixed-width canvas
                 // directly so every contribution column remains visible.
-                graphContent(layout: layout,
-                             metrics: m,
-                             pitch: pitch,
-                             contentWidth: contentWidth,
-                             height: height)
+                ContributionGridRenderer(snapshot: snapshot,
+                                         cell: m.cell,
+                                         gap: m.gap,
+                                         width: contentWidth,
+                                         showsMonthLabels: showsMonthLabels,
+                                         labelScale: labelScale / 100,
+                                         palette: renderedPalette,
+                                         highlightsToday: false,
+                                         checkPulse: false)
             }
         }
         .background(widthReader)
         .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
-    }
-
-    @ViewBuilder
-    private func graphContent(layout: Layout,
-                              metrics: (cell: CGFloat, gap: CGFloat),
-                              pitch: CGFloat,
-                              contentWidth: CGFloat,
-                              height: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if showsMonthLabels {
-                monthRow(layout.marks, width: contentWidth, pitch: pitch)
-            }
-            Canvas { context, _ in
-                var shading: [Int: GraphicsContext.Shading] = [:]
-                let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
-                                                        width: metrics.cell,
-                                                        height: metrics.cell),
-                                    cornerRadius: GitHubGraphMetrics.cornerRadius)
-                let dark = scheme == .dark
-                for (column, week) in layout.columns.enumerated() {
-                    for row in 0..<GridCalendar.rows {
-                        let level = week[row]?.level ?? 0
-                        if shading[level] == nil {
-                            shading[level] = .color(
-                                Theme.level(level, dark: dark, palette: renderedPalette))
-                        }
-                        var cellContext = context
-                        cellContext.translateBy(x: CGFloat(column) * pitch,
-                                                y: CGFloat(row) * pitch)
-                        cellContext.fill(cellPath, with: shading[level]!)
-                        if appearancePreferences.material == .adaptive {
-                            cellContext.stroke(
-                                cellPath,
-                                with: .color(Theme.adaptiveTileOutline(
-                                    preferences: appearancePreferences,
-                                    dark: dark)),
-                                lineWidth: 0.5)
-                        }
-                    }
-                }
-            }
-            .frame(width: max(contentWidth, 0), height: height)
-            .environment(\.layoutDirection, .leftToRight)
-        }
-        .padding(.vertical, 2)
-        .environment(\.layoutDirection, .leftToRight)
-    }
-
-    private func monthRow(_ marks: [MonthMark], width: CGFloat, pitch: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear.frame(width: max(width, 0), height: 14 * max(1, labelScale / 100))
-            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
-                Text(verbatim: GridCalendar.label(for: mark))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .offset(x: CGFloat(mark.column) * pitch)
-            }
-        }
-        .frame(height: 14 * max(1, labelScale / 100), alignment: .topLeading)
     }
 
     private var widthReader: some View {
@@ -313,12 +449,6 @@ struct GitHubContributionGraph: View {
         }
         return hasher.finalize()
     }
-}
-
-private enum GitHubGraphMetrics {
-    static let cell: CGFloat = 12
-    static let gap: CGFloat = 3
-    static let cornerRadius: CGFloat = 2
 }
 
 private struct GitHubGridWidthKey: PreferenceKey {

@@ -108,6 +108,31 @@ final class ReminderOccurrenceTests: XCTestCase {
         XCTAssertTrue(state.isChecked(now: now, calendar: calendar))
     }
 
+    func testClearingNonContinuingCompletionReopensTheCompletedOccurrence() throws {
+        var reminder = fixture(createdAt: "2026-08-16", timeMinutes: 9 * 60)
+        reminder.repeatsWhileIncomplete = false
+        let now = date("2026-08-16", minutes: 12 * 60)
+        let occurrence = try XCTUnwrap(ReminderOccurrenceEngine.state(
+            for: reminder, now: now, calendar: calendar
+        ).actionable)
+
+        reminder.log[occurrence.day] = 1
+        reminder.reminderCursor = ReminderOccurrenceEngine.cursorAfterCompleting(
+            occurrence, reminder: reminder, now: now, calendar: calendar
+        )
+        XCTAssertTrue(ReminderOccurrenceEngine.state(
+            for: reminder, now: now, calendar: calendar
+        ).isChecked(now: now, calendar: calendar))
+
+        reminder.log[occurrence.day] = nil
+        reminder.reminderCursor = occurrence.day
+        let reopened = ReminderOccurrenceEngine.state(
+            for: reminder, now: now, calendar: calendar
+        )
+        XCTAssertFalse(reopened.isChecked(now: now, calendar: calendar))
+        XCTAssertEqual(reopened.actionable?.day, occurrence.day)
+    }
+
     func testGermanOccurrenceLabelsUseActionableDatesInsteadOfRecurrenceText() {
         let locale = Locale(identifier: "de_DE")
 

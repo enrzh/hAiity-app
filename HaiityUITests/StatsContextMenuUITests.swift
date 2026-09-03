@@ -177,7 +177,6 @@ final class ReminderInteractionUITests: XCTestCase {
             on: check,
             timeout: 3,
             message: "the reminder checkmark must update the occurrence")
-
         check.tap()
         waitUntil(
             predicate: NSPredicate(format: "value == %@", initialValue ?? ""),
@@ -212,13 +211,11 @@ final class ReminderInteractionUITests: XCTestCase {
         XCTAssertTrue(doneAppeared,
                       "swiping right must reveal the reminder Done action")
         guard doneAppeared else { return }
-        print("reveal done frame=\(done.frame) hittable=\(done.isHittable) enabled=\(done.isEnabled)")
         done.tap()
         let earlyCompletion = app.buttons["reminder-early-completion-confirm"]
         if earlyCompletion.waitForExistence(timeout: 1) {
             earlyCompletion.tap()
         }
-        print("after reveal done value=\(String(describing: check.value))")
         waitUntil(
             predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
             on: check,

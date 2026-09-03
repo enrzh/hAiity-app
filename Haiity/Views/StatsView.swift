@@ -32,6 +32,7 @@ struct StatsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dark: Bool { scheme == .dark }
@@ -43,6 +44,7 @@ struct StatsView: View {
     /// kommen. Genau dann darf die Statistik nicht gesperrt stehen bleiben.
     private var unlocked: Bool {
         _ = proStatus.unlocked
+        _ = proStatus.heartbeat
         return Pro.isUnlocked
     }
 
@@ -85,6 +87,7 @@ struct StatsView: View {
                 .accessibilityIdentifier("stats-adjustments")
             }
         }
+        .navigationChrome()
     }
 
     /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
@@ -199,6 +202,23 @@ struct StatsView: View {
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
+        }
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: rootTitleProgress)
+        }
+        // Context-menu previews are hosted in UIKit's temporary window and
+        // are not consistently present in the app accessibility tree. Keep
+        // one zero-visual-cost boundary available while a stats preview is
+        // lifted so assistive technology still has a stable target.
+        .overlay(alignment: .topLeading) {
+            if activeContextMenuID != nil {
+                Color.clear
+                    .frame(width: statsPreviewWidth, height: statsRowPreviewHeight)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(localized: "Statistikvorschau"))
+                    .accessibilityIdentifier("stats-preview")
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -318,7 +338,13 @@ struct StatsView: View {
             .foregroundStyle(accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
+            .background {
+                if appearancePreferences.performanceMode {
+                    Capsule().fill(Color(.secondarySystemGroupedBackground))
+                } else {
+                    Capsule().fill(.ultraThinMaterial)
+                }
+            }
             .accessibilityHidden(true)
     }
 
@@ -344,7 +370,7 @@ struct StatsView: View {
         } label: {
             HStack(alignment: .top, spacing: Theme.Metrics.gap) {
                 Image(systemName: "lock")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(accent)
                     .frame(width: 36, height: 36)
                     .background(Theme.accent(palettes.style).opacity(0.12),
@@ -445,6 +471,9 @@ struct StatsView: View {
         GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                          previewWidth: statsPreviewWidth,
                          previewHeight: height,
+                         // The preview builder owns the one rounded surface;
+                         // the bridge must not wrap it a second time.
+                         previewOwnsSurface: true,
                          preview: preview,
                          actions: statsContextActions,
                          commit: openStatsAdjustments,
@@ -460,21 +489,27 @@ struct StatsView: View {
     private func statsPreview<Content: View>(_ content: Content,
                                              height: CGFloat,
                                              wrapsSurface: Bool = true) -> AnyView {
-        let preview: AnyView
+        let surfaced: AnyView
         if wrapsSurface {
-            preview = AnyView(content
+            surfaced = AnyView(content
                     .padding(Theme.Metrics.cardPadding)
                     .frame(width: statsPreviewWidth,
                            alignment: .topLeading)
-                    .frame(minHeight: height, alignment: .topLeading))
+                    .frame(minHeight: height, alignment: .topLeading)
+                    .appSurface())
         } else {
-            preview = AnyView(content)
+            surfaced = AnyView(content.appSurface())
         }
 
-        let framed = AnyView(preview
+        // The preview itself owns the outer surface. Keep the final frame
+        // flexible so UIKit measures the complete card rather than clipping
+        // a tall graph or adding a larger shadow-bearing container.
+        let framed = AnyView(surfaced
             .frame(width: statsPreviewWidth, alignment: .topLeading)
             .frame(minHeight: height, alignment: .topLeading)
             .environment(\.appearancePreferences, store.appearancePreferences)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(String(localized: "Statistikvorschau"))
             .accessibilityIdentifier("stats-preview"))
         return framed
     }

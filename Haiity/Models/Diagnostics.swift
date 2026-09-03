@@ -119,8 +119,11 @@ enum DeveloperAccess {
     /// herein, hier wird nur verglichen.
     ///
     static func isOwnerDevice(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
-        HabitVisibility.isOwnerDevice(storedAppleUserID: storedAppleUserID,
-                                      storedAppleEmail: storedAppleEmail)
+        let userID = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if userID == ownerAppleUserID { return true }
+        let email = storedAppleEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return email == ownerAppleEmail.lowercased()
     }
 }
 

@@ -148,6 +148,92 @@ final class AppNavigationTests: XCTestCase {
                       "the native root should retain the progressive edge blur")
     }
 
+    func testMorePageRowsDoNotShareOneInteractiveListRow() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var githubSection",
+                                           range: start.upperBound..<more.endIndex))
+        let main = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(main.contains("Section {\n                pageRow(MoreRoute.appearance"))
+        XCTAssertTrue(main.contains("Section {\n                pageRow(MoreRoute.habitBehavior"))
+        XCTAssertFalse(main.contains("VStack(alignment: .leading, spacing: 0) {\n                    pageRow(MoreRoute.appearance"),
+                       "two page buttons in one List row can route both taps to one control")
+    }
+
+    func testMoreRowsKeepTheirOwnRouteAndNotificationSourceHitTarget() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(more.contains("Button {\n            onOpen(route)"),
+                      "each More row must dispatch the route it was given")
+        XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"),
+                      "the source action must remain available")
+        XCTAssertTrue(more.contains("openMotivationSource()"),
+                      "the source action must remain available")
+        XCTAssertTrue(more.contains(".fixedSize(horizontal: true, vertical: false)"),
+                      "the source action must keep an intrinsic hit target")
+        XCTAssertTrue(content.contains("morePageRoute = nil"),
+                      "a new More destination must not inherit a stale child route")
+        XCTAssertTrue(content.contains("moreRoutePresentationTask"),
+                      "replacing an open More child must wait for the old sheet to dismiss")
+    }
+
+    func testMoreChildPagesKeepIndependentViewIdentity() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("case .appearance:"),
+                      "Darstellung needs its own destination branch")
+        XCTAssertTrue(content.contains("screen: .appearance"),
+                      "Darstellung must not inherit Verhalten & Teilen's screen")
+        XCTAssertTrue(content.contains("screen: .habitBehavior"),
+                      "Verhalten & Teilen must keep its own screen")
+        XCTAssertTrue(content.contains(".id(\"more-destination-\\(fallback)\")"),
+                      "replaced More sheets must be mounted with route identity")
+    }
+
+    func testSettingsSurfacesUseTheSharedMaterialTint() throws {
+        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
+        let settings = try XCTUnwrap(theme.range(of: "struct SettingsRowSurface"))
+        let end = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier",
+                                             range: settings.upperBound..<theme.endIndex))
+        let surface = theme[settings.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(surface.contains("Theme.surfaceTint(preferences: preferences"),
+                      "settings rows must use the same tint source as app surfaces")
+        XCTAssertFalse(surface.contains("Color(.systemBackground).opacity(0.16)"),
+                       "hard-coded row tint causes inconsistent glass colors")
+    }
+
+    func testAppearancePerformanceModeUsesOneSharedSolidSurfacePath() throws {
+        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(theme.contains("var performanceMode: Bool"))
+        XCTAssertTrue(theme.contains("performanceMode"))
+        XCTAssertTrue(theme.contains("if preferences.performanceMode"),
+                      "performance mode must bypass expensive glass rendering")
+        XCTAssertTrue(more.contains("performance-mode-toggle"))
+    }
+
+    func testNativeCalendarMaintenanceUsesButtonTreatment() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let calendar = try XCTUnwrap(more.range(of: "private var calendarSection"))
+        let end = try XCTUnwrap(more.range(of: "private func cleanupNativeEntries",
+                                           range: calendar.upperBound..<more.endIndex))
+        let section = more[calendar.lowerBound..<end.lowerBound]
+        XCTAssertTrue(section.contains(".buttonStyle(.bordered)"))
+    }
+
+    func testAliasAndAppleRowsUseTheSameLeadingIconSlot() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(more.contains("private func personalLeadingIcon"),
+                      "personal rows need one shared icon layout")
+        XCTAssertTrue(more.contains("personalLeadingIcon(\"person.crop.circle\")"))
+        XCTAssertTrue(more.contains("personalLeadingIcon(\"person.crop.circle.badge.checkmark\")"))
+    }
+
     func testHabitDeepLinkRetriesAfterItsListRowsMount() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 
@@ -163,7 +249,7 @@ final class AppNavigationTests: XCTestCase {
         let end = try XCTUnwrap(content.range(of: "private func statsTile",
                                               range: start.upperBound..<content.endIndex))
         let preview = content[start.lowerBound..<end.lowerBound]
-        let framed = try XCTUnwrap(preview.range(of: "let framed = AnyView(preview"))
+        let framed = try XCTUnwrap(preview.range(of: "let framed = AnyView(surfaced"))
         XCTAssertTrue(preview.contains("if wrapsSurface"),
                       "preview sizing must keep compact and full card paths explicit")
         XCTAssertTrue(framed.lowerBound >= preview.startIndex,

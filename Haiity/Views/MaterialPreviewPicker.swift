@@ -191,6 +191,7 @@ private extension AppearancePreferences {
     func withMaterial(_ material: AppearanceMaterial) -> Self {
         var copy = self
         copy.material = material
+        copy.performanceMode = false
         return copy
     }
 }

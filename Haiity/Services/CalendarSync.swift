@@ -251,6 +251,10 @@ enum CalendarSync {
 
     static func activeCalendarTitle(isReminder: Bool) -> String? {
         guard hasAccess else { return nil }
+        let calendarKey = isReminder ? remindersCalendarKey : habitsCalendarKey
+        if let id = defaults.string(forKey: calendarKey) {
+            return store.calendar(withIdentifier: id)?.title
+        }
         if let id = selectedCalendarID(isReminder: isReminder),
            let calendar = store.calendar(withIdentifier: id) {
             return calendar.title

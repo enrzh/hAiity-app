@@ -27,6 +27,15 @@ final class SearchFlowTests: XCTestCase {
         XCTAssertTrue(source.contains("transaction.disablesAnimations = true"))
     }
 
+    func testSearchPresentationCancelsAndGuardsAsyncStateChanges() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+        XCTAssertTrue(source.contains("@State private var searchPresentationTask: Task<Void, Never>?") )
+        XCTAssertTrue(source.contains("searchPresentationTask?.cancel()"))
+        XCTAssertTrue(source.contains("guard !Task.isCancelled, nativeTab == .search, !showAdd,"))
+    }
+
     func testSearchCloseClearsPresentationStateWithoutTransientOverlay() throws {
         var flow = SearchFlow()
         flow.userOpened()

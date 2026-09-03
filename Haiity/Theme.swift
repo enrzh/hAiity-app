@@ -84,6 +84,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     var gradientStartHex: UInt32?
     var gradientEndHex: UInt32?
     var backgroundImageData: Data?
+    /// Disables expensive glass effects while keeping the selected background
+    /// and colors intact.
+    var performanceMode: Bool
     /// Last destructive/new-image background mutation. It is a small iCloud
     /// tombstone: an older payload must not resurrect a removed image.
     var backgroundResetAt: TimeInterval?
@@ -94,7 +97,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
          backgroundColorHex: UInt32? = nil,
          gradientStartHex: UInt32? = nil,
          gradientEndHex: UInt32? = nil,
-         backgroundResetAt: TimeInterval? = nil) {
+         backgroundResetAt: TimeInterval? = nil,
+         performanceMode: Bool = false) {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
         let requestedMode = backgroundMode ?? (boundedImage == nil ? .color : .image)
         self.material = material
@@ -109,6 +113,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         // makes stale iCloud payloads look like a locked editor state.
         self.backgroundImageData = requestedMode == .image ? boundedImage : nil
         self.backgroundResetAt = backgroundResetAt
+        self.performanceMode = performanceMode
     }
 
     /// The JSON payload is also written by older builds and by iCloud merges.
@@ -188,7 +193,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
-             gradientEndHex, backgroundImageData, backgroundResetAt, adaptive
+             gradientEndHex, backgroundImageData, backgroundResetAt,
+             performanceMode, adaptive
     }
 
     init(from decoder: Decoder) throws {
@@ -207,7 +213,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             gradientStartHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientStartHex),
             gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex),
             backgroundResetAt: try c.decodeIfPresent(TimeInterval.self,
-                                                      forKey: .backgroundResetAt))
+                                                      forKey: .backgroundResetAt),
+            performanceMode: try c.decodeIfPresent(Bool.self,
+                                                   forKey: .performanceMode) ?? false)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -226,6 +234,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         try c.encodeIfPresent(gradientEndHex, forKey: .gradientEndHex)
         try c.encodeIfPresent(backgroundImageData, forKey: .backgroundImageData)
         try c.encodeIfPresent(backgroundResetAt, forKey: .backgroundResetAt)
+        try c.encode(performanceMode, forKey: .performanceMode)
     }
 
     var backgroundImage: UIImage? {
@@ -788,7 +797,7 @@ enum Theme {
     static func adaptivePalette(_ palette: PaletteStyle,
                                 preferences: AppearancePreferences,
                                 dark: Bool) -> PaletteStyle {
-        guard preferences.material == .adaptive else { return palette }
+        guard effectiveMaterial(preferences) == .adaptive else { return palette }
         let background = adaptiveReferenceHex(preferences: preferences, dark: dark)
         return PaletteStyle(
             lightRamp: palette.lightRamp.map { adaptiveTileHex($0, against: background) },
@@ -824,6 +833,57 @@ enum Theme {
                                                                 dark: dark))
         let target = dark ? 0.18 : 0.82
         return min(0.52, max(0.22, 0.22 + abs(luminance - target) * 0.45))
+    }
+
+    /// A quiet rim keeps translucent surfaces legible without adding a card
+    /// shadow. The same edge is used by app cards and settings rows so a page
+    /// does not switch visual language between controls and content.
+    static func surfaceOutline(preferences: AppearancePreferences,
+                               dark: Bool) -> Color {
+        switch effectiveMaterial(preferences) {
+        case .solid:
+            return dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06)
+        case .milky:
+            return Color.white.opacity(dark ? 0.18 : 0.48)
+        case .liquid:
+            return Color.white.opacity(dark ? 0.22 : 0.58)
+        case .adaptive:
+            return adaptiveTileOutline(preferences: preferences, dark: dark)
+        }
+    }
+
+    static func surfaceTintOpacity(preferences: AppearancePreferences,
+                                   dark: Bool) -> Double {
+        switch effectiveMaterial(preferences) {
+        case .solid: return 0
+        case .milky: return 0.16
+        case .liquid: return dark ? 0.32 : 0.18
+        case .adaptive: return adaptiveSurfaceOpacity(preferences: preferences, dark: dark)
+        }
+    }
+
+    /// One tint source for every app surface. Performance mode deliberately
+    /// uses the solid path so no material or glass effect is constructed.
+    static func effectiveMaterial(_ preferences: AppearancePreferences) -> AppearanceMaterial {
+        preferences.performanceMode ? .solid : preferences.material
+    }
+
+    static func surfaceTint(preferences: AppearancePreferences, dark: Bool) -> Color {
+        switch effectiveMaterial(preferences) {
+        case .adaptive:
+            return color(adaptiveTintHex(preferences: preferences, dark: dark))
+        case .solid, .milky, .liquid:
+            return Color(.systemBackground)
+        }
+    }
+
+    /// The opaque fallback shared by app cards and settings rows. Keeping
+    /// this here prevents the two surface modifiers from drifting apart.
+    static func surfaceFill(preferences: AppearancePreferences) -> Color {
+        switch effectiveMaterial(preferences) {
+        case .solid, .milky, .liquid, .adaptive:
+            return Color(.secondarySystemGroupedBackground)
+        }
     }
 
     static func contrastRatio(_ lhs: UInt32, _ rhs: UInt32) -> Double {
@@ -948,6 +1008,25 @@ enum Theme {
     }
 }
 
+/// Shared contribution tile geometry used by the app graph, GitHub graph,
+/// and their previews. The widget extension compiles the GitHub graph without
+/// the app-only ContributionGrid file, so the primitive lives in this shared
+/// target file.
+struct GridCell: View {
+    let color: Color
+    var size: CGFloat = GridCell.size
+
+    static let radius: CGFloat = 2
+    static let size: CGFloat = 12
+    static let gap: CGFloat = 3
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+            .fill(color)
+            .frame(width: size, height: size)
+    }
+}
+
 /// Shared title treatment for the three root tabs. The root navigation title
 /// is intentionally empty; this view is the single
 /// visible title and scrolls naturally with the page content.
@@ -1004,6 +1083,35 @@ struct RootPageCompactTitle: View {
             .scaleEffect(reduceMotion ? 1 : 0.96 + progress * 0.04)
             .blur(radius: reduceMotion ? 0 : 0.2)
             .accessibilityHidden(progress < 0.5)
+    }
+}
+
+/// A single, quiet header veil shared by the root pages. Its strength follows
+/// the same scroll progress as the compact title, so the large title never
+/// competes with the system navigation chrome or a bright wallpaper.
+struct RootPageHeaderBlur: View {
+    let progress: CGFloat
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if Theme.effectiveMaterial(appearancePreferences) == .solid {
+                Rectangle().fill(Color(.systemBackground))
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
+        }
+            .mask {
+                LinearGradient(colors: [.black, .black.opacity(0.72), .clear],
+                               startPoint: .top,
+                               endPoint: .bottom)
+            }
+            .frame(height: 92)
+            .blur(radius: reduceMotion ? 0 : progress * 5)
+            .opacity(reduceMotion ? 0 : progress * 0.52)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -1160,7 +1268,7 @@ struct AppearanceBackground: View {
                     endPoint: .bottom)
             case .image:
                 if let image = preparedImage {
-                    let scrim = preferences.material == .adaptive
+                    let scrim = Theme.effectiveMaterial(preferences) == .adaptive
                         ? Theme.adaptiveBackgroundScrimOpacity(preferences: preferences,
                                                               dark: colorScheme == .dark)
                         : 0.28
@@ -1204,67 +1312,76 @@ private struct AppSurfaceModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        switch preferences.material {
-        case .solid:
-            content.background(Color(.secondarySystemGroupedBackground), in: shape)
-        case .milky:
-            content
-                .background(.regularMaterial, in: shape)
-                .overlay {
-                    shape
-                        .fill(Color(.systemBackground)
-                            .opacity(colorScheme == .dark ? 0.22 : 0.12))
-                        .allowsHitTesting(false)
+        Group {
+                switch Theme.effectiveMaterial(preferences) {
+                case .solid:
+                    content.background(Theme.surfaceFill(preferences: preferences), in: shape)
+                case .milky:
+                    content
+                        .background(.regularMaterial, in: shape)
+                        .overlay {
+                            shape
+                                .fill(Theme.surfaceTint(preferences: preferences,
+                                                        dark: colorScheme == .dark)
+                                    .opacity(Theme.surfaceTintOpacity(preferences: preferences,
+                                                                      dark: colorScheme == .dark)))
+                                .allowsHitTesting(false)
+                        }
+                case .liquid:
+                    if #available(iOS 26, *) {
+                        content
+                            .background {
+                                Color.clear
+                                    .glassEffect(
+                                        .regular.tint(Theme.surfaceTint(preferences: preferences,
+                                                                        dark: colorScheme == .dark)
+                                            .opacity(Theme.surfaceTintOpacity(preferences: preferences,
+                                                                              dark: colorScheme == .dark))),
+                                        in: shape)
+                                    .allowsHitTesting(false)
+                            }
+                    } else {
+                        content
+                            .background(.ultraThinMaterial, in: shape)
+                            .overlay {
+                                shape
+                                    .fill(Theme.surfaceTint(preferences: preferences,
+                                                            dark: colorScheme == .dark)
+                                        .opacity(Theme.surfaceTintOpacity(preferences: preferences,
+                                                                          dark: colorScheme == .dark)))
+                                    .allowsHitTesting(false)
+                            }
+                    }
+                case .adaptive:
+                    let tint = Theme.surfaceTint(preferences: preferences,
+                                                 dark: colorScheme == .dark)
+                    let opacity = Theme.adaptiveSurfaceOpacity(preferences: preferences,
+                                                               dark: colorScheme == .dark)
+                    if #available(iOS 26, *) {
+                        content
+                            .background {
+                                Color.clear
+                                    .glassEffect(.regular.tint(tint.opacity(opacity)), in: shape)
+                                    .allowsHitTesting(false)
+                            }
+                    } else {
+                        content
+                            .background(.regularMaterial, in: shape)
+                            .overlay {
+                                shape
+                                    .fill(tint.opacity(opacity))
+                                    .allowsHitTesting(false)
+                            }
+                    }
                 }
-        case .liquid:
-            if #available(iOS 26, *) {
-                content
-                    .background {
-                        Color.clear
-                            .glassEffect(
-                                .regular.tint(Color(.systemBackground)
-                                    .opacity(colorScheme == .dark ? 0.32 : 0.18)),
-                                in: shape)
-                            .allowsHitTesting(false)
-                    }
-            } else {
-                content
-                    .background(.ultraThinMaterial, in: shape)
-                    .overlay {
-                        shape
-                            .fill(Color(.systemBackground).opacity(0.16))
-                            .allowsHitTesting(false)
-                    }
-            }
-        case .adaptive:
-            let tint = Theme.color(Theme.adaptiveTintHex(
-                preferences: preferences,
-                dark: colorScheme == .dark))
-            let opacity = Theme.adaptiveSurfaceOpacity(preferences: preferences,
-                                                       dark: colorScheme == .dark)
-            if #available(iOS 26, *) {
-                content
-                    .background {
-                        Color.clear
-                            .glassEffect(.regular.tint(tint.opacity(opacity)), in: shape)
-                            .allowsHitTesting(false)
-                    }
-            } else {
-                content
-                    .background(.regularMaterial, in: shape)
-                    .overlay {
-                        shape
-                            .fill(tint.opacity(opacity))
-                            .allowsHitTesting(false)
-                    }
-                    .overlay {
-                        shape
-                            .stroke(Theme.adaptiveTileOutline(
-                                preferences: preferences,
-                                dark: colorScheme == .dark), lineWidth: 0.5)
-                            .allowsHitTesting(false)
-                    }
-            }
+        }
+        .clipShape(shape)
+        .overlay {
+            shape
+                .strokeBorder(Theme.surfaceOutline(preferences: preferences,
+                                                    dark: colorScheme == .dark),
+                              lineWidth: 0.7)
+                .allowsHitTesting(false)
         }
     }
 }
@@ -1280,39 +1397,60 @@ struct SettingsRowSurface: View {
     @ViewBuilder
     var body: some View {
         Group {
-            switch preferences.material {
-            case .solid:
-                rowShape.fill(Color(.secondarySystemGroupedBackground))
-            case .milky:
-                rowShape
-                    .fill(.regularMaterial)
-                    .overlay { rowShape.fill(Color(.systemBackground).opacity(0.12)) }
-            case .liquid:
-                if #available(iOS 26, *) {
-                    Color.clear.glassEffect(
-                        .regular.tint(Color(.systemBackground)
-                            .opacity(colorScheme == .dark ? 0.32 : 0.18)),
-                        in: rowShape)
-                } else {
-                    rowShape
-                        .fill(.ultraThinMaterial)
-                        .overlay { rowShape.fill(Color(.systemBackground).opacity(0.16)) }
-                }
-            case .adaptive:
-                let tint = Theme.color(Theme.adaptiveTintHex(
-                    preferences: preferences,
-                    dark: colorScheme == .dark))
-                if #available(iOS 26, *) {
-                    Color.clear.glassEffect(.regular.tint(tint.opacity(0.18)), in: rowShape)
-                } else {
+            switch Theme.effectiveMaterial(preferences) {
+                case .solid:
+                    rowShape.fill(Theme.surfaceFill(preferences: preferences))
+                case .milky:
                     rowShape
                         .fill(.regularMaterial)
-                        .overlay { rowShape.fill(tint.opacity(0.16)) }
+                        .overlay {
+                            rowShape.fill(Theme.surfaceTint(preferences: preferences,
+                                                            dark: colorScheme == .dark)
+                                .opacity(Theme.surfaceTintOpacity(preferences: preferences,
+                                                                  dark: colorScheme == .dark)))
+                        }
+                case .liquid:
+                    if #available(iOS 26, *) {
+                        let tint = Theme.surfaceTint(preferences: preferences,
+                                                     dark: colorScheme == .dark)
+                        Color.clear.glassEffect(
+                            .regular.tint(tint.opacity(Theme.surfaceTintOpacity(
+                                preferences: preferences, dark: colorScheme == .dark))),
+                            in: rowShape)
+                    } else {
+                        rowShape
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                                rowShape.fill(Theme.surfaceTint(preferences: preferences,
+                                                                dark: colorScheme == .dark)
+                                    .opacity(Theme.surfaceTintOpacity(preferences: preferences,
+                                                                      dark: colorScheme == .dark)))
+                            }
+                    }
+                case .adaptive:
+                    let tint = Theme.surfaceTint(preferences: preferences,
+                                                 dark: colorScheme == .dark)
+                    if #available(iOS 26, *) {
+                        Color.clear.glassEffect(
+                            .regular.tint(tint.opacity(Theme.surfaceTintOpacity(
+                                preferences: preferences, dark: colorScheme == .dark))),
+                            in: rowShape)
+                    } else {
+                        rowShape
+                            .fill(.regularMaterial)
+                            .overlay {
+                                rowShape.fill(tint.opacity(Theme.surfaceTintOpacity(
+                                    preferences: preferences, dark: colorScheme == .dark)))
+                            }
+                    }
                 }
-            }
         }
         .clipShape(rowShape)
-        .overlay { rowShape.stroke(Color.primary.opacity(0.08), lineWidth: 0.5) }
+        .overlay {
+            rowShape.stroke(Theme.surfaceOutline(preferences: preferences,
+                                                 dark: colorScheme == .dark),
+                            lineWidth: 0.7)
+        }
         .allowsHitTesting(false)
     }
 }
@@ -1323,7 +1461,10 @@ private struct SettingsSurfaceModifier: ViewModifier {
 
     @ViewBuilder
     private var settingsRowBackground: some View {
-        SettingsRowSurface()
+        // Sections opt into their own rounded surface. A clear list-wide
+        // background prevents a second material layer from tinting the same
+        // row differently on iOS 27.
+        Color.clear
     }
 
     @ViewBuilder
@@ -1353,7 +1494,12 @@ private struct NavigationChromeModifier: ViewModifier {
     @Environment(\.appearancePreferences) private var preferences
 
     func body(content: Content) -> some View {
-        switch preferences.material {
+        if preferences.performanceMode {
+            content
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+        } else {
+            switch Theme.effectiveMaterial(preferences) {
         case .solid:
             content
                 .toolbarBackground(.visible, for: .navigationBar)
@@ -1370,6 +1516,7 @@ private struct NavigationChromeModifier: ViewModifier {
             content
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarBackground(.regularMaterial, for: .navigationBar)
+            }
         }
     }
 }
