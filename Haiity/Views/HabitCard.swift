@@ -31,6 +31,7 @@ import ObjectiveC
 struct HabitCard: View, Equatable {
     static func == (a: HabitCard, b: HabitCard) -> Bool {
         a.habit == b.habit && a.collapsed == b.collapsed
+            && a.showsMonthLabels == b.showsMonthLabels
             && a.leadingSwipe == b.leadingSwipe && a.trailingSwipe == b.trailingSwipe
             && a.calendar.timeZone.identifier == b.calendar.timeZone.identifier
     }
@@ -39,6 +40,7 @@ struct HabitCard: View, Equatable {
     /// Zusammengezogener Kopf. Standard `false`, damit Vorschauen und Tests
     /// die Karte ohne Einstellungs-Kontext bauen können.
     var collapsed: Bool = false
+    var showsMonthLabels: Bool = true
     /// Heute abhaken (Kopfzeile). Der einzige Weg von dieser Karte aus, der
     /// direkt schreibt — er sitzt auf einem beschrifteten Knopf.
     let onToggleDay: (String) -> Void
@@ -165,6 +167,8 @@ struct HabitCard: View, Equatable {
         ZStack {
             grid
                 .offset(x: revealOffset * mirror)
+                .zIndex(1)
+                .accessibilityHidden(revealOffset != 0)
                 // Offen ist die Karte MODAL für sich selbst: ein Tipp auf
                 // sie schließt nur (kein Zellen-Schreiben hinter offenen
                 // Knöpfen).
@@ -181,10 +185,12 @@ struct HabitCard: View, Equatable {
                     }
                 }
             revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0))
+                          exposedWidth: max(revealOffset, 0),
+                          containerWidth: revealCardWidth)
                 .allowsHitTesting(revealOffset > 0)
             revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0))
+                          exposedWidth: max(-revealOffset, 0),
+                          containerWidth: revealCardWidth)
                 .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
@@ -217,31 +223,46 @@ struct HabitCard: View, Equatable {
 
     @ViewBuilder
     private func revealButtons(actions: [RevealAction], alignment: Alignment,
-                               exposedWidth: CGFloat) -> some View {
-        HStack(spacing: SwipeReveal.buttonGap) {
+                               exposedWidth: CGFloat,
+                               containerWidth: CGFloat) -> some View {
+        let actionWidth = SwipeReveal.revealWidth(count: actions.count)
+        let actionStack = HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
             }
         }
-        // Die Karte legt den unveränderten Untergrund durch ihren Versatz frei.
-        // Keine separate Einblendung oder Skalierung: so erscheinen die
-        // Knöpfe direkt an der jeweiligen Kartenkante.
-        // Give the underlay a real exposed width before expanding it to the
-        // row. A mask on a full-width frame still leaves a full-width layout
-        // surface on iOS 27, which can bleed through translucent cards.
-        .frame(width: exposedWidth, alignment: alignment)
-        .frame(maxHeight: .infinity)
-        .clipped()
-        .frame(maxWidth: .infinity, maxHeight: .infinity,
-               alignment: alignment)
+        // The grid/card moves over this fixed edge layer. A partial strip is
+        // clipped to the card displacement, so it cannot draw a second
+        // translucent surface or shadow outside the visible action.
+        let actionLayer = actionStack
+            .frame(width: actionWidth, alignment: alignment)
+            .frame(maxHeight: .infinity)
+        Group {
+            if exposedWidth >= actionWidth {
+                actionLayer
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            } else {
+                actionLayer
+                    .frame(width: exposedWidth, alignment: alignment)
+                    .clipped()
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            }
+        }
+        // Keep trailing actions within the card's effective hit edge when the
+        // native List reports a slightly wider visual frame.
         .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
+        .offset(x: alignment == .trailing ? -2 : 0)
+        // Keep clipped intermediate frames out of the accessibility tree.
+        // The button becomes discoverable only when its full hit target is
+        // exposed and therefore tappable during the reveal spring.
+        .accessibilityHidden(exposedWidth < actionWidth)
         .transition(.identity)
     }
 
     private func revealButton(_ action: RevealAction) -> some View {
         Button {
-            snapReveal(to: 0)
             action.handler()
+            snapReveal(to: 0)
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: action.symbol)
@@ -261,6 +282,9 @@ struct HabitCard: View, Equatable {
                                            style: .continuous))
         }
         .buttonStyle(.plain)
+        .frame(width: SwipeReveal.buttonWidth)
+        .contentShape(Rectangle())
+        .zIndex(100)
         .accessibilityLabel(action.title)
         .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
     }
@@ -322,9 +346,10 @@ struct HabitCard: View, Equatable {
         // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
         // Auswertung dieser Karte die 371 Zellen neu, auch wenn sich nur das
         // Chrom bewegt hat. Store-Änderungen kommen an — sie ändern `habit`.
-        ContributionGrid(habit: habit,
-                         weeks: gridWeeks,
-                         calendar: calendar)
+            ContributionGrid(habit: habit,
+                             weeks: gridWeeks,
+                             showsMonthLabels: showsMonthLabels,
+                             calendar: calendar)
             .equatable()
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -875,6 +900,7 @@ struct GraphContextMenu: UIViewRepresentable {
     let cardRadius: CGFloat
     let previewWidth: CGFloat
     let previewHeight: CGFloat
+    var previewOwnsSurface = false
     let preview: () -> AnyView
     let actions: [GraphMenuAction]
     let commit: () -> Void
@@ -884,6 +910,7 @@ struct GraphContextMenu: UIViewRepresentable {
     func makeUIView(context: Context) -> MenuHost {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
                  previewHeight: previewHeight,
+                 previewOwnsSurface: previewOwnsSurface,
                  preview: preview, actions: actions, commit: commit,
                  appearancePreferences: appearancePreferences,
                  onMenuVisibilityChanged: onMenuVisibilityChanged)
@@ -893,6 +920,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.cardRadius = cardRadius
         view.previewWidth = previewWidth
         view.previewHeight = previewHeight
+        view.previewOwnsSurface = previewOwnsSurface
         view.preview = preview
         view.actions = actions
         view.commit = commit
@@ -908,6 +936,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var cardRadius: CGFloat
         var previewWidth: CGFloat
         var previewHeight: CGFloat
+        var previewOwnsSurface: Bool
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
@@ -919,6 +948,7 @@ struct GraphContextMenu: UIViewRepresentable {
 
         init(cardRadius: CGFloat, previewWidth: CGFloat,
              previewHeight: CGFloat,
+             previewOwnsSurface: Bool,
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void,
@@ -927,6 +957,7 @@ struct GraphContextMenu: UIViewRepresentable {
             self.cardRadius = cardRadius
             self.previewWidth = previewWidth
             self.previewHeight = previewHeight
+            self.previewOwnsSurface = previewOwnsSurface
             self.preview = preview
             self.actions = actions
             self.commit = commit
@@ -958,16 +989,25 @@ struct GraphContextMenu: UIViewRepresentable {
             let makePreview = preview
             let actions = actions
             let radius = cardRadius
+            let ownsSurface = previewOwnsSurface
             let appearancePreferences = appearancePreferences
             return UIContextMenuConfiguration(identifier: identifier as NSString,
                                                previewProvider: {
                 let root = AnyView(makePreview()
                     .frame(width: width, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
-                    .environment(\.appearancePreferences, appearancePreferences)
-                    .appSurface(cornerRadius: radius))
-                let controller = UIHostingController(rootView: root)
+                    .environment(\.appearancePreferences, appearancePreferences))
+                let surfaced = ownsSurface
+                    ? root
+                    : AnyView(root.appSurface(cornerRadius: radius))
+                let controller = RoundedPreviewHostingController(rootView: surfaced,
+                                                                  radius: radius)
                 controller.view.backgroundColor = .clear
+                // SwiftUI's accessibility identifier stays inside the
+                // hosted tree, which UIKit context-menu previews do not
+                // always expose to XCTest/VoiceOver. Mirror it on the host
+                // view so the lifted card has one stable boundary.
+                controller.view.accessibilityIdentifier = "stats-preview"
                 controller.view.setNeedsLayout()
                 controller.view.layoutIfNeeded()
                 let measuredHeight = controller.sizeThatFits(
@@ -1042,6 +1082,28 @@ struct GraphContextMenu: UIViewRepresentable {
             onMenuVisibilityChanged(visible)
         }
 
+    }
+}
+
+/// UIKit may relayout a context-menu preview after the initial size pass. The
+/// host reapplies the same mask on every layout so the lifted card cannot
+/// expose a larger rectangular shadow or lose its rounded silhouette.
+private final class RoundedPreviewHostingController: UIHostingController<AnyView> {
+        private let cardRadius: CGFloat
+
+    init(rootView: AnyView, radius: CGFloat) {
+        self.cardRadius = radius
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        view.layer.cornerRadius = cardRadius
+        view.layer.masksToBounds = true
+        view.clipsToBounds = true
     }
 }
 

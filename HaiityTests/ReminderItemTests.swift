@@ -87,6 +87,18 @@ final class ReminderItemTests: XCTestCase {
                       "the reminder row must render the card-height reveal surface")
     }
 
+    func testRevealedReminderActionRunsBeforeTheRevealLayerCloses() throws {
+        let row = try source("Haiity/Views/ReminderRow.swift")
+        let start = try XCTUnwrap(row.range(of: "private func revealButton"))
+        let end = try XCTUnwrap(row.range(of: "private func revealEnded",
+                                          range: start.upperBound..<row.endIndex))
+        let button = row[start.lowerBound..<end.lowerBound]
+        let actionCall = try XCTUnwrap(button.range(of: "action.handler()"))
+        let closeCall = try XCTUnwrap(button.range(of: "closeReveal()"))
+        XCTAssertLessThan(actionCall.lowerBound, closeCall.lowerBound,
+                          "the store mutation must happen before the action layer is removed")
+    }
+
     func testRevealGestureIsOwnedByEachSwiftUISurface() throws {
         let reminder = try source("Haiity/Views/ReminderRow.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")
@@ -104,8 +116,8 @@ final class ReminderItemTests: XCTestCase {
     func testSwipeBridgePreservesNestedControlTapsAndWaitsForTheListScroll() throws {
         let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
-        XCTAssertTrue(bridge.contains("pan.cancelsTouchesInView = false"),
-                      "the pan must not swallow a nested checkmark tap")
+        XCTAssertTrue(bridge.contains("pan.cancelsTouchesInView = true"),
+                      "a horizontal pan must cancel a nested button drag without affecting taps")
         XCTAssertTrue(bridge.contains("scroll.panGestureRecognizer.require(toFail: pan)"),
                       "the row pan must decide horizontal intent before List scrolls")
         XCTAssertTrue(bridge.contains("activeFrame.contains(location)"),
@@ -157,6 +169,13 @@ final class ReminderItemTests: XCTestCase {
                       "habit reveal actions must remain addressable after a swipe")
     }
 
+    func testReminderRevealButtonsDoNotShareAnAccessibilityActionContainer() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+
+        XCTAssertFalse(reminder.contains(".accessibilityRevealActions("),
+                       "real revealed buttons must remain directly hittable in a reused List row")
+    }
+
     func testRevealActionsAreExposedByCardMotionInsteadOfFadingOrScaling() throws {
         let reminder = try source("Haiity/Views/ReminderRow.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")
@@ -168,6 +187,18 @@ final class ReminderItemTests: XCTestCase {
                            "the card motion should reveal actions instead of fading them in")
             XCTAssertFalse(source.contains(".scaleEffect(min(1, 0.9 +"),
                            "the action underlay must keep a stable size while the card moves")
+        }
+    }
+
+    func testRevealActionsStayBehindTheMovingCardSurface() throws {
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+
+        for source in [reminder, habit] {
+            XCTAssertTrue(source.contains(".zIndex(1)"),
+                          "the moving card surface must stay above the reveal layer")
+            XCTAssertFalse(source.contains(".zIndex(10)"),
+                           "reveal actions must not render over the card surface")
         }
     }
 
@@ -203,6 +234,10 @@ final class ReminderItemTests: XCTestCase {
             XCTAssertTrue(reveal.contains(
                 ".frame(width: exposedWidth, alignment: alignment)"
             ), "the action layer must be sized to the exact card displacement")
+            XCTAssertFalse(reveal.contains(".frame(maxWidth: .infinity, maxHeight: .infinity"),
+                           "the action layer must not become a transparent full-row hit container")
+            XCTAssertTrue(reveal.contains("if exposedWidth >= actionWidth"),
+                          "a fully exposed action must keep a direct hit path")
             XCTAssertTrue(reveal.contains(".clipped()"),
                           "the exposed action strip must not draw outside its width")
         }

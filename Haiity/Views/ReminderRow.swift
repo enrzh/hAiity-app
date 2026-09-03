@@ -42,23 +42,16 @@ struct ReminderRow: View, Equatable {
         ZStack {
             rowContent
                 .offset(x: revealOffset * mirror)
+                .zIndex(1)
                 .allowsHitTesting(revealOffset == 0)
-            if revealOffset != 0 {
-                Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                                   style: .continuous))
-                    .offset(x: revealOffset * mirror)
-                    .onTapGesture {
-                        Theme.Haptics.select()
-                        snapReveal(to: 0)
-                    }
-            }
+                .accessibilityHidden(revealOffset != 0)
             revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0))
+                          exposedWidth: max(revealOffset, 0),
+                          containerWidth: revealRowWidth)
                 .allowsHitTesting(revealOffset > 0)
             revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0))
+                          exposedWidth: max(-revealOffset, 0),
+                          containerWidth: revealRowWidth)
                 .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
@@ -70,7 +63,6 @@ struct ReminderRow: View, Equatable {
                            changed: revealChanged,
                            ended: revealEnded)
         }
-        .accessibilityRevealActions(leadingSwipe + trailingSwipe)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
     }
@@ -130,51 +122,70 @@ struct ReminderRow: View, Equatable {
 
     @ViewBuilder
     private func revealButtons(actions: [RevealAction], alignment: Alignment,
-                               exposedWidth: CGFloat) -> some View {
-        HStack(spacing: SwipeReveal.buttonGap) {
+                               exposedWidth: CGFloat,
+                               containerWidth: CGFloat) -> some View {
+        let actionWidth = SwipeReveal.revealWidth(count: actions.count)
+        let actionStack = HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
-                Button {
-                    snapReveal(to: 0)
-                    action.handler()
-                } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: action.symbol)
-                            .font(.title3.weight(.semibold))
-                        Text(action.title)
-                            .font(.caption2.weight(.semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: SwipeReveal.buttonWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(action.tint,
-                                in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                                     style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                                   style: .continuous))
+                revealButton(action)
+            }
+        }
+        // Keep the action layer fixed to the row edge, matching HabitCard.
+        // Only the exposed portion is clipped while the row moves above it;
+        // the full button frame remains stable and hittable at rest.
+        let actionLayer = actionStack
+            .frame(width: actionWidth, alignment: alignment)
+            .frame(height: Self.rowHeight)
+        Group {
+            if exposedWidth >= actionWidth {
+                actionLayer
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            } else {
+                actionLayer
+                    .frame(width: exposedWidth, alignment: alignment)
+                    .clipped()
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            }
+        }
+        // Keep the trailing action inside the List cell's effective hit edge.
+        // UIKit can report the visual cell a few points wider than its tappable
+        // region on iOS 27.
+        .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
+        // Keep the final button inside the List cell's hit rect as well as its
+        // visual rect. This avoids a one-pixel outside frame after rounding.
+        .offset(x: alignment == .trailing ? -2 : 0)
+        .accessibilityHidden(exposedWidth < actionWidth)
+        .transition(.identity)
+    }
+
+    private func revealButton(_ action: RevealAction) -> some View {
+        Button {
+            action.handler()
+            closeReveal()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: action.symbol)
+                    .font(.title3.weight(.semibold))
+                Text(action.title)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .frame(width: SwipeReveal.buttonWidth)
+            .frame(maxHeight: .infinity)
+            .background(action.tint,
+                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                             style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                           style: .continuous))
         }
         .buttonStyle(.plain)
+        .frame(width: SwipeReveal.buttonWidth, height: Self.rowHeight)
+        .contentShape(Rectangle())
+        .zIndex(100)
         .accessibilityLabel(action.title)
         .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
-    }
-        }
-        // Give the underlay a real exposed width before expanding it to the
-        // row. A mask on a full-width frame still leaves a full-width layout
-        // surface on iOS 27, which can bleed through translucent cards.
-        .frame(width: exposedWidth, alignment: alignment)
-        .frame(maxHeight: .infinity)
-        .clipped()
-        .frame(maxWidth: .infinity, maxHeight: .infinity,
-               alignment: alignment)
-        // Keep the trailing action inside the List row's effective content
-        // edge. SwiftUI's List can expose a wider accessibility frame than
-        // its hittable trailing area after cell reuse.
-        .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
-        // The card's horizontal offset is the reveal animation. Keep the
-        // action layer stable so it appears from the card edge, not by fading
-        // or scaling independently.
-        .transition(.identity)
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
@@ -203,8 +214,20 @@ struct ReminderRow: View, Equatable {
 
     private func commitReveal(_ action: RevealAction?) {
         Theme.Haptics.check()
-        snapReveal(to: 0)
+        closeReveal()
         action?.handler()
+    }
+
+    /// Close synchronously before mutating the store. An animated close can
+    /// leave the action layer above the newly rendered row for one layout
+    /// pass, making the next action visible but not hittable.
+    private func closeReveal() {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            revealOffset = 0
+            revealStart = 0
+        }
     }
 
     private func snapReveal(to target: CGFloat) {
@@ -237,8 +260,10 @@ struct ReminderRow: View, Equatable {
                 }
                 Spacer(minLength: 0)
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onEdit)
+            // The row is intentionally edited from its long-press menu. A
+            // tap gesture here can be mistaken for a tap when a horizontal
+            // swipe starts in the title and ends inside the same area.
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: onToggle) {
                 Image(systemName: state.isChecked(now: now, calendar: calendar)
