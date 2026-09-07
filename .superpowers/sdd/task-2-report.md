@@ -1,85 +1,17 @@
-# Task 2 Report
+# Task 2 报告
 
-## 改动
+STATUS: 完成 geometry constants；focused geometry XCTest 通过并已提交。未实现 renderer 或其他 Task。
 
-- 在 `WidgetLogic` 增加 `resolveLargeItems`，先调用 `HabitVisibility.visibleActiveHabits(_:unlocked:)`，再按槽位保留有效显式选择、去重，并用推荐顺序自动补位。
-- `HaiityEntry` 增加大型 Widget 的有序 `largeItems` 与 `largeLayout` 输入。
-- `WidgetData` 增加大型 entry/timeline 输入，并新增三个对应 provider，将三个 intent 的槽位转换为 `[UUID?]`。
-- 未修改三种 renderer，也未修改旧静态 provider 的兼容行为。
-- 测试文件增加 brief 要求的五个 resolver 测试；修正 brief 中无法通过 Swift 编译的嵌套闭包参数为等价合法写法。
+COMMITS: `6369714 feat: define featured widget geometry`（仅包含 `HaiityWidget/WidgetLogic.swift` 与 `HaiityTests/WidgetRenderingTests.swift`）。
 
-## 测试
+TESTS:
+- RED 命令：
+  `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetRenderingTests/testFeaturedAndRasterGeometryUsesTheFullLargeCanvas -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO`
+- RED 结果：编译成功，1 个测试执行，8 个 source-only `XCTAssertTrue` 失败，退出码 1；原因是 featured/compact geometry 常量尚不存在。
+- GREEN 命令：同上完整命令。
+- GREEN 结果：`** TEST SUCCEEDED **`，1 个测试执行成功，退出码 0。仅有模拟器 XPC/widget 服务告警，不影响测试结果。
 
-失败阶段（按 TDD）：
-
-```text
-xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetLogicTests/testLargeResolverKeepsExplicitOrderAndFillsAutomaticSlots -only-testing:HaiityTests/WidgetLogicTests/testLargeResolverDeduplicatesExplicitAndAutomaticItems -only-testing:HaiityTests/WidgetLogicTests/testLargeResolverDropsArchivedDeletedAndProHiddenSelections -only-testing:HaiityTests/WidgetLogicTests/testLargeResolverAppliesFreeLimitWhenProIsLocked -only-testing:HaiityTests/WidgetLogicTests/testLargeResolverReturnsNoItemsForEmptyVisibleStore
-```
-
-按预期因 `resolveLargeItems` 不存在而失败；实现后同一组测试通过。
-
-最终验证：
-
-```text
-xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetLogicTests
-```
-
-结果：`TEST SUCCEEDED`，62 tests，0 failures。使用已有 simulator `sAiity Verification`，未创建设备。
-
-## 提交
-
-提交信息：`feat: resolve configurable large widget slots`
-
-提交哈希：`f25d7549a6e4ab954cee38500482561d92b88f62`。
-
-## 风险
-
-- 尚未进行 Task 3 的 gallery 注册或 renderer 像素验证，按任务边界留给后续任务。
-- 未进行实体设备验证；本任务仅验证 simulator 上的 unit/widget logic tests。
-
-## Task 2 追加记录
-
-### 改动
-
-- `ContentView.swift` 将 `legacyBottomChrome` overlay 限定在 iOS 26 以下 fallback；iOS 26+ 仅由原生 `TabView(selection: $nativeTab)` 持有底部栏。
-- `ChromeLayout.nativeTabBarClearance` 统一 native toast 的底部安全区预留，避免 native bar resize 覆盖 toast。
-- `ReminderSetupView.swift` 保留 permission actions、deep links 与 accessibility identifiers；setup page 继续使用 `GeometryReader` 可用高度、top composition，并为 footer 使用透明背景。
-- `ChromeLayoutTests.swift`、`SetupFlowTests.swift`、`SearchFlowTests.swift` 增加 native owner、toast clearance、setup footer/top composition、search close cleanup contracts。
-
-### 测试
-
-失败阶段（按 TDD）：
-
-```text
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing:HaiityTests/ChromeLayoutTests -only-testing:HaiityTests/SetupFlowTests -only-testing:HaiityTests/SearchFlowTests
-```
-
-`iPhone 16 Pro` destination 不存在；xcodebuild 列出的可用 target 为 `AC636497-5EC6-4AD4-BD83-E5E2458FA702`（`sAiity Verification`）。新增 assertions 在实现前按预期 RED：60 tests 中 4 failures。
-
-GREEN：
-
-```text
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'platform=iOS Simulator,id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/ChromeLayoutTests -only-testing:HaiityTests/SetupFlowTests -only-testing:HaiityTests/SearchFlowTests
-```
-
-结果：`TEST SUCCEEDED`，60 tests，0 failures；使用已有 `sAiity Verification` simulator，未创建设备。
-
-### 提交
-
-提交信息：`align native navigation and setup chrome`。
-
-## Review 修复
-
-- 将 native toast 底部预留和搜索关闭清理收敛为可执行的纯逻辑契约；视图实际消费 `ChromeLayout.toastBottomPadding` 与 `SearchFlow.closeCleanup`。
-- 收紧 native/fallback owner 测试到真实代码区间，避免注释或字符串误满足；setup footer 测试验证其实际层级包含 page dots、透明背景且没有 `appSurface`。
-
-## Review 修复验证
-
-- focused gate：61 tests，0 failures；使用 simulator `AC636497-5EC6-4AD4-BD83-E5E2458FA702`。
-- 报告提交内容保留为 base `4420439` blob，当前追加记录保持 unstaged。
-
-## Final Review 修复验证
-
-- 删除未被视图消费的 `SearchFlow.Cleanup.leaveSearchTab` 及其测试期望值；保留 `clearFocus`、`clearQuery`，未修改 `if nativeTab == .search` 导航。
-- TDD：先移除测试期望参数后按指定 simulator 验证为编译失败；完成生产调整后 `SearchFlowTests` 通过：32 tests，0 failures。
-- `git diff --check` 通过；修复已提交为 `fb0af4e`。本段追加记录保持 unstaged。
+CONCERNS:
+- 仅增加/调整 `WidgetLogic.LargeGeometry` 常量并切换 geometry arithmetic 合同；renderer、模型、配置和其他任务未修改。
+- 未运行完整测试套件；Task 1 的 renderer source contracts 仍应在 renderer 实现后验证。
+- 无关 dirty/untracked 文件保持原样。

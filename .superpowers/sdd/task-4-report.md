@@ -1,38 +1,17 @@
-# Task 4: Integration, Migration, and Full Regression Gates
+# Task 4 报告
 
-## Scope
+STATUS: 完成 graph-first 大号 Raster；完整 Raster focused XCTest 通过并已提交。
 
-- Baseline: `ba6bca4d9e594f02517a2f23505f8ae714f33bb8`
-- Changed files: `HaiityTests/WidgetLogicTests.swift`, `HaiityTests/GitHubWidgetTests.swift`, `HaiityTests/WidgetRenderingTests.swift`
-- Production changes: none. Existing `HaiityWidget.swift` and `WidgetLogic.swift` satisfied the compatibility contracts.
+COMMITS: `718f6e4 feat: redesign large raster widget`（仅 `HaiityWidget/WidgetGridViews.swift` 与 `HaiityTests/WidgetRenderingTests.swift`）。
 
-## Coverage Added
+TESTS:
+- RED 命令：
+  `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project Haiity.xcodeproj -scheme Haiity -destination 'id=AC636497-5EC6-4AD4-BD83-E5E2458FA702' -only-testing:HaiityTests/WidgetRenderingTests/testRasterUsesGraphFirstTilesWithoutNestedActionCapsules -only-testing:HaiityTests/WidgetRenderingTests/testTaskThreeRasterRendersMixedContentInExclusiveRegions -only-testing:HaiityTests/WidgetRenderingTests/testRasterFourGraphRegionsUseFullHeightAndDoNotOverlap -only-testing:HaiityTests/WidgetRenderingTests/testLargeRenderersRenderDarkAndVibrantStates -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO`
+- RED 结果：编译成功，4 个测试执行，2 failures；旧 action capsule 和缺少 Divider 的结构合同失败。
+- GREEN 命令：同上完整命令。
+- GREEN 结果：`** TEST SUCCEEDED **`，4 个测试执行，0 failures，0 unexpected failures，退出码 0。
+- 模拟器输出包含 XPC/widget 服务告警，但未影响测试结果。
 
-- Legacy Overview provider reads `WidgetData.entry()` and remains out of the widget gallery.
-- Large item actions bind the current habit and do not use a parent collection URL.
-- Large configuration logic contains no Habit/iCloud persistence path.
-- Deleted and archived selections fall back to automatic choices.
-- Locked Pro visibility is applied before configured slots.
-- List, grid, and focus renderers produce non-empty output for an empty App Group snapshot.
-
-## Verification
-
-Focused widget gate on existing `sAiity Verification` simulator (`AC636497-5EC6-4AD4-BD83-E5E2458FA702`): **104/104 passed**.
-
-Breakdown: GitHubWidgetTests 30/30, WidgetLogicTests 67/67, WidgetRenderingTests 7/7.
-
-Full `HaiityTests` unit target: **1586 tests, 17 failures**. The failures are pre-existing baseline failures in AppNavigation, ThemeAndPalette, Diagnostics, Feedback, FollowUpFix, GraphContextMenuRegression, GesturePerf, ProGate, and SetupFlow. No Task 4 test failed.
-
-`git diff --check`: passed with no output.
-
-The requested `iPhone 16 Pro` destination does not exist in this Xcode environment; no device was created. The existing `sAiity Verification` simulator was used instead.
-
-## Commit
-
-Commit: `29e7769` (`test: cover large widget migration and interactions`)
-
-## Risks
-
-- The full unit target remains red because of the 17 unrelated baseline failures listed above.
-- Simulator execution does not establish physical iPhone/iPad behavior.
-- The Task 4 rendering check verifies non-empty output and stable geometry, not visual pixel approval on every device appearance.
+CONCERNS:
+- 仅修改 `LargeGridWidgetView`/`LargeGridItem` 路径和必要 Raster 旧断言；Liste、Focus、WidgetLogic、模型、AppIntent 定义、配置未修改。
+- 未运行完整测试套件；无关 dirty/untracked 文件保持原样。

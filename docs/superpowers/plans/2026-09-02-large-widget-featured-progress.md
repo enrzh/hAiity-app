@@ -80,17 +80,17 @@ func testRasterUsesGraphFirstTilesWithoutNestedActionCapsules() throws {
 }
 
 func testFeaturedAndRasterGeometryUsesTheFullLargeCanvas() {
+    let source = try! source("HaiityWidget/WidgetLogic.swift")
     let g = WidgetLogic.LargeGeometry.self
-    XCTAssertEqual(g.featuredListHeaderHeight + g.featuredListHeaderGap
-                   + g.featuredListHeight + 3 * g.compactListRowHeight
-                   + 2 * g.compactListRowGap, g.contentHeight)
-    XCTAssertEqual(g.featuredIdentityBandHeight + g.featuredVisualBandHeight
-                   + g.featuredActionBandHeight, g.featuredListHeight)
-    XCTAssertEqual(g.gridIdentityBandHeight + g.gridVisualBandHeight
-                   + g.gridActionBandHeight + 2 * g.gridItemSpacing
-                   + 2 * g.gridItemPadding, g.gridRowHeight)
-    XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
-    XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
+    XCTAssertTrue(source.contains("featuredListHeaderHeight"))
+    XCTAssertTrue(source.contains("featuredListHeight"))
+    XCTAssertTrue(source.contains("featuredIdentityBandHeight"))
+    XCTAssertTrue(source.contains("featuredVisualBandHeight"))
+    XCTAssertTrue(source.contains("featuredActionBandHeight"))
+    XCTAssertTrue(source.contains("compactListRowHeight"))
+    XCTAssertTrue(source.contains("gridVisualBandHeight"))
+    XCTAssertTrue(source.contains("gridActionBandHeight"))
+    XCTAssertEqual(g.outerPadding, 6)
     XCTAssertEqual(g.actionHeight, 44)
 }
 \`\`\`
@@ -109,7 +109,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
   -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO
 \`\`\`
 
-Expected: compilation succeeds and the new tests fail because the production views do not contain the new components or constants.
+Expected: compilation succeeds and the new source contracts fail because the production views and geometry source do not yet contain the new components or constants.
 
 - [ ] **Step 3: Commit the test contracts**
 
@@ -162,7 +162,25 @@ static let gridContentHeight: CGFloat = 2 * gridRowHeight + gridRowGap
 
 The arithmetic fills the existing \`344pt\` content budget: \`20 + 4 + 168 + 3*48 + 2*4 = 344\`, and each Raster tile remains \`168pt\): \`20 + 98 + 44 + 2*1 + 2*2 = 168\`.
 
-- [ ] **Step 2: Run the geometry test**
+- [ ] **Step 2: Replace the source-only geometry contract with arithmetic after adding the constants**
+
+Once the production constants exist, change
+`testFeaturedAndRasterGeometryUsesTheFullLargeCanvas` to assert the exact arithmetic from this task:
+
+```swift
+XCTAssertEqual(g.featuredListHeaderHeight + g.featuredListHeaderGap
+               + g.featuredListHeight + 3 * g.compactListRowHeight
+               + 2 * g.compactListRowGap, g.contentHeight)
+XCTAssertEqual(g.featuredIdentityBandHeight + g.featuredVisualBandHeight
+               + g.featuredActionBandHeight, g.featuredListHeight)
+XCTAssertEqual(g.gridIdentityBandHeight + g.gridVisualBandHeight
+               + g.gridActionBandHeight + 2 * g.gridItemSpacing
+               + 2 * g.gridItemPadding, g.gridRowHeight)
+XCTAssertLessThanOrEqual(g.listContentHeight, g.contentHeight)
+XCTAssertLessThanOrEqual(g.gridContentHeight, g.contentHeight)
+```
+
+- [ ] **Step 3: Run the geometry test**
 
 \`\`\`bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
@@ -174,7 +192,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
 
 Expected: the arithmetic assertions pass; source assertions remain red until Tasks 3 and 4.
 
-- [ ] **Step 3: Commit geometry**
+- [ ] **Step 4: Commit geometry**
 
 \`\`\`bash
 git add HaiityWidget/WidgetLogic.swift
