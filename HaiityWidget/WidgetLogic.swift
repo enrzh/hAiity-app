@@ -497,7 +497,7 @@ enum WidgetLogic {
                          today: String = DayKey.today(),
                          calendar: Calendar = .current) -> DayProgress {
         var due = 0, met = 0
-        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
+        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit && !habit.recurrence.isFlexible {
             guard GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) else { continue }
             due += 1
             if GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar) { met += 1 }
@@ -509,17 +509,9 @@ enum WidgetLogic {
                          defaultTimeZoneIdentifier: String?,
                          now: Date = .now,
                          calendar: Calendar = .current) -> DayProgress {
-        var due = 0, met = 0
-        for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
-            let itemCalendar = Self.calendar(for: habit,
-                                             defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
-                                             calendar: calendar)
-            let today = DayKey.key(for: now, calendar: itemCalendar)
-            guard GoalEngine.isScheduled(habit: habit, day: today, calendar: itemCalendar) else { continue }
-            due += 1
-            if GoalEngine.dayCounts(habit: habit, day: today, calendar: itemCalendar) { met += 1 }
-        }
-        return DayProgress(due: due, met: met)
+        let progress = ScheduledProgress.today(habits: habits,
+            defaultTimeZoneIdentifier: defaultTimeZoneIdentifier, now: now, calendar: calendar)
+        return DayProgress(due: progress.scheduled, met: progress.completed)
     }
 
     // MARK: – Die Übersicht

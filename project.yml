@@ -111,6 +111,7 @@ targets:
       - path: Haiity/Models/Recurrence.swift
       - path: Haiity/Models/ReminderOccurrence.swift
       - path: Haiity/Models/GoalEngine.swift
+      - path: Haiity/Models/ScheduledProgress.swift
       - path: Haiity/Models/GridCalendar.swift
       - path: Haiity/Models/GitHubContributionModels.swift
       - path: Haiity/Models/GitHubWidgetSupport.swift

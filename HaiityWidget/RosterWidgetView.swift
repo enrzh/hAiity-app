@@ -248,7 +248,7 @@ struct LargeWidgetHeader: View {
 
     var body: some View {
         HStack {
-            Text(String(localized: "Heute")).font(.subheadline.weight(.semibold))
+            Text(String(localized: "Heute geplant")).font(.subheadline.weight(.semibold))
             Spacer()
             Text(progress.isFree
                  ? String(localized: "frei")
@@ -256,6 +256,10 @@ struct LargeWidgetHeader: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(progress.isFree
+            ? String(localized: "Heute keine festen Termine")
+            : String(localized: "\(progress.met) von \(progress.due) geplanten Habits erledigt"))
     }
 }
 

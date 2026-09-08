@@ -1245,7 +1245,7 @@ struct AppearanceBackground: View {
     }
 
     private var fallbackColor: Color {
-        Color(.systemGroupedBackground)
+        Theme.color(colorScheme == .dark ? 0x181A18 : 0xF6F5F1)
     }
 
     private var fallbackGradient: (Color, Color) {

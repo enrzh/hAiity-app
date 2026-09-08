@@ -26,6 +26,78 @@ import Foundation
 /// übergibt) heißt schlicht: Serie 0.
 enum StatsEngine {
 
+    struct WeeklyInsight: Equatable {
+        struct HabitProgress: Equatable, Identifiable {
+            let id: UUID
+            let name: String
+            let emoji: String
+            let done: Int
+            let required: Int
+            var fraction: Double? { required > 0 ? Double(done) / Double(required) : nil }
+        }
+
+        let start: String
+        let end: String
+        let habits: [HabitProgress]
+        let excludedFlexibleCount: Int
+        let scheduledDone: Int
+        let scheduledTotal: Int
+    }
+
+    /// The last complete device-calendar week. Its boundary follows the
+    /// supplied calendar's firstWeekday; each habit evaluates those date
+    /// labels in its own timezone. Flexible goals are exclusions here because
+    /// their period may be weekly, monthly, or yearly.
+    static func weeklyInsight(habits: [Habit], today: String = DayKey.today(),
+                              defaultTimeZoneIdentifier: String? = nil,
+                              calendar: Calendar = .current) -> WeeklyInsight {
+        guard let todayDate = DayKey.date(from: today, calendar: calendar),
+              let current = calendar.dateInterval(of: .weekOfYear, for: todayDate),
+              let previousStart = calendar.date(byAdding: .day, value: -7, to: current.start),
+              let previousEnd = calendar.date(byAdding: .day, value: -1, to: current.start)
+        else {
+            return WeeklyInsight(start: today, end: today, habits: [],
+                                 excludedFlexibleCount: 0, scheduledDone: 0, scheduledTotal: 0)
+        }
+        let start = DayKey.key(for: previousStart, calendar: calendar)
+        let end = DayKey.key(for: previousEnd, calendar: calendar)
+        var fixed: [WeeklyInsight.HabitProgress] = []
+        var excludedFlexibleCount = 0
+        for habit in tracked(habits).filter({ $0.archivedAt == nil }) {
+            let habitCalendar = HabitTimeZone.calendar(for: habit,
+                                                        defaultIdentifier: defaultTimeZoneIdentifier,
+                                                        base: calendar)
+            let schedule = habit.recurrence.schedule(calendar: habitCalendar)
+            let floor = max(habit.createdAt, habit.recurrence.start ?? habit.createdAt)
+            var days: [String] = []
+            var day = start
+            while day <= end {
+                if day >= floor { days.append(day) }
+                guard let next = DayKey.shifted(day, by: 1, calendar: calendar) else { break }
+                day = next
+            }
+            if let target = habit.recurrence.timesPerPeriod {
+                // Flexible goals belong to their own weekly/monthly/yearly
+                // period calculation and never enter this fixed-week metric.
+                if target > 0 && days.contains(where: schedule.isScheduled) {
+                    excludedFlexibleCount += 1
+                }
+            } else {
+                let scheduled = days.filter { schedule.isScheduled($0) }
+                guard !scheduled.isEmpty else { continue }
+                let done = scheduled.reduce(into: 0) { result, day in
+                    if GoalEngine.dayCounts(habit: habit, day: day, calendar: habitCalendar) { result += 1 }
+                }
+                fixed.append(.init(id: habit.id, name: habit.name, emoji: habit.emoji,
+                                   done: done, required: scheduled.count))
+            }
+        }
+        return WeeklyInsight(start: start, end: end, habits: fixed,
+                             excludedFlexibleCount: excludedFlexibleCount,
+                             scheduledDone: fixed.reduce(0) { $0 + $1.done },
+                             scheduledTotal: fixed.reduce(0) { $0 + $1.required })
+    }
+
     private static func tracked(_ items: [Habit]) -> [Habit] {
         items.filter(\.isTrackedHabit)
     }

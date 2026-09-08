@@ -1,6 +1,75 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Ausgeklappt": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Expanded" } } }
+    },
+    "Eingeklappt": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Collapsed" } } }
+    },
+    "Alle": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "All" } } }
+    },
+    "Historie": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "History" } } }
+    },
+    "Heute keine festen Termine": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "No fixed habits scheduled today" } } }
+    },
+    "%lld von %lld geplanten Habits erledigt": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld scheduled habits complete" } } }
+    },
+    "Flexible Ziele: %lld von %lld in ihrer Periode erfüllt": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Flexible goals: %1$lld of %2$lld complete for their period" } } }
+    },
+    "Einträge anzeigen": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Show entries" } } }
+    },
+    "Keine passenden Einträge": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "No matching entries" } } }
+    },
+    "Ändere die Filter, um weitere Einträge zu sehen.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Change the filters to see more entries." } } }
+    },
+    "Erhöht den Zähler um eins.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Increases the count by one." } } }
+    },
+    "Macht den heutigen Eintrag rückgängig.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Undoes today's entry." } } }
+    },
+    "Markiert den heutigen Tag als erledigt.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Marks today as complete." } } }
+    },
+    "Heute geplant": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Scheduled today" } } }
+    },
+    "Weitere Einstellungen": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Advanced settings" } } }
+    },
+    "Vorschau: %@, %@": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Preview: %1$@, %2$@" } } }
+    },
+    "Benachrichtigung und Verhalten": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Notifications and behavior" } } }
+    },
+    "Letzte vollständige Woche": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Last complete week" } } }
+    },
+    "%lld von %lld geplanten Tagen": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld scheduled days" } } }
+    },
+    "%lld von %lld geplanten Tagen erledigt": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld scheduled days complete" } } }
+    },
+    "%@ %@: %lld von %lld": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "%1$@ %2$@: %3$lld of %4$lld" } } }
+    },
+    "Flexible Ziele werden nach ihrer eigenen Periode ausgewertet.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Flexible goals are measured over their own period." } } }
+    },
+    "In dieser Woche waren keine Termine fällig.": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "No fixed habits were scheduled that week." } } }
+    },
     "": {
       "shouldTranslate": false
     },

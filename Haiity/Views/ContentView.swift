@@ -126,6 +126,7 @@ struct ContentView: View {
     @State private var searchCommitTask: Task<Void, Never>?
     @State private var searchCloseTask: Task<Void, Never>?
     @State private var habitFilter = HabitListFilter()
+    @State private var progressNow = Date.now
     /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
     /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
     @State private var searching = false
@@ -368,6 +369,16 @@ struct ContentView: View {
                     .environment(\.appearanceBackgroundOwned, false)
             }
             .task {
+                #if DEBUG
+                if let fixtureStore = DesignFixture.makeStore() {
+                    store = fixtureStore
+                    UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
+                    Pro.setDebugUnlocked(true)
+                    searchPresentationArmed = true
+                    handleLaunchScreenArgument()
+                    return
+                }
+                #endif
                 await store.loadFromDisk()
                 try? await Task.sleep(for: .milliseconds(250))
                 searchPresentationArmed = true
@@ -398,6 +409,8 @@ struct ContentView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    progressNow = .now
+                    if DesignFixture.scenario != nil { return }
                     becameActiveAt = .now
                     schedulePendingNotificationAction()
                     schedulePendingNotificationDeliveryIssue()
@@ -1120,7 +1133,8 @@ struct ContentView: View {
     private var listFilteredHabits: [Habit] {
         visibleActiveHabits.filter {
             habitFilter.matches($0,
-                                 defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                                 defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                 now: progressNow)
         }
     }
 
@@ -1291,6 +1305,14 @@ struct ContentView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
+                    TodayProgressView(
+                        progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
+                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
+                        todayOnly: $habitFilter.todayOnly)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
+                                                  bottom: 0, trailing: Theme.Metrics.gutter))
                     if let snapshot = github.snapshot {
                         GitHubContributionCard(snapshot: snapshot,
                                                collapsed: collapsed,
@@ -1306,7 +1328,13 @@ struct ContentView: View {
                                                       trailing: Theme.Metrics.gutter))
                     }
                     if habitsTabSource.isEmpty {
-                        if github.snapshot == nil || !search.isEmpty {
+                        if !habitFilter.isEmpty && committedSearch.isEmpty {
+                            ContentUnavailableView(String(localized: "Keine passenden Einträge"),
+                                systemImage: "checkmark.circle",
+                                description: Text(String(localized: "Ändere die Filter, um weitere Einträge zu sehen.")))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        } else if github.snapshot == nil || !search.isEmpty {
                             ContentUnavailableView.search(text: search)
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
@@ -1342,6 +1370,9 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
+            progressNow = now
+        }
         // Row insertion/removal must stay instantaneous while the user
         // scrolls. Explicit edits and the search field own their animations.
         .transaction { transaction in

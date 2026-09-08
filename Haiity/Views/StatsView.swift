@@ -116,6 +116,7 @@ struct StatsView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             Section {
+                weeklyInsightSection
                 if activeCards.contains(.yearPulse) {
                     heroCard(snapshot)
                         .modifier(StatsCardChrome())
@@ -220,6 +221,57 @@ struct StatsView: View {
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    private var weeklyInsightSection: some View {
+        let insight = StatsEngine.weeklyInsight(
+            habits: visibleActiveTrackedHabits,
+            defaultTimeZoneIdentifier: store.data.defaultTimeZoneIdentifier)
+        return VStack(alignment: .leading, spacing: 10) {
+                Text(String(localized: "Letzte vollständige Woche"))
+                    .font(.headline)
+                Text(weeklyDateRange(insight))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if insight.scheduledTotal > 0 {
+                    Text(String(localized: "\(insight.scheduledDone) von \(insight.scheduledTotal) geplanten Tagen"))
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .accessibilityLabel(String(localized: "\(insight.scheduledDone) von \(insight.scheduledTotal) geplanten Tagen erledigt"))
+                }
+                if unlocked, let progress = insight.habits.max(by: {
+                    ($0.fraction ?? 0) < ($1.fraction ?? 0)
+                }) {
+                    Text(String(localized: "\(progress.emoji) \(progress.name): \(progress.done) von \(progress.required)"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if insight.excludedFlexibleCount > 0 {
+                    Text(String(localized: "Flexible Ziele werden nach ihrer eigenen Periode ausgewertet."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if insight.scheduledTotal == 0 && insight.excludedFlexibleCount == 0 {
+                    Text(String(localized: "In dieser Woche waren keine Termine fällig."))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    private func weeklyDateRange(_ insight: StatsEngine.WeeklyInsight) -> String {
+        let formatter = DateIntervalFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = .current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        guard let start = DayKey.date(from: insight.start),
+              let end = DayKey.date(from: insight.end) else {
+            return "\(insight.start) - \(insight.end)"
+        }
+        return formatter.string(from: start, to: end)
     }
 
     private var statsSelectionEmpty: some View {

@@ -77,6 +77,17 @@ struct EditHabitSheet: View {
     @State private var notificationDenied = false
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
+    @State private var showingCreationAdvanced = false
+    private enum IdentityField: Hashable { case name, emoji }
+    @FocusState private var focusedIdentity: IdentityField?
+
+    private var isCreating: Bool { existing == nil }
+
+    private var previewStyle: PaletteStyle {
+        PaletteStyle.resolve(habit: nil,
+                             global: habitPalette ?? palettes.global,
+                             customs: palettes.customs)
+    }
 
     private struct MultipleDateEdit: Identifiable {
         let id = UUID()
@@ -180,6 +191,9 @@ struct EditHabitSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if isCreating {
+                    creationPreview
+                }
                 Section {
                     Picker(String(localized: "Art"), selection: $itemType) {
                         Text(String(localized: "Habit")).tag(HabitItemType.habit)
@@ -189,15 +203,48 @@ struct EditHabitSheet: View {
                     .accessibilityIdentifier("item-type-picker")
 
                     TextField(String(localized: "Name (z. B. 20 Minuten lesen)"), text: $name)
+                        .focused($focusedIdentity, equals: .name)
+                        .submitLabel(.done)
+                        .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-name")
                     TextField(String(localized: "Emoji (optional)"), text: $emoji)
+                        .focused($focusedIdentity, equals: .emoji)
+                        .submitLabel(.done)
+                        .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-emoji")
                 }
                 .settingsListRow()
                 recurrenceSection.settingsListRow()
-                durationSection.settingsListRow()
-                if itemType == .habit { kindSection.settingsListRow() }
-                colorSection.settingsListRow()
+                if isCreating {
+                    if itemType == .habit { kindSection.settingsListRow() }
+                    Button {
+                        showingCreationAdvanced.toggle()
+                    } label: {
+                        HStack {
+                            Label(String(localized: "Weitere Einstellungen"),
+                                  systemImage: "slider.horizontal.3")
+                            Spacer()
+                            Image(systemName: showingCreationAdvanced ? "chevron.down" : "chevron.right")
+                                .accessibilityHidden(true)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("creation-advanced")
+                    .accessibilityValue(showingCreationAdvanced
+                        ? String(localized: "Ausgeklappt") : String(localized: "Eingeklappt"))
+                    .settingsListRow()
+                    if showingCreationAdvanced {
+                        durationSection.settingsListRow()
+                        colorSection.settingsListRow()
+                        creationAdvancedNotificationSection.settingsListRow()
+                    }
+                } else {
+                    durationSection.settingsListRow()
+                    if itemType == .habit { kindSection.settingsListRow() }
+                    colorSection.settingsListRow()
+                }
                 if let habit = existing {
                     swipeActionsSection.settingsListRow()
                     Section {
@@ -226,6 +273,7 @@ struct EditHabitSheet: View {
                 }
             }
             .settingsSurface()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existing == nil ? String(localized: "Neuer Habit") : String(localized: "Bearbeiten"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -342,6 +390,103 @@ struct EditHabitSheet: View {
         }
     }
 
+    private var creationPreview: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                HStack(spacing: Theme.Metrics.gap) {
+                    if !emoji.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(emoji)
+                    }
+                    Text(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         ? String(localized: "Neuer Habit")
+                         : name)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                    Image(systemName: itemType == .habit ? "checkmark.circle" : "bell")
+                    Text(itemType == .habit ? kind.displayName : String(localized: "Erinnerung"))
+                    }
+                    Text(draft.summary(calendar: calendar))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                if itemType == .habit {
+                    HStack(spacing: 4) {
+                    ForEach(0..<5, id: \.self) { level in
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(Theme.level(level, dark: scheme == .dark, palette: previewStyle))
+                            .frame(width: 18, height: 18)
+                    }
+                    }
+                    .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(String(localized: "Vorschau: \(name.isEmpty ? String(localized: "Neuer Habit") : name), \(draft.summary(calendar: calendar))"))
+            .accessibilityIdentifier("creation-preview")
+        } header: {
+            Text(String(localized: "Vorschau"))
+        }
+    }
+
+    private var creationAdvancedNotificationSection: some View {
+        Section {
+            Button {
+                showTimeZonePicker = true
+            } label: {
+                HStack {
+                    Label(String(localized: "Zeitzone"), systemImage: "globe")
+                    Spacer(minLength: Theme.Metrics.gap)
+                    Text(HabitTimeZone.selectionLabel(
+                        for: timeZoneIdentifier,
+                        defaultIdentifier: store.defaultTimeZoneIdentifier))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("habit-timezone")
+            Toggle(isOn: calendarSyncBinding) {
+                HStack {
+                    Text(String(localized: "Im Kalender"))
+                    if !unlocked {
+                        Spacer(minLength: Theme.Metrics.gap)
+                        Image(systemName: "lock")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+                    }
+                }
+            }
+            .accessibilityIdentifier("habit-calendar-toggle")
+            if itemType == .reminder && draft.frequency != .once {
+                Toggle(String(localized: "Trotz offenem Termin wiederholen"),
+                       isOn: $repeatsWhileIncomplete)
+                    .accessibilityIdentifier("repeats-while-incomplete-toggle")
+            }
+            Toggle(String(localized: "Offene Termine automatisch abschließen"),
+                   isOn: autoResolveEnabledBinding)
+                .accessibilityIdentifier("auto-resolve-toggle")
+            if autoResolveChoice != nil {
+                Picker(String(localized: "Beim Ablauf als"), selection: autoResolveChoiceBinding) {
+                    ForEach(HabitAutoResolveChoice.choices(for: kind, itemType: itemType),
+                            id: \.rawValue) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .accessibilityIdentifier("auto-resolve-choice")
+            }
+        } header: {
+            Text(String(localized: "Benachrichtigung und Verhalten"))
+        }
+    }
+
     // MARK: – Zeitraum (Regel + Start)
 
     private var recurrenceSection: some View {
@@ -431,51 +576,53 @@ struct EditHabitSheet: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("habit-notification-mode")
-            Button {
-                showTimeZonePicker = true
-            } label: {
-                HStack {
-                    Label(String(localized: "Zeitzone"), systemImage: "globe")
-                    Spacer(minLength: Theme.Metrics.gap)
-                    Text(HabitTimeZone.selectionLabel(
-                        for: timeZoneIdentifier,
-                        defaultIdentifier: store.defaultTimeZoneIdentifier))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("habit-timezone")
-            Toggle(isOn: calendarSyncBinding) {
-                HStack {
-                    Text(String(localized: "Im Kalender"))
-                    if !unlocked {
+            if !isCreating {
+                Button {
+                    showTimeZonePicker = true
+                } label: {
+                    HStack {
+                        Label(String(localized: "Zeitzone"), systemImage: "globe")
                         Spacer(minLength: Theme.Metrics.gap)
-                        Image(systemName: "lock")
-                            .font(.footnote.weight(.semibold))
+                        Text(HabitTimeZone.selectionLabel(
+                            for: timeZoneIdentifier,
+                            defaultIdentifier: store.defaultTimeZoneIdentifier))
                             .foregroundStyle(.secondary)
-                            .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+                            .lineLimit(1)
                     }
                 }
-            }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("habit-timezone")
+                Toggle(isOn: calendarSyncBinding) {
+                    HStack {
+                        Text(String(localized: "Im Kalender"))
+                        if !unlocked {
+                            Spacer(minLength: Theme.Metrics.gap)
+                            Image(systemName: "lock")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
+                        }
+                    }
+                }
                 .accessibilityIdentifier("habit-calendar-toggle")
-            if itemType == .reminder && draft.frequency != .once {
-                Toggle(String(localized: "Trotz offenem Termin wiederholen"),
-                       isOn: $repeatsWhileIncomplete)
-                    .accessibilityIdentifier("repeats-while-incomplete-toggle")
-            }
-            Toggle(String(localized: "Offene Termine automatisch abschließen"),
-                   isOn: autoResolveEnabledBinding)
-                .accessibilityIdentifier("auto-resolve-toggle")
-            if autoResolveChoice != nil {
-                Picker(String(localized: "Beim Ablauf als"),
-                       selection: autoResolveChoiceBinding) {
-                    ForEach(HabitAutoResolveChoice.choices(for: kind, itemType: itemType),
-                            id: \.rawValue) { choice in
-                        Text(choice.displayName).tag(choice)
-                    }
+                if itemType == .reminder && draft.frequency != .once {
+                    Toggle(String(localized: "Trotz offenem Termin wiederholen"),
+                           isOn: $repeatsWhileIncomplete)
+                        .accessibilityIdentifier("repeats-while-incomplete-toggle")
                 }
-                .accessibilityIdentifier("auto-resolve-choice")
+                Toggle(String(localized: "Offene Termine automatisch abschließen"),
+                       isOn: autoResolveEnabledBinding)
+                    .accessibilityIdentifier("auto-resolve-toggle")
+                if autoResolveChoice != nil {
+                    Picker(String(localized: "Beim Ablauf als"),
+                           selection: autoResolveChoiceBinding) {
+                        ForEach(HabitAutoResolveChoice.choices(for: kind, itemType: itemType),
+                                id: \.rawValue) { choice in
+                            Text(choice.displayName).tag(choice)
+                        }
+                    }
+                    .accessibilityIdentifier("auto-resolve-choice")
+                }
             }
         } header: {
             Text(String(localized: "Zeitraum"))

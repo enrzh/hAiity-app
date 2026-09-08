@@ -117,12 +117,17 @@ struct ContributionGrid: View, Equatable {
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
         // im Raster zeigt, bekommt die eine kleine Bewegung. Bei „Bewegung
         // reduzieren" bleibt nur der Farbwechsel der Zelle.
-        .onChange(of: habit.log[DayKey.today(calendar: calendar)]) { _, _ in
-            guard interactive, !reduceMotion else { return }
+        .onChange(of: habit.log[DayKey.today(calendar: calendar)]) { oldValue, newValue in
+            guard interactive, !reduceMotion,
+                  (newValue ?? 0) > (oldValue ?? 0),
+                  !habit.isDeclined(DayKey.today(calendar: calendar)) else { return }
             checkPulse = true
             withAnimation(.spring(response: 0.35, dampingFraction: 0.55).delay(0.02)) {
                 checkPulse = false
             }
+        }
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced { checkPulse = false }
         }
         // Chronologie wird nie gespiegelt — auch nicht in ar/ur.
         .environment(\.layoutDirection, .leftToRight)

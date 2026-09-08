@@ -116,7 +116,7 @@ struct HabitCard: View, Equatable {
     /// deutlich flacher — der Kopf soll beim Scrollen nicht als leerer Kasten
     /// über dem Raster stehen bleiben. Als Frame-Höhe (nicht als
     /// Zeilen-Inset) gesetzt, damit der Wert im Übergang INTERPOLIERT.
-    private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
+    private var headerHeight: CGFloat { max(44, collapsed ? 32 : Theme.Metrics.hit) }
 
     /// Abstand Kopf -> eigenes Raster. Klein und absichtlich: der Kopf
     /// gehört zur Fläche DARUNTER.
@@ -134,6 +134,25 @@ struct HabitCard: View, Equatable {
         return VStack(alignment: .leading, spacing: innerGap) {
             header
             revealingGrid
+            if !collapsed {
+                HStack {
+                    Button(action: onBackfill) {
+                        Label(String(localized: "Historie"), systemImage: "calendar")
+                            .frame(minHeight: 44)
+                    }
+                    .accessibilityIdentifier("habit-history")
+                    Spacer(minLength: 12)
+                    Button(action: onEdit) {
+                        Label(String(localized: "Bearbeiten"), systemImage: "pencil")
+                            .frame(minHeight: 44)
+                    }
+                    .accessibilityIdentifier("edit-habit")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .padding(.horizontal, Theme.Metrics.cardPadding)
+            }
         }
         // Der Zug für das Aufziehen deckt die GANZE Zeile (Kopf + Karte):
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
@@ -579,7 +598,7 @@ struct HabitCard: View, Equatable {
                 // Heute-Zustand.
                 if !collapsed { todayButton }
             }
-            .frame(height: headerHeight)
+            .frame(minHeight: headerHeight)
             // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
             // erste Rasterspalte stehen in EINER Flucht.
             .padding(.horizontal, Theme.Metrics.cardPadding)
@@ -782,7 +801,7 @@ struct HabitCard: View, Equatable {
                 Theme.Haptics.check()
                 onIncrement()
             } label: {
-                pill("\(value)/\(target)", monospaced: true)
+                pill("+ \(value)/\(target)", monospaced: true)
             }
             .buttonStyle(.plain)
             // KEIN eigenes Kontextmenü mehr: der lange Druck gehört der
@@ -790,6 +809,7 @@ struct HabitCard: View, Equatable {
             // hießen, dass ein langer Druck je nach getroffenem Pixel etwas
             // anderes tut. „Rückgängig" steht im Zeilenmenü.
             .accessibilityLabel(String(localized: "Heute: \(value) von \(target)"))
+            .accessibilityHint(String(localized: "Erhöht den Zähler um eins."))
             .accessibilityIdentifier("check-today")
         case .yesNo:
             answerButtons
@@ -798,13 +818,16 @@ struct HabitCard: View, Equatable {
                 Theme.Haptics.check()
                 onToggleDay(today)
             } label: {
-                pill(doneToday ? String(localized: "✓ Erledigt") : String(localized: "Heute"))
+                pill(doneToday ? String(localized: "✓ Erledigt") : String(localized: "Abhaken"))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(doneToday
                                 ? String(localized: "✓ Erledigt")
                                 : String(localized: "Heute"))
             .accessibilityIdentifier("check-today")
+            .accessibilityHint(doneToday
+                ? String(localized: "Macht den heutigen Eintrag rückgängig.")
+                : String(localized: "Markiert den heutigen Tag als erledigt."))
         }
     }
 
@@ -842,7 +865,7 @@ struct HabitCard: View, Equatable {
                             ? AnyShapeStyle(yes ? Theme.accentFill(habitStyle) : negativeColor)
                             : AnyShapeStyle(statusBackground),
                             in: Capsule())
-                .frame(height: headerHeight)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -863,7 +886,7 @@ struct HabitCard: View, Equatable {
                         in: Capsule())
             .foregroundStyle(doneToday ? .white : .primary)
             .matchedGeometryEffect(id: Self.doneID, in: doneNamespace)
-            .frame(height: headerHeight)
+            .frame(minHeight: headerHeight)
             .contentShape(Rectangle())
     }
 
