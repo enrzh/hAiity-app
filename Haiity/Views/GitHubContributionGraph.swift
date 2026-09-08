@@ -52,6 +52,7 @@ struct ContributionGridRenderer: View, Equatable {
                                                         height: cell),
                                     cornerRadius: GridCell.radius)
                 let dark = scheme == .dark
+                let emptyCell = Color.primary.opacity(dark ? 0.16 : 0.07)
                 let usesAdaptiveOutline = Theme.effectiveMaterial(appearancePreferences) == .adaptive
                 let outline = Theme.adaptiveTileOutline(
                     preferences: appearancePreferences,
@@ -65,7 +66,11 @@ struct ContributionGridRenderer: View, Equatable {
                         let level = snapshot.levels[columnIndex][row]
                         let future = column[row] == nil
                         let fill: GraphicsContext.Shading
-                        if future {
+                        if level == 0 && !future {
+                            // Keep empty history cells visible so every row
+                            // shares one optical baseline with no false gaps.
+                            fill = .color(emptyCell)
+                        } else if future {
                             if dimmedShading[level] == nil {
                                 dimmedShading[level] = .color(
                                     Theme.level(level, dark: dark, palette: palette).opacity(0.35))
