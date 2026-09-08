@@ -144,15 +144,21 @@ struct ContributionGrid: View, Equatable {
         let style = Theme.adaptivePalette(palettes.style(for: habit),
                                           preferences: appearancePreferences,
                                           dark: scheme == .dark)
-        ContributionGridRenderer(snapshot: snapshot,
-                                 cell: cell,
-                                 gap: gap,
-                                 width: width,
-                                 showsMonthLabels: showsMonthLabels,
-                                 labelScale: labelScale / 100,
-                                 palette: style,
-                                 highlightsToday: true,
-                                 checkPulse: checkPulse)
+        VStack(alignment: .leading, spacing: 4) {
+            ContributionGridRenderer(snapshot: snapshot,
+                                     cell: cell,
+                                     gap: gap,
+                                     width: width,
+                                     showsMonthLabels: showsMonthLabels,
+                                     labelScale: labelScale / 100,
+                                     palette: style,
+                                     highlightsToday: true,
+                                     checkPulse: checkPulse)
+            if showsMonthLabels {
+                ContributionChartLegend(palette: style)
+                    .padding(.trailing, 2)
+            }
+        }
     }
 
     /// Läuft der Abhak-Puls gerade? (Ring um die Heute-Zelle, kurz.)
