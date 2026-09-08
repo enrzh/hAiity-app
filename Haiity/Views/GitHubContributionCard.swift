@@ -43,13 +43,6 @@ struct GitHubContributionCard: View, Equatable {
                     .padding(.vertical, 4)
             }
             graph
-            if !collapsed {
-                ContributionChartLegend(palette: Theme.adaptivePalette(
-                    palettes.style,
-                    preferences: appearancePreferences,
-                    dark: scheme == .dark))
-                    .padding(.top, 6)
-            }
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, Theme.Metrics.cardPadding)

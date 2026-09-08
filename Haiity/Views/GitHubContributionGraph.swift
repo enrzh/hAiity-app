@@ -50,7 +50,7 @@ struct ContributionGridRenderer: View, Equatable {
                 let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
                                                         width: cell,
                                                         height: cell),
-                                    cornerRadius: GridCell.radius)
+                                    cornerRadius: min(GridCell.radius, max(1.5, cell * 0.2)))
                 let dark = scheme == .dark
                 let emptyCell = Color.primary.opacity(dark ? 0.16 : 0.07)
                 let usesAdaptiveOutline = Theme.effectiveMaterial(appearancePreferences) == .adaptive

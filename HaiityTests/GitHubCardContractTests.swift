@@ -197,8 +197,8 @@ final class GitHubCardContractTests: XCTestCase {
                       "GitHub data should be converted into the shared grid snapshot")
         XCTAssertTrue(github.contains("struct ContributionChartLegend: View"),
                       "habit and GitHub charts should share one intensity legend")
-        XCTAssertTrue(card.contains("ContributionChartLegend("),
-                      "GitHub should explain the shared intensity scale")
+        XCTAssertFalse(card.contains("ContributionChartLegend("),
+                       "the compact in-app card should keep chart chrome minimal")
     }
 
     func testGitHubDisplayOptionsShareOneSettingsGroup() throws {
