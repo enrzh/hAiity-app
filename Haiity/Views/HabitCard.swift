@@ -125,7 +125,7 @@ struct HabitCard: View, Equatable {
     /// Abstand zur nächsten Karte — immer ein Vielfaches des inneren
     /// Abstands, sonst liest sich der freistehende Kopf als Fußzeile der
     /// vorigen Karte statt als Überschrift der eigenen.
-    private var outerGap: CGFloat { collapsed ? 12 : Theme.Metrics.gutter }
+    private var outerGap: CGFloat { collapsed ? 8 : 12 }
 
     var body: some View {
         #if DEBUG
@@ -134,25 +134,6 @@ struct HabitCard: View, Equatable {
         return VStack(alignment: .leading, spacing: innerGap) {
             header
             revealingGrid
-            if !collapsed {
-                HStack {
-                    Button(action: onBackfill) {
-                        Label(String(localized: "Historie"), systemImage: "calendar")
-                            .frame(minHeight: 44)
-                    }
-                    .accessibilityIdentifier("habit-history")
-                    Spacer(minLength: 12)
-                    Button(action: onEdit) {
-                        Label(String(localized: "Bearbeiten"), systemImage: "pencil")
-                            .frame(minHeight: 44)
-                    }
-                    .accessibilityIdentifier("edit-habit")
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .buttonStyle(.plain)
-                .padding(.horizontal, Theme.Metrics.cardPadding)
-            }
         }
         // Der Zug für das Aufziehen deckt die GANZE Zeile (Kopf + Karte):
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
@@ -358,8 +339,7 @@ struct HabitCard: View, Equatable {
     /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
     /// — dieselbe Fläche, die die Vorschau auch zeigt.
     ///
-    /// Short taps keep the grid passive. Past-day editing is intentionally
-    /// reachable only from the named Nacharbeiten menu action.
+    /// A tap opens history; horizontal drags continue to scroll the graph.
     private var grid: some View {
         // `.equatable()` ist Tempo, nicht Kosmetik (dasselbe Muster wie die
         // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
@@ -370,9 +350,7 @@ struct HabitCard: View, Equatable {
                              showsMonthLabels: showsMonthLabels,
                              calendar: calendar)
             .equatable()
-            .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface()
             .opacity(isContextMenuVisible ? 0 : 1)
             // Die Trefferfläche ist die KARTE, nicht nur das, was in ihr
             // gezeichnet ist: ein langer Druck auf eine leere Ecke des
@@ -392,6 +370,7 @@ struct HabitCard: View, Equatable {
                 GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: Self.contextPreviewHeight,
+                                 previewOwnsSurface: true,
                                  preview: { AnyView(habitPreview) },
                                  actions: menuActions,
                                  commit: onEdit,
@@ -403,8 +382,10 @@ struct HabitCard: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
             }
+            .onTapGesture(perform: onBackfill)
+            .accessibilityAction(named: String(localized: "Historie"), onBackfill)
             .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("habit-grid")
+            .accessibilityIdentifier("habit-history")
     }
 
     // MARK: – Langer Druck: Vorschau + Aktionen
@@ -507,6 +488,7 @@ struct HabitCard: View, Equatable {
         }
         .padding(Theme.Metrics.gutter)
         .frame(width: previewWidth)
+        .appSurface()
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
         // der Zeile nicht: ohne diese Zeile fiel das Raster darin auf die
         // Standardpalette zurück und leuchtete grün, während dieselben
@@ -589,7 +571,7 @@ struct HabitCard: View, Equatable {
                     todayButton
                 }
             }
-            .padding(.horizontal, Theme.Metrics.cardPadding)
+            .padding(.horizontal, 4)
         } else {
             HStack(spacing: Theme.Metrics.gap) {
                 nameRun
@@ -601,7 +583,7 @@ struct HabitCard: View, Equatable {
             .frame(minHeight: headerHeight)
             // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
             // erste Rasterspalte stehen in EINER Flucht.
-            .padding(.horizontal, Theme.Metrics.cardPadding)
+            .padding(.horizontal, 4)
         }
     }
 
@@ -673,7 +655,7 @@ struct HabitCard: View, Equatable {
                     }
                     Text(habit.name)
                         .font(collapsed ? .subheadline.weight(.semibold) : .headline)
-                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : (collapsed ? 1 : 2))
                     // Der Zustand steht HINTER dem Namen, nicht davor: sonst rückt
                     // ein Häkchen die Namen der abgehakten Karten ein und die Liste
                     // fluchtet nicht mehr.
@@ -818,7 +800,13 @@ struct HabitCard: View, Equatable {
                 Theme.Haptics.check()
                 onToggleDay(today)
             } label: {
-                pill(doneToday ? String(localized: "✓ Erledigt") : String(localized: "Abhaken"))
+                Image(systemName: doneToday ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(doneToday
+                        ? AnyShapeStyle(Theme.accentText(habitStyle))
+                        : AnyShapeStyle(HierarchicalShapeStyle.tertiary))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(doneToday

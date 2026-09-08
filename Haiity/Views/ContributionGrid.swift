@@ -65,11 +65,11 @@ struct ContributionGrid: View, Equatable {
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize { return (cellSize, gap ?? GridCell.gap) }
-        let pitch = available > 0
-            ? available / Self.referenceColumns
-            : Self.referencePitch
-        return (min(GridCell.size, max(8, pitch * 11 / Self.referencePitch)),
-                min(GridCell.gap, max(2, pitch * 3 / Self.referencePitch)))
+        let columns = min(CGFloat(max(weeks, 1)), Self.referenceColumns)
+        let spacing: CGFloat = 3
+        let tileWidth = max(1, available - (interactive ? 8 : 0))
+        return (available > 0 ? max(1, (tileWidth + spacing) / columns - spacing) : GridCell.size,
+                spacing)
     }
 
     var body: some View {
@@ -91,7 +91,6 @@ struct ContributionGrid: View, Equatable {
                                  gap: m.gap,
                                  width: contentWidth)
                 }
-                .softScrollEdges()
                 // Startet AN der rechten Kante — heute — statt nach dem
                 // Aufbau dorthin zu scrollen.
                 .defaultScrollAnchor(.trailing)
@@ -144,7 +143,7 @@ struct ContributionGrid: View, Equatable {
         let style = Theme.adaptivePalette(palettes.style(for: habit),
                                           preferences: appearancePreferences,
                                           dark: scheme == .dark)
-        ContributionGridRenderer(snapshot: snapshot,
+        ContributionChart(snapshot: snapshot,
                                  cell: cell,
                                  gap: gap,
                                  width: width,
@@ -152,7 +151,8 @@ struct ContributionGrid: View, Equatable {
                                  labelScale: labelScale / 100,
                                  palette: style,
                                  highlightsToday: true,
-                                 checkPulse: checkPulse)
+                                 checkPulse: checkPulse,
+                                 showsSurface: interactive)
     }
 
     /// Läuft der Abhak-Puls gerade? (Ring um die Heute-Zelle, kurz.)

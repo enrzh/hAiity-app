@@ -27,6 +27,19 @@ final class TodayProgressUITests: XCTestCase {
         add(attachment)
     }
 
+    func testContributionChartLightAndDarkScreenshots() {
+        for appearance in ["light", "dark"] {
+            let app = launch(appearance: appearance)
+            XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+            capture("contribution-chart-\(appearance)")
+            app.descendants(matching: .any)["habit-history"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+            app.buttons["history-previous-month"].tap()
+            capture("history-editor-\(appearance)")
+            app.terminate()
+        }
+    }
+
     func testCompletionUndoAndTodayFilterKeepFirstHabitInPlace() {
         let app = launch()
         let summary = app.descendants(matching: .any)["today-progress"].firstMatch
@@ -43,18 +56,83 @@ final class TodayProgressUITests: XCTestCase {
         capture("today-completion-undo")
     }
 
-    func testVisibleHistoryAndEditOpenWithoutLongPress() {
+    func testGraphOpensHistoryAndCanEditAnEarlierMonth() {
         let app = launch()
-        let history = app.buttons["habit-history"].firstMatch
+        let history = app.descendants(matching: .any)["habit-history"].firstMatch
         XCTAssertTrue(history.waitForExistence(timeout: 15))
         XCTAssertTrue(history.isHittable)
         history.tap()
         XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
-        capture("history-from-visible-action")
+        XCTAssertTrue(app.descendants(matching: .any)["history-month-preview"].exists)
+        app.buttons["history-previous-month"].tap()
+        app.buttons["history-selection-mode"].tap()
+        app.buttons["history-select-all"].tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'history-day-'"))
+        XCTAssertGreaterThan(rows.count, 0)
+        let status = app.staticTexts["backfill-status"]
+        let originalStatus = status.label
+        XCTAssertTrue(originalStatus.contains("31"))
+        let before = rows.firstMatch.label
+        app.buttons["backfill-action-clear"].tap()
+        XCTAssertNotEqual(status.label, originalStatus)
+        XCTAssertTrue(app.buttons["history-undo"].isEnabled)
+        app.buttons["history-undo"].tap()
+        XCTAssertEqual(rows.firstMatch.label, before)
+        XCTAssertEqual(status.label, originalStatus)
+        app.buttons["history-select-all"].tap()
+        rows.element(boundBy: 0).tap()
+        rows.element(boundBy: 1).tap()
+        capture("history-entry-editor")
         app.buttons["backfill-close"].tap()
-        app.buttons["edit-habit"].firstMatch.tap()
-        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
-        capture("edit-from-visible-action")
+        XCTAssertTrue(history.waitForExistence(timeout: 5))
+    }
+
+    func testHistoryQuantityUpdateUndoAndMissingFilter() {
+        let app = launch()
+        let graphs = app.descendants(matching: .any).matching(identifier: "habit-history")
+        XCTAssertTrue(graphs.firstMatch.waitForExistence(timeout: 15))
+        graphs.element(boundBy: 1).tap()
+        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'history-day-'"))
+        let previous = rows.firstMatch.label
+        rows.firstMatch.tap()
+        XCTAssertNotEqual(rows.firstMatch.label, previous)
+        app.buttons["history-undo"].tap()
+        XCTAssertEqual(rows.firstMatch.label, previous)
+        app.buttons["history-previous-month"].tap()
+        app.switches["history-missing-filter"].tap()
+        app.buttons["history-selection-mode"].tap()
+        XCTAssertFalse(app.buttons["backfill-action-quantity"].isEnabled)
+        app.buttons["history-select-all"].tap()
+        XCTAssertTrue(app.buttons["backfill-action-quantity"].isEnabled)
+        capture("history-quantity-editor")
+    }
+
+    func testHistoryOneTapEditsAndSequentialUndo() {
+        let app = launch()
+        let graph = app.descendants(matching: .any)["habit-history"].firstMatch
+        XCTAssertTrue(graph.waitForExistence(timeout: 15))
+        graph.tap()
+        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+        app.buttons["history-previous-month"].tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'history-day-'"))
+        let first = rows.element(boundBy: 0)
+        let second = rows.element(boundBy: 1)
+        let firstBefore = first.label
+        let secondBefore = second.label
+        XCTAssertFalse(app.buttons["backfill-action-clear"].exists)
+        XCTAssertLessThanOrEqual(first.frame.height, 48)
+        first.tap()
+        XCTAssertNotEqual(first.label, firstBefore)
+        second.tap()
+        XCTAssertNotEqual(second.label, secondBefore)
+        app.buttons["history-undo"].tap()
+        XCTAssertEqual(second.label, secondBefore)
+        XCTAssertNotEqual(first.label, firstBefore)
+        app.buttons["history-undo"].tap()
+        XCTAssertEqual(first.label, firstBefore)
+        XCTAssertFalse(app.buttons["history-undo"].isEnabled)
+        capture("compact-history-direct-edit")
     }
 
     func testCreationLivePreviewAndAdvancedControls() {

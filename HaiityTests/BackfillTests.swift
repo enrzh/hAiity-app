@@ -173,6 +173,18 @@ final class BackfillCalendarHeightTests: XCTestCase {
 final class BackfillGateTests: GridTestCase {
     private let today = "2026-08-09"
 
+    func testSelectableMissingDaysSkipsLoggedFutureAndInvalidDays() {
+        var h = habit(createdAt: "2026-01-01")
+        h.log["2026-08-02"] = 1
+        let days = ["2026-08-01", "2026-08-02", "2026-08-10", "2026-02-30", "2026-08-03"]
+
+        XCTAssertEqual(Backfill.selectableMissingDays(habit: h,
+                                                       days: days,
+                                                       today: today,
+                                                       calendar: cal),
+                       ["2026-08-01", "2026-08-03"])
+    }
+
     func testPlausibleDayInsideTheRangeIsWritable() {
         let h = habit(createdAt: "2026-01-01")
         XCTAssertTrue(Backfill.canWrite(habit: h, day: "2026-07-01", today: today, calendar: cal))

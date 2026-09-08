@@ -1034,6 +1034,7 @@ struct RootPageTitle: View {
     static let coordinateSpace = "haiity.root-page-scroll"
 
     let title: String
+    var compact: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -1042,17 +1043,18 @@ struct RootPageTitle: View {
             let offset = proxy.frame(in: .named(Self.coordinateSpace)).minY
             let progress = min(max(-offset / 52, 0), 1)
             Text(title)
-                .font(.largeTitle.weight(.bold))
+                .font(compact ? .title2.weight(.bold) : .largeTitle.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: compact ? .leading : .center)
+                .padding(.horizontal, compact ? Theme.Metrics.gutter + 4 : 0)
                 .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.28)
                 .offset(y: reduceMotion ? 0 : -progress * 8)
                 .opacity(1 - progress)
                 .blur(radius: reduceMotion ? 0 : progress * 0.25)
                 .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
-        .frame(height: 64)
+        .frame(height: compact ? 44 : 64)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -1414,17 +1416,13 @@ struct SettingsRowSurface: View {
                         let tint = Theme.surfaceTint(preferences: preferences,
                                                      dark: colorScheme == .dark)
                         Color.clear.glassEffect(
-                            .regular.tint(tint.opacity(Theme.surfaceTintOpacity(
-                                preferences: preferences, dark: colorScheme == .dark))),
+                            .regular.tint(tint.opacity(colorScheme == .dark ? 0.32 : 0.18)),
                             in: rowShape)
                     } else {
                         rowShape
                             .fill(.ultraThinMaterial)
                             .overlay {
-                                rowShape.fill(Theme.surfaceTint(preferences: preferences,
-                                                                dark: colorScheme == .dark)
-                                    .opacity(Theme.surfaceTintOpacity(preferences: preferences,
-                                                                      dark: colorScheme == .dark)))
+                                rowShape.fill(Color(.systemBackground).opacity(0.16))
                             }
                     }
                 case .adaptive:

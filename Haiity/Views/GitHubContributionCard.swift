@@ -44,10 +44,7 @@ struct GitHubContributionCard: View, Equatable {
             }
             graph
         }
-        .padding(.horizontal, Theme.Metrics.gutter)
-        .padding(.vertical, Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
         .opacity(isContextMenuVisible ? 0 : 1)
         .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                        style: .continuous))

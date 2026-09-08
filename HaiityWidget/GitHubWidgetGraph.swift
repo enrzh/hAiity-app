@@ -29,14 +29,17 @@ struct GitHubWidgetGraph: View {
     private func graphBody(in size: CGSize) -> some View {
         switch content {
         case .connectPrompt:
-            VStack(spacing: 6) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.title3.weight(.semibold))
-                Text(String(localized: "GitHub verbinden"))
-                    .font(.caption.weight(.semibold))
+            Link(destination: HaiityWidgetLink.habits) {
+                VStack(spacing: 6) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.title3.weight(.semibold))
+                    Text(String(localized: "GitHub verbinden"))
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel(String(localized: "GitHub verbinden"))
         case .graph(let days):
             let graph = GraphLayout.trailing(width: size.width,
                                              height: size.height)
@@ -45,16 +48,14 @@ struct GitHubWidgetGraph: View {
             let columns = GitHubContributionGraph.layout(days: visibleDays,
                                                           weekLimit: graph.weeks).columns
 
-            HStack(alignment: .top, spacing: graph.gap) {
-                ForEach(Array(columns.enumerated()), id: \.offset) { _, week in
-                    VStack(spacing: graph.gap) {
-                        ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                            cell(level: day?.level ?? 0,
-                                 size: graph.cell,
-                                 radius: graph.radius)
-                        }
-                    }
-                }
+            let snapshot = GridCalendar.Snapshot(
+                weeks: columns.count, today: "",
+                keys: columns.map { $0.map { $0?.date } },
+                levels: columns.map { $0.map { $0?.level ?? 0 } },
+                marks: [], filledCount: 0)
+            ContributionTiles(snapshot: snapshot, cell: graph.cell, gap: graph.gap,
+                              radius: graph.radius) { level in
+                HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
             }
             .frame(width: graph.contentWidth, height: graph.contentHeight,
                    alignment: .topLeading)
@@ -62,12 +63,4 @@ struct GitHubWidgetGraph: View {
         }
     }
 
-    private func cell(level: Int, size: CGFloat, radius: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(HomeWidgetInk.level(level,
-                                      mode: mode,
-                                      dark: scheme == .dark,
-                                      palette: palette))
-            .frame(width: size, height: size)
-    }
 }

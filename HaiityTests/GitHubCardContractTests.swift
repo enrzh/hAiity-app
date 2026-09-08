@@ -189,9 +189,9 @@ final class GitHubCardContractTests: XCTestCase {
         let github = try source("Haiity/Views/GitHubContributionGraph.swift")
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
-        XCTAssertTrue(habit.contains("ContributionGridRenderer("),
+        XCTAssertTrue(habit.contains("ContributionChart("),
                       "habit graphs should use the shared renderer")
-        XCTAssertTrue(github.contains("ContributionGridRenderer("),
+        XCTAssertTrue(github.contains("ContributionChart("),
                       "GitHub graphs should use the same renderer as habits")
         XCTAssertTrue(github.contains("GridCalendar.snapshot(levelsByDay:"),
                       "GitHub data should be converted into the shared grid snapshot")

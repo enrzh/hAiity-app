@@ -94,41 +94,35 @@ struct RosterWidgetView: View {
         return GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
                 Link(destination: HaiityWidgetLink.habits) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Theme.accent(cellPalette).opacity(dark ? 0.16 : 0.09))
-
-                        if habit.isReminder {
-                            Image(systemName: "bell.fill")
-                                .font(.system(size: 42, weight: .semibold))
-                                .foregroundStyle(Theme.accentText(cellPalette).opacity(0.18))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity,
-                                       alignment: .center)
-                        } else {
-                            TrailingGrid(habit: habit, today: today, radius: nil) { level in
-                                HomeWidgetInk.level(level, mode: mode, dark: dark, palette: cellPalette)
-                            }
-                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    if habit.isReminder {
+                        Label(summary.metricText, systemImage: "bell.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity,
+                                   alignment: .leading)
+                    } else {
+                        TrailingGrid(habit: habit, today: today, radius: nil) { level in
+                            HomeWidgetInk.level(level, mode: mode, dark: dark,
+                                                palette: cellPalette)
                         }
                     }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .top, spacing: 4) {
+                    HStack(spacing: 4) {
                         Link(destination: HaiityWidgetLink.habits) {
                             Text(verbatim: habit.name)
                                 .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.primary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.8)
                         }
-                        Spacer(minLength: 2)
-                        actionButtons(habit,
-                                      summary: summary,
-                                      palette: cellPalette,
-                                      dark: dark)
+                        Spacer(minLength: 4)
+                        actionButtons(habit, summary: summary,
+                                      palette: cellPalette, dark: dark)
                     }
+                    .frame(height: geometry.size.height < 80 ? 22 : 28)
                     Spacer(minLength: 0)
                     Link(destination: HaiityWidgetLink.habits) {
                         metadata(habit: habit, summary: summary,
@@ -137,7 +131,7 @@ struct RosterWidgetView: View {
                 }
                 .padding(6)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -146,7 +140,7 @@ struct RosterWidgetView: View {
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -179,9 +173,9 @@ struct RosterWidgetView: View {
                                     : String(localized: "Habit abhaken"))
             }
 
-            if entry.widgetResetEnabled {
+            if entry.showsReset(for: habit) {
                 Button(intent: ResetHabitIntent(habit: habit)) {
-                    Image(systemName: "arrow.uturn.backward")
+                    Image(systemName: "arrow.uturn.backward").foregroundStyle(.secondary)
                 }
                 .accessibilityLabel(String(localized: "Rückgängig"))
             }
@@ -278,9 +272,6 @@ private struct LargeWidgetItem: View {
         let identityHeight = compact
             ? WidgetLogic.LargeGeometry.focusIdentityBandHeight
             : WidgetLogic.LargeGeometry.listIdentityBandHeight
-        let visualHeight = compact
-            ? WidgetLogic.LargeGeometry.focusVisualBandHeight
-            : WidgetLogic.LargeGeometry.listVisualBandHeight
         let actionHeight = compact
             ? WidgetLogic.LargeGeometry.focusActionBandHeight
             : WidgetLogic.LargeGeometry.listActionBandHeight
@@ -303,7 +294,7 @@ private struct LargeWidgetItem: View {
             }
         }
         .font(.caption2)
-        .foregroundStyle(statusTint(summary.status, palette: palette))
+        .foregroundStyle(Color.primary)
         .lineLimit(1)
         .frame(height: identityHeight, alignment: .leading)
 
@@ -316,7 +307,7 @@ private struct LargeWidgetItem: View {
                     .minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else if graph {
-                TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18, today: today, radius: nil) { level in
+                TrailingGrid(habit: habit, maxWeeks: 53, today: today, radius: nil) { level in
                     HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -333,7 +324,7 @@ private struct LargeWidgetItem: View {
                     if graph {
                         visualBand
                             .frame(height: graphHeight)
-                            .frame(maxHeight: visualHeight)
+                            .clipped()
                     } else {
                         visualBand
                             .frame(height: max(0, WidgetLogic.LargeGeometry.focusQueueHeight
@@ -360,7 +351,7 @@ private struct LargeWidgetItem: View {
                                         ? String(localized: "Erinnerung erledigen")
                                         : String(localized: "Habit abhaken"))
                 }
-                if entry.widgetResetEnabled {
+                if entry.showsReset(for: habit) {
                     largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward",
                                       label: String(localized: "Rückgängig"))
                 }
@@ -376,17 +367,10 @@ private struct LargeWidgetItem: View {
             actionBand
         }
         .padding(.horizontal, compact ? 0 : 6)
-        .background(.thinMaterial,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            if !compact {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Theme.accentText(palette).opacity(0.18), lineWidth: 0.5)
-            }
-        }
+
         .frame(maxWidth: .infinity,
-               minHeight: compact ? nil : WidgetLogic.LargeGeometry.listRowHeight,
-               maxHeight: compact ? nil : WidgetLogic.LargeGeometry.listRowHeight,
+               minHeight: compact ? nil : identityHeight + graphHeight + WidgetLogic.LargeGeometry.itemSpacing,
+               maxHeight: compact ? nil : identityHeight + graphHeight + WidgetLogic.LargeGeometry.itemSpacing,
                alignment: .topLeading)
     }
 
@@ -420,6 +404,7 @@ private struct LargeWidgetItem: View {
         }
         .contentShape(Rectangle())
         .accessibilityLabel(label)
+        .foregroundStyle(symbol == "arrow.uturn.backward" ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(Theme.accentText(entry.palettes.style(for: habit))))
     }
 }
 
@@ -436,8 +421,8 @@ private extension View {
 private struct LargeFeaturedWidgetItem: View {
     let habit: Habit
     let entry: HaiityEntry
-    var maxWeeks: Int = 18
-    var showsSurface: Bool = true
+    var maxWeeks: Int = 53
+    var showsSurface: Bool = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
 
@@ -450,9 +435,14 @@ private struct LargeFeaturedWidgetItem: View {
             Text(verbatim: habit.name).font(.subheadline.weight(.semibold)).lineLimit(1)
                 .minimumScaleFactor(0.8).layoutPriority(1)
             Spacer(minLength: 2)
-            if habit.isReminder { Image(systemName: "bell.fill") } else { compactStatus(summary) }
+            if habit.isReminder {
+                Image(systemName: "bell.fill")
+            } else {
+                compactStatus(summary)
+                    .foregroundStyle(statusTint(summary.status, palette: palette))
+            }
         }
-        .font(.caption2).foregroundStyle(statusTint(summary.status, palette: palette)).lineLimit(1)
+        .font(.caption2).foregroundStyle(Color.primary).lineLimit(1)
         let visualBand = Group {
             if habit.isReminder {
                 if summary.status == .open {
@@ -522,17 +512,18 @@ private struct LargeFeaturedWidgetItem: View {
             case .checkbox, .reminder:
                 largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
             }
-            if entry.widgetResetEnabled {
+            if entry.showsReset(for: habit) {
                 largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
             }
         }
         .buttonStyle(.plain).font(.caption2.weight(.bold)).foregroundStyle(Theme.accentText(palette))
-        .fixedSize(horizontal: true, vertical: false).frame(height: WidgetLogic.LargeGeometry.featuredActionBandHeight, alignment: .topTrailing)
+        .frame(height: WidgetLogic.LargeGeometry.featuredActionBandHeight, alignment: .trailing)
     }
 
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
         Button(intent: intent) { Image(systemName: symbol).frame(width: 44, height: 44) }
             .contentShape(Rectangle()).accessibilityLabel(label)
+            .foregroundStyle(symbol == "arrow.uturn.backward" ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.accentText(entry.palettes.style(for: habit))))
     }
 
     private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {
@@ -565,7 +556,7 @@ private struct LargeCompactWidgetRow: View {
                         Label(summary.metricText, systemImage: summary.metricSymbol)
                     }
                 }
-                .lineLimit(1).minimumScaleFactor(0.8).foregroundStyle(statusTint(summary.status, palette: palette))
+                .lineLimit(1).minimumScaleFactor(0.8).foregroundStyle(Color.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             actions(summary: summary, palette: palette)
@@ -586,7 +577,7 @@ private struct LargeCompactWidgetRow: View {
             case .checkbox, .reminder:
                 largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
             }
-            if entry.widgetResetEnabled {
+            if entry.showsReset(for: habit) {
                 largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
             }
         }
@@ -597,6 +588,7 @@ private struct LargeCompactWidgetRow: View {
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
         Button(intent: intent) { Image(systemName: symbol).frame(width: 44, height: 44) }
             .contentShape(Rectangle()).accessibilityLabel(label)
+            .foregroundStyle(symbol == "arrow.uturn.backward" ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.accentText(entry.palettes.style(for: habit))))
     }
 
     private func statusTint(_ status: WidgetStatus, palette: PaletteStyle) -> AnyShapeStyle {

@@ -70,13 +70,15 @@ struct GraphWidgetView: View {
                             .accessibilityLabel(label(habit))
                     }
                 } else {
-                    TrailingGrid(habit: Self.blank,
-                                 radius: nil,
-                                 alignment: .center,
-                                 level: level)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(label(habit))
+                    Link(destination: HaiityWidgetLink.habits) {
+                        TrailingGrid(habit: Self.blank,
+                                     radius: nil,
+                                     alignment: .center,
+                                     level: level)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(label(habit))
+                    }
                 }
             }
         }

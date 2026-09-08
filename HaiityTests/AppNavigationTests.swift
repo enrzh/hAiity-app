@@ -201,8 +201,10 @@ final class AppNavigationTests: XCTestCase {
 
         XCTAssertTrue(surface.contains("Theme.surfaceTint(preferences: preferences"),
                       "settings rows must use the same tint source as app surfaces")
-        XCTAssertFalse(surface.contains("Color(.systemBackground).opacity(0.16)"),
-                       "hard-coded row tint causes inconsistent glass colors")
+        XCTAssertTrue(surface.contains("if #available(iOS 26, *)"),
+                      "settings rows must keep the native glass and legacy paths distinct")
+        XCTAssertTrue(surface.contains("Color(.systemBackground).opacity(0.16)"),
+                      "legacy glass needs a readable system-background fallback")
     }
 
     func testAppearancePerformanceModeUsesOneSharedSolidSurfacePath() throws {

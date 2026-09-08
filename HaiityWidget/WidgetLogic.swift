@@ -58,6 +58,15 @@ struct HaiityEntry: TimelineEntry {
                             now: date)
     }
 
+    func showsReset(for habit: Habit) -> Bool {
+        guard widgetResetEnabled else { return false }
+        if habit.isReminder {
+            return ReminderOccurrenceEngine.state(for: habit, now: date,
+                calendar: calendar(for: habit)).mostRecentCompleted != nil
+        }
+        return habit.log[today(for: habit)] != nil
+    }
+
     /// Die Farbe des Graph-Widgets: eine explizite Widget-Auswahl schlägt die
     /// Habit-Farbe, danach gilt die bestehende globale Auflösung.
     var resolvedGraphPalette: PaletteStyle {

@@ -10,6 +10,8 @@ struct LargeGridWidgetView: View {
         Group {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
+            } else if entry.largeItems.count < 4 {
+                LargeListWidgetView(entry: entry)
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
                     ForEach(entry.largeItems.prefix(4)) { habit in
@@ -18,7 +20,7 @@ struct LargeGridWidgetView: View {
                 }
             }
         }
-        .padding(WidgetLogic.LargeGeometry.outerPadding)
+        .padding(entry.largeItems.isEmpty || entry.largeItems.count >= 4 ? WidgetLogic.LargeGeometry.outerPadding : 0)
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
     }
@@ -87,7 +89,7 @@ private struct LargeGridItem: View {
             case .checkbox, .reminder:
                 largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
             }
-            if entry.widgetResetEnabled {
+            if entry.showsReset(for: habit) {
                 largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
             }
         }
@@ -143,30 +145,8 @@ struct GridBand: View {
     let level: (Int) -> Color
 
     var body: some View {
-        HStack(alignment: .top, spacing: gap) {
-            ForEach(0..<snapshot.keys.count, id: \.self) { column in
-                VStack(spacing: gap) {
-                    ForEach(0..<GridCalendar.rows, id: \.self) { row in
-                        square(column: column, row: row)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Keine Force-Unwraps und keine ungeprüften Indizes: ein Widget, das beim
-    /// Zeichnen abstürzt, zeigt dem Nutzer nur noch ein graues Rechteck.
-    @ViewBuilder
-    private func square(column: Int, row: Int) -> some View {
-        if column >= 0, column < snapshot.keys.count, row < snapshot.keys[column].count {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(level(snapshot.levels[column][row]))
-                // Zukunft gedimmt — wie im Raster der App.
-                .opacity(snapshot.keys[column][row] == nil ? 0.35 : 1)
-                .frame(width: cell, height: cell)
-        } else {
-            Color.clear.frame(width: cell, height: cell)
-        }
+        ContributionTiles(snapshot: snapshot, cell: cell, gap: gap,
+                          radius: radius, level: level)
     }
 }
 

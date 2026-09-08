@@ -384,6 +384,19 @@ enum Backfill {
                   done: days.filter { state(habit: habit, day: $0).counts }.count)
     }
 
+    /// Returns only writable days without an entry. Keeping this decision in
+    /// the model lets the History editor offer a one-tap shortcut without
+    /// duplicating date-boundary rules in the view.
+    static func selectableMissingDays(habit: Habit,
+                                      days: [String],
+                                      today: String = DayKey.today(),
+                                      calendar: Calendar = .current) -> [String] {
+        days.filter { habit.log[$0] == nil && canWrite(habit: habit,
+                                                        day: $0,
+                                                        today: today,
+                                                        calendar: calendar) }
+    }
+
     /// Die Aktionen der Auswahl-Leiste („Auswählen"-Modus) — VOLLSTÄNDIG je
     /// Habit-Art, und jede gilt für ALLE gewählten Tage gleich.
     ///

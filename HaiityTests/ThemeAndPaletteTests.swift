@@ -693,10 +693,10 @@ final class AppearanceSettingTests: XCTestCase {
                       "image selection must use the native PhotosUI control")
         XCTAssertTrue(picker.contains("PhotosPicker("),
                       "the image action should be a direct native picker control")
-        let removeStart = try XCTUnwrap(more.range(of: "Button(role: .destructive)"))
-        let removeEnd = try XCTUnwrap(more.range(of: ".accessibilityIdentifier(\"appearance-background-remove\")",
-                                                  range: removeStart.upperBound..<more.endIndex))
-        let remove = more[removeStart.lowerBound..<removeEnd.upperBound]
+        let removeStart = try XCTUnwrap(picker.range(of: "Button(role: .destructive)"))
+        let removeEnd = try XCTUnwrap(picker.range(of: ".accessibilityIdentifier(\"appearance-background-remove\")",
+                                                   range: removeStart.upperBound..<picker.endIndex))
+        let remove = picker[removeStart.lowerBound..<removeEnd.upperBound]
         XCTAssertTrue(remove.contains(".buttonStyle(.plain)"),
                       "the image removal action must use a native hit-testable plain button")
         XCTAssertFalse(remove.contains(".buttonStyle(.bordered)"),
@@ -884,7 +884,7 @@ final class AppearanceSettingTests: XCTestCase {
                     range: setupStart.upperBound..<more.endIndex))
         let mainSetup = String(more[setupStart.lowerBound..<setupEnd.upperBound])
         let screenSwitch = try body(from: "switch screen {",
-                                    to: "}\n        }\n        .navigationTitle", in: more)
+                                    to: "}\n        }\n        // A presented More screen", in: more)
         XCTAssertTrue(moreMain.contains(".settingsRowSurface()"),
                       "More main rows must use the shared row surface")
         XCTAssertTrue(moreBehavior.contains(".settingsRowSurface()"),

@@ -579,7 +579,7 @@ struct ContentView: View {
             // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
             // offenen Karte antippbar.
-            .overlay { backfillLayer }
+            .sheet(item: $backfill) { request in backfillEditor(request) }
             .overlay(alignment: .bottom) { legacyBottomChrome }
         }
     }
@@ -756,7 +756,7 @@ struct ContentView: View {
         // genau dem, was die Karte gerade geschrieben hat, und muss
         // bei offener Karte antippbar bleiben — dieselbe Schichtung
         // wie im Fallback (Karte unter dem Chrom-Stapel).
-        .overlay { backfillLayer }
+        .sheet(item: $backfill) { request in backfillEditor(request) }
         .navigationChrome()
     }
 
@@ -1265,8 +1265,14 @@ struct ContentView: View {
             }
             .accessibilityIdentifier("open-archive")
         } label: {
-            Label(String(localized: "Filter"), systemImage: "line.3.horizontal.decrease.circle")
+            Label(String(localized: "Filter"),
+                  systemImage: habitFilter.isEmpty
+                    ? "line.3.horizontal.decrease.circle"
+                    : "line.3.horizontal.decrease.circle.fill")
         }
+        .accessibilityValue(habitFilter.isEmpty
+                            ? String(localized: "Kein Filter aktiv")
+                            : String(localized: "Filter aktiv"))
         .accessibilityIdentifier("habit-filter")
     }
 
@@ -1301,7 +1307,7 @@ struct ContentView: View {
             GeometryReader { viewport in
                 List {
                     RootPageTitle(title: String(localized: "Habits"))
-                        .id("habit-list-top")
+                        .id("habit-list-title")
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
@@ -1309,6 +1315,7 @@ struct ContentView: View {
                         progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
                         todayOnly: $habitFilter.todayOnly)
+                        .id("habit-list-top")
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
@@ -1389,7 +1396,7 @@ struct ContentView: View {
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
-        .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
+        .contentMargins(.top, 8, for: .scrollContent)
         .softScrollEdges()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .coordinateSpace(.named(Self.listSpace))
@@ -1934,7 +1941,11 @@ struct ContentView: View {
     ///    war, ist danach gleich — das ist die Zusage der Mehrfachauswahl.
     private func backfillWrite(_ habitId: UUID, days: [String], value: Int?) {
         guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
-        let allowed = days.filter { Backfill.canWrite(habit: habit, day: $0) }.sorted()
+        let calendar = habitCalendar(for: habit)
+        let today = DayKey.today(calendar: calendar)
+        let allowed = days.filter {
+            Backfill.canWrite(habit: habit, day: $0, today: today, calendar: calendar)
+        }.sorted()
         guard !allowed.isEmpty else { return }
 
         let entries = allowed.map {
@@ -1967,7 +1978,11 @@ struct ContentView: View {
     private func backfillRestore(_ habitId: UUID,
                                  entries: [(day: String, value: Int?)]) {
         guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
-        let allowed = entries.filter { Backfill.canWrite(habit: habit, day: $0.day) }
+        let calendar = habitCalendar(for: habit)
+        let today = DayKey.today(calendar: calendar)
+        let allowed = entries.filter {
+            Backfill.canWrite(habit: habit, day: $0.day, today: today, calendar: calendar)
+        }
             .sorted { $0.day < $1.day }
         guard !allowed.isEmpty else { return }
 
@@ -2044,9 +2059,8 @@ struct ContentView: View {
     /// — ist es inzwischen weg (archiviert, gelöscht, Import), schließt sie
     /// sich von selbst, statt einen Stand von vorhin zu zeigen.
     @ViewBuilder
-    private var backfillLayer: some View {
-        if let request = backfill,
-           let habit = visibleActiveHabits.first(where: { $0.id == request.habitId }) {
+    private func backfillEditor(_ request: BackfillRequest) -> some View {
+        if let habit = visibleActiveHabits.first(where: { $0.id == request.habitId }) {
             BackfillCard(habit: habit,
                          day: Binding(get: { backfill?.day ?? request.day },
                                       set: { backfill?.day = $0 }),
@@ -2058,6 +2072,7 @@ struct ContentView: View {
                          },
                          onClose: { withCardAnimation { backfill = nil } },
                          sourceAnchor: request.anchor)
+                .environment(\.calendar, habitCalendar(for: habit))
                 // KEIN eigener Übergang mehr an der ganzen Schicht: Vorhang
                 // und Karte tragen ihre Übergänge selbst (BackfillCard.body)
                 // — der Vorhang blendet nur, die Karte wächst aus ihrer
@@ -2484,11 +2499,11 @@ struct ContentView: View {
                 moreRoutePresentationTask = Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(220))
                     guard !Task.isCancelled else { return }
-                    presentedMoreDestination = appMoreDestination(for: route)
+                    presentedMoreDestination = presentedMorePage(for: route)
                     morePageRoute = route
                 }
             } else {
-                presentedMoreDestination = appMoreDestination(for: route)
+                presentedMoreDestination = presentedMorePage(for: route)
                 morePageRoute = route
             }
         } else {
@@ -2498,11 +2513,11 @@ struct ContentView: View {
                 moreRoutePresentationTask = Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(220))
                     guard !Task.isCancelled else { return }
-                    presentedMoreDestination = appMoreDestination(for: route)
+                    presentedMoreDestination = presentedMorePage(for: route)
                     moreSheet = route
                 }
             } else {
-                presentedMoreDestination = appMoreDestination(for: route)
+                presentedMoreDestination = presentedMorePage(for: route)
                 moreSheet = route
             }
         }
@@ -2520,7 +2535,7 @@ struct ContentView: View {
     private func moreSheetDidPresent(_ route: MoreRoute) {
         guard moreSheet == route || morePageRoute == route else { return }
         moreSheetIsPresented = true
-        presentedMoreDestination = appMoreDestination(for: route)
+        presentedMoreDestination = presentedMorePage(for: route)
     }
 
     private func dismissMoreSheet() {
@@ -2613,6 +2628,16 @@ struct ContentView: View {
     /// bedienen keins — kein Link führt dorthin, und die Routen-Maschine darf
     /// sie deshalb jederzeit wegräumen.
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
+        switch route {
+        case .archive: .archive
+        case .about, .developer, .appearance, .habitBehavior, .timeZone, .github: nil
+        }
+    }
+
+    /// Interactive More pages are presented from their own rows. Keep that
+    /// presentation map separate from the external route whitelist above,
+    /// which intentionally only accepts the archive deep link.
+    private func presentedMorePage(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
         case .about: .about

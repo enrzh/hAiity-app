@@ -100,7 +100,7 @@ final class MotivationTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
 
         XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"))
-        XCTAssertTrue(more.contains("Text(String(localized: \"Quelle: mubaris/motivate · MIT-Lizenz\"))"),
+        XCTAssertTrue(more.contains("Label(String(localized: \"Quelle: mubaris/motivate · MIT-Lizenz\")"),
                       "the source label must remain visible")
         XCTAssertTrue(more.contains("Button(action: openMotivationSource)"),
                       "the source action must be an explicit local control")

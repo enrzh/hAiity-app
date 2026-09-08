@@ -129,15 +129,18 @@ final class StatsContextMenuUITests: XCTestCase {
 
     func testLongPressingHabitGraphShowsItsActions() {
         let app = XCUIApplication()
-        app.launchArguments = ["-screen", "habits", "-pro", "on", "-seed-stats"]
+        app.launchArguments = ["-screen", "habits", "-pro", "on", "-seed-stats",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
 
-        let graph = app.descendants(matching: .any)["habit-grid"].firstMatch
+        let graph = app.descendants(matching: .any)["habit-history"].firstMatch
         XCTAssertTrue(graph.waitForExistence(timeout: 10))
 
         graph.press(forDuration: 1.0)
 
-        XCTAssertTrue(app.buttons["Bearbeiten"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 3))
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
     }
 
 }

@@ -66,7 +66,9 @@ struct HaiityWidgetView: View {
                 }
             }
         } else {
-            WidgetEmptyState()
+            Link(destination: HaiityWidgetLink.habits) {
+                WidgetEmptyState()
+            }
         }
     }
 
@@ -272,7 +274,7 @@ struct HaiityWidgetView: View {
                                     : String(localized: "Habit abhaken"))
             }
 
-            if entry.widgetResetEnabled {
+            if entry.showsReset(for: habit) {
                 Button(intent: ResetHabitIntent(habit: habit)) {
                     Image(systemName: "arrow.uturn.backward.circle")
                         .font(.caption)

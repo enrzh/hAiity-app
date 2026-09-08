@@ -1,6 +1,24 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Vorheriger Monat": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Previous month" } } }
+    },
+    "Nächster Monat": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Next month" } } }
+    },
+    "Auswahl aufheben": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Deselect all" } } }
+    },
+    "Alle auswählen": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Select all" } } }
+    },
+    "Ohne Eintrag": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Unlogged" } } }
+    },
+    "Einträge löschen": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Clear entries" } } }
+    },
     "Ausgeklappt": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Expanded" } } }
     },

@@ -347,7 +347,14 @@ enum CalendarSync {
     /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
     /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
     static var activeCalendarTitle: String? {
-        activeCalendarTitle(isReminder: false) ?? activeCalendarTitle(isReminder: true)
+        guard hasAccess else { return nil }
+        for calendarKey in [habitsCalendarKey, remindersCalendarKey,
+                            calendarKey, fallbackCalendarKey] {
+            guard let id = defaults.string(forKey: calendarKey),
+                  let title = store.calendar(withIdentifier: id)?.title else { continue }
+            return title
+        }
+        return nil
     }
 
     static var activeCalendarTitles: [String] {

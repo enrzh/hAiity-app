@@ -5,6 +5,59 @@ import XCTest
 
 @MainActor
 final class WidgetRenderingTests: XCTestCase {
+    func testFocusGraphDoesNotPaintOverItsTitle() throws {
+        let demo = HaiityEntry.demo
+        let habits = Array(demo.habits.prefix(3)) + [Habit(name: "Fourth")]
+        let entry = HaiityEntry(date: demo.date, habits: habits, largeItems: habits, largeLayout: .focus)
+        let image = try render(LargeFocusWidgetView(entry: entry)
+            .background(Color.white).frame(width: 332, height: 356), to: "focus-title-regression.png")
+        let cg = try XCTUnwrap(image.cgImage)
+        let data = try XCTUnwrap(cg.dataProvider?.data)
+        let bytes = try XCTUnwrap(CFDataGetBytePtr(data))
+        let components = cg.bitsPerPixel / 8
+        func greenPixels(_ rect: CGRect) -> Int {
+            var count = 0
+            for y in Int(rect.minY)..<Int(rect.maxY) {
+                for x in Int(rect.minX)..<Int(rect.maxX) {
+                    let offset = y * cg.bytesPerRow + x * components
+                    if Int(bytes[offset + 1]) > Int(bytes[offset]) + 20
+                        && Int(bytes[offset + 1]) > Int(bytes[offset + 2]) + 20 {
+                        count += 1
+                    }
+                }
+            }
+            return count
+        }
+        // Exclude the emoji and controls from the title's reserved region.
+        XCTAssertEqual(greenPixels(CGRect(x: 90, y: 64, width: 260, height: 32)), 0)
+        XCTAssertGreaterThan(greenPixels(CGRect(x: 90, y: 140, width: 260, height: 120)), 100)
+    }
+
+    func testContributionCanvasPreservesDeclinedAndVibrantLevels() throws {
+        func snapshot(_ level: Int) -> GridCalendar.Snapshot {
+            GridCalendar.Snapshot(weeks: 1, today: "2026-09-08",
+                keys: [Array(repeating: "2026-09-07", count: 7)],
+                levels: [Array(repeating: level, count: 7)], marks: [], filledCount: 0)
+        }
+        var signatures = Set<String>()
+        for intensity in -1...4 {
+            let image = try render(ContributionTiles(snapshot: snapshot(intensity), cell: 12, gap: 3) {
+                WidgetInk.mono($0)
+            }.background(Color.black), to: "contribution-level-\(intensity).png")
+            signatures.insert(colorSignature(image, in: CGRect(x: 6, y: 6, width: 10, height: 10)))
+        }
+        XCTAssertEqual(signatures.count, 6, "Declined, empty and all four contribution levels must remain distinct")
+    }
+
+    func testDenseRosterRendersWithoutCrowdingGraphsIntoTextRows() throws {
+        let habits = (0..<7).map { Habit(name: "Habit \($0 + 1)") }
+        let entry = HaiityEntry(date: .now, habits: habits)
+        let image = try render(RosterWidgetView(entry: entry)
+            .content(family: .systemLarge, dark: false)
+            .background(Color.white).frame(width: 332, height: 356), to: "roster-seven-habits.png")
+        XCTAssertGreaterThan(foregroundPixelCount(image, in: CGRect(x: 0, y: 610, width: 664, height: 80)), 20)
+    }
+
     func testTaskFourMixedAccessibilityRegionsAndReminderMiddleAreBounded() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let item = try sourceSlice(roster, from: "private struct LargeFeaturedWidgetItem", to: "private struct LargeCompactWidgetRow")
@@ -564,7 +617,8 @@ final class WidgetRenderingTests: XCTestCase {
         let item = try sourceSlice(roster, from: "private struct LargeFeaturedWidgetItem", to: "private struct LargeCompactWidgetRow")
         let dual = try sourceSlice(roster, from: "struct LargeDualWidgetView", to: "struct LargeFocusWidgetView")
 
-        XCTAssertTrue(item.contains("var showsSurface: Bool = true"))
+        XCTAssertTrue(item.contains("var showsSurface: Bool = false"),
+                      "featured widgets should default to the native background")
         XCTAssertTrue(item.contains("if showsSurface"))
         XCTAssertTrue(dual.contains("showsSurface: false"),
                       "the dual widget should rely on WidgetKit's container background")
@@ -611,7 +665,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(list.contains("LargeFeaturedWidgetItem(habit: featured, entry: entry)"))
         XCTAssertTrue(item.contains("if graph && habit.isReminder"),
                       "featured reminders must render timing in the middle region")
-        XCTAssertTrue(item.contains("TrailingGrid(habit: habit, maxWeeks: compact ? 12 : 18"),
+        XCTAssertTrue(item.contains("TrailingGrid(habit: habit, maxWeeks: 53"),
                       "featured non-reminders must retain their graph region")
         XCTAssertTrue(focus.contains("compact: true"))
         XCTAssertEqual(focus.components(separatedBy: "LargeWidgetItem(habit:").count - 1, 2,
@@ -891,6 +945,7 @@ final class WidgetRenderingTests: XCTestCase {
                                   ("xxxl", ContentSizeCategory.accessibilityExtraExtraExtraLarge)] {
             let image = try render(LargeListWidgetView(entry: entry)
                 .environment(\.sizeCategory, category)
+                .background(Color.white)
                 .frame(width: 332, height: 356), to: "large-list-regions-\(name).png")
             let scale: CGFloat = 2
             let contentTop = Int(WidgetLogic.LargeGeometry.outerPadding * scale)
@@ -1046,26 +1101,30 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertGreaterThan(blue, red)
     }
 
-    func testWidgetUndoIsVisibleBeforeTheFirstDecision() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let main = try String(contentsOf: root.appendingPathComponent(
-            "HaiityWidget/HaiityWidgetView.swift"))
-        let roster = try String(contentsOf: root.appendingPathComponent(
-            "HaiityWidget/RosterWidgetView.swift"))
-
-        XCTAssertTrue(main.contains("if entry.widgetResetEnabled {"))
-        XCTAssertTrue(roster.contains("if entry.widgetResetEnabled {"))
-        XCTAssertFalse(main.contains("entry.widgetResetEnabled && hasValue"),
-                       "undo is a configured action, not a post-decision action")
-        XCTAssertFalse(roster.contains("entry.widgetResetEnabled && hasValue"),
-                       "undo is a configured action, not a post-decision action")
+    func testWidgetUndoRequiresAnEntryAndRespectsPreference() throws {
+        var entry = HaiityEntry.demo
+        var habit = try XCTUnwrap(entry.habits.first)
+        let today = entry.today(for: habit)
+        habit.log[today] = nil
+        XCTAssertFalse(entry.showsReset(for: habit))
+        for value in [1, 3, Habit.Answer.no] {
+            habit.log[today] = value
+            XCTAssertTrue(entry.showsReset(for: habit))
+        }
+        entry.widgetResetEnabled = false
+        XCTAssertFalse(entry.showsReset(for: habit))
+        entry.widgetResetEnabled = true
+        habit.itemType = .reminder
+        let yesterday = try XCTUnwrap(DayKey.shifted(today, by: -1, calendar: entry.calendar(for: habit)))
+        habit.createdAt = yesterday
+        habit.log = [yesterday: 1]
+        XCTAssertTrue(entry.showsReset(for: habit), "Reminder undo can target an older completion")
     }
 
     func testLargeResetEnabledAndDisabledRenderStatesAreCovered() throws {
         let source = try source("HaiityWidget/RosterWidgetView.swift")
         let item = try sourceSlice(source, from: "private struct LargeFeaturedWidgetItem", to: "private struct LargeCompactWidgetRow")
-        XCTAssertTrue(item.contains("if entry.widgetResetEnabled"))
+        XCTAssertTrue(item.contains("if entry.showsReset(for: habit)"))
         let demo = HaiityEntry.demo
         let enabled = HaiityEntry(date: demo.date, habits: demo.habits, palettes: demo.palettes,
                                    widgetResetEnabled: true, largeItems: Array(demo.habits.prefix(1)), largeLayout: .list)
@@ -1082,7 +1141,7 @@ final class WidgetRenderingTests: XCTestCase {
         let item = try sourceSlice(roster, from: "private struct LargeFeaturedWidgetItem", to: "private struct LargeCompactWidgetRow")
         XCTAssertEqual(item.components(separatedBy: "largeActionButton(intent:").count - 1, 5)
         XCTAssertTrue(item.contains("frame(width: 44, height: 44"))
-        XCTAssertTrue(item.contains("if entry.widgetResetEnabled"))
+        XCTAssertTrue(item.contains("if entry.showsReset(for: habit)"))
         XCTAssertFalse(item.contains(".frame(minWidth: 44, minHeight: 44)"), "actions must not receive the hit frame as a group")
     }
 

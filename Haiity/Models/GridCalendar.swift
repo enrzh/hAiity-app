@@ -252,8 +252,17 @@ enum GridCalendar {
         let firstWeekday: Int
     }
 
+    private struct ExternalCacheKey: Hashable {
+        let levelsHash: Int
+        let count: Int
+        let weeks: Int
+        let today: String
+        let firstWeekday: Int
+    }
+
     private static let lock = NSLock()
     private static var cache: [CacheKey: Snapshot] = [:]
+    private static var externalCache: [ExternalCacheKey: Snapshot] = [:]
     /// Deckel gegen unbegrenztes Wachsen (viele Habits × Tagewechsel):
     /// bei Überlauf wird komplett geleert statt LRU-Buchführung zu betreiben.
     private static let cacheLimit = 32
@@ -294,6 +303,18 @@ enum GridCalendar {
                          weeks: Int,
                          today: String,
                          calendar: Calendar = .current) -> Snapshot {
+        let key = ExternalCacheKey(levelsHash: levelsByDay.hashValue,
+                                   count: levelsByDay.count,
+                                   weeks: weeks,
+                                   today: today,
+                                   firstWeekday: calendar.firstWeekday)
+        lock.lock()
+        if let hit = externalCache[key] {
+            lock.unlock()
+            return hit
+        }
+        lock.unlock()
+
         let grid = keys(weeks: weeks, today: today, calendar: calendar)
         var filled = 0
         let levels = grid.map { column in
@@ -303,18 +324,24 @@ enum GridCalendar {
                 return levelsByDay[key] ?? 0
             }
         }
-        return Snapshot(weeks: weeks,
-                        today: today,
-                        keys: grid,
-                        levels: levels,
-                        marks: rawMarks(weeks: weeks, today: today, calendar: calendar),
-                        filledCount: filled)
+        let snapshot = Snapshot(weeks: weeks,
+                                today: today,
+                                keys: grid,
+                                levels: levels,
+                                marks: rawMarks(weeks: weeks, today: today, calendar: calendar),
+                                filledCount: filled)
+        lock.lock()
+        if externalCache.count >= cacheLimit { externalCache.removeAll(keepingCapacity: true) }
+        externalCache[key] = snapshot
+        lock.unlock()
+        return snapshot
     }
 
     /// Nur für Tests: Cache und Zähler zurücksetzen.
     static func resetCache() {
         lock.lock()
         cache.removeAll()
+        externalCache.removeAll()
         computeCount = 0
         lock.unlock()
     }

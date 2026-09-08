@@ -2,10 +2,72 @@ import Foundation
 import SwiftUI
 import UIKit
 
-/// One Canvas renderer for every contribution graph in the app. The source
-/// data may be a Habit or GitHub, but the expensive view tree and tile styling
-/// should not diverge between them.
-struct ContributionGridRenderer: View, Equatable {
+/// Shared tile renderer for app cards and widgets. Colors stay caller-owned
+/// so WidgetKit's vibrant and accented appearances retain their contrast.
+struct ContributionTiles: View {
+    let snapshot: GridCalendar.Snapshot
+    let cell: CGFloat
+    let gap: CGFloat
+    var radius: CGFloat = 2
+    var rows: Int = GridCalendar.rows
+    var todayOutline: Color? = nil
+    var outline: Color? = nil
+    var highlightedCells: Set<ContributionHighlightCell>? = nil
+    var highlightBackground: Color? = nil
+    let level: (Int) -> Color
+
+    static func highlightPadding(for gap: CGFloat) -> CGFloat {
+        min(2, max(0.75, gap * 0.6))
+    }
+
+    var body: some View {
+        let padding = highlightedCells?.isEmpty == false
+            ? Self.highlightPadding(for: gap) : 0
+        Canvas { context, _ in
+            let colors = (-1...4).map(level)
+            let shape = Path(roundedRect: CGRect(x: 0, y: 0, width: cell, height: cell),
+                             cornerRadius: radius)
+            for (column, keys) in snapshot.keys.enumerated() {
+                guard column < snapshot.levels.count else { continue }
+                for row in 0..<min(rows, keys.count, snapshot.levels[column].count) {
+                    let intensity = min(4, max(Habit.Answer.declinedLevel, snapshot.levels[column][row]))
+                    let position = ContributionHighlightCell(column: column, row: row)
+                    var tile = context
+                    tile.translateBy(x: padding + CGFloat(column) * (cell + gap),
+                                     y: padding + CGFloat(row) * (cell + gap))
+                    if highlightedCells?.contains(position) == true, let highlightBackground {
+                        let backgroundRect = CGRect(x: -padding, y: -padding,
+                                                    width: cell + padding * 2,
+                                                    height: cell + padding * 2)
+                        tile.fill(Path(roundedRect: backgroundRect,
+                                       cornerRadius: radius + padding * 0.5),
+                                  with: .color(highlightBackground))
+                    }
+                    tile.fill(shape, with: .color(colors[intensity + 1].opacity(keys[row] == nil ? 0.35 : 1)))
+                    if let outline {
+                        tile.stroke(shape, with: .color(outline), lineWidth: 0.5)
+                    }
+                    if keys[row] == snapshot.today, let todayOutline {
+                        let rect = CGRect(x: 0.6, y: 0.6, width: cell - 1.2, height: cell - 1.2)
+                        tile.stroke(Path(roundedRect: rect, cornerRadius: radius),
+                                    with: .color(todayOutline), lineWidth: 1.2)
+                    }
+                }
+            }
+        }
+        .frame(width: max(0, CGFloat(snapshot.keys.count) * (cell + gap) - gap) + padding * 2,
+               height: max(0, CGFloat(rows) * (cell + gap) - gap) + padding * 2)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+struct ContributionHighlightCell: Hashable {
+    let column: Int
+    let row: Int
+}
+
+/// Labels and tile surface are siblings, so labels never occupy the card.
+struct ContributionChart: View, Equatable {
     let snapshot: GridCalendar.Snapshot
     let cell: CGFloat
     let gap: CGFloat
@@ -15,147 +77,79 @@ struct ContributionGridRenderer: View, Equatable {
     let palette: PaletteStyle
     let highlightsToday: Bool
     let checkPulse: Bool
+    var showsSurface: Bool = false
+    var highlightedCells: Set<ContributionHighlightCell>? = nil
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.appearancePreferences) private var appearancePreferences
 
-    static func == (a: ContributionGridRenderer, b: ContributionGridRenderer) -> Bool {
-        a.snapshot == b.snapshot
-            && a.cell == b.cell
-            && a.gap == b.gap
-            && a.width == b.width
-            && a.showsMonthLabels == b.showsMonthLabels
-            && a.labelScale == b.labelScale
-            && a.palette == b.palette
-            && a.highlightsToday == b.highlightsToday
-            && a.checkPulse == b.checkPulse
+    static func == (a: Self, b: Self) -> Bool {
+        a.snapshot == b.snapshot && a.cell == b.cell && a.gap == b.gap
+            && a.width == b.width && a.showsMonthLabels == b.showsMonthLabels
+            && a.labelScale == b.labelScale && a.palette == b.palette
+            && a.highlightsToday == b.highlightsToday && a.checkPulse == b.checkPulse
+            && a.showsSurface == b.showsSurface
+            && a.highlightedCells == b.highlightedCells
     }
 
     var body: some View {
-        let pitch = cell + gap
-        let marks = GridCalendar.placeMarks(snapshot.marks,
-                                             pitch: pitch,
-                                             contentWidth: width) { mark in
-            Self.labelWidth(GridCalendar.label(for: mark), scale: labelScale)
-        }
-        let todayRect = todayRect(pitch: pitch)
-
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 8) {
             if showsMonthLabels {
-                monthRow(marks)
+                monthRow.padding(.horizontal, showsSurface ? 4 : 0)
             }
-            Canvas { context, _ in
-                var shading: [Int: GraphicsContext.Shading] = [:]
-                var dimmedShading: [Int: GraphicsContext.Shading] = [:]
-                let cellPath = Path(roundedRect: CGRect(x: 0, y: 0,
-                                                        width: cell,
-                                                        height: cell),
-                                    cornerRadius: min(GridCell.radius, max(1.5, cell * 0.2)))
-                let dark = scheme == .dark
-                let emptyCell = Color.primary.opacity(dark ? 0.16 : 0.07)
-                let usesAdaptiveOutline = Theme.effectiveMaterial(appearancePreferences) == .adaptive
-                let outline = Theme.adaptiveTileOutline(
-                    preferences: appearancePreferences,
-                    dark: dark)
-
-                for (columnIndex, column) in snapshot.keys.enumerated() {
-                    guard columnIndex < snapshot.levels.count else { continue }
-                    for row in 0..<GridCalendar.rows {
-                        guard row < column.count,
-                              row < snapshot.levels[columnIndex].count else { continue }
-                        let level = snapshot.levels[columnIndex][row]
-                        let future = column[row] == nil
-                        let fill: GraphicsContext.Shading
-                        if level == 0 && !future {
-                            // Keep empty history cells visible so every row
-                            // shares one optical baseline with no false gaps.
-                            fill = .color(emptyCell)
-                        } else if future {
-                            if dimmedShading[level] == nil {
-                                dimmedShading[level] = .color(
-                                    Theme.level(level, dark: dark, palette: palette).opacity(0.35))
-                            }
-                            fill = dimmedShading[level]!
-                        } else {
-                            if shading[level] == nil {
-                                shading[level] = .color(
-                                    Theme.level(level, dark: dark, palette: palette))
-                            }
-                            fill = shading[level]!
-                        }
-                        var cellContext = context
-                        cellContext.translateBy(x: CGFloat(columnIndex) * pitch,
-                                                y: CGFloat(row) * pitch)
-                        cellContext.fill(cellPath, with: fill)
-                        if usesAdaptiveOutline {
-                            cellContext.stroke(cellPath,
-                                               with: .color(outline),
-                                               lineWidth: 0.5)
-                        }
-                    }
-                }
-
-                if highlightsToday, let todayRect {
-                    context.stroke(Path(roundedRect: todayRect.insetBy(dx: 0.6, dy: 0.6),
-                                        cornerRadius: GridCell.radius),
-                                   with: .color(.primary),
-                                   lineWidth: 1.2)
-                }
+            if showsSurface {
+                tiles.padding(4)
+            } else {
+                tiles
             }
-            .frame(width: max(width, 0), height: gridHeight(pitch: pitch))
-            .overlay(alignment: .topLeading) {
-                if highlightsToday, let todayRect {
-                    RoundedRectangle(cornerRadius: GridCell.radius, style: .continuous)
-                        .strokeBorder(Theme.accentText(palette), lineWidth: 1.4)
-                        .frame(width: todayRect.width, height: todayRect.height)
-                        .offset(x: todayRect.minX, y: todayRect.minY)
-                        .scaleEffect(checkPulse ? 1.9 : 1)
-                        .opacity(checkPulse ? 0.9 : 0)
-                        .allowsHitTesting(false)
-                }
-            }
-            .id("grid-canvas")
         }
-        .padding(.vertical, 2)
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    private func gridHeight(pitch: CGFloat) -> CGFloat {
-        CGFloat(GridCalendar.rows) * pitch - gap
-    }
-
-    private func todayRect(pitch: CGFloat) -> CGRect? {
-        for (columnIndex, column) in snapshot.keys.enumerated() {
-            if let row = column.firstIndex(of: snapshot.today) {
-                return CGRect(x: CGFloat(columnIndex) * pitch,
-                              y: CGFloat(row) * pitch,
-                              width: cell,
-                              height: cell)
+    private var tiles: some View {
+        let dark = scheme == .dark
+        let radius = min(GridCell.radius, max(1.5, cell * 0.2))
+        return ContributionTiles(snapshot: snapshot, cell: cell, gap: gap, radius: radius,
+                                 todayOutline: highlightsToday ? .primary : nil,
+                                 outline: Theme.effectiveMaterial(appearancePreferences) == .adaptive
+                                    ? Theme.adaptiveTileOutline(preferences: appearancePreferences, dark: dark) : nil,
+                                 highlightedCells: highlightedCells,
+                                 highlightBackground: Color.black.opacity(dark ? 0.16 : 0.09)) { value in
+            value == 0 ? Color.primary.opacity(dark ? 0.09 : 0.045)
+                : Theme.level(value, dark: dark, palette: palette)
+        }
+        .overlay(alignment: .topLeading) {
+            if highlightsToday, let column = snapshot.keys.firstIndex(where: { $0.contains(snapshot.today) }),
+               let row = snapshot.keys[column].firstIndex(of: snapshot.today) {
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(Theme.accentText(palette), lineWidth: 1.4)
+                    .frame(width: cell, height: cell)
+                    .scaleEffect(checkPulse ? 1.9 : 1)
+                    .opacity(checkPulse ? 0.9 : 0)
+                    .offset(x: CGFloat(column) * (cell + gap), y: CGFloat(row) * (cell + gap))
+                    .allowsHitTesting(false)
             }
         }
-        return nil
     }
 
-    private func monthRow(_ marks: [GridCalendar.PlacedMark]) -> some View {
-        ZStack(alignment: .topLeading) {
+    private var monthRow: some View {
+        let quietMarks = snapshot.marks.count > 4
+            ? snapshot.marks.filter { $0.month % 2 == 1 } : snapshot.marks
+        let marks = GridCalendar.placeMarks(quietMarks, pitch: cell + gap,
+                                            contentWidth: width) { mark in
+            (GridCalendar.label(for: mark) as NSString)
+                .size(withAttributes: [.font: UIFont.systemFont(ofSize: max(1, 11 * labelScale))]).width
+        }
+        return ZStack(alignment: .topLeading) {
             Text(verbatim: "Mmm").font(.caption2).hidden()
             ForEach(marks, id: \.mark) { placed in
                 Text(verbatim: GridCalendar.label(for: placed.mark))
-                    .font(.caption2)
-                    .foregroundStyle(Color.primary.opacity(0.7))
-                    .fixedSize()
-                    .offset(x: placed.x)
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize().offset(x: placed.x)
             }
         }
         .frame(width: max(width, 0), alignment: .topLeading)
         .accessibilityHidden(true)
-    }
-
-    private static func labelWidth(_ text: String, scale: CGFloat) -> CGFloat {
-        guard !text.isEmpty else { return 0 }
-        let size = max(1, 11 * scale)
-        return (text as NSString)
-            .size(withAttributes: [.font: UIFont.systemFont(ofSize: size)]).width
     }
 }
 
@@ -214,13 +208,11 @@ struct GitHubContributionGraph: View, Equatable {
         if let cellSize {
             return (cellSize, gap ?? GridCell.gap)
         }
-        let pitch = available > 0
-            ? available / Self.referenceColumns
-            : Self.referencePitch
-        return (min(GridCell.size,
-                    max(8, pitch * 11 / Self.referencePitch)),
-                min(GridCell.gap,
-                    max(2, pitch * 3 / Self.referencePitch)))
+        let columns = min(CGFloat(max(weeks ?? 24, 1)), Self.referenceColumns)
+        let spacing: CGFloat = 3
+        let tileWidth = max(1, available - (interactive ? 8 : 0))
+        return (available > 0 ? max(1, (tileWidth + spacing) / columns - spacing) : GridCell.size,
+                spacing)
     }
 
     private var renderedPalette: PaletteStyle {
@@ -258,7 +250,7 @@ struct GitHubContributionGraph: View, Equatable {
         Group {
             if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    ContributionGridRenderer(snapshot: snapshot,
+                    ContributionChart(snapshot: snapshot,
                                              cell: m.cell,
                                              gap: m.gap,
                                              width: contentWidth,
@@ -266,9 +258,9 @@ struct GitHubContributionGraph: View, Equatable {
                                              labelScale: labelScale / 100,
                                              palette: renderedPalette,
                                              highlightsToday: false,
-                                             checkPulse: false)
+                                             checkPulse: false,
+                                             showsSurface: interactive)
                 }
-                .softScrollEdges()
                 .defaultScrollAnchor(.trailing)
                 .scrollDisabled(available > 0
                                 && !GridCalendar.needsHorizontalScroll(
@@ -278,7 +270,7 @@ struct GitHubContributionGraph: View, Equatable {
                 // A disabled ScrollView can retain a trailing offset inside a
                 // UIKit context preview. Render the fixed-width canvas
                 // directly so every contribution column remains visible.
-                ContributionGridRenderer(snapshot: snapshot,
+                ContributionChart(snapshot: snapshot,
                                          cell: m.cell,
                                          gap: m.gap,
                                          width: contentWidth,
@@ -286,7 +278,8 @@ struct GitHubContributionGraph: View, Equatable {
                                          labelScale: labelScale / 100,
                                          palette: renderedPalette,
                                          highlightsToday: false,
-                                         checkPulse: false)
+                                         checkPulse: false,
+                                             showsSurface: interactive)
             }
         }
         .background(widthReader)
