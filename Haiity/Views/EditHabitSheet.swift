@@ -374,6 +374,9 @@ struct EditHabitSheet: View {
             requestNotificationPermissionIfNeeded()
         }
         .onChange(of: notificationMode) { _, mode in
+            if mode == .timeSensitive && !draft.hasTime {
+                draft.hasTime = true
+            }
             guard mode != .off else { return }
             requestNotificationPermissionIfNeeded()
         }

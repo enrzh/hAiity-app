@@ -181,6 +181,8 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(graph.contains("@Environment(\\.palettes)"))
         XCTAssertTrue(card.contains("GitHubContributionGraph(days: snapshot.days,"))
         XCTAssertTrue(card.contains("showsMonthLabels: showsMonthLabels"))
+        XCTAssertTrue(card.contains("palette: palettes.style"),
+                      "the held preview must keep the selected app palette")
         XCTAssertTrue(card.contains(".equatable()"))
     }
 

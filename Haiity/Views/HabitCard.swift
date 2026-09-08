@@ -503,41 +503,44 @@ struct HabitCard: View, Equatable {
     /// erreichbar ist, bleibt inhaltlich dasselbe wie zuvor im Blatt:
     /// Nacharbeiten, Session, Bearbeiten, Archivieren, Teilen.
     private var menuActions: [GraphMenuAction] {
-        var actions = [GraphMenuAction(title: String(localized: "Nacharbeiten"),
-                                       symbol: "calendar.badge.plus",
-                                       handler: onBackfill),
-         // Session: „ich mache das JETZT" — startet die Live-Aktivität.
-         // Direkt am Manager statt als Closure aus ContentView — die Session
-         // hat keinen UI-Zustand, den die Liste kennen müsste.
-         GraphMenuAction(title: String(localized: "Session starten"),
-                         symbol: "timer",
-                         handler: { HabitSessionManager.shared.start(habit: habit) }),
-         GraphMenuAction(title: String(localized: "Bearbeiten"),
-                         symbol: "pencil",
-                         handler: onEdit)]
+        var secondary = [
+            // Session: „ich mache das JETZT" — startet die Live-Aktivität.
+            GraphMenuAction(title: String(localized: "Session starten"),
+                            symbol: "timer",
+                            handler: { HabitSessionManager.shared.start(habit: habit) })]
         if habit.recurrence.frequency != .once {
-            actions.append(GraphMenuAction(title: String(localized: "Einmalig anlegen"),
-                                           symbol: "plus.square",
-                                           handler: onCreateOneTime))
+            secondary.append(GraphMenuAction(title: String(localized: "Einmalig anlegen"),
+                                              symbol: "plus.square",
+                                              handler: onCreateOneTime))
         }
-        actions += [
-         GraphMenuAction(title: String(localized: "Rückgängig"),
-                         symbol: "arrow.uturn.backward",
-                         handler: onClear),
-         GraphMenuAction(title: String(localized: "Archivieren"),
-                         symbol: "archivebox",
-                         handler: onArchive),
-         GraphMenuAction(title: String(localized: "Löschen"),
-                         symbol: "trash",
-                         handler: onDelete,
-                         destructive: true),
-         GraphMenuAction(title: String(localized: "Sortieren"),
-                         symbol: "arrow.up.arrow.down",
-                         handler: onEnableSorting),
-         GraphMenuAction(title: String(localized: "Als Bild teilen"),
-                         symbol: "square.and.arrow.up",
-                         handler: shareCard)]
-        return actions
+        secondary += [
+            GraphMenuAction(title: String(localized: "Rückgängig"),
+                            symbol: "arrow.uturn.backward",
+                            handler: onClear),
+            GraphMenuAction(title: String(localized: "Archivieren"),
+                            symbol: "archivebox",
+                            handler: onArchive),
+            GraphMenuAction(title: String(localized: "Löschen"),
+                            symbol: "trash",
+                            handler: onDelete,
+                            destructive: true),
+            GraphMenuAction(title: String(localized: "Sortieren"),
+                            symbol: "arrow.up.arrow.down",
+                            handler: onEnableSorting),
+            GraphMenuAction(title: String(localized: "Als Bild teilen"),
+                            symbol: "square.and.arrow.up",
+                            handler: shareCard)]
+        return [
+            GraphMenuAction(title: String(localized: "Nacharbeiten"),
+                            symbol: "calendar.badge.plus",
+                            handler: onBackfill),
+            GraphMenuAction(title: String(localized: "Bearbeiten"),
+                            symbol: "pencil",
+                            handler: onEdit),
+            GraphMenuAction(title: String(localized: "Mehr"),
+                            symbol: "ellipsis.circle",
+                            handler: {},
+                            submenu: secondary)]
     }
 
     /// Teilen aus einem UIMenu: das fertige Kartenbild in das System-Blatt.
@@ -905,6 +908,7 @@ struct GraphMenuAction {
     let symbol: String
     let handler: () -> Void
     var destructive: Bool = false
+    var submenu: [GraphMenuAction]? = nil
 }
 
 struct GraphContextMenu: UIViewRepresentable {
@@ -916,6 +920,7 @@ struct GraphContextMenu: UIViewRepresentable {
     let actions: [GraphMenuAction]
     let commit: () -> Void
     var onMenuVisibilityChanged: (Bool) -> Void = { _ in }
+    @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
 
     func makeUIView(context: Context) -> MenuHost {
@@ -923,6 +928,7 @@ struct GraphContextMenu: UIViewRepresentable {
                  previewHeight: previewHeight,
                  previewOwnsSurface: previewOwnsSurface,
                  preview: preview, actions: actions, commit: commit,
+                 palettes: palettes,
                  appearancePreferences: appearancePreferences,
                  onMenuVisibilityChanged: onMenuVisibilityChanged)
     }
@@ -935,6 +941,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.preview = preview
         view.actions = actions
         view.commit = commit
+        view.palettes = palettes
         view.appearancePreferences = appearancePreferences
         view.onMenuVisibilityChanged = onMenuVisibilityChanged
     }
@@ -951,6 +958,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
+        var palettes: PaletteBook
         var appearancePreferences: AppearancePreferences
         var onMenuVisibilityChanged: (Bool) -> Void
         fileprivate let identifier = UUID().uuidString
@@ -963,6 +971,7 @@ struct GraphContextMenu: UIViewRepresentable {
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void,
+             palettes: PaletteBook,
              appearancePreferences: AppearancePreferences,
              onMenuVisibilityChanged: @escaping (Bool) -> Void) {
             self.cardRadius = cardRadius
@@ -972,6 +981,7 @@ struct GraphContextMenu: UIViewRepresentable {
             self.preview = preview
             self.actions = actions
             self.commit = commit
+            self.palettes = palettes
             self.appearancePreferences = appearancePreferences
             self.onMenuVisibilityChanged = onMenuVisibilityChanged
             super.init(frame: .zero)
@@ -1001,12 +1011,14 @@ struct GraphContextMenu: UIViewRepresentable {
             let actions = actions
             let radius = cardRadius
             let ownsSurface = previewOwnsSurface
+            let palettes = palettes
             let appearancePreferences = appearancePreferences
             return UIContextMenuConfiguration(identifier: identifier as NSString,
                                                previewProvider: {
                 let root = AnyView(makePreview()
                     .frame(width: width, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .environment(\.palettes, palettes)
                     .environment(\.appearancePreferences, appearancePreferences))
                 let surfaced = ownsSurface
                     ? root
@@ -1033,15 +1045,22 @@ struct GraphContextMenu: UIViewRepresentable {
                 controller.view.layoutIfNeeded()
                 return controller
             }, actionProvider: { _ in
-                UIMenu(children: actions.map { action in
-                    let item = UIAction(title: action.title,
-                                        image: UIImage(systemName: action.symbol)) { _ in
-                        action.handler()
-                    }
-                    if action.destructive { item.attributes = [.destructive] }
-                    return item
-                })
+                UIMenu(children: actions.map { self.menuElement(for: $0) })
             })
+        }
+
+        private func menuElement(for action: GraphMenuAction) -> UIMenuElement {
+            if let submenu = action.submenu {
+                return UIMenu(title: action.title,
+                              image: UIImage(systemName: action.symbol),
+                              children: submenu.map { menuElement(for: $0) })
+            }
+            let item = UIAction(title: action.title,
+                                image: UIImage(systemName: action.symbol)) { _ in
+                action.handler()
+            }
+            if action.destructive { item.attributes = [.destructive] }
+            return item
         }
 
         func contextMenuInteraction(_ interaction: UIContextMenuInteraction,

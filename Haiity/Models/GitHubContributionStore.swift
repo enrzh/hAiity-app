@@ -32,6 +32,7 @@ final class GitHubContributionStore {
     private let cacheURL: URL
     private let pendingLoginURL: URL
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var bootTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration: UInt = 0
     @ObservationIgnored private var connectionTask: Task<Void, Never>?
     @ObservationIgnored private var connectionTaskID: UInt = 0
@@ -60,7 +61,15 @@ final class GitHubContributionStore {
             .appendingPathComponent("github-device-login.json")
     }
 
-    func boot(now: Date = .now) async {
+    /// The app entry point hydrates the graph first and lets login/refresh
+    /// continue independently, so the cached graph is usable immediately.
+    func boot() async {
+        await boot(now: .now, waitForRefresh: false)
+    }
+
+    /// Tests and explicit lifecycle callers can still await the complete
+    /// refresh transaction when they need a settled store.
+    func boot(now: Date, waitForRefresh: Bool = true) async {
         #if DEBUG
         if Self.isDemoLaunch {
             snapshot = Self.demoSnapshot(now: now)
@@ -68,9 +77,18 @@ final class GitHubContributionStore {
             return
         }
         #endif
-        snapshot = loadCache()
+        snapshot = await Self.loadCache(from: cacheURL)
         if snapshot != nil { phase = .connected }
-        await resumeOrRefresh(now: now)
+        if waitForRefresh {
+            await resumeOrRefresh(now: now)
+        } else {
+            bootTask?.cancel()
+            bootTask = Task { @MainActor [weak self] in
+                await self?.resumeOrRefresh(now: now)
+                guard let self, !Task.isCancelled else { return }
+                self.bootTask = nil
+            }
+        }
     }
 
     func resumeOrRefresh(now: Date = .now, forced: Bool = false) async {
@@ -243,6 +261,8 @@ final class GitHubContributionStore {
     }
 
     func disconnect() {
+        bootTask?.cancel()
+        bootTask = nil
         connectionGeneration &+= 1
         connectionTaskID &+= 1
         connectionTask?.cancel()
@@ -340,6 +360,12 @@ final class GitHubContributionStore {
 
     private func loadCache() -> GitHubContributionSnapshot? {
         GitHubContributionSnapshot.loadShared(from: cacheURL)
+    }
+
+    private nonisolated static func loadCache(from url: URL) async -> GitHubContributionSnapshot? {
+        await Task.detached(priority: .utility) {
+            GitHubContributionSnapshot.loadShared(from: url)
+        }.value
     }
 
     var hasStoredCredentials: Bool {

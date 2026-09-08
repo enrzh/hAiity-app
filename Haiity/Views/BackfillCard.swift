@@ -258,6 +258,13 @@ struct BackfillCard: View {
             .padding(.top, 4)
             .padding(.bottom, selecting ? 12 : 24)
         }
+        .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
+            let horizontal = abs(value.translation.width)
+            let vertical = abs(value.translation.height)
+            guard horizontal > 40, horizontal > vertical * 1.25 else { return }
+            moveVisibleMonth(by: value.translation.width < 0 ? 1 : -1)
+            Theme.Haptics.select()
+        })
         .accessibilityIdentifier("history-entries")
     }
 
@@ -284,15 +291,19 @@ struct BackfillCard: View {
 
     private func monthButton(_ offset: Int, symbol: String) -> some View {
         Button {
-            guard let date = adjacentMonth(offset) else { return }
-            visibleMonth = date
-            selected.removeAll()
+            moveVisibleMonth(by: offset)
         } label: {
             Image(systemName: symbol).frame(width: 44, height: 44)
         }
         .disabled(adjacentMonth(offset) == nil)
         .accessibilityLabel(offset < 0 ? String(localized: "Vorheriger Monat") : String(localized: "Nächster Monat"))
         .accessibilityIdentifier(offset < 0 ? "history-previous-month" : "history-next-month")
+    }
+
+    private func moveVisibleMonth(by offset: Int) {
+        guard let date = adjacentMonth(offset) else { return }
+        visibleMonth = date
+        selected.removeAll()
     }
 
     private var selectionTools: some View {
@@ -354,6 +365,10 @@ struct BackfillCard: View {
             let fill = level == 0
                 ? Color.primary.opacity(scheme == .dark ? 0.12 : 0.07)
                 : Theme.level(level, dark: scheme == .dark, palette: palettes.style(for: habit))
+            let selectionAccent = Theme.accentText(
+                Theme.adaptivePalette(palettes.style(for: habit),
+                                       preferences: appearancePreferences,
+                                       dark: scheme == .dark))
 
             Button {
                 if selecting {
@@ -366,6 +381,15 @@ struct BackfillCard: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(fill)
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(selectionAccent.opacity(scheme == .dark ? 0.32 : 0.16))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(selectionAccent, lineWidth: 2.5)
+                                    .padding(1)
+                            }
+                    }
                     VStack(spacing: 1) {
                         Text(date, format: .dateTime.day())
                             .font(.subheadline.weight(.medium))
@@ -386,8 +410,8 @@ struct BackfillCard: View {
                 .overlay {
                     if isSelected {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color.primary, lineWidth: 2)
-                            .padding(1)
+                            .strokeBorder(Color.primary.opacity(scheme == .dark ? 0.85 : 0.7), lineWidth: 0.8)
+                            .padding(4)
                     }
                 }
             }

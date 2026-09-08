@@ -238,13 +238,15 @@ struct SwipeRevealPan: UIViewRepresentable {
             guard otherView === container || otherView.isDescendant(of: container) else {
                 return false
             }
-            // Only the enclosing scroll view stays exclusive. Buttons and
-            // other controls may recognize alongside this directional pan;
-            // UIKit cancels their tracking only after the gesture commits to
-            // a horizontal reveal, while a tap remains a tap.
-            if otherView is UIScrollView {
-                return false
-            }
+            // Keep the enclosing scroll view exclusive so it cannot compete
+            // with the row reveal. Controls also stay exclusive: once this
+            // pan commits to a horizontal reveal, `cancelsTouchesInView`
+            // must terminate a nested Button's tracking; otherwise a swipe
+            // beginning on the checkmark can replay the button action after
+            // a revealed action was tapped. A short tap still reaches the
+            // Button because this pan fails before it recognizes.
+            if otherView is UIScrollView { return false }
+            if otherView is UIControl { return false }
             return true
         }
     }

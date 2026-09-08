@@ -113,6 +113,20 @@ final class BackfillBoundsTests: GridTestCase {
     }
 }
 
+final class BackfillInteractionContractTests: XCTestCase {
+    func testHistoryGridSupportsMonthSwipeAndVisibleDarkModeSelection() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/BackfillCard.swift"))
+
+        XCTAssertTrue(source.contains("simultaneousGesture(DragGesture"))
+        XCTAssertTrue(source.contains("moveVisibleMonth(by:"))
+        XCTAssertTrue(source.contains("selectionAccent"))
+        XCTAssertTrue(source.contains("scheme == .dark ? 0.32 : 0.16"))
+    }
+}
+
 // MARK: – Die Höhe des sichtbaren Kalenderblatts
 
 final class BackfillCalendarHeightTests: XCTestCase {

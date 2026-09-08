@@ -133,6 +133,16 @@ final class HabitTimeTests: XCTestCase {
                        RecurrenceText.summary(.weekdays([2]), timeMinutes: nil, calendar: calendar))
     }
 
+    func testTimeSensitiveNotificationEnablesTheTimeControl() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/EditHabitSheet.swift"))
+
+        XCTAssertTrue(source.contains("if mode == .timeSensitive && !draft.hasTime"))
+        XCTAssertTrue(source.contains("draft.hasTime = true"))
+    }
+
     func testAnImpossibleTimeNeverReachesTheSentence() {
         XCTAssertEqual(RecurrenceText.summary(.daily, timeMinutes: 4000, calendar: calendar),
                        "Jeden Tag")

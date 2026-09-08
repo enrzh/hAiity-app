@@ -1458,8 +1458,10 @@ struct ContentView: View {
     }
 
     private func rowIdentity(_ habit: Habit) -> String {
-        guard habit.isReminder else { return habit.id.uuidString }
-        return "\(habit.id.uuidString)-\(habit.log[habitToday(habit)] ?? -1)-\(habit.reminderCursor ?? "")"
+        // Keep gesture state alive while a reminder's completion and cursor
+        // change. Re-keying on either value replaces the row mid-touch and
+        // can expose the checkmark to the same tap as a reveal action.
+        return habit.id.uuidString
     }
 
     private func enableSorting() {
@@ -1869,12 +1871,14 @@ struct ContentView: View {
         let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
         let calendar = habitCalendar(for: current)
         let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
-        // Use the current log as a fallback for a reused List action. The
-        // occurrence projection can briefly lag the store while a reminder
-        // row is being re-keyed after completion, but the log still contains
-        // the exact occurrence that must be reverted.
-        guard let completedDay = state.mostRecentCompleted?.day
-                ?? current.log.keys.sorted().last else { return }
+        // Prefer the persisted completion. The occurrence projection can
+        // briefly lag while a reminder row is re-keyed after completion, but
+        // the log is already the source of truth for the action.
+        let completedDay = current.log.keys
+            .filter { current.recurrence.schedule(calendar: calendar).isScheduled($0) }
+            .sorted()
+            .last ?? state.mostRecentCompleted?.day
+        guard let completedDay else { return }
         store.setReminderCompletion(current.id, day: completedDay,
                                     completed: false, nextCursor: nil)
         Theme.Haptics.select()

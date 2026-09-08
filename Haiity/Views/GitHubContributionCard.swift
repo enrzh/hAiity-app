@@ -89,7 +89,8 @@ struct GitHubContributionCard: View, Equatable {
 
     private var graph: some View {
         GitHubContributionGraph(days: snapshot.days,
-                                showsMonthLabels: showsMonthLabels)
+                                showsMonthLabels: showsMonthLabels,
+                                palette: palettes.style)
             .equatable()
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -129,7 +130,8 @@ struct GitHubContributionCard: View, Equatable {
                                     cellSize: previewGraphCellSize,
                                     gap: Self.previewGraphGap,
                                     showsMonthLabels: false,
-                                    interactive: false)
+                                    interactive: false,
+                                    palette: palettes.style)
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, Theme.Metrics.cardPadding)

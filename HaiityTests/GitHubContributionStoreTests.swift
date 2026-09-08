@@ -183,6 +183,31 @@ final class GitHubContributionStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testParameterlessBootPublishesCacheBeforeBackgroundRefreshSettles() async throws {
+        let cached = sample(fetchedAt: now.addingTimeInterval(-7200))
+        try write(cached)
+        let fresh = sample(username: "updated", fetchedAt: now)
+        let contributions = FakeGitHubContributions(result: .success(fresh))
+        await contributions.setDelay()
+        let store = GitHubContributionStore(vault: MemoryGitHubCredentialVault(token: "gho_cached"),
+                                            authorizer: FakeGitHubAuthorizer(),
+                                            contributions: contributions,
+                                            cacheURL: cacheURL)
+
+        await store.boot()
+
+        XCTAssertEqual(store.snapshot, cached)
+        for _ in 0..<100 where await contributions.fetchCount == 0 {
+            await Task.yield()
+        }
+        let fetches = await contributions.fetchCount
+        XCTAssertEqual(fetches, 1)
+
+        await store.refresh(now: now)
+        XCTAssertEqual(store.snapshot, fresh)
+    }
+
+    @MainActor
     func testStaleCacheRefreshesAfterOneHour() async throws {
         try write(sample(fetchedAt: now.addingTimeInterval(-3601)))
         let fresh = sample(username: "octocat", fetchedAt: now)

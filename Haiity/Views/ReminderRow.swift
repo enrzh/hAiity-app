@@ -1,5 +1,22 @@
 import SwiftUI
 
+@MainActor
+final class ReminderToggleGate {
+    static let shared = ReminderToggleGate()
+
+    private var suppressedUntil: [UUID: Date] = [:]
+
+    func suppress(_ habitID: UUID, for duration: TimeInterval = 2.5) {
+        suppressedUntil[habitID] = .now.addingTimeInterval(duration)
+    }
+
+    func consumeSuppression(for habitID: UUID) -> Bool {
+        guard let until = suppressedUntil[habitID] else { return false }
+        suppressedUntil[habitID] = nil
+        return until > .now
+    }
+}
+
 enum ItemPresentation: Equatable {
     case habitCard
     case reminderRow
@@ -27,6 +44,7 @@ struct ReminderRow: View, Equatable {
     @State private var revealOffset: CGFloat = 0
     @State private var revealStart: CGFloat = 0
     @State private var revealRowWidth: CGFloat = 0
+    @State private var revealActionLock = false
     @Environment(\.layoutDirection) private var layoutDirection
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
@@ -43,8 +61,8 @@ struct ReminderRow: View, Equatable {
             rowContent
                 .offset(x: revealOffset * mirror)
                 .zIndex(1)
-                .allowsHitTesting(revealOffset == 0)
-                .accessibilityHidden(revealOffset != 0)
+                .allowsHitTesting(revealOffset == 0 && !revealActionLock)
+                .accessibilityHidden(revealOffset != 0 || revealActionLock)
             revealButtons(actions: leadingSwipe, alignment: .leading,
                           exposedWidth: max(revealOffset, 0),
                           containerWidth: revealRowWidth)
@@ -77,23 +95,27 @@ struct ReminderRow: View, Equatable {
                 Button(action: onEdit) {
                     Label(String(localized: "Bearbeiten"), systemImage: "pencil")
                 }
-                if habit.recurrence.frequency != .once {
-                    Button(action: onCreateOneTime) {
-                        Label(String(localized: "Einmalig anlegen"), systemImage: "plus.square")
+                Menu {
+                    if habit.recurrence.frequency != .once {
+                        Button(action: onCreateOneTime) {
+                            Label(String(localized: "Einmalig anlegen"), systemImage: "plus.square")
+                        }
                     }
-                }
-                Button(action: onRevert) {
-                    Label(String(localized: "Rückgängig"),
-                          systemImage: "arrow.uturn.backward")
-                }
-                Button(action: onArchive) {
-                    Label(String(localized: "Archivieren"), systemImage: "archivebox")
-                }
-                Button(role: .destructive, action: onDelete) {
-                    Label(String(localized: "Löschen"), systemImage: "trash")
-                }
-                Button(action: onEnableSorting) {
-                    Label(String(localized: "Sortieren"), systemImage: "arrow.up.arrow.down")
+                    Button(action: onRevert) {
+                        Label(String(localized: "Rückgängig"),
+                              systemImage: "arrow.uturn.backward")
+                    }
+                    Button(action: onArchive) {
+                        Label(String(localized: "Archivieren"), systemImage: "archivebox")
+                    }
+                    Button(role: .destructive, action: onDelete) {
+                        Label(String(localized: "Löschen"), systemImage: "trash")
+                    }
+                    Button(action: onEnableSorting) {
+                        Label(String(localized: "Sortieren"), systemImage: "arrow.up.arrow.down")
+                    }
+                } label: {
+                    Label(String(localized: "Mehr"), systemImage: "ellipsis.circle")
                 }
             }
     }
@@ -160,8 +182,24 @@ struct ReminderRow: View, Equatable {
 
     private func revealButton(_ action: RevealAction) -> some View {
         Button {
-            action.handler()
-            closeReveal()
+            // Defer both the mutation and the close until UIKit has finished
+            // delivering this touch. Reset shares the checkmark's trailing
+            // hit area; mutating the row from inside the button callback can
+            // otherwise expose that control to the same touch.
+            revealActionLock = true
+            if action.operation == .reset { ReminderToggleGate.shared.suppress(habit.id) }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                action.handler()
+                closeReveal()
+                // XCTest and UIKit can finish dispatching a synthesized tap
+                // after the button action returns. Keep the old row inert for
+                // that tail so a reset cannot also toggle its checkmark.
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                revealActionLock = false
+            }
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: action.symbol)
@@ -215,6 +253,7 @@ struct ReminderRow: View, Equatable {
     private func commitReveal(_ action: RevealAction?) {
         Theme.Haptics.check()
         closeReveal()
+        if action?.operation == .reset { ReminderToggleGate.shared.suppress(habit.id) }
         action?.handler()
     }
 
@@ -265,7 +304,7 @@ struct ReminderRow: View, Equatable {
             // swipe starts in the title and ends inside the same area.
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button(action: onToggle) {
+            Button(action: toggleFromCheckmark) {
                 Image(systemName: state.isChecked(now: now, calendar: calendar)
                       ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
@@ -286,6 +325,14 @@ struct ReminderRow: View, Equatable {
 
     private var state: ReminderOccurrenceState {
         ReminderOccurrenceEngine.state(for: habit, now: now, calendar: calendar)
+    }
+
+    private func toggleFromCheckmark() {
+        // A drag that starts on the checkmark can finish its delayed control
+        // delivery after the revealed Reset action has already run. Consume
+        // that one stale toggle without blocking a later deliberate tap.
+        if ReminderToggleGate.shared.consumeSuppression(for: habit.id) { return }
+        onToggle()
     }
 
     private var subtitle: String {

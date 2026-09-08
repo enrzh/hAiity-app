@@ -287,6 +287,10 @@ struct MoreView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
+            moreOverview
+                .listRowSeparator(.hidden)
+                .settingsRowSurface()
+                .listRowInsets(moreRowInsets)
             proSection.settingsRowSurface()
                 .listRowInsets(moreRowInsets)
             personalSection.settingsRowSurface()
@@ -343,6 +347,39 @@ struct MoreView: View {
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
         }
+    }
+
+    private var moreOverview: some View {
+        let tracked = store.activeTrackedHabits
+        let snapshot = StatsEngine.snapshot(habits: tracked)
+        return HStack(spacing: Theme.Metrics.gap + 4) {
+            Image(systemName: "checkmark.circle")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.accentText(palettes.style))
+                .frame(width: 36, height: 36)
+                .background(Theme.accentFill(palettes.style).opacity(0.13),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "Übersicht"))
+                    .font(.subheadline.weight(.semibold))
+                if tracked.isEmpty {
+                    Text(String(localized: "Noch keine Habits"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(String(localized: "Aktive Habits: \(tracked.count)"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(String(localized: "Heute: \(snapshot.todayDone) von \(snapshot.todayTotal)"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Theme.Metrics.cardPadding)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("more-overview")
     }
 
     private var moreRowInsets: EdgeInsets {
