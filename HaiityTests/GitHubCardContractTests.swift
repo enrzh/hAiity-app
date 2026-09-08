@@ -187,6 +187,7 @@ final class GitHubCardContractTests: XCTestCase {
     func testHabitAndGitHubGraphsUseOneCanvasRenderer() throws {
         let habit = try source("Haiity/Views/ContributionGrid.swift")
         let github = try source("Haiity/Views/GitHubContributionGraph.swift")
+        let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
         XCTAssertTrue(habit.contains("ContributionGridRenderer("),
                       "habit graphs should use the shared renderer")
@@ -194,6 +195,10 @@ final class GitHubCardContractTests: XCTestCase {
                       "GitHub graphs should use the same renderer as habits")
         XCTAssertTrue(github.contains("GridCalendar.snapshot(levelsByDay:"),
                       "GitHub data should be converted into the shared grid snapshot")
+        XCTAssertTrue(github.contains("struct ContributionChartLegend: View"),
+                      "habit and GitHub charts should share one intensity legend")
+        XCTAssertTrue(card.contains("ContributionChartLegend("),
+                      "GitHub should explain the shared intensity scale")
     }
 
     func testGitHubDisplayOptionsShareOneSettingsGroup() throws {

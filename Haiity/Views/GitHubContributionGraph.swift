@@ -154,6 +154,27 @@ struct ContributionGridRenderer: View, Equatable {
     }
 }
 
+/// Shared key for contribution intensity, used by habit and GitHub surfaces.
+struct ContributionChartLegend: View {
+    let palette: PaletteStyle
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(String(localized: "Weniger")).font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                ForEach(0..<5, id: \.self) { level in
+                    GridCell(color: Theme.level(level, dark: scheme == .dark, palette: palette), size: 9)
+                }
+            }
+            Text(String(localized: "Mehr")).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "Beitragsintensität: weniger bis mehr"))
+    }
+}
+
 /// 7-Zeilen-Raster der GitHub-Tage. Chronologie bleibt links->rechts, auch
 /// in RTL, und benutzt die GitHub-Grunrampe - kein nachgebautes Habit.
 struct GitHubContributionGraph: View, Equatable {

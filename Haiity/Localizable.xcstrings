@@ -7,6 +7,15 @@
     "Eingeklappt": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Collapsed" } } }
     },
+    "Weniger": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Less" } } }
+    },
+    "Mehr": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "More" } } }
+    },
+    "Beitragsintensität: weniger bis mehr": {
+      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Contribution intensity: less to more" } } }
+    },
     "Alle": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "All" } } }
     },

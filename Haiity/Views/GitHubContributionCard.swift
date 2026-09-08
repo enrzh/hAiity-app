@@ -19,6 +19,7 @@ struct GitHubContributionCard: View, Equatable {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
     @State private var isContextMenuVisible = false
 
     private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
@@ -42,6 +43,13 @@ struct GitHubContributionCard: View, Equatable {
                     .padding(.vertical, 4)
             }
             graph
+            if !collapsed {
+                ContributionChartLegend(palette: Theme.adaptivePalette(
+                    palettes.style,
+                    preferences: appearancePreferences,
+                    dark: scheme == .dark))
+                    .padding(.top, 6)
+            }
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, Theme.Metrics.cardPadding)
