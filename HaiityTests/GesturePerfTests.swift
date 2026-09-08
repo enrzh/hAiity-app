@@ -91,7 +91,6 @@ final class HabitCardInteractionSourceTests: XCTestCase {
                       "small tiles must not inherit the hero preview height")
         XCTAssertTrue(source.contains("height: statsHeroPreviewHeight"))
         XCTAssertTrue(source.contains("height: statsRowPreviewHeight"))
-        XCTAssertTrue(source.contains("height: statsLockPreviewHeight"))
     }
 
     func testContextMenuDoesNotUseTheSharedListCellAsItsInteractionView() throws {

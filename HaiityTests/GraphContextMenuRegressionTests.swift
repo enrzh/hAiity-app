@@ -70,15 +70,17 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testStatsCardsDoNotInstallASectionWideSurfaceBehindTheLift() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
-        let start = try XCTUnwrap(stats.range(of: "private var statsList"))
-        let end = try XCTUnwrap(stats.range(of: "private var statsSelectionEmpty",
+        let start = try XCTUnwrap(stats.range(of: "private func statsMetricGrid"))
+        let end = try XCTUnwrap(stats.range(of: "@ViewBuilder\n    private func statsMetric",
                                             range: start.upperBound..<stats.endIndex))
         let list = stats[start.lowerBound..<end.lowerBound]
 
+        XCTAssertTrue(list.contains("LazyVGrid"),
+                      "statistics metrics must be laid out as individual grid items")
         XCTAssertFalse(list.contains(".settingsListRow()"),
                        "a section-wide surface remains visible behind a lifted card")
-        XCTAssertTrue(list.contains(".listRowBackground(Color.clear)"),
-                      "the list background must stay clear behind individual card surfaces")
+        XCTAssertTrue(list.contains(".appSurface()"),
+                      "the metrics group must keep the selected appearance material")
     }
 
     func testContextPreviewProvidesTheSelectedAppearanceBackdrop() throws {

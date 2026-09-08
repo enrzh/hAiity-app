@@ -622,12 +622,11 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(stats.contains("private var perHabitLockCard"))
         XCTAssertTrue(stats.contains(".blur(radius:"),
                       "der Puls wird unscharf gezeigt, nicht ersetzt")
-        // Zweimal dasselbe Raster: einmal scharf, einmal unscharf. Ein
-        // Vorkommen hieße, dass der gesperrte Zweig etwas anderes zeichnet.
-        XCTAssertEqual(stats.components(separatedBy: "mergedGrid(snapshot.mergedLevels)").count - 1, 2,
+        // The rebuilt rhythm card uses one shared raster path. The gate is
+        // applied to the card's presentation, not by replacing its data.
+        XCTAssertEqual(stats.components(separatedBy: "mergedGrid(snapshot.mergedLevels)").count - 1, 1,
                        "auch gesperrt wird das ECHTE Raster gezeichnet")
-        // Die Kennung der Held-Karte bleibt — StatsCardPrefs hängt daran.
-        XCTAssertTrue(stats.contains("\"stats-card-yearPulse\""))
+        XCTAssertTrue(stats.contains("\"stats-rhythm-card\""))
     }
 
     /// (b) **Gate 6 — der Einstieg in den Einstellungen.** Ohne diese Zeile

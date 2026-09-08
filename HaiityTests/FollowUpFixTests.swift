@@ -187,8 +187,10 @@ final class FollowUpFixTests: XCTestCase {
 
     func testStatsUseDynamicTypeAndCombineRowsForVoiceOver() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
-        let rowStart = try XCTUnwrap(stats.range(of: "private struct StatsRow"))
-        let row = stats[rowStart.lowerBound...]
+        let rowStart = try XCTUnwrap(stats.range(of: "private func statsHabitRow"))
+        let rowEnd = try XCTUnwrap(stats.range(of: "private func statsHabitAccessibilityValue",
+                                               range: rowStart.upperBound..<stats.endIndex))
+        let row = stats[rowStart.lowerBound..<rowEnd.lowerBound]
 
         XCTAssertFalse(stats.contains(".font(.system(size:"),
                        "large statistics values must scale with Dynamic Type")
@@ -203,7 +205,7 @@ final class FollowUpFixTests: XCTestCase {
     func testStatsPreviewsKeepOneSurfaceAndAFlexibleHeight() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
         let previewStart = try XCTUnwrap(stats.range(of: "private func statsPreview"))
-        let previewEnd = try XCTUnwrap(stats.range(of: "@ViewBuilder\n    private func statsTile",
+        let previewEnd = try XCTUnwrap(stats.range(of: "private func streakChip",
                                                     range: previewStart.upperBound..<stats.endIndex))
         let preview = stats[previewStart.lowerBound..<previewEnd.lowerBound]
 

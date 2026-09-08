@@ -151,14 +151,17 @@ final class AppNavigationTests: XCTestCase {
     func testMorePageRowsDoNotShareOneInteractiveListRow() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let start = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var githubSection",
+        let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View",
                                            range: start.upperBound..<more.endIndex))
         let main = more[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(main.contains("Section {\n                pageRow(MoreRoute.appearance"))
-        XCTAssertTrue(main.contains("Section {\n                pageRow(MoreRoute.habitBehavior"))
-        XCTAssertFalse(main.contains("VStack(alignment: .leading, spacing: 0) {\n                    pageRow(MoreRoute.appearance"),
-                       "two page buttons in one List row can route both taps to one control")
+        XCTAssertTrue(main.contains("ScrollView"))
+        XCTAssertTrue(main.contains("moreHubGroup"))
+        XCTAssertTrue(main.contains("pageRow(MoreRoute.appearance"))
+        XCTAssertTrue(main.contains("pageRow(MoreRoute.habitBehavior"))
+        XCTAssertTrue(main.contains("pageRow(.timeZone"))
+        XCTAssertFalse(main.contains("List {"),
+                       "the rebuilt hub must not collapse multiple routes into one List row")
     }
 
     func testMoreRowsKeepTheirOwnRouteAndNotificationSourceHitTarget() throws {
@@ -248,20 +251,18 @@ final class AppNavigationTests: XCTestCase {
     func testStatsPreviewFramesAfterItsSurfacePadding() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let start = try XCTUnwrap(content.range(of: "private func statsPreview<Content: View>"))
-        let end = try XCTUnwrap(content.range(of: "private func statsTile",
-                                              range: start.upperBound..<content.endIndex))
-        let preview = content[start.lowerBound..<end.lowerBound]
+        let preview = content[start.lowerBound...]
         let framed = try XCTUnwrap(preview.range(of: "let framed = AnyView(surfaced"))
-        XCTAssertTrue(preview.contains("if wrapsSurface"),
-                      "preview sizing must keep compact and full card paths explicit")
         XCTAssertTrue(framed.lowerBound >= preview.startIndex,
                       "the preview must build its final frame after choosing its content")
-        XCTAssertFalse(preview.contains("return AnyView(preview.appSurface())"),
-                       "unframed previews must not install a second surface")
-        XCTAssertTrue(content.contains("statsPreview(statsTile(card, snapshot: snapshot),\n                                         height: statsTilePreviewHeight,\n                                         wrapsSurface: false"),
-                      "tile previews must rely on their owning card surface")
+        XCTAssertTrue(content.contains("statsPreview(statsMetric(card, snapshot: snapshot),"),
+                      "metric previews must use their own content in the shared surface")
+        XCTAssertTrue(content.contains("statsPreview(statsRhythmContent(snapshot),"),
+                      "rhythm previews must use their own content in the shared surface")
         XCTAssertTrue(preview.contains("height: CGFloat"),
                       "stats previews need a stable height for UIContextMenu")
+        XCTAssertTrue(preview.contains(".appSurface()"),
+                      "the preview must own exactly one appearance surface")
         XCTAssertTrue(preview.contains(".frame(width: statsPreviewWidth,"),
                       "the preview frame must constrain both axes")
     }

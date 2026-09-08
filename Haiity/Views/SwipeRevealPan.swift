@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+extension Notification.Name {
+    /// Sent when a vertical gesture hands control back to the enclosing list.
+    /// Every visible reveal row closes itself without coupling sibling rows.
+    static let swipeRevealDismissAll = Notification.Name("haiity.swipeRevealDismissAll")
+}
+
 /// Der ZUG hinter dem Karten-Aufziehen (`SwipeReveal`) — als UIKit-Pan,
 /// nach demselben Bauplan wie das Halten-Menü (`GraphContextMenu`):
 ///
@@ -211,6 +217,9 @@ struct SwipeRevealPan: UIViewRepresentable {
             }
             let verdict = shouldBeginQuery(towardTrailing, horizontal, overGrid, atEnd)
             trace("revealpan: begin? loc=\(location) bounds=\(bounds) dx=\(translation.x) dy=\(translation.y) trailing=\(towardTrailing) horiz=\(horizontal) grid=\(overGrid) end=\(atEnd) -> \(verdict)")
+            if !horizontal {
+                NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
+            }
             // Über dem Raster hat dessen Scroll-Pan den Zug meist schon
             // beansprucht, bevor wir gefragt werden — er würde unser
             // Aufziehen im nächsten Umlauf stornieren. Sein Tracking wird

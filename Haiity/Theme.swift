@@ -1110,8 +1110,11 @@ struct RootPageHeaderBlur: View {
                                endPoint: .bottom)
             }
             .frame(height: 92)
-            .blur(radius: reduceMotion ? 0 : progress * 5)
-            .opacity(reduceMotion ? 0 : progress * 0.52)
+            // The veil is continuous: the top stays readable over any
+            // wallpaper and the mask fades into the page instead of appearing
+            // only after the large title has started moving.
+            .blur(radius: reduceMotion ? 0 : 1.5)
+            .opacity(reduceMotion ? 1 : 0.88)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

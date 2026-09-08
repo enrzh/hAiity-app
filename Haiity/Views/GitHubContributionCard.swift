@@ -49,9 +49,10 @@ struct GitHubContributionCard: View, Equatable {
         .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                        style: .continuous))
         .overlay {
-            GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                             GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                              previewWidth: previewWidth,
                              previewHeight: previewHeight,
+                             previewAccessibilityIdentifier: "github-preview",
                              preview: { AnyView(cardPreview) },
                              actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
                                                        symbol: "arrow.up.right.square",

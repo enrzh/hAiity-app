@@ -518,26 +518,24 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StatsView.swift"))
-        let statsList = try XCTUnwrap(source.range(of: "private var statsList"))
-        let statsSettings = source[statsList.upperBound...]
-        let statsListEnd = try XCTUnwrap(statsSettings.range(of: "private var statsSelectionEmpty"))
-        let list = statsSettings[..<statsListEnd.lowerBound]
-        XCTAssertTrue(list.contains(".listRowBackground(Color.clear)"),
-                      "the stats list must keep its sections clear behind individual cards")
-        let chromeStart = try XCTUnwrap(source.range(of: "private struct StatsCardChrome"))
-        let chrome = source[chromeStart.lowerBound...]
-        XCTAssertTrue(chrome.contains("func body(content: Content)"),
-                      "stats cards must own their chrome through a dedicated modifier")
-        XCTAssertTrue(chrome.contains(".appSurface()"),
-                      "StatsCardChrome must own each card's selected appearance surface")
-        XCTAssertTrue(list.contains(".modifier(StatsCardChrome())"),
-                      "stats card content must apply its owning chrome")
-        XCTAssertFalse(list.contains(".settingsListRow()"),
-                       "a section-wide surface creates a second background behind held cards")
-        XCTAssertTrue(chrome.contains(".listRowInsets(EdgeInsets(top: 0"),
-                      "stats cards must own the same horizontal inset as habit cards")
-        XCTAssertFalse(list.contains(".contentMargins(.horizontal, Theme.Metrics.gutter, for: .scrollContent)"),
-                       "a list-level horizontal inset would narrow stats cards twice")
+        let pageStart = try XCTUnwrap(source.range(of: "private var statsList"))
+        let pageEnd = try XCTUnwrap(source.range(of: "private func statsTodayCard",
+                                                 range: pageStart.upperBound..<source.endIndex))
+        let page = source[pageStart.lowerBound..<pageEnd.lowerBound]
+
+        XCTAssertTrue(page.contains("return ScrollView"))
+        XCTAssertTrue(page.contains("VStack(alignment: .leading, spacing: 20)"))
+        XCTAssertTrue(page.contains("statsTodayCard(snapshot)"))
+        XCTAssertTrue(page.contains("statsRhythmCard(snapshot)"))
+        XCTAssertTrue(page.contains("statsMetricGrid(snapshot, cards: metricCards)"))
+        XCTAssertTrue(page.contains("statsWeekCard(snapshot)"))
+        XCTAssertTrue(page.contains("statsHabitRanking"))
+        XCTAssertTrue(page.contains(".appSurface()"),
+                      "each rebuilt statistics surface must own its appearance material")
+        XCTAssertFalse(source.contains("StatsCardChrome"),
+                       "the rebuilt page must not retain the old List-only card modifier")
+        XCTAssertFalse(page.contains(".settingsListRow()"),
+                       "a settings surface must not be attached to the statistics page")
     }
 
     func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {
@@ -823,7 +821,8 @@ final class AppearanceSettingTests: XCTestCase {
         let behaviorStart = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
         let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
 
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".settingsSurface()"))
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"))
         XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
     }
 
@@ -869,32 +868,18 @@ final class AppearanceSettingTests: XCTestCase {
                        "the list surface must not attach a parent shadow")
         XCTAssertTrue(theme.contains("func settingsRowSurface()"),
                       "settings rows need one reusable material-aware surface entry point")
-        let moreMain = try body(from: "private var mainSettings: some View",
-                                to: "private var githubSection", in: more)
-        let moreBehavior = try body(from: "private var habitBehaviorSettings: some View",
-                                    to: "private var timeZoneSection", in: more)
-        let moreAppearance = try body(from: "private var appearanceSettings: some View",
-                                      to: "private var habitBehaviorSettings", in: more)
-        let moreTimeZone = try body(from: "private var timeZoneSettings: some View",
-                                    to: "private func selectCalendar", in: more)
-        let setupStart = try XCTUnwrap(
-            more.range(of: "Section {\n                Button { showReminderSetup = true }"))
-        let setupEnd = try XCTUnwrap(
-            more.range(of: "            Section {\n                pageRow(MoreRoute.about",
-                    range: setupStart.upperBound..<more.endIndex))
-        let mainSetup = String(more[setupStart.lowerBound..<setupEnd.upperBound])
         let screenSwitch = try body(from: "switch screen {",
                                     to: "}\n        }\n        // A presented More screen", in: more)
-        XCTAssertTrue(moreMain.contains(".settingsRowSurface()"),
-                      "More main rows must use the shared row surface")
-        XCTAssertTrue(moreBehavior.contains(".settingsRowSurface()"),
-                      "Verhalten & Teilen rows must use the shared row surface")
-        XCTAssertTrue(moreAppearance.contains(".settingsChrome()"),
-                      "Darstellung must use the shared appearance chrome")
-        XCTAssertTrue(moreTimeZone.contains(".settingsSurface()"),
-                      "Zeitzone must use the shared material surface")
-        XCTAssertTrue(mainSetup.contains(".settingsRowSurface()"),
-                      "the setup-related More section must use the shared row surface")
+        XCTAssertTrue(more.contains("moreHubGroup"),
+                      "More main content must use grouped app surfaces")
+        XCTAssertTrue(more.contains("proSection"),
+                      "the main More hub must keep the Pro entry point")
+        XCTAssertTrue(more.contains(".settingsRowSurface()"),
+                      "native More settings rows must use the shared row surface")
+        XCTAssertTrue(more.contains(".settingsChrome()"),
+                      "the appearance page must use the shared appearance chrome")
+        XCTAssertTrue(more.contains(".settingsSurface()"),
+                      "native More subpages must use the shared material surface")
         for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
                          "case .habitBehavior: habitBehaviorSettings", "case .timeZone: timeZoneSettings"] {
             XCTAssertTrue(screenSwitch.contains(caseName),

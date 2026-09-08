@@ -32,9 +32,6 @@ struct StatsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
-    @Environment(\.appearancePreferences) private var appearancePreferences
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
@@ -109,96 +106,37 @@ struct StatsView: View {
     private var statsList: some View {
         let snapshot = StatsEngine.snapshot(habits: visibleActiveTrackedHabits)
         let activeCards = viewPreferences.statsCards.active
-        let tileCards = activeCards.filter { $0 != .yearPulse }
-        return List {
-            RootPageTitle(title: String(localized: "Statistik"))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            Section {
-                weeklyInsightSection
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                RootPageTitle(title: String(localized: "Statistik"))
+
+                statsTodayCard(snapshot)
+
                 if activeCards.contains(.yearPulse) {
-                    heroCard(snapshot)
-                        .modifier(StatsCardChrome())
-                        .opacity(activeContextMenuID == StatsCard.yearPulse.rawValue ? 0 : 1)
-                        .overlay {
-                            statsContextMenu(id: StatsCard.yearPulse.rawValue, preview: {
-                                statsPreview(heroCard(snapshot),
-                                             height: statsHeroPreviewHeight)
-                            }, height: statsHeroPreviewHeight)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
+                    statsRhythmCard(snapshot)
                 }
-                if !tileCards.isEmpty {
-                    tileGrid(snapshot, cards: tileCards)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 0,
-                                                  leading: Theme.Metrics.gutter,
-                                                  bottom: Theme.Metrics.gap,
-                                                  trailing: Theme.Metrics.gutter))
+
+                let metricCards = activeCards.filter { $0 != .yearPulse }
+                if !metricCards.isEmpty {
+                    statsMetricGrid(snapshot, cards: metricCards)
                 }
-                if activeCards.isEmpty {
-                    statsSelectionEmpty
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: Theme.Metrics.gap,
-                                                  leading: Theme.Metrics.gutter,
-                                                  bottom: Theme.Metrics.gap,
-                                                  trailing: Theme.Metrics.gutter))
-                }
-            }
-            .listRowBackground(Color.clear)
-            Section {
-                // Der Schnitt liegt auf der SEKTION, nicht mitten in einer
-                // Karte: eine halbe Zeile („Quoten ja, Balken nein") wäre
-                // eine kaputte Zeile. Die Daten bleiben unangetastet — hier
-                // wird nur nicht gezeichnet.
+
+                statsWeekCard(snapshot)
+
                 if unlocked {
-                    ForEach(visibleActiveTrackedHabits) { habit in
-                        StatsRow(habit: habit)
-                            .modifier(StatsCardChrome())
-                            .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
-                            .overlay {
-                                statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
-                                    statsPreview(
-                                        StatsRow(habit: habit),
-                                        height: statsRowPreviewHeight)
-                                }, height: statsRowPreviewHeight)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
-                    }
+                    statsHabitRanking
                 } else {
                     perHabitLockCard
-                        .modifier(StatsCardChrome())
-                        .opacity(activeContextMenuID == "per-habit-lock" ? 0 : 1)
-                        .overlay {
-                            statsContextMenu(id: "per-habit-lock", preview: {
-                                statsPreview(perHabitLockCard,
-                                             height: statsLockPreviewHeight)
-                            }, height: statsLockPreviewHeight)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                }
-            } header: {
-                if !visibleActiveTrackedHabits.isEmpty {
-                    Text(String(localized: "Je Habit"))
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
-                        .padding(.leading, Theme.Metrics.gutter)
+                        .padding(Theme.Metrics.cardPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .appSurface()
                 }
             }
-            .listRowBackground(Color.clear)
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
         .softScrollEdges()
-        .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
-        .listRowSpacing(Theme.Metrics.settingsRowGap)
-        .listSectionSpacing(Theme.Metrics.settingsSectionGap)
-        .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
-        .listRowSeparator(.hidden)
         .navigationBarTitleDisplayMode(.inline)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
@@ -207,14 +145,16 @@ struct StatsView: View {
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
         }
-        // Context-menu previews are hosted in UIKit's temporary window and
-        // are not consistently present in the app accessibility tree. Keep
-        // one zero-visual-cost boundary available while a stats preview is
-        // lifted so assistive technology still has a stable target.
-        .overlay(alignment: .topLeading) {
-            if activeContextMenuID != nil {
-                Color.clear
-                    .frame(width: statsPreviewWidth, height: statsRowPreviewHeight)
+        .overlay {
+            if activeContextMenuID?.hasPrefix("habit-") == true {
+                // iOS renders UIContextMenu previews in a system-owned layer
+                // that is not always part of the app accessibility snapshot.
+                // Keep a non-interactive boundary in our tree so assistive
+                // technology and UI tests can still address the lifted card.
+                Rectangle()
+                    .fill(.clear)
+                    .frame(width: statsPreviewWidth,
+                           height: statsRowPreviewHeight)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(String(localized: "Statistikvorschau"))
                     .accessibilityIdentifier("stats-preview")
@@ -223,66 +163,316 @@ struct StatsView: View {
         }
     }
 
-    private var weeklyInsightSection: some View {
-        let insight = StatsEngine.weeklyInsight(
-            habits: visibleActiveTrackedHabits,
-            defaultTimeZoneIdentifier: store.data.defaultTimeZoneIdentifier)
-        return VStack(alignment: .leading, spacing: 10) {
-                Text(String(localized: "Letzte vollständige Woche"))
-                    .font(.headline)
-                Text(weeklyDateRange(insight))
-                    .font(.caption)
+    private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+        let total = snapshot.todayTotal
+        let done = snapshot.todayDone
+        return HStack(spacing: Theme.Metrics.cardPadding + 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(String(localized: "Heute"))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                if insight.scheduledTotal > 0 {
-                    Text(String(localized: "\(insight.scheduledDone) von \(insight.scheduledTotal) geplanten Tagen"))
-                        .font(.title3.weight(.semibold))
-                        .monospacedDigit()
-                        .accessibilityLabel(String(localized: "\(insight.scheduledDone) von \(insight.scheduledTotal) geplanten Tagen erledigt"))
+                if total == 0 {
+                    Text(String(localized: "Kein Habit fällig"))
+                        .font(.title2.weight(.bold))
+                } else {
+                    Text("\(done)/\(total)")
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
+                        .contentTransition(.numericText())
                 }
-                if unlocked, let progress = insight.habits.max(by: {
-                    ($0.fraction ?? 0) < ($1.fraction ?? 0)
-                }) {
-                    Text(String(localized: "\(progress.emoji) \(progress.name): \(progress.done) von \(progress.required)"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if insight.excludedFlexibleCount > 0 {
-                    Text(String(localized: "Flexible Ziele werden nach ihrer eigenen Periode ausgewertet."))
+                Text(statsTodaySentence(snapshot))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            segmentedRing(done: done, total: total, size: 76, line: 8)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "Heute"))
+        .accessibilityValue(total == 0
+                            ? String(localized: "Kein Habit fällig")
+                            : String(localized: "\(done) von \(total) erledigt"))
+        .accessibilityIdentifier("stats-today-summary")
+    }
+
+    private func statsTodaySentence(_ snapshot: StatsEngine.Snapshot) -> String {
+        guard snapshot.todayTotal > 0 else {
+            return String(localized: "Dein Tag ist frei.")
+        }
+        if snapshot.todayDone == snapshot.todayTotal {
+            return String(localized: "Alles erledigt. Gute Arbeit.")
+        }
+        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen")
+    }
+
+    private func statsRhythmCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+        statsRhythmContent(snapshot)
+            .padding(Theme.Metrics.cardPadding + 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appSurface()
+            .opacity(activeContextMenuID == StatsCard.yearPulse.rawValue ? 0 : 1)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !unlocked { paywall = .stats }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Rhythmus"))
+            .accessibilityValue(unlocked
+                                ? String(localized: "Die letzten fünf Monate")
+                                : String(localized: "Nur mit hAiity Pro"))
+            .accessibilityAddTraits(unlocked ? [] : .isButton)
+            .accessibilityAction {
+                if !unlocked { paywall = .stats }
+            }
+            .accessibilityIdentifier("stats-rhythm-card")
+            .overlay {
+                statsContextMenu(id: StatsCard.yearPulse.rawValue, preview: {
+                    statsPreview(statsRhythmContent(snapshot),
+                                 height: statsHeroPreviewHeight)
+                }, height: statsHeroPreviewHeight)
+            }
+    }
+
+    private func statsRhythmContent(_ snapshot: StatsEngine.Snapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Rhythmus"))
+                        .font(.headline.weight(.semibold))
+                    Text(String(localized: "Die letzten fünf Monate"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if insight.scheduledTotal == 0 && insight.excludedFlexibleCount == 0 {
-                    Text(String(localized: "In dieser Woche waren keine Termine fällig."))
-                        .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if snapshot.streak > 0 {
+                    streakChip(snapshot.streak)
                 }
             }
+            ZStack {
+                mergedGrid(snapshot.mergedLevels)
+                    .blur(radius: unlocked ? 0 : 5)
+                if !unlocked {
+                    Label(String(localized: "Nur mit hAiity Pro"),
+                          systemImage: "lock")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func statsMetricGrid(_ snapshot: StatsEngine.Snapshot,
+                                 cards: [StatsCard]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
+                            GridItem(.flexible(), spacing: 1)],
+                  spacing: 1) {
+            ForEach(cards) { card in
+                statsMetric(card, snapshot: snapshot)
+                    .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
+                    .padding(Theme.Metrics.cardPadding)
+                    .frame(maxWidth: .infinity, minHeight: 74, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(statsMetricTitle(card))
+                    .accessibilityValue(statsMetricValue(card, snapshot: snapshot))
+                    .accessibilityIdentifier("stats-card-\(card.rawValue)")
+                    .overlay {
+                        statsContextMenu(id: card.rawValue, preview: {
+                            statsPreview(statsMetric(card, snapshot: snapshot),
+                                         height: statsTilePreviewHeight)
+                        }, height: statsTilePreviewHeight)
+                    }
+            }
+        }
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous))
+        .appSurface()
+        .accessibilityIdentifier("stats-metrics")
+    }
+
+    @ViewBuilder
+    private func statsMetric(_ card: StatsCard,
+                             snapshot: StatsEngine.Snapshot) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: statsMetricSymbol(card))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(statsMetricColor(card, snapshot: snapshot))
+                .frame(width: 28, height: 28)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statsMetricValue(card, snapshot: snapshot))
+                    .font(.headline.weight(.bold).monospacedDigit())
+                    .lineLimit(1)
+                Text(statsMetricTitle(card))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func statsMetricTitle(_ card: StatsCard) -> String {
+        switch card {
+        case .yearPulse: return String(localized: "Rhythmus")
+        case .streakFlame: return String(localized: "Tage Serie")
+        case .todayRing: return String(localized: "Heute")
+        case .weekMomentum: return String(localized: "Diese Woche")
+        case .totals: return String(localized: "Check-ins")
+        }
+    }
+
+    private func statsMetricValue(_ card: StatsCard,
+                                  snapshot: StatsEngine.Snapshot) -> String {
+        switch card {
+        case .yearPulse: return "-"
+        case .streakFlame: return "\(snapshot.streak)"
+        case .todayRing: return "\(snapshot.todayDone)/\(snapshot.todayTotal)"
+        case .weekMomentum:
+            return "\(Int((snapshot.week.fraction * 100).rounded()))%"
+        case .totals: return "\(StatsMath.totalCheckIns(visibleActiveTrackedHabits))"
+        }
+    }
+
+    private func statsMetricSymbol(_ card: StatsCard) -> String {
+        switch card {
+        case .yearPulse: return "square.grid.3x3.middle.filled"
+        case .streakFlame: return "flame.fill"
+        case .todayRing: return "circle.dashed"
+        case .weekMomentum: return "chart.line.uptrend.xyaxis"
+        case .totals: return "number"
+        }
+    }
+
+    private func statsMetricColor(_ card: StatsCard,
+                                  snapshot: StatsEngine.Snapshot) -> Color {
+        switch card {
+        case .streakFlame: return flameColor(snapshot.streak)
+        case .weekMomentum: return trendColor(snapshot)
+        default: return accent
+        }
+    }
+
+    private func statsWeekCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+        let days = (-6...0).compactMap { offset in
+            DayKey.shifted(snapshot.today, by: offset)
+        }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(localized: "Letzte 7 Tage"))
+                    .font(.headline.weight(.semibold))
+                Spacer(minLength: 8)
+                Text(momentumSentence(snapshot))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(trendColor(snapshot))
+                    .lineLimit(1)
+            }
+            HStack(spacing: 0) {
+                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                    let completion = StatsEngine.dailyCompletion(habits: visibleActiveTrackedHabits,
+                                                                  day: day)
+                    VStack(spacing: 7) {
+                        Text(completion.total == 0
+                             ? "-"
+                             : "\(Int((completion.fraction * 100).rounded()))%")
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(completion.total == 0 ? .tertiary : .primary)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(completion.total == 0
+                                  ? Color.primary.opacity(0.08)
+                                  : accent.opacity(0.2 + completion.fraction * 0.8))
+                            .frame(height: 30)
+                        Text(statsWeekdayLabel(day))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(Theme.Metrics.cardPadding + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .accessibilityIdentifier("stats-week-card")
+    }
+
+    private func statsWeekdayLabel(_ key: String) -> String {
+        guard let date = DayKey.date(from: key) else { return "-" }
+        return date.formatted(.dateTime.weekday(.narrow))
+    }
+
+    private var statsHabitRanking: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Deine Habits"))
+                .font(.headline.weight(.semibold))
+                .padding(.horizontal, 2)
+            VStack(spacing: 0) {
+                ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
+                    statsHabitRow(habit)
+                        .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(habit.name)
+                        .accessibilityValue(statsHabitAccessibilityValue(habit))
+                        .accessibilityIdentifier("stats-row")
+                        .overlay {
+                            statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
+                                statsPreview(statsHabitRow(habit),
+                                             height: statsRowPreviewHeight)
+                            }, height: statsRowPreviewHeight)
+                            .accessibilityHidden(true)
+                        }
+                    if index < visibleActiveTrackedHabits.count - 1 {
+                        Divider().padding(.leading, 44)
+                    }
+                }
+            }
+            .padding(.horizontal, Theme.Metrics.cardPadding)
             .padding(.vertical, 4)
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+            .appSurface()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("stats-habit-ranking")
+        }
     }
 
-    private func weeklyDateRange(_ insight: StatsEngine.WeeklyInsight) -> String {
-        let formatter = DateIntervalFormatter()
-        formatter.calendar = Calendar.current
-        formatter.locale = .current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        guard let start = DayKey.date(from: insight.start),
-              let end = DayKey.date(from: insight.end) else {
-            return "\(insight.start) - \(insight.end)"
+    private func statsHabitRow(_ habit: Habit) -> some View {
+        let completion = Int((GoalEngine.completion(habit: habit, lastNDays: 30) * 100).rounded())
+        let streak = GoalEngine.streak(habit: habit)
+        let style = palettes.style(for: habit)
+        return HStack(spacing: 10) {
+            Text(habit.emoji.isEmpty ? "-" : habit.emoji)
+                .font(.title3)
+                .frame(width: 32, height: 32)
+                .background(Theme.accent(style).opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(habit.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(String(localized: "30 Tage: \(completion)%"))
+                    Text("·")
+                    Text(String(localized: "Serie \(streak)"))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12),
+                          style: style)
+                    .frame(height: 22)
+            }
+            Spacer(minLength: 0)
         }
-        return formatter.string(from: start, to: end)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 
-    private var statsSelectionEmpty: some View {
-        ContentUnavailableView {
-            Label(String(localized: "Keine Karten ausgewählt"),
-                  systemImage: "slider.horizontal.3")
-        } description: {
-            Text(String(localized: "Wähle in den Einstellungen eine Statistik-Karte aus."))
-        } actions: {
-            Button(String(localized: "Karten anpassen"), action: openStatsAdjustments)
-        }
+    private func statsHabitAccessibilityValue(_ habit: Habit) -> String {
+        let completion = Int((GoalEngine.completion(habit: habit, lastNDays: 30) * 100).rounded())
+        let streak = GoalEngine.streak(habit: habit)
+        return String(localized: "30 Tage: \(completion) Prozent, Serie \(streak) Tage")
     }
 
     private func openStatsAdjustments() {
@@ -328,89 +518,6 @@ struct StatsView: View {
         Binding(
             get: { viewPreferences.statsCards.isActive(card) },
             set: { active in viewPreferences.setStatsCard(card, active: active) })
-    }
-
-    // MARK: – Held: Jahres-Puls
-
-    /// Das vereinigte Raster als HELD — volle Kartenbreite, satte Zellen.
-    /// EIN VoiceOver-Element mit einem Satz (die Mini-Zellen einzeln wären
-    /// eine Zumutung).
-    ///
-    /// Der Heute-Ring stand hier daneben und ist bewusst raus: die
-    /// HEUTE-Kachel direkt darunter zeigt exakt dieselbe Zahl — und der
-    /// doppelte Ring hat dem Raster die halbe Breite gestohlen, das dann
-    /// klein und verloren in der Ecke saß (vom Gerät gemeldet).
-    private func heroCard(_ snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.cardPadding) {
-            HStack(alignment: .center) {
-                Text(String(localized: "Jahres-Puls"))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .kerning(0.6)
-                Spacer(minLength: 8)
-                if snapshot.streak > 0 {
-                    streakChip(snapshot.streak)
-                }
-            }
-            pulse(snapshot)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { if !unlocked { paywall = .stats } }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Jahres-Puls"))
-        .accessibilityValue(pulseValue(snapshot))
-        .accessibilityIdentifier("stats-card-yearPulse")
-        .accessibilityAddTraits(unlocked ? [] : .isButton)
-        .accessibilityAction { if !unlocked { paywall = .stats } }
-    }
-
-    /// Frei ist die KARTE (Titel und Serien-Chip), Pro ist das Ablesen des
-    /// Rasters. Bewusst das ECHTE Raster, nur unscharf: ein erfundener
-    /// Platzhalter wäre eine Behauptung über Daten, die längst da sind.
-    /// Gerechnet und gespeichert wird unverändert weiter.
-    @ViewBuilder
-    private func pulse(_ snapshot: StatsEngine.Snapshot) -> some View {
-        if unlocked {
-            mergedGrid(snapshot.mergedLevels)
-        } else {
-            mergedGrid(snapshot.mergedLevels)
-                .blur(radius: 5)
-                .clipped()
-                .overlay { pulseLockChip }
-                // Der Tipp gehört der ganzen Karte, nicht dem Raster —
-                // sonst hätte die Karte zwei Trefferzonen mit demselben Ziel.
-                .allowsHitTesting(false)
-        }
-    }
-
-    private var pulseLockChip: some View {
-        Label(String(localized: "Nur mit hAiity Pro"), systemImage: "lock")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(accent)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                if appearancePreferences.performanceMode {
-                    Capsule().fill(Color(.secondarySystemGroupedBackground))
-                } else {
-                    Capsule().fill(.ultraThinMaterial)
-                }
-            }
-            .accessibilityHidden(true)
-    }
-
-    private func pulseValue(_ snapshot: StatsEngine.Snapshot) -> String {
-        guard unlocked else {
-            // Der Serien-Chip steht auch gesperrt scharf auf der Karte. Ihn
-            // durch „Nur mit hAiity Pro" zu ERSETZEN hiesse, dieselbe Karte
-            // sagt Sehenden und Hörenden Unterschiedliches — gesperrt ist
-            // das Raster, nicht die Serie.
-            let locked = String(localized: "Nur mit hAiity Pro")
-            guard snapshot.streak > 0 else { return locked }
-            return String(localized: "Serie: \(snapshot.streak) Tage") + ". " + locked
-        }
-        return String(localized: "Alle Habits zusammen: heute \(snapshot.todayDone) von \(snapshot.todayTotal) erledigt, Gesamt-Serie \(snapshot.streak) Tage.")
     }
 
     /// Statt der Zeilen EINE Karte in derselben Form — kein Banner, keine
@@ -477,28 +584,6 @@ struct StatsView: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    // MARK: – Kacheln
-
-    private func tileGrid(_ snapshot: StatsEngine.Snapshot,
-                          cards: [StatsCard]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Metrics.gap),
-                            GridItem(.flexible(), spacing: Theme.Metrics.gap)],
-                  spacing: Theme.Metrics.gap) {
-            ForEach(cards) { card in
-                statsTile(card, snapshot: snapshot)
-                    .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
-                    .overlay {
-                        statsContextMenu(id: card.rawValue, preview: {
-                            statsPreview(statsTile(card, snapshot: snapshot),
-                                         height: statsTilePreviewHeight,
-                                         wrapsSurface: false)
-                        }, height: statsTilePreviewHeight)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-            }
-        }
-    }
-
     private var statsPreviewWidth: CGFloat {
         HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
     }
@@ -508,7 +593,6 @@ struct StatsView: View {
     private let statsHeroPreviewHeight: CGFloat = 180
     private let statsTilePreviewHeight: CGFloat = 124
     private let statsRowPreviewHeight: CGFloat = 180
-    private let statsLockPreviewHeight: CGFloat = 148
 
     private var statsContextActions: [GraphMenuAction] {
         [GraphMenuAction(title: String(localized: "Statistik anpassen"),
@@ -526,6 +610,7 @@ struct StatsView: View {
                          // The preview builder owns the one rounded surface;
                          // the bridge must not wrap it a second time.
                          previewOwnsSurface: true,
+                         previewAccessibilityIdentifier: "stats-preview",
                          preview: preview,
                          actions: statsContextActions,
                          commit: openStatsAdjustments,
@@ -539,19 +624,13 @@ struct StatsView: View {
     }
 
     private func statsPreview<Content: View>(_ content: Content,
-                                             height: CGFloat,
-                                             wrapsSurface: Bool = true) -> AnyView {
-        let surfaced: AnyView
-        if wrapsSurface {
-            surfaced = AnyView(content
-                    .padding(Theme.Metrics.cardPadding)
-                    .frame(width: statsPreviewWidth,
-                           alignment: .topLeading)
-                    .frame(minHeight: height, alignment: .topLeading)
-                    .appSurface())
-        } else {
-            surfaced = AnyView(content.appSurface())
-        }
+                                             height: CGFloat) -> AnyView {
+        let surfaced = AnyView(content
+                .padding(Theme.Metrics.cardPadding)
+                .frame(width: statsPreviewWidth,
+                       alignment: .topLeading)
+                .frame(minHeight: height, alignment: .topLeading)
+                .appSurface())
 
         // The preview itself owns the outer surface. Keep the final frame
         // flexible so UIKit measures the complete card rather than clipping
@@ -564,47 +643,6 @@ struct StatsView: View {
             .accessibilityLabel(String(localized: "Statistikvorschau"))
             .accessibilityIdentifier("stats-preview"))
         return framed
-    }
-
-    @ViewBuilder
-    private func statsTile(_ card: StatsCard,
-                           snapshot: StatsEngine.Snapshot) -> some View {
-        switch card {
-        case .yearPulse:
-            EmptyView()
-        case .streakFlame:
-            streakTile(snapshot)
-        case .todayRing:
-            todayTile(snapshot)
-        case .weekMomentum:
-            weekTile(snapshot)
-        case .totals:
-            totalsTile(snapshot)
-        }
-    }
-
-    /// Gemeinsame Form: KAPITÄLCHEN-Titel oben, Inhalt darunter, ein fester
-    /// Mindest-Kasten — vier Kacheln, EINE Silhouette. Jede Kachel ist für
-    /// VoiceOver EIN Element mit einem Satz.
-    private func tile(_ title: String, identifier: String, value: String,
-                      @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .kerning(0.6)
-            Spacer(minLength: Theme.Metrics.gap)
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .appSurface()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(value)
-        .accessibilityIdentifier(identifier)
     }
 
     /// Die Serie als Kapsel-Chip — dieselbe Form im Held und je Habit, damit
@@ -627,100 +665,6 @@ struct StatsView: View {
                     : AnyShapeStyle(Color(.tertiarySystemFill)),
                     in: Capsule())
         .accessibilityHidden(true)
-    }
-
-    private func streakTile(_ snapshot: StatsEngine.Snapshot) -> some View {
-        tile(String(localized: "Serie"),
-             identifier: "stats-card-streakFlame",
-             value: String(localized: "Gesamt-Serie \(snapshot.streak) Tage, beste Serie \(snapshot.bestStreak).")) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: snapshot.streak > 0 ? "flame.fill" : "flame")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(flameColor(snapshot.streak))
-                    Text(verbatim: "\(snapshot.streak)")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
-                        .contentTransition(.numericText())
-                }
-                Text(String(localized: "Best: \(snapshot.bestStreak)"))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func todayTile(_ snapshot: StatsEngine.Snapshot) -> some View {
-        let done = snapshot.todayDone, total = snapshot.todayTotal
-        return tile(String(localized: "Heute"),
-                    identifier: "stats-card-todayRing",
-                    value: total == 0
-                        ? String(localized: "Heute ist nichts fällig")
-                        : String(localized: "\(done) von \(total) erledigt")) {
-            HStack(spacing: Theme.Metrics.cardPadding) {
-                segmentedRing(done: done, total: total, size: 46, line: 5)
-                VStack(alignment: .leading, spacing: 2) {
-                    if total == 0 {
-                        Text(String(localized: "Heute ist nichts fällig"))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text(verbatim: "\(done)/\(total)")
-                            .font(.system(.title, design: .rounded, weight: .bold).monospacedDigit())
-                            .contentTransition(.numericText())
-                        if done == total {
-                            Label(String(localized: "Alles erledigt"),
-                                  systemImage: "checkmark.seal.fill")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(accent)
-                        } else {
-                            Text(String(localized: "\(done) von \(total) erledigt"))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func weekTile(_ snapshot: StatsEngine.Snapshot) -> some View {
-        tile(String(localized: "Woche"),
-             identifier: "stats-card-weekMomentum",
-             value: momentumSentence(snapshot)) {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                sparkline(snapshot.last7)
-                    .frame(height: 30)
-                HStack(spacing: 4) {
-                    Image(systemName: trendSymbol(snapshot))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(trendColor(snapshot))
-                    Text(momentumSentence(snapshot))
-                        .font(.caption2.weight(.medium))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private func totalsTile(_ snapshot: StatsEngine.Snapshot) -> some View {
-        tile(String(localized: "Gesamt"),
-             identifier: "stats-card-totals",
-             value: String(localized: "Check-ins gesamt") + ": \(StatsMath.totalCheckIns(visibleActiveTrackedHabits))") {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "\(StatsMath.totalCheckIns(visibleActiveTrackedHabits))")
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
-                    .contentTransition(.numericText())
-                Text(String(localized: "Check-ins gesamt"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(String(localized: "Aktive Habits") + " · " + "\(visibleActiveTrackedHabits.count)")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-            }
-        }
     }
 
     // MARK: – kleine Zeichenhelfer
@@ -780,13 +724,6 @@ struct StatsView: View {
         return String(localized: "Genau wie letzte Woche")
     }
 
-    private func trendSymbol(_ snapshot: StatsEngine.Snapshot) -> String {
-        guard let delta = momentumDelta(snapshot) else { return "arrow.right" }
-        if delta > 0 { return "arrow.up.right" }
-        if delta < 0 { return "arrow.down.right" }
-        return "arrow.right"
-    }
-
     private func trendColor(_ snapshot: StatsEngine.Snapshot) -> Color {
         guard let delta = momentumDelta(snapshot) else { return .secondary }
         if delta > 0 { return accent }
@@ -794,132 +731,6 @@ struct StatsView: View {
         return .secondary
     }
 
-    /// Sieben Punkte, 0…1, als eine Linie. Reines Zeichnen — die Werte
-    /// stehen fertig im Schnappschuss.
-    /// Sieben Punkte, 0…1: Linie mit weicher Fläche darunter — die Fläche
-    /// gibt der Linie Gewicht, ohne eine zweite Farbe einzuführen.
-    private func sparkline(_ values: [Double]) -> some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let step = values.count > 1 ? w / CGFloat(values.count - 1) : w
-            let points = values.enumerated().map { i, value in
-                CGPoint(x: CGFloat(i) * step, y: h - CGFloat(value) * (h - 4) - 2)
-            }
-            let line = Path { path in
-                for (i, point) in points.enumerated() {
-                    if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
-                }
-            }
-            ZStack {
-                if let first = points.first, let last = points.last {
-                    var area = line
-                    let _ = area.addLine(to: CGPoint(x: last.x, y: h))
-                    let _ = area.addLine(to: CGPoint(x: first.x, y: h))
-                    let _ = area.closeSubpath()
-                    area.fill(LinearGradient(colors: [Theme.accent(palettes.style).opacity(0.22),
-                                                      Theme.accent(palettes.style).opacity(0.02)],
-                                             startPoint: .top, endPoint: .bottom))
-                }
-                line.stroke(accent, style: StrokeStyle(lineWidth: 2,
-                                                       lineCap: .round, lineJoin: .round))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-/// Kartenchrom für die Statistik-Liste: dieselbe Fläche, derselbe Radius wie
-/// die Habit-Karten — die Seite spricht die Sprache der Liste nebenan.
-private struct StatsCardChrome: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding(Theme.Metrics.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface()
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 0,
-                                      leading: Theme.Metrics.gutter,
-                                      bottom: Theme.Metrics.gap,
-                                      trailing: Theme.Metrics.gutter))
-    }
-}
-
-private struct StatsRow: View {
-    let habit: Habit
-    @Environment(\.palettes) private var palettes
-
-    /// Die Farbfamilie DIESES Habits — Balken und Chip sprechen dieselbe
-    /// Sprache wie sein Raster nebenan.
-    private var style: PaletteStyle { palettes.style(for: habit) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                if !habit.emoji.isEmpty { Text(habit.emoji) }
-                Text(habit.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Spacer()
-                rowStreakChip(GoalEngine.streak(habit: habit))
-            }
-            HStack(alignment: .top, spacing: 16) {
-                completionCell(days: 30)
-                completionCell(days: 90)
-                completionCell(days: 365)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(String(localized: "Best: \(GoalEngine.bestStreak(habit: habit))"))
-                    // Bei Ja/Nein sagt „Gesamt" nur die halbe Wahrheit: es
-                    // zählt die Ja-Tage. Die Zahl daneben ist die, die es
-                    // bei keiner anderen Art gibt — und die einzige, die
-                    // beantwortet, ob ein Habit gerade läuft oder nur
-                    // ungefragt bleibt.
-                    Text(String(localized: "Gesamt: \(habit.checkInCount())"))
-                    if habit.kind == .yesNo {
-                        Text(String(localized: "Nein: \(habit.declinedCount())"))
-                    }
-                }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-            }
-            MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12),
-                      style: style)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("stats-row")
-    }
-
-    private func rowStreakChip(_ streak: Int) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: streak > 0 ? "flame.fill" : "flame")
-                .font(.caption2.weight(.semibold))
-            Text(verbatim: "\(streak)")
-                .font(.caption.weight(.bold).monospacedDigit())
-                .contentTransition(.numericText())
-        }
-        .foregroundStyle(streak > 0
-                         ? AnyShapeStyle(Theme.accentText(style))
-                         : AnyShapeStyle(.secondary))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(streak > 0
-                    ? AnyShapeStyle(Theme.accent(style).opacity(0.14))
-                    : AnyShapeStyle(Color(.tertiarySystemFill)),
-                    in: Capsule())
-        .accessibilityLabel(String(localized: "Serie: \(streak) Tage"))
-    }
-
-    private func completionCell(days: Int) -> some View {
-        let pct = Int((GoalEngine.completion(habit: habit, lastNDays: days) * 100).rounded())
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(verbatim: "\(pct) %")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-            Text(String(localized: "\(days) Tage"))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
 }
 
 /// 12 dünne Kapseln, eine pro Monat (älteste links), Höhe relativ zum

@@ -743,6 +743,9 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: 1)
+        }
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.

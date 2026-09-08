@@ -155,6 +155,10 @@ struct HabitCard: View, Equatable {
         // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
+        .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
+            guard revealOffset != 0 else { return }
+            snapReveal(to: 0)
+        }
     }
 
     // MARK: – Aufziehen: kartenhohe Wisch-Knöpfe
@@ -371,6 +375,7 @@ struct HabitCard: View, Equatable {
                                  previewWidth: previewWidth,
                                  previewHeight: Self.contextPreviewHeight,
                                  previewOwnsSurface: true,
+                                 previewAccessibilityIdentifier: "habit-preview",
                                  preview: { AnyView(habitPreview) },
                                  actions: menuActions,
                                  commit: onEdit,
@@ -916,6 +921,7 @@ struct GraphContextMenu: UIViewRepresentable {
     let previewWidth: CGFloat
     let previewHeight: CGFloat
     var previewOwnsSurface = false
+    var previewAccessibilityIdentifier: String? = nil
     let preview: () -> AnyView
     let actions: [GraphMenuAction]
     let commit: () -> Void
@@ -927,6 +933,7 @@ struct GraphContextMenu: UIViewRepresentable {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
                  previewHeight: previewHeight,
                  previewOwnsSurface: previewOwnsSurface,
+                 previewAccessibilityIdentifier: previewAccessibilityIdentifier,
                  preview: preview, actions: actions, commit: commit,
                  palettes: palettes,
                  appearancePreferences: appearancePreferences,
@@ -938,6 +945,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.previewWidth = previewWidth
         view.previewHeight = previewHeight
         view.previewOwnsSurface = previewOwnsSurface
+        view.previewAccessibilityIdentifier = previewAccessibilityIdentifier
         view.preview = preview
         view.actions = actions
         view.commit = commit
@@ -955,6 +963,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var previewWidth: CGFloat
         var previewHeight: CGFloat
         var previewOwnsSurface: Bool
+        var previewAccessibilityIdentifier: String?
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
@@ -968,6 +977,7 @@ struct GraphContextMenu: UIViewRepresentable {
         init(cardRadius: CGFloat, previewWidth: CGFloat,
              previewHeight: CGFloat,
              previewOwnsSurface: Bool,
+             previewAccessibilityIdentifier: String?,
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void,
@@ -978,6 +988,7 @@ struct GraphContextMenu: UIViewRepresentable {
             self.previewWidth = previewWidth
             self.previewHeight = previewHeight
             self.previewOwnsSurface = previewOwnsSurface
+            self.previewAccessibilityIdentifier = previewAccessibilityIdentifier
             self.preview = preview
             self.actions = actions
             self.commit = commit
@@ -1011,6 +1022,7 @@ struct GraphContextMenu: UIViewRepresentable {
             let actions = actions
             let radius = cardRadius
             let ownsSurface = previewOwnsSurface
+            let previewAccessibilityIdentifier = previewAccessibilityIdentifier
             let palettes = palettes
             let appearancePreferences = appearancePreferences
             return UIContextMenuConfiguration(identifier: identifier as NSString,
@@ -1026,11 +1038,15 @@ struct GraphContextMenu: UIViewRepresentable {
                 let controller = RoundedPreviewHostingController(rootView: surfaced,
                                                                   radius: radius)
                 controller.view.backgroundColor = .clear
-                // SwiftUI's accessibility identifier stays inside the
-                // hosted tree, which UIKit context-menu previews do not
-                // always expose to XCTest/VoiceOver. Mirror it on the host
-                // view so the lifted card has one stable boundary.
-                controller.view.accessibilityIdentifier = "stats-preview"
+                // SwiftUI's identifier stays inside the hosted tree, which
+                // UIKit context-menu previews do not always expose. Mirror
+                // the caller's identifier on the host so the lifted card has
+                // one stable boundary for VoiceOver and UI tests.
+                if let previewAccessibilityIdentifier {
+                    controller.view.isAccessibilityElement = true
+                    controller.view.accessibilityIdentifier = previewAccessibilityIdentifier
+                    controller.view.accessibilityLabel = String(localized: "Vorschau")
+                }
                 controller.view.setNeedsLayout()
                 controller.view.layoutIfNeeded()
                 let measuredHeight = controller.sizeThatFits(

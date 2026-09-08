@@ -114,6 +114,8 @@ struct MoreView: View {
     @State private var showNativeSyncDeleteConfirmation = false
     @State private var proStatus = ProStatus.shared
     @State private var rootTitleProgress: CGFloat = 0
+    @State private var showingPersonalSettings = false
+    @State private var showingNotificationSettings = false
     @Environment(\.palettes) private var palettes
 
     private var currentAppearance: AppearancePreferences { store.appearancePreferences }
@@ -174,6 +176,28 @@ struct MoreView: View {
             CustomPaletteSheet(store: store)
                 .themed(store, palettes: palettes)
                 .environment(\.appearanceBackgroundOwned, false)
+        }
+        .sheet(isPresented: $showingPersonalSettings) {
+            NavigationStack {
+                List { personalSection }
+                    .settingsSurface()
+                    .navigationTitle(String(localized: "Konto"))
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+            .themed(store, palettes: palettes)
+            .environment(\.appearanceBackgroundOwned, false)
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showingNotificationSettings) {
+            NavigationStack {
+                List { notificationSettingsSection }
+                    .settingsSurface()
+                    .navigationTitle(String(localized: "Mitteilungen"))
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+            .themed(store, palettes: palettes)
+            .environment(\.appearanceBackgroundOwned, false)
+            .presentationDetents([.large])
         }
         .onAppear {
             dndNow = .now
@@ -282,64 +306,78 @@ struct MoreView: View {
     }
 
     private var mainSettings: some View {
-        List {
-            RootPageTitle(title: screen.title)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            moreOverview
-                .listRowSeparator(.hidden)
-                .settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            proSection.settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            personalSection.settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            githubSection.settingsRowSurface()
-                .listRowInsets(moreRowInsets)
-            Section {
-                pageRow(MoreRoute.appearance, title: String(localized: "Darstellung"),
-                        symbol: "paintpalette", identifier: "open-appearance")
-            }
-            .settingsRowSurface()
-            .listRowInsets(moreRowInsets)
-            Section {
-                pageRow(MoreRoute.habitBehavior, title: String(localized: "Verhalten & Teilen"),
-                        symbol: "hand.draw", identifier: "open-habit-behavior")
-            }
-            .settingsRowSurface()
-            .listRowInsets(moreRowInsets)
-            notificationSettingsSection
-            Section {
-                Button { showReminderSetup = true } label: {
-                    HStack(spacing: Theme.Metrics.gap + 4) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Theme.accentText(palettes.style))
-                            .frame(width: Theme.Metrics.glyph,
-                                   height: Theme.Metrics.glyph)
-                        Text(String(localized: "Setup wiederholen"))
-                        Spacer(minLength: 0)
-                    }
-                    .frame(minHeight: Theme.Metrics.hit)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                RootPageTitle(title: screen.title)
+
+                moreStatusHero
+                proSection
+
+                moreHubGroup(title: String(localized: "Verwalten")) {
+                    pageRow(MoreRoute.appearance,
+                            title: String(localized: "Darstellung"),
+                            symbol: "paintpalette",
+                            identifier: "open-appearance")
+                    Divider().padding(.leading, 48)
+                    pageRow(MoreRoute.habitBehavior,
+                            title: String(localized: "Verhalten & Teilen"),
+                            symbol: "hand.draw",
+                            identifier: "open-habit-behavior")
+                    Divider().padding(.leading, 48)
+                    pageRow(.timeZone,
+                            title: String(localized: "Standardzeitzone"),
+                            symbol: "globe",
+                            identifier: "open-timezone",
+                            badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
                 }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("open-reminder-setup")
+
+                moreHubGroup(title: String(localized: "Verbindungen")) {
+                    moreGitHubRow
+                    Divider().padding(.leading, 48)
+                    moreCloudRow
+                }
+
+                moreHubGroup(title: String(localized: "Persönlich")) {
+                    moreHubRow(title: String(localized: "Konto"),
+                               detail: String(localized: "Alias und Apple-Anmeldung"),
+                               symbol: "person.crop.circle",
+                               identifier: "open-account") {
+                        showingPersonalSettings = true
+                    }
+                    Divider().padding(.leading, 48)
+                    moreHubRow(title: String(localized: "Mitteilungen"),
+                               detail: String(localized: "Zusammenfassungen und Ruhezeiten"),
+                               symbol: "bell",
+                               identifier: "open-notifications") {
+                        showingNotificationSettings = true
+                    }
+                }
+
+                moreHubGroup(title: String(localized: "Werkzeuge")) {
+                    moreHubRow(title: String(localized: "Setup wiederholen"),
+                               detail: String(localized: "Erinnerungen erneut einrichten"),
+                               symbol: "arrow.clockwise",
+                               identifier: "open-reminder-setup") {
+                        showReminderSetup = true
+                    }
+                    Divider().padding(.leading, 48)
+                    pageRow(.archive,
+                            title: String(localized: "Archiv"),
+                            symbol: "archivebox",
+                            identifier: "open-archive")
+                    Divider().padding(.leading, 48)
+                    pageRow(.about,
+                            title: String(localized: "Über & Datenschutz"),
+                            symbol: "lock.shield",
+                            identifier: "open-about")
+                }
             }
-            .settingsRowSurface()
-            .listRowInsets(moreRowInsets)
-            Section {
-                pageRow(MoreRoute.about, title: String(localized: "Über & Datenschutz"),
-                        symbol: "lock.shield", identifier: "open-about")
-            }
-            .settingsRowSurface()
-            .listRowInsets(moreRowInsets)
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .settingsSurface()
-        .listRowSpacing(12)
-        .listSectionSpacing(12)
-        .contentMargins(.bottom, ChromeLayout.nativeTabBarClearance,
-                        for: .scrollContent)
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .settingsChrome()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             if let progress { rootTitleProgress = progress }
@@ -349,37 +387,223 @@ struct MoreView: View {
         }
     }
 
-    private var moreOverview: some View {
+    private var moreStatusHero: some View {
         let tracked = store.activeTrackedHabits
         let snapshot = StatsEngine.snapshot(habits: tracked)
-        return HStack(spacing: Theme.Metrics.gap + 4) {
-            Image(systemName: "checkmark.circle")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Theme.accentText(palettes.style))
-                .frame(width: 36, height: 36)
-                .background(Theme.accentFill(palettes.style).opacity(0.13),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(String(localized: "Übersicht"))
-                    .font(.subheadline.weight(.semibold))
-                if tracked.isEmpty {
-                    Text(String(localized: "Noch keine Habits"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(String(localized: "Aktive Habits: \(tracked.count)"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text(String(localized: "Heute: \(snapshot.todayDone) von \(snapshot.todayTotal)"))
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(accentColor)
+                    .frame(width: 36, height: 36)
+                    .background(accentColor.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Dein Überblick"))
+                        .font(.headline.weight(.semibold))
+                    Text(tracked.isEmpty
+                         ? String(localized: "Lege deinen ersten Habit an")
+                         : String(localized: "Alles Wichtige an einem Ort"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 0) {
+                moreMetric(String(tracked.count), title: String(localized: "Aktiv"))
+                moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
+                moreMetric(String(snapshot.streak), title: String(localized: "Serie"))
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: cloudStatus.state.systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(moreCloudColor)
+                Text(cloudStatus.state.title)
+                    .font(.caption.weight(.medium))
+                Spacer(minLength: 0)
+                Text(unlocked ? String(localized: "Pro aktiv") : String(localized: "Free"))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(unlocked ? accentColor : .secondary)
+            }
+            .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("more-status-hero")
+    }
+
+    private var accentColor: Color {
+        Theme.accentText(palettes.style)
+    }
+
+    private var moreCloudColor: Color {
+        switch cloudStatus.state {
+        case .active: return accentColor
+        case .waiting: return .orange
+        case .signedOut, .failed: return .secondary
+        }
+    }
+
+    @ViewBuilder
+    private func moreHubGroup<Content: View>(title: String,
+                                             @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, 8)
+            .appSurface()
+        }
+    }
+
+    private func moreHubRow(title: String,
+                            detail: String,
+                            symbol: String,
+                            identifier: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(accentColor)
+                    .frame(width: Theme.Metrics.glyph,
+                           height: Theme.Metrics.glyph)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body.weight(.medium))
+                        .lineLimit(1)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(minHeight: 58)
+            .contentShape(Rectangle())
+        }
+        .foregroundStyle(.primary)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var moreGitHubRow: some View {
+        HStack(spacing: 12) {
+            Button { onOpen(.github) } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(accentColor)
+                        .frame(width: Theme.Metrics.glyph,
+                               height: Theme.Metrics.glyph)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "GitHub"))
+                            .font(.body.weight(.medium))
+                        Text(github.snapshot?.username ?? String(localized: "Noch nicht verbunden"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("open-github-settings")
+            if github.snapshot != nil {
+                Button(String(localized: "Abmelden"), role: .destructive) {
+                    github.disconnect()
+                }
+                .font(.caption.weight(.medium))
+                .buttonStyle(.borderless)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityIdentifier("disconnect-github")
+            }
+        }
+        .frame(minHeight: 58)
+    }
+
+    private var moreCloudRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: cloudStatus.state.systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(moreCloudColor)
+                .frame(width: Theme.Metrics.glyph,
+                       height: Theme.Metrics.glyph)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "iCloud"))
+                    .font(.body.weight(.medium))
+                Text(cloudStatus.state.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
             Spacer(minLength: 0)
+        }
+        .frame(minHeight: 58)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("icloud-status")
+    }
+
+    private var moreOverview: some View {
+        let tracked = store.activeTrackedHabits
+        let snapshot = StatsEngine.snapshot(habits: tracked)
+        return VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+            HStack(spacing: Theme.Metrics.gap + 4) {
+                Image(systemName: "checkmark.circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(palettes.style))
+                    .frame(width: 36, height: 36)
+                    .background(Theme.accentFill(palettes.style).opacity(0.13),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Übersicht"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(tracked.isEmpty
+                         ? String(localized: "Noch keine Habits")
+                         : String(localized: "Dein aktueller Rhythmus"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            if !tracked.isEmpty {
+                HStack(spacing: 0) {
+                    moreMetric(String(tracked.count), title: String(localized: "Aktiv"))
+                    moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
+                    moreMetric(String(StatsMath.totalCheckIns(tracked)), title: String(localized: "Check-ins"))
+                }
+                .padding(.top, 4)
+            }
         }
         .padding(Theme.Metrics.cardPadding)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("more-overview")
+    }
+
+    private func moreMetric(_ value: String, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.title3.weight(.semibold))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var moreRowInsets: EdgeInsets {
@@ -668,14 +892,13 @@ struct MoreView: View {
     // Der Markenname bleibt unübersetzt (`verbatim`): er steht in keinem
     // Katalog und darf in keiner Sprache anders heissen.
 
-    @ViewBuilder
     private var proSection: some View {
-        Section {
+        moreHubGroup(title: String(localized: "hAiity Pro")) {
             if unlocked {
                 Button {
                     paywall = .settings
                 } label: {
-                    HStack(spacing: Theme.Metrics.gap + 2) {
+                    HStack(spacing: Theme.Metrics.gap) {
                         proRow(symbol: "checkmark.seal.fill",
                                detail: String(localized: "Freigeschaltet. Danke."),
                                highlighted: true)

@@ -83,6 +83,10 @@ struct ReminderRow: View, Equatable {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
+        .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
+            guard revealOffset != 0 else { return }
+            closeReveal()
+        }
     }
 
     private var rowContent: some View {

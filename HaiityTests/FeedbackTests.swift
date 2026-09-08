@@ -676,7 +676,8 @@ final class FeedbackTests: XCTestCase {
     func testMoreKeepsCloudStatusInDeveloperToolsAndUsesConciseSettings() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertFalse(more.contains("iCloudRow"))
-        XCTAssertFalse(more.contains("icloud-status"))
+        XCTAssertTrue(more.contains("moreCloudRow"))
+        XCTAssertTrue(more.contains("icloud-status"))
         for verbose in ["Verdichtet die Habit-Liste und die untere Navigation dauerhaft.",
                         "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten.",
                         "Schüttle das iPhone, wenn etwas nicht stimmt:",
@@ -802,17 +803,17 @@ final class FeedbackTests: XCTestCase {
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
         let main = more[body.lowerBound..<end.lowerBound]
-        let ordered = ["proSection", "personalSection", "githubSection",
-                       "MoreRoute.appearance", "MoreRoute.habitBehavior",
-                       "notificationSettingsSection",
-                       "Setup wiederholen", "MoreRoute.about"]
+        let ordered = ["moreStatusHero", "proSection", "MoreRoute.appearance",
+                       "MoreRoute.habitBehavior", "moreGitHubRow", "moreCloudRow",
+                       "showingPersonalSettings", "showingNotificationSettings",
+                       "showReminderSetup", "pageRow(.archive", "pageRow(.about"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)
             cursor = range.upperBound
         }
-        XCTAssertFalse(main.contains("MoreRoute.archive"),
-                       "Archive is opened from the Habits filter menu")
+        XCTAssertTrue(main.contains("moreHubGroup"),
+                      "the rebuilt More page must keep each group in its own surface")
 
         let appearanceStart = try XCTUnwrap(
             more.range(of: "private var appearanceSettings: some View"))
