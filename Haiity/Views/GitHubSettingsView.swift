@@ -8,6 +8,7 @@ struct GitHubSettingsView: View {
     @Binding var showsMonthLabels: Bool
     @State private var confirmDisconnect = false
     @State private var codeCopied = false
+    @Environment(\.palettes) private var palettes
 
     var body: some View {
         List {
@@ -205,15 +206,27 @@ struct GitHubSettingsView: View {
 
     private var connectionStatusRow: some View {
         HStack(spacing: Theme.Metrics.gap + 4) {
-            Image(systemName: statusSymbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(statusTint)
-                .frame(width: 36, height: 36)
-                .background(statusTint.opacity(0.14), in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                }
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(palettes.style))
+                    .frame(width: 36, height: 36)
+                    .background(Theme.accentFill(palettes.style).opacity(0.14),
+                                in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                    }
+                Circle()
+                    .fill(statusTint)
+                    .frame(width: 10, height: 10)
+                    .overlay {
+                        Circle()
+                            .stroke(Color(.systemBackground), lineWidth: 2)
+                    }
+                    .offset(x: 1, y: 1)
+            }
+            .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 2) {
                 if let username = store.snapshot?.username,
                    case .connected = store.phase {
@@ -230,6 +243,13 @@ struct GitHubSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                if case .connected = store.phase,
+                   let snapshot = store.snapshot {
+                    Text(snapshot.fetchedAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -251,15 +271,6 @@ struct GitHubSettingsView: View {
             return String(localized: "Erneut anmelden")
         }
         return String(localized: "Aktualisieren")
-    }
-
-    private var statusSymbol: String {
-        switch store.phase {
-        case .connected: return "checkmark"
-        case .connecting: return "link"
-        case .failed: return "exclamationmark.triangle"
-        case .disconnected: return "link.badge.plus"
-        }
     }
 
     private var statusTint: Color {
