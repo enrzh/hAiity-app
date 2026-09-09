@@ -57,11 +57,15 @@ enum ReminderOccurrenceEngine {
         let overdueCount: Int
         if reminder.repeatsWhileIncomplete {
             overdueCount = unfinished.reduce(into: 0) { count, day in
-                guard let due = dueDate(day: day, reminder: reminder, calendar: calendar),
-                      due <= now else { return }
+                guard let boundary = completionBoundary(day: day,
+                                                        reminder: reminder,
+                                                        calendar: calendar),
+                      boundary <= now else { return }
                 count += 1
             }
-        } else if let actionable, actionable.dueDate <= now {
+        } else if let actionableBoundary = actionable.flatMap({
+            completionBoundary(day: $0.day, reminder: reminder, calendar: calendar)
+        }), actionableBoundary <= now {
             overdueCount = 1
         } else {
             overdueCount = 0
@@ -120,9 +124,11 @@ enum ReminderOccurrenceEngine {
             .filter { day in
                 guard reminder.log[day] == nil,
                       !reminder.missedDays.contains(day),
-                      let due = dueDate(day: day, reminder: reminder, calendar: calendar)
+                      let boundary = completionBoundary(day: day,
+                                                         reminder: reminder,
+                                                         calendar: calendar)
                 else { return false }
-                return due <= now
+                return boundary <= now
             }
     }
 
@@ -145,25 +151,33 @@ enum ReminderOccurrenceEngine {
             .filter { day in
                 guard habit.log[day] == nil,
                       !habit.missedDays.contains(day),
-                      let start = DayKey.date(from: day, calendar: calendar) else {
+                      let boundary = completionBoundary(day: day,
+                                                        reminder: habit,
+                                                        calendar: calendar) else {
                     return false
-                }
-                let boundary: Date
-                if let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) {
-                    guard let timed = calendar.date(byAdding: .minute,
-                                                    value: minutes,
-                                                    to: start) else { return false }
-                    boundary = timed
-                } else {
-                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else {
-                        return false
-                    }
-                    boundary = nextDay
                 }
                 return boundary <= now
             }
     }
 
+    /// The local point at which an occurrence can no longer remain open.
+    /// An entry without an explicit time belongs to the whole scheduled day;
+    /// its boundary is the following local midnight, never the notification
+    /// fallback used by `dueDate`.
+    static func completionBoundary(day: String,
+                                   reminder: Habit,
+                                   calendar: Calendar = .current) -> Date? {
+        guard let start = DayKey.date(from: day, calendar: calendar) else { return nil }
+        if let minutes = Habit.sanitizedMinutes(reminder.timeMinutes ?? reminder.reminderMinutes) {
+            return calendar.date(byAdding: .minute, value: minutes, to: start)
+        }
+        return calendar.date(byAdding: .day, value: 1, to: start)
+    }
+
+    /// The actionable/display date. A reminder without a time still needs a
+    /// concrete date for notification planning and labels, so those callers
+    /// retain the historical 09:00 fallback. Completion logic must use
+    /// `completionBoundary` instead.
     static func dueDate(day: String,
                         reminder: Habit,
                         calendar: Calendar = .current) -> Date? {
@@ -182,10 +196,12 @@ enum ReminderOccurrenceEngine {
         var candidate = schedule.next(after: occurrence.day)
         var remaining = historyLimit
         while let day = candidate, remaining > 0 {
-            guard let due = dueDate(day: day, reminder: reminder, calendar: calendar) else {
+            guard let boundary = completionBoundary(day: day,
+                                                    reminder: reminder,
+                                                    calendar: calendar) else {
                 return nil
             }
-            if day > today || due > now { return day }
+            if day > today || boundary > now { return day }
             candidate = schedule.next(after: day)
             remaining -= 1
         }

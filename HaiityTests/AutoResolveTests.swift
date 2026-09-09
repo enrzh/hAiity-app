@@ -98,6 +98,66 @@ final class AutoResolveTests: XCTestCase {
         XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14"])
     }
 
+    func testAllDayCheckboxStaysOpenUntilTheNextLocalMidnight() {
+        var habit = Habit(name: "Lesen")
+        habit.createdAt = "2026-08-14"
+        habit.autoResolveChoice = .notDone
+        let store = makeStore(habit)
+
+        XCTAssertFalse(store.resolveExpiredOccurrences(
+            now: date("2026-08-14", minutes: 23 * 60 + 59)))
+        XCTAssertTrue(store.habits[0].missedDays.isEmpty)
+
+        XCTAssertTrue(store.resolveExpiredOccurrences(
+            now: date("2026-08-15", minutes: 0)))
+        XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14"])
+    }
+
+    func testAllDayQuantityStaysOpenUntilTheNextLocalMidnight() {
+        var habit = Habit(name: "Wasser", recurrence: Recurrence(target: 3))
+        habit.createdAt = "2026-08-14"
+        habit.autoResolveChoice = .done
+        let store = makeStore(habit)
+
+        XCTAssertFalse(store.resolveExpiredOccurrences(
+            now: date("2026-08-14", minutes: 12 * 60)))
+        XCTAssertNil(store.habits[0].log["2026-08-14"])
+
+        XCTAssertTrue(store.resolveExpiredOccurrences(
+            now: date("2026-08-15", minutes: 0)))
+        XCTAssertEqual(store.habits[0].log["2026-08-14"], 3)
+    }
+
+    func testAllDayYesNoStaysOpenUntilTheNextLocalMidnight() {
+        var habit = Habit(name: "Zucker", kind: .yesNo)
+        habit.createdAt = "2026-08-14"
+        habit.autoResolveChoice = .no
+        let store = makeStore(habit)
+
+        XCTAssertFalse(store.resolveExpiredOccurrences(
+            now: date("2026-08-14", minutes: 12 * 60)))
+        XCTAssertNil(store.habits[0].log["2026-08-14"])
+
+        XCTAssertTrue(store.resolveExpiredOccurrences(
+            now: date("2026-08-15", minutes: 0)))
+        XCTAssertEqual(store.habits[0].log["2026-08-14"], Habit.Answer.no)
+    }
+
+    func testAllDayReminderStaysOpenUntilTheNextLocalMidnight() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder)
+        reminder.createdAt = "2026-08-14"
+        reminder.autoResolveChoice = .done
+        let store = makeStore(reminder)
+
+        XCTAssertFalse(store.resolveExpiredOccurrences(
+            now: date("2026-08-14", minutes: 12 * 60)))
+        XCTAssertNil(store.habits[0].log["2026-08-14"])
+
+        XCTAssertTrue(store.resolveExpiredOccurrences(
+            now: date("2026-08-15", minutes: 0)))
+        XCTAssertEqual(store.habits[0].log["2026-08-14"], 1)
+    }
+
     private func makeStore(_ habit: Habit) -> HabitStore {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-auto-resolve-\(UUID().uuidString).json")

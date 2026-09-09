@@ -167,6 +167,22 @@ final class ReminderOccurrenceTests: XCTestCase {
         ), "2026-08-18")
     }
 
+    func testAllDayCompletionCursorKeepsTheCurrentDayOpen() throws {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             recurrence: .daily)
+        reminder.createdAt = "2026-08-13"
+        reminder.repeatsWhileIncomplete = false
+        let occurrence = ReminderOccurrence(day: "2026-08-13",
+                                            dueDate: date("2026-08-13", minutes: 9 * 60))
+
+        XCTAssertEqual(ReminderOccurrenceEngine.cursorAfterCompleting(
+            occurrence,
+            reminder: reminder,
+            now: date("2026-08-14", minutes: 23 * 60),
+            calendar: calendar
+        ), "2026-08-14")
+    }
+
     func testOlderOpenOccurrencesBecomeExplicitlyMissedWhenTheNextOneIsDue() {
         let reminder = fixture(createdAt: "2026-08-14", timeMinutes: 9 * 60)
 
