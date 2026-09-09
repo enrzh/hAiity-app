@@ -341,7 +341,6 @@ struct MoreView: View {
 
                 moreHubGroup(title: String(localized: "Verbindungen")) {
                     moreGitHubRow
-                    Divider().padding(.leading, 48)
                 }
 
                 moreHubGroup(title: String(localized: "Persönlich")) {
@@ -422,18 +421,12 @@ struct MoreView: View {
                 moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
                 moreMetric(String(snapshot.streak), title: String(localized: "Serie"))
             }
-            HStack(spacing: 8) {
-                Image(systemName: cloudStatus.state.systemImage)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(moreCloudColor)
-                Text(cloudStatus.state.title)
-                    .font(.caption.weight(.medium))
+            HStack {
                 Spacer(minLength: 0)
                 Text(unlocked ? String(localized: "Pro aktiv") : String(localized: "Kostenlos"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(unlocked ? accentColor : .secondary)
             }
-            .foregroundStyle(.secondary)
         }
         .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -453,14 +446,6 @@ struct MoreView: View {
 
     private var accentColor: Color {
         Theme.accentText(palettes.style)
-    }
-
-    private var moreCloudColor: Color {
-        switch cloudStatus.state {
-        case .active: return accentColor
-        case .waiting: return .orange
-        case .signedOut, .failed: return .secondary
-        }
     }
 
     @ViewBuilder
@@ -541,24 +526,6 @@ struct MoreView: View {
             }
         }
         .frame(minHeight: 52)
-    }
-
-    private var moreCloudRow: some View {
-        HStack(spacing: 12) {
-            moreIcon(cloudStatus.state.systemImage, tint: moreCloudColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "iCloud"))
-                    .font(.body.weight(.medium))
-                Text(cloudStatus.state.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 52)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("icloud-status")
     }
 
     private var moreOverview: some View {
@@ -682,7 +649,6 @@ struct MoreView: View {
 
     private var habitBehaviorSettings: some View {
         List {
-            timeZoneSection.moreSettingsSection()
             autoArchiveSection.moreSettingsSection()
             swipeActionsSection.moreSettingsSection()
             notificationActionsSection.moreSettingsSection()
@@ -718,21 +684,6 @@ struct MoreView: View {
             .padding(.vertical, Theme.Metrics.gap / 2)
         } footer: {
             Text(String(localized: "Erledigte einmalige und letzte Wiederholungen landen automatisch im Archiv."))
-        }
-    }
-
-    private var timeZoneSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
-                pageRow(.timeZone,
-                        title: String(localized: "Standardzeitzone"),
-                        symbol: "globe",
-                        identifier: "open-timezone",
-                        badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
-            }
-            .padding(.vertical, Theme.Metrics.gap / 2)
-        } footer: {
-            Text(String(localized: "Neue Habits übernehmen diese Zeitzone. Einzelne Habits können sie überschreiben."))
         }
     }
 
@@ -1573,20 +1524,35 @@ struct MoreView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
-            HStack(spacing: Theme.Metrics.gap) {
-                Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
-                Spacer(minLength: Theme.Metrics.gap)
-                Picker(String(localized: "Erscheinungsbild"), selection: appearanceBinding) {
-                    ForEach(AppearanceSetting.allCases, id: \.self) { option in
-                        Text(option.displayName).tag(option)
+            Menu {
+                ForEach(AppearanceSetting.allCases, id: \.self) { option in
+                    Button {
+                        appearanceBinding.wrappedValue = option
+                    } label: {
+                        HStack {
+                            Text(option.displayName)
+                            Spacer()
+                            if option == store.appearance {
+                                Image(systemName: "checkmark")
+                            }
+                        }
                     }
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(minHeight: Theme.Metrics.hit)
-                .accessibilityIdentifier("appearance-picker")
+            } label: {
+                HStack(spacing: Theme.Metrics.gap) {
+                    Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
+                    Spacer(minLength: Theme.Metrics.gap)
+                    Text(store.appearance.displayName)
+                        .foregroundStyle(.tint)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tint)
+                }
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
+                       alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
+            .accessibilityIdentifier("appearance-picker")
 
             // Vorschau statt Wortliste: jede Oberfläche als Miniaturfläche
             // in DEM Material, das sie später wirklich hat (siehe

@@ -243,6 +243,8 @@ final class FollowUpFixTests: XCTestCase {
                        "the filter hint must not use a smaller toast-only font")
         XCTAssertFalse(filter.contains(".padding(.horizontal, 16)\n            .padding(.vertical, 10)"),
                        "the filter hint must not keep its old compact spacing")
+        XCTAssertTrue(filter.contains("nativeTab == .habits"),
+                      "the filter hint belongs only to the Habits page")
     }
 
 }

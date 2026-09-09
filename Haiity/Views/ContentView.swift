@@ -849,11 +849,12 @@ struct ContentView: View {
     /// reset at the point where the user notices the filtered list.
     @ViewBuilder
     private var filterToast: some View {
-        if !habitFilter.isEmpty {
+        if nativeTab == .habits,
+           habitFilter.status != .all || habitFilter.itemType != .all {
             actionToast(label: {
                 Label(String(localized: "Filter aktiv"),
                       systemImage: "line.3.horizontal.decrease.circle.fill")
-                    .font(.body)
+                    .font(.footnote)
                     .lineLimit(1)
             }, actionTitle: String(localized: "Zurücksetzen"),
                          actionIdentifier: "clear-filters") {
@@ -2369,7 +2370,7 @@ struct ContentView: View {
         if let toast = undo.current {
             actionToast(label: {
                 Text(toast.message)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .lineLimit(1)
             }, actionTitle: String(localized: "Rückgängig"),
                          actionIdentifier: "undo-action") {
@@ -2404,15 +2405,16 @@ struct ContentView: View {
             Divider().frame(height: 16)
             Button(action: action) {
                 Text(actionTitle)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
-                    .frame(minHeight: 44)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier(actionIdentifier)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
         .fixedSize(horizontal: false, vertical: true)
         .modifier(ToastSurface())
     }
@@ -2423,8 +2425,8 @@ struct ContentView: View {
         if !syncStatus.isEmpty {
             Text(syncStatus)
                 .font(.footnote)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
                 .modifier(ToastSurface())
                 .foregroundStyle(.secondary)
                 .allowsHitTesting(false)

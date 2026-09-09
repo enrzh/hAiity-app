@@ -350,7 +350,7 @@ final class FeedbackTests: XCTestCase {
     func testFloatingToastsUseCompactTypeAndSharedAppearanceSurface() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.subheadline)"))
+        XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.footnote)"))
         XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
         XCTAssertTrue(content.contains(".appSurface(cornerRadius: 999)"))
     }
@@ -676,8 +676,9 @@ final class FeedbackTests: XCTestCase {
     func testMoreKeepsCloudStatusInDeveloperToolsAndUsesConciseSettings() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         XCTAssertFalse(more.contains("iCloudRow"))
-        XCTAssertTrue(more.contains("moreCloudRow"))
-        XCTAssertTrue(more.contains("icloud-status"))
+        XCTAssertFalse(more.contains("moreCloudRow"))
+        XCTAssertFalse(more.contains("icloud-status"))
+        XCTAssertFalse(more.contains("cloudStatus.state.title"))
         let hubStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let hubEnd = try XCTUnwrap(more.range(of: "private var moreStatusHero: some View"))
         XCTAssertFalse(more[hubStart.lowerBound..<hubEnd.lowerBound].contains("moreCloudRow"))
@@ -765,8 +766,7 @@ final class FeedbackTests: XCTestCase {
             return String(source[start.lowerBound..<end.lowerBound])
         }
 
-        for (category, next) in [("timeZoneSection", "private var compactModeSection: some View"),
-                                 ("autoArchiveSection", "private var timeZoneSection: some View"),
+        for (category, next) in [("autoArchiveSection", "private var compactModeSection: some View"),
                                  ("swipeActionsSection", "private var notificationActionsSection: some View"),
                                  ("notificationActionsSection", "private func notificationSlotTitle"),
                                  ("calendarSection", "private func cleanupNativeEntries")] {
