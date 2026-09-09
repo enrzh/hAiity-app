@@ -93,6 +93,7 @@ struct StatsView: View {
             VStack(spacing: 12) {
                 RootPageTitle(title: String(localized: "Statistik"),
                               subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                    .padding(.horizontal, -Theme.Metrics.gutter)
                 Spacer(minLength: 72)
                 RampSwatch(style: palettes.style, dark: dark, size: 16)
                 Text(String(localized: "Noch keine Habits"))
@@ -127,6 +128,7 @@ struct StatsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 RootPageTitle(title: String(localized: "Statistik"),
                               subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                    .padding(.horizontal, -Theme.Metrics.gutter)
 
                 statsTodayCard(snapshot)
 
@@ -197,7 +199,7 @@ struct StatsView: View {
                             .font(.title2.weight(.bold))
                     } else {
                         Text("\(done)/\(total)")
-                            .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
+                            .font(.system(.largeTitle, design: .default, weight: .semibold).monospacedDigit())
                             .contentTransition(.numericText())
                     }
                     Text(statsTodaySentence(snapshot))
@@ -232,8 +234,8 @@ struct StatsView: View {
     private func statsTodayMetric(value: String, title: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.system(.title3, design: .rounded, weight: .bold).monospacedDigit())
-                .lineLimit(1)
+                .font(.title3.weight(.semibold).monospacedDigit())
+                .fixedSize(horizontal: false, vertical: true)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)

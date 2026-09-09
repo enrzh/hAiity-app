@@ -803,10 +803,10 @@ final class FeedbackTests: XCTestCase {
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
         let main = more[body.lowerBound..<end.lowerBound]
-        let ordered = ["moreStatusHero", "proSection", "MoreRoute.appearance",
+        let ordered = ["MoreRoute.appearance",
                        "MoreRoute.habitBehavior", "moreGitHubRow", "moreCloudRow",
                        "showingPersonalSettings", "showingNotificationSettings",
-                       "showReminderSetup", "pageRow(.archive", "pageRow(.about"]
+                       "showReminderSetup", "pageRow(.archive", "pageRow(.about", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)

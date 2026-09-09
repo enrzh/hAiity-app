@@ -65,7 +65,7 @@ struct BackfillCard: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if selecting { editorActions }
             }
-            .background(Color(.systemBackground))
+            .background(AppearanceBackground(preferences: appearancePreferences))
             .navigationTitle(habit.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

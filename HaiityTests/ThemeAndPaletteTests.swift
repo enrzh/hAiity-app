@@ -824,9 +824,10 @@ final class AppearanceSettingTests: XCTestCase {
         let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
 
         XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
-                      "More groups and the overview should use the shared material surface")
-        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
+        XCTAssertFalse(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
+                       "More groups should stay on the continuous page plane")
+        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".moreSettingsSurface()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".moreSettingsSection()"))
     }
 
     func testTaskOneSharedSettingsSurfaceContractIsScopedToItsImplementations() throws {
@@ -877,12 +878,12 @@ final class AppearanceSettingTests: XCTestCase {
                       "More main content must use grouped app surfaces")
         XCTAssertTrue(more.contains("proSection"),
                       "the main More hub must keep the Pro entry point")
-        XCTAssertTrue(more.contains(".settingsRowSurface()"),
-                      "native More settings rows must use the shared row surface")
+        XCTAssertTrue(more.contains(".moreSettingsSection()"),
+                      "native More settings rows must use the continuous section treatment")
         XCTAssertTrue(more.contains(".settingsChrome()"),
                       "the appearance page must use the shared appearance chrome")
-        XCTAssertTrue(more.contains(".settingsSurface()"),
-                      "native More subpages must use the shared material surface")
+        XCTAssertTrue(more.contains(".moreSettingsSurface()"),
+                      "native More subpages must use the shared continuous surface")
         for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
                          "case .habitBehavior: habitBehaviorSettings", "case .timeZone: timeZoneSettings"] {
             XCTAssertTrue(screenSwitch.contains(caseName),
@@ -890,6 +891,30 @@ final class AppearanceSettingTests: XCTestCase {
         }
         XCTAssertTrue(picker.contains(".settingsRowSurface()"),
                       "material previews must use the same row surface treatment")
+    }
+
+    func testMoreDetailPagesUseTheContinuousSurfaceFamily() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let files = [
+            "Haiity/Views/MoreView.swift",
+            "Haiity/Views/GitHubSettingsView.swift",
+            "Haiity/Views/ArchiveView.swift",
+            "Haiity/Views/DeveloperView.swift",
+            "Haiity/Views/HabitTimeZoneSettingsView.swift"
+        ]
+
+        for file in files {
+            let source = try String(contentsOf: root.appendingPathComponent(file))
+            XCTAssertTrue(source.contains("moreSettingsSurface()"),
+                          "(file) should use the More surface")
+            XCTAssertFalse(source.contains("settingsListRow()"),
+                           "(file) should not restore rounded settings cells")
+        }
+        let more = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MoreView.swift"))
+        XCTAssertTrue(more.contains("morePageRule"),
+                      "the appearance page should use quiet rules between sections")
     }
 
     func testAppearanceEditorsNeverDecodeBackgroundImagesDuringBodyEvaluation() throws {
@@ -989,12 +1014,16 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
         let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
         let settings = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier"))
-        let end = try XCTUnwrap(theme.range(of: "private struct SettingsChromeModifier",
+        let end = try XCTUnwrap(theme.range(of: "private struct MoreSettingsSurfaceModifier",
                                              range: settings.upperBound..<theme.endIndex))
         let body = theme[settings.upperBound..<end.lowerBound]
 
         XCTAssertFalse(body.contains("listRowBackground(SettingsRowSurface"),
                        "custom list row backgrounds can intercept native control taps on iOS 27")
+        let rowStart = try XCTUnwrap(theme.range(of: "struct SettingsRowSurface: View"))
+        let row = theme[rowStart.lowerBound..<settings.lowerBound]
+        XCTAssertTrue(row.contains(".allowsHitTesting(false)"),
+                      "section material must never intercept its controls")
     }
 
     func testLargeValidBackgroundImageIsCompressedInsteadOfRejected() throws {

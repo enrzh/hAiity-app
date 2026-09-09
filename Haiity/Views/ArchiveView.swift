@@ -29,7 +29,7 @@ struct ArchiveView: View {
             } else {
                 ForEach(archived) { habit in
                     row(for: habit)
-                        .settingsListRow()
+                        .moreSettingsSection()
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 pendingDelete = habit
@@ -45,7 +45,7 @@ struct ArchiveView: View {
                 }
             }
         }
-        .settingsSurface()
+        .moreSettingsSurface()
         .appPageHeader(String(localized: "Archiv"))
         .alert(String(localized: "Endgültig löschen?"),
                isPresented: Binding(

@@ -75,17 +75,17 @@ struct DeveloperView: View {
 
     var body: some View {
         List {
-            appSection.settingsListRow()
-            dataSection.settingsListRow()
-            cloudSection.settingsListRow()
-            notificationSection.settingsListRow()
-            calendarSection.settingsListRow()
-            proSection.settingsListRow()
-            dataTransferSection.settingsListRow()
-            actionSection.settingsListRow()
-            ownerSection.settingsListRow()
+            appSection.moreSettingsSection()
+            dataSection.moreSettingsSection()
+            cloudSection.moreSettingsSection()
+            notificationSection.moreSettingsSection()
+            calendarSection.moreSettingsSection()
+            proSection.moreSettingsSection()
+            dataTransferSection.moreSettingsSection()
+            actionSection.moreSettingsSection()
+            ownerSection.moreSettingsSection()
         }
-        .settingsSurface()
+        .moreSettingsSurface()
         .appPageHeader(String(localized: "Entwickler"))
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }

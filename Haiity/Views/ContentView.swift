@@ -336,7 +336,16 @@ struct ContentView: View {
                         .navigationDestination(for: MoreRoute.self, destination: moreDestination)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button(String(localized: "Fertig")) { dismissMoreSheet() }
+                                Button {
+                                    dismissMoreSheet()
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.footnote.weight(.semibold))
+                                        .frame(width: Theme.Metrics.hit,
+                                               height: Theme.Metrics.hit)
+                                        .contentShape(Circle())
+                                }
+                                .accessibilityLabel(String(localized: "Fertig"))
                                     .accessibilityIdentifier("close-more-sheet")
                             }
                         }
@@ -781,7 +790,16 @@ struct ContentView: View {
                     .navigationDestination(for: MoreRoute.self, destination: moreDestination)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button(String(localized: "Fertig")) { dismissMoreSheet() }
+                            Button {
+                                dismissMoreSheet()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.footnote.weight(.semibold))
+                                    .frame(width: Theme.Metrics.hit,
+                                           height: Theme.Metrics.hit)
+                                    .contentShape(Circle())
+                            }
+                            .accessibilityLabel(String(localized: "Fertig"))
                                 .accessibilityIdentifier("close-more-sheet")
                         }
                     }

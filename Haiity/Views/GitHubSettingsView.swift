@@ -15,7 +15,7 @@ struct GitHubSettingsView: View {
             connectionSection
             displaySection
         }
-        .settingsSurface()
+        .moreSettingsSurface()
         .appPageHeader("GitHub")
         .onAppear {
             copyCode(store.deviceCode)
@@ -52,7 +52,7 @@ struct GitHubSettingsView: View {
             .padding(.vertical, 4)
             .accessibilityIdentifier("github-connection")
         }
-        .settingsListRow()
+        .moreSettingsSection()
     }
 
     private var displaySection: some View {
@@ -63,6 +63,7 @@ struct GitHubSettingsView: View {
                           systemImage: "person.crop.circle")
                 }
                 .accessibilityIdentifier("github-username-toggle")
+                .frame(minHeight: Theme.Metrics.hit)
 
                 Divider()
                     .padding(.leading, 32)
@@ -72,13 +73,14 @@ struct GitHubSettingsView: View {
                           systemImage: "calendar")
                 }
                 .accessibilityIdentifier("github-month-labels-toggle")
+                .frame(minHeight: Theme.Metrics.hit)
             }
             .padding(.vertical, 2)
             .accessibilityIdentifier("github-display-settings")
         } header: {
             Text(String(localized: "Darstellung"))
         }
-        .settingsListRow()
+        .moreSettingsSection()
     }
 
     @ViewBuilder

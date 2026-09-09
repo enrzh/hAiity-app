@@ -180,8 +180,13 @@ struct MoreView: View {
         .sheet(isPresented: $showingPersonalSettings) {
             NavigationStack {
                 List { personalSection }
-                    .settingsSurface()
+                    .moreSettingsSurface()
                     .appPageHeader(String(localized: "Konto"))
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(String(localized: "Fertig")) { showingPersonalSettings = false }
+                        }
+                    }
             }
             .themed(store, palettes: palettes)
             .environment(\.appearanceBackgroundOwned, false)
@@ -190,8 +195,13 @@ struct MoreView: View {
         .sheet(isPresented: $showingNotificationSettings) {
             NavigationStack {
                 List { notificationSettingsSection }
-                    .settingsSurface()
+                    .moreSettingsSurface()
                     .appPageHeader(String(localized: "Mitteilungen"))
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(String(localized: "Fertig")) { showingNotificationSettings = false }
+                        }
+                    }
             }
             .themed(store, palettes: palettes)
             .environment(\.appearanceBackgroundOwned, false)
@@ -305,12 +315,10 @@ struct MoreView: View {
 
     private var mainSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 6) {
                 RootPageTitle(title: screen.title,
                               subtitle: String(localized: "Deine Einstellungen an einem Ort"))
-
-                moreStatusHero
-                proSection
+                    .padding(.horizontal, -Theme.Metrics.gutter)
 
                 moreHubGroup(title: String(localized: "Verwalten")) {
                     pageRow(MoreRoute.appearance,
@@ -370,12 +378,17 @@ struct MoreView: View {
                             symbol: "lock.shield",
                             identifier: "open-about")
                 }
+                proSection
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance + Theme.Metrics.gutter)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear
+                .frame(height: ChromeLayout.nativeTabBarClearance)
+                .accessibilityHidden(true)
+        }
         .settingsChrome()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
@@ -391,12 +404,7 @@ struct MoreView: View {
         let snapshot = StatsEngine.snapshot(habits: tracked)
         return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(accentColor)
-                    .frame(width: 36, height: 36)
-                    .background(accentColor.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                moreIcon("checkmark.circle.fill")
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Dein Überblick"))
                         .font(.headline.weight(.semibold))
@@ -427,11 +435,20 @@ struct MoreView: View {
             }
             .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
+        .morePanel()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("more-status-hero")
+    }
+
+    private func moreIcon(_ symbol: String, tint: Color? = nil) -> some View {
+        let color = tint ?? accentColor
+        return Image(systemName: symbol)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(color)
+            .frame(width: 32, height: 32)
+            .background(color.opacity(0.11), in: Circle())
     }
 
     private var accentColor: Color {
@@ -451,15 +468,15 @@ struct MoreView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.footnote.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-            VStack(spacing: 0) {
-                content()
-            }
-            .padding(.horizontal, 8)
-            .appSurface()
+                .padding(.horizontal, 14)
+            VStack(spacing: 0) { content() }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 4)
+                .morePanel()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func moreHubRow(title: String,
@@ -469,19 +486,15 @@ struct MoreView: View {
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(accentColor)
-                    .frame(width: Theme.Metrics.glyph,
-                           height: Theme.Metrics.glyph)
+                moreIcon(symbol)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body.weight(.medium))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -499,11 +512,7 @@ struct MoreView: View {
         HStack(spacing: 12) {
             Button { onOpen(.github) } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(accentColor)
-                        .frame(width: Theme.Metrics.glyph,
-                               height: Theme.Metrics.glyph)
+                    moreIcon("chevron.left.forwardslash.chevron.right")
                     VStack(alignment: .leading, spacing: 2) {
                         Text(String(localized: "GitHub"))
                             .font(.body.weight(.medium))
@@ -536,18 +545,14 @@ struct MoreView: View {
 
     private var moreCloudRow: some View {
         HStack(spacing: 12) {
-            Image(systemName: cloudStatus.state.systemImage)
-                .font(.body.weight(.medium))
-                .foregroundStyle(moreCloudColor)
-                .frame(width: Theme.Metrics.glyph,
-                       height: Theme.Metrics.glyph)
+            moreIcon(cloudStatus.state.systemImage, tint: moreCloudColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "iCloud"))
                     .font(.body.weight(.medium))
                 Text(cloudStatus.state.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -646,19 +651,29 @@ struct MoreView: View {
 
     private var appearanceSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            VStack(alignment: .leading, spacing: 20) {
                 appearanceSection
                     .padding(Theme.Metrics.cardPadding)
-                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
+                    .morePanel()
+                backgroundControl
+                    .padding(Theme.Metrics.cardPadding)
+                    .morePanel()
                 paletteSection
                     .padding(Theme.Metrics.cardPadding)
-                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
-                compactModeSection
+                    .morePanel()
+                iconAppearanceSection
                     .padding(Theme.Metrics.cardPadding)
-                    .appSurface(cornerRadius: Theme.Metrics.cardRadius)
+                    .morePanel()
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    moreSubsectionLabel(String(localized: "Verhalten"))
+                    compactModeSection
+                }
+                .padding(Theme.Metrics.cardPadding)
+                .morePanel()
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.vertical, Theme.Metrics.cardPadding)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -667,13 +682,27 @@ struct MoreView: View {
 
     private var habitBehaviorSettings: some View {
         List {
-            timeZoneSection.settingsRowSurface()
-            autoArchiveSection.settingsRowSurface()
-            swipeActionsSection.settingsRowSurface()
-            notificationActionsSection.settingsRowSurface()
-            calendarSection.settingsRowSurface()
+            timeZoneSection.moreSettingsSection()
+            autoArchiveSection.moreSettingsSection()
+            swipeActionsSection.moreSettingsSection()
+            notificationActionsSection.moreSettingsSection()
+            calendarSection.moreSettingsSection()
         }
-        .settingsSurface()
+        .moreSettingsSurface()
+    }
+
+    private var morePageRule: some View {
+        Divider()
+            .opacity(0.7)
+            .padding(.vertical, 4)
+    }
+
+    private func moreSubsectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.tertiary)
+            .textCase(.uppercase)
+            .tracking(0.7)
     }
 
     private var autoArchiveSection: some View {
@@ -711,7 +740,6 @@ struct MoreView: View {
         HabitTimeZoneList(selection: defaultTimeZoneBinding,
                           inheritedLabel: String(localized: "Gerätezeitzone"),
                           allowsDeviceOverride: false)
-            .settingsSurface()
             .appPageHeader(String(localized: "Standardzeitzone"))
     }
 
@@ -1245,7 +1273,7 @@ struct MoreView: View {
                 }
             }
         }
-        .settingsSurface()
+        .moreSettingsSurface()
     }
 
     private func selectCalendar(_ id: String?) {
@@ -1545,10 +1573,6 @@ struct MoreView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
-            Text(String(localized: "Darstellung"))
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
             HStack(spacing: Theme.Metrics.gap) {
                 Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
                 Spacer(minLength: Theme.Metrics.gap)
@@ -1591,16 +1615,17 @@ struct MoreView: View {
                 Label(String(localized: "Performance-Modus"), systemImage: "speedometer")
             }
             .accessibilityIdentifier("performance-mode-toggle")
+        }
+    }
 
-                backgroundControl
+    private var iconAppearanceSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Toggle(isOn: graphShowsMonthLabels) {
+                Label(String(localized: "Monate anzeigen"), systemImage: "calendar")
+            }
+            .accessibilityIdentifier("graph-month-labels-toggle")
 
-                Toggle(isOn: graphShowsMonthLabels) {
-                    Label(String(localized: "Monate anzeigen"),
-                          systemImage: "calendar")
-                }
-                .accessibilityIdentifier("graph-month-labels-toggle")
-
-                Toggle(isOn: matchIconBinding) {
+            Toggle(isOn: matchIconBinding) {
                 HStack(alignment: .center, spacing: Theme.Metrics.gap) {
                     Image(systemName: "app.badge")
                         .font(.body.weight(.semibold))
@@ -2322,26 +2347,24 @@ struct MoreView: View {
             onOpen(route)
         } label: {
             HStack(spacing: Theme.Metrics.gap + 4) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palettes.style))
-                    .frame(width: Theme.Metrics.glyph,
-                           height: Theme.Metrics.glyph)
-                Text(title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
-                if let badge {
-                    Text(badge)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                moreIcon(symbol)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let badge {
+                        Text(badge)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .frame(minHeight: Theme.Metrics.hit)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
@@ -2401,7 +2424,7 @@ struct MoreView: View {
                     .foregroundStyle(.secondary)
                     .textCase(nil)
             }
-            .settingsRowSurface()
+            .moreSettingsSection()
             .listRowInsets(moreRowInsets)
 
             Section {
@@ -2410,7 +2433,7 @@ struct MoreView: View {
                     .padding(.horizontal, Theme.Metrics.cardPadding)
                     .padding(.vertical, Theme.Metrics.gap)
             }
-            .settingsRowSurface()
+            .moreSettingsSection()
             .listRowInsets(moreRowInsets)
 
             Section {
@@ -2419,7 +2442,7 @@ struct MoreView: View {
                     .padding(.horizontal, Theme.Metrics.cardPadding)
                     .padding(.vertical, Theme.Metrics.gap)
             }
-            .settingsRowSurface()
+            .moreSettingsSection()
             .listRowInsets(moreRowInsets)
 
             Section {
@@ -2428,7 +2451,7 @@ struct MoreView: View {
                     .padding(.horizontal, Theme.Metrics.cardPadding)
                     .padding(.vertical, Theme.Metrics.gap)
             }
-            .settingsRowSurface()
+            .moreSettingsSection()
             .listRowInsets(moreRowInsets)
         }
     }
@@ -3005,12 +3028,12 @@ struct AboutView: View {
                 Text(String(localized: "Dein Alltag als Contribution-Graph."))
                     .font(.subheadline)
             }
-            .settingsListRow()
+            .moreSettingsSection()
             Section(String(localized: "Datenschutz")) {
                 Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
                     .font(.subheadline)
             }
-            .settingsListRow()
+            .moreSettingsSection()
             Section {
                 Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
                     get: { shakeToReport },
@@ -3029,14 +3052,14 @@ struct AboutView: View {
                     }))
                     .accessibilityIdentifier("shake-to-report-toggle")
             }
-            .settingsListRow()
+            .moreSettingsSection()
             Section {
                 versionRow
                 if developerAvailable { developerRow }
             }
-            .settingsListRow()
+            .moreSettingsSection()
         }
-        .settingsSurface()
+        .moreSettingsSurface()
         .appPageHeader(String(localized: "Über"))
         .onAppear {
             shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled

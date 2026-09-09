@@ -1138,6 +1138,7 @@ private struct MultipleDatePickerSheet: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("multiple-date-picker")
             }
+            .settingsSurface()
             .onChange(of: selectedMonth) { _, _ in
                 selectedDay = min(selectedDay, validDays.last ?? selectedDay)
             }

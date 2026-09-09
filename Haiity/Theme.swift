@@ -990,9 +990,9 @@ enum Theme {
         /// Spacing between independently interactive settings rows. The
         /// default grouped-list spacing is too compressed with custom glass
         /// backgrounds, so all settings screens use this shared value.
-        static let settingsRowGap: CGFloat = 10
+        static let settingsRowGap: CGFloat = 4
         /// Breathing room between settings groups.
-        static let settingsSectionGap: CGFloat = 18
+        static let settingsSectionGap: CGFloat = 24
         /// Seitenrand von Liste und Chrom.
         static let gutter: CGFloat = 16
         /// Breathing room above a root page's scrollable title.
@@ -1038,6 +1038,7 @@ struct RootPageTitle: View {
     var compact: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .largeTitle) private var titleHeight: CGFloat = 76
 
     var body: some View {
         GeometryReader { proxy in
@@ -1048,14 +1049,12 @@ struct RootPageTitle: View {
                     .font(compact
                           ? .title2.weight(.bold)
                           : .largeTitle.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let subtitle, !compact {
                     Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -1067,7 +1066,7 @@ struct RootPageTitle: View {
             .blur(radius: reduceMotion ? 0 : progress * 0.2)
             .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
-        .frame(height: compact ? 44 : 64)
+        .frame(height: compact ? 44 : titleHeight)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -1182,6 +1181,23 @@ extension View {
         modifier(SettingsSurfaceModifier())
     }
 
+    /// More uses the same grouped form rhythm as creation and utility sheets.
+    func moreSettingsSurface() -> some View {
+        modifier(MoreSettingsSurfaceModifier())
+    }
+
+    /// Material-backed rows with consistent control insets.
+    func moreSettingsSection() -> some View {
+        modifier(MoreSettingsSectionModifier())
+    }
+
+    /// A compact panel used by the More hub and its non-List editors. It
+    /// keeps the selected appearance material while giving the page a clear
+    /// rhythm between functional groups.
+    func morePanel() -> some View {
+        modifier(MorePanelModifier())
+    }
+
     /// iOS 27 can ignore a list-wide row background on grouped lists. Attach
     /// the same surface to the Section that owns the rows so the selected
     /// material is applied at the actual cell boundary.
@@ -1192,6 +1208,7 @@ extension View {
 
     func settingsRowSurface() -> some View {
         listRowBackground(SettingsRowSurface())
+            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
     }
 
     /// Chrome for settings screens that are not backed by a `List` or `Form`.
@@ -1540,6 +1557,52 @@ private struct SettingsSurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         listSurface(content).settingsChrome()
+    }
+}
+
+private struct MoreSettingsSurfaceModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.appearanceBackgroundOwned) private var appearanceBackgroundOwned
+
+    func body(content: Content) -> some View {
+        let list = content
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowSpacing(0)
+            .softScrollEdges()
+            .listSectionSpacing(Theme.Metrics.settingsSectionGap)
+            .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
+
+        if appearanceBackgroundOwned {
+            list.settingsChrome()
+        } else {
+            list
+                .background(AppearanceBackground(preferences: appearancePreferences))
+                .settingsChrome()
+        }
+    }
+}
+
+private struct MoreSettingsSectionModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowInsets(EdgeInsets(top: 12,
+                                      leading: Theme.Metrics.gutter,
+                                      bottom: 12,
+                                      trailing: Theme.Metrics.gutter))
+            .listRowBackground(SettingsRowSurface())
+            .listRowSeparator(.hidden)
+    }
+}
+
+private struct MorePanelModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background { SettingsRowSurface() }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                        style: .continuous))
     }
 }
 

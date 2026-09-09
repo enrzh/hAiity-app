@@ -358,9 +358,9 @@ um nach einem Widget-Schreibvorgang neu zu laden).
 ## Offene Punkte in App Store Connect
 
 - App Store Connect metadata, IAP setup, age rating, categories, pricing,
-  export compliance, review notes, and the screenshot upload still need to be
-  entered in ASC. The current API and web sessions are unauthenticated, so
-  those external fields are intentionally not claimed as complete.
+  export compliance, review notes, and screenshot uploads still need a final
+  submission audit. The web session was authenticated on September 9, 2026
+  for TestFlight verification; those other fields were not reverified.
 - Support URL: `https://aiity.de`. Privacy URL:
   `https://enrzh.github.io/hAiity/privacy.html`.
 - IAP: `com.aiity.haiity.pro`, non-consumable, Family Sharing disabled, local
@@ -370,9 +370,11 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
   `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
   validation errors or warnings.
-- The repository currently targets build `163` for both the app and widget
-  extension. No App Store Connect upload was performed for this release audit;
-  processing status and attachment to the 1.0.0 version remain unverified.
+- The repository targets build `166` for both the app and widget extension.
+  TestFlight build `165` was verified as processed on September 9, 2026.
+  Build `166` contains the shared page/settings styling update; its upload
+  and processing must be verified separately from preparation of this commit.
+  Attachment to the App Store 1.0.0 submission remains unverified.
 - Die App ist iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`, nur Hochformat),
   Ziel `MARKETING_VERSION 1.0.0`.
 
