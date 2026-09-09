@@ -824,8 +824,8 @@ final class AppearanceSettingTests: XCTestCase {
         let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
 
         XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".background("),
-                      "More groups should use quiet grouped surfaces")
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
+                      "More groups and the overview should use the shared material surface")
         XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
     }
 

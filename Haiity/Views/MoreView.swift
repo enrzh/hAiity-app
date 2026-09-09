@@ -390,8 +390,14 @@ struct MoreView: View {
     private var moreStatusHero: some View {
         let tracked = store.activeTrackedHabits
         let snapshot = StatsEngine.snapshot(habits: tracked)
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(accentColor)
+                    .frame(width: 36, height: 36)
+                    .background(accentColor.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Dein Überblick"))
                         .font(.headline.weight(.semibold))
@@ -401,10 +407,7 @@ struct MoreView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 8)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(accentColor)
+                Spacer(minLength: 0)
             }
 
             HStack(spacing: 0) {
@@ -412,11 +415,6 @@ struct MoreView: View {
                 moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
                 moreMetric(String(snapshot.streak), title: String(localized: "Serie"))
             }
-            .padding(.vertical, 13)
-            .padding(.horizontal, 12)
-            .background(accentColor.opacity(colorScheme == .dark ? 0.13 : 0.08),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
             HStack(spacing: 8) {
                 Image(systemName: cloudStatus.state.systemImage)
                     .font(.caption.weight(.semibold))
@@ -430,9 +428,9 @@ struct MoreView: View {
             }
             .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 4)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("more-status-hero")
     }
@@ -454,22 +452,14 @@ struct MoreView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.caption2.weight(.bold))
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .textCase(.uppercase)
+                .padding(.horizontal, 2)
             VStack(spacing: 0) {
                 content()
             }
-            .padding(.horizontal, 4)
-            .background(
-                Color.primary.opacity(colorScheme == .dark ? 0.055 : 0.028),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.065),
-                                  lineWidth: 0.6)
-            }
+            .padding(.horizontal, 8)
+            .appSurface()
         }
     }
 
