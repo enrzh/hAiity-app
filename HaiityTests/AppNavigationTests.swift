@@ -301,8 +301,8 @@ final class AppNavigationTests: XCTestCase {
                       "UIKit must be told the final preview size")
         XCTAssertTrue(githubCard.contains("previewHeight:"),
                       "the GitHub graph must opt into the stable preview height")
-        XCTAssertTrue(habitCard.contains("contextPreviewHeight: CGFloat = 300"),
-                      "the enlarged habit graph must leave room for its full grid")
+        XCTAssertTrue(habitCard.contains("contextPreviewHeight: CGFloat = 160"),
+                      "the enlarged habit graph must use a compact stable fallback height")
     }
 
     func testMonthlyAndYearlyEditorUsesDateAndOptionalMultipleDaysOnly() throws {

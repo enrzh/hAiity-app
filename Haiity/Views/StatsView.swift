@@ -637,8 +637,8 @@ struct StatsView: View {
     /// Each stats shape gets its own preview height. A single hero-sized
     /// height made the compact tiles look like blank sliding panels.
     private let statsHeroPreviewHeight: CGFloat = 180
-    private let statsTilePreviewHeight: CGFloat = 92
-    private let statsRowPreviewHeight: CGFloat = 180
+    private let statsTilePreviewHeight: CGFloat = 104
+    private let statsRowPreviewHeight: CGFloat = 116
 
     private var statsContextActions: [GraphMenuAction] {
         [GraphMenuAction(title: String(localized: "Statistik anpassen"),
@@ -673,15 +673,12 @@ struct StatsView: View {
     private func statsPreview<Content: View>(_ content: Content,
                                              height: CGFloat) -> AnyView {
         let surfaced = AnyView(content
-                .padding(Theme.Metrics.cardPadding)
-                .frame(width: statsPreviewWidth,
-                       alignment: .topLeading)
-                .frame(minHeight: height, alignment: .topLeading)
+                .padding(16)
+                .frame(width: statsPreviewWidth, alignment: .topLeading)
                 .appSurface())
 
-        // The preview itself owns the outer surface. Keep the final frame
-        // flexible so UIKit measures the complete card rather than clipping
-        // a tall graph or adding a larger shadow-bearing container.
+        // The preview owns one surface and only reserves the compact height
+        // needed by UIKit. Its content remains free to grow for Dynamic Type.
         let framed = AnyView(surfaced
             .frame(width: statsPreviewWidth, alignment: .topLeading)
             .frame(minHeight: height, alignment: .topLeading)

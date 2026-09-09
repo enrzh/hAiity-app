@@ -415,7 +415,7 @@ struct HabitCard: View, Equatable {
     /// A context-menu preview is hosted outside the list's layout tree. Keep
     /// its vertical proposal stable so UIKit cannot collapse the graph to the
     /// action row while SwiftUI is still measuring it.
-    static let contextPreviewHeight: CGFloat = 300
+    static let contextPreviewHeight: CGFloat = 160
     /// Rand zwischen Vorschau und Bildschirmkante.
     static let previewMargin: CGFloat = 16
     /// Untergrenze für sehr schmale Fenster (Slide-Over).
@@ -467,19 +467,37 @@ struct HabitCard: View, Equatable {
     }
 
     private var habitPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if !habit.emoji.isEmpty { Text(habit.emoji).font(.title3) }
-                Text(habit.name)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                if habit.streak(today: today, calendar: calendar) > 0 {
-                    (Text(Image(systemName: "flame.fill")) +
-                     Text(verbatim: " \(habit.streak(today: today, calendar: calendar))"))
-                        .font(.subheadline.monospacedDigit())
+        let snapshot = GridCalendar.snapshot(habit: habit,
+                                             weeks: gridWeeks,
+                                             today: today,
+                                             calendar: calendar)
+        let streak = habit.streak(today: today, calendar: calendar)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                if !habit.emoji.isEmpty {
+                    Text(habit.emoji)
+                        .font(.title3)
+                        .frame(width: 32, height: 32)
+                        .background(Theme.accent(habitStyle).opacity(0.14),
+                                    in: RoundedRectangle(cornerRadius: 9,
+                                                         style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(habit.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(String(localized: "Verlauf"))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                previewMetric(value: snapshot.filledCount,
+                              label: String(localized: "Tage"))
+                if streak > 0 {
+                    previewMetric(value: streak,
+                                  label: String(localized: "Serie"),
+                                  symbol: "flame.fill")
                 }
             }
             ContributionGrid(habit: habit,
@@ -491,7 +509,7 @@ struct HabitCard: View, Equatable {
                              calendar: calendar)
                 .equatable()
         }
-        .padding(Theme.Metrics.gutter)
+        .padding(14)
         .frame(width: previewWidth)
         .appSurface()
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
@@ -502,6 +520,26 @@ struct HabitCard: View, Equatable {
         .environment(\.appearancePreferences, appearancePreferences)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-preview")
+    }
+
+    private func previewMetric(value: Int,
+                               label: String,
+                               symbol: String? = nil) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            HStack(spacing: 3) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.caption2.weight(.semibold))
+                }
+                Text(verbatim: "\(value)")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .foregroundStyle(symbol == "flame.fill" ? .orange : .primary)
+        .accessibilityElement(children: .combine)
     }
 
     /// Die Einträge UNTER der System-Vorschau. Was über den langen Druck
