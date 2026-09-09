@@ -53,7 +53,7 @@ struct ReminderSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .settingsChrome()
-        .navigationChrome()
+        .pageHeaderChrome()
         .onAppear { refreshPermissions() }
     }
 

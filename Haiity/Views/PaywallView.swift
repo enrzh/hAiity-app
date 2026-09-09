@@ -133,6 +133,7 @@ struct PaywallView: View {
                 }
             }
         }
+        .pageHeaderChrome()
         .task { await load() }
     }
 

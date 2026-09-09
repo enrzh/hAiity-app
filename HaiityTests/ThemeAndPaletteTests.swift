@@ -663,8 +663,10 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("func navigationChrome()"))
         XCTAssertTrue(theme.contains("private struct NavigationChromeModifier"))
-        XCTAssertTrue(theme.contains("toolbarBackground(.ultraThinMaterial"),
-                      "liquid navigation chrome must remain blurred")
+        XCTAssertTrue(theme.contains("struct RootPageHeaderBlur: View"),
+                      "the shared header must own the continuous fade blur")
+        XCTAssertTrue(theme.contains(".ultraThinMaterial"),
+                      "the shared header must remain blurred")
         XCTAssertTrue(content.contains(".navigationChrome()"),
                       "all root navigation stacks must use the shared chrome")
     }
@@ -822,7 +824,8 @@ final class AppearanceSettingTests: XCTestCase {
         let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
 
         XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"))
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".background("),
+                      "More groups should use quiet grouped surfaces")
         XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".settingsSurface()"))
     }
 

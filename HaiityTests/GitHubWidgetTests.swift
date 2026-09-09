@@ -408,8 +408,9 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testOverviewCardsPutMetadataOverTheGraph() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        XCTAssertTrue(roster.contains("ZStack(alignment: .bottomLeading)"))
-        XCTAssertTrue(roster.contains(".ultraThinMaterial"))
+        XCTAssertTrue(roster.contains("VStack(alignment: .leading, spacing: 0)"))
+        XCTAssertTrue(roster.contains("metadata(habit: habit"))
+        XCTAssertFalse(roster.contains(".ultraThinMaterial"))
         XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
     }
 

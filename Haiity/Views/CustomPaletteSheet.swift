@@ -57,10 +57,9 @@ struct CustomPaletteSheet: View {
                 .settingsListRow()
             }
             .settingsSurface()
-            .navigationTitle(existing == nil
-                             ? String(localized: "Eigene Farbe")
-                             : String(localized: "Farbe bearbeiten"))
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageHeader(existing == nil
+                           ? String(localized: "Eigene Farbe")
+                           : String(localized: "Farbe bearbeiten"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Abbrechen")) { dismiss() }

@@ -46,8 +46,7 @@ struct GitHubSettingsView: View {
             .settingsListRow()
         }
         .settingsSurface()
-        .navigationTitle(Text(verbatim: "GitHub"))
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageHeader("GitHub")
         .onAppear {
             copyCode(store.deviceCode)
             Task { await store.resumeOrRefresh(forced: true) }

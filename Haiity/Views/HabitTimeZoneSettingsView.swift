@@ -115,8 +115,7 @@ struct HabitTimeZoneSheet: View {
             HabitTimeZoneList(selection: $selection,
                               inheritedLabel: inheritedLabel,
                               allowsDeviceOverride: true)
-                .navigationTitle(String(localized: "Zeitzone"))
-                .navigationBarTitleDisplayMode(.inline)
+                .appPageHeader(String(localized: "Zeitzone"))
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button(String(localized: "Fertig")) { dismiss() }

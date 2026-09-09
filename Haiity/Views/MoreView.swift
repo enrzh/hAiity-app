@@ -160,7 +160,7 @@ struct MoreView: View {
         // A presented More screen must not reuse the previous screen's view tree.
         .id(screen)
         .navigationTitle(screen == .main ? "" : screen.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(screen == .main ? .inline : .large)
         .toolbar {
             if screen == .main {
                 ToolbarItem(placement: .principal) {
@@ -169,6 +169,7 @@ struct MoreView: View {
                 }
             }
         }
+        .pageHeaderChrome(visible: screen != .main)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -181,8 +182,7 @@ struct MoreView: View {
             NavigationStack {
                 List { personalSection }
                     .settingsSurface()
-                    .navigationTitle(String(localized: "Konto"))
-                    .navigationBarTitleDisplayMode(.inline)
+                    .appPageHeader(String(localized: "Konto"))
             }
             .themed(store, palettes: palettes)
             .environment(\.appearanceBackgroundOwned, false)
@@ -192,8 +192,7 @@ struct MoreView: View {
             NavigationStack {
                 List { notificationSettingsSection }
                     .settingsSurface()
-                    .navigationTitle(String(localized: "Mitteilungen"))
-                    .navigationBarTitleDisplayMode(.inline)
+                    .appPageHeader(String(localized: "Mitteilungen"))
             }
             .themed(store, palettes: palettes)
             .environment(\.appearanceBackgroundOwned, false)
@@ -307,8 +306,9 @@ struct MoreView: View {
 
     private var mainSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                RootPageTitle(title: screen.title)
+            VStack(alignment: .leading, spacing: 20) {
+                RootPageTitle(title: screen.title,
+                              subtitle: String(localized: "Deine Einstellungen an einem Ort"))
 
                 moreStatusHero
                 proSection
@@ -373,7 +373,7 @@ struct MoreView: View {
                 }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance + Theme.Metrics.gutter)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -390,15 +390,9 @@ struct MoreView: View {
     private var moreStatusHero: some View {
         let tracked = store.activeTrackedHabits
         let snapshot = StatsEngine.snapshot(habits: tracked)
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(accentColor)
-                    .frame(width: 36, height: 36)
-                    .background(accentColor.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(String(localized: "Dein Überblick"))
                         .font(.headline.weight(.semibold))
                     Text(tracked.isEmpty
@@ -407,7 +401,10 @@ struct MoreView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(accentColor)
             }
 
             HStack(spacing: 0) {
@@ -415,6 +412,10 @@ struct MoreView: View {
                 moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
                 moreMetric(String(snapshot.streak), title: String(localized: "Serie"))
             }
+            .padding(.vertical, 13)
+            .padding(.horizontal, 12)
+            .background(accentColor.opacity(colorScheme == .dark ? 0.13 : 0.08),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             HStack(spacing: 8) {
                 Image(systemName: cloudStatus.state.systemImage)
@@ -423,15 +424,15 @@ struct MoreView: View {
                 Text(cloudStatus.state.title)
                     .font(.caption.weight(.medium))
                 Spacer(minLength: 0)
-                Text(unlocked ? String(localized: "Pro aktiv") : String(localized: "Free"))
+                Text(unlocked ? String(localized: "Pro aktiv") : String(localized: "Kostenlos"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(unlocked ? accentColor : .secondary)
             }
             .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("more-status-hero")
     }
@@ -453,14 +454,22 @@ struct MoreView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.footnote.weight(.semibold))
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
+                .padding(.horizontal, 4)
+                .textCase(.uppercase)
             VStack(spacing: 0) {
                 content()
             }
-            .padding(.horizontal, 8)
-            .appSurface()
+            .padding(.horizontal, 4)
+            .background(
+                Color.primary.opacity(colorScheme == .dark ? 0.055 : 0.028),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.065),
+                                  lineWidth: 0.6)
+            }
         }
     }
 
@@ -472,7 +481,7 @@ struct MoreView: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(.medium))
                     .foregroundStyle(accentColor)
                     .frame(width: Theme.Metrics.glyph,
                            height: Theme.Metrics.glyph)
@@ -490,7 +499,7 @@ struct MoreView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .frame(minHeight: 58)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
@@ -502,7 +511,7 @@ struct MoreView: View {
             Button { onOpen(.github) } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.body.weight(.semibold))
+                        .font(.body.weight(.medium))
                         .foregroundStyle(accentColor)
                         .frame(width: Theme.Metrics.glyph,
                                height: Theme.Metrics.glyph)
@@ -533,13 +542,13 @@ struct MoreView: View {
                 .accessibilityIdentifier("disconnect-github")
             }
         }
-        .frame(minHeight: 58)
+        .frame(minHeight: 52)
     }
 
     private var moreCloudRow: some View {
         HStack(spacing: 12) {
             Image(systemName: cloudStatus.state.systemImage)
-                .font(.body.weight(.semibold))
+                .font(.body.weight(.medium))
                 .foregroundStyle(moreCloudColor)
                 .frame(width: Theme.Metrics.glyph,
                        height: Theme.Metrics.glyph)
@@ -553,7 +562,7 @@ struct MoreView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minHeight: 58)
+        .frame(minHeight: 52)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("icloud-status")
     }
@@ -713,9 +722,8 @@ struct MoreView: View {
         HabitTimeZoneList(selection: defaultTimeZoneBinding,
                           inheritedLabel: String(localized: "Gerätezeitzone"),
                           allowsDeviceOverride: false)
-            .navigationTitle(String(localized: "Standardzeitzone"))
-            .navigationBarTitleDisplayMode(.inline)
             .settingsSurface()
+            .appPageHeader(String(localized: "Standardzeitzone"))
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -1239,8 +1247,7 @@ struct MoreView: View {
                     }
                 }
             }
-            .navigationTitle(String(localized: "Kalenderziel"))
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageHeader(String(localized: "Kalenderziel"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Abbrechen")) {
@@ -3041,8 +3048,7 @@ struct AboutView: View {
             .settingsListRow()
         }
         .settingsSurface()
-        .navigationTitle(String(localized: "Über"))
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageHeader(String(localized: "Über"))
         .onAppear {
             shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled
             developerAvailable = DeveloperAccess.isAvailable(

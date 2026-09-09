@@ -91,17 +91,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
     }
 
-    func testNativeRootPagesUseSharedCenteredScrollingTitles() throws {
+    func testNativeRootPagesUseSharedLeadingScrollingTitles() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
 
-        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\"))"),
-                      "the habits root list needs the shared centered title")
-        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\"))"),
-                      "the stats root list needs the shared centered title")
-        XCTAssertTrue(more.contains("RootPageTitle(title: screen.title)"),
-                      "the Mehr root list needs the shared centered title")
+        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\"),"),
+                      "the habits root list needs the shared leading title")
+        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\"),"),
+                      "the stats root list needs the shared leading title")
+        XCTAssertTrue(more.contains("RootPageTitle(title: screen.title,"),
+                      "the Mehr root list needs the shared leading title")
         XCTAssertTrue(content.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
         XCTAssertTrue(stats.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
         XCTAssertTrue(more.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
@@ -113,8 +113,8 @@ final class AppNavigationTests: XCTestCase {
                        "the habits root must have one visible title owner")
         XCTAssertFalse(stats.contains(".navigationTitle(String(localized: \"Statistik\"))"),
                        "the stats root must have one visible title owner")
-        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(.inline)"),
-                      "Mehr subpages should keep the compact native title treatment")
+        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(screen == .main ? .inline : .large)"),
+                      "Mehr should use the compact root title and large secondary titles")
         XCTAssertTrue(more.contains("screen == .main ? \"\" : screen.title"),
                       "the Mehr root must hide the native title while subpages keep theirs")
 
@@ -130,6 +130,28 @@ final class AppNavigationTests: XCTestCase {
         let moreTab = content[start.lowerBound..<end.lowerBound]
         XCTAssertFalse(moreTab.contains(".navigationTitle(String(localized: \"Mehr\"))"),
                        "the root Mehr title must have one owner")
+    }
+
+    func testSecondaryPagesUseSharedHeaderChrome() throws {
+        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let backfill = try String(contentsOf: sourceURL("Haiity/Views/BackfillCard.swift"))
+        let edit = try String(contentsOf: sourceURL("Haiity/Views/EditHabitSheet.swift"))
+        let paywall = try String(contentsOf: sourceURL("Haiity/Views/PaywallView.swift"))
+        let reminders = try String(contentsOf: sourceURL("Haiity/Views/ReminderSetupView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+
+        XCTAssertTrue(theme.contains("func pageHeaderChrome()"))
+        XCTAssertTrue(theme.contains("func pageHeaderChrome(visible: Bool)"))
+        XCTAssertTrue(theme.contains("private struct PageHeaderChromeModifier"))
+        XCTAssertTrue(content.contains(".pageHeaderChrome()"),
+                      "Search should use the shared header chrome")
+        XCTAssertTrue(backfill.contains(".pageHeaderChrome()"))
+        XCTAssertTrue(edit.contains(".pageHeaderChrome()"))
+        XCTAssertTrue(paywall.contains(".pageHeaderChrome()"))
+        XCTAssertTrue(reminders.contains(".pageHeaderChrome()"))
+        XCTAssertTrue(more.contains(".pageHeaderChrome(visible: screen != .main)"),
+                      "the More hub must reuse the shared header without duplicating its root veil")
     }
 
     func testRootPagesHandOffToCenteredCompactTitles() throws {
@@ -216,8 +238,8 @@ final class AppNavigationTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("var performanceMode: Bool"))
         XCTAssertTrue(theme.contains("performanceMode"))
-        XCTAssertTrue(theme.contains("if preferences.performanceMode"),
-                      "performance mode must bypass expensive glass rendering")
+        XCTAssertTrue(theme.contains("preferences.performanceMode ? .solid : preferences.material"),
+                      "performance mode must bypass expensive glass rendering through the shared material resolver")
         XCTAssertTrue(more.contains("performance-mode-toggle"))
     }
 

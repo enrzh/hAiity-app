@@ -537,7 +537,7 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertTrue(item.contains("summary.metricText"))
         XCTAssertTrue(item.contains("featuredVisualBandHeight"))
         XCTAssertTrue(item.contains("featuredActionBandHeight"))
-        XCTAssertTrue(item.contains("background(.thinMaterial"))
+        XCTAssertTrue(item.contains("widgetTileSurface"))
     }
 
     func testLargeListKeepsActionsBesideTheGraphAndRasterKeepsReadableBands() throws {
@@ -618,10 +618,10 @@ final class WidgetRenderingTests: XCTestCase {
         let dual = try sourceSlice(roster, from: "struct LargeDualWidgetView", to: "struct LargeFocusWidgetView")
 
         XCTAssertTrue(item.contains("var showsSurface: Bool = false"),
-                      "featured widgets should default to the native background")
+                      "featured widgets keep an explicit surface switch")
         XCTAssertTrue(item.contains("if showsSurface"))
-        XCTAssertTrue(dual.contains("showsSurface: false"),
-                      "the dual widget should rely on WidgetKit's container background")
+        XCTAssertTrue(dual.contains("showsSurface: true"),
+                      "the dual widget should separate its sibling items subtly")
     }
 
     func testLargeHeaderUsesTodayProgressInsteadOfLargeItemCount() throws {
@@ -661,8 +661,8 @@ final class WidgetRenderingTests: XCTestCase {
         let focusStart = try XCTUnwrap(roster.range(of: "struct LargeFocusWidgetView"))
         let focus = String(roster[focusStart.lowerBound...])
         let item = try sourceSlice(roster, from: "private struct LargeWidgetItem", to: "private extension View")
-        XCTAssertTrue(list.contains("LargeFeaturedWidgetItem(habit: featured, entry: entry)"))
-        XCTAssertTrue(list.contains("LargeFeaturedWidgetItem(habit: featured, entry: entry)"))
+        XCTAssertTrue(list.contains("LargeFeaturedWidgetItem(habit: featured, entry: entry, showsSurface: true)"))
+        XCTAssertTrue(list.contains("LargeFeaturedWidgetItem(habit: featured, entry: entry, showsSurface: true)"))
         XCTAssertTrue(item.contains("if graph && habit.isReminder"),
                       "featured reminders must render timing in the middle region")
         XCTAssertTrue(item.contains("TrailingGrid(habit: habit, maxWeeks: 53"),
@@ -1042,6 +1042,23 @@ final class WidgetRenderingTests: XCTestCase {
             .content(family: .systemMedium, dark: false, mode: .vibrant)
             .frame(width: 332, height: 155),
                    to: "haiity-github-medium-vibrant.png")
+    }
+
+    func testRegisteredLargeWidgetRendersTheCurrentDualComposition() throws {
+        let content = HaiityWidgetView(entry: .demoLarge)
+            .content(family: .systemLarge, dark: false)
+            .frame(width: 332, height: 356)
+        let light = try render(content.background(Color.white),
+                               to: "haiity-registered-large.png")
+        let dark = try render(content
+            .environment(\.colorScheme, .dark)
+            .background(Color.black),
+                               to: "haiity-registered-large-dark.png")
+        for image in [light, dark] {
+            XCTAssertEqual(image.cgImage.map { CGSize(width: $0.width, height: $0.height) },
+                           CGSize(width: 664, height: 712))
+            XCTAssertGreaterThan(visiblePixelCount(image), 20)
+        }
     }
 
     func testDedicatedGraphWidgetsRenderTheLargeFamilyWithInset() throws {

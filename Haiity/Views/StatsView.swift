@@ -87,19 +87,37 @@ struct StatsView: View {
         .navigationChrome()
     }
 
-    /// Ohne Habits keine Nullen-Wand: das Raster-Motiv und EIN Satz.
+    /// Ohne Habits keine Nullen-Wand: derselbe Titelrahmen wie auf der vollen
+    /// Seite, danach das Raster-Motiv und EIN Satz.
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            RampSwatch(style: palettes.style, dark: dark, size: 16)
-            Text(String(localized: "Noch keine Habits"))
-                .font(.title3.bold())
-            Text(String(localized: "Lege deinen ersten Eintrag an."))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+        ScrollView {
+            VStack(spacing: 12) {
+                RootPageTitle(title: String(localized: "Statistik"),
+                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                Spacer(minLength: 72)
+                RampSwatch(style: palettes.style, dark: dark, size: 16)
+                Text(String(localized: "Noch keine Habits"))
+                    .font(.title3.bold())
+                Text(String(localized: "Lege deinen ersten Eintrag an."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                Spacer(minLength: 160)
+            }
+            .frame(maxWidth: .infinity, minHeight: 520)
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .coordinateSpace(.named(RootPageTitle.coordinateSpace))
+        .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
+            if let progress { rootTitleProgress = progress }
+        }
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: rootTitleProgress)
+        }
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -108,7 +126,8 @@ struct StatsView: View {
         let activeCards = viewPreferences.statsCards.active
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                RootPageTitle(title: String(localized: "Statistik"))
+                RootPageTitle(title: String(localized: "Statistik"),
+                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
 
                 statsTodayCard(snapshot)
 
@@ -166,28 +185,41 @@ struct StatsView: View {
     private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         let total = snapshot.todayTotal
         let done = snapshot.todayDone
-        return HStack(spacing: Theme.Metrics.cardPadding + 4) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(String(localized: "Heute"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                if total == 0 {
-                    Text(String(localized: "Kein Habit fällig"))
-                        .font(.title2.weight(.bold))
-                } else {
-                    Text("\(done)/\(total)")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
-                        .contentTransition(.numericText())
+        let open = max(total - done, 0)
+        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: Theme.Metrics.cardPadding + 4) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "Heute"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if total == 0 {
+                        Text(String(localized: "Kein Habit fällig"))
+                            .font(.title2.weight(.bold))
+                    } else {
+                        Text("\(done)/\(total)")
+                            .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
+                            .contentTransition(.numericText())
+                    }
+                    Text(statsTodaySentence(snapshot))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(statsTodaySentence(snapshot))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                segmentedRing(done: done, total: total, size: 72, line: 8)
             }
-            Spacer(minLength: 8)
-            segmentedRing(done: done, total: total, size: 76, line: 8)
+
+            Divider()
+                .opacity(0.55)
+
+            HStack(spacing: 0) {
+                statsTodayMetric(value: "\(open)", title: String(localized: "Offen"))
+                statsTodayMetric(value: "\(snapshot.streak)", title: String(localized: "Aktuelle Serie"))
+                statsTodayMetric(value: "\(weekPercent)%", title: String(localized: "Diese Woche"))
+            }
         }
-        .padding(18)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
         .accessibilityElement(children: .ignore)
@@ -196,6 +228,19 @@ struct StatsView: View {
                             ? String(localized: "Kein Habit fällig")
                             : String(localized: "\(done) von \(total) erledigt"))
         .accessibilityIdentifier("stats-today-summary")
+    }
+
+    private func statsTodayMetric(value: String, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .bold).monospacedDigit())
+                .lineLimit(1)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func statsTodaySentence(_ snapshot: StatsEngine.Snapshot) -> String {
@@ -272,12 +317,13 @@ struct StatsView: View {
                                  cards: [StatsCard]) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
                             GridItem(.flexible(), spacing: 1)],
-                  spacing: 1) {
+                  spacing: 0) {
             ForEach(cards) { card in
                 statsMetric(card, snapshot: snapshot)
                     .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
-                    .padding(Theme.Metrics.cardPadding)
-                    .frame(maxWidth: .infinity, minHeight: 74, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 15)
+                    .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(statsMetricTitle(card))
                     .accessibilityValue(statsMetricValue(card, snapshot: snapshot))
@@ -290,8 +336,6 @@ struct StatsView: View {
                     }
             }
         }
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous))
         .appSurface()
         .accessibilityIdentifier("stats-metrics")
     }
@@ -299,21 +343,23 @@ struct StatsView: View {
     @ViewBuilder
     private func statsMetric(_ card: StatsCard,
                              snapshot: StatsEngine.Snapshot) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: statsMetricSymbol(card))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(statsMetricColor(card, snapshot: snapshot))
-                .frame(width: 28, height: 28)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(statsMetricValue(card, snapshot: snapshot))
-                    .font(.headline.weight(.bold).monospacedDigit())
-                    .lineLimit(1)
-                Text(statsMetricTitle(card))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Image(systemName: statsMetricSymbol(card))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(statsMetricColor(card, snapshot: snapshot))
+                    .frame(width: 28, height: 28)
+                    .background(Color.primary.opacity(0.1),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Spacer(minLength: 0)
             }
+            Text(statsMetricValue(card, snapshot: snapshot))
+                .font(.system(.title3, design: .rounded, weight: .bold).monospacedDigit())
+                .lineLimit(1)
+            Text(statsMetricTitle(card))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -499,8 +545,7 @@ struct StatsView: View {
                 .settingsListRow()
             }
             .settingsSurface()
-            .navigationTitle(String(localized: "Statistik anpassen"))
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageHeader(String(localized: "Statistik anpassen"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(String(localized: "Fertig")) {
@@ -591,7 +636,7 @@ struct StatsView: View {
     /// Each stats shape gets its own preview height. A single hero-sized
     /// height made the compact tiles look like blank sliding panels.
     private let statsHeroPreviewHeight: CGFloat = 180
-    private let statsTilePreviewHeight: CGFloat = 124
+    private let statsTilePreviewHeight: CGFloat = 92
     private let statsRowPreviewHeight: CGFloat = 180
 
     private var statsContextActions: [GraphMenuAction] {
@@ -603,7 +648,7 @@ struct StatsView: View {
     private func statsContextMenu(id: String,
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
-        -> GraphContextMenu {
+        -> some View {
         GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                          previewWidth: statsPreviewWidth,
                          previewHeight: height,
@@ -621,6 +666,7 @@ struct StatsView: View {
                                  activeContextMenuID = nil
                              }
                          })
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func statsPreview<Content: View>(_ content: Content,

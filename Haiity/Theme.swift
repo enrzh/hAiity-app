@@ -1034,6 +1034,7 @@ struct RootPageTitle: View {
     static let coordinateSpace = "haiity.root-page-scroll"
 
     let title: String
+    var subtitle: String? = nil
     var compact: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1042,17 +1043,29 @@ struct RootPageTitle: View {
         GeometryReader { proxy in
             let offset = proxy.frame(in: .named(Self.coordinateSpace)).minY
             let progress = min(max(-offset / 52, 0), 1)
-            Text(title)
-                .font(compact ? .title2.weight(.bold) : .largeTitle.weight(.bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: compact ? .leading : .center)
-                .padding(.horizontal, compact ? Theme.Metrics.gutter + 4 : 0)
-                .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.28)
-                .offset(y: reduceMotion ? 0 : -progress * 8)
-                .opacity(1 - progress)
-                .blur(radius: reduceMotion ? 0 : progress * 0.25)
-                .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
+            VStack(alignment: .leading, spacing: subtitle == nil ? 0 : 3) {
+                Text(title)
+                    .font(compact
+                          ? .title2.weight(.bold)
+                          : .largeTitle.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let subtitle, !compact {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.08,
+                         anchor: .leading)
+            .offset(y: reduceMotion ? 0 : -progress * 7)
+            .opacity(1 - progress)
+            .blur(radius: reduceMotion ? 0 : progress * 0.2)
+            .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
         .frame(height: compact ? 44 : 64)
         .accessibilityAddTraits(.isHeader)
@@ -1088,33 +1101,50 @@ struct RootPageCompactTitle: View {
     }
 }
 
-/// A single, quiet header veil shared by the root pages. Its strength follows
-/// the same scroll progress as the compact title, so the large title never
-/// competes with the system navigation chrome or a bright wallpaper.
+/// A single, quiet header veil shared by every scrolling page. The material is
+/// strongest behind the status and navigation chrome, then dissolves into the
+/// page so there is no hard horizontal band below the title.
 struct RootPageHeaderBlur: View {
     let progress: CGFloat
     @Environment(\.appearancePreferences) private var appearancePreferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
-            if Theme.effectiveMaterial(appearancePreferences) == .solid {
-                Rectangle().fill(Color(.systemBackground))
-            } else {
-                Rectangle().fill(.ultraThinMaterial)
+        ZStack(alignment: .top) {
+            Group {
+                if Theme.effectiveMaterial(appearancePreferences) == .solid {
+                    Rectangle().fill(Color(.systemBackground))
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
+                }
             }
-        }
             .mask {
-                LinearGradient(colors: [.black, .black.opacity(0.72), .clear],
-                               startPoint: .top,
-                               endPoint: .bottom)
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.28),
+                        .init(color: .black.opacity(0.62), location: 0.62),
+                        .init(color: .black.opacity(0.16), location: 0.84),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom)
             }
-            .frame(height: 92)
-            // The veil is continuous: the top stays readable over any
-            // wallpaper and the mask fades into the page instead of appearing
-            // only after the large title has started moving.
-            .blur(radius: reduceMotion ? 0 : 1.5)
-            .opacity(reduceMotion ? 1 : 0.88)
+            .blur(radius: reduceMotion ? 0 : 1.6)
+
+            LinearGradient(
+                colors: [Color(.systemBackground).opacity(0.08), .clear],
+                startPoint: .top,
+                endPoint: .bottom)
+                .mask {
+                    LinearGradient(colors: [.black, .clear],
+                                   startPoint: .top,
+                                   endPoint: .bottom)
+                }
+        }
+            .frame(height: 132)
+            .opacity(reduceMotion ? 1 : 0.94 - progress * 0.05)
+            .ignoresSafeArea(edges: .top)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -1176,6 +1206,28 @@ extension View {
     /// a custom background, which is especially visible over an image.
     func navigationChrome() -> some View {
         modifier(NavigationChromeModifier())
+    }
+
+    /// Header veil for pages whose title is owned by NavigationStack. The
+    /// modifier is separate from `appPageHeader` so modal flows can keep their
+    /// compact title while still sharing the same continuous blur and fade.
+    func pageHeaderChrome() -> some View {
+        modifier(PageHeaderChromeModifier(isVisible: true))
+    }
+
+    /// Conditional form used by screens that sometimes own a scrolling title
+    /// themselves (for example the More hub and its secondary pages). Keeping
+    /// the visibility decision in the shared modifier prevents a second veil
+    /// from being painted when the page already has root chrome.
+    func pageHeaderChrome(visible: Bool) -> some View {
+        modifier(PageHeaderChromeModifier(isVisible: visible))
+    }
+
+    /// Applies the same large-title and continuous fade used by full settings
+    /// pages. Keeping this in one modifier prevents individual screens from
+    /// drifting back to an opaque or inline navigation header.
+    func appPageHeader(_ title: String) -> some View {
+        modifier(AppPageHeaderModifier(title: title))
     }
 
     /// Keep scroll edges soft wherever a page meets navigation or bottom
@@ -1492,33 +1544,38 @@ private struct SettingsSurfaceModifier: ViewModifier {
 }
 
 private struct NavigationChromeModifier: ViewModifier {
-    @Environment(\.appearancePreferences) private var preferences
+    func body(content: Content) -> some View {
+        // The page owns the continuous fade. A visible toolbar background
+        // adds a second opaque band and makes the header look cut in half.
+        content.toolbarBackground(.hidden, for: .navigationBar)
+    }
+}
+
+/// Shared navigation treatment for full pages that are backed by a List or
+/// Form. Root tabs use `RootPageTitle` because their title scrolls with the
+/// content; these pages use the native large title with the same fading veil.
+private struct AppPageHeaderModifier: ViewModifier {
+    let title: String
 
     func body(content: Content) -> some View {
-        if preferences.performanceMode {
-            content
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-        } else {
-            switch Theme.effectiveMaterial(preferences) {
-        case .solid:
-            content
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-        case .milky:
-            content
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(.regularMaterial, for: .navigationBar)
-        case .liquid:
-            content
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        case .adaptive:
-            content
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(.regularMaterial, for: .navigationBar)
+        content
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.large)
+            .pageHeaderChrome()
+    }
+}
+
+private struct PageHeaderChromeModifier: ViewModifier {
+    let isVisible: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .background(alignment: .top) {
+                if isVisible {
+                    RootPageHeaderBlur(progress: 1)
+                }
             }
-        }
     }
 }
 

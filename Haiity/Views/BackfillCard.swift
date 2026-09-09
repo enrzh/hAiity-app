@@ -85,6 +85,7 @@ struct BackfillCard: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .pageHeaderChrome()
         .accessibilityIdentifier("backfill-card")
         .onAppear {
             let initial = DayKey.date(from: day, calendar: calendar) ?? range.upperBound

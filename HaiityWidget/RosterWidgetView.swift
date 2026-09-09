@@ -92,7 +92,25 @@ struct RosterWidgetView: View {
         let summary = WidgetLogic.summary(habit: habit, today: today, calendar: calendar)
         let cellPalette = entry.palettes.style(for: habit)
         return GeometryReader { geometry in
-            ZStack(alignment: .bottomLeading) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Link(destination: HaiityWidgetLink.habits) {
+                        Text(verbatim: habit.name)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    Spacer(minLength: 4)
+                    Link(destination: HaiityWidgetLink.habits) {
+                        metadata(habit: habit, summary: summary,
+                                 palette: cellPalette, dark: dark)
+                    }
+                    actionButtons(habit, summary: summary,
+                                  palette: cellPalette, dark: dark)
+                }
+                .frame(height: 22)
+
                 Link(destination: HaiityWidgetLink.habits) {
                     if habit.isReminder {
                         Label(summary.metricText, systemImage: "bell.fill")
@@ -105,38 +123,15 @@ struct RosterWidgetView: View {
                             HomeWidgetInk.level(level, mode: mode, dark: dark,
                                                 palette: cellPalette)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Link(destination: HaiityWidgetLink.habits) {
-                            Text(verbatim: habit.name)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.primary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 4)
-                        actionButtons(habit, summary: summary,
-                                      palette: cellPalette, dark: dark)
-                    }
-                    .frame(height: geometry.size.height < 80 ? 22 : 28)
-                    Spacer(minLength: 0)
-                    Link(destination: HaiityWidgetLink.habits) {
-                        metadata(habit: habit, summary: summary,
-                                 palette: cellPalette, dark: dark)
-                    }
-                }
-                .padding(6)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Theme.accentText(cellPalette).opacity(0.2), lineWidth: 0.5)
-            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .frame(width: geometry.size.width, height: geometry.size.height,
+                   alignment: .topLeading)
+            .widgetTileSurface(palette: cellPalette, dark: dark, mode: mode, radius: 8)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -207,14 +202,8 @@ struct RosterWidgetView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .foregroundStyle(statusTint(summary.status, palette: cellPalette, dark: dark))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5)
-        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func statusTint(_ status: WidgetStatus,
@@ -477,8 +466,9 @@ private struct LargeFeaturedWidgetItem: View {
         .frame(height: WidgetLogic.LargeGeometry.featuredListHeight, alignment: .topLeading)
 
         if showsSurface {
-            card.background(.thinMaterial,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            card.widgetTileSurface(palette: palette,
+                                   dark: scheme == .dark,
+                                   mode: mode)
         } else {
             card
         }
@@ -613,7 +603,7 @@ struct LargeListWidgetView: View {
                     .frame(height: WidgetLogic.LargeGeometry.featuredListHeaderHeight)
                 Color.clear.frame(height: WidgetLogic.LargeGeometry.featuredListHeaderGap)
                 if let featured = entry.largeItems.first {
-                    LargeFeaturedWidgetItem(habit: featured, entry: entry)
+                    LargeFeaturedWidgetItem(habit: featured, entry: entry, showsSurface: true)
                 }
                 VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.compactListRowGap) {
                     ForEach(entry.largeItems.dropFirst().prefix(3)) { habit in
@@ -642,7 +632,7 @@ struct LargeDualWidgetView: View {
             } else {
                 ForEach(entry.largeItems.prefix(2)) { habit in
                     LargeFeaturedWidgetItem(habit: habit, entry: entry, maxWeeks: 24,
-                                            showsSurface: false)
+                                            showsSurface: true)
                 }
             }
         }

@@ -79,8 +79,6 @@ private struct AppearanceStylePreview: View {
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(\.appearancePreferences, previewPreferences)
-            .appSurface(cornerRadius: 12)
-            .padding(10)
         }
         .frame(height: 112)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -161,6 +159,13 @@ private struct MaterialOptionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.primary.opacity(isSelected ? 0.075 : 0.025),
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected
+                                  ? Color.accentColor.opacity(0.35)
+                                  : Color.primary.opacity(0.06),
+                                  lineWidth: 0.6)
+            }
         }
         .buttonStyle(.plain)
         .settingsRowSurface()
@@ -183,7 +188,13 @@ private struct MaterialOptionCard: View {
         .padding(7)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.appearancePreferences, preferences.withMaterial(material))
-        .appSurface(cornerRadius: 10)
+        .background(Color(.secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.accentColor.opacity(material == .solid ? 0.035 : 0.06))
+                .allowsHitTesting(false)
+        }
     }
 }
 

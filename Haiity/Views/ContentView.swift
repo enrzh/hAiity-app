@@ -720,6 +720,7 @@ struct ContentView: View {
                                 isPresented: $searching,
                                 prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
                     .searchFocused($searchFieldFocused)
+                    .pageHeaderChrome()
                 }
             }
         }
@@ -743,9 +744,6 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
-        .overlay(alignment: .top) {
-            RootPageHeaderBlur(progress: 1)
-        }
     }
 
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
@@ -1309,7 +1307,8 @@ struct ContentView: View {
         ScrollViewReader { proxy in
             GeometryReader { viewport in
                 List {
-                    RootPageTitle(title: String(localized: "Habits"))
+                    RootPageTitle(title: String(localized: "Habits"),
+                                  subtitle: String(localized: "Dein Rhythmus in einem Blick"))
                         .id("habit-list-title")
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -1400,6 +1399,7 @@ struct ContentView: View {
         // leiste behält ihr System-Glas.
         .scrollContentBackground(.hidden)
         .contentMargins(.top, 8, for: .scrollContent)
+        .contentMargins(.bottom, Theme.Metrics.gap, for: .scrollContent)
         .softScrollEdges()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .coordinateSpace(.named(Self.listSpace))

@@ -46,7 +46,7 @@ struct ArchiveView: View {
             }
         }
         .settingsSurface()
-        .navigationTitle(String(localized: "Archiv"))
+        .appPageHeader(String(localized: "Archiv"))
         .alert(String(localized: "Endgültig löschen?"),
                isPresented: Binding(
                    get: { pendingDelete != nil },

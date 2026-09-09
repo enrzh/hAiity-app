@@ -86,8 +86,7 @@ struct DeveloperView: View {
             ownerSection.settingsListRow()
         }
         .settingsSurface()
-        .navigationTitle(String(localized: "Entwickler"))
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageHeader(String(localized: "Entwickler"))
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in

@@ -274,8 +274,9 @@ struct EditHabitSheet: View {
             }
             .settingsSurface()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(existing == nil ? String(localized: "Neuer Habit") : String(localized: "Bearbeiten"))
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageHeader(existing == nil
+                           ? String(localized: "Neuer Habit")
+                           : String(localized: "Bearbeiten"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if asPage {
@@ -1161,6 +1162,7 @@ private struct MultipleDatePickerSheet: View {
                 }
             }
         }
+        .pageHeaderChrome()
         .confirmationDialog(String(localized: "Datum löschen?"),
                             isPresented: $showingDeleteConfirmation) {
             Button(String(localized: "Löschen"), role: .destructive) {

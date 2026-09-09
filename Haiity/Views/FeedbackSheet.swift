@@ -71,8 +71,7 @@ struct FeedbackSheet: View {
                 muteSection.settingsListRow()
             }
             .settingsSurface()
-            .navigationTitle(String(localized: "Fehler melden"))
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageHeader(String(localized: "Fehler melden"))
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(String(localized: "Abbrechen")) { dismiss() }

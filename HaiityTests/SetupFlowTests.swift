@@ -116,8 +116,8 @@ final class SetupFlowTests: XCTestCase {
 
         XCTAssertTrue(setup.contains("@Environment(\\.accessibilityReduceMotion)"),
                       "setup paging must honor the system motion setting")
-        XCTAssertTrue(setup.contains(".navigationChrome()"),
-                      "setup navigation must keep the selected header material")
+        XCTAssertTrue(setup.contains(".pageHeaderChrome()"),
+                      "setup navigation must keep the shared fading header material")
         XCTAssertTrue(setup.contains("withAnimation(reduceMotion ? nil"),
                       "next-page movement must stop animating when motion is reduced")
         XCTAssertTrue(setup.contains(".animation(reduceMotion ? nil"),

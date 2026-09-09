@@ -26,6 +26,44 @@ struct LargeGridWidgetView: View {
     }
 }
 
+/// A quiet item surface shared by large widget compositions. WidgetKit already
+/// supplies the outer container, so this is only a low-contrast separation
+/// between sibling items, never a second card inside the widget.
+struct WidgetTileSurfaceModifier: ViewModifier {
+    let palette: PaletteStyle
+    let dark: Bool
+    let mode: WidgetRenderingMode
+    var radius: CGFloat = 12
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background {
+                if mode == .fullColor {
+                    shape.fill(Color.primary.opacity(dark ? 0.08 : 0.035))
+                } else {
+                    shape.fill(Color.white.opacity(0.08))
+                }
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(Color.primary.opacity(dark ? 0.10 : 0.06), lineWidth: 0.5)
+            }
+    }
+}
+
+extension View {
+    func widgetTileSurface(palette: PaletteStyle,
+                           dark: Bool,
+                           mode: WidgetRenderingMode,
+                           radius: CGFloat = 12) -> some View {
+        modifier(WidgetTileSurfaceModifier(palette: palette,
+                                            dark: dark,
+                                            mode: mode,
+                                            radius: radius))
+    }
+}
+
 private struct LargeGridItem: View {
     let habit: Habit
     let entry: HaiityEntry
@@ -111,11 +149,7 @@ private struct LargeGridItem: View {
                 .frame(height: WidgetLogic.LargeGeometry.gridActionBandHeight)
         }
         .padding(WidgetLogic.LargeGeometry.gridItemPadding)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Theme.accentText(palette).opacity(0.16), lineWidth: 0.5)
-        }
+        .widgetTileSurface(palette: palette, dark: scheme == .dark, mode: mode)
     }
 
     private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
@@ -196,8 +230,8 @@ struct TrailingGrid: View {
 /// leuchtenden Teil der Rampe. Sperrbildschirm-Widgets verwenden weiter
 /// `WidgetInk`.
 enum HomeWidgetInk {
-    static let lightBackgroundOpacity = 0.08
-    static let darkBackgroundOpacity = 0.16
+    static let lightBackgroundOpacity = 0.025
+    static let darkBackgroundOpacity = 0.05
 
     static func mappedLevel(_ level: Int) -> Int {
         if level == Habit.Answer.declinedLevel { return level }
