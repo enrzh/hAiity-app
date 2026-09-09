@@ -43,6 +43,7 @@ struct GitHubSettingsView: View {
         Section {
             VStack(alignment: .leading, spacing: 0) {
                 connectionStatusRow
+                contributionPreview
                 Divider()
                     .padding(.leading, 44)
                     .padding(.vertical, 4)
@@ -239,21 +240,39 @@ struct GitHubSettingsView: View {
                         .font(.body.weight(.medium))
                         .lineLimit(1)
                 }
-                Text(statusSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
                 if case .connected = store.phase,
                    let snapshot = store.snapshot {
                     Text(snapshot.fetchedAt, style: .relative)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                } else {
+                    Text(statusSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var contributionPreview: some View {
+        if case .connected = store.phase,
+           let snapshot = store.snapshot {
+            GitHubContributionGraph(days: snapshot.days,
+                                    weeks: 24,
+                                    showsMonthLabels: false,
+                                    interactive: false,
+                                    palette: palettes.style)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 44)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+                .accessibilityIdentifier("github-settings-preview")
+        }
     }
 
     private var disconnectButton: some View {
