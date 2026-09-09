@@ -370,8 +370,9 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
   `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
   validation errors or warnings.
-- Build 68 was uploaded through Xcode Transporter; its processing status and
-  attachment to the 1.0.0 version still require an authenticated ASC check.
+- The repository currently targets build `163` for both the app and widget
+  extension. No App Store Connect upload was performed for this release audit;
+  processing status and attachment to the 1.0.0 version remain unverified.
 - Die App ist iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`, nur Hochformat),
   Ziel `MARKETING_VERSION 1.0.0`.
 

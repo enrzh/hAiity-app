@@ -129,7 +129,6 @@ struct MoreView: View {
     /// die Schlösser hier trotzdem aufgehen.
     private var unlocked: Bool {
         _ = proStatus.unlocked
-        _ = proStatus.heartbeat
         return Pro.isUnlocked
     }
 

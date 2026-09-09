@@ -69,12 +69,6 @@ enum NotificationDNDPresentation {
     static let symbolName = "moon.zzz.fill"
 }
 
-enum ReminderSetup {
-    static let completedKey = "reminder-setup-completed"
-
-    static func shouldPresent(completed: Bool) -> Bool { !completed }
-}
-
 /// Ein geplanter Weckruf als reine DATEN — ohne
 /// `UNUserNotificationCenter`. Als Wert ist die Entscheidung prüfbar, ohne
 /// dass ein Test dem Benachrichtigungssystem eine Berechtigung vorspielen

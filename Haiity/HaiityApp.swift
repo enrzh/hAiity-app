@@ -97,7 +97,7 @@ struct HaiityApp: App {
                 startupSplashVisible = true
                 startupContentMounted = true
                 restartStartupBackgroundPrewarm()
-                Task { await Pro.refresh(mayDowngrade: true) }
+                Task { await Pro.refresh() }
             }
             .onDisappear {
                 cancelStartupBackgroundPrewarm()
@@ -106,7 +106,7 @@ struct HaiityApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                Task { await Pro.refresh(mayDowngrade: true) }
+                Task { await Pro.refresh() }
                 HabitSessionManager.shared.recoverIfNeeded()
                 if startupSplashVisible {
                     restartStartupBackgroundPrewarm()

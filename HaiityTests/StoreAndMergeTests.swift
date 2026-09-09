@@ -764,13 +764,3 @@ final class ReminderGateTests: XCTestCase {
         XCTAssertFalse(NotificationPromptPreference.isSuppressed(in: defaults))
     }
 }
-
-final class ReminderSetupTests: XCTestCase {
-    func testIncompleteSetupIsPresented() {
-        XCTAssertTrue(ReminderSetup.shouldPresent(completed: false))
-    }
-
-    func testCompletedSetupIsNotPresentedAgain() {
-        XCTAssertFalse(ReminderSetup.shouldPresent(completed: true))
-    }
-}

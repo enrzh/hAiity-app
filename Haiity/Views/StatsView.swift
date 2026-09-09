@@ -41,7 +41,6 @@ struct StatsView: View {
     /// kommen. Genau dann darf die Statistik nicht gesperrt stehen bleiben.
     private var unlocked: Bool {
         _ = proStatus.unlocked
-        _ = proStatus.heartbeat
         return Pro.isUnlocked
     }
 

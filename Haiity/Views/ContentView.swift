@@ -173,7 +173,7 @@ struct ContentView: View {
     /// The store retains the complete payload; the current entitlement decides
     /// which active entries the main app exposes.
     private var visibleActiveHabits: [Habit] {
-        _ = proStatus.heartbeat
+        _ = proStatus.unlocked
         return ProGate.visibleActiveHabits(store.activeHabits,
                                            unlocked: Pro.isUnlocked)
     }
@@ -372,7 +372,6 @@ struct ContentView: View {
                 #if DEBUG
                 if let fixtureStore = DesignFixture.makeStore() {
                     store = fixtureStore
-                    UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
                     Pro.setDebugUnlocked(true)
                     searchPresentationArmed = true
                     handleLaunchScreenArgument()
@@ -2701,14 +2700,6 @@ struct ContentView: View {
                 }
             }
         }
-        if args.contains("-seed-stats") {
-            // The stats UI regression must reach Stats on a clean simulator;
-            // do not let first-run notification setup hide the rendered cards.
-            UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
-        }
-        if args.contains("-seed-reminder-interactions") {
-            UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)
-        }
         // Nur Debug: `-pro on|off` schaltet den Kauf-Merker ohne Kauf — sonst
         // wäre kein Gate im Simulator prüfbar. Der Haken klemmt den Zustand
         // fest (siehe Pro.setDebugUnlocked): dieser Aufruf steht NACH
@@ -3017,10 +3008,9 @@ struct ContentView: View {
         let needsNativeSyncRecovery = NativeSyncInstallation.prepare()
         // Kauf-Zustand: der Lauscher zuerst (er muss stehen, BEVOR StoreKit
         // eine ausstehende Transaktion meldet — sonst geht sie verloren).
-        // Der Bestandsabgleich hängt am App-Lifecycle, damit auch ein
-        // abgelaufener Anspruch beim Vordergrundwechsel wieder gesperrt wird.
+        // The lifecycle refresh is upgrade-only unless StoreKit has provided
+        // an authoritative transaction update or a successful restore.
         Pro.startTransactionListener()
-        Pro.startEntitlementMonitor()
         viewPreferences.onChange = {
             store.setViewPreferences(viewPreferences.preferences)
             NotificationPresenter.configureQuickActions(
@@ -3083,9 +3073,6 @@ struct ContentView: View {
             }
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
-        }
-        if ReminderSetup.shouldPresent(completed: UserDefaults.standard.bool(forKey: ReminderSetup.completedKey)) {
-            showReminderSetup = true
         }
     }
 

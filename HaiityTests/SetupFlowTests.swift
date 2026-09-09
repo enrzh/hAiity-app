@@ -48,6 +48,26 @@ final class SetupFlowTests: XCTestCase {
             .appendingPathComponent(relative))
     }
 
+    func testFreshLaunchStartsWithHabitCreationNotPermissionSetup() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let setup = try source("Haiity/Views/ReminderSetupView.swift")
+        let more = try source("Haiity/Views/MoreView.swift")
+        let bootStart = try XCTUnwrap(content.range(of: "private func boot() async"))
+        let bootEnd = try XCTUnwrap(content.range(of: "private func rescheduleReminders() async",
+                                                   range: bootStart.upperBound..<content.endIndex))
+        let boot = String(content[bootStart.lowerBound..<bootEnd.lowerBound])
+
+        XCTAssertTrue(content.contains("add-first-habit"))
+        XCTAssertFalse(boot.contains("showReminderSetup = true"),
+                       "a fresh launch must stay on the habit creation loop")
+        XCTAssertFalse(boot.contains("requestAccess()"))
+        XCTAssertFalse(boot.contains("ensurePermission()"))
+        XCTAssertFalse(content.contains("ReminderSetup.shouldPresent"))
+        XCTAssertFalse(setup.contains("completedKey"))
+        XCTAssertTrue(more.contains("ReminderSetupView"),
+                      "notification setup must remain reachable from More")
+    }
+
     /// Beide Auftritte nutzen DASSELBE Raster — Leerzustand und Einrichtung
     /// driften sonst auseinander.
     func testEmptyStateAndSetupShareTheMotifGrid() throws {

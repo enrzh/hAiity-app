@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Der Einrichtungs-Bildschirm für Mitteilungen — einmal beim ersten Start,
-/// später erreichbar über Mehr → „Erinnerungen einrichten".
+/// Der Einrichtungs-Bildschirm für Mitteilungen — erreichbar über Mehr →
+/// „Erinnerungen einrichten", aber bewusst nicht Teil des ersten Starts.
 ///
 /// Drei Seiten statt einer Wand: das Motiv (gestaffelt aufgebaut, wie im
 /// Leerzustand), die Zusammenfassungen mit ihren Schaltern, dann der große
@@ -16,7 +16,6 @@ struct ReminderSetupView: View {
     @Binding var isPresented: Bool
     let store: HabitStore
 
-    @AppStorage(ReminderSetup.completedKey) private var completed = false
     @State private var dailyEnabled = true
     @State private var weeklyEnabled = true
     @State private var denied = false
@@ -397,7 +396,6 @@ struct ReminderSetupView: View {
     }
 
     private func finish() {
-        completed = true
         isPresented = false
     }
 }

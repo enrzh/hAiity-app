@@ -24,13 +24,6 @@ final class ProStatus {
     /// Schreiben darf nur `Pro` (siehe `Pro.cache`).
     fileprivate(set) var unlocked: Bool
     fileprivate(set) var expirationDate: Date?
-    /// Changes while the entitlement monitor is alive so views re-evaluate a
-    /// cached expiration at the moment it passes without needing a restart.
-    private(set) var heartbeat = Date()
-
-    fileprivate func markHeartbeat() {
-        heartbeat = .now
-    }
 
     private init() {
         let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -89,8 +82,6 @@ enum Pro {
     }
 
     private static var listener: Task<Void, Never>?
-    private static var entitlementMonitor: Task<Void, Never>?
-    private static let entitlementPollInterval: Duration = .seconds(15)
 
     /// Zählt jede ECHTE Zustandsänderung. `refresh()` läuft über ein `await`
     /// und schreibt sein Ergebnis danach zurück — trifft in diesem Fenster
@@ -155,12 +146,13 @@ enum Pro {
     /// Bestand prüfen: was steht heute auf diesem Konto? Zurückgezogene oder
     /// über Family Sharing erhaltene Käufe zählen nicht als eigener Kauf.
     ///
-    /// - Parameter mayDowngrade: Nur nach einem nachweislich erfolgreichen
-    ///   `AppStore.sync()` wahr. Ohne diese Zusage darf eine leere Aufzählung
-    ///   nichts bedeuten: sie ist beim Start ohne Netz genauso leer wie auf
-    ///   einem Gerät, das den Kauf wirklich nicht hat — und ein Merker, den
-    ///   der erste Start am Morgen löscht, ist keine Wahrheit, sondern eine
-    ///   zweite Kaufaufforderung an jemanden, der schon bezahlt hat.
+    /// - Parameter mayDowngrade: Nur nach einer autoritativen StoreKit-Aussage
+    ///   wahr: einer verifizierten Transaktionsmeldung oder einem erfolgreichen
+    ///   `AppStore.sync()`. Ohne diese Zusage darf eine leere Aufzählung nichts
+    ///   bedeuten: sie ist beim Start ohne Netz genauso leer wie auf einem
+    ///   Gerät, das den Kauf wirklich nicht hat — und ein Merker, den der erste
+    ///   Start am Morgen löscht, ist keine Wahrheit, sondern eine zweite
+    ///   Kaufaufforderung an jemanden, der schon bezahlt hat.
     static func refresh(mayDowngrade: Bool = false) async {
         let generation = writeGeneration
         var unlocked = false
@@ -233,26 +225,6 @@ enum Pro {
         #endif
         writeGeneration &+= 1
         cache(false)
-    }
-
-    /// StoreKit emits revocations promptly, but a process can miss an update
-    /// while suspended. Re-check the current entitlement while the app is
-    /// alive so a revoked purchase relocks observed surfaces without waiting
-    /// for a new launch. The guard makes this safe to call from every boot
-    /// path and from previews/tests.
-    static func startEntitlementMonitor() {
-        guard entitlementMonitor == nil else { return }
-        entitlementMonitor = Task { @MainActor in
-            while !Task.isCancelled {
-                ProStatus.shared.markHeartbeat()
-                await refresh(mayDowngrade: true)
-                do {
-                    try await Task.sleep(for: entitlementPollInterval)
-                } catch {
-                    break
-                }
-            }
-        }
     }
 
     /// Das Produkt für die Kaufseite (echter Preis in echter Währung —

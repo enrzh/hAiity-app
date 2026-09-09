@@ -337,34 +337,28 @@ final class ProGateTests: XCTestCase {
         }
     }
 
-    func testAppRefreshesProWithDowngradePermissionOnLaunchAndForeground() throws {
+    func testAppRefreshesProWithoutUnsafeDowngradeOnLaunchAndForeground() throws {
         let app = try source("Haiity/HaiityApp.swift")
 
-        XCTAssertEqual(app.components(separatedBy: "Task { await Pro.refresh(mayDowngrade: true) }").count - 1,
+        XCTAssertEqual(app.components(separatedBy: "Task { await Pro.refresh() }").count - 1,
                        2,
                        "launch and foreground must both re-check the current entitlement")
         XCTAssertTrue(app.contains("case .active:"))
-        XCTAssertTrue(app.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
+        XCTAssertFalse(app.contains("mayDowngrade: true"),
+                       "lifecycle reads must not erase cached offline Pro access")
     }
 
-    func testAppBootStartsContinuousProEntitlementMonitoring() throws {
+    func testAppUsesTransactionListenerWithoutContinuousEntitlementPolling() throws {
         let content = try source("Haiity/Views/ContentView.swift")
         let pro = try source("Haiity/Models/ProEntitlement.swift")
 
-        XCTAssertTrue(content.contains("Pro.startEntitlementMonitor()"),
-                      "the monitor must start with the app's existing StoreKit listener")
-        XCTAssertTrue(pro.contains("static func startEntitlementMonitor()"),
-                      "Pro needs an idempotent active entitlement monitor")
-        XCTAssertTrue(pro.contains("entitlementMonitor == nil"),
-                      "boot must not create duplicate monitor tasks")
-        XCTAssertTrue(pro.contains("Task.sleep(for: entitlementPollInterval)"),
-                      "the monitor must re-check without requiring an app restart")
-        XCTAssertTrue(pro.contains("entitlementPollInterval: Duration = .seconds(15)"),
-                      "active entitlement changes must be reflected promptly")
-        XCTAssertTrue(pro.contains("try await Task.sleep(for: entitlementPollInterval)"),
-                      "the monitor must use the configured polling interval")
-        XCTAssertTrue(pro.contains("await refresh(mayDowngrade: true)"),
-                      "active checks must be able to relock expired Pro state")
+        XCTAssertTrue(content.contains("Pro.startTransactionListener()"),
+                      "live StoreKit updates must remain active")
+        XCTAssertFalse(content.contains("Pro.startEntitlementMonitor()"))
+        XCTAssertFalse(pro.contains("static func startEntitlementMonitor()"))
+        XCTAssertFalse(pro.contains("entitlementPollInterval"))
+        XCTAssertFalse(pro.contains("Task.sleep(for:"))
+        XCTAssertFalse(pro.contains("heartbeat"))
     }
 
     func testRootRequestsTheProGateWhenAnActiveSessionExpires() throws {
@@ -668,9 +662,9 @@ final class ProGateTests: XCTestCase {
         let pro = try source("Haiity/Models/ProEntitlement.swift")
         XCTAssertTrue(pro.contains("static func refresh(mayDowngrade: Bool = false) async"))
         XCTAssertTrue(pro.contains("guard unlocked || mayDowngrade else { return }"))
-        // Der explizite Restore und der laufende aktive Monitor dürfen nach
-        // einer StoreKit-Antwort herabstufen. Der normale Bestandsabgleich
-        // bleibt weiterhin upgrade-only.
+        // Der explizite Restore und eine verifizierte Transaktionsmeldung
+        // dürfen nach einer StoreKit-Antwort herabstufen. Der normale
+        // Bestandsabgleich bleibt weiterhin upgrade-only.
         XCTAssertGreaterThanOrEqual(pro.components(separatedBy: "mayDowngrade: true").count - 1, 2)
         // Die Erstattung kommt weiterhin über den Lauscher an.
         XCTAssertTrue(pro.contains("transaction.revocationDate"))
@@ -983,8 +977,16 @@ final class ProGateTests: XCTestCase {
             Kernsatz eingetragen ist.
             """)
 
+        // `PaywallContext.headline` is intentionally localized at runtime;
+        // using it here would make the catalog-key check depend on the test
+        // process locale and look for translated values instead of source keys.
         var keys = [core]
-        keys += PaywallContext.allCases.map(\.headline)
+        keys += ["Mehr als drei Habits? Das ist Pro.",
+                 "Eigene Farben? Das ist Pro.",
+                 "Das App-Icon per Farbrad setzen? Das ist Pro.",
+                 "Habits im Kalender? Das ist Pro.",
+                 "Die ganze Statistik? Das ist Pro.",
+                 "Alles freischalten — mit einem einzigen Kauf."]
         keys += ["Käufe wiederherstellen", "Freigeschaltet. Danke.",
                  "Preis wird geladen", "Preis nicht verfügbar",
                  "Kein Kauf abgeschlossen, nichts berechnet."]

@@ -159,8 +159,6 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "the screen route must exercise the production navigation path")
         XCTAssertTrue(content.contains("args.contains(\"-seed-stats\")"),
                       "the UI regression must seed its own stats data")
-        XCTAssertTrue(content.contains("UserDefaults.standard.set(true, forKey: ReminderSetup.completedKey)"),
-                      "the stats seed must bypass first-run setup on a clean simulator")
         XCTAssertTrue(content.contains("store.add(habit)"),
                       "the stats seed must use the store's normal write path")
     }
