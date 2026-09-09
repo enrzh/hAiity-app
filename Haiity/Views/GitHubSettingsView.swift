@@ -264,13 +264,17 @@ struct GitHubSettingsView: View {
     private var contributionPreview: some View {
         if case .connected = store.phase,
            let snapshot = store.snapshot {
-            GitHubContributionGraph(days: snapshot.days,
+            GeometryReader { geometry in
+                GitHubContributionGraph(days: snapshot.days,
                                     weeks: 24,
+                                    cellSize: max(1, (geometry.size.width - 23 * 3) / 24),
+                                    gap: 3,
                                     showsMonthLabels: false,
                                     interactive: false,
                                     palette: palettes.style)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 44)
+            }
+                .aspectRatio(24.0 / 7.0, contentMode: .fit)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .accessibilityIdentifier("github-settings-preview")

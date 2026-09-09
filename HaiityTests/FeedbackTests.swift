@@ -347,10 +347,10 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
     }
 
-    func testFloatingToastsUseLargerTypeAndSharedAppearanceSurface() throws {
+    func testFloatingToastsUseCompactTypeAndSharedAppearanceSurface() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.body)"))
+        XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.subheadline)"))
         XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
         XCTAssertTrue(content.contains(".appSurface(cornerRadius: 999)"))
     }
@@ -678,6 +678,9 @@ final class FeedbackTests: XCTestCase {
         XCTAssertFalse(more.contains("iCloudRow"))
         XCTAssertTrue(more.contains("moreCloudRow"))
         XCTAssertTrue(more.contains("icloud-status"))
+        let hubStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let hubEnd = try XCTUnwrap(more.range(of: "private var moreStatusHero: some View"))
+        XCTAssertFalse(more[hubStart.lowerBound..<hubEnd.lowerBound].contains("moreCloudRow"))
         for verbose in ["Verdichtet die Habit-Liste und die untere Navigation dauerhaft.",
                         "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten.",
                         "Schüttle das iPhone, wenn etwas nicht stimmt:",
@@ -804,7 +807,7 @@ final class FeedbackTests: XCTestCase {
         let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
         let main = more[body.lowerBound..<end.lowerBound]
         let ordered = ["MoreRoute.appearance",
-                       "MoreRoute.habitBehavior", "moreGitHubRow", "moreCloudRow",
+                       "MoreRoute.habitBehavior", "moreGitHubRow",
                        "showingPersonalSettings", "showingNotificationSettings",
                        "showReminderSetup", "pageRow(.archive", "pageRow(.about", "proSection"]
         var cursor = main.startIndex

@@ -1248,11 +1248,6 @@ struct ContentView: View {
     @ViewBuilder
     private var habitFilterMenu: some View {
         Menu {
-            Toggle(isOn: $habitFilter.todayOnly) {
-                Label(String(localized: "Heute"), systemImage: "calendar")
-            }
-                .accessibilityIdentifier("filter-today")
-
             Menu {
                 filterStatusButton(.all, title: String(localized: "Alle"))
                 filterStatusButton(.done, title: String(localized: "Erledigt"))
@@ -2374,7 +2369,7 @@ struct ContentView: View {
         if let toast = undo.current {
             actionToast(label: {
                 Text(toast.message)
-                    .font(.body)
+                    .font(.subheadline)
                     .lineLimit(1)
             }, actionTitle: String(localized: "Rückgängig"),
                          actionIdentifier: "undo-action") {
@@ -2409,15 +2404,16 @@ struct ContentView: View {
             Divider().frame(height: 16)
             Button(action: action) {
                 Text(actionTitle)
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
+                    .frame(minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier(actionIdentifier)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .fixedSize(horizontal: false, vertical: true)
         .modifier(ToastSurface())
     }
 

@@ -28,7 +28,9 @@ struct HabitTimeZoneList: View {
                 } label: {
                     zoneRow(symbol: "arrow.triangle.branch",
                             title: inheritedLabel,
-                            subtitle: String(localized: "Vom Standard übernehmen"),
+                            subtitle: allowsDeviceOverride
+                                ? String(localized: "Vom Standard übernehmen")
+                                : TimeZone.current.identifier,
                             selected: selection == nil)
                 }
                 .buttonStyle(.plain)
@@ -47,7 +49,7 @@ struct HabitTimeZoneList: View {
                     .accessibilityIdentifier("timezone-device")
                 }
             }
-            .moreSettingsSection()
+            .listRowBackground(Color(.secondarySystemGroupedBackground))
 
             Section {
                 ForEach(filteredOptions) { option in
@@ -55,21 +57,23 @@ struct HabitTimeZoneList: View {
                         selection = option.identifier
                     } label: {
                         zoneRow(symbol: "globe",
-                                title: option.name,
-                                subtitle: option.offset + " · " + option.identifier,
+                                title: option.identifier.split(separator: "/").last.map(String.init)?
+                                    .replacingOccurrences(of: "_", with: " ") ?? option.name,
+                                subtitle: option.offset + " · " + option.name,
                                 selected: selection == option.identifier)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(timezoneIdentifier(for: option.identifier))
                 }
             }
-            .moreSettingsSection()
+            .listRowBackground(Color(.secondarySystemGroupedBackground))
         }
         .searchable(text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Zeitzone suchen"))
         .listStyle(.insetGrouped)
         .moreSettingsSurface()
+        .listRowSpacing(0)
     }
 
     private func zoneRow(symbol: String,
@@ -77,17 +81,19 @@ struct HabitTimeZoneList: View {
                          subtitle: String,
                          selected: Bool) -> some View {
         HStack(spacing: Theme.Metrics.gap) {
-            Image(systemName: symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(selected ? Theme.accentText() : .secondary)
-                .frame(width: 28)
+            if symbol != "globe" {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 24)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .foregroundStyle(.primary)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Theme.Metrics.gap)
             if selected {
@@ -97,7 +103,9 @@ struct HabitTimeZoneList: View {
             }
         }
         .contentShape(Rectangle())
+        .frame(minHeight: 44)
         .padding(.vertical, 3)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func timezoneIdentifier(for value: String) -> String {

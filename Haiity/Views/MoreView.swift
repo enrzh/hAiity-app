@@ -169,6 +169,7 @@ struct MoreView: View {
             }
         }
         .pageHeaderChrome(visible: screen != .main)
+        .preferredColorScheme(store.appearance.colorScheme)
         // Farbe und Tint noch einmal: ein Blatt ist eine eigene Präsentation
         // und erbt die Umgebung des Bildschirms darunter nicht (siehe
         // ContentView).
@@ -341,7 +342,6 @@ struct MoreView: View {
                 moreHubGroup(title: String(localized: "Verbindungen")) {
                     moreGitHubRow
                     Divider().padding(.leading, 48)
-                    moreCloudRow
                 }
 
                 moreHubGroup(title: String(localized: "Persönlich")) {
@@ -1576,28 +1576,14 @@ struct MoreView: View {
             HStack(spacing: Theme.Metrics.gap) {
                 Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
                 Spacer(minLength: Theme.Metrics.gap)
-                Menu {
+                Picker(String(localized: "Erscheinungsbild"), selection: appearanceBinding) {
                     ForEach(AppearanceSetting.allCases, id: \.self) { option in
-                        Button {
-                            appearanceBinding.wrappedValue = option
-                        } label: {
-                            HStack {
-                                Text(option.displayName)
-                                Spacer()
-                                if option == store.appearance {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
+                        Text(option.displayName).tag(option)
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(store.appearance.displayName)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(.tint)
                 }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(minHeight: Theme.Metrics.hit)
                 .accessibilityIdentifier("appearance-picker")
             }
             .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
@@ -1621,7 +1607,13 @@ struct MoreView: View {
     private var iconAppearanceSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Toggle(isOn: graphShowsMonthLabels) {
-                Label(String(localized: "Monate anzeigen"), systemImage: "calendar")
+                HStack(spacing: Theme.Metrics.gap) {
+                    Image(systemName: "calendar")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 24)
+                    Text(String(localized: "Monate anzeigen"))
+                }
             }
             .accessibilityIdentifier("graph-month-labels-toggle")
 
@@ -2692,6 +2684,7 @@ struct MoreView: View {
                                           symbol: "arrow.down.circle")
                     }
                     .accessibilityIdentifier("motivation-open-source-toggle")
+                    .padding(.leading, -notificationDetailsInset)
                     if store.openSourceMotivationEnabled {
                         VStack(alignment: .leading, spacing: 4) {
                             // Keep the hit target on the visible label. A

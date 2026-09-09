@@ -115,11 +115,11 @@ final class FollowUpFixTests: XCTestCase {
                       "sorting needs a way to leave edit mode")
     }
 
-    func testTodayFilterUsesAnIconLabel() throws {
+    func testTodayFilterIsNotOfferedInTheMenu() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("Label(String(localized: \"Heute\"), systemImage: \"calendar\")"),
-                      "the Heute filter should have a calendar icon")
+        XCTAssertFalse(content.contains("accessibilityIdentifier(\"filter-today\")"))
+        XCTAssertFalse(content.contains("Toggle(isOn: $habitFilter.todayOnly)"))
     }
 
     func testSetupExposesNativeCalendarAndReminderPermissionActions() throws {

@@ -678,7 +678,7 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"open-stats\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"open-archive\")"))
         XCTAssertTrue(source.contains("String(localized: \"Filter\")"))
-        for label in ["Heute", "Erledigt", "Nicht erledigt", "Erinnerung", "Habit"] {
+        for label in ["Erledigt", "Nicht erledigt", "Erinnerung", "Habit"] {
             XCTAssertTrue(source.contains("String(localized: \"\(label)\")"), label)
         }
     }
