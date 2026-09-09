@@ -1094,9 +1094,10 @@ struct GraphContextMenu: UIViewRepresentable {
         func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
                                     willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
                                     animator: UIContextMenuInteractionCommitAnimating) {
-            let commit = self.commit
             animator.preferredCommitStyle = .dismiss
-            animator.addCompletion { commit() }
+            // Start presenting the editor with the dismissal animation. Waiting
+            // for UIKit's completion makes the preview tap feel unresponsive.
+            commit()
         }
 
         func contextMenuInteraction(_ interaction: UIContextMenuInteraction,

@@ -14,10 +14,16 @@ struct ContributionTiles: View {
     var outline: Color? = nil
     var highlightedCells: Set<ContributionHighlightCell>? = nil
     var highlightBackground: Color? = nil
+    var highlightOutline: Color? = nil
+    var highlightLineWidth: CGFloat = 0
     let level: (Int) -> Color
 
     static func highlightPadding(for gap: CGFloat) -> CGFloat {
         min(2, max(0.75, gap * 0.6))
+    }
+
+    static func highlightBackgroundOpacity(dark: Bool) -> CGFloat {
+        dark ? 0.30 : 0.16
     }
 
     var body: some View {
@@ -35,15 +41,22 @@ struct ContributionTiles: View {
                     var tile = context
                     tile.translateBy(x: padding + CGFloat(column) * (cell + gap),
                                      y: padding + CGFloat(row) * (cell + gap))
-                    if highlightedCells?.contains(position) == true, let highlightBackground {
-                        let backgroundRect = CGRect(x: -padding, y: -padding,
-                                                    width: cell + padding * 2,
-                                                    height: cell + padding * 2)
-                        tile.fill(Path(roundedRect: backgroundRect,
-                                       cornerRadius: radius + padding * 0.5),
-                                  with: .color(highlightBackground))
-                    }
                     tile.fill(shape, with: .color(colors[intensity + 1].opacity(keys[row] == nil ? 0.35 : 1)))
+                    if highlightedCells?.contains(position) == true {
+                        if let highlightBackground {
+                            tile.fill(shape, with: .color(highlightBackground))
+                        }
+                        if let highlightOutline, highlightLineWidth > 0 {
+                            let inset = highlightLineWidth / 2
+                            let selectedRect = CGRect(x: inset, y: inset,
+                                                      width: max(0, cell - highlightLineWidth),
+                                                      height: max(0, cell - highlightLineWidth))
+                            tile.stroke(Path(roundedRect: selectedRect,
+                                             cornerRadius: max(0, radius - inset)),
+                                        with: .color(highlightOutline),
+                                        lineWidth: highlightLineWidth)
+                        }
+                    }
                     if let outline {
                         tile.stroke(shape, with: .color(outline), lineWidth: 0.5)
                     }
@@ -114,7 +127,10 @@ struct ContributionChart: View, Equatable {
                                  outline: Theme.effectiveMaterial(appearancePreferences) == .adaptive
                                     ? Theme.adaptiveTileOutline(preferences: appearancePreferences, dark: dark) : nil,
                                  highlightedCells: highlightedCells,
-                                 highlightBackground: Color.black.opacity(dark ? 0.16 : 0.09)) { value in
+                                 highlightBackground: Theme.accentText(palette).opacity(
+                                    ContributionTiles.highlightBackgroundOpacity(dark: dark)),
+                                 highlightOutline: Color.primary.opacity(dark ? 0.82 : 0.44),
+                                 highlightLineWidth: dark ? 1.1 : 0.8) { value in
             value == 0 ? Color.primary.opacity(dark ? 0.09 : 0.045)
                 : Theme.level(value, dark: dark, palette: palette)
         }

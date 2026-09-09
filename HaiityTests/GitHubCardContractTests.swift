@@ -203,6 +203,12 @@ final class GitHubCardContractTests: XCTestCase {
                        "the compact in-app card should keep chart chrome minimal")
     }
 
+    func testHistoryHighlightIsVisibleInDarkMode() {
+        XCTAssertGreaterThan(ContributionTiles.highlightBackgroundOpacity(dark: true),
+                             ContributionTiles.highlightBackgroundOpacity(dark: false))
+        XCTAssertGreaterThanOrEqual(ContributionTiles.highlightBackgroundOpacity(dark: true), 0.28)
+    }
+
     func testGitHubDisplayOptionsShareOneSettingsGroup() throws {
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
 

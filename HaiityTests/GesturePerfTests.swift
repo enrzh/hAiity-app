@@ -31,12 +31,16 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("showingGraphPreview"))
     }
 
-    /// Der Tipp AUF die Vorschau committet zu Bearbeiten — wie das Öffnen
-    /// eines gehaltenen Links; gehandelt wird erst NACH der Abbau-Animation.
+    /// Der Tipp AUF die Vorschau committet sofort zu Bearbeiten, während UIKit
+    /// das Kontextmenü noch abbaut — dadurch fühlt sich der Editor direkt an.
     func testPreviewTapCommitsToEdit() throws {
         let source = try habitCardSource()
         XCTAssertTrue(source.contains("willPerformPreviewActionForMenuWith"))
-        XCTAssertTrue(source.contains("animator.addCompletion { commit() }"))
+        XCTAssertTrue(source.contains("animator.preferredCommitStyle = .dismiss"))
+        XCTAssertTrue(source.contains("            commit()"),
+                      "the editor request must be sent during the commit callback")
+        XCTAssertFalse(source.contains("animator.addCompletion { commit() }"),
+                       "the editor must not wait for the context-menu dismissal")
         XCTAssertTrue(source.contains("commit: onEdit"))
     }
 
