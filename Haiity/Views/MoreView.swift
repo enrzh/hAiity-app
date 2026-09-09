@@ -2980,45 +2980,22 @@ struct AboutView: View {
     /// owner identity while More is already alive below this page.
     @State private var developerAvailable = false
     @State private var shakeToReport = ShakeToReport.isEnabled
+    @Environment(\.palettes) private var palettes
 
     var body: some View {
-        List {
-            Section(String(localized: "Über hAiity")) {
-                Text(String(localized: "Dein Alltag als Contribution-Graph."))
-                    .font(.subheadline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                aboutHero
+                privacyCard
+                reportCard
+                releaseCard
             }
-            .moreSettingsSection()
-            Section(String(localized: "Datenschutz")) {
-                Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
-                    .font(.subheadline)
-            }
-            .moreSettingsSection()
-            Section {
-                Toggle(String(localized: "Schütteln zum Melden"), isOn: Binding(
-                    get: { shakeToReport },
-                    set: { enabled in
-                        shakeToReport = enabled
-                        ShakeToReport.isEnabled = enabled
-                        store.updateCloudPreferences(
-                            fallback: CloudPreferences(
-                                calendarSyncHabits: CalendarSync.syncHabits,
-                                calendarSyncReminders: CalendarSync.syncReminders,
-                                nativeReminderSync: ReminderSync.isEnabled,
-                                shakeToReportEnabled: ShakeToReport.isEnabled,
-                                notificationDND: NotificationPromptPreference.state)) {
-                            $0.shakeToReportEnabled = enabled
-                        }
-                    }))
-                    .accessibilityIdentifier("shake-to-report-toggle")
-            }
-            .moreSettingsSection()
-            Section {
-                versionRow
-                if developerAvailable { developerRow }
-            }
-            .moreSettingsSection()
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.top, 12)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 20)
         }
-        .moreSettingsSurface()
+        .scrollIndicators(.hidden)
+        .settingsChrome()
         .appPageHeader(String(localized: "Über"))
         .onAppear {
             shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled
@@ -3029,6 +3006,94 @@ struct AboutView: View {
         .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
             shakeToReport = ShakeToReport.isEnabled
         }
+    }
+
+    private var aboutHero: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Image(systemName: "square.grid.3x3.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 54, height: 54)
+                    .background(Theme.accentFill(palettes.style),
+                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                Spacer(minLength: 0)
+                Image(systemName: "checkmark.seal")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(verbatim: "hAiity")
+                    .font(.largeTitle.weight(.bold))
+                Text(String(localized: "Dein Alltag als Contribution-Graph."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .morePanel()
+        .accessibilityElement(children: .combine)
+    }
+
+    private var privacyCard: some View {
+        aboutCard(title: String(localized: "Datenschutz"), symbol: "lock.shield") {
+            Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var reportCard: some View {
+        Toggle(isOn: Binding(
+            get: { shakeToReport },
+            set: { enabled in
+                shakeToReport = enabled
+                ShakeToReport.isEnabled = enabled
+                store.updateCloudPreferences(
+                    fallback: CloudPreferences(
+                        calendarSyncHabits: CalendarSync.syncHabits,
+                        calendarSyncReminders: CalendarSync.syncReminders,
+                        nativeReminderSync: ReminderSync.isEnabled,
+                        shakeToReportEnabled: ShakeToReport.isEnabled,
+                        notificationDND: NotificationPromptPreference.state)) {
+                    $0.shakeToReportEnabled = enabled
+                }
+            })) {
+                Label(String(localized: "Schütteln zum Melden"),
+                      systemImage: "iphone.radiowaves.left.and.right")
+            }
+            .accessibilityIdentifier("shake-to-report-toggle")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 8)
+            .morePanel()
+    }
+
+    private var releaseCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            versionRow
+            if developerAvailable { developerRow }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .morePanel()
+    }
+
+    private func aboutCard<Content: View>(title: String,
+                                          symbol: String,
+                                          @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: symbol)
+                .font(.headline.weight(.semibold))
+            content()
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .morePanel()
     }
 
     /// Die Tür. Sie sieht aus wie eine Fußzeile und ist eine: die Version
