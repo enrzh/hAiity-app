@@ -76,7 +76,8 @@ final class HabitCardInteractionSourceTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/StatsView.swift"))
 
-        XCTAssertTrue(source.contains("frame(maxWidth: .infinity, maxHeight: .infinity)"))
+        XCTAssertTrue(source.contains(".frame(maxWidth: statsPreviewWidth)"),
+                      "the UIKit preview host must use a finite width")
     }
 
     func testStatsContextMenuUsesAHeightForEachCardShape() throws {

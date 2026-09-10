@@ -388,6 +388,7 @@ struct ReminderRow: View, Equatable {
                                  onMenuVisibilityChanged: { visible in
                                      isContextMenuVisible = visible
                                  })
+                    .frame(maxWidth: previewWidth)
             }
 
             Button(action: toggleFromCheckmark) {

@@ -214,21 +214,21 @@ struct GitHubContributionGraph: View, Equatable {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.appearancePreferences) private var appearancePreferences
     @Environment(\.palettes) private var palettes
-    @State private var available: CGFloat = 0
+    /// GitHub's date window is converted to the shared grid off the main
+    /// actor so cached contributions never stall the first page frame.
+    @State private var renderedSnapshot: GridCalendar.Snapshot?
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
-
-    private static let referenceColumns: CGFloat = 24
-    private static let referencePitch: CGFloat = GridCell.size + GridCell.gap
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize {
             return (cellSize, gap ?? GridCell.gap)
         }
-        let columns = min(CGFloat(max(weeks ?? 24, 1)), Self.referenceColumns)
-        let spacing: CGFloat = 3
-        let tileWidth = max(1, available - (interactive ? 8 : 0))
-        return (available > 0 ? max(1, (tileWidth + spacing) / columns - spacing) : GridCell.size,
-                spacing)
+        // The full graph is horizontally scrollable. Deriving its cell size
+        // from the rendered content width creates a feedback loop: the graph
+        // gets wider, the measured width grows, and the graph gets wider
+        // again. Shared fixed geometry keeps the first frame stable while
+        // matching the habit graph's tile scale.
+        return (GridCell.size, GridCell.gap)
     }
 
     private var renderedPalette: PaletteStyle {
@@ -237,7 +237,24 @@ struct GitHubContributionGraph: View, Equatable {
                               dark: scheme == .dark)
     }
 
-    private static let contributionCalendar: Calendar = {
+    private var snapshotRefreshKey: String {
+        "\(days.hashValue)|\(days.count)|\(weeks.map(String.init) ?? "auto")|\(DayKey.today(calendar: Self.contributionCalendar))"
+    }
+
+    private func loadSnapshot(displayWeeks: Int, today: String,
+                              levelsByDay: [String: Int]) async {
+        renderedSnapshot = nil
+        let snapshot = await Task.detached(priority: .utility) {
+            GridCalendar.snapshot(levelsByDay: levelsByDay,
+                                  weeks: displayWeeks,
+                                  today: today,
+                                  calendar: Self.contributionCalendar)
+        }.value
+        guard !Task.isCancelled else { return }
+        renderedSnapshot = snapshot
+    }
+
+    private nonisolated static let contributionCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
@@ -255,16 +272,13 @@ struct GitHubContributionGraph: View, Equatable {
         let levelsByDay = days.reduce(into: [String: Int]()) { result, day in
             result[day.date] = day.level
         }
-        let snapshot = GridCalendar.snapshot(levelsByDay: levelsByDay,
-                                             weeks: displayWeeks,
-                                             today: today,
-                                             calendar: Self.contributionCalendar)
         let m = metrics
         let pitch = m.cell + m.gap
-        let contentWidth = CGFloat(max(snapshot.keys.count, 1)) * pitch - m.gap
+        let contentWidth = CGFloat(max(displayWeeks, 1)) * pitch - m.gap
 
         Group {
-            if interactive {
+            if let snapshot = renderedSnapshot, snapshot.weeks == displayWeeks, snapshot.today == today {
+                if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ContributionChart(snapshot: snapshot,
                                              cell: m.cell,
@@ -278,15 +292,11 @@ struct GitHubContributionGraph: View, Equatable {
                                              showsSurface: interactive)
                 }
                 .defaultScrollAnchor(.trailing)
-                .scrollDisabled(available > 0
-                                && !GridCalendar.needsHorizontalScroll(
-                                    contentWidth: contentWidth,
-                                    viewportWidth: available))
-            } else {
+                } else {
                 // A disabled ScrollView can retain a trailing offset inside a
                 // UIKit context preview. Render the fixed-width canvas
                 // directly so every contribution column remains visible.
-                ContributionChart(snapshot: snapshot,
+                    ContributionChart(snapshot: snapshot,
                                          cell: m.cell,
                                          gap: m.gap,
                                          width: contentWidth,
@@ -296,19 +306,28 @@ struct GitHubContributionGraph: View, Equatable {
                                          highlightsToday: false,
                                          checkPulse: false,
                                              showsSurface: interactive)
+                }
+            } else {
+                loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
-        .background(widthReader)
+        .task(id: snapshotRefreshKey) {
+            await loadSnapshot(displayWeeks: displayWeeks, today: today,
+                               levelsByDay: levelsByDay)
+        }
         .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
     }
 
-    private var widthReader: some View {
-        GeometryReader { geo in
-            Color.clear.preference(key: GitHubGridWidthKey.self, value: geo.size.width)
-        }
-        .onPreferenceChange(GitHubGridWidthKey.self) { width in
-            if abs(width - available) > 0.5 { available = width }
-        }
+    private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
+        let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
+        let surfaceInset = interactive ? 8 : 0
+        let labelHeight = showsMonthLabels ? 16 : 0
+        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color.primary.opacity(0.06))
+            .frame(width: max(width, 1),
+                   height: tileHeight + CGFloat(surfaceInset) + CGFloat(labelHeight))
+            .overlay { ProgressView().controlSize(.small) }
+            .accessibilityLabel(String(localized: "Beitragskalender wird geladen"))
     }
 
     struct Layout {
@@ -483,13 +502,5 @@ struct GitHubContributionGraph: View, Equatable {
             hasher.combine(day.level)
         }
         return hasher.finalize()
-    }
-}
-
-private struct GitHubGridWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

@@ -388,7 +388,9 @@ struct ContentView: View {
                 }
                 #endif
                 await store.loadFromDisk()
-                try? await Task.sleep(for: .milliseconds(250))
+                // Give SwiftUI one scheduling point after disk hydration so
+                // the first populated frame can render immediately.
+                await Task.yield()
                 searchPresentationArmed = true
                 becameActiveAt = .now
                 #if DEBUG
@@ -400,6 +402,12 @@ struct ContentView: View {
                 // rendered list.
                 handleLaunchTestData()
                 #endif
+                // GitHub cache hydration is local and independent from the
+                // longer iCloud/native-sync maintenance pass. Start it now so
+                // a cached graph can appear as soon as its tab is shown.
+                let githubBoot = Task { @MainActor in
+                    await github.boot()
+                }
                 await boot()
                 #if DEBUG
                 // Seeded interaction fixtures must be written after the
@@ -410,7 +418,7 @@ struct ContentView: View {
                 schedulePendingNotificationAction()
                 schedulePendingNotificationDeliveryIssue()
                 schedulePendingShortcutLink()
-                await github.boot()
+                await githubBoot.value
                 #if DEBUG
                 if FrameProbe.enabled { FrameProbe.shared.start() }
                 #endif
@@ -632,15 +640,15 @@ struct ContentView: View {
             TabView(selection: $nativeTab) {
                 Tab(String(localized: "Statistik"), systemImage: "chart.bar",
                     value: AppTab.stats) {
-                    nativeTabRoot { statsTabContent }
+                    nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
                 }
                 Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                     value: AppTab.habits) {
-                    nativeTabRoot { habitsTabContent }
+                    nativeTabRoot { nativeTabContent(.habits) { habitsTabContent } }
                 }
                 Tab(String(localized: "Mehr"), systemImage: "ellipsis",
                     value: AppTab.more) {
-                    nativeTabRoot { moreTabContent }
+                    nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
                 }
                 // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
                 // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
@@ -661,6 +669,16 @@ struct ContentView: View {
         content()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.appearanceBackgroundOwned, true)
+    }
+
+    /// The native tab host can retain inactive tab values. Do not construct
+    /// their graph-heavy view trees until that tab is selected.
+    @ViewBuilder
+    private func nativeTabContent<Content: View>(
+        _ tab: AppTab,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if nativeTab == tab { content() }
     }
 
     /// The native tab host can add an opaque backdrop around a NavigationStack.

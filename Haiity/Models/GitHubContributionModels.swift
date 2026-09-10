@@ -1,6 +1,6 @@
 import Foundation
 
-struct GitHubContributionDay: Codable, Equatable, Sendable, Identifiable {
+struct GitHubContributionDay: Codable, Equatable, Hashable, Sendable, Identifiable {
     let date: String
     let count: Int
     let level: Int

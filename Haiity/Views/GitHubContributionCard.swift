@@ -61,6 +61,7 @@ struct GitHubContributionCard: View, Equatable {
                              onMenuVisibilityChanged: { visible in
                                  isContextMenuVisible = visible
                              })
+                .frame(maxWidth: previewWidth)
         }
         .accessibilityIdentifier("github-grid")
     }

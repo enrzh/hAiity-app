@@ -3,7 +3,7 @@ import Foundation
 /// Eine Monatsmarke über dem Raster: ab welcher Spalte ein Monat beginnt.
 /// `year` gehört dazu, damit Jahreswechsel eindeutig bleiben (Jan 2026 und
 /// Jan 2027 sind verschiedene Marken, auch wenn das Label gleich aussieht).
-struct MonthMark: Equatable, Hashable {
+struct MonthMark: Equatable, Hashable, Sendable {
     let column: Int
     let year: Int
     let month: Int
@@ -24,7 +24,7 @@ enum GridCalendar {
     static let rows = 7
 
     /// Fertiges Raster für genau eine Kombination aus Habit und Fenster.
-    struct Snapshot: Equatable {
+    struct Snapshot: Equatable, Sendable {
         let weeks: Int
         let today: String
         /// [Spalte][Zeile]; nil = Zukunft (nach `today`).

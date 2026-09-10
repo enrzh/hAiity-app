@@ -64,7 +64,7 @@ struct StatsView: View {
         let habits = visibleActiveTrackedHabits
         let today = DayKey.today()
         let calendar = Calendar.current
-        let snapshot = await Task.detached(priority: .userInitiated) {
+        let snapshot = await Task.detached(priority: .utility) {
             StatsEngine.snapshot(habits: habits, today: today, calendar: calendar)
         }.value
         guard !Task.isCancelled else { return }
@@ -730,7 +730,7 @@ struct StatsView: View {
                                  activeContextMenuID = nil
                              }
                          })
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: statsPreviewWidth)
     }
 
     private func statsPreview<Content: View>(_ content: Content,

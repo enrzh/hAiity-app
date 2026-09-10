@@ -91,10 +91,50 @@ final class AppNavigationTests: XCTestCase {
                        "opening statistics must not synchronously calculate its snapshot")
         XCTAssertTrue(stats.contains(".task(id: statsRefreshKey)"),
                       "statistics should refresh through a cancellable task")
-        XCTAssertTrue(stats.contains("Task.detached(priority: .userInitiated)"),
-                      "the cold snapshot must be calculated off the main actor")
+        XCTAssertTrue(stats.contains("Task.detached(priority: .utility)"),
+                      "the cold snapshot must stay below first-frame priority")
         XCTAssertTrue(stats.contains("LazyVStack(spacing: 0)"),
                       "per-habit statistics should be mounted lazily")
+    }
+
+    func testContributionGraphsDeferColdSnapshotWork() throws {
+        let grid = try String(contentsOf: sourceURL("Haiity/Views/ContributionGrid.swift"))
+        let github = try String(contentsOf: sourceURL("Haiity/Views/GitHubContributionGraph.swift"))
+
+        let graphSources: [(String, String)] = [
+            (grid, "struct ContributionGrid: View, Equatable"),
+            (github, "struct GitHubContributionGraph: View, Equatable")
+        ]
+
+        for (source, typeDeclaration) in graphSources {
+            let typeStart = try XCTUnwrap(source.range(of: typeDeclaration))
+            let bodyStart = try XCTUnwrap(source.range(of: "var body: some View",
+                                                       range: typeStart.upperBound..<source.endIndex))
+            let bodyEnd = try XCTUnwrap(
+                source.range(of: "private var widthReader",
+                             range: bodyStart.upperBound..<source.endIndex)
+                ?? source.range(of: ".task(id: snapshotRefreshKey)",
+                                range: bodyStart.upperBound..<source.endIndex)
+            )
+            let body = source[bodyStart.lowerBound..<bodyEnd.lowerBound]
+            XCTAssertFalse(body.contains("GridCalendar.snapshot("),
+                           "graph body must not build its cold snapshot synchronously")
+            XCTAssertTrue(source.contains(".task(id: snapshotRefreshKey)"),
+                          "graph snapshots should load through a cancellable task")
+            XCTAssertTrue(source.contains("Task.detached(priority: .utility)"),
+                          "graph snapshots should stay below first-frame priority")
+        }
+    }
+
+    func testGitHubGraphUsesStableGeometryForScrollableWindows() throws {
+        let github = try String(contentsOf: sourceURL("Haiity/Views/GitHubContributionGraph.swift"))
+
+        XCTAssertTrue(github.contains("return (GridCell.size, GridCell.gap)"),
+                      "the auto-sized GitHub graph must use stable shared tile geometry")
+        XCTAssertFalse(github.contains("@State private var available: CGFloat = 0"),
+                       "the scrollable GitHub graph must not feed its content width back into layout")
+        XCTAssertFalse(github.contains("private var widthReader"),
+                       "the scrollable GitHub graph must not measure its own unbounded content")
     }
 
     func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
@@ -102,9 +142,9 @@ final class AppNavigationTests: XCTestCase {
 
         XCTAssertTrue(content.contains("private func nativeTabRoot"),
                       "native tabs need one shared full-frame background root")
-        XCTAssertTrue(content.contains("nativeTabRoot { statsTabContent }"))
-        XCTAssertTrue(content.contains("nativeTabRoot { habitsTabContent }"))
-        XCTAssertTrue(content.contains("nativeTabRoot { moreTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabContent(.stats) { statsTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabContent(.habits) { habitsTabContent }"))
+        XCTAssertTrue(content.contains("nativeTabContent(.more) { moreTabContent }"))
         XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
     }
 
@@ -320,6 +360,21 @@ final class AppNavigationTests: XCTestCase {
                       "the GitHub graph must opt into the stable preview height")
         XCTAssertTrue(habitCard.contains("contextPreviewHeight: CGFloat = 160"),
                       "the enlarged habit graph must use a compact stable fallback height")
+    }
+
+    func testGraphContextMenuRejectsUnboundedUIKitProposals() throws {
+        let habitCard = try String(contentsOf: sourceURL("Haiity/Views/HabitCard.swift"))
+
+        XCTAssertTrue(habitCard.contains("func sizeThatFits(_ proposal: ProposedViewSize"),
+                      "the UIKit bridge must answer SwiftUI's unbounded size proposals")
+        XCTAssertTrue(habitCard.contains("value.isFinite && value > 0"),
+                      "the bridge must reject NaN, infinity, and zero dimensions")
+        XCTAssertTrue(habitCard.contains("override var frame: CGRect"),
+                      "the UIKit host must clamp invalid frames that bypass SwiftUI sizing")
+        XCTAssertTrue(habitCard.contains(".frame(maxWidth: previewWidth)"),
+                      "habit overlays must cap the UIKit host to a finite width")
+        XCTAssertTrue(habitCard.contains("measuredHeight.isFinite && measuredHeight > 0"),
+                      "context previews must not turn a non-finite measurement into a frame")
     }
 
     func testMonthlyAndYearlyEditorUsesDateAndOptionalMultipleDaysOnly() throws {

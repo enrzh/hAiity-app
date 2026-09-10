@@ -51,6 +51,9 @@ struct ContributionGrid: View, Equatable {
     @Environment(\.palettes) private var palettes
     /// Gemessene Breite des Rasters; 0 bis zur ersten Layout-Runde.
     @State private var available: CGFloat = 0
+    /// A cold graph must not make the first habit-list frame wait on date
+    /// generation and intensity calculation.
+    @State private var renderedSnapshot: GridCalendar.Snapshot?
     /// Referenzmaß 100, skaliert mit Dynamic Type: `labelScale / 100` ist
     /// exakt der Faktor, mit dem `.caption2` gerade wächst. Damit lässt sich
     /// die Labelbreite messen, ohne die Trait-Collection nachzubauen.
@@ -72,19 +75,34 @@ struct ContributionGrid: View, Equatable {
                 spacing)
     }
 
+    private var snapshotRefreshKey: String {
+        "\(habit.id.uuidString)|\(habit.log.hashValue)|\(habit.missedDays.hashValue)|\(habit.recurrence.target ?? -1)|\(habit.kind.rawValue)|\(weeks)|\(DayKey.today(calendar: calendar))|\(calendar.timeZone.identifier)|\(calendar.firstWeekday)"
+    }
+
+    private func loadSnapshot() async {
+        let habit = habit
+        let weeks = weeks
+        let today = DayKey.today(calendar: calendar)
+        let calendar = calendar
+        renderedSnapshot = nil
+        let snapshot = await Task.detached(priority: .utility) {
+            GridCalendar.snapshot(habit: habit, weeks: weeks, today: today,
+                                  calendar: calendar)
+        }.value
+        guard !Task.isCancelled else { return }
+        renderedSnapshot = snapshot
+    }
+
     var body: some View {
         #if DEBUG
         let _ = FrameProbe.shared.mark("grid.body")
         #endif
         let m = metrics
         let pitch = m.cell + m.gap
-        let snapshot = GridCalendar.snapshot(habit: habit,
-                                             weeks: weeks,
-                                             today: DayKey.today(calendar: calendar),
-                                             calendar: calendar)
         let contentWidth = CGFloat(weeks) * pitch - m.gap
         Group {
-            if interactive {
+            if let snapshot = renderedSnapshot, snapshot.weeks == weeks, snapshot.today == DayKey.today(calendar: calendar) {
+                if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
                     graphContent(snapshot: snapshot,
                                  cell: m.cell,
@@ -100,18 +118,24 @@ struct ContributionGrid: View, Equatable {
                                 && !GridCalendar.needsHorizontalScroll(
                                     contentWidth: contentWidth,
                                     viewportWidth: available))
-            } else {
+                } else {
                 // Context-menu previews must not contain a disabled
                 // ScrollView. UIKit can preserve its trailing content offset
                 // while relaying out the lifted preview, clipping the left
                 // half of an otherwise correctly sized graph.
-                graphContent(snapshot: snapshot,
-                             cell: m.cell,
-                             gap: m.gap,
-                             width: contentWidth)
+                    graphContent(snapshot: snapshot,
+                                 cell: m.cell,
+                                 gap: m.gap,
+                                 width: contentWidth)
+                }
+            } else {
+                loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
         .background(widthReader)
+        .task(id: snapshotRefreshKey) {
+            await loadSnapshot()
+        }
         // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
         // im Raster zeigt, bekommt die eine kleine Bewegung. Bei „Bewegung
@@ -131,7 +155,7 @@ struct ContributionGrid: View, Equatable {
         // Chronologie wird nie gespiegelt — auch nicht in ar/ur.
         .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(summary(filled: snapshot.filledCount))
+        .accessibilityLabel(summary(filled: renderedSnapshot?.filledCount ?? 0))
         .accessibilityIdentifier("contribution-grid")
     }
 
@@ -166,8 +190,21 @@ struct ContributionGrid: View, Equatable {
             Color.clear.preference(key: GridWidthKey.self, value: geo.size.width)
         }
         .onPreferenceChange(GridWidthKey.self) { width in
+            guard width.isFinite, width > 0 else { return }
             if abs(width - available) > 0.5 { available = width }
         }
+    }
+
+    private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
+        let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
+        let surfaceInset = interactive ? 8 : 0
+        let labelHeight = showsMonthLabels ? 16 : 0
+        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color.primary.opacity(0.06))
+            .frame(width: max(width, 1),
+                   height: tileHeight + CGFloat(surfaceInset) + CGFloat(labelHeight))
+            .overlay { ProgressView().controlSize(.small) }
+            .accessibilityLabel(String(localized: "Beitragskalender wird geladen"))
     }
 
     private func summary(filled: Int) -> String {

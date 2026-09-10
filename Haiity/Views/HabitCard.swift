@@ -386,6 +386,7 @@ struct HabitCard: View, Equatable {
                                      }
                                      isContextMenuVisible = visible
                                  })
+                    .frame(maxWidth: previewWidth)
             }
             .onTapGesture(perform: onBackfill)
             .accessibilityAction(named: String(localized: "Historie"), onBackfill)
@@ -429,9 +430,14 @@ struct HabitCard: View, Equatable {
     static func windowWidth() -> CGFloat {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        if let width = scene?.keyWindow?.bounds.width, width > 0 { return width }
-        if let width = scene?.screen.bounds.width, width > 0 { return width }
-        return UIScreen.main.bounds.width
+        if let width = scene?.keyWindow?.bounds.width, width.isFinite, width > 0 {
+            return width
+        }
+        if let width = scene?.screen.bounds.width, width.isFinite, width > 0 {
+            return width
+        }
+        let fallback = UIScreen.main.bounds.width
+        return fallback.isFinite && fallback > 0 ? fallback : 375
     }
 
     /// Breite und Wochenzahl der Vorschau aus der FENSTERBREITE. Als reine
@@ -442,7 +448,9 @@ struct HabitCard: View, Equatable {
     /// Rastermaß (Zelle + Lücke). Mehr als 53 gibt es nicht — das Raster IST
     /// ein Jahr.
     static func previewMetrics(windowWidth: CGFloat) -> (width: CGFloat, weeks: Int) {
-        let width = max(previewMinWidth, windowWidth - 2 * previewMargin)
+        let finiteWindowWidth = windowWidth.isFinite && windowWidth > 0
+            ? windowWidth : 375
+        let width = max(previewMinWidth, finiteWindowWidth - 2 * previewMargin)
         let content = width - 2 * Theme.Metrics.gutter
         let pitch = previewCell + previewGap
         let weeks = min(53, max(8, Int((content + previewGap) / pitch)))
@@ -967,6 +975,24 @@ struct GraphContextMenu: UIViewRepresentable {
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
 
+    /// SwiftUI can propose an unbounded size to an overlay inside a
+    /// horizontal ScrollView. UIKit cannot represent that as a view frame;
+    /// keep the bridge finite while preserving any real parent proposal.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MenuHost,
+                      context: Context) -> CGSize? {
+        let fallbackWidth = Self.finite(uiView.previewWidth, fallback: 320)
+        let fallbackHeight = Self.finite(uiView.previewHeight, fallback: 1)
+        let width = proposal.width.map { Self.finite($0, fallback: fallbackWidth) }
+            ?? fallbackWidth
+        let height = proposal.height.map { Self.finite($0, fallback: fallbackHeight) }
+            ?? fallbackHeight
+        return CGSize(width: width, height: height)
+    }
+
+    private static func finite(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
+        value.isFinite && value > 0 ? value : fallback
+    }
+
     func makeUIView(context: Context) -> MenuHost {
         MenuHost(cardRadius: cardRadius, previewWidth: previewWidth,
                  previewHeight: previewHeight,
@@ -1042,6 +1068,24 @@ struct GraphContextMenu: UIViewRepresentable {
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError() }
 
+        /// A representable inside a horizontally scrolling SwiftUI subtree
+        /// can still receive an invalid frame after `sizeThatFits`. Clamp at
+        /// the UIKit boundary so Core Animation never sees NaN or infinity.
+        override var frame: CGRect {
+            get { super.frame }
+            set {
+                let fallbackWidth = GraphContextMenu.finite(previewWidth, fallback: 320)
+                let fallbackHeight = GraphContextMenu.finite(previewHeight, fallback: 1)
+                let origin = CGPoint(x: newValue.origin.x.isFinite ? newValue.origin.x : 0,
+                                     y: newValue.origin.y.isFinite ? newValue.origin.y : 0)
+                let size = CGSize(width: newValue.size.width.isFinite
+                                  ? max(0, newValue.size.width) : fallbackWidth,
+                                  height: newValue.size.height.isFinite
+                                  ? max(0, newValue.size.height) : fallbackHeight)
+                super.frame = CGRect(origin: origin, size: size)
+            }
+        }
+
         func detach() {
             setMenuVisible(false)
             if interactions.contains(where: { $0 === interaction }) {
@@ -1054,8 +1098,8 @@ struct GraphContextMenu: UIViewRepresentable {
             -> UIContextMenuConfiguration? {
             guard bounds.contains(location) else { return nil }
             setMenuVisible(true)
-            let width = previewWidth
-            let height = max(1, previewHeight)
+            let width = GraphContextMenu.finite(previewWidth, fallback: 320)
+            let height = GraphContextMenu.finite(previewHeight, fallback: 1)
             let makePreview = preview
             let actions = actions
             let radius = cardRadius
@@ -1090,7 +1134,8 @@ struct GraphContextMenu: UIViewRepresentable {
                 let measuredHeight = controller.sizeThatFits(
                     in: CGSize(width: width,
                                height: UIView.layoutFittingExpandedSize.height)).height
-                let contentHeight = measuredHeight > 0 ? ceil(measuredHeight) : height
+                let contentHeight = measuredHeight.isFinite && measuredHeight > 0
+                    ? ceil(measuredHeight) : height
                 let size = CGSize(width: width, height: contentHeight)
                 controller.view.frame = CGRect(origin: .zero, size: size)
                 controller.view.bounds = CGRect(origin: .zero, size: size)
