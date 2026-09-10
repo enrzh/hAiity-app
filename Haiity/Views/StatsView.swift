@@ -29,6 +29,10 @@ struct StatsView: View {
     @State private var proStatus = ProStatus.shared
     @State private var activeContextMenuID: String?
     @State private var rootTitleProgress: CGFloat = 0
+    /// A cold statistics calculation must never block the tab transition.
+    /// The last completed value remains visible while changed data is
+    /// recalculated in the background.
+    @State private var renderedSnapshot: StatsEngine.Snapshot?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -52,6 +56,21 @@ struct StatsView: View {
         visibleActiveHabits.filter(\.isTrackedHabit)
     }
 
+    private var statsRefreshKey: String {
+        "\(store.data.updatedAt)|\(unlocked)|\(DayKey.today())|\(Calendar.current.firstWeekday)"
+    }
+
+    private func loadStatsSnapshot() async {
+        let habits = visibleActiveTrackedHabits
+        let today = DayKey.today()
+        let calendar = Calendar.current
+        let snapshot = await Task.detached(priority: .userInitiated) {
+            StatsEngine.snapshot(habits: habits, today: today, calendar: calendar)
+        }.value
+        guard !Task.isCancelled else { return }
+        renderedSnapshot = snapshot
+    }
+
     var body: some View {
         Group {
             if visibleActiveTrackedHabits.isEmpty {
@@ -70,6 +89,9 @@ struct StatsView: View {
             statsAdjustmentSheet
         }
         .onChange(of: routeToken) { _, _ in paywall = nil }
+        .task(id: statsRefreshKey) {
+            await loadStatsSnapshot()
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 RootPageCompactTitle(title: String(localized: "Statistik"),
@@ -121,8 +143,16 @@ struct StatsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    @ViewBuilder
     private var statsList: some View {
-        let snapshot = StatsEngine.snapshot(habits: visibleActiveTrackedHabits)
+        if let snapshot = renderedSnapshot {
+            statsListContent(snapshot)
+        } else {
+            statsLoadingState
+        }
+    }
+
+    private func statsListContent(_ snapshot: StatsEngine.Snapshot) -> some View {
         let activeCards = viewPreferences.statsCards.active
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -180,6 +210,39 @@ struct StatsView: View {
                     .accessibilityIdentifier("stats-preview")
                     .allowsHitTesting(false)
             }
+        }
+    }
+
+    private var statsLoadingState: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                RootPageTitle(title: String(localized: "Statistik"),
+                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                    .padding(.horizontal, -Theme.Metrics.gutter)
+
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 118)
+                    .appSurface()
+                    .accessibilityLabel(String(localized: "Statistik wird geladen"))
+
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                 style: .continuous)
+                    .fill(Color.primary.opacity(0.07))
+                    .frame(maxWidth: .infinity, minHeight: 120)
+                    .redacted(reason: .placeholder)
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+        }
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .navigationBarTitleDisplayMode(.inline)
+        .coordinateSpace(.named(RootPageTitle.coordinateSpace))
+        .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
+            if let progress { rootTitleProgress = progress }
+        }
+        .overlay(alignment: .top) {
+            RootPageHeaderBlur(progress: rootTitleProgress)
         }
     }
 
@@ -458,7 +521,7 @@ struct StatsView: View {
             Text(String(localized: "Deine Habits"))
                 .font(.headline.weight(.semibold))
                 .padding(.horizontal, 2)
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
                     statsHabitRow(habit)
                         .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)

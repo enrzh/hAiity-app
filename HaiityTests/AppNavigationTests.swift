@@ -80,6 +80,23 @@ final class AppNavigationTests: XCTestCase {
                       "the stats preview must use the full active window width")
     }
 
+    func testStatsSnapshotDoesNotBlockSynchronousPageConstruction() throws {
+        let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
+        let listStart = try XCTUnwrap(stats.range(of: "private var statsList"))
+        let cardStart = try XCTUnwrap(stats.range(of: "private func statsTodayCard",
+                                                   range: listStart.upperBound..<stats.endIndex))
+        let list = stats[listStart.lowerBound..<cardStart.lowerBound]
+
+        XCTAssertFalse(list.contains("StatsEngine.snapshot("),
+                       "opening statistics must not synchronously calculate its snapshot")
+        XCTAssertTrue(stats.contains(".task(id: statsRefreshKey)"),
+                      "statistics should refresh through a cancellable task")
+        XCTAssertTrue(stats.contains("Task.detached(priority: .userInitiated)"),
+                      "the cold snapshot must be calculated off the main actor")
+        XCTAssertTrue(stats.contains("LazyVStack(spacing: 0)"),
+                      "per-habit statistics should be mounted lazily")
+    }
+
     func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 
