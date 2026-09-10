@@ -18,21 +18,31 @@ final class ReminderItemTests: XCTestCase {
 
     func testReminderUsesFullWidthTappableContextPreview() throws {
         let source = try source("Haiity/Views/ReminderRow.swift")
-        XCTAssertTrue(source.contains(".contextMenu {"),
-                      "the native menu must attach to the row surface")
-        XCTAssertTrue(source.contains("Label(String(localized: \"Bearbeiten\")"))
-        XCTAssertTrue(source.contains("Button(action: onEdit)"),
-                      "editing must remain available from the reminder menu")
-        XCTAssertFalse(source.contains("GraphContextMenu("),
-                       "a transparent overlay would intercept the checkmark")
+        XCTAssertTrue(source.contains("GraphContextMenu("),
+                      "the reminder needs the shared preview bridge")
+        XCTAssertTrue(source.contains("previewWidth: previewWidth"))
+        XCTAssertTrue(source.contains("previewAccessibilityIdentifier: \"reminder-preview\""))
+        XCTAssertTrue(source.contains("commit: onEdit"),
+                      "tapping the enlarged reminder must open its editor")
+        XCTAssertFalse(source.contains(".contextMenu {"),
+                       "the default menu cannot commit a preview tap to the editor")
+    }
+
+    func testNewEntriesStartAsHabitsAndSwitchToReminderExplicitly() throws {
+        let source = try source("Haiity/Views/EditHabitSheet.swift")
+        XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .habit"),
+                      "the primary create flow should start with a habit")
+        XCTAssertTrue(source.contains("String(localized: \"Neue Erinnerung\")"),
+                      "reminder creation must be visibly distinguished")
     }
 
     func testReminderContextMenuKeepsTheStableRowSurface() throws {
         let source = try source("Haiity/Views/ReminderRow.swift")
         XCTAssertTrue(source.contains("static let rowHeight: CGFloat = 64"))
         XCTAssertTrue(source.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
-        XCTAssertTrue(source.contains(".contextMenu {"),
-                      "the native preview must be built from the tappable row")
+        XCTAssertTrue(source.contains("static let contextPreviewHeight: CGFloat = 112"))
+        XCTAssertTrue(source.contains(".frame(width: previewWidth, alignment: .leading)"),
+                      "the enlarged reminder must use the full preview width")
     }
 
     func testReminderUsesTheCardHeightRevealWithFixedDoneAndRevertActions() throws {
@@ -60,8 +70,9 @@ final class ReminderItemTests: XCTestCase {
 
         XCTAssertTrue(row.contains("static let rowHeight: CGFloat = 64"))
         XCTAssertTrue(row.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
-        XCTAssertTrue(row.contains(".contextMenu {"),
-                      "the long-press menu must share the tappable row")
+        XCTAssertTrue(row.contains("static let contextPreviewHeight: CGFloat = 112"))
+        XCTAssertTrue(row.contains("minHeight: Self.contextPreviewHeight"),
+                      "the enlarged reminder must have a stable content height")
     }
 
     func testReminderUsesItsOwnRevealAndContextMenuHost() throws {
@@ -70,10 +81,10 @@ final class ReminderItemTests: XCTestCase {
                       "reminders need the same full-surface bridge as habits")
         XCTAssertTrue(row.contains("revealOffset"),
                       "reminders must render their own offset reveal surface")
-        XCTAssertTrue(row.contains(".contextMenu {"),
-                      "the row keeps its non-intercepting long-press menu")
-        XCTAssertFalse(row.contains("GraphContextMenu("),
-                       "the transparent graph host must not intercept row controls")
+        XCTAssertTrue(row.contains("GraphContextMenu("),
+                      "the reminder must use the shared full-width preview host")
+        XCTAssertTrue(row.contains("onMenuVisibilityChanged:"),
+                      "the base row must hide while its preview is lifted")
     }
 
     func testReminderUsesTheSharedRevealBridgeForEveryTouchSurface() throws {
@@ -271,7 +282,7 @@ final class ReminderItemTests: XCTestCase {
     func testEditorOffersAndPersistsItemType() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .reminder"))
+        XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .habit"))
         XCTAssertTrue(source.contains("selection: $itemType"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.habit)"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.reminder)"))

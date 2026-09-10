@@ -42,7 +42,7 @@ struct ArchiveView: View {
             .padding(.bottom, ChromeLayout.nativeTabBarClearance + 20)
         }
         .scrollIndicators(.hidden)
-        .settingsChrome()
+        .moreSettingsSurface()
         .appPageHeader(String(localized: "Archiv"))
         .alert(String(localized: "Endgültig löschen?"),
                isPresented: Binding(

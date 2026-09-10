@@ -284,6 +284,31 @@ final class ReminderInteractionUITests: XCTestCase {
                       "a swipe beginning on the checkmark must reveal Reset")
     }
 
+    func testLongPressingReminderPreviewOpensItsEditor() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screen", "habits", "-seed-reminder-interactions", "-pro",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+
+        let row = app.descendants(matching: .any)[
+            "reminder-row-\(seededReminderID)"
+        ].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5),
+                      "the seeded reminder must be reachable")
+
+        row.press(forDuration: 1.0)
+
+        // UIKit exposes a lifted UIContextMenu preview as an Other element
+        // labelled Preview; the SwiftUI identifier remains inside its host.
+        let preview = app.otherElements["Preview"].firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 3),
+                      "the enlarged reminder must expose its full preview surface")
+        preview.tap()
+
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5),
+                      "tapping the enlarged reminder must open reminder settings")
+    }
+
     private func waitUntil(predicate: NSPredicate,
                             on element: XCUIElement,
                             timeout: TimeInterval,

@@ -121,7 +121,8 @@ final class TodayProgressUITests: XCTestCase {
         let firstBefore = first.label
         let secondBefore = second.label
         XCTAssertFalse(app.buttons["backfill-action-clear"].exists)
-        XCTAssertLessThanOrEqual(first.frame.height, 48)
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44)
+        XCTAssertEqual(first.frame.width, first.frame.height, accuracy: 1)
         first.tap()
         XCTAssertNotEqual(first.label, firstBefore)
         second.tap()

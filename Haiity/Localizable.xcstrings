@@ -37877,6 +37877,26 @@
         }
       }
     },
+    "Name (z. B. Tabletten nehmen)": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "الاسم (مثل: تناول الأدوية)" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "নাম (যেমন: ওষুধ খাওয়া)" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Name (e.g. take medication)" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Nombre (p. ej., tomar la medicación)" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Nom (p. ex. prendre ses médicaments)" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "नाम (जैसे: दवा लेना)" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Nama (mis. minum obat)" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Nome (es. prendere le medicine)" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "名前（例：薬を飲む）" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이름 (예: 약 먹기)" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Nome (ex.: tomar medicação)" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Название (например, принять лекарство)" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Ad (ör. ilaç al)" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "نام (مثلاً دوا لینا)" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Tên (ví dụ: uống thuốc)" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "名称（例如：服药）" } }
+      }
+    },
     "Name (z. B. 20 Minuten lesen)": {
       "localizations": {
         "ar": {
@@ -38475,6 +38495,26 @@
             "value": "告诉你某个习惯当前的连击。"
           }
         }
+      }
+    },
+    "Neue Erinnerung": {
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تذكير جديد" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "নতুন অনুস্মারক" } },
+        "en": { "stringUnit": { "state": "translated", "value": "New reminder" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Nuevo recordatorio" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Nouveau rappel" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "नया रिमाइंडर" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Pengingat baru" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Nuovo promemoria" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "新しいリマインダー" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "새로운 미리 알림" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Novo lembrete" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Новое напоминание" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Yeni hatırlatıcı" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "نئی یاد دہانی" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lời nhắc mới" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "新提醒" } }
       }
     },
     "Neuer Habit": {

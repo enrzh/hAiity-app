@@ -45,7 +45,9 @@ struct ReminderRow: View, Equatable {
     @State private var revealStart: CGFloat = 0
     @State private var revealRowWidth: CGFloat = 0
     @State private var revealActionLock = false
+    @State private var isContextMenuVisible = false
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.palettes) private var palettes
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -93,35 +95,9 @@ struct ReminderRow: View, Equatable {
         rowLayout
             .frame(maxWidth: .infinity, minHeight: Self.rowHeight)
             .appSurface()
+            .opacity(isContextMenuVisible ? 0 : 1)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                            style: .continuous))
-            .contextMenu {
-                Button(action: onEdit) {
-                    Label(String(localized: "Bearbeiten"), systemImage: "pencil")
-                }
-                Menu {
-                    if habit.recurrence.frequency != .once {
-                        Button(action: onCreateOneTime) {
-                            Label(String(localized: "Einmalig anlegen"), systemImage: "plus.square")
-                        }
-                    }
-                    Button(action: onRevert) {
-                        Label(String(localized: "Rückgängig"),
-                              systemImage: "arrow.uturn.backward")
-                    }
-                    Button(action: onArchive) {
-                        Label(String(localized: "Archivieren"), systemImage: "archivebox")
-                    }
-                    Button(role: .destructive, action: onDelete) {
-                        Label(String(localized: "Löschen"), systemImage: "trash")
-                    }
-                    Button(action: onEnableSorting) {
-                        Label(String(localized: "Sortieren"), systemImage: "arrow.up.arrow.down")
-                    }
-                } label: {
-                    Label(String(localized: "Mehr"), systemImage: "ellipsis.circle")
-                }
-            }
     }
 
     private var mirror: CGFloat {
@@ -279,6 +255,97 @@ struct ReminderRow: View, Equatable {
         }
     }
 
+    // MARK: - Long-press preview
+
+    /// The reminder preview uses the same full-width context-menu bridge as
+    /// habit and GitHub graphs. Tapping the lifted surface commits directly
+    /// to the editor instead of merely dismissing the native menu.
+    static let contextPreviewHeight: CGFloat = 112
+
+    private var previewWidth: CGFloat {
+        HabitCard.previewMetrics(windowWidth: HabitCard.windowWidth()).width
+    }
+
+    private var reminderPreview: some View {
+        HStack(spacing: 14) {
+            reminderIcon(size: 48)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(habit.name)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(2)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: state.isChecked(now: now, calendar: calendar)
+                  ? "checkmark.circle.fill" : "circle")
+                .font(.title.weight(.semibold))
+                .foregroundStyle(state.isChecked(now: now, calendar: calendar)
+                                 ? Color.green : Color.secondary)
+                .accessibilityLabel(String(localized: "Erledigt"))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .frame(width: previewWidth, alignment: .leading)
+        .frame(minHeight: Self.contextPreviewHeight, alignment: .leading)
+        .environment(\.palettes, palettes)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("reminder-preview")
+    }
+
+    private func reminderIcon(size: CGFloat) -> some View {
+        Group {
+            if habit.emoji.isEmpty {
+                Image(systemName: "bell.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(habit.emoji)
+                    .font(.title)
+            }
+        }
+        .frame(width: size, height: size)
+        .background(Theme.accentFill(palettes.style).opacity(0.14), in: Circle())
+    }
+
+    private var menuActions: [GraphMenuAction] {
+        var secondary = [GraphMenuAction]()
+        if habit.recurrence.frequency != .once {
+            secondary.append(GraphMenuAction(title: String(localized: "Einmalig anlegen"),
+                                             symbol: "plus.square",
+                                             handler: onCreateOneTime))
+        }
+        secondary += [
+            GraphMenuAction(title: String(localized: "Rückgängig"),
+                            symbol: "arrow.uturn.backward",
+                            handler: onRevert),
+            GraphMenuAction(title: String(localized: "Archivieren"),
+                            symbol: "archivebox",
+                            handler: onArchive),
+            GraphMenuAction(title: String(localized: "Löschen"),
+                            symbol: "trash",
+                            handler: onDelete,
+                            destructive: true),
+            GraphMenuAction(title: String(localized: "Sortieren"),
+                            symbol: "arrow.up.arrow.down",
+                            handler: onEnableSorting)
+        ]
+        return [
+            GraphMenuAction(title: String(localized: "Bearbeiten"),
+                            symbol: "pencil",
+                            handler: onEdit),
+            GraphMenuAction(title: String(localized: "Mehr"),
+                            symbol: "ellipsis.circle",
+                            handler: {},
+                            submenu: secondary)
+        ]
+    }
+
     private var rowLayout: some View {
         HStack(spacing: Theme.Metrics.gap) {
             HStack(spacing: Theme.Metrics.gap) {
@@ -307,6 +374,21 @@ struct ReminderRow: View, Equatable {
             // tap gesture here can be mistaken for a tap when a horizontal
             // swipe starts in the title and ends inside the same area.
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Keep the context-menu host off the checkmark. A full-row UIKit
+            // host becomes the hit-test winner and prevents the native button
+            // from receiving ordinary taps.
+            .overlay {
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 previewHeight: Self.contextPreviewHeight,
+                                 previewAccessibilityIdentifier: "reminder-preview",
+                                 preview: { AnyView(reminderPreview) },
+                                 actions: menuActions,
+                                 commit: onEdit,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
+            }
 
             Button(action: toggleFromCheckmark) {
                 Image(systemName: state.isChecked(now: now, calendar: calendar)

@@ -44,7 +44,7 @@ struct EditHabitSheet: View {
 
     @State private var name = ""
     @State private var emoji = ""
-    @State private var itemType: HabitItemType = .reminder
+    @State private var itemType: HabitItemType = .habit
     @State private var calendarSyncEnabled = true
     @State private var notificationMode: HabitNotificationMode = .standard
     @State private var repeatsWhileIncomplete = true
@@ -82,6 +82,18 @@ struct EditHabitSheet: View {
     @FocusState private var focusedIdentity: IdentityField?
 
     private var isCreating: Bool { existing == nil }
+
+    private var creationTitle: String {
+        itemType == .habit
+            ? String(localized: "Neuer Habit")
+            : String(localized: "Neue Erinnerung")
+    }
+
+    private var creationNamePrompt: String {
+        itemType == .habit
+            ? String(localized: "Name (z. B. 20 Minuten lesen)")
+            : String(localized: "Name (z. B. Tabletten nehmen)")
+    }
 
     private var previewStyle: PaletteStyle {
         PaletteStyle.resolve(habit: nil,
@@ -202,7 +214,7 @@ struct EditHabitSheet: View {
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("item-type-picker")
 
-                    TextField(String(localized: "Name (z. B. 20 Minuten lesen)"), text: $name)
+                    TextField(creationNamePrompt, text: $name)
                         .focused($focusedIdentity, equals: .name)
                         .submitLabel(.done)
                         .onSubmit { focusedIdentity = nil }
@@ -274,9 +286,7 @@ struct EditHabitSheet: View {
             }
             .settingsSurface()
             .scrollDismissesKeyboard(.interactively)
-            .appPageHeader(existing == nil
-                           ? String(localized: "Neuer Habit")
-                           : String(localized: "Bearbeiten"))
+            .appPageHeader(existing == nil ? creationTitle : String(localized: "Bearbeiten"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if asPage {
@@ -293,7 +303,7 @@ struct EditHabitSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Sichern")) { save() }
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("save-habit")
                 }
             }
@@ -336,7 +346,12 @@ struct EditHabitSheet: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
-        .onAppear { load() }
+        .onAppear {
+            load()
+            if isCreating {
+                focusedIdentity = .name
+            }
+        }
         .confirmationDialog(String(localized: "Eintrag löschen?"),
                             isPresented: $showingDeleteConfirmation,
                             presenting: existing) { habit in
@@ -396,47 +411,65 @@ struct EditHabitSheet: View {
 
     private var creationPreview: some View {
         Section {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                HStack(spacing: Theme.Metrics.gap) {
-                    if !emoji.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(emoji)
-                    }
+            HStack(alignment: .top, spacing: 14) {
+                previewIcon
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                         ? String(localized: "Neuer Habit")
+                         ? creationTitle
                          : name)
                         .font(.headline)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                    Image(systemName: itemType == .habit ? "checkmark.circle" : "bell")
-                    Text(itemType == .habit ? kind.displayName : String(localized: "Erinnerung"))
-                    }
+
+                    Label(itemType == .habit ? kind.displayName : String(localized: "Erinnerung"),
+                          systemImage: itemType == .habit ? "checkmark.circle" : "bell")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
                     Text(draft.summary(calendar: calendar))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                if itemType == .habit {
-                    HStack(spacing: 4) {
-                    ForEach(0..<5, id: \.self) { level in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Theme.level(level, dark: scheme == .dark, palette: previewStyle))
-                            .frame(width: 18, height: 18)
+
+                    if itemType == .habit {
+                        HStack(spacing: 4) {
+                            ForEach(0..<5, id: \.self) { level in
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(Theme.level(level,
+                                                      dark: scheme == .dark,
+                                                      palette: previewStyle))
+                                    .frame(width: 18, height: 18)
+                            }
+                        }
+                        .accessibilityHidden(true)
                     }
-                    }
-                    .accessibilityHidden(true)
                 }
+                Spacer(minLength: 0)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(String(localized: "Vorschau: \(name.isEmpty ? String(localized: "Neuer Habit") : name), \(draft.summary(calendar: calendar))"))
+            .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
             .accessibilityIdentifier("creation-preview")
         } header: {
             Text(String(localized: "Vorschau"))
         }
+    }
+
+    private var previewIcon: some View {
+        Group {
+            if let firstEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines).first {
+                Text(String(firstEmoji))
+                    .font(.title2)
+            } else {
+                Image(systemName: itemType == .habit ? "checkmark" : "bell.fill")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: 48, height: 48)
+        .background(Theme.accentFill(previewStyle), in: Circle())
+        .accessibilityHidden(true)
     }
 
     private var creationAdvancedNotificationSection: some View {
@@ -1014,7 +1047,7 @@ struct EditHabitSheet: View {
     /// Sichern bleibt synchron. Die Berechtigung wird beim Einschalten der
     /// Erinnerung angefragt, nicht erst beim Schreiben des Habits.
     private func save(skipGate: Bool = false) {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if !skipGate,
            !ProGate.maySaveTrackedHabit(

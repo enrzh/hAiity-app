@@ -296,6 +296,9 @@ enum CalendarSync {
     }
 
     private static let store = EKEventStore()
+    private static var observer: NSObjectProtocol?
+    private static weak var observedStore: HabitStore?
+    private static var isReconciling = false
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -333,6 +336,25 @@ enum CalendarSync {
 
     static var hasAccess: Bool {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    }
+
+    /// Re-check native events when the user changes or deletes one in Apple
+    /// Calendar. The reconciliation remains marker- and ID-scoped, so this
+    /// cannot import unrelated calendar content.
+    static func startObserving(store habitStore: HabitStore) {
+        observedStore = habitStore
+        guard observer == nil else { return }
+        observer = NotificationCenter.default.addObserver(
+            forName: .EKEventStoreChanged,
+            object: store,
+            queue: .main) { _ in
+                Task { @MainActor in
+                    guard let habitStore = observedStore else { return }
+                    reconcile(habits: habitStore.habits,
+                              defaultTimeZoneIdentifier: habitStore.defaultTimeZoneIdentifier,
+                              validate: true)
+                }
+            }
     }
 
     /// Der Titel des Kalenders, den hAiity WIRKLICH führt — oder `nil`.
@@ -380,7 +402,9 @@ enum CalendarSync {
                           defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true) {
         guard Pro.isUnlocked else { return }
-        guard isEnabled, hasAccess else { return }
+        guard isEnabled, hasAccess, !isReconciling else { return }
+        isReconciling = true
+        defer { isReconciling = false }
 
         var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
         var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]

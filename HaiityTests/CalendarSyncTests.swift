@@ -220,6 +220,15 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("defaults.string(forKey: fallbackCalendarKey)"))
     }
 
+    func testCalendarSyncReconcilesAfterNativeStoreChanges() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+
+        XCTAssertTrue(source.contains("static func startObserving(store habitStore: HabitStore)"))
+        XCTAssertTrue(source.contains(".EKEventStoreChanged"))
+        XCTAssertTrue(source.contains("validate: true"),
+                      "native calendar changes must run the validating reconciliation")
+    }
+
     func testMoreScreenExposesTheActualCalendarDestinationPicker() throws {
         let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
         XCTAssertTrue(source.contains("calendarDestinationPicker"))

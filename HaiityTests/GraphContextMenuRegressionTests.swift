@@ -139,13 +139,16 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "drag reordering must be enabled only in explicit sorting mode")
     }
 
-    func testReminderContextMenuIsAttachedToTheTappableRow() throws {
+    func testReminderContextMenuUsesTheSharedPreviewBridge() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
 
-        XCTAssertTrue(row.contains(".contextMenu {"),
-                      "the reminder context menu must share the row's touch path")
-        XCTAssertFalse(row.contains("GraphContextMenu("),
-                       "the reminder must not use an intercepting transparent overlay")
+        XCTAssertTrue(row.contains("GraphContextMenu("),
+                      "the reminder must use the same reliable preview bridge as graphs")
+        XCTAssertTrue(row.contains("previewWidth: previewWidth"))
+        XCTAssertTrue(row.contains("commit: onEdit"),
+                      "the enlarged reminder must open the editor")
+        XCTAssertFalse(row.contains(".contextMenu {"),
+                       "the default menu cannot commit the enlarged preview")
     }
 
     func testDebugStatsRouteExistsForTheRenderedCardRegression() throws {

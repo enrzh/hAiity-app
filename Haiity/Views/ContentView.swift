@@ -3064,6 +3064,7 @@ struct ContentView: View {
         // Native callbacks are installed only after the initial iCloud merge,
         // reinstall cleanup, and replacement pass. Otherwise the merge could
         // recreate entries before their watermark-based cleanup finished.
+        CalendarSync.startObserving(store: store)
         ReminderSync.startObserving(store: store)
         store.onChange = {
             schedulePush()
