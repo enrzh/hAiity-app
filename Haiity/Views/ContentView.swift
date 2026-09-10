@@ -3054,30 +3054,12 @@ struct ContentView: View {
             Task { await rescheduleReminders() }
         }
         applyCloudPreferences()
-        await syncNow(announce: false)
-        applyCloudPreferences()
-        await rescheduleReminders()
-        await reconcileMotivationActivity()
-        var nativeSyncRecoveryReady = true
-        if needsNativeSyncRecovery {
-            let cleanup = await NativeSyncCleanup.run()
-            nativeSyncRecoveryReady = cleanup.calendar && cleanup.reminders
-            if nativeSyncRecoveryReady {
-                NativeSyncInstallation.completeRecovery()
-            }
+        // Local data is ready at this point. Keep the first interactive frame
+        // independent from CloudKit and EventKit maintenance.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performInitialMaintenance(needsNativeSyncRecovery: needsNativeSyncRecovery)
         }
-        // Do not recreate entries after a partial cleanup. The pending flag
-        // keeps the retry alive for the next launch, where the old markers can
-        // be removed before the replacement pass runs.
-        if nativeSyncRecoveryReady {
-            CalendarSync.reconcile(habits: store.habits,
-                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-            ReminderSync.pullCompletions(into: store,
-                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-            await ReminderSync.reconcile(habits: store.habits,
-                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-        }
-        await reconcileAppIcon()
 
         // Native callbacks are installed only after the initial iCloud merge,
         // reinstall cleanup, and replacement pass. Otherwise the merge could
@@ -3109,6 +3091,46 @@ struct ContentView: View {
             // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
             HaiityShortcuts.updateAppShortcutParameters()
         }
+    }
+
+    /// Startup integrations are deliberately post-render work. A fresh
+    /// launch should be able to open Habits or Statistik while iCloud,
+    /// Calendar, and Reminders reconcile in the background.
+    private func performInitialMaintenance(needsNativeSyncRecovery: Bool) async {
+        // Give the first list frame a quiet window. CloudKit and EventKit work
+        // is background-owned, but its completion handlers still resume on
+        // the main actor and can otherwise compete with the first scroll.
+        try? await Task.sleep(for: .milliseconds(700))
+        guard !Task.isCancelled else { return }
+        await syncNow(announce: false)
+        await Task.yield()
+        applyCloudPreferences()
+        await rescheduleReminders()
+        await Task.yield()
+        await reconcileMotivationActivity()
+
+        var nativeSyncRecoveryReady = true
+        if needsNativeSyncRecovery {
+            let cleanup = await NativeSyncCleanup.run()
+            nativeSyncRecoveryReady = cleanup.calendar && cleanup.reminders
+            if nativeSyncRecoveryReady {
+                NativeSyncInstallation.completeRecovery()
+            }
+        }
+        // Do not recreate entries after a partial cleanup. The pending flag
+        // keeps the retry alive for the next launch, where old markers can be
+        // removed before the replacement pass runs.
+        if nativeSyncRecoveryReady {
+            await Task.yield()
+            CalendarSync.reconcile(habits: store.habits,
+                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            ReminderSync.pullCompletions(into: store,
+                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            await ReminderSync.reconcile(habits: store.habits,
+                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        }
+        await Task.yield()
+        await reconcileAppIcon()
     }
 
     /// Alle Mitteilungen neu stellen. Die Zusammenfassungen tragen ZAHLEN und
