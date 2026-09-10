@@ -3056,9 +3056,8 @@ struct ContentView: View {
         applyCloudPreferences()
         // Local data is ready at this point. Keep the first interactive frame
         // independent from CloudKit and EventKit maintenance.
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.performInitialMaintenance(needsNativeSyncRecovery: needsNativeSyncRecovery)
+        Task { @MainActor in
+            await performInitialMaintenance(needsNativeSyncRecovery: needsNativeSyncRecovery)
         }
 
         // Native callbacks are installed only after the initial iCloud merge,
