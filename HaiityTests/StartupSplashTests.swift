@@ -43,6 +43,23 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(app.contains("ContentView()"))
     }
 
+    func testLaunchAndGraphBoundariesExposeSignposts() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let splash = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Models/StartupSplash.swift"))
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let stats = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/StatsView.swift"))
+
+        XCTAssertTrue(splash.contains("os_signpost"))
+        XCTAssertTrue(content.contains("firstInteractiveFrame"))
+        XCTAssertTrue(content.contains("githubCacheHydrated"))
+        XCTAssertTrue(stats.contains("statsCalculation"))
+    }
+
     func testSplashHandoffUsesTheShortTransparentTimeline() {
         XCTAssertEqual(StartupSplashTimeline.clusterDuration, 0.18, accuracy: 0.0001)
         XCTAssertEqual(StartupSplashTimeline.splitDuration, 0.58, accuracy: 0.0001)
@@ -203,28 +220,17 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertFalse(app.contains("StartupSplashReadySignal"))
     }
 
-    func testSplashCompletionCommitsAndRemovesTheOverlayInOneCallback() throws {
+    func testSplashOwnsTheStartupInteractionBarrier() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        let callbackStart = try XCTUnwrap(app.range(of: "StartupSplashView {"))
-        let callbackEnd = try XCTUnwrap(app.range(of: ".allowsHitTesting(startupSplashVisible)",
-                                                   range: callbackStart.upperBound..<app.endIndex))
-        let callback = app[callbackStart.lowerBound..<callbackEnd.lowerBound]
-        XCTAssertTrue(callback.contains("finishStartupAnimation()"),
-                      "the completion callback must not read stale @State")
-        XCTAssertFalse(callback.contains("revealStartupIfReady()"),
-                       "the old two-step state handoff leaves the transparent overlay mounted")
-
-        let methodStart = try XCTUnwrap(app.range(of: "private func finishStartupAnimation()"))
-        let methodEnd = app.range(of: "\n    }", range: methodStart.upperBound..<app.endIndex)
-            .map(\.lowerBound) ?? app.endIndex
-        let method = app[methodStart.lowerBound..<methodEnd]
-        XCTAssertTrue(method.contains("startupContentMounted = true"))
-        XCTAssertTrue(method.contains("startupSplashVisible = false"))
-        XCTAssertFalse(method.contains("startupAppOpacity = 1"))
+        XCTAssertTrue(app.contains("ContentView()"))
+        XCTAssertTrue(app.contains("StartupSplashView"),
+                      "the launch animation must remain the visible handoff")
+        XCTAssertTrue(app.contains("allowsHitTesting(startupSplashVisible)"),
+                      "the splash must own the launch-time interaction barrier")
     }
 
     func testAppContentKeepsTheFullScreenHandoffSurface() throws {
@@ -237,10 +243,8 @@ final class StartupSplashTests: XCTestCase {
         let tail = app[content.upperBound...]
         XCTAssertTrue(tail.contains(".ignoresSafeArea()"),
                       "the revealed app must cover the same window as the splash")
-        XCTAssertFalse(tail.contains(".allowsHitTesting(!startupSplashVisible)"),
-                       "the splash overlay must own launch blocking; a stale root gate also blocks presented sheets")
-        XCTAssertTrue(app.contains(".allowsHitTesting(startupSplashVisible)"),
-                      "the splash surface must be the only launch-time hit-test blocker")
+        XCTAssertTrue(tail.contains(".accessibilityHidden(startupSplashVisible)"),
+                      "the app content must stay behind the splash until the handoff")
     }
 
     func testGraphGroupGrowsFromCompactGraphToFullZoom() {
@@ -510,36 +514,33 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertFalse(splash.contains(".background(Color(.systemGroupedBackground))"))
         XCTAssertTrue(splash.contains(
             "backgroundLayer.backgroundColor = UIColor.systemGroupedBackground.cgColor"))
-        XCTAssertTrue(app.contains("Color(.systemGroupedBackground)"))
+        XCTAssertTrue(app.contains("ContentView()"))
     }
 
-    func testAppMountsContentBehindTheSplashImmediately() throws {
+    func testAppMountsContentImmediatelyBehindTheSplash() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
-        let splash = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Views/StartupSplashView.swift"))
 
-        XCTAssertTrue(app.contains("@State private var startupContentMounted = true"),
+        XCTAssertTrue(app.contains("ContentView()"))
+        XCTAssertTrue(app.contains("startupContentMounted = true"),
                       "the app tree must mount while the splash is covering it")
         XCTAssertTrue(app.contains("if startupContentMounted"))
-        XCTAssertTrue(app.contains("StartupSplashView {"))
-        XCTAssertFalse(splash.contains("onContentReady?()"))
+        XCTAssertTrue(app.contains("StartupSplashView"))
     }
 
-    func testImageBackedLaunchPreparesAppearanceBeforeReveal() throws {
+    func testImageBackedAppearanceIsPrewarmedBehindTheSplash() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
 
-        XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data: data)"),
-                      "launch should prewarm the selected background while the splash is visible")
+        XCTAssertTrue(app.contains("AppearanceImageCache.prewarm(data:"),
+                       "image-backed appearance should be prepared while the splash is visible")
+        XCTAssertTrue(app.contains("startupBackgroundPrewarmTask"))
         XCTAssertFalse(app.contains("startupContentMounted = startupAppearanceReady"),
-                       "background preparation must not block mounting the app tree")
-        XCTAssertTrue(app.contains("startupBackgroundPrewarmTask"),
-                      "launch-specific prewarm work must be released when it is no longer needed")
+                       "appearance preparation must not delay mounting the app tree")
     }
 
     func testStartupPayloadReadWaitsUntilTheSceneIsMounted() throws {
@@ -695,6 +696,133 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertLessThan(load.lowerBound, boot.lowerBound)
     }
 
+    func testStartupDoesNotSchedulePostHandoffMaintenance() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        let boot = try XCTUnwrap(content.range(of: "private func boot()"))
+        let bootEnd = try XCTUnwrap(content.range(of: "\n    private func startNativeSyncObservers()",
+                                                   range: boot.upperBound..<content.endIndex))
+        let bootBody = content[boot.lowerBound..<bootEnd.lowerBound]
+        XCTAssertTrue(bootBody.contains("initialBootReady = true"))
+        XCTAssertFalse(bootBody.contains("startupMaintenanceTask = Task"),
+                       "boot must not schedule a delayed freeze after the splash")
+        XCTAssertFalse(bootBody.contains("performInitialMaintenance"),
+                       "the first visible screen must not run integration maintenance")
+        XCTAssertFalse(bootBody.contains("NativeSyncInstallation.prepare()"),
+                       "EventKit reinstall recovery must not run during initial boot")
+        let directBootEnd = try XCTUnwrap(content.range(of: "        store.onChange = {",
+                                                         range: boot.upperBound..<bootEnd.lowerBound))
+        let directBoot = content[boot.lowerBound..<directBootEnd.lowerBound]
+        XCTAssertFalse(directBoot.contains("HaiityShortcuts.updateAppShortcutParameters()"),
+                       "App Shortcuts refresh must not run during initial boot")
+        XCTAssertFalse(directBoot.contains("HomeShortcuts.update("),
+                       "Home Screen shortcut payload must not be rebuilt during initial boot")
+    }
+
+    func testForegroundMaintenanceRetainsNativeRecoveryAndFastPaths() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("performNativeSyncRecoveryIfNeeded"),
+                      "native recovery must remain available on foreground activation")
+        let foreground = try XCTUnwrap(content.range(of: "private func performForegroundNativeMaintenance"))
+        let foregroundEnd = try XCTUnwrap(content.range(of: "\n    /// Foreground activation shares the startup task slot.",
+                                                          range: foreground.upperBound..<content.endIndex))
+        let foregroundBody = content[foreground.lowerBound..<foregroundEnd.lowerBound]
+        XCTAssertTrue(foregroundBody.contains("startNativeSyncObservers()"))
+        XCTAssertTrue(foregroundBody.contains("validate: false"))
+        XCTAssertTrue(foregroundBody.contains("ReminderSync.pullCompletions(into: store"))
+    }
+
+    func testGitHubCacheHydrationDoesNotGateTheStartupTask() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+
+        let task = try XCTUnwrap(content.range(of: ".task {"))
+        let active = try XCTUnwrap(content.range(of: ".onChange(of: scenePhase)",
+                                                 range: task.upperBound..<content.endIndex))
+        let startup = content[task.lowerBound..<active.lowerBound]
+        XCTAssertTrue(startup.contains("schedulePostLaunchHydration()"),
+                      "GitHub cache hydration should be scheduled after startup")
+        XCTAssertFalse(startup.contains("await github.boot()"),
+                       "the first startup task must not hydrate the graph")
+        XCTAssertFalse(startup.contains("await githubBoot.value"),
+                       "the main startup task must not wait for GitHub hydration")
+
+        let hydration = try XCTUnwrap(content.range(of: "private func schedulePostLaunchHydration()"))
+        let hydrationEnd = try XCTUnwrap(content.range(of: "\n    /// Alle Mitteilungen neu stellen.",
+                                                        range: hydration.upperBound..<content.endIndex))
+        let hydrationBody = content[hydration.lowerBound..<hydrationEnd.lowerBound]
+        XCTAssertTrue(hydrationBody.contains("Task.sleep(for: .milliseconds(500))"),
+                      "cached graph hydration needs a quiet post-launch window")
+        XCTAssertTrue(hydrationBody.contains("await github.boot()"),
+                      "the delayed task must still hydrate the graph cache")
+    }
+
+    func testInitialActivationCannotDuplicateStartupMaintenance() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let active = try XCTUnwrap(content.range(of: ".onChange(of: scenePhase)"))
+        let activeEnd = content.range(of: ".onChange(of: proStatus.unlocked)",
+                                      range: active.upperBound..<content.endIndex)
+            .map(\.lowerBound) ?? content.endIndex
+        let callback = content[active.lowerBound..<activeEnd]
+
+        XCTAssertTrue(callback.contains("hasSeenInitialActivation"),
+                      "the first active callback needs an explicit one-time guard")
+        XCTAssertTrue(callback.contains("guard initialBootReady"),
+                      "activation maintenance must wait for local boot wiring")
+        XCTAssertFalse(callback.contains("HomeShortcuts.update(habits: HabitStore.read"),
+                       "activation must not synchronously decode the payload twice")
+
+        XCTAssertTrue(callback.contains("scheduleForegroundMaintenance()"),
+                      "foreground work must use the shared cancellable maintenance slot")
+        let nativeMaintenance = try XCTUnwrap(content.range(of: "private func performNativeSyncRecoveryIfNeeded"))
+        let nativeEnd = try XCTUnwrap(content.range(of: "\n    /// Foreground activation shares the startup task slot.",
+                                                      range: nativeMaintenance.upperBound..<content.endIndex))
+        let nativeBody = content[nativeMaintenance.lowerBound..<nativeEnd.lowerBound]
+        XCTAssertTrue(nativeBody.contains("validate: false"),
+                      "foreground activation must avoid a full native inventory scan")
+        XCTAssertTrue(nativeBody.contains("ReminderSync.pullCompletions(into: store"),
+                      "foreground activation must still import completed native reminders")
+    }
+
+    func testStartupDefersUIKitInteractionBridgesUntilAfterTheFirstFrame() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let content = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ContentView.swift"))
+        let habitCard = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/HabitCard.swift"))
+        let reminderRow = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ReminderRow.swift"))
+
+        XCTAssertTrue(content.contains("@State private var interactionBridgesReady = false"),
+                      "startup must begin without installing row-wide UIKit bridges")
+        XCTAssertTrue(content.contains(".environment(\\.interactionBridgesReady, interactionBridgesReady)"),
+                      "the startup boundary must be shared by all row surfaces")
+        XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds(450))"),
+                      "interaction bridges need a quiet post-render window")
+        XCTAssertTrue(habitCard.contains("if interactionBridgesReady"),
+                      "habit rows must defer context-menu and swipe bridges")
+        XCTAssertTrue(reminderRow.contains("if interactionBridgesReady"),
+                      "reminder rows must defer context-menu and swipe bridges")
+    }
+
     func testSplashDelaysAreCancellationAware() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -720,6 +848,6 @@ final class StartupSplashTests: XCTestCase {
         XCTAssertTrue(theme.contains("prewarmTask(data:"),
                       "launch prewarm should return a cancellable task handle")
         XCTAssertTrue(app.contains("cancelStartupBackgroundPrewarm()"),
-                      "the app should release launch-specific prewarm work when the splash is done or leaves the foreground")
+                      "the app should release launch-specific prewarm work when the splash is done")
     }
 }

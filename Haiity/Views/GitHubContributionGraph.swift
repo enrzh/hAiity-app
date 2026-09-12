@@ -1,6 +1,21 @@
 import Foundation
 import SwiftUI
 import UIKit
+import OSLog
+
+private enum GraphMetrics {
+    private static let log = OSLog(subsystem: "com.aiity.haiity", category: "graphs")
+
+    static func begin(_ name: StaticString) -> OSSignpostID {
+        let id = OSSignpostID(log: log)
+        os_signpost(.begin, log: log, name: name, signpostID: id)
+        return id
+    }
+
+    static func end(_ name: StaticString, id: OSSignpostID) {
+        os_signpost(.end, log: log, name: name, signpostID: id)
+    }
+}
 
 /// Shared tile renderer for app cards and widgets. Colors stay caller-owned
 /// so WidgetKit's vibrant and accented appearances retain their contrast.
@@ -216,7 +231,7 @@ struct GitHubContributionGraph: View, Equatable {
     @Environment(\.palettes) private var palettes
     /// GitHub's date window is converted to the shared grid off the main
     /// actor so cached contributions never stall the first page frame.
-    @State private var renderedSnapshot: GridCalendar.Snapshot?
+    @State private var renderedSnapshot: (key: SnapshotRequest, value: GridCalendar.Snapshot)?
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
@@ -237,21 +252,32 @@ struct GitHubContributionGraph: View, Equatable {
                               dark: scheme == .dark)
     }
 
-    private var snapshotRefreshKey: String {
-        "\(days.hashValue)|\(days.count)|\(weeks.map(String.init) ?? "auto")|\(DayKey.today(calendar: Self.contributionCalendar))"
+    struct SnapshotRequest: Hashable {
+        let days: [GitHubContributionDay]
+        let weeks: Int?
+        let today: String
+
+        // No account identity is available here. Only identical source data
+        // can safely reuse a visible snapshot across view updates.
+        func canDisplaySnapshot(for request: Self) -> Bool { self == request }
     }
 
-    private func loadSnapshot(displayWeeks: Int, today: String,
-                              levelsByDay: [String: Int]) async {
-        renderedSnapshot = nil
-        let snapshot = await Task.detached(priority: .utility) {
-            GridCalendar.snapshot(levelsByDay: levelsByDay,
+    private func loadSnapshot(for request: SnapshotRequest) async {
+        let graphSignpost = GraphMetrics.begin("githubGraphCalculation")
+        defer { GraphMetrics.end("githubGraphCalculation", id: graphSignpost) }
+        guard let snapshot = await ContributionSnapshotScheduler.perform({
+            let displayWeeks = request.weeks ?? GridCalendar.weeksForDisplay(
+                dates: request.days.map(\.date), today: request.today,
+                calendar: Self.contributionCalendar)
+            let levelsByDay = request.days.reduce(into: [String: Int]()) { result, day in
+                result[day.date] = day.level
+            }
+            return GridCalendar.snapshot(levelsByDay: levelsByDay,
                                   weeks: displayWeeks,
-                                  today: today,
+                                  today: request.today,
                                   calendar: Self.contributionCalendar)
-        }.value
-        guard !Task.isCancelled else { return }
-        renderedSnapshot = snapshot
+        }), !Task.isCancelled else { return }
+        renderedSnapshot = (request, snapshot)
     }
 
     private nonisolated static let contributionCalendar: Calendar = {
@@ -265,19 +291,17 @@ struct GitHubContributionGraph: View, Equatable {
         // fetched contribution can be older than today and must not freeze
         // the graph's future-cell behavior in that case.
         let today = DayKey.today(calendar: Self.contributionCalendar)
-        let displayWeeks = weeks ?? GridCalendar.weeksForDisplay(
-            dates: days.map(\.date),
-            today: today,
-            calendar: Self.contributionCalendar)
-        let levelsByDay = days.reduce(into: [String: Int]()) { result, day in
-            result[day.date] = day.level
+        let request = SnapshotRequest(days: days, weeks: weeks, today: today)
+        let snapshot = renderedSnapshot.flatMap {
+            $0.key.canDisplaySnapshot(for: request) ? $0.value : nil
         }
+        let displayWeeks = snapshot?.weeks ?? weeks ?? 1
         let m = metrics
         let pitch = m.cell + m.gap
         let contentWidth = CGFloat(max(displayWeeks, 1)) * pitch - m.gap
 
         Group {
-            if let snapshot = renderedSnapshot, snapshot.weeks == displayWeeks, snapshot.today == today {
+            if let snapshot {
                 if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ContributionChart(snapshot: snapshot,
@@ -311,9 +335,8 @@ struct GitHubContributionGraph: View, Equatable {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
-        .task(id: snapshotRefreshKey) {
-            await loadSnapshot(displayWeeks: displayWeeks, today: today,
-                               levelsByDay: levelsByDay)
+        .task(id: request) {
+            await loadSnapshot(for: request)
         }
         .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
     }
@@ -339,27 +362,24 @@ struct GitHubContributionGraph: View, Equatable {
     /// every week happens for the app graph and the widget graph alike. Cache
     /// the derived geometry by contribution content, not by view identity.
     private struct LayoutCacheKey: Hashable {
-        let fingerprint: Int
-        let count: Int
+        let days: [GitHubContributionDay]
         let weekLimit: Int?
     }
 
     private struct WindowCacheKey: Hashable {
-        let fingerprint: Int
-        let count: Int
+        let days: [GitHubContributionDay]
         let weeks: Int
     }
 
     private static let layoutLock = NSLock()
-    private static var layoutCache: [LayoutCacheKey: Layout] = [:]
-    private static var windowCache: [WindowCacheKey: [GitHubContributionDay]] = [:]
-    private static let cacheLimit = 24
+    private static var layoutCache = BoundedGraphCache<LayoutCacheKey, Layout>(limit: 24)
+    private static var windowCache = BoundedGraphCache<WindowCacheKey, [GitHubContributionDay]>(limit: 24)
     private(set) static var layoutComputeCount = 0
 
     static func resetLayoutCache() {
         layoutLock.lock()
-        layoutCache.removeAll(keepingCapacity: true)
-        windowCache.removeAll(keepingCapacity: true)
+        layoutCache.removeAll()
+        windowCache.removeAll()
         layoutComputeCount = 0
         layoutLock.unlock()
     }
@@ -370,8 +390,7 @@ struct GitHubContributionGraph: View, Equatable {
     static func widgetWindow(days: [GitHubContributionDay], weeks: Int) -> [GitHubContributionDay] {
         guard weeks > 0 else { return [] }
 
-        let key = WindowCacheKey(fingerprint: fingerprint(days),
-                                 count: days.count,
+        let key = WindowCacheKey(days: days,
                                  weeks: weeks)
         layoutLock.lock()
         if let cached = windowCache[key] {
@@ -413,15 +432,13 @@ struct GitHubContributionGraph: View, Equatable {
         }
 
         layoutLock.lock()
-        if windowCache.count >= cacheLimit { windowCache.removeAll(keepingCapacity: true) }
         windowCache[key] = result
         layoutLock.unlock()
         return result
     }
 
     static func layout(days: [GitHubContributionDay], weekLimit: Int?) -> Layout {
-        let key = LayoutCacheKey(fingerprint: fingerprint(days),
-                                 count: days.count,
+        let key = LayoutCacheKey(days: days,
                                  weekLimit: weekLimit)
         layoutLock.lock()
         if let cached = layoutCache[key] {
@@ -487,20 +504,9 @@ struct GitHubContributionGraph: View, Equatable {
 
     private static func storeLayout(_ layout: Layout, for key: LayoutCacheKey) {
         layoutLock.lock()
-        if layoutCache.count >= cacheLimit { layoutCache.removeAll(keepingCapacity: true) }
         layoutCache[key] = layout
         layoutComputeCount += 1
         layoutLock.unlock()
     }
 
-    private static func fingerprint(_ days: [GitHubContributionDay]) -> Int {
-        var hasher = Hasher()
-        hasher.combine(days.count)
-        for day in days {
-            hasher.combine(day.date)
-            hasher.combine(day.count)
-            hasher.combine(day.level)
-        }
-        return hasher.finalize()
-    }
 }

@@ -115,10 +115,13 @@ enum StatsEngine {
 
     /// Serienpaar eines einzelnen Habits — die Rückseite der Puls-Karte.
     struct HabitStreaks: Equatable {
+        let id: UUID
         let name: String
         let emoji: String
         let current: Int
         let best: Int
+        let completion30: Double
+        let monthlyCounts: [Int]
     }
 
     /// Fällige und erfüllte Habits an einem Tag — der pure Spiegel von
@@ -422,8 +425,10 @@ enum StatsEngine {
         var week: DayCompletion
         var previousWeek: DayCompletion
         var last7: [Double]
+        var last7HasData: [Bool]
         var mergedLevels: [[Int]]
         var perHabit: [HabitStreaks]
+        var totalCheckIns: Int
     }
 
     /// Echte Neuberechnungen — der Beleg im Test, dass Scroll- und
@@ -431,7 +436,7 @@ enum StatsEngine {
     private(set) static var computeCount = 0
 
     private static let lock = NSLock()
-    private static var cachedKey: (habits: [Habit], today: String, firstWeekday: Int)?
+    private static var cachedKey: (habits: [Habit], today: String, calendar: Calendar)?
     private static var cachedSnapshot: Snapshot?
 
     /// Memoisiert über (Habits, heute, Wochenanfang): eine `body`-Auswertung
@@ -444,13 +449,17 @@ enum StatsEngine {
         lock.lock()
         if let key = cachedKey, let snap = cachedSnapshot,
            key.habits == habits, key.today == today,
-           key.firstWeekday == calendar.firstWeekday {
+           key.calendar == calendar {
             lock.unlock()
             return snap
         }
         lock.unlock()
 
         let todayCompletion = dailyCompletion(habits: habits, day: today, calendar: calendar)
+        let recentCompletions = (-6...0).compactMap { offset -> DayCompletion? in
+            guard let day = DayKey.shifted(today, by: offset, calendar: calendar) else { return nil }
+            return dailyCompletion(habits: habits, day: day, calendar: calendar)
+        }
         let snap = Snapshot(
             today: today,
             todayDone: todayCompletion.done,
@@ -459,17 +468,23 @@ enum StatsEngine {
             bestStreak: bestOverallStreak(habits: habits, today: today, calendar: calendar),
             week: thisWeekCompletion(habits: habits, today: today, calendar: calendar),
             previousWeek: previousWeekCompletion(habits: habits, today: today, calendar: calendar),
-            last7: last7DailyFractions(habits: habits, today: today, calendar: calendar),
+            last7: recentCompletions.map(\.fraction),
+            last7HasData: recentCompletions.map { $0.total > 0 },
             mergedLevels: mergedLevels(habits: habits, weeks: pulseWeeks,
                                        today: today, calendar: calendar),
-            perHabit: habits.prefix(6).map {
-                HabitStreaks(name: $0.name, emoji: $0.emoji,
+            perHabit: habits.map {
+                HabitStreaks(id: $0.id, name: $0.name, emoji: $0.emoji,
                              current: GoalEngine.streak(habit: $0, today: today, calendar: calendar),
-                             best: GoalEngine.bestStreak(habit: $0, today: today, calendar: calendar))
-            })
+                             best: GoalEngine.bestStreak(habit: $0, today: today, calendar: calendar),
+                             completion30: GoalEngine.completion(habit: $0, lastNDays: 30,
+                                                                 today: today, calendar: calendar),
+                             monthlyCounts: StatsMath.monthlyCounts(habit: $0, months: 12,
+                                                                   today: today, calendar: calendar))
+            },
+            totalCheckIns: StatsMath.totalCheckIns(habits, today: today, calendar: calendar))
 
         lock.lock()
-        cachedKey = (habits, today, calendar.firstWeekday)
+        cachedKey = (habits, today, calendar)
         cachedSnapshot = snap
         computeCount += 1
         lock.unlock()

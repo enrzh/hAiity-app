@@ -294,6 +294,48 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(snap.perHabit.map(\.name), ["Lesen"])
     }
 
+    func testSnapshotKeepsAllRankingRowsAndUsesRequestedDate() {
+        let habits = (0..<8).map { index in
+            habit("Habit \(index)", log: [wednesday: 1, "2026-09-01": 1])
+        }
+        let snap = StatsEngine.snapshot(habits: habits, today: wednesday, calendar: cal)
+        XCTAssertEqual(snap.perHabit.map(\.id), habits.map(\.id))
+        XCTAssertEqual(snap.totalCheckIns, 8)
+        for row in snap.perHabit {
+            XCTAssertEqual(row.current, 1)
+            XCTAssertEqual(row.completion30, 1.0 / 30, accuracy: 0.0001)
+            XCTAssertEqual(row.monthlyCounts.count, 12)
+            XCTAssertEqual(row.monthlyCounts.last, 1)
+            XCTAssertEqual(row.monthlyCounts.reduce(0, +), 1)
+        }
+    }
+
+    func testSnapshotDistinguishesRestDaysFromUnfinishedDays() {
+        let h = habit(recurrence: .weekdays([2]), log: ["2026-08-03": 1])
+        let snap = StatsEngine.snapshot(habits: [h], today: wednesday, calendar: cal)
+        XCTAssertEqual(snap.last7HasData, [false, false, false, false, true, false, false])
+        XCTAssertEqual(snap.last7[4], 1)
+
+        let open = StatsEngine.snapshot(habits: [habit(recurrence: .weekdays([2]))],
+                                        today: wednesday, calendar: cal)
+        XCTAssertTrue(open.last7HasData[4])
+        XCTAssertEqual(open.last7[4], 0)
+    }
+
+    func testSnapshotCacheInvalidatesWhenCalendarTimeZoneChanges() {
+        StatsEngine.resetCache()
+        var utc = cal
+        utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        var pacific = utc
+        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let h = habit(log: [wednesday: 1])
+        _ = StatsEngine.snapshot(habits: [h], today: wednesday, calendar: utc)
+        _ = StatsEngine.snapshot(habits: [h], today: wednesday, calendar: utc)
+        XCTAssertEqual(StatsEngine.computeCount, 1)
+        _ = StatsEngine.snapshot(habits: [h], today: wednesday, calendar: pacific)
+        XCTAssertEqual(StatsEngine.computeCount, 2)
+    }
+
     /// Reine Nein-Tage tragen die Verneinungsstufe statt leer zu bleiben —
     /// wer täglich antwortet (auch mit Nein), sieht einen Puls. Ein
     /// zählender Tag GEWINNT gegen ein Nein desselben Tages.

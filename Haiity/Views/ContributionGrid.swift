@@ -31,7 +31,7 @@ struct ContributionGrid: View, Equatable {
             && a.gap == b.gap
             && a.interactive == b.interactive
             && a.showsMonthLabels == b.showsMonthLabels
-            && a.calendar.timeZone.identifier == b.calendar.timeZone.identifier
+            && a.calendar == b.calendar
     }
 
     let habit: Habit
@@ -53,7 +53,7 @@ struct ContributionGrid: View, Equatable {
     @State private var available: CGFloat = 0
     /// A cold graph must not make the first habit-list frame wait on date
     /// generation and intensity calculation.
-    @State private var renderedSnapshot: GridCalendar.Snapshot?
+    @State private var renderedSnapshot: (key: GridCalendar.HabitSnapshotKey, value: GridCalendar.Snapshot)?
     /// Referenzmaß 100, skaliert mit Dynamic Type: `labelScale / 100` ist
     /// exakt der Faktor, mit dem `.caption2` gerade wächst. Damit lässt sich
     /// die Labelbreite messen, ohne die Trait-Collection nachzubauen.
@@ -75,22 +75,15 @@ struct ContributionGrid: View, Equatable {
                 spacing)
     }
 
-    private var snapshotRefreshKey: String {
-        "\(habit.id.uuidString)|\(habit.log.hashValue)|\(habit.missedDays.hashValue)|\(habit.recurrence.target ?? -1)|\(habit.kind.rawValue)|\(weeks)|\(DayKey.today(calendar: calendar))|\(calendar.timeZone.identifier)|\(calendar.firstWeekday)"
-    }
-
-    private func loadSnapshot() async {
+    private func loadSnapshot(for request: GridCalendar.HabitSnapshotKey) async {
         let habit = habit
-        let weeks = weeks
-        let today = DayKey.today(calendar: calendar)
-        let calendar = calendar
-        renderedSnapshot = nil
-        let snapshot = await Task.detached(priority: .utility) {
-            GridCalendar.snapshot(habit: habit, weeks: weeks, today: today,
-                                  calendar: calendar)
-        }.value
-        guard !Task.isCancelled else { return }
-        renderedSnapshot = snapshot
+        let graphSignpost = StartupMetrics.begin("habitGraphCalculation")
+        defer { StartupMetrics.end("habitGraphCalculation", id: graphSignpost) }
+        guard let snapshot = await ContributionSnapshotScheduler.perform({
+            GridCalendar.snapshot(habit: habit, weeks: request.weeks, today: request.today,
+                                  calendar: request.calendar)
+        }), !Task.isCancelled else { return }
+        renderedSnapshot = (request, snapshot)
     }
 
     var body: some View {
@@ -98,10 +91,16 @@ struct ContributionGrid: View, Equatable {
         let _ = FrameProbe.shared.mark("grid.body")
         #endif
         let m = metrics
+        let today = DayKey.today(calendar: calendar)
+        let request = GridCalendar.HabitSnapshotKey(habit: habit, weeks: weeks,
+                                                    today: today, calendar: calendar)
+        let snapshot = renderedSnapshot.flatMap {
+            $0.key.canDisplaySnapshot(for: request) ? $0.value : nil
+        }
         let pitch = m.cell + m.gap
         let contentWidth = CGFloat(weeks) * pitch - m.gap
         Group {
-            if let snapshot = renderedSnapshot, snapshot.weeks == weeks, snapshot.today == DayKey.today(calendar: calendar) {
+            if let snapshot {
                 if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
                     graphContent(snapshot: snapshot,
@@ -133,17 +132,17 @@ struct ContributionGrid: View, Equatable {
             }
         }
         .background(widthReader)
-        .task(id: snapshotRefreshKey) {
-            await loadSnapshot()
+        .task(id: request) {
+            await loadSnapshot(for: request)
         }
         // Der Abhak-Puls: ändert sich HEUTE, springt ein Ring um die
         // Heute-Zelle kurz auf — die eine Stelle, an der sich ein Check-in
         // im Raster zeigt, bekommt die eine kleine Bewegung. Bei „Bewegung
         // reduzieren" bleibt nur der Farbwechsel der Zelle.
-        .onChange(of: habit.log[DayKey.today(calendar: calendar)]) { oldValue, newValue in
+        .onChange(of: habit.log[today]) { oldValue, newValue in
             guard interactive, !reduceMotion,
                   (newValue ?? 0) > (oldValue ?? 0),
-                  !habit.isDeclined(DayKey.today(calendar: calendar)) else { return }
+                  !habit.isDeclined(today) else { return }
             checkPulse = true
             withAnimation(.spring(response: 0.35, dampingFraction: 0.55).delay(0.02)) {
                 checkPulse = false
@@ -155,7 +154,7 @@ struct ContributionGrid: View, Equatable {
         // Chronologie wird nie gespiegelt — auch nicht in ar/ur.
         .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(summary(filled: renderedSnapshot?.filledCount ?? 0))
+        .accessibilityLabel(summary(filled: snapshot?.filledCount ?? 0, streak: snapshot?.streak ?? 0))
         .accessibilityIdentifier("contribution-grid")
     }
 
@@ -207,8 +206,8 @@ struct ContributionGrid: View, Equatable {
             .accessibilityLabel(String(localized: "Beitragskalender wird geladen"))
     }
 
-    private func summary(filled: Int) -> String {
-        String(localized: "\(habit.name): \(filled) Tage im letzten Jahr, aktuelle Serie \(habit.streak()).")
+    private func summary(filled: Int, streak: Int) -> String {
+        String(localized: "\(habit.name): \(filled) Tage im letzten Jahr, aktuelle Serie \(streak).")
     }
 }
 

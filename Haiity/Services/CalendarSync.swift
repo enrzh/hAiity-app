@@ -395,9 +395,11 @@ enum CalendarSync {
     /// (beim AUSschalten räumt `disable()` auf).
     ///
     /// `validate` prüft zusätzlich, ob die gemerkten Termine noch existieren
-    /// (heilt vom Nutzer gelöschte Serien) — das kostet je Habit einen
-    /// EventKit-Zugriff. Der Start übergibt `true`; der Check-in-Pfad `false`,
-    /// damit ein unveränderter Bestand KEINEN EventKit-Aufruf auslöst.
+    /// und räumt alte Marker auf — das kostet eine vollständige EventKit-
+    /// Inventur. Der normale Start-, Aktivierungs- und lokale Änderungsweg
+    /// übergibt `false` und arbeitet ausschließlich mit der gespeicherten
+    /// Kennung; der native Änderungsbeobachter und explizite Bereinigungen
+    /// bleiben beim validierenden Pfad.
     static func reconcile(habits: [Habit],
                           defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true) {
@@ -422,6 +424,13 @@ enum CalendarSync {
                 prints[$0.0] == $0.1.fingerprint
             }
             if unchanged { return }
+
+            // Startup, foreground activation, and local edits use the fast
+            // path. It trusts the persisted event IDs and only touches the
+            // affected series; the validating path below is reserved for
+            // native-store change notifications and explicit cleanup.
+            reconcileFast(plans: plans, map: &map, prints: &prints)
+            return
         }
 
         guard removeLegacyOwnedItems() else {
@@ -568,6 +577,45 @@ enum CalendarSync {
         })
         for key in Array(map.keys) where !seen.contains(key) && !unavailableKeys.contains(key) {
             _ = removeEvent(for: key, map: &map, prints: &prints)
+        }
+
+        defaults.set(map, forKey: mapKey)
+        defaults.set(prints, forKey: fingerprintKey)
+    }
+
+    /// Reconciles from the device-local event map without scanning every
+    /// calendar event. EventKit's broad date predicates are synchronous and
+    /// can cover 200 years of data, so they must never be part of the normal
+    /// startup or local-change path.
+    private static func reconcileFast(
+        plans: [(String, CalendarEventPlan)],
+        map: inout [String: String],
+        prints: inout [String: String]
+    ) {
+        let wanted = Set(plans.map(\.0))
+        let changedPlans = plans.filter { key, plan in
+            prints[key] != plan.fingerprint || map[key] == nil
+        }
+
+        for key in Array(map.keys) where !wanted.contains(key) {
+            _ = removeEvent(for: key, map: &map, prints: &prints)
+        }
+
+        var calendars: [Bool: EKCalendar] = [:]
+        for (_, plan) in changedPlans {
+            guard calendars[plan.isReminder] == nil else { continue }
+            if let calendar = ensureCalendar(isReminder: plan.isReminder) {
+                calendars[plan.isReminder] = calendar
+            }
+        }
+
+        for (key, plan) in changedPlans {
+            guard let calendar = calendars[plan.isReminder] else { continue }
+            if !removeEvent(for: key, map: &map, prints: &prints) { continue }
+            if let id = createEvent(plan: plan, in: calendar) {
+                map[key] = id
+                prints[key] = plan.fingerprint
+            }
         }
 
         defaults.set(map, forKey: mapKey)

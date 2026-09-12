@@ -408,14 +408,12 @@ final class ContentSyncOrderingTests: XCTestCase {
                           "remote data must be merged before a local preference write updates data.updatedAt")
 
         let bootStart = try XCTUnwrap(source.range(of: "private func boot()"))
-        let bootBody = source[bootStart.lowerBound..<syncStart.lowerBound]
-        XCTAssertFalse(bootBody.contains("        store.setViewPreferences(viewPreferences.preferences)\n        await rescheduleReminders()"),
-                       "boot must let syncNow establish ordering instead of touching the timestamp first")
-
-        let syncCall = try XCTUnwrap(bootBody.range(of: "await syncNow(announce: false)"))
-        let firstReminderReconcile = try XCTUnwrap(bootBody.range(of: "\n        await rescheduleReminders()\n"))
-        XCTAssertLessThan(syncCall.lowerBound, firstReminderReconcile.lowerBound,
-                          "startup scheduling must use the iCloud-merged habit data")
+        let bootEnd = try XCTUnwrap(source.range(of: "\n    private func startNativeSyncObservers()",
+                                                  range: bootStart.upperBound..<source.endIndex))
+        let bootBody = source[bootStart.lowerBound..<bootEnd.lowerBound]
+        XCTAssertTrue(bootBody.contains("initialBootReady = true"))
+        XCTAssertFalse(bootBody.contains("performInitialMaintenance"),
+                       "boot must not schedule integration work behind the first visible frame")
     }
 
     func testForegroundPullCompletesBeforeSchedulingAndReminderReconciliation() throws {
@@ -427,15 +425,32 @@ final class ContentSyncOrderingTests: XCTestCase {
         let activeEnd = try XCTUnwrap(source.range(of: "private func boot()",
                                                   range: activeStart.upperBound..<source.endIndex))
         let activeBody = source[activeStart.lowerBound..<activeEnd.lowerBound]
-        let sync = try XCTUnwrap(activeBody.range(of: "await syncNow(announce: false)"))
-        let schedule = try XCTUnwrap(activeBody.range(of: "await rescheduleReminders()"))
+        XCTAssertTrue(activeBody.contains("scheduleForegroundMaintenance()"),
+                      "foreground activation must enqueue maintenance instead of doing it inline")
+
+        let maintenanceStart = try XCTUnwrap(
+            source.range(of: "private func performForegroundMaintenance"))
+        let maintenanceEnd = try XCTUnwrap(
+            source.range(of: "private func rescheduleReminders() async",
+                         range: maintenanceStart.upperBound..<source.endIndex))
+        let maintenance = source[maintenanceStart.lowerBound..<maintenanceEnd.lowerBound]
+        let sync = try XCTUnwrap(maintenance.range(of: "await syncNow(announce: false)"))
+        let schedule = try XCTUnwrap(maintenance.range(of: "await rescheduleReminders()"))
+        let nativeStart = try XCTUnwrap(source.range(of: "private func performForegroundNativeMaintenance"))
+        let nativeEnd = try XCTUnwrap(source.range(of: "\n    /// Foreground activation shares the startup task slot.",
+                                                    range: nativeStart.upperBound..<source.endIndex))
+        let nativeMaintenance = source[nativeStart.lowerBound..<nativeEnd.lowerBound]
         let pullReminders = try XCTUnwrap(
-            activeBody.range(of: "ReminderSync.pullCompletions(into: store"))
+            nativeMaintenance.range(of: "ReminderSync.pullCompletions(into: store"))
 
         XCTAssertLessThan(sync.lowerBound, schedule.lowerBound,
                           "foreground scheduling must use the iCloud-merged habit data")
-        XCTAssertLessThan(sync.lowerBound, pullReminders.lowerBound,
-                          "foreground reminder reconciliation must use the iCloud-merged habit data")
+        XCTAssertTrue(maintenance.contains("await performForegroundNativeMaintenance()"),
+                      "foreground reminder reconciliation must follow the cloud pass")
+        XCTAssertTrue(pullReminders.lowerBound < nativeMaintenance.endIndex,
+                      "native reminder reconciliation must remain in the foreground native pass")
+        XCTAssertTrue(nativeMaintenance.contains("validate: false"),
+                      "foreground maintenance must use the fast native reconciliation path")
     }
 }
 

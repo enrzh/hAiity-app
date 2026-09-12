@@ -19,8 +19,14 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "UIKit must provide the held card's preview")
         XCTAssertTrue(preview.contains("let root = AnyView(makePreview()"),
                       "the preview provider must build the rounded card root")
-        XCTAssertTrue(source.contains(".overlay {\n                GraphContextMenu"),
+        XCTAssertTrue(source.contains(".overlay {"),
                       "graph cards must place the interaction above their scrollable content")
+        let overlay = try XCTUnwrap(source.range(of: ".overlay {"))
+        let graphMenu = try XCTUnwrap(source.range(of: "GraphContextMenu(",
+                                                 range: overlay.upperBound..<source.endIndex))
+        XCTAssertTrue(source[overlay.upperBound..<graphMenu.lowerBound]
+            .contains("interactionBridgesReady"),
+                      "graph card interaction must be deferred until the first frame settles")
     }
 
     func testContextInteractionIsOwnedByTheHeldCard() throws {

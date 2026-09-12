@@ -162,6 +162,23 @@ final class ReminderUpcomingTests: XCTestCase {
                        NotificationQuickAction.checkbox.categoryIdentifier)
     }
 
+    func testIdenticalNotificationRequestMatchesItsPlan() {
+        let plan = ReminderPlan(identifier: "summary",
+                                title: "Heute",
+                                body: "Alles offen",
+                                dateMatching: DateComponents(year: 2026,
+                                                             month: 8,
+                                                             day: 10,
+                                                             hour: 20),
+                                repeats: false)
+
+        XCTAssertTrue(Reminders.requestMatches(Reminders.request(plan), plan: plan))
+
+        var changed = plan
+        changed.body = "Ein anderer Stand"
+        XCTAssertFalse(Reminders.requestMatches(Reminders.request(plan), plan: changed))
+    }
+
     func testNotificationModesMapToPlansAndInterruptionLevel() {
         var standard = Habit(name: "Standard", timeMinutes: 18 * 60, recurrence: .daily,
                              notificationMode: .standard)
@@ -206,7 +223,7 @@ final class ReminderUpcomingTests: XCTestCase {
                                              range: start.upperBound..<source.endIndex))
         let callback = source[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(callback.contains("rescheduleReminders()"),
+        XCTAssertTrue(callback.contains("scheduleMaintenance()"),
                       "changing a notification action must update already scheduled requests")
     }
 

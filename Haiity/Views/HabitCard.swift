@@ -74,6 +74,7 @@ struct HabitCard: View, Equatable {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var layoutDirection
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
@@ -139,10 +140,12 @@ struct HabitCard: View, Equatable {
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
-            SwipeRevealPan(shouldBegin: revealShouldBegin,
-                           began: { revealStart = revealOffset },
-                           changed: revealChanged,
-                           ended: revealEnded)
+            if interactionBridgesReady {
+                SwipeRevealPan(shouldBegin: revealShouldBegin,
+                               began: { revealStart = revealOffset },
+                               changed: revealChanged,
+                               ended: revealEnded)
+            }
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
@@ -371,22 +374,24 @@ struct HabitCard: View, Equatable {
             // die UIKit-Interaktion selbst, angehängt an die Zelle (siehe
             // GraphContextMenu).
             .overlay {
-                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                                 previewWidth: previewWidth,
-                                 previewHeight: Self.contextPreviewHeight,
-                                 previewOwnsSurface: true,
-                                 previewAccessibilityIdentifier: "habit-preview",
-                                 preview: { AnyView(habitPreview) },
-                                 actions: menuActions,
-                                 commit: onEdit,
-                                 onMenuVisibilityChanged: { visible in
-                                     if visible {
-                                         revealOffset = 0
-                                         revealStart = 0
-                                     }
-                                     isContextMenuVisible = visible
-                                 })
-                    .frame(maxWidth: previewWidth)
+                if interactionBridgesReady {
+                    GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                     previewWidth: previewWidth,
+                                     previewHeight: Self.contextPreviewHeight,
+                                     previewOwnsSurface: true,
+                                     previewAccessibilityIdentifier: "habit-preview",
+                                     preview: { AnyView(habitPreview) },
+                                     actions: menuActions,
+                                     commit: onEdit,
+                                     onMenuVisibilityChanged: { visible in
+                                         if visible {
+                                             revealOffset = 0
+                                             revealStart = 0
+                                         }
+                                         isContextMenuVisible = visible
+                                     })
+                        .frame(maxWidth: previewWidth)
+                }
             }
             .onTapGesture(perform: onBackfill)
             .accessibilityAction(named: String(localized: "Historie"), onBackfill)

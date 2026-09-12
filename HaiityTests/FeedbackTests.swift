@@ -678,10 +678,16 @@ final class FeedbackTests: XCTestCase {
         XCTAssertFalse(more.contains("iCloudRow"))
         XCTAssertFalse(more.contains("moreCloudRow"))
         XCTAssertFalse(more.contains("icloud-status"))
-        XCTAssertFalse(more.contains("cloudStatus.state.title"))
         let hubStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let hubEnd = try XCTUnwrap(more.range(of: "private var moreStatusHero: some View"))
-        XCTAssertFalse(more[hubStart.lowerBound..<hubEnd.lowerBound].contains("moreCloudRow"))
+        let hub = more[hubStart.lowerBound..<hubEnd.lowerBound]
+        XCTAssertFalse(hub.contains("moreCloudRow"))
+        XCTAssertFalse(hub.contains("cloudStatus.state.title"))
+        XCTAssertTrue(more.contains("private var cloudSyncSection: some View"),
+                      "sync status belongs to the secondary integration settings page")
+        XCTAssertTrue(more.contains("cloudStatus.state.title"),
+                      "the integration page still needs to explain the current sync state")
+        XCTAssertTrue(more.contains("cloud-sync-status"))
         for verbose in ["Verdichtet die Habit-Liste und die untere Navigation dauerhaft.",
                         "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten.",
                         "Schüttle das iPhone, wenn etwas nicht stimmt:",

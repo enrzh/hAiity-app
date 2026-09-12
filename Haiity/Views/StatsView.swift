@@ -36,6 +36,7 @@ struct StatsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
@@ -64,10 +65,11 @@ struct StatsView: View {
         let habits = visibleActiveTrackedHabits
         let today = DayKey.today()
         let calendar = Calendar.current
-        let snapshot = await Task.detached(priority: .utility) {
+        let statsSignpost = StartupMetrics.begin("statsCalculation")
+        defer { StartupMetrics.end("statsCalculation", id: statsSignpost) }
+        guard let snapshot = await ContributionSnapshotScheduler.perform({
             StatsEngine.snapshot(habits: habits, today: today, calendar: calendar)
-        }.value
-        guard !Task.isCancelled else { return }
+        }) else { return }
         renderedSnapshot = snapshot
     }
 
@@ -174,7 +176,7 @@ struct StatsView: View {
                 statsWeekCard(snapshot)
 
                 if unlocked {
-                    statsHabitRanking
+                    statsHabitRanking(snapshot)
                 } else {
                     perHabitLockCard
                         .padding(Theme.Metrics.cardPadding)
@@ -445,7 +447,7 @@ struct StatsView: View {
         case .todayRing: return "\(snapshot.todayDone)/\(snapshot.todayTotal)"
         case .weekMomentum:
             return "\(Int((snapshot.week.fraction * 100).rounded()))%"
-        case .totals: return "\(StatsMath.totalCheckIns(visibleActiveTrackedHabits))"
+        case .totals: return "\(snapshot.totalCheckIns)"
         }
     }
 
@@ -483,19 +485,17 @@ struct StatsView: View {
                     .lineLimit(1)
             }
             HStack(spacing: 0) {
-                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                    let completion = StatsEngine.dailyCompletion(habits: visibleActiveTrackedHabits,
-                                                                  day: day)
+                ForEach(Array(days.enumerated()), id: \.offset) { index, day in
+                    let fraction = snapshot.last7.indices.contains(index) ? snapshot.last7[index] : 0
+                    let hasData = snapshot.last7HasData.indices.contains(index) && snapshot.last7HasData[index]
                     VStack(spacing: 7) {
-                        Text(completion.total == 0
-                             ? "-"
-                             : "\(Int((completion.fraction * 100).rounded()))%")
+                        Text(hasData ? "\(Int((fraction * 100).rounded()))%" : "-")
                             .font(.caption2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(completion.total == 0 ? .tertiary : .primary)
+                            .foregroundStyle(hasData ? .primary : .tertiary)
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(completion.total == 0
+                            .fill(!hasData
                                   ? Color.primary.opacity(0.08)
-                                  : accent.opacity(0.2 + completion.fraction * 0.8))
+                                  : accent.opacity(0.2 + fraction * 0.8))
                             .frame(height: 30)
                         Text(statsWeekdayLabel(day))
                             .font(.caption2)
@@ -516,26 +516,28 @@ struct StatsView: View {
         return date.formatted(.dateTime.weekday(.narrow))
     }
 
-    private var statsHabitRanking: some View {
+    private func statsHabitRanking(_ snapshot: StatsEngine.Snapshot) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(String(localized: "Deine Habits"))
                 .font(.headline.weight(.semibold))
                 .padding(.horizontal, 2)
             LazyVStack(spacing: 0) {
                 ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
-                    statsHabitRow(habit)
+                    if let habitStats = snapshot.perHabit.first(where: { $0.id == habit.id }) {
+                        statsHabitRow(habit, stats: habitStats)
                         .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(habit.name)
-                        .accessibilityValue(statsHabitAccessibilityValue(habit))
+                        .accessibilityValue(statsHabitAccessibilityValue(habit, stats: habitStats))
                         .accessibilityIdentifier("stats-row")
                         .overlay {
                             statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
-                                statsPreview(statsHabitRow(habit),
+                                statsPreview(statsHabitRow(habit, stats: habitStats),
                                              height: statsRowPreviewHeight)
                             }, height: statsRowPreviewHeight)
                             .accessibilityHidden(true)
                         }
+                    }
                     if index < visibleActiveTrackedHabits.count - 1 {
                         Divider().padding(.leading, 44)
                     }
@@ -549,9 +551,9 @@ struct StatsView: View {
         }
     }
 
-    private func statsHabitRow(_ habit: Habit) -> some View {
-        let completion = Int((GoalEngine.completion(habit: habit, lastNDays: 30) * 100).rounded())
-        let streak = GoalEngine.streak(habit: habit)
+    private func statsHabitRow(_ habit: Habit, stats: StatsEngine.HabitStreaks) -> some View {
+        let completion = Int((stats.completion30 * 100).rounded())
+        let streak = stats.current
         let style = palettes.style(for: habit)
         return HStack(spacing: 10) {
             Text(habit.emoji.isEmpty ? "-" : habit.emoji)
@@ -569,7 +571,7 @@ struct StatsView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                MonthBars(counts: StatsMath.monthlyCounts(habit: habit, months: 12),
+                MonthBars(counts: stats.monthlyCounts,
                           style: style)
                     .frame(height: 22)
             }
@@ -579,9 +581,10 @@ struct StatsView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func statsHabitAccessibilityValue(_ habit: Habit) -> String {
-        let completion = Int((GoalEngine.completion(habit: habit, lastNDays: 30) * 100).rounded())
-        let streak = GoalEngine.streak(habit: habit)
+    private func statsHabitAccessibilityValue(_ habit: Habit,
+                                              stats: StatsEngine.HabitStreaks) -> String {
+        let completion = Int((stats.completion30 * 100).rounded())
+        let streak = stats.current
         return String(localized: "30 Tage: \(completion) Prozent, Serie \(streak) Tage")
     }
 
@@ -709,28 +712,31 @@ struct StatsView: View {
                          handler: openStatsAdjustments)]
     }
 
+    @ViewBuilder
     private func statsContextMenu(id: String,
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> some View {
-        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                         previewWidth: statsPreviewWidth,
-                         previewHeight: height,
-                         // The preview builder owns the one rounded surface;
-                         // the bridge must not wrap it a second time.
-                         previewOwnsSurface: true,
-                         previewAccessibilityIdentifier: "stats-preview",
-                         preview: preview,
-                         actions: statsContextActions,
-                         commit: openStatsAdjustments,
-                         onMenuVisibilityChanged: { visible in
-                             if visible {
-                                 activeContextMenuID = id
-                             } else if activeContextMenuID == id {
-                                 activeContextMenuID = nil
-                             }
-                         })
-            .frame(maxWidth: statsPreviewWidth)
+        if interactionBridgesReady {
+            GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                             previewWidth: statsPreviewWidth,
+                             previewHeight: height,
+                             // The preview builder owns the one rounded surface;
+                             // the bridge must not wrap it a second time.
+                             previewOwnsSurface: true,
+                             previewAccessibilityIdentifier: "stats-preview",
+                             preview: preview,
+                             actions: statsContextActions,
+                             commit: openStatsAdjustments,
+                             onMenuVisibilityChanged: { visible in
+                                 if visible {
+                                     activeContextMenuID = id
+                                 } else if activeContextMenuID == id {
+                                     activeContextMenuID = nil
+                                 }
+                             })
+                .frame(maxWidth: statsPreviewWidth)
+        }
     }
 
     private func statsPreview<Content: View>(_ content: Content,

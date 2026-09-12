@@ -524,6 +524,54 @@ final class GridPerformanceTests: GridTestCase {
     }
 }
 
+final class GraphCacheRegressionTests: XCTestCase {
+    func testOverflowEvictsOnlyOldestAndReplacementDoesNotEvict() {
+        var cache = BoundedGraphCache<Int, String>(limit: 2)
+        cache[1] = "first"
+        cache[2] = "second"
+        cache[2] = "updated"
+        XCTAssertEqual(cache[1], "first")
+        cache[3] = "third"
+        XCTAssertNil(cache[1])
+        XCTAssertEqual(cache[2], "updated")
+        XCTAssertEqual(cache[3], "third")
+        cache.removeAll()
+        XCTAssertNil(cache[2])
+        XCTAssertNil(cache[3])
+    }
+
+    func testHabitSnapshotKeyIncludesRecurrenceAndCalendar() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let habit = Habit(name: "Daily")
+        let original = GridCalendar.HabitSnapshotKey(habit: habit, weeks: 12,
+                                                     today: "2026-09-12", calendar: calendar)
+        var edited = habit
+        edited.recurrence = .weekdays([2])
+        let newRule = GridCalendar.HabitSnapshotKey(habit: edited, weeks: 12,
+                                                    today: "2026-09-12", calendar: calendar)
+        XCTAssertNotEqual(original, newRule)
+        XCTAssertTrue(original.canDisplaySnapshot(for: newRule))
+        calendar.timeZone = TimeZone(identifier: "Pacific/Auckland")!
+        let newZone = GridCalendar.HabitSnapshotKey(habit: habit, weeks: 12,
+                                                    today: "2026-09-12", calendar: calendar)
+        XCTAssertNotEqual(original, newZone)
+        XCTAssertFalse(original.canDisplaySnapshot(for: newZone))
+        let otherHabit = GridCalendar.HabitSnapshotKey(habit: Habit(name: "Other"), weeks: 12,
+                                                       today: "2026-09-12", calendar: calendar)
+        XCTAssertFalse(original.canDisplaySnapshot(for: otherHabit))
+    }
+
+    func testGitHubSnapshotNeverShowsAnotherSourceWhileRefreshing() {
+        let original = GitHubContributionGraph.SnapshotRequest(
+            days: [.init(date: "2026-09-12", count: 2, level: 1)], weeks: 12, today: "2026-09-12")
+        let other = GitHubContributionGraph.SnapshotRequest(
+            days: [.init(date: "2026-09-12", count: 8, level: 4)], weeks: 12, today: "2026-09-12")
+        XCTAssertTrue(original.canDisplaySnapshot(for: original))
+        XCTAssertFalse(original.canDisplaySnapshot(for: other))
+    }
+}
+
 final class GitHubGraphPerformanceTests: XCTestCase {
     private func days() -> [GitHubContributionDay] {
         [

@@ -370,11 +370,13 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
   `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
   validation errors or warnings.
-- The repository targets build `166` for both the app and widget extension.
-  TestFlight build `165` was verified as processed on September 9, 2026.
-  Build `166` contains the shared page/settings styling update; its upload
-  and processing must be verified separately from preparation of this commit.
-  Attachment to the App Store 1.0.0 submission remains unverified.
+- The repository targets build `188` for both the app and widget extension.
+  Build `187` included the whole-app responsiveness, startup diagnostics,
+  shared graph/header surfaces, sync-status updates and coalesced integration
+  maintenance; its local release gate archived and exported `1.0.0 (187)` and
+  the transporter reported `Upload succeeded` on September 12, 2026.
+  Build `188` contains the current Search-page interaction changes and is
+  pending Xcode Cloud upload and App Store Connect processing verification.
 - Die App ist iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`, nur Hochformat),
   Ziel `MARKETING_VERSION 1.0.0`.
 

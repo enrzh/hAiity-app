@@ -20,6 +20,7 @@ struct GitHubContributionCard: View, Equatable {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
     @State private var isContextMenuVisible = false
 
     private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
@@ -49,19 +50,21 @@ struct GitHubContributionCard: View, Equatable {
         .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
                                        style: .continuous))
         .overlay {
-                             GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                             previewWidth: previewWidth,
-                             previewHeight: previewHeight,
-                             previewAccessibilityIdentifier: "github-preview",
-                             preview: { AnyView(cardPreview) },
-                             actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
-                                                       symbol: "arrow.up.right.square",
-                                                       handler: openProfile)],
-                             commit: openProfile,
-                             onMenuVisibilityChanged: { visible in
-                                 isContextMenuVisible = visible
-                             })
-                .frame(maxWidth: previewWidth)
+            if interactionBridgesReady {
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 previewHeight: previewHeight,
+                                 previewAccessibilityIdentifier: "github-preview",
+                                 preview: { AnyView(cardPreview) },
+                                 actions: [GraphMenuAction(title: String(localized: "GitHub-Profil öffnen"),
+                                                           symbol: "arrow.up.right.square",
+                                                           handler: openProfile)],
+                                 commit: openProfile,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
+                    .frame(maxWidth: previewWidth)
+            }
         }
         .accessibilityIdentifier("github-grid")
     }

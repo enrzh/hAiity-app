@@ -91,8 +91,10 @@ final class AppNavigationTests: XCTestCase {
                        "opening statistics must not synchronously calculate its snapshot")
         XCTAssertTrue(stats.contains(".task(id: statsRefreshKey)"),
                       "statistics should refresh through a cancellable task")
-        XCTAssertTrue(stats.contains("Task.detached(priority: .utility)"),
-                      "the cold snapshot must stay below first-frame priority")
+        XCTAssertTrue(stats.contains("ContributionSnapshotScheduler.perform"),
+                      "statistics should use the shared cancellable snapshot scheduler")
+        XCTAssertFalse(stats.contains("Task.detached"),
+                       "statistics must not leave work running after the tab disappears")
         XCTAssertTrue(stats.contains("LazyVStack(spacing: 0)"),
                       "per-habit statistics should be mounted lazily")
     }
@@ -113,17 +115,31 @@ final class AppNavigationTests: XCTestCase {
             let bodyEnd = try XCTUnwrap(
                 source.range(of: "private var widthReader",
                              range: bodyStart.upperBound..<source.endIndex)
-                ?? source.range(of: ".task(id: snapshotRefreshKey)",
+                ?? source.range(of: ".task(id: request)",
                                 range: bodyStart.upperBound..<source.endIndex)
             )
             let body = source[bodyStart.lowerBound..<bodyEnd.lowerBound]
             XCTAssertFalse(body.contains("GridCalendar.snapshot("),
                            "graph body must not build its cold snapshot synchronously")
-            XCTAssertTrue(source.contains(".task(id: snapshotRefreshKey)"),
+            XCTAssertTrue(source.contains(".task(id: request)"),
                           "graph snapshots should load through a cancellable task")
-            XCTAssertTrue(source.contains("Task.detached(priority: .utility)"),
-                          "graph snapshots should stay below first-frame priority")
+            XCTAssertTrue(source.contains("ContributionSnapshotScheduler.perform"),
+                          "graph snapshots should use the shared cancellable scheduler")
+            XCTAssertFalse(source.contains("Task.detached"),
+                           "graph snapshots must not outlive the requesting view")
         }
+    }
+
+    func testGraphAndStatsUseOneSerialSnapshotScheduler() throws {
+        let gridCalendar = try String(contentsOf: sourceURL("Haiity/Models/GridCalendar.swift"))
+        XCTAssertTrue(gridCalendar.contains("enum ContributionSnapshotScheduler"),
+                      "cold graph work needs one shared scheduler")
+        XCTAssertTrue(gridCalendar.contains("DispatchQueue("),
+                      "snapshot work should run off the main actor")
+        XCTAssertTrue(gridCalendar.contains("label: \"com.aiity.haiity.snapshot-work\""),
+                      "the scheduler should remain a single serial queue")
+        XCTAssertTrue(gridCalendar.contains("withTaskCancellationHandler"),
+                      "queued snapshot work must follow view-task cancellation")
     }
 
     func testGitHubGraphUsesStableGeometryForScrollableWindows() throws {
@@ -700,7 +716,8 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("let waitsForOnDismiss = createCover.dismissalIsOwed"))
         XCTAssertTrue(source.contains("if !waitsForOnDismiss { advance(route) }"))
         XCTAssertTrue(source.contains("createCover.phase(requested: showAdd)"))
-        XCTAssertTrue(source.contains("chrome.searchFlow.coverChanged(open: open)"))
+        XCTAssertFalse(source.contains("searchFlow"),
+                       "the search tab must not be coupled to create-cover presentation")
         XCTAssertFalse(source.contains("if open { createCoverIsPresented = true }"))
     }
 
@@ -765,21 +782,47 @@ final class AppNavigationTests: XCTestCase {
     func testSearchIsARealTabWithItsOwnSearchable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
-        // Der Such-Tab traegt sein EIGENES searchable (Fotos-Muster) …
         XCTAssertTrue(source.contains("private var searchTabContent: some View"))
-        XCTAssertTrue(source.contains(".searchFocused($searchFieldFocused)"))
-        // … seine Auswahl BLEIBT stehen, solange die Suche OFFEN ist (kein
-        // Zurückspringen beim Betreten — der v15-Käfer); das Betreten
-        // fokussiert nur noch das Feld.
-        XCTAssertFalse(source.contains("nativeTab = old == .search ? .habits : old"))
-        XCTAssertTrue(source.contains("@State private var searchPresentationArmed = false"))
-        // ZUKLAPPEN dagegen heißt verlassen: X kehrt auf den zuletzt
-        // gewählten echten Bereich zurück, damit die Leiste in den
-        // Such-KREIS zurückschrumpft, statt als leere Leiste liegen zu
-        // bleiben (v24).
-        XCTAssertTrue(source.contains("if tab != .search { lastNonSearchTab = tab }"))
-        XCTAssertTrue(source.contains("returnFromSearchAfterCollapse()"))
-        XCTAssertFalse(source.contains("withAnimation { nativeTab = lastNonSearchTab }"))
+        XCTAssertTrue(source.contains(".searchable(text: $search"))
+        XCTAssertTrue(source.contains("role: .search"))
+        XCTAssertTrue(source.contains("TabView(selection: $nativeTab)"))
+        XCTAssertTrue(source.contains("placement: .navigationBarDrawer(displayMode: .always)"),
+                      "the search field must stay visible and collapse natively while scrolling")
+        XCTAssertFalse(source.contains("nativeTabSelection"))
+        XCTAssertFalse(source.contains("searchPresentationTask"))
+        XCTAssertFalse(source.contains("SearchFieldWatcher"))
+    }
+
+    func testSelectingSearchTabDoesNotUseAKeyboardBridge() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let tabChange = try XCTUnwrap(source.range(of: ".onChange(of: nativeTab)"))
+        let handlerEnd = try XCTUnwrap(source.range(of: "\n    }\n\n    // MARK: – Bereiche",
+                                                    range: tabChange.upperBound..<source.endIndex))
+        let tabBody = source[tabChange.lowerBound..<handlerEnd.lowerBound]
+
+        XCTAssertFalse(tabBody.contains("searchFocused"))
+        XCTAssertFalse(tabBody.contains("openSearch("))
+        XCTAssertTrue(source.contains("role: .search"),
+                      "the native search tab must own the search page")
+    }
+
+    func testSearchableIsScopedToTheSearchTab() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let nativeStart = try XCTUnwrap(source.range(of: "private var nativeShell"))
+        let searchStart = try XCTUnwrap(source.range(of: "private var searchTabContent",
+                                                      range: nativeStart.upperBound..<source.endIndex))
+        let nativeShell = source[nativeStart.lowerBound..<searchStart.lowerBound]
+        XCTAssertFalse(nativeShell.contains(".searchable(text: $search"),
+                       "the root TabView must not expose a search bar on every page")
+
+        let searchEnd = try XCTUnwrap(source.range(of: "private var searchList",
+                                                   range: searchStart.upperBound..<source.endIndex))
+        let searchTab = source[searchStart.lowerBound..<searchEnd.lowerBound]
+        XCTAssertTrue(searchTab.contains(".searchable(text: $search"),
+                      "the search bar must belong to the dedicated search page")
+        XCTAssertTrue(searchTab.contains("displayMode: .always"))
+        XCTAssertFalse(searchTab.contains("isPresented:"))
+        XCTAssertFalse(searchTab.contains("searchFocused"))
     }
 
     func testSingleNativeShellWithoutCompilerGates() throws {

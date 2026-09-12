@@ -139,16 +139,16 @@ enum HomeShortcuts {
 
     // MARK: – Registrierung
 
-    /// Steht der Liste im Icon-Menü neu. Wird bei jedem Aktivwerden
-    /// aufgerufen — ein Check durch Widget/Knopf ändert den Kandidaten.
-    static func update(habits: [Habit]) {
-        let data = HabitStore.read(SharedStorage.dataURL())
+    /// Steht der Liste im Icon-Menü neu. Der Aufrufer reicht den bereits
+    /// geladenen Store-Stand herein, damit Aktivwerden keinen zweiten
+    /// synchronen JSON-Decode auf dem Main Thread auslöst.
+    static func update(habits: [Habit], defaultTimeZoneIdentifier: String? = nil) {
         let visibleHabits = HabitVisibility.visibleActiveHabits(
             habits,
             unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
         UIApplication.shared.shortcutItems =
             descriptors(habits: visibleHabits,
-                        defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier)
+                        defaultTimeZoneIdentifier: defaultTimeZoneIdentifier)
                 .map(\.shortcutItem)
     }
 
@@ -188,7 +188,8 @@ enum HomeShortcuts {
         Task {
             await Reminders.reschedule(store: store)
             await Reminders.celebrateIfPerfectDay(store: store)
-            update(habits: store.habits)
+            update(habits: store.habits,
+                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         }
         return true
     }

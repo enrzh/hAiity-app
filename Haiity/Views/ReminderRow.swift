@@ -48,6 +48,7 @@ struct ReminderRow: View, Equatable {
     @State private var isContextMenuVisible = false
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.palettes) private var palettes
+    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -78,10 +79,12 @@ struct ReminderRow: View, Equatable {
             revealRowWidth = width
         }
         .background {
-            SwipeRevealPan(shouldBegin: revealShouldBegin,
-                           began: { revealStart = revealOffset },
-                           changed: revealChanged,
-                           ended: revealEnded)
+            if interactionBridgesReady {
+                SwipeRevealPan(shouldBegin: revealShouldBegin,
+                               began: { revealStart = revealOffset },
+                               changed: revealChanged,
+                               ended: revealEnded)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
@@ -378,17 +381,19 @@ struct ReminderRow: View, Equatable {
             // host becomes the hit-test winner and prevents the native button
             // from receiving ordinary taps.
             .overlay {
-                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                                 previewWidth: previewWidth,
-                                 previewHeight: Self.contextPreviewHeight,
-                                 previewAccessibilityIdentifier: "reminder-preview",
-                                 preview: { AnyView(reminderPreview) },
-                                 actions: menuActions,
-                                 commit: onEdit,
-                                 onMenuVisibilityChanged: { visible in
-                                     isContextMenuVisible = visible
-                                 })
-                    .frame(maxWidth: previewWidth)
+                if interactionBridgesReady {
+                    GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                     previewWidth: previewWidth,
+                                     previewHeight: Self.contextPreviewHeight,
+                                     previewAccessibilityIdentifier: "reminder-preview",
+                                     preview: { AnyView(reminderPreview) },
+                                     actions: menuActions,
+                                     commit: onEdit,
+                                     onMenuVisibilityChanged: { visible in
+                                         isContextMenuVisible = visible
+                                     })
+                        .frame(maxWidth: previewWidth)
+                }
             }
 
             Button(action: toggleFromCheckmark) {

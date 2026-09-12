@@ -1,5 +1,82 @@
 import Foundation
 
+/// Small FIFO cache. Callers own synchronization; replacing an entry does
+/// not evict unrelated graphs or grow the insertion order.
+struct BoundedGraphCache<Key: Hashable, Value> {
+    let limit: Int
+    private var values: [Key: Value] = [:]
+    private var order: [Key] = []
+
+    subscript(key: Key) -> Value? {
+        get { values[key] }
+        set {
+            guard let newValue, limit > 0 else { return }
+            if values[key] == nil {
+                if order.count >= limit {
+                    values.removeValue(forKey: order.removeFirst())
+                }
+                order.append(key)
+            }
+            values[key] = newValue
+        }
+    }
+
+    mutating func removeAll() {
+        values.removeAll(keepingCapacity: true)
+        order.removeAll(keepingCapacity: true)
+    }
+}
+
+/// Serializes cold graph/statistics calculations and lets queued work be
+/// discarded when the view that requested it disappears. A detached task does
+/// not inherit cancellation, so a fast tab switch could otherwise leave every
+/// abandoned graph competing with the newly visible page.
+enum ContributionSnapshotScheduler {
+    private static let queue = DispatchQueue(
+        label: "com.aiity.haiity.snapshot-work",
+        qos: .utility)
+
+    private final class CancellationState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
+        }
+    }
+
+    static func perform<Value: Sendable>(
+        _ work: @escaping @Sendable () -> Value
+    ) async -> Value? {
+        let state = CancellationState()
+        if Task.isCancelled { state.cancel() }
+
+        return await withTaskCancellationHandler(operation: {
+            await withCheckedContinuation { continuation in
+                queue.async {
+                    guard !state.isCancelled else {
+                        continuation.resume(returning: nil)
+                        return
+                    }
+
+                    let value = work()
+                    continuation.resume(returning: state.isCancelled ? nil : value)
+                }
+            }
+        }, onCancel: {
+            state.cancel()
+        })
+    }
+}
+
 /// Eine Monatsmarke über dem Raster: ab welcher Spalte ein Monat beginnt.
 /// `year` gehört dazu, damit Jahreswechsel eindeutig bleiben (Jan 2026 und
 /// Jan 2027 sind verschiedene Marken, auch wenn das Label gleich aussieht).
@@ -36,6 +113,7 @@ enum GridCalendar {
         let marks: [MonthMark]
         /// Zählende Tage im sichtbaren Fenster (für die VoiceOver-Zusammenfassung).
         let filledCount: Int
+        var streak: Int = 0
     }
 
     // MARK: – Geometrie
@@ -238,47 +316,63 @@ enum GridCalendar {
     /// damit, dass Scrollen keine 371 Datumsadditionen pro Frame kostet.
     private(set) static var computeCount = 0
 
-    private struct CacheKey: Hashable {
-        let habit: UUID
-        let logHash: Int
-        let target: Int?
-        /// Die ART gehört mit hinein: sie ändert die Zellstufen, ohne dass
-        /// sich ein einziger Log-Wert ändert (aus einem Ja/Nein-Habit ein
-        /// Checkbox-Habit zu machen färbt jede verneinte Zelle um).
+    struct HabitSnapshotKey: Hashable {
+        let habitID: UUID
+        let log: [String: Int]
+        let recurrence: Recurrence
+        let createdAt: String
         let kind: HabitKind
-        let missedHash: Int
+        let missedDays: [String]
         let weeks: Int
         let today: String
-        let firstWeekday: Int
+        let calendar: Calendar
+
+        init(habit: Habit, weeks: Int, today: String, calendar: Calendar) {
+            habitID = habit.id
+            log = habit.log
+            recurrence = habit.recurrence
+            createdAt = habit.createdAt
+            kind = habit.kind
+            missedDays = habit.missedDays
+            self.weeks = weeks
+            self.today = today
+            self.calendar = calendar
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(habitID)
+            hasher.combine(log)
+            hasher.combine(kind)
+            hasher.combine(missedDays)
+            hasher.combine(weeks)
+            hasher.combine(today)
+            hasher.combine(calendar)
+            // Recurrence is Equatable, not Hashable. Synthesized equality
+            // still compares the complete rule and creation date on a hit.
+        }
+
+        func canDisplaySnapshot(for request: Self) -> Bool {
+            habitID == request.habitID && weeks == request.weeks
+                && today == request.today && calendar == request.calendar
+        }
     }
 
     private struct ExternalCacheKey: Hashable {
-        let levelsHash: Int
-        let count: Int
+        let levels: [String: Int]
         let weeks: Int
         let today: String
-        let firstWeekday: Int
+        let calendar: Calendar
     }
 
     private static let lock = NSLock()
-    private static var cache: [CacheKey: Snapshot] = [:]
-    private static var externalCache: [ExternalCacheKey: Snapshot] = [:]
-    /// Deckel gegen unbegrenztes Wachsen (viele Habits × Tagewechsel):
-    /// bei Überlauf wird komplett geleert statt LRU-Buchführung zu betreiben.
-    private static let cacheLimit = 32
+    private static var cache = BoundedGraphCache<HabitSnapshotKey, Snapshot>(limit: 32)
+    private static var externalCache = BoundedGraphCache<ExternalCacheKey, Snapshot>(limit: 32)
 
     static func snapshot(habit: Habit,
                          weeks: Int = 53,
                          today: String = DayKey.today(),
                          calendar: Calendar = .current) -> Snapshot {
-        let key = CacheKey(habit: habit.id,
-                           logHash: habit.log.hashValue,
-                           target: habit.recurrence.target,
-                           kind: habit.kind,
-                           missedHash: habit.missedDays.hashValue,
-                           weeks: weeks,
-                           today: today,
-                           firstWeekday: calendar.firstWeekday)
+        let key = HabitSnapshotKey(habit: habit, weeks: weeks, today: today, calendar: calendar)
         lock.lock()
         if let hit = cache[key] {
             lock.unlock()
@@ -289,7 +383,6 @@ enum GridCalendar {
         let built = build(habit: habit, weeks: weeks, today: today, calendar: calendar)
 
         lock.lock()
-        if cache.count >= cacheLimit { cache.removeAll(keepingCapacity: true) }
         cache[key] = built
         computeCount += 1
         lock.unlock()
@@ -303,11 +396,10 @@ enum GridCalendar {
                          weeks: Int,
                          today: String,
                          calendar: Calendar = .current) -> Snapshot {
-        let key = ExternalCacheKey(levelsHash: levelsByDay.hashValue,
-                                   count: levelsByDay.count,
+        let key = ExternalCacheKey(levels: levelsByDay,
                                    weeks: weeks,
                                    today: today,
-                                   firstWeekday: calendar.firstWeekday)
+                                   calendar: calendar)
         lock.lock()
         if let hit = externalCache[key] {
             lock.unlock()
@@ -331,7 +423,6 @@ enum GridCalendar {
                                 marks: rawMarks(weeks: weeks, today: today, calendar: calendar),
                                 filledCount: filled)
         lock.lock()
-        if externalCache.count >= cacheLimit { externalCache.removeAll(keepingCapacity: true) }
         externalCache[key] = snapshot
         lock.unlock()
         return snapshot
@@ -361,6 +452,7 @@ enum GridCalendar {
                         keys: grid,
                         levels: levels,
                         marks: rawMarks(weeks: weeks, today: today, calendar: calendar),
-                        filledCount: filled)
+                        filledCount: filled,
+                        streak: GoalEngine.streak(habit: habit, today: today, calendar: calendar))
     }
 }

@@ -149,6 +149,38 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("mappedOwners[$0]"))
     }
 
+    func testFastReconcileDoesNotRunTheBroadCalendarInventory() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let fastStart = try XCTUnwrap(source.range(of: "if !validate {"))
+        let validationStart = try XCTUnwrap(source.range(of: "guard removeLegacyOwnedItems() else",
+                                                         range: fastStart.upperBound..<source.endIndex))
+        let fastEntry = source[fastStart.lowerBound..<validationStart.lowerBound]
+
+        XCTAssertTrue(fastEntry.contains("reconcileFast(plans: plans"))
+        XCTAssertFalse(fastEntry.contains("removeLegacyOwnedItems()"))
+        XCTAssertFalse(fastEntry.contains("eventsIncludingStoredMappings(map)"))
+    }
+
+    func testLocalStoreChangesScheduleCalendarReconcileAfterTheCurrentTransaction() throws {
+        let source = try calendarSyncTestSource("Haiity/Views/ContentView.swift")
+        let changeStart = try XCTUnwrap(source.range(of: "store.onChangeKind = { change in"))
+        let changeEnd = try XCTUnwrap(source.range(of: "        initialBootReady = true",
+                                                    range: changeStart.upperBound..<source.endIndex))
+        let changeBody = source[changeStart.lowerBound..<changeEnd.lowerBound]
+
+        XCTAssertTrue(changeBody.contains("scheduleMaintenance()"))
+        XCTAssertFalse(changeBody.contains("CalendarSync.reconcile"),
+                       "native reconciliation should be coalesced after rapid local edits")
+
+        let maintenanceStart = try XCTUnwrap(source.range(of: "private func scheduleMaintenance()"))
+        let maintenanceEnd = try XCTUnwrap(source.range(of: "\n    /// Cleans old native entries",
+                                                         range: maintenanceStart.upperBound..<source.endIndex))
+        let maintenance = source[maintenanceStart.lowerBound..<maintenanceEnd.lowerBound]
+        XCTAssertTrue(maintenance.contains("maintenance.schedule"))
+        XCTAssertTrue(maintenance.contains("CalendarSync.reconcile"))
+        XCTAssertTrue(maintenance.contains("await ReminderSync.reconcile"))
+    }
+
     func testCalendarCleanupUsesStoredIDsWhenOwnershipMetadataIsMissing() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 

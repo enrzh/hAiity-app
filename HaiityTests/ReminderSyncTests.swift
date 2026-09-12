@@ -211,20 +211,28 @@ final class ReminderSyncContractTests: XCTestCase {
 
     func testForegroundNativeReconciliationAwaitsReminderFetch() throws {
         let content = try source("Haiity/Views/ContentView.swift")
+        let start = try XCTUnwrap(content.range(of: "private func performForegroundNativeMaintenance"))
+        let end = try XCTUnwrap(content.range(of: "\n    /// Foreground activation shares the startup task slot.",
+                                               range: start.upperBound..<content.endIndex))
+        let foreground = content[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(content.contains("validate: true"),
-                      "foreground reconciliation must inspect native duplicates")
-        XCTAssertTrue(content.contains("await ReminderSync.reconcile"),
+        XCTAssertTrue(foreground.contains("validate: false"),
+                      "foreground activation must use the cached native mapping fast path")
+        XCTAssertTrue(foreground.contains("await ReminderSync.reconcile"),
                       "the async EventKit pass must finish before the lifecycle task continues")
     }
 
     func testContentViewAwaitsReminderReconciliationInBootAndCleanupFlows() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("if nativeSyncRecoveryReady {"),
-                      "boot should gate native recreation behind recovery cleanup")
-        XCTAssertTrue(content.contains("Task { @MainActor in\n                await ReminderSync.reconcile("),
-                      "store change handling must hop onto the async reminder pass")
+        XCTAssertTrue(content.contains("nativeSyncRecoveryPending = NativeSyncInstallation.prepare()"),
+                      "foreground maintenance should retain reinstall recovery")
+        XCTAssertTrue(content.contains("await performNativeSyncRecoveryIfNeeded()"),
+                      "foreground maintenance should complete recovery before native recreation")
+        XCTAssertFalse(content.contains("if nativeSyncRecoveryReady {"),
+                       "initial boot must not gate the first interactive frame on EventKit")
+        XCTAssertTrue(content.contains("scheduleMaintenance()"),
+                      "store change handling must coalesce the async reminder pass")
         XCTAssertTrue(content.contains("if result.reminders {\n                await ReminderSync.reconcile("),
                       "cleanup should await reminder recreation before reporting completion")
         XCTAssertTrue(content.contains("guard result.needsRetry else {"),

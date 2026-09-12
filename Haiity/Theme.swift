@@ -1063,7 +1063,7 @@ struct RootPageTitle: View {
                          anchor: .leading)
             .offset(y: reduceMotion ? 0 : -progress * 7)
             .opacity(1 - progress)
-            .blur(radius: reduceMotion ? 0 : progress * 0.2)
+            .accessibilityHidden(progress >= 0.5)
             .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
         .frame(height: compact ? 44 : titleHeight)
@@ -1095,7 +1095,7 @@ struct RootPageCompactTitle: View {
             .minimumScaleFactor(0.8)
             .opacity(progress)
             .scaleEffect(reduceMotion ? 1 : 0.96 + progress * 0.04)
-            .blur(radius: reduceMotion ? 0 : 0.2)
+            .accessibilityAddTraits(.isHeader)
             .accessibilityHidden(progress < 0.5)
     }
 }
@@ -1106,17 +1106,19 @@ struct RootPageCompactTitle: View {
 struct RootPageHeaderBlur: View {
     let progress: CGFloat
     @Environment(\.appearancePreferences) private var appearancePreferences
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ScaledMetric(relativeTo: .largeTitle) private var veilHeight: CGFloat = 132
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Group {
-                if Theme.effectiveMaterial(appearancePreferences) == .solid {
-                    Rectangle().fill(Color(.systemBackground))
-                } else {
-                    Rectangle().fill(.ultraThinMaterial)
-                }
+        Group {
+            if reduceTransparency || contrast == .increased
+                || Theme.effectiveMaterial(appearancePreferences) == .solid {
+                Rectangle().fill(Color(.systemBackground))
+            } else {
+                Rectangle().fill(.regularMaterial)
             }
+        }
             .mask {
                 LinearGradient(
                     stops: [
@@ -1129,20 +1131,7 @@ struct RootPageHeaderBlur: View {
                     startPoint: .top,
                     endPoint: .bottom)
             }
-            .blur(radius: reduceMotion ? 0 : 1.6)
-
-            LinearGradient(
-                colors: [Color(.systemBackground).opacity(0.08), .clear],
-                startPoint: .top,
-                endPoint: .bottom)
-                .mask {
-                    LinearGradient(colors: [.black, .clear],
-                                   startPoint: .top,
-                                   endPoint: .bottom)
-                }
-        }
-            .frame(height: 132)
-            .opacity(reduceMotion ? 1 : 0.94 - progress * 0.05)
+            .frame(height: veilHeight)
             .ignoresSafeArea(edges: .top)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -1463,6 +1452,19 @@ private struct AppSurfaceModifier: ViewModifier {
 struct SettingsRowSurface: View {
     @Environment(\.appearancePreferences) private var preferences
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var material: AppearanceMaterial {
+        reduceTransparency || contrast == .increased ? .solid : Theme.effectiveMaterial(preferences)
+    }
+
+    private var needsOutline: Bool {
+        if #available(iOS 26, *), material == .liquid || material == .adaptive {
+            return false // Native glass already supplies its own edge highlight.
+        }
+        return true
+    }
 
     private var rowShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous)
@@ -1471,7 +1473,7 @@ struct SettingsRowSurface: View {
     @ViewBuilder
     var body: some View {
         Group {
-            switch Theme.effectiveMaterial(preferences) {
+            switch material {
                 case .solid:
                     rowShape.fill(Theme.surfaceFill(preferences: preferences))
                 case .milky:
@@ -1492,7 +1494,7 @@ struct SettingsRowSurface: View {
                             in: rowShape)
                     } else {
                         rowShape
-                            .fill(.ultraThinMaterial)
+                            .fill(.regularMaterial)
                             .overlay {
                                 rowShape.fill(Color(.systemBackground).opacity(0.16))
                             }
@@ -1517,18 +1519,20 @@ struct SettingsRowSurface: View {
         }
         .clipShape(rowShape)
         .overlay {
-            rowShape.stroke(Theme.surfaceOutline(preferences: preferences,
-                                                 dark: colorScheme == .dark),
-                            lineWidth: 0.7)
+            if needsOutline {
+                rowShape.strokeBorder(contrast == .increased
+                                      ? Color.primary.opacity(0.5)
+                                      : Theme.surfaceOutline(preferences: preferences,
+                                                             dark: colorScheme == .dark),
+                                      lineWidth: contrast == .increased ? 1 : 0.7)
+            }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
 private struct SettingsSurfaceModifier: ViewModifier {
-    @Environment(\.appearancePreferences) private var appearancePreferences
-    @Environment(\.appearanceBackgroundOwned) private var appearanceBackgroundOwned
-
     @ViewBuilder
     private var settingsRowBackground: some View {
         // Sections opt into their own rounded surface. A clear list-wide
@@ -1537,9 +1541,8 @@ private struct SettingsSurfaceModifier: ViewModifier {
         Color.clear
     }
 
-    @ViewBuilder
-    private func listSurface(_ content: Content) -> some View {
-        let list = content
+    func body(content: Content) -> some View {
+        content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .softScrollEdges()
@@ -1548,40 +1551,22 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
             .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
-        if appearanceBackgroundOwned {
-            list
-        } else {
-            list.background(AppearanceBackground(preferences: appearancePreferences))
-        }
-    }
-
-    func body(content: Content) -> some View {
-        listSurface(content).settingsChrome()
+            .settingsChrome()
     }
 }
 
 private struct MoreSettingsSurfaceModifier: ViewModifier {
-    @Environment(\.appearancePreferences) private var appearancePreferences
-    @Environment(\.appearanceBackgroundOwned) private var appearanceBackgroundOwned
-
     func body(content: Content) -> some View {
-        let list = content
+        content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowSpacing(0)
+            .listRowSpacing(Theme.Metrics.settingsRowGap)
             .softScrollEdges()
             .listSectionSpacing(Theme.Metrics.settingsSectionGap)
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
-
-        if appearanceBackgroundOwned {
-            list.settingsChrome()
-        } else {
-            list
-                .background(AppearanceBackground(preferences: appearancePreferences))
-                .settingsChrome()
-        }
+            .settingsChrome()
     }
 }
 

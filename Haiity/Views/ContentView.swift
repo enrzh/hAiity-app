@@ -22,6 +22,17 @@ private struct PendingReminderCompletion: Equatable {
     let day: String
 }
 
+private struct InteractionBridgesReadyKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var interactionBridgesReady: Bool {
+        get { self[InteractionBridgesReadyKey.self] }
+        set { self[InteractionBridgesReadyKey.self] = newValue }
+    }
+}
+
 /// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
 /// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
 /// ihrem Tab.
@@ -47,6 +58,9 @@ struct ContentView: View {
     @State private var cloudStatus = CloudSyncStatus()
     /// Fasst schnelle Folgeänderungen zu EINEM Upload zusammen.
     @State private var pushes = PushDebouncer()
+    /// Coalesces notification, shortcut and native-store maintenance after a
+    /// burst of local edits without delaying the local habit update.
+    @State private var maintenance = PushDebouncer(delay: .milliseconds(250))
     @State private var editing: Habit?
     @State private var pendingDelete: Habit?
     @State private var earlyReminderCompletion: PendingReminderCompletion?
@@ -83,6 +97,22 @@ struct ContentView: View {
     /// öffnet das Suchfeld.
     @State private var nativeTab: AppTab = .habits
     @State private var proStatus = ProStatus.shared
+    /// The scene's first active callback can arrive before the async boot
+    /// task has installed its local state and maintenance pipeline.
+    @State private var initialBootReady = false
+    @State private var hasSeenInitialActivation = false
+    @State private var startupMaintenanceTask: Task<Void, Never>?
+    @State private var postLaunchHydrationTask: Task<Void, Never>?
+    /// UIKit interaction bridges are deferred until the first populated frame
+    /// has settled. Their normal behavior is unchanged after activation.
+    @State private var interactionBridgesReady = false
+    @State private var interactionBridgeActivationTask: Task<Void, Never>?
+    /// Native and notification maintenance must never compete with the first
+    /// interactive frame or with a newer foreground activation.
+    @State private var integrationsReady = false
+    /// Reinstall cleanup touches EventKit synchronously. Keep it out of the
+    /// first startup pass and retry it on the next real foreground instead.
+    @State private var nativeSyncRecoveryPending = false
     @State private var showReminderSetup = false
     @State private var nativeSyncCleanupNeedsRetry = false
     @State private var nativeSyncCleanupMessage: String?
@@ -120,21 +150,14 @@ struct ContentView: View {
     /// kompakten Darstellung. Scrollen schreibt diesen Zustand nie.
     @State private var viewPreferences = ViewPreferencesStore()
     @State private var search = ""
-    @State private var searchPresentationTask: Task<Void, Never>?
     /// Keeps keystrokes out of the large lazy list until the user pauses.
     @State private var committedSearch = ""
     @State private var searchCommitTask: Task<Void, Never>?
-    @State private var searchCloseTask: Task<Void, Never>?
     @State private var habitFilter = HabitListFilter()
     @State private var progressNow = Date.now
-    /// Suchfeld ausgeklappt? Startet IMMER `false` — das Feld ist Standard
-    /// unsichtbar und erscheint erst auf Tippen (bzw. per haiity://search).
+    /// Nur fuer die iOS-17...25-Fallback-Suche; iOS 26+ zeigt das Feld nativ
+    /// dauerhaft auf der dedizierten Suchseite.
     @State private var searching = false
-    /// Wohin die zugeklappte Suche zurückkehrt — der zuletzt gewählte
-    /// echte Bereich (nie `.search` selbst).
-    @State private var lastNonSearchTab: AppTab = .habits
-    @State private var searchPresentationArmed = false
-    @FocusState private var searchFieldFocused: Bool
     /// Explicit sorting mode for the habit list. Long press remains reserved
     /// for the card preview and its actions.
     @State private var editMode: EditMode = .inactive
@@ -231,10 +254,6 @@ struct ContentView: View {
             // SCHLOSS die Karte, statt zurückzunehmen (nachgemessen im
             // Simulator; genau das Zurück, das die Kommentare versprechen).
             .overlay(alignment: .bottom) { nativeToastOverlay }
-            // Der Feld-Beobachter (nur iOS 27, nur bei offener Suche) —
-            // absichtlich hier oben und nicht an der Liste: er darf nicht
-            // mit ihr verschwinden, wenn sie gerade neu gebaut wird.
-            .background { searchFieldWatcher }
             // Die drei Zeilen sind das ganze Theming-Gerüst: das Schema wird
             // fürs FENSTER gesetzt (Blätter inklusive), die Palette reist als
             // Umgebungswert bis in jede Rasterzelle, und der Tint zieht die
@@ -243,6 +262,7 @@ struct ContentView: View {
             .preferredColorScheme(store.appearance.colorScheme)
             .environment(\.palettes, effectivePalettes)
             .environment(\.appearancePreferences, store.appearancePreferences)
+            .environment(\.interactionBridgesReady, interactionBridgesReady)
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
             .tint(Theme.accentText(effectivePaletteStyle))
@@ -382,16 +402,18 @@ struct ContentView: View {
                 if let fixtureStore = DesignFixture.makeStore() {
                     store = fixtureStore
                     Pro.setDebugUnlocked(true)
-                    searchPresentationArmed = true
                     handleLaunchScreenArgument()
+                    scheduleInteractionBridgeActivation()
                     return
                 }
                 #endif
+                let diskLoadSignpost = StartupMetrics.begin("diskLoad")
                 await store.loadFromDisk()
+                StartupMetrics.end("diskLoad", id: diskLoadSignpost)
                 // Give SwiftUI one scheduling point after disk hydration so
                 // the first populated frame can render immediately.
                 await Task.yield()
-                searchPresentationArmed = true
+                StartupMetrics.event("localDataReady")
                 becameActiveAt = .now
                 #if DEBUG
                 // Keep deterministic simulator routes independent of startup
@@ -402,13 +424,8 @@ struct ContentView: View {
                 // rendered list.
                 handleLaunchTestData()
                 #endif
-                // GitHub cache hydration is local and independent from the
-                // longer iCloud/native-sync maintenance pass. Start it now so
-                // a cached graph can appear as soon as its tab is shown.
-                let githubBoot = Task { @MainActor in
-                    await github.boot()
-                }
                 await boot()
+                StartupMetrics.event("bootComplete")
                 #if DEBUG
                 // Seeded interaction fixtures must be written after the
                 // initial iCloud merge, otherwise a startup reload can race
@@ -418,13 +435,24 @@ struct ContentView: View {
                 schedulePendingNotificationAction()
                 schedulePendingNotificationDeliveryIssue()
                 schedulePendingShortcutLink()
-                await githubBoot.value
+                schedulePostLaunchHydration()
+                scheduleInteractionBridgeActivation()
+                await Task.yield()
+                StartupMetrics.event("firstInteractiveFrame")
                 #if DEBUG
                 if FrameProbe.enabled { FrameProbe.shared.start() }
                 #endif
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    guard initialBootReady else {
+                        hasSeenInitialActivation = true
+                        return
+                    }
+                    guard hasSeenInitialActivation else {
+                        hasSeenInitialActivation = true
+                        return
+                    }
                     progressNow = .now
                     if DesignFixture.scenario != nil { return }
                     becameActiveAt = .now
@@ -442,21 +470,15 @@ struct ContentView: View {
                     // (an-/abgemeldet), und das andere Gerät kann gehakt
                     // haben, während diese App im Hintergrund lag.
                     cloudStatus.refresh()
-                    Task {
-                        await syncNow(announce: false)
-                        await rescheduleReminders()
-                        await reconcileMotivationActivity()
-                        CalendarSync.reconcile(habits: store.habits,
-                                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                               validate: true)
-                        ReminderSync.pullCompletions(into: store,
-                                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-                        await ReminderSync.reconcile(habits: store.habits,
-                                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                                     validate: true)
-                        await reconcileAppIcon()
-                    }
+                    postLaunchHydrationTask?.cancel()
+                    scheduleForegroundMaintenance()
+                    if !interactionBridgesReady { scheduleInteractionBridgeActivation() }
                     Task { await github.resumeOrRefresh(forced: true) }
+                } else {
+                    startupMaintenanceTask?.cancel()
+                    postLaunchHydrationTask?.cancel()
+                    interactionBridgeActivationTask?.cancel()
+                    Task { await maintenance.cancel() }
                 }
             }
             .onChange(of: proStatus.unlocked) { old, new in
@@ -464,12 +486,9 @@ struct ContentView: View {
                 handleProEntitlementChange(old: old, new: new)
             }
             .onChange(of: showAdd) { _, open in
-                trace("showAdd=\(open) searching=\(searching) focus=\(searchFieldFocused) tab=\(nativeTab)")
-                // Der Zustandsmaschine melden: solange das Cover offen ist
-                // (und im Fenster nach dem Zufahren) kann keine ECHTE
-                // Lupen-Berührung eine Suche präsentieren.
-                chrome.searchFlow.coverChanged(open: open)
+                trace("showAdd=\(open) tab=\(nativeTab)")
                 guard open else { return }
+                if #unavailable(iOS 26) { searching = false }
                 // Dieselbe Hygiene wie beim Öffnen der Mehr-Seite: das Cover
                 // verdeckt Liste, Toast und Karte vollständig.
                 undo.clear()
@@ -491,87 +510,14 @@ struct ContentView: View {
                 if !filter.isEmpty { editMode = .inactive }
             }
             .onChange(of: nativeTab) { old, tab in
-                trace("nativeTab \(old)->\(tab) showAdd=\(showAdd) searching=\(searching) focus=\(searchFieldFocused)")
-                if tab != .search { searchPresentationTask?.cancel() }
-                // Wohin das Zuklappen der Suche zurückkehrt: der letzte
-                // echte Bereich, nicht stur „Habits".
-                if tab != .search { lastNonSearchTab = tab }
-                // Der Such-Tab ist ein ECHTES Ziel (siehe nativeShell) — die
-                // Auswahl bleibt stehen. Beim Betreten klappt das Feld auf
-                // und die Tastatur kommt mit (das Fotos-Verhalten: EIN Tipp
-                // auf den Kreis, tippen kann man sofort) …
-                if tab == .search, old != .search, backfill == nil {
-                    openSearch(origin: .toolbar)
-                }
-                // … und beim Verlassen räumt die App den Suchzustand selbst
-                // weg: das System schreibt beim Tab-Wechsel nicht zuverlässig
-                // `false` zurück, und eine gefilterte Liste hinter einem
-                // anderen Tab wäre genau der „Habits sind
-                // verschwunden"-Zustand.
+                trace("nativeTab \(old)->\(tab) showAdd=\(showAdd)")
                 guard old == .search, tab != .search else { return }
-                if searching { searching = false }
-                searchFieldFocused = false
-                clearSearchTextAfterCollapse()
-            }
-            .onChange(of: searchFieldFocused) { _, focused in
-                trace("focus=\(focused) searching=\(searching) showAdd=\(showAdd)")
-                // Ein TRUE-Fokus bei GESCHLOSSENER Suche präsentiert AUF
-                // iOS 26 unter `.minimize` das Feld sofort wieder — genau der
-                // Kreislauf, der dort das X mehrfach drücken ließ: das System
-                // schreibt beim Abbrechen kurz `focus = true`, und je nach
-                // Reihenfolge landet das NACH unserem Löschen. Dort also hart
-                // klemmen: Fokus gibt es nur bei offener Suche. (`openSearch`
-                // setzt `searching` VOR dem Fokus, der legitime Weg bleibt
-                // frei.)
-                //
-                // Auf iOS 27 hängt an dieser Klemme nichts mehr: dort
-                // präsentiert das System die Suche gar nicht selbst (siehe
-                // `SearchableHidden`), ein Fokus ohne offene Suche kann also
-                // nichts aufklappen. Sie bleibt trotzdem stehen — für den
-                // Fall, dass ein Nachzügler-Fokus doch einmal durchkommt,
-                // ist „Fokus nur bei offener Suche" auch dort richtig.
-                if focused && !searching { searchFieldFocused = false }
-            }
-            .onChange(of: searching) { _, open in
-                trace("searching=\(open) focus=\(searchFieldFocused) showAdd=\(showAdd) tab=\(nativeTab)")
-                if open {
-                    guard searchPresentationArmed else {
-                        searching = false
-                        searchFieldFocused = false
-                        return
-                    }
-                    // JEDES `true` läuft durch die Zustandsmaschine: die
-                    // System-Lupe ist willkommen, Nachzügler (Re-Present
-                    // mitten im Zuklappen, verspätete Such-Aktivierung des
-                    // Such-Rollen-Tabs rund ums Anlegen-Cover) werden im
-                    // selben Umlauf zurückgeschrieben — dieselbe Klemme wie
-                    // beim Fokus, nur eine Ebene höher.
-                    guard chrome.searchFlow.systemPresented() else {
-                        trace("REVERT spurious search present")
-                        searching = false
-                        searchFieldFocused = false
-                        return
-                    }
-                } else {
-                    chrome.searchFlow.dismissed()
-                }
-                // Beim Schließen den Fokus AKTIV löschen: bleibt das
-                // `searchFocused`-Binding wahr, präsentiert das System das
-                // Feld sofort wieder (X → Kreis → Leiste klappt wieder auf).
-                if !open {
-                    searchPresentationTask?.cancel()
-                    searchPresentationTask = nil
-                    if SearchFlow.closeCleanup.clearFocus { searchFieldFocused = false }
-                    if SearchFlow.closeCleanup.clearQuery { clearSearchTextAfterCollapse() }
-                    // Zuklappen heißt VERLASSEN: zurück auf den vorherigen
-                    // Bereich, damit die Leiste in den Such-KREIS
-                    // zurückschrumpft — auf dem Such-Tab stehen zu bleiben
-                    // ließe das Feld als leere Leiste liegen. Routen (Deep-
-                    // Links) setzen ihr Ziel gleich danach selbst; der kurze
-                    // Zwischenschritt stört sie nicht.
-                    if nativeTab == .search {
-                        returnFromSearchAfterCollapse()
-                    }
+                if #unavailable(iOS 26) { searching = false }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    search = ""
+                    committedSearch = ""
                 }
             }
     }
@@ -619,21 +565,15 @@ struct ContentView: View {
     /// Kapsel (Statistik, Habits, Mehr) plus der ECHTE Such-Tab als
     /// abgesetzter Kreis rechts — das Fotos-Muster.
     ///
-    /// **Der Such-Tab ist jetzt eine echte Suche.** Sein `.searchable` hängt
-    /// an SEINEM Inhalt (der gefilterten Habit-Liste), nicht mehr am
-    /// Habits-Tab: nur so klappt das System die Leiste UNTEN aus dem
-    /// Suchkreis auf und fährt sie mit der Tastatur hoch — genau die
-    /// Fotos-Mechanik. Der alte Umweg (Such-Rolle abfangen, Suchfeld als
-    /// Drawer OBEN am Habits-Tab präsentieren) sprang sichtbar an die
-    /// falsche Kante.
+    /// **Der Such-Tab ist jetzt eine echte Suche.** Seine Such-Modifikatoren
+    /// hängen am eigenen Tab-Inhalt und filtern nur die Suchseite. Am
+    /// `TabView` bleibt lediglich die native Aktivierungslogik, damit der
+    /// zweite Tipp auf den ausgewählten Search-Tab das Feld öffnet.
     ///
     /// Die früheren iOS-27-Verrenkungen (`TabRole.prominent` hinter
     /// `#if compiler`, Auswahl-Abfangen des Such-Rollen-Tabs) sind damit
     /// gegenstandslos: die Such-Rolle wird nicht mehr zweckentfremdet,
-    /// sondern genau so benutzt, wie das System sie verdrahtet. Der
-    /// Feld-Beobachter für den iOS-27-Binding-Fehler (Zuklappen schreibt
-    /// kein `false` zurück) bleibt als Sicherheitsnetz bestehen — er greift
-    /// nur, wenn er wirklich ein Zuklappen misst.
+    /// sondern genau so benutzt, wie das System sie verdrahtet.
     @available(iOS 26, *)
     private var nativeShell: some View {
         ZStack {
@@ -650,13 +590,13 @@ struct ContentView: View {
                     value: AppTab.more) {
                     nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
                 }
-                // Kurzer Tab-Titel: auf iOS 27 steht der Such-Tab MIT
-                // Beschriftung in der Kapsel ("Habits durchsuchen" sprengte sie).
+                // The search tab owns a persistent native search field.
                 Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
                     value: AppTab.search, role: .search) {
                     nativeTabRoot { searchTabContent }
                 }
             }
+            .tabViewSearchActivation(.automatic)
             .tabBarMinimizeBehavior(.onScrollDown)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -725,7 +665,8 @@ struct ContentView: View {
 
     /// Der Inhalt des Such-Tabs: DIESELBEN Karten, gefiltert. Leerer
     /// Suchbegriff zeigt die volle Liste — der Tab ist damit auch ohne
-    /// Eingabe kein weißes Loch (dasselbe Verhalten wie Fotos).
+    /// Eingabe kein weißes Loch. Die native Suchleiste bleibt wie im App Store
+    /// an der Navigation verankert und reduziert sich beim Scrollen selbst.
     @available(iOS 26, *)
     private var searchTabContent: some View {
         NavigationStack {
@@ -742,14 +683,13 @@ struct ContentView: View {
                     }
                     .navigationTitle(String(localized: "Suchen"))
                     .navigationBarTitleDisplayMode(.large)
-                    .searchable(text: $search,
-                                isPresented: $searching,
-                                prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
-                    .searchFocused($searchFieldFocused)
                     .pageHeaderChrome()
                 }
             }
         }
+        .searchable(text: $search,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
         .navigationChrome()
     }
 
@@ -1028,30 +968,13 @@ struct ContentView: View {
     // MARK: – Habits-Bereich
 
     /// Suche programmatisch öffnen — der EINE Weg für Deep-Links.
-    ///
-    /// Ab iOS 26 heißt „Suche öffnen": den ECHTEN Such-Tab wählen und dann
-    /// sein `searchable(isPresented:)` aufklappen — dieselbe Mechanik, die
-    /// auch ein Tipp auf den Suchkreis auslöst. Erst der Zustand, dann im
-    /// nächsten Umlauf der Fokus; beides im selben Umlauf verschluckt die
-    /// Präsentation (nachgemessen, gilt unverändert).
-    private func openSearch(origin: SearchOpenOrigin, routeGeneration: Int? = nil) {
-        trace("openSearch(\(origin)) showAdd=\(showAdd)")
-        searchPresentationTask?.cancel()
-        // Absicht anmelden, BEVOR das Binding springt: `onChange` fragt die
-        // Maschine im selben Umlauf, und ein `open`-Zustand winkt durch.
-        chrome.searchFlow.userOpened()
-        if #available(iOS 26, *), nativeTab != .search { nativeTab = .search }
-        searchPresentationTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled, nativeTab == .search, !showAdd,
-                  routeWorkIsCurrent(routeGeneration) else { return }
-            // `searchable` owns the system transition. A second animation
-            // makes iOS 27 animate the tab chrome and field twice.
+    private func openSearch(routeGeneration: Int? = nil) {
+        trace("openSearch showAdd=\(showAdd)")
+        guard routeWorkIsCurrent(routeGeneration), !showAdd else { return }
+        if #available(iOS 26, *) {
+            nativeTab = .search
+        } else {
             searching = true
-            await Task.yield()
-            guard !Task.isCancelled, nativeTab == .search, !showAdd,
-                  routeWorkIsCurrent(routeGeneration) else { return }
-            searchFieldFocused = true
         }
     }
 
@@ -1060,95 +983,11 @@ struct ContentView: View {
         return routeWork.isCurrent(generation)
     }
 
-    /// Der zweite iOS-27-Fehler, abgefangen: das System klappt die Suche zu,
-    /// schreibt aber KEIN `false` ins Binding zurück (`\.isSearching` bleibt
-    /// ebenfalls wahr — nachgemessen) und reisst das halb zugeklappte Feld
-    /// deshalb sofort wieder auf. Also wird das Feld an der ECHTEN Ansicht
-    /// vermessen und der Zustand daran angeglichen, bevor das Zurückreissen
-    /// einsetzt. Hier steht nur die Messung; entschieden wird in
-    /// `SearchFlow.fieldReading`.
-    ///
-    /// Nur iOS 27: auf iOS 26 kommt das `false` sauber zurück, und ein
-    /// zweiter Weg zum selben Zustand ist ein zweiter Weg, ihn zu verlieren.
-    @ViewBuilder
-    private var searchFieldWatcher: some View {
-        if #available(iOS 27, *) {
-            SearchFieldWatcher(active: searching) { reading in
-                reconcileSearchField(reading)
-            }
-        }
-    }
-
-    private func reconcileSearchField(_ reading: SearchFieldReading) {
-        guard chrome.searchFlow.fieldReading(reading) else { return }
-        trace("watcher: system dismissed the search -> isPresented=false")
-        searching = false
-        if SearchFlow.closeCleanup.clearFocus { searchFieldFocused = false }
-        // … und den Suchbegriff mit. Auf iOS 26 räumt SwiftUI ihn beim
-        // Schließen selbst weg (nachgemessen: getippt, X getippt, Liste
-        // wieder vollständig). Auf iOS 27 kommt das Schließen nie bei
-        // SwiftUI an, also räumt hier auch niemand auf — und die Liste bliebe
-        // gefiltert, ohne dass noch ein Suchfeld zu sehen wäre, in dem man
-        // das ablesen oder rückgängig machen könnte. Genau ein Zustand, in
-        // dem Habits verschwunden aussehen.
-        if SearchFlow.closeCleanup.clearQuery { clearSearchTextAfterCollapse() }
-    }
-
-    /// Der Suchbegriff leert sich erst NACH der Zuklapp-Animation — und
-    /// ohne Übergang.
-    ///
-    /// Sofortiges Leeren fiel mitten in das Zuklappen: `search` filtert
-    /// BEIDE montierten Listen (Habits-Tab UND Such-Tab), und das animierte
-    /// Zurückfluten aller Zeilen — jede ein 371-Zellen-Raster — riss die
-    /// Animation auf 22 Bilder je Sekunde mit einem 650-ms-Stand
-    /// (FrameProbe, iOS-27-Simulator; vom Gerät als „dropping fps"
-    /// gemeldet). Verzögert und ohne Animation ist das Auffüllen reine
-    /// Buchhaltung hinter einer bereits ruhigen Oberfläche.
-    private func clearSearchTextAfterCollapse() {
-        guard !search.isEmpty || !committedSearch.isEmpty else { return }
-        searchCommitTask?.cancel()
-        searchCloseTask?.cancel()
-        searchCloseTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            guard !Task.isCancelled else { return }
-            // Wieder offen (oder längst geleert): nichts anfassen — sonst
-            // frisst der Nachzügler eine frisch getippte Suche.
-            guard !searching else { return }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                search = ""
-                committedSearch = ""
-            }
-            searchCloseTask = nil
-        }
-    }
-
-    /// Let the native search field finish shrinking into its own tab item
-    /// before changing the selected tab. Animating both operations in one
-    /// transaction makes iOS 27 briefly interpolate a detached glass circle
-    /// through the content area.
-    private func returnFromSearchAfterCollapse() {
-        searchCloseTask?.cancel()
-        searchCloseTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(90))
-            guard !Task.isCancelled else { return }
-            guard !searching, nativeTab == .search else { return }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { nativeTab = lastNonSearchTab }
-            searchCloseTask = nil
-        }
-    }
-
     /// Aus dem Such-Tab heraus zu Nacharbeiten: erst zurück zu Habits (dort
-    /// wohnen Karte, Vorhang und Anker-Messung), dann öffnen. Die kurze
-    /// Pause lässt den Tab-Wechsel und das Zuklappen der Suche setzen.
+    /// wohnen Karte, Vorhang und Anker-Messung), dann öffnen.
     private func redirectBackfillFromSearch(_ habit: Habit, day: String) {
-        if searching { searching = false }
-        searchFieldFocused = false
+        if #unavailable(iOS 26) { searching = false }
         searchCommitTask?.cancel()
-        searchCloseTask?.cancel()
         search = ""
         committedSearch = ""
         nativeTab = .habits
@@ -1182,7 +1021,6 @@ struct ContentView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
-                                    focus: $searchFieldFocused,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .principal) {
@@ -1199,7 +1037,6 @@ struct ContentView: View {
                 .environment(\.editMode, $editMode)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
-                                    focus: $searchFieldFocused,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .principal) {
@@ -2471,15 +2308,9 @@ struct ContentView: View {
         let route = routeWork.begin(effect)
         pendingRoute = route
         if !effect.opensSearch {
-            // The first queued search callback may have run just before this
-            // route arrived. A non-search route still wins in that ordering.
-            if searching {
-                searching = false
-            } else {
-                chrome.searchFlow.dismissed()
-            }
-            searchFieldFocused = false
+            if #unavailable(iOS 26) { searching = false }
             search = ""
+            committedSearch = ""
         }
         advance(route)
     }
@@ -2640,7 +2471,6 @@ struct ContentView: View {
 
     private func apply(_ route: RouteWork.Item) {
         guard routeWork.isCurrent(route) else { return }
-        searchPresentationTask?.cancel()
         nativeTab = route.effect.tab
         requestedHabitID = route.effect.habitID
 
@@ -2651,7 +2481,7 @@ struct ContentView: View {
             if let morePage = route.effect.morePage {
                 presentMoreSheet(moreRoute(for: morePage))
             } else if route.effect.opensSearch {
-                openSearch(origin: .deepLink, routeGeneration: route.generation)
+                openSearch(routeGeneration: route.generation)
             } else if route.effect.opensCreate {
                 // Auch der Deep-Link ist ein Anlege-Einstieg und muss durch
                 // dasselbe Tor: sonst wäre `haiity://create` die Abkürzung,
@@ -2786,8 +2616,6 @@ struct ContentView: View {
             return
         }
         guard let url = URL(string: "haiity://\(args[i + 1])") else { return }
-        // Kurz warten: `searchable(isPresented:)` schluckt ein `true`, das
-        // gesetzt wird, bevor die Suchleiste im Toolbar-Baum hängt.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(700))
             handleDeepLink(url)
@@ -3038,8 +2866,6 @@ struct ContentView: View {
     // er aus, ändert das an der App nichts ausser der Statuszeile in „Mehr“.
 
     private func boot() async {
-        HaiityShortcuts.updateAppShortcutParameters()
-        let needsNativeSyncRecovery = NativeSyncInstallation.prepare()
         // Kauf-Zustand: der Lauscher zuerst (er muss stehen, BEVOR StoreKit
         // eine ausstehende Transaktion meldet — sonst geht sie verloren).
         // The lifecycle refresh is upgrade-only unless StoreKit has provided
@@ -3051,85 +2877,128 @@ struct ContentView: View {
                 enabled: viewPreferences.preferences.notificationActionsEnabled,
                 choices: viewPreferences.preferences.notificationActions.slots)
             schedulePush()
-            Task { await rescheduleReminders() }
+            scheduleMaintenance()
         }
         applyCloudPreferences()
-        // Local data is ready at this point. Keep the first interactive frame
-        // independent from CloudKit and EventKit maintenance.
-        Task { @MainActor in
-            await performInitialMaintenance(needsNativeSyncRecovery: needsNativeSyncRecovery)
-        }
-
-        // Native callbacks are installed only after the initial iCloud merge,
-        // reinstall cleanup, and replacement pass. Otherwise the merge could
-        // recreate entries before their watermark-based cleanup finished.
-        CalendarSync.startObserving(store: store)
-        ReminderSync.startObserving(store: store)
+        // Native callbacks are installed on a later foreground pass. EventKit
+        // can synchronously contact its daemon even when the callback only
+        // checks authorization, so it must not share the first interactive
+        // window.
         store.onChange = {
             schedulePush()
         }
         store.onChangeKind = { change in
             guard change == .general else { return }
-            Task {
-                await rescheduleReminders()
-                await reconcileMotivationActivity()
-            }
+            scheduleMaintenance()
             // Glückwunsch, wenn dieser Check-in den Tag vollgemacht hat.
             Task { await Reminders.celebrateIfPerfectDay(store: store) }
-            // Kalender-Spiegel nachziehen (No-op ohne Schalter/Zugriff;
-            // ohne `validate`, damit Check-ins EventKit gar nicht anfassen).
-            CalendarSync.reconcile(habits: store.habits,
-                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                   validate: false)
-            Task { @MainActor in
-                await ReminderSync.reconcile(
-                    habits: store.habits,
-                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                    validate: false)
-            }
-            // Habit-Namen können sich geändert haben -> Siri-Phrasen auffrischen.
-            HaiityShortcuts.updateAppShortcutParameters()
+        }
+        initialBootReady = true
+        startupMaintenanceTask?.cancel()
+    }
+
+    private func startNativeSyncObservers() {
+        guard !nativeSyncRecoveryPending else { return }
+        CalendarSync.startObserving(store: store)
+        ReminderSync.startObserving(store: store)
+    }
+
+    private func performNativeSyncRecoveryIfNeeded() async {
+        guard nativeSyncRecoveryPending else { return }
+        let cleanup = await NativeSyncCleanup.run()
+        guard cleanup.calendar && cleanup.reminders else { return }
+        NativeSyncInstallation.completeRecovery()
+        nativeSyncRecoveryPending = false
+        startNativeSyncObservers()
+    }
+
+    /// Recovery is intentionally a foreground integration task rather than a
+    /// startup task. This keeps reinstall cleanup correct without making the
+    /// first visible screen wait for EventKit.
+    private func performForegroundNativeMaintenance() async {
+        nativeSyncRecoveryPending = NativeSyncInstallation.prepare()
+        await performNativeSyncRecoveryIfNeeded()
+        guard !Task.isCancelled, !nativeSyncRecoveryPending else { return }
+        startNativeSyncObservers()
+        integrationsReady = true
+
+        // A native change notification owns the expensive validating pass.
+        // Activation only needs the cached mapping fast path; this avoids a
+        // 200-year EventKit inventory scan every time the app becomes active.
+        CalendarSync.reconcile(habits: store.habits,
+                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                               validate: false)
+        ReminderSync.pullCompletions(into: store,
+                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        await ReminderSync.reconcile(habits: store.habits,
+                                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                     validate: false)
+    }
+
+    /// Foreground activation shares the startup task slot. The short delay
+    /// lets the restored window and its first scroll settle before cloud,
+    /// notification, or native-store work resumes.
+    private func scheduleForegroundMaintenance() {
+        startupMaintenanceTask?.cancel()
+        startupMaintenanceTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            await performForegroundMaintenance()
+            guard !Task.isCancelled else { return }
+            startupMaintenanceTask = nil
         }
     }
 
-    /// Startup integrations are deliberately post-render work. A fresh
-    /// launch should be able to open Habits or Statistik while iCloud,
-    /// Calendar, and Reminders reconcile in the background.
-    private func performInitialMaintenance(needsNativeSyncRecovery: Bool) async {
-        // Give the first list frame a quiet window. CloudKit and EventKit work
-        // is background-owned, but its completion handlers still resume on
-        // the main actor and can otherwise compete with the first scroll.
-        try? await Task.sleep(for: .milliseconds(700))
-        guard !Task.isCancelled else { return }
+    private func performForegroundMaintenance() async {
         await syncNow(announce: false)
+        guard !Task.isCancelled else { return }
+        HomeShortcuts.update(habits: store.habits,
+                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         await Task.yield()
-        applyCloudPreferences()
         await rescheduleReminders()
-        await Task.yield()
+        guard !Task.isCancelled else { return }
         await reconcileMotivationActivity()
+        guard !Task.isCancelled else { return }
 
-        var nativeSyncRecoveryReady = true
-        if needsNativeSyncRecovery {
-            let cleanup = await NativeSyncCleanup.run()
-            nativeSyncRecoveryReady = cleanup.calendar && cleanup.reminders
-            if nativeSyncRecoveryReady {
-                NativeSyncInstallation.completeRecovery()
-            }
-        }
-        // Do not recreate entries after a partial cleanup. The pending flag
-        // keeps the retry alive for the next launch, where old markers can be
-        // removed before the replacement pass runs.
-        if nativeSyncRecoveryReady {
-            await Task.yield()
-            CalendarSync.reconcile(habits: store.habits,
-                                   defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-            ReminderSync.pullCompletions(into: store,
-                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-            await ReminderSync.reconcile(habits: store.habits,
-                                         defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
-        }
-        await Task.yield()
+        await performForegroundNativeMaintenance()
+        guard !Task.isCancelled else { return }
         await reconcileAppIcon()
+    }
+
+    /// Cache hydration and shortcut registration are useful after launch, but
+    /// neither is part of the first interactive frame. The graph cache is
+    /// decoded off the main actor; delaying its state update keeps the first
+    /// list layout and first scroll independent from the 371-cell card.
+    private func schedulePostLaunchHydration() {
+        postLaunchHydrationTask?.cancel()
+        postLaunchHydrationTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            // The task is owned by the mounted content view and is canceled
+            // when that view disappears. A transient scenePhase value during
+            // launch must not silently discard the local cache hydration.
+            guard !Task.isCancelled else { return }
+            await github.boot()
+            StartupMetrics.event("githubCacheHydrated")
+            guard !Task.isCancelled else { return }
+            HomeShortcuts.update(habits: store.habits,
+                                 defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+            postLaunchHydrationTask = nil
+        }
+    }
+
+    /// Context-menu and reveal bridges are useful only after the list is
+    /// interactive. Keeping them out of the first populated layout avoids
+    /// making UICollectionView install UIKit recognizers while it is also
+    /// measuring the graph-heavy rows.
+    private func scheduleInteractionBridgeActivation() {
+        interactionBridgeActivationTask?.cancel()
+        interactionBridgeActivationTask = Task { @MainActor in
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            interactionBridgesReady = true
+            interactionBridgeActivationTask = nil
+        }
     }
 
     /// Alle Mitteilungen neu stellen. Die Zusammenfassungen tragen ZAHLEN und
@@ -3172,6 +3041,30 @@ struct ContentView: View {
             delivery: store.motivationDelivery,
             additionalEntries: MotivationFeedCache.load(
                 in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
+    }
+
+    /// A local write is immediately durable and visible. Its secondary
+    /// integrations can wait for a short quiet window so rapid edits do not
+    /// each start their own notification, shortcut, and EventKit work.
+    private func scheduleMaintenance() {
+        Task { @MainActor in
+            await maintenance.schedule { @MainActor in
+                guard !Task.isCancelled else { return }
+                await rescheduleReminders()
+                guard !Task.isCancelled else { return }
+                await reconcileMotivationActivity()
+                guard !Task.isCancelled else { return }
+                HaiityShortcuts.updateAppShortcutParameters()
+                guard integrationsReady, !nativeSyncRecoveryPending else { return }
+                CalendarSync.reconcile(habits: store.habits,
+                                       defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                                       validate: false)
+                await ReminderSync.reconcile(
+                    habits: store.habits,
+                    defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+                    validate: false)
+            }
+        }
     }
 
     /// Cleans old native entries first, then rebuilds only the integrations
@@ -3332,239 +3225,8 @@ struct ContentView: View {
     }
 }
 
-// MARK: – Scroll-Signal
-
-/// Ein Messbild des System-Suchfeldes (siehe `SearchFieldProbe`).
-struct SearchFieldReading: Equatable {
-    /// Steht überhaupt ein Suchfeld im Fenster?
-    var present: Bool
-    /// Seine Breite in Punkten (0, wenn keins da ist).
-    var width: CGFloat
-    /// Hält es die Eingabe (`isFirstResponder`)?
-    var focused: Bool
-
-    static let none = SearchFieldReading(present: false, width: 0, focused: false)
-}
-
-/// Herkunft einer ausdrücklich angeforderten Suche. Nur ein Deep-Link muss
-/// den minimierten System-Toolbar-Modus verlassen.
-enum SearchOpenOrigin: CustomStringConvertible {
-    case toolbar
-    case deepLink
-
-    var description: String {
-        switch self {
-        case .toolbar: "toolbar"
-        case .deepLink: "deepLink"
-        }
-    }
-}
-
-/// Die Such-Präsentation als EXPLIZITE Zustandsmaschine — rein, ohne SwiftUI,
-/// testbar. Sie beendet das Whack-a-Mole der Geräte-Rückmeldungen („X schließt
-/// nicht in einem Tipp", „Anlegen-Schließen öffnet die Suche"): beides sind
-/// SYSTEM-Schreibvorgänge auf das `isPresented`-Binding, die zeitlich NACH
-/// unserem eigenen Zustand landen — auf dem Gerät anders getaktet als im
-/// Simulator. Statt Timer nachzustimmen, entscheidet hier ein Regelwerk, ob
-/// eine Präsentation GEWOLLT sein kann:
-///
-///  * `userOpened` (Deep-Link, Fallback-Knopf): Absicht — gilt immer.
-///  * `systemPresented` (das Binding springt auf `true`, ohne dass wir es
-///    waren — die System-Lupe, aber auch jeder Nachzügler): erlaubt NUR, wenn
-///    weder gerade geschlossen wird noch das Anlegen-Cover im Spiel ist.
-///     – Im Schließ-Fenster (`closeSettle` nach dem Zuklappen) ist es der
-///       bekannte Re-Present des Systems mitten in der Abklapp-Animation —
-///       genau der Grund, warum das X auf dem Gerät mehrere Tipps brauchte.
-///       Die Lupe existiert in diesem Fenster noch gar nicht wieder als
-///       Tippziel, ein echter Nutzer kann das nicht sein → verwerfen.
-///     – Bei offenem Anlegen-Cover (oder im `coverSettle`-Fenster nach dessen
-///       Zufahren) liegt die Lupe unter dem Cover bzw. unter der laufenden
-///       Zoom-Animation — auch das kann kein Nutzer sein. Es ist der
-///       Such-Rollen-Tab (der Anlegen-Kreis!), dessen Auswahl das System
-///       verspätet doch noch als Such-Aktivierung ausspielt → verwerfen.
-///  * `dismissed`: das Binding fällt auf `false` — ab jetzt läuft das
-///    Schließ-Fenster.
-///
-/// Die Ansicht setzt ein „verworfen" um, indem sie das Binding sofort wieder
-/// auf `false` schreibt (und den Fokus löscht) — dieselbe Klemme, die sich
-/// beim Fokus bereits bewährt hat, jetzt auch für die Präsentation selbst.
-struct SearchFlow {
-    enum State: Equatable { case closed, open, closing(since: Date) }
-    struct Cleanup: Equatable {
-        let clearFocus: Bool
-        let clearQuery: Bool
-    }
-    static let closeCleanup = Cleanup(clearFocus: true, clearQuery: true)
-    private(set) var state: State = .closed
-
-    /// Länger als die Abklapp-Animation (~0,35 s), kürzer als der schnellste
-    /// echte Wieder-Tipp auf die (erst danach wieder existierende) Lupe.
-    static let closeSettle: TimeInterval = 0.45
-    /// Zoom-Rückfahrt des Anlegen-Covers (~0,5 s) plus Luft für den
-    /// nachzügelnden Such-Rollen-Impuls des Systems.
-    static let coverSettle: TimeInterval = 0.8
-
-    /// So lange muss das Zuklapp-Bild anhalten, bevor die App nachzieht
-    /// (siehe `fieldReading`): lang genug, dass ein einzelnes Messbild nichts
-    /// auslöst, kurz genug, dass „ein Tipp schließt" bleibt. Gemessen: das
-    /// abgebrochene Zuklappen der iOS-27-Suche liegt rund 0,22 s unter der
-    /// Ruhebreite — ein Fenster von 0,12 s liegt sicher darin.
-    static let dismissSettle: TimeInterval = 0.12
-    /// Ab so vielen Punkten UNTER der Ruhebreite gilt das Feld als
-    /// zuklappend. Gemessen: Ruhe 344 pt, Zuklappen fällt sofort auf 280 pt;
-    /// das Absenden über die Tastatur lässt die Breite exakt stehen.
-    static let collapseMargin: CGFloat = 10
-
-    private var coverOpen = false
-    private var coverClosedAt: Date?
-    /// Wurde das Feld seit DIESEM Öffnen überhaupt schon gemessen? Ohne diese
-    /// Klemme schlösse der Beobachter die Suche im selben Atemzug wieder, in
-    /// dem sie aufgeht — beim Aufklappen ist das Feld ein paar Bilder lang
-    /// noch nicht da.
-    private var fieldSeen = false
-    /// Die Breite, die das Feld im RUHEZUSTAND hat (zuletzt gemessen, solange
-    /// es die Eingabe hielt). Der Maßstab, an dem ein Zuklappen erkannt wird.
-    private var restingWidth: CGFloat?
-    /// Seit wann sieht die Messung nach Zuklappen aus? (nil = tut sie nicht)
-    private var dismissSince: Date?
-    /// Schon gemeldet? Ein Zuklappen ist EIN Ereignis, kein Dauerzustand —
-    /// sonst feuerte der Takt zwanzigmal je Sekunde dieselbe Meldung.
-    private var dismissReported = false
-
-    /// Anlegen-Cover auf/zu — der Such-Rollen-Tab ist der Anlegen-Kreis,
-    /// seine fehlgeleitete Such-Aktivierung hängt an genau diesem Fenster.
-    mutating func coverChanged(open: Bool, now: Date = .now) {
-        coverOpen = open
-        if !open { coverClosedAt = now }
-    }
-
-    /// Programmatisches Öffnen — ausdrückliche Absicht, gilt immer.
-    mutating func userOpened() { enterOpen() }
-
-    /// JEDER Weg nach `open` läuft hier durch — und setzt die Feldmessung
-    /// zurück. Das ist der Grund, warum der Beobachter über beliebig viele
-    /// Zyklen gleich arbeitet: er trägt NICHTS aus dem vorigen Zyklus mit.
-    /// (Ohne das reichte ein `fieldGoneSince` von vorhin, um die frisch
-    /// geöffnete Suche im ersten Messschritt wieder zuzuschlagen.)
-    private mutating func enterOpen() {
-        state = .open
-        resetField()
-    }
-
-    private mutating func resetField() {
-        fieldSeen = false
-        restingWidth = nil
-        dismissSince = nil
-        dismissReported = false
-    }
-
-    /// Das System hat präsentiert (Binding → `true`, nicht von uns).
-    /// Ergebnis `false` = verwerfen (Binding sofort zurücksetzen).
-    mutating func systemPresented(now: Date = .now) -> Bool {
-        if case .open = state { return true }
-        if case .closing(let since) = state,
-           now.timeIntervalSince(since) < Self.closeSettle { return false }
-        if coverOpen { return false }
-        if let t = coverClosedAt,
-           now.timeIntervalSince(t) < Self.coverSettle { return false }
-        enterOpen()
-        return true
-    }
-
-    /// Was der Feld-Beobachter gemessen hat. Rückgabe `true` = die Ansicht
-    /// muss `isPresented` SELBST auf `false` ziehen.
-    ///
-    /// Das ist die Antwort auf den zweiten iOS-27-Fehler: das System klappt
-    /// die Suche zu, schreibt aber kein `false` zurück (auch `\.isSearching`
-    /// bleibt wahr — nachgemessen). Schlimmer noch: weil das Binding wahr
-    /// bleibt, ZIEHT SwiftUI das halb zugeklappte Feld sofort wieder auf.
-    /// Genau deshalb reicht „ist das Feld weg?" nicht — beim ersten Tipp ist
-    /// es nie weg, es klappt nur an und wird zurückgerissen. Der Tipp muss
-    /// IM ZUKLAPPEN erkannt werden, bevor das Zurückreißen einsetzt.
-    ///
-    /// Woran: an der BREITE des Feldes, gegen die Ruhebreite gehalten
-    /// (Messwerte im Simulator, iOS 27.0, 17 Pro Max):
-    ///
-    /// | Vorgang            | Eingabe | Breite        |
-    /// |--------------------|---------|---------------|
-    /// | offen, in Ruhe     | ja      | 344 pt        |
-    /// | Liste scrollen     | ja      | 344 pt        |
-    /// | „Suchen" (Tastatur)| nein    | 344 pt        |
-    /// | X getippt          | nein    | 344 → 280 pt  |
-    ///
-    /// Die Eingabe allein taugt also NICHT als Signal (das Absenden über die
-    /// Tastatur gibt sie ebenso ab), die Breite allein auch nicht (beim
-    /// Aufklappen schrumpft das Feld von 389 auf 344). Erst beides zusammen —
-    /// „hält die Eingabe nicht mehr UND ist schmaler als in Ruhe" — trennt
-    /// das Zuklappen sauber von allem anderen.
-    ///
-    /// Vier Eigenschaften, und alle vier sind Absicht:
-    ///  * **Nur im Zustand `open`.** Sonst ist die Messung bedeutungslos und
-    ///    wird zurückgesetzt — ein Beobachter, der über Zustandsgrenzen
-    ///    hinweg etwas merkt, ist genau der, der beim zweiten Durchgang
-    ///    danebengreift.
-    ///  * **Erst sehen, dann vermissen** (`fieldSeen`): vor dem ersten
-    ///    Treffer schließt nichts, sonst schlüge die Suche im selben Atemzug
-    ///    wieder zu, in dem sie aufgeht.
-    ///  * **Die Ruhebreite kommt aus DIESEM Öffnen**, nicht aus einer
-    ///    Konstanten: sie hängt an Gerät, Sprache und daran, ob rechts ein X
-    ///    steht.
-    ///  * **Ereignislos wiederholbar.** Der Aufruf ist eine reine Frage; ihn
-    ///    zwanzigmal je Sekunde zu stellen ändert nichts am Ergebnis, und ein
-    ///    verschlucktes Messbild verschiebt es höchstens um einen Takt.
-    mutating func fieldReading(_ reading: SearchFieldReading, now: Date = .now) -> Bool {
-        guard case .open = state else {
-            resetField()
-            return false
-        }
-        if reading.present {
-            fieldSeen = true
-            // Ruhebreite nur, solange das Feld die Eingabe hält: während des
-            // Zuklappens hat es sie schon abgegeben, seine Breite darf den
-            // Maßstab also nicht mehr verschieben.
-            if reading.focused {
-                restingWidth = reading.width
-                dismissSince = nil
-                dismissReported = false
-                return false
-            }
-        }
-        guard fieldSeen else { return false }
-        let dismissing: Bool
-        if !reading.present {
-            dismissing = true
-        } else if let resting = restingWidth {
-            dismissing = reading.width <= resting - Self.collapseMargin
-        } else {
-            // Feld da, ohne Eingabe, ohne je eine Ruhebreite gehabt zu haben:
-            // daraus lässt sich nichts ablesen.
-            dismissing = false
-        }
-        guard dismissing else {
-            dismissSince = nil
-            return false
-        }
-        guard !dismissReported else { return false }
-        guard let since = dismissSince else {
-            dismissSince = now
-            return false
-        }
-        guard now.timeIntervalSince(since) >= Self.dismissSettle else { return false }
-        dismissReported = true
-        return true
-    }
-
-    /// Das Binding ist auf `false` gefallen (X, Abbrechen, eigener Rücksetzer).
-    /// Nur aus `open` beginnt das Schließ-Fenster — ein verworfener
-    /// Präsentations-Versuch (unser eigenes Zurückschreiben) startet keins.
-    mutating func dismissed(now: Date = .now) {
-        if case .open = state { state = .closing(since: now) }
-    }
-}
-
 /// Referenz-Kiste fuer Scroll-Buchfuehrung ohne Observation.
 final class ChromeScrollBox {
-    var searchFlow = SearchFlow()
     /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
     /// minY im Listenraum) — reine Buchführung aus `handleScroll`, gelesen
     /// nur beim Öffnen der Nacharbeiten-Karte (`backfillAnchor`).
@@ -3744,39 +3406,22 @@ private struct MoreZoomDestination: ViewModifier {
     }
 }
 
-/// Suchfeld, das NICHT dauerhaft sichtbar ist — NUR noch für iOS < 26.
+/// Compatibility drawer for iOS < 26, where the dedicated native search tab
+/// is unavailable.
 ///
-/// Ab iOS 26 wohnt die Suche im echten Such-Tab (siehe `nativeShell`); dort
-/// hängt ein gewöhnliches `.searchable` am Tab-Inhalt und das System
-/// besorgt Auf- und Zuklappen unten an der Leiste. Der Feld-Beobachter für
-/// den iOS-27-Binding-Fehler (Zuklappen schreibt kein `false` zurück; siehe
-/// `SearchFieldProbe` und `SearchFlow.fieldReading`) bleibt daneben aktiv.
-///
-/// Vor iOS 26 bleibt der alte Umweg: `.searchable` erst anhängen, wenn die
-/// Suche offen sein soll — `.minimize` gibt es dort nicht, und
-/// `.navigationBarDrawer(displayMode: .automatic)` zeigte die Leiste am
-/// Listenanfang dauerhaft. Das Anhängen mit `isPresented == true` klappt die
-/// Leiste ohne Übergang auf (ein harter Schnitt, bewusst in Kauf genommen —
-/// nur dort, wo das System nichts Besseres anbietet).
+/// The field is only mounted while the fallback search is active.
 private struct LegacySearchDrawer: ViewModifier {
     @Binding var text: String
     @Binding var isPresented: Bool
-    let focus: FocusState<Bool>.Binding
     let prompt: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if #unavailable(iOS 26), isPresented {
-            let base = content
-                .searchable(text: $text,
-                            isPresented: $isPresented,
-                            placement: .navigationBarDrawer(displayMode: .always),
-                            prompt: Text(prompt))
-            if #available(iOS 18, *) {
-                base.searchFocused(focus)
-            } else {
-                base
-            }
+            content.searchable(text: $text,
+                               isPresented: $isPresented,
+                               placement: .navigationBarDrawer(displayMode: .always),
+                               prompt: Text(prompt))
         } else {
             content
         }
@@ -3786,10 +3431,8 @@ private struct LegacySearchDrawer: ViewModifier {
 private extension View {
     func legacySearchDrawer(text: Binding<String>,
                             isPresented: Binding<Bool>,
-                            focus: FocusState<Bool>.Binding,
                             prompt: String) -> some View {
         modifier(LegacySearchDrawer(text: text, isPresented: isPresented,
-                                    focus: focus,
                                     prompt: prompt))
     }
 }
@@ -3818,146 +3461,6 @@ private struct BubbleButtonStyle: ButtonStyle {
 // es nur im SDK 27, mit dem diese App nicht ausgeliefert werden darf —
 // ausführlich in `ContentView.nativeShell`. Bis es ein Release-Xcode 27
 // gibt, steht der Kreis hier selbst.
-
-// MARK: – Der Feld-Beobachter (iOS 27)
-
-/// Nimmt Messbilder des System-Suchfeldes auf und reicht jedes an
-/// `onReading` weiter. Gebraucht wird das nur auf iOS 27 (siehe
-/// `SearchableHidden`): dort klappt das System die Suche zu, ohne
-/// `isPresented` zurückzuschreiben. Was ein Messbild bedeutet, entscheidet
-/// nicht dieser Ausmesser, sondern `SearchFlow.fieldReading`.
-///
-/// **Warum getaktet und nicht ereignisgesteuert?** Zwei Gründe, beide
-/// nachgemessen:
-///  * Der naheliegende Weg — KVO auf `hidden`/`alpha`, wie beim Teller-Messer
-///    der Tableiste — trägt nicht: beim Schließen wird das Feld nicht
-///    versteckt, sondern ABGERÄUMT. Ein Beobachter hinge danach an einer
-///    Ansicht, die es nicht mehr gibt, und der nächste Zyklus baute ein Feld
-///    auf, das niemand beobachtet — genau die Bauart, bei der der ZWEITE
-///    Durchgang stillsteht.
-///  * Das entscheidende Signal ist ohnehin kein Ereignis, sondern eine
-///    laufende Größe: die BREITE des Feldes im Zuklappen. Die liest man ab,
-///    man bekommt sie nicht gemeldet.
-///
-/// Der Takt läuft ausschließlich bei OFFENER Suche (`active`) — im
-/// Ruhezustand der App tickt hier nichts.
-@available(iOS 26, *)
-private struct SearchFieldWatcher: UIViewRepresentable {
-    let active: Bool
-    let onReading: (SearchFieldReading) -> Void
-
-    func makeUIView(context: Context) -> UIView {
-        let probe = SearchFieldProbe()
-        probe.onReading = onReading
-        probe.active = active
-        return probe
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        guard let probe = uiView as? SearchFieldProbe else { return }
-        probe.onReading = onReading
-        probe.active = active
-    }
-
-    static func dismantleUIView(_ uiView: UIView, coordinator: ()) {
-        (uiView as? SearchFieldProbe)?.active = false
-    }
-}
-
-@available(iOS 26, *)
-private final class SearchFieldProbe: UIView {
-    var onReading: ((SearchFieldReading) -> Void)?
-
-    var active = false {
-        didSet {
-            guard active != oldValue else { return }
-            if active { start() } else { stop() }
-        }
-    }
-
-    /// 20 Hz: schnell genug, dass „ein Tipp schließt" sich sofort anfühlt
-    /// (Messung + `dismissSettle` bleiben zusammen unter zwei Zehnteln) und
-    /// dass das abgebrochene Zuklappen — rund 0,22 s schmal — nicht
-    /// durchrutscht; langsam genug, dass ein paar Dutzend Ansichten je Takt
-    /// nicht ins Gewicht fallen.
-    private static let interval: TimeInterval = 0.05
-
-    private var timer: Timer?
-
-    init() {
-        super.init(frame: .zero)
-        isUserInteractionEnabled = false
-        isHidden = true
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    deinit { timer?.invalidate() }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        // Fenster gewechselt: sofort neu messen, nicht erst im nächsten Takt.
-        if active { sample() }
-    }
-
-    private func start() {
-        stop()
-        sample()
-        // `.common`: sonst schweigt der Takt, solange ein Finger scrollt oder
-        // eine Animation läuft — also genau in den Momenten, um die es geht.
-        let t = Timer(timeInterval: Self.interval, repeats: true) { [weak self] _ in
-            self?.sample()
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
-    }
-
-    private func stop() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func sample() {
-        onReading?(Self.reading(in: window))
-    }
-
-    /// Wie sieht das Suchfeld im Fenster gerade aus?
-    ///
-    /// Gesucht wird `UISearchTextField` — eine ÖFFENTLICHE Klasse (ab iOS 13);
-    /// gelesen werden nur öffentliche Eigenschaften (`bounds`, `isHidden`,
-    /// `alpha`, `isFirstResponder`). Nichts wird verändert, keine private
-    /// Schnittstelle berührt.
-    ///
-    /// Die Breitenschwelle hält das AUFKLAPPEN aus der Messung heraus: das
-    /// Feld wächst aus der Lupe heraus (nachgemessen: von unter 50 pt auf
-    /// 344 pt in rund 0,25 s). Erst ab `minWidth` ist es ein Feld und nicht
-    /// mehr eine wachsende Lupe — sonst geriete eine Zwischenbreite als
-    /// „Ruhebreite" in die Bücher.
-    static let minWidth: CGFloat = 120
-
-    static func reading(in window: UIWindow?) -> SearchFieldReading {
-        guard let window, let field = find(window, window: window) else { return .none }
-        return SearchFieldReading(present: true,
-                                  width: field.bounds.width,
-                                  focused: field.isFirstResponder)
-    }
-
-    private static func find(_ view: UIView, window: UIWindow) -> UISearchTextField? {
-        if let field = view as? UISearchTextField {
-            let f = view.convert(view.bounds, to: window)
-            if f.width >= minWidth, f.height >= 16, f.intersects(window.bounds) {
-                return field
-            }
-        }
-        // Unsichtbare Zweige gar nicht erst betreten: ein abgeblendeter
-        // Navigationsbaum (verdeckt von einem Cover) zählt nicht als Feld.
-        for sub in view.subviews where !sub.isHidden && sub.alpha > 0.05 {
-            if let found = find(sub, window: window) { return found }
-        }
-        return nil
-    }
-}
 
 /// Wo die schwebende System-Tableiste WIRKLICH steht — ausgemessen an der
 /// echten Ansicht, nicht aus Sicherheitszonen gerechnet.

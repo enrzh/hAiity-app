@@ -649,12 +649,41 @@ struct MoreView: View {
 
     private var habitBehaviorSettings: some View {
         List {
+            cloudSyncSection.moreSettingsSection()
             autoArchiveSection.moreSettingsSection()
             swipeActionsSection.moreSettingsSection()
             notificationActionsSection.moreSettingsSection()
             calendarSection.moreSettingsSection()
         }
         .moreSettingsSurface()
+    }
+
+    /// Sync status is useful while editing integration behavior, but does not
+    /// belong on the More hub where it becomes permanent ambient noise.
+    private var cloudSyncSection: some View {
+        Section {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: cloudStatus.state.systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(palettes.style))
+                    .frame(width: 32, height: 32)
+                    .background(Theme.accentFill(palettes.style).opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cloudStatus.state.title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(cloudStatus.state.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("cloud-sync-status")
+        } header: {
+            Text(String(localized: "Synchronisierung"))
+        }
     }
 
     private var morePageRule: some View {

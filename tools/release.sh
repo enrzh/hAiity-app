@@ -115,7 +115,10 @@ say "Build gates"
 # The complete test target is compiled by the device test invocation below, but
 # only the physical-safe subset is executed on the phone. The complete unit
 # test gate must run separately on a host/CI destination.
-PHYSICAL_MIN_TESTS=20
+# These 15 selectors expand to 19 test methods (the first selector covers the
+# five mechanics tests). Keep the floor aligned with the actual invocation so
+# the release gate does not require a test that is not selected.
+PHYSICAL_MIN_TESTS=19
 PHYSICAL_TESTS=(
   -only-testing:HaiityTests/SwipeRevealMechanicsTests
   -only-testing:HaiityTests/ReminderItemTests/testPresentationPolicyUsesCompactRowsOnlyForReminders
@@ -440,20 +443,29 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates >"$OUT/export.log" 2>&1 \
   || { tail -40 "$OUT/export.log"; fail "export failed (full log: $OUT/export.log)"; }
 
-IPA=$(find "$OUT/export" -name '*.ipa' -print -quit)
-[[ -n "$IPA" ]] || fail "no .ipa produced by export."
-EXPORTED_APP_DIR="$OUT/exported-app"
-rm -rf "$EXPORTED_APP_DIR"
-mkdir -p "$EXPORTED_APP_DIR"
-unzip -q "$IPA" -d "$EXPORTED_APP_DIR" \
-  || fail "could not inspect exported IPA: $IPA"
-EXPORTED_APP="$EXPORTED_APP_DIR/Payload/$APP_NAME.app"
-[[ -d "$EXPORTED_APP" ]] || fail "exported IPA has no $APP_NAME.app."
-EXPORTED_APP_V=$(plist "$EXPORTED_APP" CFBundleShortVersionString)
-EXPORTED_APP_B=$(plist "$EXPORTED_APP" CFBundleVersion)
-[[ "$EXPORTED_APP_V" == "$APP_V" && "$EXPORTED_APP_B" == "$APP_B" ]] \
-  || fail "exported app version $EXPORTED_APP_V ($EXPORTED_APP_B) differs from archive $APP_V ($APP_B)."
-ok "exported app matches archive ($EXPORTED_APP_V/$EXPORTED_APP_B)"
+if [[ "$UPLOAD" == yes ]]; then
+  # destination=upload transfers the archive directly and intentionally does
+  # not leave a local IPA in the export directory. The transporter log is the
+  # authoritative local result for this operation.
+  grep -Fq "Upload succeeded" "$OUT/export.log" \
+    || { tail -40 "$OUT/export.log"; fail "App Store Connect upload did not report success (full log: $OUT/export.log)"; }
+  ok "App Store Connect accepted the upload request"
+else
+  IPA=$(find "$OUT/export" -name '*.ipa' -print -quit)
+  [[ -n "$IPA" ]] || fail "no .ipa produced by export."
+  EXPORTED_APP_DIR="$OUT/exported-app"
+  rm -rf "$EXPORTED_APP_DIR"
+  mkdir -p "$EXPORTED_APP_DIR"
+  unzip -q "$IPA" -d "$EXPORTED_APP_DIR" \
+    || fail "could not inspect exported IPA: $IPA"
+  EXPORTED_APP="$EXPORTED_APP_DIR/Payload/$APP_NAME.app"
+  [[ -d "$EXPORTED_APP" ]] || fail "exported IPA has no $APP_NAME.app."
+  EXPORTED_APP_V=$(plist "$EXPORTED_APP" CFBundleShortVersionString)
+  EXPORTED_APP_B=$(plist "$EXPORTED_APP" CFBundleVersion)
+  [[ "$EXPORTED_APP_V" == "$APP_V" && "$EXPORTED_APP_B" == "$APP_B" ]] \
+    || fail "exported app version $EXPORTED_APP_V ($EXPORTED_APP_B) differs from archive $APP_V ($APP_B)."
+  ok "exported app matches archive ($EXPORTED_APP_V/$EXPORTED_APP_B)"
+fi
 
 # The App Store Connect export above is the shipping artifact. Its beta
 # profile is not necessarily installable on a physical device, so never use

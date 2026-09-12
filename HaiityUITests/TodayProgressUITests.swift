@@ -8,9 +8,9 @@ final class TodayProgressUITests: XCTestCase {
     }
 
     private func launch(_ fixture: String = "realistic", largeText: Bool = false,
-                        appearance: String = "light") -> XCUIApplication {
+                        appearance: String = "light", screen: String = "habits") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", fixture, "-screen", "habits", "-pro", "on",
+        app.launchArguments = ["-design-fixture", fixture, "-screen", screen, "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB",
                                "-design-appearance", appearance]
         if largeText {
@@ -25,6 +25,30 @@ final class TodayProgressUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testRedesignRootAndSecondaryPagesInBothAppearances() {
+        for appearance in ["light", "dark"] {
+            let app = launch("crowded", appearance: appearance, screen: "more")
+            let settings = app.buttons["open-appearance"].firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 15))
+            XCTAssertTrue(settings.isHittable)
+            capture("redesign-more-\(appearance)")
+            settings.tap()
+            XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
+            capture("redesign-appearance-\(appearance)")
+            app.terminate()
+
+            let stats = launch("crowded", appearance: appearance, screen: "stats")
+            let weekly = stats.descendants(matching: .any)["stats-week-card"].firstMatch
+            XCTAssertTrue(weekly.waitForExistence(timeout: 15))
+            capture("redesign-stats-\(appearance)")
+            stats.swipeUp()
+            XCTAssertTrue(stats.descendants(matching: .any)["stats-row"].firstMatch
+                .waitForExistence(timeout: 5))
+            capture("redesign-stats-ranking-\(appearance)")
+            stats.terminate()
+        }
     }
 
     func testContributionChartLightAndDarkScreenshots() {
@@ -54,6 +78,25 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertFalse(app.buttons["check-today"].firstMatch.label.contains("Done"))
         XCTAssertTrue(app.staticTexts["Read for twenty minutes"].firstMatch.exists)
         capture("today-completion-undo")
+    }
+
+    func testSearchTabShowsFieldAndFieldTapActivatesInput() {
+        let app = launch()
+        let searchTab = app.tabBars.buttons["Search"].firstMatch
+        XCTAssertTrue(searchTab.waitForExistence(timeout: 15))
+
+        searchTab.tap()
+        XCTAssertTrue(searchTab.waitForExistence(timeout: 5))
+        XCTAssertTrue(searchTab.isSelected)
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
+
+        searchField.swipeUp()
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+
+        searchField.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
     }
 
     func testGraphOpensHistoryAndCanEditAnEarlierMonth() {

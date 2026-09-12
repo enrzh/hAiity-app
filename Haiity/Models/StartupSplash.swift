@@ -1,5 +1,27 @@
 import Foundation
 import CoreGraphics
+import OSLog
+
+/// Lightweight signposts for the launch boundary. These stay in the shipped
+/// binary so a physical-device trace can distinguish a slow first frame from
+/// work that starts after the app is already usable.
+enum StartupMetrics {
+    private static let log = OSLog(subsystem: "com.aiity.haiity", category: "startup")
+
+    static func begin(_ name: StaticString) -> OSSignpostID {
+        let id = OSSignpostID(log: log)
+        os_signpost(.begin, log: log, name: name, signpostID: id)
+        return id
+    }
+
+    static func end(_ name: StaticString, id: OSSignpostID) {
+        os_signpost(.end, log: log, name: name, signpostID: id)
+    }
+
+    static func event(_ name: StaticString) {
+        os_signpost(.event, log: log, name: name)
+    }
+}
 
 enum StartupSplashPhase: Equatable {
     case cluster

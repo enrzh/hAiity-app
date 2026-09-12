@@ -693,34 +693,47 @@ enum Reminders {
     // MARK: – Ausführung
 
     /// Stellt Zusammenfassungen, Motivation und Habit-Weckrufe neu.
-    /// Idempotent: erst alle eigenen Pending-Requests entfernen (die alten
-    /// Habit-Weckrufe eingeschlossen), dann setzen.
+    /// Idempotent: unchanged requests stay in the system. Only stale or
+    /// changed requests are replaced, which keeps app activation out of a
+    /// remove-and-add storm.
     static func reschedule(daily: ReminderPlan?, weekly: ReminderPlan?) async {
         let center = UNUserNotificationCenter.current()
 
-        // Aufräumen VOR dem Berechtigungs-Gate: auch wer Mitteilungen in den
-        // iOS-Einstellungen abgeschaltet hat, darf keine veralteten Anfragen
-        // liegen lassen — sonst klingelt nach dem Wieder-Einschalten ein
-        // längst archiviertes Habit weiter.
         let pending = await center.pendingNotificationRequests()
         // Die Motivations-Kennungen gehören zu „unseren": nur weil sie hier
         // stehen, verschwinden sie beim AUSSCHALTEN wieder (dann plant der
         // Durchlauf unten keine neuen) und beim UMSTELLEN der Uhrzeit werden
         // sie auf die neue Zeit gesetzt, statt doppelt zu klingeln.
-        let ours = pending.map(\.identifier).filter {
-            $0 == summaryId || $0 == weeklySummaryId
-                || $0.hasPrefix(legacyHabitPrefix) || $0.hasPrefix(upcomingPrefix)
-                || $0.hasPrefix(habitReminderPrefix) || $0.hasPrefix(motivationPrefix)
+        let ours = pending.filter {
+            let identifier = $0.identifier
+            return identifier == summaryId || identifier == weeklySummaryId
+                || identifier.hasPrefix(legacyHabitPrefix) || identifier.hasPrefix(upcomingPrefix)
+                || identifier.hasPrefix(habitReminderPrefix) || identifier.hasPrefix(motivationPrefix)
         }
-        center.removePendingNotificationRequests(withIdentifiers: ours)
+        let ownedIdentifiers = ours.map(\.identifier)
+
+        // Aufräumen VOR dem Berechtigungs-Gate: auch wer Mitteilungen in den
+        // iOS-Einstellungen abgeschaltet hat, darf keine veralteten Anfragen
+        // liegen lassen — sonst klingelt nach dem Wieder-Einschalten ein
+        // längst archiviertes Habit weiter.
+        func removeOwnedRequests() {
+            guard !ownedIdentifiers.isEmpty else { return }
+            center.removePendingNotificationRequests(withIdentifiers: ownedIdentifiers)
+        }
 
         guard shouldScheduleNotifications(
-            state: NotificationPromptPreference.state) else { return }
+            state: NotificationPromptPreference.state) else {
+            removeOwnedRequests()
+            return
+        }
 
         let settings = await center.notificationSettings()
-        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else { return }
+        guard ReminderGate.decision(for: settings.authorizationStatus) == .post else {
+            removeOwnedRequests()
+            return
+        }
 
-        // Die Voraus-Wecker lesen ihren Stoff selbst von der Platte — die
+        // The Voraus-Wecker lesen ihren Stoff selbst von der Platte — die
         // Aufrufer geben nur die beiden Zusammenfassungen mit, und dieselbe
         // data.json ist ohnehin die einzige Wahrheit (auch fürs Widget).
         var plans = [daily, weekly].compactMap { $0 }
@@ -747,6 +760,16 @@ enum Reminders {
                                 notificationActions: data.viewPreferences.notificationActions.slots,
                                 defaultTimeZoneIdentifier: data.defaultTimeZoneIdentifier)
         }
+
+        let existing = Dictionary(uniqueKeysWithValues: ours.map { ($0.identifier, $0) })
+        let unchanged = existing.count == plans.count
+            && plans.allSatisfy { plan in
+                guard let request = existing[plan.identifier] else { return false }
+                return requestMatches(request, plan: plan)
+            }
+        if unchanged { return }
+
+        removeOwnedRequests()
         await schedulePlans(
             plans,
             addPlan: { plan in
@@ -755,6 +778,26 @@ enum Reminders {
             logFailure: { error, identifier, context in
                 logScheduleFailure(error, identifier: identifier, context: context)
             })
+    }
+
+    /// Compares only the fields represented by `ReminderPlan`. This lets old
+    /// installs retain their requests when the generated plan is identical,
+    /// without relying on a process-local hash or a second persisted cache.
+    static func requestMatches(_ request: UNNotificationRequest,
+                               plan: ReminderPlan) -> Bool {
+        let category = plan.notificationCategoryIdentifier
+            ?? plan.quickAction?.categoryIdentifier
+            ?? ""
+        guard request.identifier == plan.identifier,
+              request.content.title == plan.title,
+              request.content.body == plan.body,
+              request.content.categoryIdentifier == category,
+              request.content.sound != nil,
+              request.content.interruptionLevel == (plan.timeSensitive ? .timeSensitive : .active),
+              let trigger = request.trigger as? UNCalendarNotificationTrigger,
+              trigger.repeats == plan.repeats,
+              trigger.dateComponents == plan.dateMatching else { return false }
+        return true
     }
 
     /// Submit each plan independently so one invalid request cannot hide

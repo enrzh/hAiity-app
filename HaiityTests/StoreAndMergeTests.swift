@@ -3,6 +3,25 @@ import UIKit
 @testable import Haiity
 
 final class StoreAndMergeTests: XCTestCase {
+    func testPersistencePerformanceWithTypicalHistory() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("haiity-persist-benchmark-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let habits = (0..<12).map { index in
+            var habit = Habit(name: "Benchmark \(index)")
+            habit.createdAt = "2026-07-29"
+            habit.log = Dictionary(uniqueKeysWithValues: (1...14).map {
+                (String(format: "2026-08-%02d", $0), 1)
+            })
+            return habit
+        }
+        let data = HabitData(version: 2, updatedAt: 0, summaryMinutes: nil, habits: habits)
+        try JSONEncoder().encode(data).write(to: url, options: .atomic)
+        let store = HabitStore(url: url)
+        measure { store.persist(notify: false) }
+        XCTAssertEqual(HabitStore.read(url)?.habits, habits)
+    }
+
     func testHabitDataLegacyJSONDefaultsViewPreferences() throws {
         let data = try JSONEncoder().encode(HabitData.empty)
         let decoded = try JSONDecoder().decode(HabitData.self, from: data)
