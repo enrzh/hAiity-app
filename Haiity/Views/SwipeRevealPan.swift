@@ -361,14 +361,13 @@ struct SwipeRevealActions: View {
     var body: some View {
         sizedActionStack
             .opacity(progress)
-            // A small edge translation is enough to show direction without
-            // scaling the hit frame while the finger is still moving.
+            .scaleEffect(0.92 + progress * 0.08,
+                         anchor: alignment == .leading ? .leading : .trailing)
+            // Settle to full size before enabling the action hit targets.
             .offset(x: alignment == .leading
                     ? -(1 - progress) * 10
                     : (1 - progress) * 10)
             .frame(maxWidth: .infinity, alignment: alignment)
-            .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
-            .offset(x: alignment == .trailing ? -2 : 0)
             .accessibilityHidden(exposedWidth < actionWidth)
             .allowsHitTesting(exposedWidth >= actionWidth)
     }

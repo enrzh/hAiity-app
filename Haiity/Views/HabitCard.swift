@@ -85,6 +85,7 @@ struct HabitCard: View, Equatable {
     /// die Startlage des laufenden Zugs. Lebt in der Karte — Zellen-Recycling
     /// setzt ihn zurück, genau richtig.
     @State private var revealOffset: CGFloat = 0
+    @State private var revealActionLock = false
     @State private var revealStart: CGFloat = 0
     /// Breite der Karte, für die Voll-Wisch-Schwelle (gemessen, nicht geraten).
     @State private var revealCardWidth: CGFloat = 0
@@ -158,6 +159,7 @@ struct HabitCard: View, Equatable {
         // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
+        .allowsHitTesting(!revealActionLock)
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
             guard revealOffset != 0 else { return }
             snapReveal(to: 0)
@@ -243,8 +245,14 @@ struct HabitCard: View, Equatable {
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        snapReveal(to: 0)
-        action.handler()
+        guard !revealActionLock else { return }
+        revealActionLock = true
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
+            revealOffset = 0
+        } completion: {
+            action.handler()
+            revealActionLock = false
+        }
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
@@ -276,8 +284,7 @@ struct HabitCard: View, Equatable {
     /// schnappt zurück (die Aktion zeigt sich selbst: Pille, Toast, Raster).
     private func commitReveal(_ action: RevealAction?) {
         Theme.Haptics.check()
-        snapReveal(to: 0)
-        action?.handler()
+        if let action { revealActionTapped(action) }
     }
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
@@ -285,7 +292,7 @@ struct HabitCard: View, Equatable {
         if let animation = SwipeRevealMotion.settleAnimation(
             reduceMotion: reduceMotion,
             velocity: velocity,
-            distance: abs(target - revealOffset)) {
+            distance: target - revealOffset) {
             withAnimation(animation) {
                 revealOffset = target
             }

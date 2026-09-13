@@ -36,7 +36,7 @@ enum SwipeReveal {
     /// Velocity in the unit expected by an interpolating spring. A clamp keeps
     /// an unusually fast physical swipe from producing an unstable settle.
     static func initialVelocity(velocity: CGFloat, distance: CGFloat) -> Double {
-        guard distance > 1 else { return 0 }
+        guard abs(distance) > 1 else { return 0 }
         let normalized = velocity / distance
         return Double(min(max(normalized, -8), 8))
     }

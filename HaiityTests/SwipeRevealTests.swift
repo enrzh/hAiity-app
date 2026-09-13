@@ -41,6 +41,22 @@ final class SwipeRevealTests: XCTestCase {
         XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 500, distance: 1), 0)
     }
 
+    func testSpringVelocityFollowsTheDirectionOfTravel() {
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: -200, distance: -100), 2)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 200, distance: -100), -2)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: -500, distance: -0.5), 0)
+    }
+
+    func testGraphFitsWholeColumnsBetweenEqualInsets() {
+        for viewport: CGFloat in [280, 343, 361, 393, 700] {
+            let cell = ContributionChart.fittedCell(viewport: viewport, cell: 12, gap: 3)
+            let columns = (viewport - 8 + 3) / (cell + 3)
+            XCTAssertEqual(columns, columns.rounded(), accuracy: 0.000001)
+            XCTAssertGreaterThanOrEqual(cell, 12)
+            XCTAssertEqual(columns * (cell + 3) - 3 + 8, viewport, accuracy: 0.000001)
+        }
+    }
+
     // MARK: – Versatz
 
     func testOffsetIsLinearWithinRestingWidths() {

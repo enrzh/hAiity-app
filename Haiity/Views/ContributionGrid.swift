@@ -60,7 +60,8 @@ struct ContributionGrid: View, Equatable {
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize { return (cellSize, gap ?? GridCell.gap) }
-        return (GridCell.size, GridCell.gap)
+        return (ContributionChart.fittedCell(viewport: viewportWidth,
+                                            cell: GridCell.size, gap: GridCell.gap), GridCell.gap)
     }
 
     private func loadSnapshot(for request: GridCalendar.HabitSnapshotKey) async {
@@ -109,6 +110,7 @@ struct ContributionGrid: View, Equatable {
                         // Start at the trailing edge only when the graph actually
                         // overflows. Fitting graphs stay optically centered.
                         .defaultScrollAnchor(.trailing)
+                        .padding(.horizontal, 4)
                     } else {
                         graphContent(snapshot: snapshot,
                                      cell: m.cell,
@@ -126,13 +128,8 @@ struct ContributionGrid: View, Equatable {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(key: ContributionViewportWidthKey.self,
-                                       value: proxy.size.width)
-            }
-        }
-        .onPreferenceChange(ContributionViewportWidthKey.self) { width in
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             guard width > 0, width != viewportWidth else { return }
             viewportWidth = width
         }

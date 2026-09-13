@@ -75,6 +75,7 @@ struct ReminderRow: View, Equatable {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
+        .allowsHitTesting(!revealActionLock)
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
             guard revealOffset != 0 else { return }
             snapReveal(to: 0)
@@ -123,13 +124,13 @@ struct ReminderRow: View, Equatable {
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        // Reset shares the checkmark's trailing hit area. Keep the row inert
-        // for the rest of this physical event, then release it immediately.
+        guard !revealActionLock else { return }
         revealActionLock = true
-        snapReveal(to: 0)
-        action.handler()
-        Task { @MainActor in
-            await Task.yield()
+        // Finish closing before a completion can remove this row from the list.
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
+            revealOffset = 0
+        } completion: {
+            action.handler()
             revealActionLock = false
         }
     }
@@ -160,13 +161,7 @@ struct ReminderRow: View, Equatable {
 
     private func commitReveal(_ action: RevealAction?) {
         Theme.Haptics.check()
-        revealActionLock = true
-        snapReveal(to: 0)
-        action?.handler()
-        Task { @MainActor in
-            await Task.yield()
-            revealActionLock = false
-        }
+        if let action { revealActionTapped(action) }
     }
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
@@ -174,7 +169,7 @@ struct ReminderRow: View, Equatable {
         if let animation = SwipeRevealMotion.settleAnimation(
             reduceMotion: reduceMotion,
             velocity: velocity,
-            distance: abs(target - revealOffset)) {
+            distance: target - revealOffset) {
             withAnimation(animation) {
                 revealOffset = target
             }

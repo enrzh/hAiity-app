@@ -17,14 +17,6 @@ private enum GraphMetrics {
     }
 }
 
-struct ContributionViewportWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 /// Shared tile renderer for app cards and widgets. Colors stay caller-owned
 /// so WidgetKit's vibrant and accented appearances retain their contrast.
 struct ContributionTiles: View {
@@ -100,6 +92,13 @@ struct ContributionHighlightCell: Hashable {
 
 /// Labels and tile surface are siblings, so labels never occupy the card.
 struct ContributionChart: View, Equatable {
+    /// Fit whole columns in the viewport so neither edge starts on a cut tile.
+    static func fittedCell(viewport: CGFloat, cell: CGFloat, gap: CGFloat) -> CGFloat {
+        guard viewport > cell + 8 else { return cell }
+        let width = viewport - 8
+        let columns = max(1, floor((width + gap) / (cell + gap)))
+        return (width + gap) / columns - gap
+    }
     let snapshot: GridCalendar.Snapshot
     let cell: CGFloat
     let gap: CGFloat
@@ -126,10 +125,10 @@ struct ContributionChart: View, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if showsMonthLabels {
-                monthRow.padding(.horizontal, showsSurface ? 4 : 0)
+                monthRow
             }
             if showsSurface {
-                tiles.padding(4)
+                tiles.padding(.vertical, 4)
             } else {
                 tiles
             }
@@ -139,7 +138,7 @@ struct ContributionChart: View, Equatable {
 
     private var tiles: some View {
         let dark = scheme == .dark
-        let radius = min(GridCell.radius, max(1.5, cell * 0.2))
+        let radius = max(GridCell.radius, cell * 0.26)
         return ContributionTiles(snapshot: snapshot, cell: cell, gap: gap, radius: radius,
                                  todayOutline: highlightsToday ? .primary : nil,
                                  highlightedCells: highlightedCells,
@@ -147,7 +146,7 @@ struct ContributionChart: View, Equatable {
                                     ContributionTiles.highlightBackgroundOpacity(dark: dark)),
                                  highlightOutline: Color.primary.opacity(dark ? 0.82 : 0.44),
                                  highlightLineWidth: dark ? 1.1 : 0.8) { value in
-            value == 0 ? Color.primary.opacity(dark ? 0.09 : 0.045)
+            value == 0 ? Color.primary.opacity(dark ? 0.12 : 0.065)
                 : Theme.level(value, dark: dark, palette: palette)
         }
         .overlay(alignment: .topLeading) {
@@ -240,12 +239,10 @@ struct GitHubContributionGraph: View, Equatable {
         if let cellSize {
             return (cellSize, gap ?? GridCell.gap)
         }
-        // The full graph is horizontally scrollable. Deriving its cell size
-        // from the rendered content width creates a feedback loop: the graph
-        // gets wider, the measured width grows, and the graph gets wider
-        // again. Shared fixed geometry keeps the first frame stable while
-        // matching the habit graph's tile scale.
-        return (GridCell.size, GridCell.gap)
+        // Measure the viewport, never the scrolling content: fit whole
+        // columns at the same scale as the habit graph without a layout loop.
+        return (ContributionChart.fittedCell(viewport: viewportWidth,
+                                            cell: GridCell.size, gap: GridCell.gap), GridCell.gap)
     }
 
     private var renderedPalette: PaletteStyle {
@@ -322,6 +319,7 @@ struct GitHubContributionGraph: View, Equatable {
                                          width: contentWidth)
                         }
                         .defaultScrollAnchor(.trailing)
+                        .padding(.horizontal, 4)
                     } else {
                         chartContent(snapshot: snapshot,
                                      cell: m.cell,
@@ -339,13 +337,8 @@ struct GitHubContributionGraph: View, Equatable {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(key: ContributionViewportWidthKey.self,
-                                       value: proxy.size.width)
-            }
-        }
-        .onPreferenceChange(ContributionViewportWidthKey.self) { width in
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             guard width > 0, width != viewportWidth else { return }
             viewportWidth = width
         }
