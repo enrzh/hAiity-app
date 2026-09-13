@@ -563,11 +563,6 @@ struct ContentView: View {
     /// hängen am eigenen Tab-Inhalt und filtern nur die Suchseite. Am
     /// `TabView` bleibt lediglich die native Aktivierungslogik, damit der
     /// zweite Tipp auf den ausgewählten Search-Tab das Feld öffnet.
-    ///
-    /// Die früheren iOS-27-Verrenkungen (`TabRole.prominent` hinter
-    /// `#if compiler`, Auswahl-Abfangen des Such-Rollen-Tabs) sind damit
-    /// gegenstandslos: die Such-Rolle wird nicht mehr zweckentfremdet,
-    /// sondern genau so benutzt, wie das System sie verdrahtet.
     @available(iOS 26, *)
     @ViewBuilder
     private var nativeShell: some View {
@@ -608,7 +603,8 @@ struct ContentView: View {
     }
 
     /// iOS 27's prominent role keeps Search separate without a custom tab-bar
-    /// overlay, while preserving the dedicated search page and its field.
+    /// overlay. Older Xcode Cloud toolchains compile the same layout with the
+    /// native search role because `TabRole.prominent` is not in their SDK.
     @available(iOS 27, *)
     private var splitShell: some View {
         TabView(selection: $nativeTab) {
@@ -624,10 +620,17 @@ struct ContentView: View {
                 value: AppTab.more) {
                 nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
             }
+#if compiler(>=6.4)
             Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
                 value: AppTab.search, role: .prominent) {
                 nativeTabRoot { searchTabContent }
             }
+#else
+            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .search) {
+                nativeTabRoot { searchTabContent }
+            }
+#endif
         }
         .tabBarMinimizeBehavior(.onScrollDown)
     }

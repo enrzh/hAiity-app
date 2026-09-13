@@ -370,12 +370,12 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
   `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
   validation errors or warnings.
-- The repository targets build `189` for both the app and widget extension.
-  Build `189` contains the Habit/Reminder swipe interaction and performance
-  fixes. The local release gate archived and exported `1.0.0 (189)`; the
-  distribution IPA is at `/tmp/haiity-release-189/export/Haiity.ipa`.
-  No App Store Connect or TestFlight upload is recorded for this build, so
-  processing and tester availability remain unverified.
+- The repository targets build `190` for both the app and widget extension.
+  Build `190` contains the Habit/Reminder swipe interaction and performance
+  fixes plus the Xcode Cloud compatibility fix for the split search tab. The
+  local release gate and Xcode Cloud processing are the release checks for
+  this candidate; App Store Connect processing and tester availability remain
+  unverified until directly observed.
 - Die App ist iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`, nur Hochformat),
   Ziel `MARKETING_VERSION 1.0.0`.
 

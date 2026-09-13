@@ -829,10 +829,11 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(searchTab.contains(".searchFocused($searchFieldFocused)"))
     }
 
-    func testSingleNativeShellWithoutCompilerGates() throws {
+    func testNativeShellKeepsSearchRoleCompatibleWithCloudToolchains() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("role: .prominent"))
-        XCTAssertFalse(source.contains("#if compiler(>=6.4)"))
+        XCTAssertTrue(source.contains("#if compiler(>=6.4)"))
+        XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
         XCTAssertTrue(source.contains("private var splitShell"))
         XCTAssertTrue(source.contains("private var nativeShell: some View"))
     }
