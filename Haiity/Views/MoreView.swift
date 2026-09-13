@@ -724,7 +724,6 @@ struct MoreView: View {
         HabitTimeZoneList(selection: defaultTimeZoneBinding,
                           inheritedLabel: String(localized: "Gerätezeitzone"),
                           allowsDeviceOverride: false)
-            .appPageHeader(String(localized: "Standardzeitzone"))
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -1368,6 +1367,7 @@ struct MoreView: View {
         } header: {
             Text(String(localized: "Anrede"))
         }
+        .moreSettingsSection()
         .onAppear {
             aliasDraft = PersonalName.alias ?? ""
             storedAppleName = PersonalName.appleName

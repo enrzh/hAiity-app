@@ -370,9 +370,11 @@ um nach einem Widget-Schreibvorgang neu zu laden).
   `release/app-store/screenshots/1.0.0/`: three `IPHONE_65` assets at
   `1284x2778` and three `IPHONE_67` assets at `1320x2868`, all with zero
   validation errors or warnings.
-- The repository targets build `190` for both the app and widget extension.
-  Build `190` contains the Habit/Reminder swipe interaction and performance
-  fixes plus the Xcode Cloud compatibility fix for the split search tab. The
+- The repository targets build `191` for both the app and widget extension.
+  Build `191` contains the Habit/Reminder swipe interaction and performance
+  fixes, centered shared contribution graphs with borderless tiles, appearance-
+  aware Account/Standardzeitzone surfaces, and the Xcode Cloud compatibility
+  fix for the split search tab. The
   local release gate and Xcode Cloud processing are the release checks for
   this candidate; App Store Connect processing and tester availability remain
   unverified until directly observed.

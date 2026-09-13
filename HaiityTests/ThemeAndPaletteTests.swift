@@ -913,6 +913,17 @@ final class AppearanceSettingTests: XCTestCase {
         }
         let more = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/MoreView.swift"))
+        let timezone = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/HabitTimeZoneSettingsView.swift"))
+        XCTAssertFalse(timezone.contains("secondarySystemGroupedBackground"),
+                       "timezone rows must not bypass the selected appearance")
+        XCTAssertTrue(timezone.contains(".moreSettingsSection()"),
+                      "timezone groups must use the same material-backed rows as More")
+        XCTAssertTrue(more.contains(".appPageHeader(String(localized: \"Konto\"))"),
+                      "Account must keep the shared secondary-page header")
+        XCTAssertTrue(more.contains("private var personalSection: some View")
+                      && more.contains(".moreSettingsSection()"),
+                      "Account must use the shared appearance-aware section surface")
         XCTAssertTrue(more.contains("morePageRule"),
                       "the appearance page should use quiet rules between sections")
     }

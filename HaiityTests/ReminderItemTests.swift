@@ -100,7 +100,7 @@ final class ReminderItemTests: XCTestCase {
 
     func testRevealedReminderActionRunsBeforeTheRevealLayerCloses() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
-        let start = try XCTUnwrap(row.range(of: "private func revealButton"))
+        let start = try XCTUnwrap(row.range(of: "private func revealActionTapped"))
         let end = try XCTUnwrap(row.range(of: "private func revealEnded",
                                           range: start.upperBound..<row.endIndex))
         let button = row[start.lowerBound..<end.lowerBound]
@@ -178,12 +178,11 @@ final class ReminderItemTests: XCTestCase {
     }
 
     func testTrailingRevealActionsStayInsideListContentEdge() throws {
-        let row = try source("Haiity/Views/ReminderRow.swift")
-        let card = try source("Haiity/Views/HabitCard.swift")
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
-        XCTAssertTrue(row.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
+        XCTAssertTrue(bridge.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
                       "reminder trailing actions must stay within the List hit area")
-        XCTAssertTrue(card.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
+        XCTAssertTrue(bridge.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
                       "habit trailing actions must stay within the card hit area")
     }
 
@@ -197,13 +196,12 @@ final class ReminderItemTests: XCTestCase {
     }
 
     func testCustomRevealButtonsExposeStableUIIdentifiers() throws {
-        let reminder = try source("Haiity/Views/ReminderRow.swift")
-        let habit = try source("Haiity/Views/HabitCard.swift")
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
         let identifier = #".accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")"#
 
-        XCTAssertTrue(reminder.contains(identifier),
+        XCTAssertTrue(bridge.contains(identifier),
                       "reminder reveal actions must remain addressable after a swipe")
-        XCTAssertTrue(habit.contains(identifier),
+        XCTAssertTrue(bridge.contains(identifier),
                       "habit reveal actions must remain addressable after a swipe")
     }
 
@@ -217,17 +215,24 @@ final class ReminderItemTests: XCTestCase {
     func testRevealActionsUseStableLayersAndAnimatedSettling() throws {
         let reminder = try source("Haiity/Views/ReminderRow.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
         for source in [reminder, habit] {
-            XCTAssertTrue(source.contains(".opacity(progress)"),
-                          "the action underlay should respond continuously to reveal progress")
-            XCTAssertTrue(source.contains(".scaleEffect(0.88 + progress * 0.12"),
-                          "the action underlay should settle with a visible native-feeling scale")
-            XCTAssertTrue(source.contains(".interpolatingSpring("),
-                          "opening and cancellation should use an interactive spring")
-            XCTAssertFalse(source.contains(".transition(.identity)"),
-                           "stable action layers do not need insertion transitions")
+            XCTAssertTrue(source.contains("SwipeRevealActions("),
+                          "both row types should use the shared action renderer")
+            XCTAssertTrue(source.contains("SwipeRevealMotion.settleAnimation("),
+                          "both row types should use the shared settle profile")
         }
+        XCTAssertTrue(bridge.contains(".opacity(progress)"),
+                      "the action underlay should respond continuously to reveal progress")
+        XCTAssertTrue(bridge.contains(".offset(x: alignment == .leading"),
+                      "actions should enter gently from the edge")
+        XCTAssertFalse(bridge.contains(".scaleEffect(0.88 + progress * 0.12"),
+                       "scaling the action hit frame makes the reveal jump")
+        XCTAssertTrue(bridge.contains(".interpolatingSpring("),
+                      "opening and cancellation should use the shared spring")
+        XCTAssertFalse(bridge.contains(".transition(.identity)"),
+                       "stable action layers do not need insertion transitions")
     }
 
     func testRevealActionsStayBehindTheMovingCardSurface() throws {
@@ -248,43 +253,38 @@ final class ReminderItemTests: XCTestCase {
 
         for source in [reminder, habit] {
             XCTAssertTrue(source.contains(
-                "revealButtons(actions: leadingSwipe, alignment: .leading,"
+                "SwipeRevealActions(actions: leadingSwipe,"
             ))
             XCTAssertTrue(source.contains(
-                "revealButtons(actions: trailingSwipe, alignment: .trailing,"
+                "SwipeRevealActions(actions: trailingSwipe,"
             ))
             XCTAssertTrue(source.contains("exposedWidth:"),
                           "the permanently mounted action layer must be clipped to the exposed strip")
             XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset > 0)"))
             XCTAssertTrue(source.contains(".allowsHitTesting(revealOffset < 0)"))
-            XCTAssertFalse(source.contains("if revealOffset != 0 {\n                revealButtons"),
+            XCTAssertFalse(source.contains("if revealOffset != 0 {\n                SwipeRevealActions"),
                            "the action layer must not be inserted after the gesture starts")
         }
     }
 
     func testRevealUnderlaysAnimateWithoutRebuildingTheirLayout() throws {
-        let reminder = try source("Haiity/Views/ReminderRow.swift")
-        let habit = try source("Haiity/Views/HabitCard.swift")
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
-        for source in [reminder, habit] {
-            let reveal = try revealRenderer(from: source)
-
-            XCTAssertFalse(reveal.contains(".mask"),
-                           "the action layer should not need a second translucent mask")
-            XCTAssertFalse(reveal.contains(
-                ".frame(width: max(exposedWidth, 0.1), alignment: alignment)"
-            ), "the action layer must keep a stable button layout")
-            XCTAssertFalse(reveal.contains("if exposedWidth >= actionWidth"),
-                           "the stable action layer must not switch layout branches")
-            XCTAssertTrue(reveal.contains(".opacity(progress)"),
-                          "actions should fade with the reveal progress")
-            XCTAssertTrue(reveal.contains(".scaleEffect(0.88 + progress * 0.12"),
-                          "actions should settle with a visible scale")
-            XCTAssertTrue(reveal.contains(".offset(x: alignment == .leading"),
-                          "actions should enter from the edge")
-            XCTAssertTrue(reveal.contains(".allowsHitTesting(exposedWidth >= actionWidth)"),
-                          "partial reveals must not expose an action hit target")
-        }
+        XCTAssertFalse(bridge.contains(".mask"),
+                       "the action layer should not need a second translucent mask")
+        XCTAssertFalse(bridge.contains(
+            ".frame(width: max(exposedWidth, 0.1), alignment: alignment)"
+        ), "the action layer must keep a stable button layout")
+        XCTAssertFalse(bridge.contains("if exposedWidth >= actionWidth"),
+                       "the stable action layer must not switch layout branches")
+        XCTAssertTrue(bridge.contains(".opacity(progress)"),
+                      "actions should fade with the reveal progress")
+        XCTAssertFalse(bridge.contains(".scaleEffect(0.88 + progress * 0.12"),
+                       "the action hit frame must stay stable")
+        XCTAssertTrue(bridge.contains(".offset(x: alignment == .leading"),
+                      "actions should enter from the edge")
+        XCTAssertTrue(bridge.contains(".allowsHitTesting(exposedWidth >= actionWidth)"),
+                      "partial reveals must not expose an action hit target")
     }
 
     func testRevealBridgeKeepsTheExistingDecisionAndVelocityRules() throws {
@@ -406,34 +406,6 @@ final class ReminderItemTests: XCTestCase {
 
     private func editorSource() throws -> String {
         try source("Haiity/Views/EditHabitSheet.swift")
-    }
-
-    private func revealRenderer(from source: String) throws -> String {
-        guard let declaration = source.range(of: "private func revealButtons") else {
-            throw XCTSkip("Reveal renderer unavailable in source contract")
-        }
-        guard let openingBrace = source[declaration.upperBound...].firstIndex(of: "{") else {
-            XCTFail("Reveal renderer has no opening brace")
-            return ""
-        }
-
-        var depth = 0
-        var index = openingBrace
-        while index < source.endIndex {
-            switch source[index] {
-            case "{": depth += 1
-            case "}":
-                depth -= 1
-                if depth == 0 {
-                    return String(source[declaration.lowerBound...index])
-                }
-            default: break
-            }
-            index = source.index(after: index)
-        }
-
-        XCTFail("Reveal renderer has unbalanced braces")
-        return ""
     }
 
     private func source(_ relative: String) throws -> String {

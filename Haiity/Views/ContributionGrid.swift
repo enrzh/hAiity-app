@@ -52,6 +52,7 @@ struct ContributionGrid: View, Equatable {
     /// A cold graph must not make the first habit-list frame wait on date
     /// generation and intensity calculation.
     @State private var renderedSnapshot: (key: GridCalendar.HabitSnapshotKey, value: GridCalendar.Snapshot)?
+    @State private var viewportWidth: CGFloat = 0
     /// Referenzmaß 100, skaliert mit Dynamic Type: `labelScale / 100` ist
     /// exakt der Faktor, mit dem `.caption2` gerade wächst. Damit lässt sich
     /// die Labelbreite messen, ohne die Trait-Collection nachzubauen.
@@ -96,20 +97,26 @@ struct ContributionGrid: View, Equatable {
         Group {
             if let snapshot {
                 if interactive {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    graphContent(snapshot: snapshot,
-                                 cell: m.cell,
-                                 gap: m.gap,
-                                 width: contentWidth)
-                }
-                // Startet AN der rechten Kante — heute — statt nach dem
-                // Aufbau dorthin zu scrollen.
-                .defaultScrollAnchor(.trailing)
+                    if GridCalendar.needsHorizontalScroll(
+                        contentWidth: contentWidth + 8,
+                        viewportWidth: viewportWidth) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            graphContent(snapshot: snapshot,
+                                         cell: m.cell,
+                                         gap: m.gap,
+                                         width: contentWidth)
+                        }
+                        // Start at the trailing edge only when the graph actually
+                        // overflows. Fitting graphs stay optically centered.
+                        .defaultScrollAnchor(.trailing)
+                    } else {
+                        graphContent(snapshot: snapshot,
+                                     cell: m.cell,
+                                     gap: m.gap,
+                                     width: contentWidth)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 } else {
-                // Context-menu previews must not contain a disabled
-                // ScrollView. UIKit can preserve its trailing content offset
-                // while relaying out the lifted preview, clipping the left
-                // half of an otherwise correctly sized graph.
                     graphContent(snapshot: snapshot,
                                  cell: m.cell,
                                  gap: m.gap,
@@ -118,6 +125,16 @@ struct ContributionGrid: View, Equatable {
             } else {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: ContributionViewportWidthKey.self,
+                                       value: proxy.size.width)
+            }
+        }
+        .onPreferenceChange(ContributionViewportWidthKey.self) { width in
+            guard width > 0, width != viewportWidth else { return }
+            viewportWidth = width
         }
         .task(id: request) {
             await loadSnapshot(for: request)

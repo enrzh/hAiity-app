@@ -49,11 +49,17 @@ struct ReminderRow: View, Equatable {
                 .zIndex(1)
                 .allowsHitTesting(revealOffset == 0 && !revealActionLock)
                 .accessibilityHidden(revealOffset != 0 || revealActionLock)
-            revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0))
+            SwipeRevealActions(actions: leadingSwipe,
+                               alignment: .leading,
+                               exposedWidth: max(revealOffset, 0),
+                               height: Self.rowHeight,
+                               onAction: revealActionTapped)
                 .allowsHitTesting(revealOffset > 0)
-            revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0))
+            SwipeRevealActions(actions: trailingSwipe,
+                               alignment: .trailing,
+                               exposedWidth: max(-revealOffset, 0),
+                               height: Self.rowHeight,
+                               onAction: revealActionTapped)
                 .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
@@ -116,80 +122,16 @@ struct ReminderRow: View, Equatable {
         }
     }
 
-    @ViewBuilder
-    private func revealButtons(actions: [RevealAction], alignment: Alignment,
-                               exposedWidth: CGFloat) -> some View {
-        let actionWidth = SwipeReveal.revealWidth(count: actions.count)
-        let progress = min(max(exposedWidth / max(actionWidth, 1), 0), 1)
-        let actionStack = HStack(spacing: SwipeReveal.buttonGap) {
-            ForEach(actions) { action in
-                revealButton(action)
-            }
+    private func revealActionTapped(_ action: RevealAction) {
+        // Reset shares the checkmark's trailing hit area. Keep the row inert
+        // for the rest of this physical event, then release it immediately.
+        revealActionLock = true
+        snapReveal(to: 0)
+        action.handler()
+        Task { @MainActor in
+            await Task.yield()
+            revealActionLock = false
         }
-        // Keep the action layer fixed to the row edge, matching HabitCard.
-        // Only the exposed portion is clipped while the row moves above it;
-        // the full button frame remains stable and hittable at rest.
-        let actionLayer = actionStack
-            .frame(width: actionWidth, alignment: alignment)
-            .frame(height: Self.rowHeight)
-        // Keep the action layer mounted at a stable identity. The row moves
-        // over it, so the controls can visibly enter from the edge while the
-        // same spring settles both the row and the revealed actions.
-        actionLayer
-            .opacity(progress)
-            .scaleEffect(0.88 + progress * 0.12,
-                         anchor: alignment == .leading ? .leading : .trailing)
-            .offset(x: alignment == .leading
-                    ? -(1 - progress) * 18
-                    : (1 - progress) * 18)
-            .frame(maxWidth: .infinity, alignment: alignment)
-        // Keep the trailing action inside the List cell's effective hit edge.
-        // UIKit can report the visual cell a few points wider than its tappable
-        // region on iOS 27.
-        .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
-        // Keep the final button inside the List cell's hit rect as well as its
-        // visual rect. This avoids a one-pixel outside frame after rounding.
-        .offset(x: alignment == .trailing ? -2 : 0)
-        .accessibilityHidden(exposedWidth < actionWidth)
-        .allowsHitTesting(exposedWidth >= actionWidth)
-    }
-
-    private func revealButton(_ action: RevealAction) -> some View {
-        Button {
-            // Keep the row inert for the rest of this event. Reset shares the
-            // checkmark's trailing hit area, so the gate consumes only a stale
-            // control delivery from the same touch.
-            revealActionLock = true
-            snapReveal(to: 0)
-            action.handler()
-            Task { @MainActor in
-                await Task.yield()
-                revealActionLock = false
-            }
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: action.symbol)
-                    .font(.title3.weight(.semibold))
-                Text(action.title)
-                    .font(.caption2.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .foregroundStyle(.white)
-            .frame(width: SwipeReveal.buttonWidth)
-            .frame(maxHeight: .infinity)
-            .background(action.tint,
-                        in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                             style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                           style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .frame(width: SwipeReveal.buttonWidth, height: Self.rowHeight)
-        .contentShape(Rectangle())
-        .zIndex(100)
-        .accessibilityLabel(action.title)
-        .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
@@ -229,20 +171,19 @@ struct ReminderRow: View, Equatable {
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
         guard abs(target - revealOffset) > 0.5 else { return }
-        if reduceMotion {
+        if let animation = SwipeRevealMotion.settleAnimation(
+            reduceMotion: reduceMotion,
+            velocity: velocity,
+            distance: abs(target - revealOffset)) {
+            withAnimation(animation) {
+                revealOffset = target
+            }
+        } else {
             var transaction = Transaction()
             transaction.animation = nil
             withTransaction(transaction) {
                 revealOffset = target
             }
-            return
-        }
-        let initialVelocity = SwipeReveal.initialVelocity(
-            velocity: velocity, distance: abs(target - revealOffset))
-        withAnimation(.interpolatingSpring(mass: 0.85, stiffness: 250,
-                                           damping: 22,
-                                           initialVelocity: initialVelocity)) {
-            revealOffset = target
         }
     }
 

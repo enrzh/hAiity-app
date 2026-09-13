@@ -49,7 +49,7 @@ struct HabitTimeZoneList: View {
                     .accessibilityIdentifier("timezone-device")
                 }
             }
-            .listRowBackground(Color(.secondarySystemGroupedBackground))
+            .moreSettingsSection()
 
             Section {
                 ForEach(filteredOptions) { option in
@@ -66,7 +66,7 @@ struct HabitTimeZoneList: View {
                     .accessibilityIdentifier(timezoneIdentifier(for: option.identifier))
                 }
             }
-            .listRowBackground(Color(.secondarySystemGroupedBackground))
+            .moreSettingsSection()
         }
         .searchable(text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),

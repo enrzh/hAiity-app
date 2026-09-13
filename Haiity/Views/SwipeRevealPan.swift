@@ -279,3 +279,97 @@ struct SwipeRevealPan: UIViewRepresentable {
         }
     }
 }
+
+/// One motion profile for every row that exposes actions. Keeping the
+/// calculation here prevents habit and reminder rows from drifting apart.
+enum SwipeRevealMotion {
+    static func settleAnimation(reduceMotion: Bool,
+                                velocity: CGFloat,
+                                distance: CGFloat) -> Animation? {
+        guard !reduceMotion else { return nil }
+        return .interpolatingSpring(
+            mass: 0.85,
+            stiffness: 250,
+            damping: 22,
+            initialVelocity: SwipeReveal.initialVelocity(
+                velocity: velocity,
+                distance: distance))
+    }
+}
+
+/// Stable action underlay shared by habits and reminders. The buttons keep
+/// their layout while the row moves above them, so cancellation never causes
+/// a second layout jump or leaves a moving hit target behind.
+struct SwipeRevealActions: View {
+    let actions: [RevealAction]
+    let alignment: Alignment
+    let exposedWidth: CGFloat
+    let height: CGFloat?
+    let onAction: (RevealAction) -> Void
+
+    private var actionWidth: CGFloat {
+        SwipeReveal.revealWidth(count: actions.count)
+    }
+
+    private var progress: CGFloat {
+        min(max(exposedWidth / max(actionWidth, 1), 0), 1)
+    }
+
+    private var actionStack: some View {
+        HStack(spacing: SwipeReveal.buttonGap) {
+            ForEach(actions) { action in
+                Button { onAction(action) } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: action.symbol)
+                            .font(.title3.weight(.semibold))
+                        Text(action.title)
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: SwipeReveal.buttonWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(action.tint,
+                                in: RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                     style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                   style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .frame(width: SwipeReveal.buttonWidth)
+                .contentShape(Rectangle())
+                .zIndex(100)
+                .accessibilityLabel(action.title)
+                .accessibilityIdentifier("reveal-action-\(action.operation.rawValue)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sizedActionStack: some View {
+        if let height {
+            actionStack
+                .frame(width: actionWidth, height: height, alignment: alignment)
+        } else {
+            actionStack
+                .frame(width: actionWidth, alignment: alignment)
+                .frame(maxHeight: .infinity)
+        }
+    }
+
+    var body: some View {
+        sizedActionStack
+            .opacity(progress)
+            // A small edge translation is enough to show direction without
+            // scaling the hit frame while the finger is still moving.
+            .offset(x: alignment == .leading
+                    ? -(1 - progress) * 10
+                    : (1 - progress) * 10)
+            .frame(maxWidth: .infinity, alignment: alignment)
+            .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
+            .offset(x: alignment == .trailing ? -2 : 0)
+            .accessibilityHidden(exposedWidth < actionWidth)
+            .allowsHitTesting(exposedWidth >= actionWidth)
+    }
+}

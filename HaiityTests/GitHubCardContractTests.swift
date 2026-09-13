@@ -203,6 +203,33 @@ final class GitHubCardContractTests: XCTestCase {
                        "the compact in-app card should keep chart chrome minimal")
     }
 
+    func testGraphsCenterFittingContentAndScrollOnlyWhenItOverflows() throws {
+        let habit = try source("Haiity/Views/ContributionGrid.swift")
+        let github = try source("Haiity/Views/GitHubContributionGraph.swift")
+
+        for graph in [habit, github] {
+            XCTAssertTrue(graph.contains("GridCalendar.needsHorizontalScroll("),
+                          "the graph must measure its viewport before enabling horizontal scrolling")
+            XCTAssertTrue(graph.contains(".frame(maxWidth: .infinity, alignment: .center)"),
+                          "a fitting graph must be optically centered")
+            XCTAssertTrue(graph.contains(".defaultScrollAnchor(.trailing)"),
+                          "an overflowing graph must keep the current-date edge visible")
+        }
+    }
+
+    func testSharedTilesUseFillContrastInsteadOfPerTileOutlines() throws {
+        let graph = try source("Haiity/Views/GitHubContributionGraph.swift")
+
+        XCTAssertFalse(graph.contains("outline: Theme.adaptiveTileOutline"),
+                       "adaptive material must not draw a border around every tile")
+        XCTAssertFalse(graph.contains("if let outline"),
+                       "the shared tile canvas should remain a continuous field")
+        XCTAssertTrue(graph.contains("todayOutline"),
+                      "semantic today highlighting must remain available")
+        XCTAssertTrue(graph.contains("highlightOutline"),
+                      "history selection highlighting must remain available")
+    }
+
     func testHistoryHighlightIsVisibleInDarkMode() {
         XCTAssertGreaterThan(ContributionTiles.highlightBackgroundOpacity(dark: true),
                              ContributionTiles.highlightBackgroundOpacity(dark: false))

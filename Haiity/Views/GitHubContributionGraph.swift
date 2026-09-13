@@ -17,6 +17,14 @@ private enum GraphMetrics {
     }
 }
 
+struct ContributionViewportWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 /// Shared tile renderer for app cards and widgets. Colors stay caller-owned
 /// so WidgetKit's vibrant and accented appearances retain their contrast.
 struct ContributionTiles: View {
@@ -26,7 +34,6 @@ struct ContributionTiles: View {
     var radius: CGFloat = 2
     var rows: Int = GridCalendar.rows
     var todayOutline: Color? = nil
-    var outline: Color? = nil
     var highlightedCells: Set<ContributionHighlightCell>? = nil
     var highlightBackground: Color? = nil
     var highlightOutline: Color? = nil
@@ -72,9 +79,6 @@ struct ContributionTiles: View {
                                         lineWidth: highlightLineWidth)
                         }
                     }
-                    if let outline {
-                        tile.stroke(shape, with: .color(outline), lineWidth: 0.5)
-                    }
                     if keys[row] == snapshot.today, let todayOutline {
                         let rect = CGRect(x: 0.6, y: 0.6, width: cell - 1.2, height: cell - 1.2)
                         tile.stroke(Path(roundedRect: rect, cornerRadius: radius),
@@ -109,7 +113,6 @@ struct ContributionChart: View, Equatable {
     var highlightedCells: Set<ContributionHighlightCell>? = nil
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.appearancePreferences) private var appearancePreferences
 
     static func == (a: Self, b: Self) -> Bool {
         a.snapshot == b.snapshot && a.cell == b.cell && a.gap == b.gap
@@ -139,8 +142,6 @@ struct ContributionChart: View, Equatable {
         let radius = min(GridCell.radius, max(1.5, cell * 0.2))
         return ContributionTiles(snapshot: snapshot, cell: cell, gap: gap, radius: radius,
                                  todayOutline: highlightsToday ? .primary : nil,
-                                 outline: Theme.effectiveMaterial(appearancePreferences) == .adaptive
-                                    ? Theme.adaptiveTileOutline(preferences: appearancePreferences, dark: dark) : nil,
                                  highlightedCells: highlightedCells,
                                  highlightBackground: Theme.accentText(palette).opacity(
                                     ContributionTiles.highlightBackgroundOpacity(dark: dark)),
@@ -232,6 +233,7 @@ struct GitHubContributionGraph: View, Equatable {
     /// GitHub's date window is converted to the shared grid off the main
     /// actor so cached contributions never stall the first page frame.
     @State private var renderedSnapshot: (key: SnapshotRequest, value: GridCalendar.Snapshot)?
+    @State private var viewportWidth: CGFloat = 0
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
     private var metrics: (cell: CGFloat, gap: CGFloat) {
@@ -310,42 +312,63 @@ struct GitHubContributionGraph: View, Equatable {
         Group {
             if let snapshot {
                 if interactive {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    ContributionChart(snapshot: snapshot,
-                                             cell: m.cell,
-                                             gap: m.gap,
-                                             width: contentWidth,
-                                             showsMonthLabels: showsMonthLabels,
-                                             labelScale: labelScale / 100,
-                                             palette: renderedPalette,
-                                             highlightsToday: false,
-                                             checkPulse: false,
-                                             showsSurface: interactive)
-                }
-                .defaultScrollAnchor(.trailing)
-                } else {
-                // A disabled ScrollView can retain a trailing offset inside a
-                // UIKit context preview. Render the fixed-width canvas
-                // directly so every contribution column remains visible.
-                    ContributionChart(snapshot: snapshot,
+                    if GridCalendar.needsHorizontalScroll(
+                        contentWidth: contentWidth + 8,
+                        viewportWidth: viewportWidth) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            chartContent(snapshot: snapshot,
                                          cell: m.cell,
                                          gap: m.gap,
-                                         width: contentWidth,
-                                         showsMonthLabels: showsMonthLabels,
-                                         labelScale: labelScale / 100,
-                                         palette: renderedPalette,
-                                         highlightsToday: false,
-                                         checkPulse: false,
-                                             showsSurface: interactive)
+                                         width: contentWidth)
+                        }
+                        .defaultScrollAnchor(.trailing)
+                    } else {
+                        chartContent(snapshot: snapshot,
+                                     cell: m.cell,
+                                     gap: m.gap,
+                                     width: contentWidth)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                } else {
+                    chartContent(snapshot: snapshot,
+                                 cell: m.cell,
+                                 gap: m.gap,
+                                 width: contentWidth)
                 }
             } else {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: ContributionViewportWidthKey.self,
+                                       value: proxy.size.width)
+            }
+        }
+        .onPreferenceChange(ContributionViewportWidthKey.self) { width in
+            guard width > 0, width != viewportWidth else { return }
+            viewportWidth = width
+        }
         .task(id: request) {
             await loadSnapshot(for: request)
         }
         .accessibilityLabel(String(localized: "GitHub-Beitragskalender"))
+    }
+
+    private func chartContent(snapshot: GridCalendar.Snapshot,
+                              cell: CGFloat,
+                              gap: CGFloat,
+                              width: CGFloat) -> some View {
+        ContributionChart(snapshot: snapshot,
+                          cell: cell,
+                          gap: gap,
+                          width: width,
+                          showsMonthLabels: showsMonthLabels,
+                          labelScale: labelScale / 100,
+                          palette: renderedPalette,
+                          highlightsToday: false,
+                          checkPulse: false,
+                          showsSurface: interactive)
     }
 
     private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
