@@ -33,6 +33,14 @@ final class SwipeRevealTests: XCTestCase {
         XCTAssertLessThan(large, 64)
     }
 
+    func testInitialVelocityNormalizesAndClampsReleaseSpeed() {
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 0, distance: 100), 0)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 200, distance: 100), 2)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: -2_000, distance: 100), -8)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 2_000, distance: 100), 8)
+        XCTAssertEqual(SwipeReveal.initialVelocity(velocity: 500, distance: 1), 0)
+    }
+
     // MARK: – Versatz
 
     func testOffsetIsLinearWithinRestingWidths() {

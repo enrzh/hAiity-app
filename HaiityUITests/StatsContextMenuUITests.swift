@@ -202,7 +202,9 @@ final class ReminderInteractionUITests: XCTestCase {
         // claimed by List's own pan before the row surface sees it. Use the
         // same continuous coordinate drag a user performs instead.
         let surfaceStart = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
-        let surfaceEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
+        // Stop after exposing the action instead of crossing the full-swipe
+        // commit threshold. Full-swipe completion is covered by SwipeRevealTests.
+        let surfaceEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5))
         surfaceStart.press(forDuration: 0.1,
                            thenDragTo: surfaceEnd,
                          withVelocity: .fast,
@@ -234,7 +236,7 @@ final class ReminderInteractionUITests: XCTestCase {
             message: "tapping the revealed Done action must complete the reminder")
 
         let swipeStart = check.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let swipeEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        let swipeEnd = row.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5))
         swipeStart.press(forDuration: 0.1,
                          thenDragTo: swipeEnd,
                          withVelocity: .fast,
@@ -248,6 +250,15 @@ final class ReminderInteractionUITests: XCTestCase {
             on: check,
             timeout: 3,
             message: "tapping the revealed Reset action must revert the reminder")
+
+        // The next intentional checkmark tap must not be swallowed by the
+        // stale-event guard belonging to the preceding swipe.
+        check.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        waitUntil(
+            predicate: NSPredicate(format: "value != %@", initialValue ?? ""),
+            on: check,
+            timeout: 3,
+            message: "the next deliberate checkmark tap must remain interactive")
     }
 
     func testReminderSwipeStartingOnCheckmarkRevealsReset() {
@@ -293,6 +304,9 @@ final class ReminderInteractionUITests: XCTestCase {
         let row = app.descendants(matching: .any)[
             "reminder-row-\(seededReminderID)"
         ].firstMatch
+        for _ in 0..<10 where !row.exists {
+            app.swipeUp()
+        }
         XCTAssertTrue(row.waitForExistence(timeout: 5),
                       "the seeded reminder must be reachable")
 

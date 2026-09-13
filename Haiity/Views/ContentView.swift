@@ -22,17 +22,6 @@ private struct PendingReminderCompletion: Equatable {
     let day: String
 }
 
-private struct InteractionBridgesReadyKey: EnvironmentKey {
-    static let defaultValue = true
-}
-
-extension EnvironmentValues {
-    var interactionBridgesReady: Bool {
-        get { self[InteractionBridgesReadyKey.self] }
-        set { self[InteractionBridgesReadyKey.self] = newValue }
-    }
-}
-
 /// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
 /// Habits und Mehr dauerhaft bereit. Mehr-Unterziele bleiben Blätter über
 /// ihrem Tab.
@@ -101,12 +90,12 @@ struct ContentView: View {
     /// task has installed its local state and maintenance pipeline.
     @State private var initialBootReady = false
     @State private var hasSeenInitialActivation = false
+    /// The first active callback belongs to launch, not a foreground resume.
+    /// Native and cloud maintenance is allowed only after the scene actually
+    /// leaves the foreground once.
+    @State private var hasEnteredBackground = false
     @State private var startupMaintenanceTask: Task<Void, Never>?
     @State private var postLaunchHydrationTask: Task<Void, Never>?
-    /// UIKit interaction bridges are deferred until the first populated frame
-    /// has settled. Their normal behavior is unchanged after activation.
-    @State private var interactionBridgesReady = false
-    @State private var interactionBridgeActivationTask: Task<Void, Never>?
     /// Native and notification maintenance must never compete with the first
     /// interactive frame or with a newer foreground activation.
     @State private var integrationsReady = false
@@ -158,6 +147,9 @@ struct ContentView: View {
     /// Nur fuer die iOS-17...25-Fallback-Suche; iOS 26+ zeigt das Feld nativ
     /// dauerhaft auf der dedizierten Suchseite.
     @State private var searching = false
+    /// The search page owns focus. Selecting it shows the field; selecting the
+    /// already-visible Search tab again is the explicit keyboard request.
+    @FocusState private var searchFieldFocused: Bool
     /// Explicit sorting mode for the habit list. Long press remains reserved
     /// for the card preview and its actions.
     @State private var editMode: EditMode = .inactive
@@ -262,7 +254,6 @@ struct ContentView: View {
             .preferredColorScheme(store.appearance.colorScheme)
             .environment(\.palettes, effectivePalettes)
             .environment(\.appearancePreferences, store.appearancePreferences)
-            .environment(\.interactionBridgesReady, interactionBridgesReady)
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
             .tint(Theme.accentText(effectivePaletteStyle))
@@ -403,7 +394,7 @@ struct ContentView: View {
                     store = fixtureStore
                     Pro.setDebugUnlocked(true)
                     handleLaunchScreenArgument()
-                    scheduleInteractionBridgeActivation()
+                    if FrameProbe.enabled { FrameProbe.shared.start() }
                     return
                 }
                 #endif
@@ -426,6 +417,9 @@ struct ContentView: View {
                 #endif
                 await boot()
                 StartupMetrics.event("bootComplete")
+                // A background transition that happened while the process was
+                // still booting is not a resume of the mounted app.
+                hasEnteredBackground = false
                 #if DEBUG
                 // Seeded interaction fixtures must be written after the
                 // initial iCloud merge, otherwise a startup reload can race
@@ -436,7 +430,6 @@ struct ContentView: View {
                 schedulePendingNotificationDeliveryIssue()
                 schedulePendingShortcutLink()
                 schedulePostLaunchHydration()
-                scheduleInteractionBridgeActivation()
                 await Task.yield()
                 StartupMetrics.event("firstInteractiveFrame")
                 #if DEBUG
@@ -453,6 +446,7 @@ struct ContentView: View {
                         hasSeenInitialActivation = true
                         return
                     }
+                    guard hasEnteredBackground else { return }
                     progressNow = .now
                     if DesignFixture.scenario != nil { return }
                     becameActiveAt = .now
@@ -472,12 +466,11 @@ struct ContentView: View {
                     cloudStatus.refresh()
                     postLaunchHydrationTask?.cancel()
                     scheduleForegroundMaintenance()
-                    if !interactionBridgesReady { scheduleInteractionBridgeActivation() }
                     Task { await github.resumeOrRefresh(forced: true) }
                 } else {
+                    if phase == .background { hasEnteredBackground = true }
                     startupMaintenanceTask?.cancel()
                     postLaunchHydrationTask?.cancel()
-                    interactionBridgeActivationTask?.cancel()
                     Task { await maintenance.cancel() }
                 }
             }
@@ -512,6 +505,7 @@ struct ContentView: View {
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd)")
                 guard old == .search, tab != .search else { return }
+                searchFieldFocused = false
                 if #unavailable(iOS 26) { searching = false }
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
@@ -575,7 +569,18 @@ struct ContentView: View {
     /// gegenstandslos: die Such-Rolle wird nicht mehr zweckentfremdet,
     /// sondern genau so benutzt, wie das System sie verdrahtet.
     @available(iOS 26, *)
+    @ViewBuilder
     private var nativeShell: some View {
+        if #available(iOS 27, *) {
+            splitShell
+        } else {
+            searchRoleShell
+        }
+    }
+
+    /// iOS 26's only native split affordance is the Search role.
+    @available(iOS 26, *)
+    private var searchRoleShell: some View {
         ZStack {
             TabView(selection: $nativeTab) {
                 Tab(String(localized: "Statistik"), systemImage: "chart.bar",
@@ -600,6 +605,31 @@ struct ContentView: View {
             .tabBarMinimizeBehavior(.onScrollDown)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// iOS 27's prominent role keeps Search separate without a custom tab-bar
+    /// overlay, while preserving the dedicated search page and its field.
+    @available(iOS 27, *)
+    private var splitShell: some View {
+        TabView(selection: $nativeTab) {
+            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
+                value: AppTab.stats) {
+                nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
+            }
+            Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
+                value: AppTab.habits) {
+                nativeTabRoot { nativeTabContent(.habits) { habitsTabContent } }
+            }
+            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
+                value: AppTab.more) {
+                nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
+            }
+            Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
+                value: AppTab.search, role: .prominent) {
+                nativeTabRoot { searchTabContent }
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 
     @available(iOS 26, *)
@@ -690,6 +720,7 @@ struct ContentView: View {
         .searchable(text: $search,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: Text(String(localized: "Habits und Erinnerungen durchsuchen")))
+        .searchFocused($searchFieldFocused)
         .navigationChrome()
     }
 
@@ -973,6 +1004,12 @@ struct ContentView: View {
         guard routeWorkIsCurrent(routeGeneration), !showAdd else { return }
         if #available(iOS 26, *) {
             nativeTab = .search
+            if #available(iOS 27, *) {
+                DispatchQueue.main.async {
+                    guard routeWorkIsCurrent(routeGeneration) else { return }
+                    searchFieldFocused = true
+                }
+            }
         } else {
             searching = true
         }
@@ -1250,13 +1287,6 @@ struct ContentView: View {
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
             progressNow = now
         }
-        // Row insertion/removal must stay instantaneous while the user
-        // scrolls. Explicit edits and the search field own their animations.
-        .transaction { transaction in
-            if editMode != .active {
-                transaction.animation = nil
-            }
-        }
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
@@ -1272,7 +1302,11 @@ struct ContentView: View {
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
-            if let progress { rootTitleProgress = progress }
+            guard let progress else { return }
+            let collapsed = progress >= 0.5 ? 1 : 0
+            if rootTitleProgress != CGFloat(collapsed) {
+                rootTitleProgress = CGFloat(collapsed)
+            }
         }
         .onPreferenceChange(RowOffsetKey.self) { frames in
             handleScroll(frames)
@@ -1441,6 +1475,7 @@ struct ContentView: View {
                         calendar: habitCalendar(for: habit),
                         leadingSwipe: reveal.leading,
                         trailingSwipe: reveal.trailing)
+                .equatable()
                 // Keep the row identity stable. The reminder's value and
                 // cursor are ordinary inputs, so SwiftUI updates the button
                 // state without leaving XCTest/VoiceOver with a stale node.
@@ -2983,21 +3018,6 @@ struct ContentView: View {
             HomeShortcuts.update(habits: store.habits,
                                  defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             postLaunchHydrationTask = nil
-        }
-    }
-
-    /// Context-menu and reveal bridges are useful only after the list is
-    /// interactive. Keeping them out of the first populated layout avoids
-    /// making UICollectionView install UIKit recognizers while it is also
-    /// measuring the graph-heavy rows.
-    private func scheduleInteractionBridgeActivation() {
-        interactionBridgeActivationTask?.cancel()
-        interactionBridgeActivationTask = Task { @MainActor in
-            await Task.yield()
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled else { return }
-            interactionBridgesReady = true
-            interactionBridgeActivationTask = nil
         }
     }
 

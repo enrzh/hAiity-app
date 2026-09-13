@@ -36,7 +36,6 @@ struct StatsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
-    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
@@ -137,7 +136,11 @@ struct StatsView: View {
         .softScrollEdges()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
-            if let progress { rootTitleProgress = progress }
+            guard let progress else { return }
+            let collapsed = progress >= 0.5 ? 1 : 0
+            if rootTitleProgress != CGFloat(collapsed) {
+                rootTitleProgress = CGFloat(collapsed)
+            }
         }
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
@@ -192,7 +195,11 @@ struct StatsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
-            if let progress { rootTitleProgress = progress }
+            guard let progress else { return }
+            let collapsed = progress >= 0.5 ? 1 : 0
+            if rootTitleProgress != CGFloat(collapsed) {
+                rootTitleProgress = CGFloat(collapsed)
+            }
         }
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
@@ -241,7 +248,11 @@ struct StatsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
-            if let progress { rootTitleProgress = progress }
+            guard let progress else { return }
+            let collapsed = progress >= 0.5 ? 1 : 0
+            if rootTitleProgress != CGFloat(collapsed) {
+                rootTitleProgress = CGFloat(collapsed)
+            }
         }
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
@@ -717,26 +728,24 @@ struct StatsView: View {
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> some View {
-        if interactionBridgesReady {
-            GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                             previewWidth: statsPreviewWidth,
-                             previewHeight: height,
-                             // The preview builder owns the one rounded surface;
-                             // the bridge must not wrap it a second time.
-                             previewOwnsSurface: true,
-                             previewAccessibilityIdentifier: "stats-preview",
-                             preview: preview,
-                             actions: statsContextActions,
-                             commit: openStatsAdjustments,
-                             onMenuVisibilityChanged: { visible in
-                                 if visible {
-                                     activeContextMenuID = id
-                                 } else if activeContextMenuID == id {
-                                     activeContextMenuID = nil
-                                 }
-                             })
-                .frame(maxWidth: statsPreviewWidth)
-        }
+        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                         previewWidth: statsPreviewWidth,
+                         previewHeight: height,
+                         // The preview builder owns the one rounded surface;
+                         // the bridge must not wrap it a second time.
+                         previewOwnsSurface: true,
+                         previewAccessibilityIdentifier: "stats-preview",
+                         preview: preview,
+                         actions: statsContextActions,
+                         commit: openStatsAdjustments,
+                         onMenuVisibilityChanged: { visible in
+                             if visible {
+                                 activeContextMenuID = id
+                             } else if activeContextMenuID == id {
+                                 activeContextMenuID = nil
+                             }
+                         })
+            .frame(maxWidth: statsPreviewWidth)
     }
 
     private func statsPreview<Content: View>(_ content: Content,

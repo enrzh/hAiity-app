@@ -1,22 +1,5 @@
 import SwiftUI
 
-@MainActor
-final class ReminderToggleGate {
-    static let shared = ReminderToggleGate()
-
-    private var suppressedUntil: [UUID: Date] = [:]
-
-    func suppress(_ habitID: UUID, for duration: TimeInterval = 2.5) {
-        suppressedUntil[habitID] = .now.addingTimeInterval(duration)
-    }
-
-    func consumeSuppression(for habitID: UUID) -> Bool {
-        guard let until = suppressedUntil[habitID] else { return false }
-        suppressedUntil[habitID] = nil
-        return until > .now
-    }
-}
-
 enum ItemPresentation: Equatable {
     case habitCard
     case reminderRow
@@ -48,7 +31,7 @@ struct ReminderRow: View, Equatable {
     @State private var isContextMenuVisible = false
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.palettes) private var palettes
-    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -67,30 +50,33 @@ struct ReminderRow: View, Equatable {
                 .allowsHitTesting(revealOffset == 0 && !revealActionLock)
                 .accessibilityHidden(revealOffset != 0 || revealActionLock)
             revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0),
-                          containerWidth: revealRowWidth)
+                          exposedWidth: max(revealOffset, 0))
                 .allowsHitTesting(revealOffset > 0)
             revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0),
-                          containerWidth: revealRowWidth)
+                          exposedWidth: max(-revealOffset, 0))
                 .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             revealRowWidth = width
         }
         .background {
-            if interactionBridgesReady {
-                SwipeRevealPan(shouldBegin: revealShouldBegin,
-                               began: { revealStart = revealOffset },
-                               changed: revealChanged,
-                               ended: revealEnded)
-            }
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { revealStart = revealOffset },
+                           changed: revealChanged,
+                           ended: revealEnded,
+                           cancelled: { snapReveal(to: 0) },
+                           ownerID: habit.id)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
             guard revealOffset != 0 else { return }
-            closeReveal()
+            snapReveal(to: 0)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDidBegin)) { note in
+            guard let ownerID = note.object as? UUID, ownerID != habit.id,
+                  revealOffset != 0 else { return }
+            snapReveal(to: 0)
         }
     }
 
@@ -119,17 +105,22 @@ struct ReminderRow: View, Equatable {
     }
 
     private func revealChanged(_ translation: CGFloat) {
-        revealOffset = SwipeReveal.offset(
+        let offset = SwipeReveal.offset(
             start: revealStart, translation: translation,
             leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
             trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            revealOffset = offset
+        }
     }
 
     @ViewBuilder
     private func revealButtons(actions: [RevealAction], alignment: Alignment,
-                               exposedWidth: CGFloat,
-                               containerWidth: CGFloat) -> some View {
+                               exposedWidth: CGFloat) -> some View {
         let actionWidth = SwipeReveal.revealWidth(count: actions.count)
+        let progress = min(max(exposedWidth / max(actionWidth, 1), 0), 1)
         let actionStack = HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
@@ -141,17 +132,17 @@ struct ReminderRow: View, Equatable {
         let actionLayer = actionStack
             .frame(width: actionWidth, alignment: alignment)
             .frame(height: Self.rowHeight)
-        Group {
-            if exposedWidth >= actionWidth {
-                actionLayer
-                    .frame(maxWidth: .infinity, alignment: alignment)
-            } else {
-                actionLayer
-                    .frame(width: exposedWidth, alignment: alignment)
-                    .clipped()
-                    .frame(maxWidth: .infinity, alignment: alignment)
-            }
-        }
+        // Keep the action layer mounted at a stable identity. The row moves
+        // over it, so the controls can visibly enter from the edge while the
+        // same spring settles both the row and the revealed actions.
+        actionLayer
+            .opacity(progress)
+            .scaleEffect(0.88 + progress * 0.12,
+                         anchor: alignment == .leading ? .leading : .trailing)
+            .offset(x: alignment == .leading
+                    ? -(1 - progress) * 18
+                    : (1 - progress) * 18)
+            .frame(maxWidth: .infinity, alignment: alignment)
         // Keep the trailing action inside the List cell's effective hit edge.
         // UIKit can report the visual cell a few points wider than its tappable
         // region on iOS 27.
@@ -160,27 +151,19 @@ struct ReminderRow: View, Equatable {
         // visual rect. This avoids a one-pixel outside frame after rounding.
         .offset(x: alignment == .trailing ? -2 : 0)
         .accessibilityHidden(exposedWidth < actionWidth)
-        .transition(.identity)
+        .allowsHitTesting(exposedWidth >= actionWidth)
     }
 
     private func revealButton(_ action: RevealAction) -> some View {
         Button {
-            // Defer both the mutation and the close until UIKit has finished
-            // delivering this touch. Reset shares the checkmark's trailing
-            // hit area; mutating the row from inside the button callback can
-            // otherwise expose that control to the same touch.
+            // Keep the row inert for the rest of this event. Reset shares the
+            // checkmark's trailing hit area, so the gate consumes only a stale
+            // control delivery from the same touch.
             revealActionLock = true
-            if action.operation == .reset { ReminderToggleGate.shared.suppress(habit.id) }
+            snapReveal(to: 0)
+            action.handler()
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { return }
-                action.handler()
-                closeReveal()
-                // XCTest and UIKit can finish dispatching a synthesized tap
-                // after the button action returns. Keep the old row inert for
-                // that tail so a reset cannot also toggle its checkmark.
-                try? await Task.sleep(for: .milliseconds(400))
-                guard !Task.isCancelled else { return }
+                await Task.yield()
                 revealActionLock = false
             }
         } label: {
@@ -219,13 +202,13 @@ struct ReminderRow: View, Equatable {
         switch resting {
         case .closed:
             if revealStart != 0 { Theme.Haptics.select() }
-            snapReveal(to: 0)
+            snapReveal(to: 0, velocity: velocity)
         case .leading:
             if revealStart == 0 { Theme.Haptics.select() }
-            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count))
+            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count), velocity: velocity)
         case .trailing:
             if revealStart == 0 { Theme.Haptics.select() }
-            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count))
+            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count), velocity: velocity)
         case .commitLeading:
             commitReveal(leadingSwipe.first)
         case .commitTrailing:
@@ -235,25 +218,30 @@ struct ReminderRow: View, Equatable {
 
     private func commitReveal(_ action: RevealAction?) {
         Theme.Haptics.check()
-        closeReveal()
-        if action?.operation == .reset { ReminderToggleGate.shared.suppress(habit.id) }
+        revealActionLock = true
+        snapReveal(to: 0)
         action?.handler()
-    }
-
-    /// Close synchronously before mutating the store. An animated close can
-    /// leave the action layer above the newly rendered row for one layout
-    /// pass, making the next action visible but not hittable.
-    private func closeReveal() {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            revealOffset = 0
-            revealStart = 0
+        Task { @MainActor in
+            await Task.yield()
+            revealActionLock = false
         }
     }
 
-    private func snapReveal(to target: CGFloat) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+    private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
+        guard abs(target - revealOffset) > 0.5 else { return }
+        if reduceMotion {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                revealOffset = target
+            }
+            return
+        }
+        let initialVelocity = SwipeReveal.initialVelocity(
+            velocity: velocity, distance: abs(target - revealOffset))
+        withAnimation(.interpolatingSpring(mass: 0.85, stiffness: 250,
+                                           damping: 22,
+                                           initialVelocity: initialVelocity)) {
             revealOffset = target
         }
     }
@@ -381,19 +369,17 @@ struct ReminderRow: View, Equatable {
             // host becomes the hit-test winner and prevents the native button
             // from receiving ordinary taps.
             .overlay {
-                if interactionBridgesReady {
-                    GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                                     previewWidth: previewWidth,
-                                     previewHeight: Self.contextPreviewHeight,
-                                     previewAccessibilityIdentifier: "reminder-preview",
-                                     preview: { AnyView(reminderPreview) },
-                                     actions: menuActions,
-                                     commit: onEdit,
-                                     onMenuVisibilityChanged: { visible in
-                                         isContextMenuVisible = visible
-                                     })
-                        .frame(maxWidth: previewWidth)
-                }
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 previewHeight: Self.contextPreviewHeight,
+                                 previewAccessibilityIdentifier: "reminder-preview",
+                                 preview: { AnyView(reminderPreview) },
+                                 actions: menuActions,
+                                 commit: onEdit,
+                                 onMenuVisibilityChanged: { visible in
+                                     isContextMenuVisible = visible
+                                 })
+                    .frame(maxWidth: previewWidth)
             }
 
             Button(action: toggleFromCheckmark) {
@@ -420,10 +406,6 @@ struct ReminderRow: View, Equatable {
     }
 
     private func toggleFromCheckmark() {
-        // A drag that starts on the checkmark can finish its delayed control
-        // delivery after the revealed Reset action has already run. Consume
-        // that one stale toggle without blocking a later deliberate tap.
-        if ReminderToggleGate.shared.consumeSuppression(for: habit.id) { return }
         onToggle()
     }
 

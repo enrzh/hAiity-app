@@ -33,6 +33,14 @@ enum SwipeReveal {
         return limit * (1 - 1 / (excess / limit + 1))
     }
 
+    /// Velocity in the unit expected by an interpolating spring. A clamp keeps
+    /// an unusually fast physical swipe from producing an unstable settle.
+    static func initialVelocity(velocity: CGFloat, distance: CGFloat) -> Double {
+        guard distance > 1 else { return 0 }
+        let normalized = velocity / distance
+        return Double(min(max(normalized, -8), 8))
+    }
+
     /// Sichtbarer Versatz aus Startlage + Fingerweg. Innerhalb der
     /// Ruheweiten 1:1, dahinter Gummiband. Positiv = leading aufgezogen.
     static func offset(start: CGFloat, translation: CGFloat,

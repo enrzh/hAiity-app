@@ -785,6 +785,8 @@ final class StartupSplashTests: XCTestCase {
                       "the first active callback needs an explicit one-time guard")
         XCTAssertTrue(callback.contains("guard initialBootReady"),
                       "activation maintenance must wait for local boot wiring")
+        XCTAssertTrue(callback.contains("guard hasEnteredBackground"),
+                      "launch activation must not start cloud or native maintenance")
         XCTAssertFalse(callback.contains("HomeShortcuts.update(habits: HabitStore.read"),
                        "activation must not synchronously decode the payload twice")
 
@@ -800,7 +802,7 @@ final class StartupSplashTests: XCTestCase {
                       "foreground activation must still import completed native reminders")
     }
 
-    func testStartupDefersUIKitInteractionBridgesUntilAfterTheFirstFrame() throws {
+    func testRowsKeepUIKitInteractionBridgesImmediateWithoutPostFrameStateBursts() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -811,16 +813,16 @@ final class StartupSplashTests: XCTestCase {
         let reminderRow = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/ReminderRow.swift"))
 
-        XCTAssertTrue(content.contains("@State private var interactionBridgesReady = false"),
-                      "startup must begin without installing row-wide UIKit bridges")
-        XCTAssertTrue(content.contains(".environment(\\.interactionBridgesReady, interactionBridgesReady)"),
-                      "the startup boundary must be shared by all row surfaces")
-        XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds(450))"),
-                      "interaction bridges need a quiet post-render window")
-        XCTAssertTrue(habitCard.contains("if interactionBridgesReady"),
-                      "habit rows must defer context-menu and swipe bridges")
-        XCTAssertTrue(reminderRow.contains("if interactionBridgesReady"),
-                      "reminder rows must defer context-menu and swipe bridges")
+        XCTAssertFalse(content.contains("interactionBridgesReady"),
+                       "bridge readiness must not be a global list invalidation")
+        for source in [habitCard, reminderRow] {
+            XCTAssertFalse(source.contains("interactionBridgesReady"),
+                           "rows must not trigger a post-frame state update")
+            XCTAssertTrue(source.contains("SwipeRevealPan("),
+                          "swipe interaction must be mounted with the row")
+            XCTAssertTrue(source.contains("GraphContextMenu("),
+                          "long-press interaction must be mounted with the card")
+        }
     }
 
     func testSplashDelaysAreCancellationAware() throws {

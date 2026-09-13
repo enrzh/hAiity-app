@@ -49,8 +49,6 @@ struct ContributionGrid: View, Equatable {
     /// GLOBALE Farbe + eigene Paletten; die Habit-eigene Farbe legt sich
     /// darüber (aufgelöst in `PaletteStyle.resolve`).
     @Environment(\.palettes) private var palettes
-    /// Gemessene Breite des Rasters; 0 bis zur ersten Layout-Runde.
-    @State private var available: CGFloat = 0
     /// A cold graph must not make the first habit-list frame wait on date
     /// generation and intensity calculation.
     @State private var renderedSnapshot: (key: GridCalendar.HabitSnapshotKey, value: GridCalendar.Snapshot)?
@@ -59,23 +57,19 @@ struct ContributionGrid: View, Equatable {
     /// die Labelbreite messen, ohne die Trait-Collection nachzubauen.
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
-    /// Referenz: 11 pt Zelle + 3 pt Lücke ergeben auf einem 393-pt-Gerät
-    /// rund 24 sichtbare Spalten. Diese Spaltenzahl halten wir konstant und
-    /// leiten die Zellgröße daraus ab — auf einem SE werden die Quadrate
-    /// kleiner statt gedrängt, auf einem Max nicht endlos größer.
-    private static let referenceColumns: CGFloat = 24
-    private static let referencePitch: CGFloat = GridCell.size + GridCell.gap
-
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize { return (cellSize, gap ?? GridCell.gap) }
-        let columns = min(CGFloat(max(weeks, 1)), Self.referenceColumns)
-        let spacing: CGFloat = 3
-        let tileWidth = max(1, available - (interactive ? 8 : 0))
-        return (available > 0 ? max(1, (tileWidth + spacing) / columns - spacing) : GridCell.size,
-                spacing)
+        return (GridCell.size, GridCell.gap)
     }
 
     private func loadSnapshot(for request: GridCalendar.HabitSnapshotKey) async {
+        if let cached = GridCalendar.cachedSnapshot(habit: habit,
+                                                    weeks: request.weeks,
+                                                    today: request.today,
+                                                    calendar: request.calendar) {
+            renderedSnapshot = (request, cached)
+            return
+        }
         let habit = habit
         let graphSignpost = StartupMetrics.begin("habitGraphCalculation")
         defer { StartupMetrics.end("habitGraphCalculation", id: graphSignpost) }
@@ -111,12 +105,6 @@ struct ContributionGrid: View, Equatable {
                 // Startet AN der rechten Kante — heute — statt nach dem
                 // Aufbau dorthin zu scrollen.
                 .defaultScrollAnchor(.trailing)
-                // Recent habits use a viewport-sized history window. Disable
-                // the gesture once layout confirms there is no extra content.
-                .scrollDisabled(available > 0
-                                && !GridCalendar.needsHorizontalScroll(
-                                    contentWidth: contentWidth,
-                                    viewportWidth: available))
                 } else {
                 // Context-menu previews must not contain a disabled
                 // ScrollView. UIKit can preserve its trailing content offset
@@ -131,7 +119,6 @@ struct ContributionGrid: View, Equatable {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
-        .background(widthReader)
         .task(id: request) {
             await loadSnapshot(for: request)
         }
@@ -181,19 +168,6 @@ struct ContributionGrid: View, Equatable {
     /// Läuft der Abhak-Puls gerade? (Ring um die Heute-Zelle, kurz.)
     @State private var checkPulse = false
 
-    /// Misst die Breite, die dem Raster zur Verfügung steht — daraus fällt
-    /// die Zellgröße. Kein Layout-Zirkel: die Breite hängt am Container,
-    /// nicht am Inhalt.
-    private var widthReader: some View {
-        GeometryReader { geo in
-            Color.clear.preference(key: GridWidthKey.self, value: geo.size.width)
-        }
-        .onPreferenceChange(GridWidthKey.self) { width in
-            guard width.isFinite, width > 0 else { return }
-            if abs(width - available) > 0.5 { available = width }
-        }
-    }
-
     private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
         let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
         let surfaceInset = interactive ? 8 : 0
@@ -226,12 +200,5 @@ struct RampSwatch: View {
             }
         }
         .accessibilityHidden(true)
-    }
-}
-
-private struct GridWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

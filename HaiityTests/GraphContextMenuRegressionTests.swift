@@ -24,9 +24,9 @@ final class GraphContextMenuRegressionTests: XCTestCase {
         let overlay = try XCTUnwrap(source.range(of: ".overlay {"))
         let graphMenu = try XCTUnwrap(source.range(of: "GraphContextMenu(",
                                                  range: overlay.upperBound..<source.endIndex))
-        XCTAssertTrue(source[overlay.upperBound..<graphMenu.lowerBound]
+        XCTAssertFalse(source[overlay.upperBound..<graphMenu.lowerBound]
             .contains("interactionBridgesReady"),
-                      "graph card interaction must be deferred until the first frame settles")
+                       "graph card interaction must mount with the card to stay responsive")
     }
 
     func testContextInteractionIsOwnedByTheHeldCard() throws {

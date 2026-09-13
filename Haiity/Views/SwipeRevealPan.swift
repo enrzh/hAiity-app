@@ -5,6 +5,8 @@ extension Notification.Name {
     /// Sent when a vertical gesture hands control back to the enclosing list.
     /// Every visible reveal row closes itself without coupling sibling rows.
     static let swipeRevealDismissAll = Notification.Name("haiity.swipeRevealDismissAll")
+    /// Sent when a row starts a horizontal gesture so other open rows settle.
+    static let swipeRevealDidBegin = Notification.Name("haiity.swipeRevealDidBegin")
 }
 
 /// Der ZUG hinter dem Karten-Aufziehen (`SwipeReveal`) — als UIKit-Pan,
@@ -33,16 +35,21 @@ struct SwipeRevealPan: UIViewRepresentable {
     let began: () -> Void
     let changed: (_ translation: CGFloat) -> Void
     let ended: (_ translation: CGFloat, _ velocity: CGFloat) -> Void
+    let cancelled: () -> Void
+    let ownerID: UUID
 
     func makeUIView(context: Context) -> PanHost {
-        PanHost(shouldBegin: shouldBegin, began: began, changed: changed, ended: ended)
+        PanHost(ownerID: ownerID, shouldBegin: shouldBegin, began: began,
+                changed: changed, ended: ended, cancelled: cancelled)
     }
 
     func updateUIView(_ view: PanHost, context: Context) {
+        view.ownerID = ownerID
         view.shouldBeginQuery = shouldBegin
         view.beganCallback = began
         view.changedCallback = changed
         view.endedCallback = ended
+        view.cancelledCallback = cancelled
         // A List can keep the bridge view while replacing the row's content
         // after a completion. Reconcile immediately so the recognizer and its
         // callbacks belong to the current cell before the next swipe.
@@ -54,21 +61,27 @@ struct SwipeRevealPan: UIViewRepresentable {
     }
 
     final class PanHost: UIView, UIGestureRecognizerDelegate {
+        var ownerID: UUID
         var shouldBeginQuery: (Bool, Bool, Bool, Bool) -> Bool
         var beganCallback: () -> Void
         var changedCallback: (CGFloat) -> Void
         var endedCallback: (CGFloat, CGFloat) -> Void
+        var cancelledCallback: () -> Void
         private var recognizer: UIPanGestureRecognizer?
         private weak var host: UIView?
 
-        init(shouldBegin: @escaping (Bool, Bool, Bool, Bool) -> Bool,
+        init(ownerID: UUID,
+             shouldBegin: @escaping (Bool, Bool, Bool, Bool) -> Bool,
              began: @escaping () -> Void,
              changed: @escaping (CGFloat) -> Void,
-             ended: @escaping (CGFloat, CGFloat) -> Void) {
+             ended: @escaping (CGFloat, CGFloat) -> Void,
+             cancelled: @escaping () -> Void) {
+            self.ownerID = ownerID
             self.shouldBeginQuery = shouldBegin
             self.beganCallback = began
             self.changedCallback = changed
             self.endedCallback = ended
+            self.cancelledCallback = cancelled
             super.init(frame: .zero)
             isUserInteractionEnabled = false
             isHidden = true
@@ -163,12 +176,16 @@ struct SwipeRevealPan: UIViewRepresentable {
             let dx = pan.translation(in: container).x * mirror
             switch pan.state {
             case .began:
+                NotificationCenter.default.post(name: .swipeRevealDidBegin,
+                                                object: ownerID)
                 beganCallback()
                 changedCallback(dx)
             case .changed:
                 changedCallback(dx)
-            case .ended, .cancelled, .failed:
+            case .ended:
                 endedCallback(dx, pan.velocity(in: container).x * mirror)
+            case .cancelled, .failed:
+                cancelledCallback()
             default:
                 break
             }
@@ -194,8 +211,11 @@ struct SwipeRevealPan: UIViewRepresentable {
             guard activeFrame.contains(location) else { return false }
 
             let translation = pan.translation(in: container)
+            let velocity = pan.velocity(in: container)
             let horizontal = SwipeReveal.horizontalIntent(dx: translation.x, dy: translation.y)
-            let towardTrailing = translation.x * mirror < 0
+                || SwipeReveal.horizontalIntent(dx: velocity.x, dy: velocity.y)
+            let direction = abs(translation.x) > 3 ? translation.x : velocity.x
+            let towardTrailing = direction * mirror < 0
 
             // Liegt unter dem Finger das RASTER (die horizontale ScrollView
             // IN der Zeile — nicht die Liste, die ist ein VORFAHRE)?
@@ -216,7 +236,6 @@ struct SwipeRevealPan: UIViewRepresentable {
                 walk = view.superview
             }
             let verdict = shouldBeginQuery(towardTrailing, horizontal, overGrid, atEnd)
-            trace("revealpan: begin? loc=\(location) bounds=\(bounds) dx=\(translation.x) dy=\(translation.y) trailing=\(towardTrailing) horiz=\(horizontal) grid=\(overGrid) end=\(atEnd) -> \(verdict)")
             if !horizontal {
                 NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
             }

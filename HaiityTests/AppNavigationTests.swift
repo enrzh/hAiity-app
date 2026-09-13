@@ -125,6 +125,8 @@ final class AppNavigationTests: XCTestCase {
                           "graph snapshots should load through a cancellable task")
             XCTAssertTrue(source.contains("ContributionSnapshotScheduler.perform"),
                           "graph snapshots should use the shared cancellable scheduler")
+            XCTAssertTrue(source.contains("cachedSnapshot"),
+                          "warm graph snapshots should bypass the background queue")
             XCTAssertFalse(source.contains("Task.detached"),
                            "graph snapshots must not outlive the requesting view")
         }
@@ -678,6 +680,7 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("value: AppTab.habits"))
         XCTAssertTrue(source.contains("value: AppTab.more"))
         XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
+        XCTAssertTrue(source.contains("value: AppTab.search, role: .prominent"))
         XCTAssertFalse(source.contains("enum NativeTab"))
     }
 
@@ -782,6 +785,7 @@ final class AppNavigationTests: XCTestCase {
     func testSearchIsARealTabWithItsOwnSearchable() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
+        XCTAssertTrue(source.contains("value: AppTab.search, role: .prominent"))
         XCTAssertTrue(source.contains("private var searchTabContent: some View"))
         XCTAssertTrue(source.contains(".searchable(text: $search"))
         XCTAssertTrue(source.contains("role: .search"))
@@ -800,10 +804,10 @@ final class AppNavigationTests: XCTestCase {
                                                     range: tabChange.upperBound..<source.endIndex))
         let tabBody = source[tabChange.lowerBound..<handlerEnd.lowerBound]
 
-        XCTAssertFalse(tabBody.contains("searchFocused"))
+        XCTAssertTrue(tabBody.contains("searchFieldFocused = false"))
         XCTAssertFalse(tabBody.contains("openSearch("))
-        XCTAssertTrue(source.contains("role: .search"),
-                      "the native search tab must own the search page")
+        XCTAssertTrue(source.contains(".searchFocused($searchFieldFocused)"),
+                      "the dedicated search page must own keyboard focus")
     }
 
     func testSearchableIsScopedToTheSearchTab() throws {
@@ -822,15 +826,14 @@ final class AppNavigationTests: XCTestCase {
                       "the search bar must belong to the dedicated search page")
         XCTAssertTrue(searchTab.contains("displayMode: .always"))
         XCTAssertFalse(searchTab.contains("isPresented:"))
-        XCTAssertFalse(searchTab.contains("searchFocused"))
+        XCTAssertTrue(searchTab.contains(".searchFocused($searchFieldFocused)"))
     }
 
     func testSingleNativeShellWithoutCompilerGates() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        // Die Rollen-Verrenkung (prominent hinter #if compiler) ist Geschichte.
-        XCTAssertFalse(source.contains("role: .prominent"))
+        XCTAssertTrue(source.contains("role: .prominent"))
         XCTAssertFalse(source.contains("#if compiler(>=6.4)"))
-        XCTAssertFalse(source.contains("private var splitShell"))
+        XCTAssertTrue(source.contains("private var splitShell"))
         XCTAssertTrue(source.contains("private var nativeShell: some View"))
     }
 

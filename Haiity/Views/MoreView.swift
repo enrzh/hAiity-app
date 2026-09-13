@@ -391,7 +391,11 @@ struct MoreView: View {
         .settingsChrome()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
-            if let progress { rootTitleProgress = progress }
+            guard let progress else { return }
+            let collapsed = progress >= 0.5 ? 1 : 0
+            if rootTitleProgress != CGFloat(collapsed) {
+                rootTitleProgress = CGFloat(collapsed)
+            }
         }
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)

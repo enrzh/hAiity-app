@@ -38,8 +38,12 @@ final class FollowUpFixTests: XCTestCase {
                       "the enlarged graph should spend its height on tiles")
         XCTAssertTrue(github.contains("showsMonthLabels: false"),
                       "GitHub previews should use the same tile-only treatment")
-        XCTAssertTrue(grid.contains(".scrollDisabled(available > 0"),
-                      "interactive grids must retain their no-extra-content guard")
+        XCTAssertTrue(grid.contains("if interactive {"),
+                      "the live graph may scroll while its fixed geometry remains stable")
+        XCTAssertTrue(grid.contains(".defaultScrollAnchor(.trailing)"),
+                      "the live graph must still open at the current-day edge")
+        XCTAssertFalse(grid.contains("widthReader"),
+                       "the graph must not trigger a state update just to measure its width")
     }
 
     func testHabitPreviewFitsItsFullVisibleGrid() throws {

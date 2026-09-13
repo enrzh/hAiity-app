@@ -74,9 +74,9 @@ struct HabitCard: View, Equatable {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
-    @Environment(\.interactionBridgesReady) private var interactionBridgesReady
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
@@ -140,12 +140,12 @@ struct HabitCard: View, Equatable {
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
-            if interactionBridgesReady {
-                SwipeRevealPan(shouldBegin: revealShouldBegin,
-                               began: { revealStart = revealOffset },
-                               changed: revealChanged,
-                               ended: revealEnded)
-            }
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { revealStart = revealOffset },
+                           changed: revealChanged,
+                           ended: revealEnded,
+                           cancelled: { snapReveal(to: 0) },
+                           ownerID: habit.id)
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
@@ -160,6 +160,11 @@ struct HabitCard: View, Equatable {
         .accessibilityIdentifier("habit-card")
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
             guard revealOffset != 0 else { return }
+            snapReveal(to: 0)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDidBegin)) { note in
+            guard let ownerID = note.object as? UUID, ownerID != habit.id,
+                  revealOffset != 0 else { return }
             snapReveal(to: 0)
         }
     }
@@ -192,12 +197,10 @@ struct HabitCard: View, Equatable {
                     }
                 }
             revealButtons(actions: leadingSwipe, alignment: .leading,
-                          exposedWidth: max(revealOffset, 0),
-                          containerWidth: revealCardWidth)
+                          exposedWidth: max(revealOffset, 0))
                 .allowsHitTesting(revealOffset > 0)
             revealButtons(actions: trailingSwipe, alignment: .trailing,
-                          exposedWidth: max(-revealOffset, 0),
-                          containerWidth: revealCardWidth)
+                          exposedWidth: max(-revealOffset, 0))
                 .allowsHitTesting(revealOffset < 0)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
@@ -222,54 +225,53 @@ struct HabitCard: View, Equatable {
     }
 
     private func revealChanged(_ translation: CGFloat) {
-        revealOffset = SwipeReveal.offset(
+        let offset = SwipeReveal.offset(
             start: revealStart, translation: translation,
             leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
             trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            revealOffset = offset
+        }
     }
 
     @ViewBuilder
     private func revealButtons(actions: [RevealAction], alignment: Alignment,
-                               exposedWidth: CGFloat,
-                               containerWidth: CGFloat) -> some View {
+                               exposedWidth: CGFloat) -> some View {
         let actionWidth = SwipeReveal.revealWidth(count: actions.count)
+        let progress = min(max(exposedWidth / max(actionWidth, 1), 0), 1)
         let actionStack = HStack(spacing: SwipeReveal.buttonGap) {
             ForEach(actions) { action in
                 revealButton(action)
             }
         }
-        // The grid/card moves over this fixed edge layer. A partial strip is
-        // clipped to the card displacement, so it cannot draw a second
-        // translucent surface or shadow outside the visible action.
+        // Keep the action layer mounted at a stable identity. The card moves
+        // over it, so the controls can visibly enter from the edge while the
+        // same spring settles both the card and the revealed actions.
         let actionLayer = actionStack
             .frame(width: actionWidth, alignment: alignment)
             .frame(maxHeight: .infinity)
-        Group {
-            if exposedWidth >= actionWidth {
-                actionLayer
-                    .frame(maxWidth: .infinity, alignment: alignment)
-            } else {
-                actionLayer
-                    .frame(width: exposedWidth, alignment: alignment)
-                    .clipped()
-                    .frame(maxWidth: .infinity, alignment: alignment)
-            }
-        }
+        actionLayer
+            .opacity(progress)
+            .scaleEffect(0.88 + progress * 0.12,
+                         anchor: alignment == .leading ? .leading : .trailing)
+            .offset(x: alignment == .leading
+                    ? -(1 - progress) * 18
+                    : (1 - progress) * 18)
+            .frame(maxWidth: .infinity, alignment: alignment)
         // Keep trailing actions within the card's effective hit edge when the
         // native List reports a slightly wider visual frame.
         .padding(.trailing, alignment == .trailing ? Theme.Metrics.gap : 0)
         .offset(x: alignment == .trailing ? -2 : 0)
-        // Keep clipped intermediate frames out of the accessibility tree.
-        // The button becomes discoverable only when its full hit target is
-        // exposed and therefore tappable during the reveal spring.
         .accessibilityHidden(exposedWidth < actionWidth)
-        .transition(.identity)
+        .allowsHitTesting(exposedWidth >= actionWidth)
     }
 
     private func revealButton(_ action: RevealAction) -> some View {
         Button {
-            action.handler()
             snapReveal(to: 0)
+            action.handler()
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: action.symbol)
@@ -307,13 +309,13 @@ struct HabitCard: View, Equatable {
             // Nur wenn wirklich etwas ZU ging, gibt es den Tick — ein
             // abgebrochener Mini-Zug ist kein Ereignis.
             if revealStart != 0 { Theme.Haptics.select() }
-            snapReveal(to: 0)
+            snapReveal(to: 0, velocity: velocity)
         case .leading:
             if revealStart == 0 { Theme.Haptics.select() }
-            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count))
+            snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count), velocity: velocity)
         case .trailing:
             if revealStart == 0 { Theme.Haptics.select() }
-            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count))
+            snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count), velocity: velocity)
         case .commitLeading:
             commitReveal(leadingSwipe.first)
         case .commitTrailing:
@@ -329,8 +331,21 @@ struct HabitCard: View, Equatable {
         action?.handler()
     }
 
-    private func snapReveal(to target: CGFloat) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+    private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
+        guard abs(target - revealOffset) > 0.5 else { return }
+        if reduceMotion {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                revealOffset = target
+            }
+            return
+        }
+        let initialVelocity = SwipeReveal.initialVelocity(
+            velocity: velocity, distance: abs(target - revealOffset))
+        withAnimation(.interpolatingSpring(mass: 0.85, stiffness: 250,
+                                           damping: 22,
+                                           initialVelocity: initialVelocity)) {
             revealOffset = target
         }
     }
@@ -374,25 +389,23 @@ struct HabitCard: View, Equatable {
             // die UIKit-Interaktion selbst, angehängt an die Zelle (siehe
             // GraphContextMenu).
             .overlay {
-                if interactionBridgesReady {
-                    GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
-                                     previewWidth: previewWidth,
-                                     previewHeight: Self.contextPreviewHeight,
-                                     previewOwnsSurface: true,
-                                     previewAccessibilityIdentifier: "habit-preview",
-                                     preview: { AnyView(habitPreview) },
-                                     actions: menuActions,
-                                     commit: onEdit,
-                                     onMenuVisibilityChanged: { visible in
-                                         if visible {
-                                             revealOffset = 0
-                                             revealStart = 0
-                                         }
-                                         isContextMenuVisible = visible
-                                     })
-                        .frame(maxWidth: previewWidth)
+                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                                 previewWidth: previewWidth,
+                                 previewHeight: Self.contextPreviewHeight,
+                                 previewOwnsSurface: true,
+                                 previewAccessibilityIdentifier: "habit-preview",
+                                 preview: { AnyView(habitPreview) },
+                                 actions: menuActions,
+                                 commit: onEdit,
+                                 onMenuVisibilityChanged: { visible in
+                                     if visible {
+                                         revealOffset = 0
+                                         revealStart = 0
+                                     }
+                                     isContextMenuVisible = visible
+                                 })
+                    .frame(maxWidth: previewWidth)
                 }
-            }
             .onTapGesture(perform: onBackfill)
             .accessibilityAction(named: String(localized: "Historie"), onBackfill)
             .accessibilityElement(children: .contain)

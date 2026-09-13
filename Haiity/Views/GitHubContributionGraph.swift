@@ -265,13 +265,20 @@ struct GitHubContributionGraph: View, Equatable {
     private func loadSnapshot(for request: SnapshotRequest) async {
         let graphSignpost = GraphMetrics.begin("githubGraphCalculation")
         defer { GraphMetrics.end("githubGraphCalculation", id: graphSignpost) }
+        let displayWeeks = request.weeks ?? GridCalendar.weeksForDisplay(
+            dates: request.days.map(\.date), today: request.today,
+            calendar: Self.contributionCalendar)
+        let levelsByDay = request.days.reduce(into: [String: Int]()) { result, day in
+            result[day.date] = day.level
+        }
+        if let cached = GridCalendar.cachedSnapshot(levelsByDay: levelsByDay,
+                                                    weeks: displayWeeks,
+                                                    today: request.today,
+                                                    calendar: Self.contributionCalendar) {
+            renderedSnapshot = (request, cached)
+            return
+        }
         guard let snapshot = await ContributionSnapshotScheduler.perform({
-            let displayWeeks = request.weeks ?? GridCalendar.weeksForDisplay(
-                dates: request.days.map(\.date), today: request.today,
-                calendar: Self.contributionCalendar)
-            let levelsByDay = request.days.reduce(into: [String: Int]()) { result, day in
-                result[day.date] = day.level
-            }
             return GridCalendar.snapshot(levelsByDay: levelsByDay,
                                   weeks: displayWeeks,
                                   today: request.today,

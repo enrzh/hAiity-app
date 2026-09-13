@@ -372,6 +372,32 @@ enum GridCalendar {
     private static var cache = BoundedGraphCache<HabitSnapshotKey, Snapshot>(limit: 32)
     private static var externalCache = BoundedGraphCache<ExternalCacheKey, Snapshot>(limit: 32)
 
+    /// Fast path for views that are recreated by List/tab navigation. The
+    /// cold path remains scheduled off the main actor; a known snapshot should
+    /// not make a warm graph wait for that queue just to redisplay itself.
+    static func cachedSnapshot(habit: Habit,
+                               weeks: Int = 53,
+                               today: String = DayKey.today(),
+                               calendar: Calendar = .current) -> Snapshot? {
+        let key = HabitSnapshotKey(habit: habit, weeks: weeks, today: today, calendar: calendar)
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[key]
+    }
+
+    static func cachedSnapshot(levelsByDay: [String: Int],
+                               weeks: Int,
+                               today: String,
+                               calendar: Calendar = .current) -> Snapshot? {
+        let key = ExternalCacheKey(levels: levelsByDay,
+                                   weeks: weeks,
+                                   today: today,
+                                   calendar: calendar)
+        lock.lock()
+        defer { lock.unlock() }
+        return externalCache[key]
+    }
+
     static func snapshot(habit: Habit,
                          weeks: Int = 53,
                          today: String = DayKey.today(),
