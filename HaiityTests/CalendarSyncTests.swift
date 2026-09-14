@@ -262,8 +262,44 @@ final class CalendarSyncSelectionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("static func startObserving(store habitStore: HabitStore)"))
         XCTAssertTrue(source.contains(".EKEventStoreChanged"))
+        XCTAssertTrue(source.contains("handleNativeStoreChange()"))
         XCTAssertTrue(source.contains("validate: true"),
                       "native calendar changes must run the validating reconciliation")
+    }
+
+    func testCalendarStoreChangePolicyIgnoresRecentLocalWrites() {
+        let write = Date()
+        XCTAssertTrue(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
+            lastLocalWrite: write,
+            now: write.addingTimeInterval(0.2)))
+        XCTAssertFalse(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
+            lastLocalWrite: write,
+            now: write.addingTimeInterval(CalendarStoreChangePolicy.localWriteEchoGrace + 0.01)))
+        XCTAssertFalse(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
+            lastLocalWrite: nil,
+            now: write))
+    }
+
+    func testNativeCalendarObserverIgnoresEchoesFromLocalWrites() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let observerStart = try XCTUnwrap(source.range(of: "static func startObserving(store habitStore: HabitStore)"))
+        let observerEnd = try XCTUnwrap(source.range(of: "private static func noteLocalStoreMutation()",
+                                                     range: observerStart.upperBound..<source.endIndex))
+        let observer = source[observerStart.lowerBound..<observerEnd.lowerBound]
+
+        XCTAssertTrue(observer.contains("handleNativeStoreChange()"))
+        XCTAssertTrue(observer.contains("shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt)"))
+        XCTAssertTrue(observer.contains("CalendarStoreChangePolicy.nativeValidateDelay"))
+        XCTAssertTrue(observer.contains("validate: true"),
+                      "external Calendar edits must still run the validating inventory")
+        XCTAssertFalse(observer.contains("validate: false"))
+
+        XCTAssertTrue(source.contains("noteLocalStoreMutation()"))
+        XCTAssertTrue(source.contains("try store.save(event, span: .futureEvents, commit: true)"))
+        let create = try XCTUnwrap(source.range(of: "private static func createEvent(plan:"))
+        let createBody = source[create.lowerBound...]
+        XCTAssertTrue(createBody.contains("noteLocalStoreMutation()"),
+                      "creating a series must mark the EventKit echo window before save")
     }
 
     func testMoreScreenExposesTheActualCalendarDestinationPicker() throws {

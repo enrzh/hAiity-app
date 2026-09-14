@@ -60,6 +60,21 @@ enum CalendarSyncPreferences {
     }
 }
 
+/// EventKit posts `EKEventStoreChanged` for our own saves too. The validating
+/// inventory is only for edits made in Apple Calendar; echoes from a local
+/// habit/reminder write must not rescan every calendar.
+enum CalendarStoreChangePolicy {
+    static let localWriteEchoGrace: TimeInterval = 1.5
+    static let nativeValidateDelay: Duration = .milliseconds(400)
+
+    static func shouldIgnoreNativeChange(lastLocalWrite: Date?,
+                                         now: Date = .now,
+                                         grace: TimeInterval = localWriteEchoGrace) -> Bool {
+        guard let lastLocalWrite else { return false }
+        return now.timeIntervalSince(lastLocalWrite) < grace
+    }
+}
+
 // MARK: – Der Plan (pur)
 
 /// Ein Habit als Kalender-Termin — die REGELN pur und ohne EventKit, damit
@@ -299,6 +314,8 @@ enum CalendarSync {
     private static var observer: NSObjectProtocol?
     private static weak var observedStore: HabitStore?
     private static var isReconciling = false
+    private static var lastLocalWriteAt: Date?
+    private static var nativeValidateTask: Task<Void, Never>?
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -340,7 +357,9 @@ enum CalendarSync {
 
     /// Re-check native events when the user changes or deletes one in Apple
     /// Calendar. The reconciliation remains marker- and ID-scoped, so this
-    /// cannot import unrelated calendar content.
+    /// cannot import unrelated calendar content. Writes from hAiity itself
+    /// are ignored for a short grace window so a single date change cannot
+    /// trigger the 200-year inventory scan.
     static func startObserving(store habitStore: HabitStore) {
         observedStore = habitStore
         guard observer == nil else { return }
@@ -349,12 +368,32 @@ enum CalendarSync {
             object: store,
             queue: .main) { _ in
                 Task { @MainActor in
-                    guard let habitStore = observedStore else { return }
-                    reconcile(habits: habitStore.habits,
-                              defaultTimeZoneIdentifier: habitStore.defaultTimeZoneIdentifier,
-                              validate: true)
+                    handleNativeStoreChange()
                 }
             }
+    }
+
+    private static func handleNativeStoreChange() {
+        if CalendarStoreChangePolicy.shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt) {
+            return
+        }
+        nativeValidateTask?.cancel()
+        nativeValidateTask = Task { @MainActor in
+            try? await Task.sleep(for: CalendarStoreChangePolicy.nativeValidateDelay)
+            guard !Task.isCancelled else { return }
+            if CalendarStoreChangePolicy.shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt) {
+                return
+            }
+            guard let habitStore = observedStore else { return }
+            reconcile(habits: habitStore.habits,
+                      defaultTimeZoneIdentifier: habitStore.defaultTimeZoneIdentifier,
+                      validate: true)
+        }
+    }
+
+    private static func noteLocalStoreMutation() {
+        lastLocalWriteAt = Date()
+        nativeValidateTask?.cancel()
     }
 
     /// Der Titel des Kalenders, den hAiity WIRKLICH führt — oder `nil`.
@@ -398,8 +437,9 @@ enum CalendarSync {
     /// und räumt alte Marker auf — das kostet eine vollständige EventKit-
     /// Inventur. Der normale Start-, Aktivierungs- und lokale Änderungsweg
     /// übergibt `false` und arbeitet ausschließlich mit der gespeicherten
-    /// Kennung; der native Änderungsbeobachter und explizite Bereinigungen
-    /// bleiben beim validierenden Pfad.
+    /// Kennung. Echte Änderungen in Apple Calendar laufen weiter über den
+    /// validierenden Beobachter; Echo-Benachrichtigungen unserer eigenen
+    /// Writes werden dort verworfen.
     static func reconcile(habits: [Habit],
                           defaultTimeZoneIdentifier: String? = nil,
                           validate: Bool = true) {
@@ -660,6 +700,7 @@ enum CalendarSync {
             let identity = event.calendarItemIdentifier
             guard !removedIDs.contains(identity) else { continue }
             do {
+                noteLocalStoreMutation()
                 try store.remove(event, span: .futureEvents, commit: false)
                 removedIDs.insert(identity)
             } catch {
@@ -667,7 +708,10 @@ enum CalendarSync {
             }
         }
         if !removedIDs.isEmpty {
-            do { try store.commit() }
+            do {
+                noteLocalStoreMutation()
+                try store.commit()
+            }
             catch { succeeded = false }
         }
         guard succeeded else { return false }
@@ -768,6 +812,7 @@ enum CalendarSync {
                                          removedSeries: inout Set<String>) -> Bool {
         guard removedSeries.insert(event.calendarItemIdentifier).inserted else { return true }
         do {
+            noteLocalStoreMutation()
             try store.remove(event, span: .futureEvents, commit: true)
             return true
         } catch {
@@ -782,6 +827,7 @@ enum CalendarSync {
                                     existing: EKEvent? = nil) -> Bool {
         if let event = existing ?? map[key].flatMap({ store.event(withIdentifier: $0) }) {
             do {
+                noteLocalStoreMutation()
                 try store.remove(event, span: .futureEvents, commit: true)
             } catch {
                 trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
@@ -834,6 +880,7 @@ enum CalendarSync {
             calendar.title = title
             calendar.source = source
             do {
+                noteLocalStoreMutation()
                 try store.saveCalendar(calendar, commit: true)
                 CalendarSyncPreferences.setCalendarID(calendar.calendarIdentifier,
                                                        isReminder: isReminder,
@@ -859,6 +906,7 @@ enum CalendarSync {
         event.calendar = calendar
         guard configure(event: event, for: plan) else { return nil }
         do {
+            noteLocalStoreMutation()
             try store.save(event, span: .futureEvents, commit: true)
             trace("calsync: saved '\(plan.title)' id=\(event.eventIdentifier ?? "nil")")
             return event.eventIdentifier
