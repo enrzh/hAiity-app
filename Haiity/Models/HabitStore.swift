@@ -733,13 +733,35 @@ final class HabitStore {
         }
         loadedMtime = Self.mtime(url)
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadAllTimelines()
+        reloadWidgetsAfterPersist()
         #endif
         if notify {
             onChange?()
             onChangeKind?(changeKind)
         }
     }
+
+    #if canImport(WidgetKit)
+    /// WidgetKit timeline reloads can stall the current run loop for hundreds
+    /// of milliseconds. The local write stays synchronous; the app coalesces
+    /// the reload after the current transaction so Save/Done can return to
+    /// Habits without freezing the list. Widget-extension check-ins reload
+    /// immediately because that process is the surface being updated.
+    private static var widgetReloadTask: Task<Void, Never>?
+
+    private func reloadWidgetsAfterPersist() {
+        if Bundle.main.bundlePath.hasSuffix(".appex") {
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
+        Self.widgetReloadTask?.cancel()
+        Self.widgetReloadTask = Task(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+    #endif
 
     // MARK: – Mutationen
 

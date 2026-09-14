@@ -48,8 +48,10 @@ struct ContentView: View {
     /// Fasst schnelle Folgeänderungen zu EINEM Upload zusammen.
     @State private var pushes = PushDebouncer()
     /// Coalesces notification, shortcut and native-store maintenance after a
-    /// burst of local edits without delaying the local habit update.
-    @State private var maintenance = PushDebouncer(delay: .milliseconds(250))
+    /// burst of local edits without delaying the local habit update. The delay
+    /// is longer than a sheet dismiss so Save/Done can return to Habits
+    /// before EventKit and notification work run.
+    @State private var maintenance = PushDebouncer(delay: .milliseconds(500))
     @State private var editing: Habit?
     @State private var pendingDelete: Habit?
     @State private var earlyReminderCompletion: PendingReminderCompletion?
@@ -3100,10 +3102,13 @@ struct ContentView: View {
 
     /// A local write is immediately durable and visible. Its secondary
     /// integrations can wait for a short quiet window so rapid edits do not
-    /// each start their own notification, shortcut, and EventKit work.
+    /// each start their own notification, shortcut, and EventKit work, and
+    /// so the Habits list can take a frame after an editor dismisses.
     private func scheduleMaintenance() {
         Task { @MainActor in
             await maintenance.schedule { @MainActor in
+                guard !Task.isCancelled else { return }
+                await Task.yield()
                 guard !Task.isCancelled else { return }
                 await rescheduleReminders()
                 guard !Task.isCancelled else { return }

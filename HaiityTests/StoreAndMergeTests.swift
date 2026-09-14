@@ -22,6 +22,28 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertEqual(HabitStore.read(url)?.habits, habits)
     }
 
+    func testPersistCoalescesWidgetReloadsOffTheSavingCallStack() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Models/HabitStore.swift"))
+        let persistStart = try XCTUnwrap(source.range(of: "func persist(notify:"))
+        let persistEnd = try XCTUnwrap(source.range(of: "private func reloadWidgetsAfterPersist()",
+                                                    range: persistStart.upperBound..<source.endIndex))
+        let persistBody = source[persistStart.lowerBound..<persistEnd.lowerBound]
+
+        XCTAssertTrue(persistBody.contains("reloadWidgetsAfterPersist()"),
+                      "the local write must stay on the call stack")
+        XCTAssertFalse(persistBody.contains("WidgetCenter.shared.reloadAllTimelines()"),
+                       "WidgetKit reloads stall the run loop and must not run inside persist()")
+        XCTAssertTrue(source.contains("bundlePath.hasSuffix(\".appex\")"),
+                      "widget-extension check-ins still need an immediate timeline reload")
+        XCTAssertTrue(source.contains("Task(priority: .utility)"),
+                      "the app must reload widgets off the Save/Done run loop")
+        XCTAssertTrue(source.contains(".milliseconds(400)"),
+                      "coalesced reloads must wait for the editor dismiss to settle")
+    }
+
     func testHabitDataLegacyJSONDefaultsViewPreferences() throws {
         let data = try JSONEncoder().encode(HabitData.empty)
         let decoded = try JSONDecoder().decode(HabitData.self, from: data)

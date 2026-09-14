@@ -177,8 +177,13 @@ final class CalendarSyncSelectionTests: XCTestCase {
                                                          range: maintenanceStart.upperBound..<source.endIndex))
         let maintenance = source[maintenanceStart.lowerBound..<maintenanceEnd.lowerBound]
         XCTAssertTrue(maintenance.contains("maintenance.schedule"))
+        XCTAssertTrue(maintenance.contains("await Task.yield()"),
+                      "editor dismiss must get a frame before EventKit work")
         XCTAssertTrue(maintenance.contains("CalendarSync.reconcile"))
         XCTAssertTrue(maintenance.contains("await ReminderSync.reconcile"))
+
+        XCTAssertTrue(source.contains("PushDebouncer(delay: .milliseconds(500))"),
+                      "native work must wait longer than a sheet dismiss")
     }
 
     func testCalendarCleanupUsesStoredIDsWhenOwnershipMetadataIsMissing() throws {

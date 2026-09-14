@@ -80,8 +80,8 @@ struct CheckOffHabitIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         // Immer frisch von der Platte laden — der Store dieses Prozesses
         // ist nicht der Store des App-Prozesses. persist() (in apply)
-        // schreibt synchron und stößt den Widget-Reload bereits an
-        // (WidgetCenter.reloadAllTimelines unter canImport(WidgetKit)).
+        // schreibt synchron; im Widget-Extension-Prozess folgt der
+        // Timeline-Reload sofort, in der App entprellt nach dem Schreiben.
         let store = HabitStore(url: SharedStorage.dataURL())
         let storedHabit = HabitVisibility.visibleActiveHabits(
             store.habits,
