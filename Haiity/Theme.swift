@@ -1583,7 +1583,7 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .listSectionSpacing(Theme.Metrics.settingsSectionGap)
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
             .listRowBackground(settingsRowBackground)
-            .listRowSeparator(usesGroupedSolidRows ? .visible : .hidden)
+            .listRowSeparator(.hidden)
             .settingsChrome()
     }
 }

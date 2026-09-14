@@ -615,10 +615,12 @@ final class AppearanceSettingTests: XCTestCase {
                       && row.contains("&& contrast != .increased"),
                       "accessibility modes must retain stronger individual row boundaries")
         XCTAssertTrue(surface.contains(".listRowSpacing(usesGroupedSolidRows ? 0")
-                      && surface.contains(".listRowSeparator(usesGroupedSolidRows ? .visible"),
-                      "Solid forms should use restrained native separators instead of row gaps")
+                      && surface.contains(".listRowSeparator(.hidden)"),
+                      "Solid forms should use a continuous plane without row gaps or separators")
+        XCTAssertFalse(surface.contains(".listRowSeparator(.visible"),
+                       "normal Solid forms must not restore a border between native rows")
         XCTAssertTrue(surface.contains(": Theme.Metrics.settingsRowGap)")
-                      && surface.contains(": .hidden)"),
+                      && surface.contains(".listRowSeparator(.hidden)"),
                       "Milky, Liquid, Adaptive, and accessibility fallbacks must keep existing styling")
     }
 
