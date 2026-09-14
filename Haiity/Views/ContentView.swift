@@ -3349,7 +3349,6 @@ private struct ChromeGlass: ViewModifier {
         case .capsule:
             content
                 .background(Color(.secondarySystemGroupedBackground), in: Capsule())
-                .overlay(Capsule().strokeBorder(.quaternary))
         case .circle:
             content
                 .background(accent.map(Theme.accentFill)
@@ -3425,7 +3424,6 @@ private struct ToastSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .appSurface(cornerRadius: 999)
-            .overlay(Capsule().strokeBorder(.quaternary))
             .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
     }
 }

@@ -12,8 +12,12 @@ struct ReminderOccurrenceState: Equatable, Sendable {
 
     func isChecked(now: Date = .now, calendar: Calendar = .current) -> Bool {
         guard let completed = mostRecentCompleted else { return false }
+        // A finished last occurrence stays checked. Recurring reminders only
+        // show the check while the most recent completion still belongs to
+        // today (or an early future tap) and the next slot is later.
+        guard let next = actionable else { return true }
         let today = DayKey.key(for: now, calendar: calendar)
-        return completed.day >= today && (actionable?.day ?? "9999-12-31") > completed.day
+        return completed.day >= today && next.day > completed.day
     }
 }
 
@@ -26,9 +30,7 @@ enum ReminderOccurrenceEngine {
         let schedule = reminder.recurrence.schedule(calendar: calendar)
         let today = DayKey.key(for: now, calendar: calendar)
         let cursor = reminder.repeatsWhileIncomplete ? nil : reminder.reminderCursor
-        let historyFloor = [reminder.createdAt, reminder.recurrence.start]
-            .compactMap { $0 }
-            .max() ?? reminder.createdAt
+        let historyFloor = historyFloor(for: reminder)
         let floor = [historyFloor, cursor]
             .compactMap { $0 }
             .max() ?? historyFloor
@@ -41,8 +43,15 @@ enum ReminderOccurrenceEngine {
             scheduledThroughToday = []
         }
 
-        let unfinished = scheduledThroughToday.filter {
-            reminder.log[$0] == nil && !reminder.missedDays.contains($0)
+        let unfinished = scheduledThroughToday.filter { day in
+            guard reminder.log[day] == nil else { return false }
+            // The last scheduled slot stays completable. Marking it missed
+            // would leave a one-time reminder with no next occurrence and
+            // no way to close it.
+            if reminder.missedDays.contains(day) {
+                return schedule.next(after: day) == nil
+            }
+            return true
         }
         let actionableDay = unfinished.first ?? nextUnfinishedDay(
             schedule: schedule,
@@ -97,6 +106,19 @@ enum ReminderOccurrenceEngine {
         return candidate
     }
 
+    /// One-time items must keep their scheduled day even if `createdAt` is
+    /// later (a custom date in the past, or a copy created after midnight).
+    /// Recurring items still start from the later of creation and rule start.
+    private static func historyFloor(for reminder: Habit) -> String {
+        let createdAndStart = [reminder.createdAt, reminder.recurrence.start]
+            .compactMap { $0 }
+        if reminder.recurrence.frequency == .once,
+           let start = reminder.recurrence.start {
+            return createdAndStart.min() ?? start
+        }
+        return createdAndStart.max() ?? reminder.createdAt
+    }
+
     private static func occurrence(day: String,
                                    reminder: Habit,
                                    calendar: Calendar) -> ReminderOccurrence? {
@@ -106,6 +128,8 @@ enum ReminderOccurrenceEngine {
 
     /// Returns past scheduled days that were due before today and are still
     /// unanswered. Today stays actionable so the user can still complete it.
+    /// The last occurrence of a finite rule stays completable as well — a
+    /// one-time reminder has no later slot to advance to.
     static func missedDays(for reminder: Habit,
                            now: Date = .now,
                            calendar: Calendar = .current) -> [String] {
@@ -115,7 +139,7 @@ enum ReminderOccurrenceEngine {
         }
         let schedule = reminder.recurrence.schedule(calendar: calendar)
         let cursor = reminder.repeatsWhileIncomplete ? nil : reminder.reminderCursor
-        let floor = [reminder.createdAt, reminder.recurrence.start, cursor]
+        let floor = [historyFloor(for: reminder), cursor]
             .compactMap { $0 }
             .max() ?? reminder.createdAt
         guard floor <= yesterday else { return [] }
@@ -124,6 +148,7 @@ enum ReminderOccurrenceEngine {
             .filter { day in
                 guard reminder.log[day] == nil,
                       !reminder.missedDays.contains(day),
+                      schedule.next(after: day) != nil,
                       let boundary = completionBoundary(day: day,
                                                          reminder: reminder,
                                                          calendar: calendar)
@@ -141,7 +166,7 @@ enum ReminderOccurrenceEngine {
         let today = DayKey.key(for: now, calendar: calendar)
         let cursor = habit.isReminder && !habit.repeatsWhileIncomplete
             ? habit.reminderCursor : nil
-        let floor = [habit.createdAt, habit.recurrence.start, cursor]
+        let floor = [historyFloor(for: habit), cursor]
             .compactMap { $0 }
             .max() ?? habit.createdAt
         guard floor <= today else { return [] }

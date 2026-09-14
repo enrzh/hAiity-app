@@ -158,6 +158,28 @@ final class AutoResolveTests: XCTestCase {
         XCTAssertEqual(store.habits[0].log["2026-08-14"], 1)
     }
 
+    func testOneTimeReminderRemainsCompletableAfterAutoResolveMarksItMissed() {
+        var reminder = Habit(name: "Arzt", itemType: .reminder, timeMinutes: 9 * 60,
+                             recurrence: Recurrence(frequency: .once, start: "2026-08-14"))
+        reminder.createdAt = "2026-08-14"
+        reminder.autoResolveChoice = .notDone
+        let store = makeStore(reminder)
+        let now = date("2026-08-14", minutes: 18 * 60)
+
+        XCTAssertTrue(store.resolveExpiredOccurrences(now: now))
+        XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14"])
+        XCTAssertNil(store.habits[0].log["2026-08-14"])
+
+        let state = ReminderOccurrenceEngine.state(
+            for: store.habits[0], now: now, calendar: calendar)
+        XCTAssertEqual(state.actionable?.day, "2026-08-14")
+
+        store.setReminderCompletion(reminder.id, day: "2026-08-14",
+                                    completed: true, nextCursor: nil)
+        XCTAssertEqual(store.habits[0].log["2026-08-14"], 1)
+        XCTAssertTrue(store.habits[0].missedDays.isEmpty)
+    }
+
     private func makeStore(_ habit: Habit) -> HabitStore {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-auto-resolve-\(UUID().uuidString).json")

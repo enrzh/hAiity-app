@@ -624,6 +624,28 @@ final class AppearanceSettingTests: XCTestCase {
                       "Milky, Liquid, Adaptive, and accessibility fallbacks must keep existing styling")
     }
 
+    func testSolidAppSurfacesSkipHairlineBorders() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let surface = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier: ViewModifier"))
+        let end = try XCTUnwrap(theme.range(of: "struct SettingsRowSurface: View",
+                                             range: surface.upperBound..<theme.endIndex))
+        let body = theme[surface.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(body.contains("private var usesSolidCardPlane: Bool"),
+                      "habit and stats cards must share the Solid plane rule with settings rows")
+        XCTAssertTrue(body.contains("Theme.effectiveMaterial(preferences) == .solid")
+                      && body.contains("&& !reduceTransparency")
+                      && body.contains("&& contrast != .increased"),
+                      "accessibility modes must retain a card outline")
+        XCTAssertTrue(body.contains("if needsOutline"),
+                      "Solid must not draw a hairline around every card")
+        XCTAssertTrue(body.contains("contrast == .increased ? 1 : 0.7"),
+                      "increased contrast still needs a stronger card edge")
+    }
+
     func testSettingsMaterialUsesAStableDynamicTypeSafeRowMinimum() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

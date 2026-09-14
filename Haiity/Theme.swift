@@ -836,8 +836,9 @@ enum Theme {
     }
 
     /// A quiet rim keeps translucent surfaces legible without adding a card
-    /// shadow. The same edge is used by app cards and settings rows so a page
-    /// does not switch visual language between controls and content.
+    /// shadow. Solid cards skip this edge and read as a filled plane, matching
+    /// grouped settings rows. Accessibility contrast still uses a stronger
+    /// outline.
     static func surfaceOutline(preferences: AppearancePreferences,
                                dark: Bool) -> Color {
         switch effectiveMaterial(preferences) {
@@ -1369,9 +1370,28 @@ private struct AppSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
     @Environment(\.appearancePreferences) private var preferences
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    /// Same rule as grouped settings rows: Solid is a filled plane. A hairline
+    /// around every habit and stats card looks like a leftover glass edge.
+    private var usesSolidCardPlane: Bool {
+        Theme.effectiveMaterial(preferences) == .solid
+            && !reduceTransparency
+            && contrast != .increased
+    }
+
+    private var needsOutline: Bool {
+        if usesSolidCardPlane { return false }
+        if #available(iOS 26, *) {
+            let material = Theme.effectiveMaterial(preferences)
+            if material == .liquid || material == .adaptive { return false }
+        }
+        return true
     }
 
     func body(content: Content) -> some View {
@@ -1440,11 +1460,15 @@ private struct AppSurfaceModifier: ViewModifier {
         }
         .clipShape(shape)
         .overlay {
-            shape
-                .strokeBorder(Theme.surfaceOutline(preferences: preferences,
-                                                    dark: colorScheme == .dark),
-                              lineWidth: 0.7)
-                .allowsHitTesting(false)
+            if needsOutline {
+                shape
+                    .strokeBorder(contrast == .increased
+                                  ? Color.primary.opacity(0.5)
+                                  : Theme.surfaceOutline(preferences: preferences,
+                                                         dark: colorScheme == .dark),
+                                  lineWidth: contrast == .increased ? 1 : 0.7)
+                    .allowsHitTesting(false)
+            }
         }
     }
 }

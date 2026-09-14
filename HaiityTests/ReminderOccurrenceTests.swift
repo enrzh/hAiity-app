@@ -205,6 +205,88 @@ final class ReminderOccurrenceTests: XCTestCase {
         XCTAssertNil(decoded.log["2026-08-14"])
     }
 
+    func testOneTimeReminderStaysActionableAfterItsDueTime() {
+        var reminder = Habit(name: "Arzt", itemType: .reminder,
+                             timeMinutes: 9 * 60,
+                             recurrence: Recurrence(frequency: .once, start: "2026-08-14"))
+        reminder.createdAt = "2026-08-14"
+
+        let state = ReminderOccurrenceEngine.state(
+            for: reminder,
+            now: date("2026-08-14", minutes: 18 * 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.actionable?.day, "2026-08-14")
+        XCTAssertEqual(state.overdueCount, 1)
+        XCTAssertFalse(state.isChecked(now: date("2026-08-14", minutes: 18 * 60),
+                                       calendar: calendar))
+    }
+
+    func testOneTimeReminderStaysActionableAfterMidnightAndMissedMaterialization() {
+        var reminder = Habit(name: "Arzt", itemType: .reminder,
+                             timeMinutes: 9 * 60,
+                             recurrence: Recurrence(frequency: .once, start: "2026-08-14"))
+        reminder.createdAt = "2026-08-14"
+        let now = date("2026-08-16", minutes: 12 * 60)
+
+        XCTAssertEqual(
+            ReminderOccurrenceEngine.missedDays(for: reminder, now: now, calendar: calendar),
+            [])
+
+        reminder.missedDays = ["2026-08-14"]
+        let state = ReminderOccurrenceEngine.state(
+            for: reminder, now: now, calendar: calendar)
+
+        XCTAssertEqual(state.actionable?.day, "2026-08-14")
+        XCTAssertFalse(state.isChecked(now: now, calendar: calendar))
+    }
+
+    func testCompletedOneTimeReminderStaysCheckedWhenNoLaterOccurrenceExists() throws {
+        var reminder = Habit(name: "Arzt", itemType: .reminder,
+                             timeMinutes: 9 * 60,
+                             recurrence: Recurrence(frequency: .once, start: "2026-08-14"))
+        reminder.createdAt = "2026-08-14"
+        reminder.log["2026-08-14"] = 1
+        let now = date("2026-08-16", minutes: 12 * 60)
+
+        let state = ReminderOccurrenceEngine.state(
+            for: reminder, now: now, calendar: calendar)
+
+        XCTAssertNil(state.actionable)
+        XCTAssertTrue(state.isChecked(now: now, calendar: calendar))
+    }
+
+    func testOneTimeReminderCreatedAfterItsDateStillFindsTheOccurrence() {
+        var reminder = Habit(name: "Arzt", itemType: .reminder,
+                             timeMinutes: 9 * 60,
+                             recurrence: Recurrence(frequency: .once, start: "2026-08-14"))
+        reminder.createdAt = "2026-08-16"
+
+        let state = ReminderOccurrenceEngine.state(
+            for: reminder,
+            now: date("2026-08-16", minutes: 12 * 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.actionable?.day, "2026-08-14")
+    }
+
+    func testFiniteSeriesLastOccurrenceStaysCompletableWhenEarlierDaysAreMissed() {
+        var reminder = fixture(createdAt: "2026-08-14", timeMinutes: 9 * 60)
+        reminder.recurrence = Recurrence(frequency: .daily, start: "2026-08-14",
+                                         end: .after(2))
+        reminder.missedDays = ["2026-08-14", "2026-08-15"]
+
+        let state = ReminderOccurrenceEngine.state(
+            for: reminder,
+            now: date("2026-08-16", minutes: 12 * 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.actionable?.day, "2026-08-15")
+    }
+
     private func fixture(createdAt: String, timeMinutes: Int) -> Habit {
         var reminder = Habit(name: "Tabletten", itemType: .reminder,
                              timeMinutes: timeMinutes, recurrence: .daily)
