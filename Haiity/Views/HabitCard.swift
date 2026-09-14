@@ -77,6 +77,8 @@ struct HabitCard: View, Equatable {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.editMode) private var editMode
+    private var isSorting: Bool { editMode?.wrappedValue == .active }
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
@@ -137,13 +139,17 @@ struct HabitCard: View, Equatable {
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
-            SwipeRevealPan(shouldBegin: revealShouldBegin,
-                           began: { reveal.begin() },
-                           changed: revealChanged,
-                           ended: revealEnded,
-                           cancelled: { snapReveal(to: 0) },
-                           isOpen: { reveal.offset != 0 },
-                           ownerID: habit.id)
+            if isSorting {
+                SortingReorderPan()
+            } else {
+                SwipeRevealPan(shouldBegin: revealShouldBegin,
+                               began: { reveal.begin() },
+                               changed: revealChanged,
+                               ended: revealEnded,
+                               cancelled: { snapReveal(to: 0) },
+                               isOpen: { reveal.offset != 0 },
+                               ownerID: habit.id)
+            }
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
@@ -321,8 +327,12 @@ struct HabitCard: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
                     .frame(maxWidth: previewWidth)
+                    .allowsHitTesting(!isSorting)
                 }
-            .onTapGesture(perform: onBackfill)
+            .onTapGesture {
+                guard !isSorting else { return }
+                onBackfill()
+            }
             .accessibilityAction(named: String(localized: "Historie"), onBackfill)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("habit-history")

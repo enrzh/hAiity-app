@@ -124,6 +124,24 @@ final class ReminderItemTests: XCTestCase {
                        "a local SwiftUI drag loses the race to List and the graph scroll")
     }
 
+    func testSwipeBridgeDetachesDuringSortingMode() throws {
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let grid = try source("Haiity/Views/ContributionGrid.swift")
+
+        XCTAssertTrue(bridge.contains("editMode?.wrappedValue == .active"),
+                      "sorting must not leave a row pan in Possible")
+        XCTAssertTrue(bridge.contains("view.detach()"),
+                      "the sorting-mode pan must leave the cell")
+        XCTAssertTrue(habit.contains("allowsHitTesting(!isSorting)"),
+                      "the graph long-press must not compete with list scrolling")
+        XCTAssertTrue(reminder.contains("allowsHitTesting(!isSorting)"),
+                      "the reminder long-press must not compete with list scrolling")
+        XCTAssertTrue(grid.contains(".scrollDisabled(editMode?.wrappedValue == .active)"),
+                      "nested graph pans must yield while the list is sorting")
+    }
+
     func testSwipeBridgePreservesNestedControlTapsAndWaitsForTheListScroll() throws {
         let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 

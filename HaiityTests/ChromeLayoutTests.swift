@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Haiity
 
 /// Die Geometrie der schwebenden Leiste. Beide Rechnungen hier sind der
@@ -45,6 +46,10 @@ final class ChromeLayoutTests: XCTestCase {
 
     func testSortingModeKeepsNativeListScrolling() throws {
         let content = try source("Haiity/Views/ContentView.swift")
+        let guardSource = try source("Haiity/Views/SortingListScrollGuard.swift")
+        let habit = try source("Haiity/Views/HabitCard.swift")
+        let reminder = try source("Haiity/Views/ReminderRow.swift")
+        let swipe = try source("Haiity/Views/SwipeRevealPan.swift")
 
         XCTAssertFalse(content.contains("SortingAutoScrollModifier"),
                        "a list-wide drag observer steals ordinary scrolling in sorting mode")
@@ -55,6 +60,34 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertTrue(content.contains("editMode == .active"))
         XCTAssertTrue(content.contains("placement: .confirmationAction"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"))
+        XCTAssertTrue(content.contains("SortingListScrollGuard(active: editMode == .active)"),
+                      "sorting must disable collection-wide interactive movement so rows can scroll")
+        XCTAssertTrue(guardSource.contains("UILongPressGestureRecognizer"),
+                      "the list must not treat every card drag as a reorder")
+        XCTAssertTrue(guardSource.contains("dragInteractionEnabled"),
+                      "collection-wide cell dragging must not start a reorder from a card pan")
+        XCTAssertTrue(guardSource.contains("suppressCompetingRecognizers"),
+                      "cell-wide reorder pans must yield to list scrolling")
+        XCTAssertTrue(habit.contains("if isSorting"),
+                      "habit cards must drop the swipe pan while sorting")
+        XCTAssertTrue(reminder.contains("if isSorting"),
+                      "reminder rows must drop the swipe pan while sorting")
+        XCTAssertTrue(habit.contains("SortingReorderPan()"))
+        XCTAssertTrue(reminder.contains("SortingReorderPan()"))
+        XCTAssertTrue(swipe.contains("editMode?.wrappedValue == .active"),
+                      "a leftover swipe pan must detach instead of racing the list")
+    }
+
+    func testSortingHandleBandIgnoresTheCardBody() {
+        let row = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 90))
+        XCTAssertFalse(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 40, y: 45), in: row),
+                       "a drag on the card body must stay a scroll")
+        XCTAssertTrue(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 310, y: 45), in: row),
+                      "only the trailing handle band may begin a move")
+        row.semanticContentAttribute = .forceRightToLeft
+        XCTAssertTrue(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 10, y: 45), in: row),
+                      "RTL keeps the handle on the trailing edge")
+        XCTAssertFalse(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 310, y: 45), in: row))
     }
 
     // MARK: – Wohin der Anlegen-Knopf fährt

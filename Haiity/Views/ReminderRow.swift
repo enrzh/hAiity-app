@@ -29,6 +29,8 @@ struct ReminderRow: View, Equatable {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.palettes) private var palettes
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.editMode) private var editMode
+    private var isSorting: Bool { editMode?.wrappedValue == .active }
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -47,13 +49,17 @@ struct ReminderRow: View, Equatable {
                                onAction: revealActionTapped,
                                rowContent: { rowContent })
         .background {
-            SwipeRevealPan(shouldBegin: revealShouldBegin,
-                           began: { reveal.begin() },
-                           changed: revealChanged,
-                           ended: revealEnded,
-                           cancelled: { snapReveal(to: 0) },
-                           isOpen: { reveal.offset != 0 },
-                           ownerID: habit.id)
+            if isSorting {
+                SortingReorderPan()
+            } else {
+                SwipeRevealPan(shouldBegin: revealShouldBegin,
+                               began: { reveal.begin() },
+                               changed: revealChanged,
+                               ended: revealEnded,
+                               cancelled: { snapReveal(to: 0) },
+                               isOpen: { reveal.offset != 0 },
+                               ownerID: habit.id)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
@@ -298,6 +304,7 @@ struct ReminderRow: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
                     .frame(maxWidth: previewWidth)
+                    .allowsHitTesting(!isSorting)
             }
 
             Button(action: toggleFromCheckmark) {

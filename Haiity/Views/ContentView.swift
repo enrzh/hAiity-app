@@ -1229,6 +1229,9 @@ struct ContentView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                         .moveDisabled(true)
+                        .background {
+                            SortingListScrollGuard(active: editMode == .active)
+                        }
                     TodayProgressView(
                         progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
