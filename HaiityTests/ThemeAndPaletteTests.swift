@@ -596,6 +596,32 @@ final class AppearanceSettingTests: XCTestCase {
                       "older systems need the same readable Milky fallback overlay")
     }
 
+    func testSolidFormRowsUseSectionGroupingWithoutWeakeningAccessibilityFallbacks() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let rowStart = try XCTUnwrap(theme.range(of: "struct SettingsRowSurface: View"))
+        let surfaceStart = try XCTUnwrap(theme.range(of: "private struct SettingsSurfaceModifier",
+                                                     range: rowStart.upperBound..<theme.endIndex))
+        let surfaceEnd = try XCTUnwrap(theme.range(of: "private struct MoreSettingsSurfaceModifier",
+                                                   range: surfaceStart.upperBound..<theme.endIndex))
+        let row = theme[rowStart.lowerBound..<surfaceStart.lowerBound]
+        let surface = theme[surfaceStart.lowerBound..<surfaceEnd.lowerBound]
+
+        XCTAssertTrue(row.contains("Rectangle().fill(Theme.surfaceFill"),
+                      "normal Solid rows should form one contiguous section plane")
+        XCTAssertTrue(row.contains("&& !reduceTransparency")
+                      && row.contains("&& contrast != .increased"),
+                      "accessibility modes must retain stronger individual row boundaries")
+        XCTAssertTrue(surface.contains(".listRowSpacing(usesGroupedSolidRows ? 0")
+                      && surface.contains(".listRowSeparator(usesGroupedSolidRows ? .visible"),
+                      "Solid forms should use restrained native separators instead of row gaps")
+        XCTAssertTrue(surface.contains(": Theme.Metrics.settingsRowGap)")
+                      && surface.contains(": .hidden)"),
+                      "Milky, Liquid, Adaptive, and accessibility fallbacks must keep existing styling")
+    }
+
     func testSettingsMaterialUsesAStableDynamicTypeSafeRowMinimum() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -1466,16 +1466,28 @@ struct SettingsRowSurface: View {
         return true
     }
 
+    /// The normal Solid treatment lets the Form section own its outer shape.
+    /// Accessibility fallbacks keep the stronger per-row edge they had before.
+    private var usesGroupedSolidRows: Bool {
+        Theme.effectiveMaterial(preferences) == .solid
+            && !reduceTransparency
+            && contrast != .increased
+    }
+
     private var rowShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous)
     }
 
     @ViewBuilder
-    var body: some View {
+    private var rowSurface: some View {
         Group {
             switch material {
                 case .solid:
-                    rowShape.fill(Theme.surfaceFill(preferences: preferences))
+                    if usesGroupedSolidRows {
+                        Rectangle().fill(Theme.surfaceFill(preferences: preferences))
+                    } else {
+                        rowShape.fill(Theme.surfaceFill(preferences: preferences))
+                    }
                 case .milky:
                     rowShape
                         .fill(.regularMaterial)
@@ -1517,25 +1529,46 @@ struct SettingsRowSurface: View {
                     }
                 }
         }
-        .clipShape(rowShape)
-        .overlay {
-            if needsOutline {
-                rowShape.strokeBorder(contrast == .increased
-                                      ? Color.primary.opacity(0.5)
-                                      : Theme.surfaceOutline(preferences: preferences,
-                                                             dark: colorScheme == .dark),
-                                      lineWidth: contrast == .increased ? 1 : 0.7)
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if usesGroupedSolidRows {
+            rowSurface
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        } else {
+            rowSurface
+                .clipShape(rowShape)
+                .overlay {
+                    if needsOutline {
+                        rowShape.strokeBorder(contrast == .increased
+                                              ? Color.primary.opacity(0.5)
+                                              : Theme.surfaceOutline(preferences: preferences,
+                                                                     dark: colorScheme == .dark),
+                                              lineWidth: contrast == .increased ? 1 : 0.7)
+                    }
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
 
 private struct SettingsSurfaceModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var usesGroupedSolidRows: Bool {
+        Theme.effectiveMaterial(preferences) == .solid
+            && !reduceTransparency
+            && contrast != .increased
+    }
+
     @ViewBuilder
     private var settingsRowBackground: some View {
-        // Sections opt into their own rounded surface. A clear list-wide
+        // Sections opt into their own material surface. A clear list-wide
         // background prevents a second material layer from tinting the same
         // row differently on iOS 27.
         Color.clear
@@ -1546,11 +1579,11 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .softScrollEdges()
-            .listRowSpacing(Theme.Metrics.settingsRowGap)
+            .listRowSpacing(usesGroupedSolidRows ? 0 : Theme.Metrics.settingsRowGap)
             .listSectionSpacing(Theme.Metrics.settingsSectionGap)
             .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
             .listRowBackground(settingsRowBackground)
-            .listRowSeparator(.hidden)
+            .listRowSeparator(usesGroupedSolidRows ? .visible : .hidden)
             .settingsChrome()
     }
 }
