@@ -81,14 +81,10 @@ struct HabitCard: View, Equatable {
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
     private static let doneID = "done"
-    /// Aufzieh-Zustand der Karte (semantisch: positiv = leading offen) und
-    /// die Startlage des laufenden Zugs. Lebt in der Karte — Zellen-Recycling
-    /// setzt ihn zurück, genau richtig.
-    @State private var revealOffset: CGFloat = 0
-    @State private var revealActionLock = false
-    @State private var revealStart: CGFloat = 0
-    /// Breite der Karte, für die Voll-Wisch-Schwelle (gemessen, nicht geraten).
-    @State private var revealCardWidth: CGFloat = 0
+    /// Aufzieh-Zustand der Karte (semantisch: positiv = leading offen).
+    /// Lebt in einer eigenen Sitzung, damit der Kopf und das Raster nicht
+    /// bei jedem Pan-Frame mit der Karte neu gebaut werden.
+    @State private var reveal = SwipeRevealSession()
     /// UIKit lifts the transparent bridge host, while the original SwiftUI
     /// surface would otherwise remain underneath and draw a second halo.
     @State private var isContextMenuVisible = false
@@ -142,10 +138,11 @@ struct HabitCard: View, Equatable {
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
             SwipeRevealPan(shouldBegin: revealShouldBegin,
-                           began: { revealStart = revealOffset },
+                           began: { reveal.begin() },
                            changed: revealChanged,
                            ended: revealEnded,
                            cancelled: { snapReveal(to: 0) },
+                           isOpen: { reveal.offset != 0 },
                            ownerID: habit.id)
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
@@ -159,14 +156,14 @@ struct HabitCard: View, Equatable {
         // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
-        .allowsHitTesting(!revealActionLock)
+        .allowsHitTesting(!reveal.actionLock)
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
-            guard revealOffset != 0 else { return }
+            guard reveal.offset != 0 else { return }
             snapReveal(to: 0)
         }
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDidBegin)) { note in
             guard let ownerID = note.object as? UUID, ownerID != habit.id,
-                  revealOffset != 0 else { return }
+                  reveal.offset != 0 else { return }
             snapReveal(to: 0)
         }
     }
@@ -178,54 +175,24 @@ struct HabitCard: View, Equatable {
     /// beim Ziehen zur Seite und legt sie frei. Der Kopf darüber bleibt
     /// stehen — die Knöpfe gehören zur Karte, nicht zur Zeile.
     private var revealingGrid: some View {
-        ZStack {
+        HabitSlidingGrid(reveal: reveal,
+                         leadingSwipe: leadingSwipe,
+                         trailingSwipe: trailingSwipe,
+                         layoutDirection: layoutDirection,
+                         onClose: {
+                             Theme.Haptics.select()
+                             snapReveal(to: 0)
+                         },
+                         onAction: revealActionTapped) {
             grid
-                .offset(x: revealOffset * mirror)
-                .zIndex(1)
-                .accessibilityHidden(revealOffset != 0)
-                // Offen ist die Karte MODAL für sich selbst: ein Tipp auf
-                // sie schließt nur (kein Zellen-Schreiben hinter offenen
-                // Knöpfen).
-                .overlay {
-                    if revealOffset != 0 {
-                        Color.clear
-                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                                           style: .continuous))
-                            .onTapGesture {
-                                Theme.Haptics.select()
-                                snapReveal(to: 0)
-                            }
-                            .offset(x: revealOffset * mirror)
-                    }
-                }
-            SwipeRevealActions(actions: leadingSwipe,
-                               alignment: .leading,
-                               exposedWidth: max(revealOffset, 0),
-                               height: nil,
-                               onAction: revealActionTapped)
-                .allowsHitTesting(revealOffset > 0)
-            SwipeRevealActions(actions: trailingSwipe,
-                               alignment: .trailing,
-                               exposedWidth: max(-revealOffset, 0),
-                               height: nil,
-                               onAction: revealActionTapped)
-                .allowsHitTesting(revealOffset < 0)
         }
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-            revealCardWidth = width
-        }
-        .accessibilityRevealActions(leadingSwipe + trailingSwipe)
     }
-
-    /// Rechts-nach-links-Spiegel für den SCHIRM-Versatz — die Semantik
-    /// (leading positiv) bleibt davon unberührt.
-    private var mirror: CGFloat { layoutDirection == .rightToLeft ? -1 : 1 }
 
     private func revealShouldBegin(towardTrailing: Bool, horizontal: Bool,
                                    overGrid: Bool, gridAtTrailingEnd: Bool) -> Bool {
         SwipeReveal.canBegin(towardTrailing: towardTrailing,
                              horizontalIntent: horizontal,
-                             open: revealOffset != 0,
+                             open: reveal.offset != 0,
                              hasLeading: !leadingSwipe.isEmpty,
                              hasTrailing: !trailingSwipe.isEmpty,
                              overGrid: overGrid,
@@ -233,45 +200,39 @@ struct HabitCard: View, Equatable {
     }
 
     private func revealChanged(_ translation: CGFloat) {
-        let offset = SwipeReveal.offset(
-            start: revealStart, translation: translation,
-            leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
-            trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count))
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            revealOffset = offset
-        }
+        reveal.applyTranslation(translation,
+                                leadingCount: leadingSwipe.count,
+                                trailingCount: trailingSwipe.count)
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        guard !revealActionLock else { return }
-        revealActionLock = true
+        guard !reveal.actionLock else { return }
+        reveal.actionLock = true
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
-            revealOffset = 0
+            reveal.offset = 0
         } completion: {
             action.handler()
-            revealActionLock = false
+            reveal.actionLock = false
         }
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
         let resting = SwipeReveal.resting(
-            pull: revealStart + translation, velocity: velocity,
+            pull: reveal.start + translation, velocity: velocity,
             leadingWidth: SwipeReveal.revealWidth(count: leadingSwipe.count),
             trailingWidth: SwipeReveal.revealWidth(count: trailingSwipe.count),
-            cardWidth: revealCardWidth)
+            cardWidth: reveal.width)
         switch resting {
         case .closed:
             // Nur wenn wirklich etwas ZU ging, gibt es den Tick — ein
             // abgebrochener Mini-Zug ist kein Ereignis.
-            if revealStart != 0 { Theme.Haptics.select() }
+            if reveal.start != 0 { Theme.Haptics.select() }
             snapReveal(to: 0, velocity: velocity)
         case .leading:
-            if revealStart == 0 { Theme.Haptics.select() }
+            if reveal.start == 0 { Theme.Haptics.select() }
             snapReveal(to: SwipeReveal.revealWidth(count: leadingSwipe.count), velocity: velocity)
         case .trailing:
-            if revealStart == 0 { Theme.Haptics.select() }
+            if reveal.start == 0 { Theme.Haptics.select() }
             snapReveal(to: -SwipeReveal.revealWidth(count: trailingSwipe.count), velocity: velocity)
         case .commitLeading:
             commitReveal(leadingSwipe.first)
@@ -288,19 +249,19 @@ struct HabitCard: View, Equatable {
     }
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
-        guard abs(target - revealOffset) > 0.5 else { return }
+        guard abs(target - reveal.offset) > 0.5 else { return }
         if let animation = SwipeRevealMotion.settleAnimation(
             reduceMotion: reduceMotion,
             velocity: velocity,
-            distance: target - revealOffset) {
+            distance: target - reveal.offset) {
             withAnimation(animation) {
-                revealOffset = target
+                reveal.offset = target
             }
         } else {
             var transaction = Transaction()
             transaction.animation = nil
             withTransaction(transaction) {
-                revealOffset = target
+                reveal.offset = target
             }
         }
     }
@@ -354,8 +315,8 @@ struct HabitCard: View, Equatable {
                                  commit: onEdit,
                                  onMenuVisibilityChanged: { visible in
                                      if visible {
-                                         revealOffset = 0
-                                         revealStart = 0
+                                         reveal.offset = 0
+                                         reveal.start = 0
                                      }
                                      isContextMenuVisible = visible
                                  })
@@ -908,6 +869,55 @@ struct HabitCard: View, Equatable {
     /// Die Uhrzeit des Habits — dieselbe Formatierung wie im Regel-Satz,
     /// damit „um 07:30" auf der Karte und im Editor gleich aussieht.
     private var timeText: String? { RecurrenceText.timeText(habit.timeMinutes) }
+}
+
+/// Isolates the reveal offset from the habit header. The pan still lives on
+/// the full row; only this layer reads `offset` on each drag frame.
+private struct HabitSlidingGrid<Grid: View>: View {
+    var reveal: SwipeRevealSession
+    let leadingSwipe: [RevealAction]
+    let trailingSwipe: [RevealAction]
+    let layoutDirection: LayoutDirection
+    let onClose: () -> Void
+    let onAction: (RevealAction) -> Void
+    @ViewBuilder var grid: () -> Grid
+
+    private var revealOffset: CGFloat { reveal.offset }
+    private var mirror: CGFloat { layoutDirection == .rightToLeft ? -1 : 1 }
+
+    var body: some View {
+        ZStack {
+            grid()
+                .offset(x: revealOffset * mirror)
+                .zIndex(1)
+                .accessibilityHidden(revealOffset != 0)
+                .overlay {
+                    if revealOffset != 0 {
+                        Color.clear
+                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                                                           style: .continuous))
+                            .onTapGesture(perform: onClose)
+                            .offset(x: revealOffset * mirror)
+                    }
+                }
+            SwipeRevealActions(actions: leadingSwipe,
+                               alignment: .leading,
+                               exposedWidth: max(revealOffset, 0),
+                               height: nil,
+                               onAction: onAction)
+                .allowsHitTesting(revealOffset > 0)
+            SwipeRevealActions(actions: trailingSwipe,
+                               alignment: .trailing,
+                               exposedWidth: max(-revealOffset, 0),
+                               height: nil,
+                               onAction: onAction)
+                .allowsHitTesting(revealOffset < 0)
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            reveal.width = width
+        }
+        .accessibilityRevealActions(leadingSwipe + trailingSwipe)
+    }
 }
 
 // MARK: – Das Halten-Menü

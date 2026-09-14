@@ -129,14 +129,20 @@ final class ReminderItemTests: XCTestCase {
 
         XCTAssertTrue(bridge.contains("pan.cancelsTouchesInView = true"),
                       "a horizontal pan must cancel a nested button drag without affecting taps")
-        XCTAssertTrue(bridge.contains("scroll.panGestureRecognizer.require(toFail: pan)"),
-                      "the row pan must decide horizontal intent before List scrolls")
+        XCTAssertFalse(bridge.contains("require(toFail:"),
+                       "per-row require(toFail) makes every list scroll wait on every visible row")
+        XCTAssertTrue(bridge.contains("guard horizontal else"),
+                      "vertical work must fail before nested hit-testing")
+        XCTAssertTrue(bridge.contains("if isOpenQuery()"),
+                      "only an already-open row may broadcast dismiss on a vertical drag")
         XCTAssertTrue(bridge.contains("activeFrame.contains(location)"),
                       "the pan must validate touches inside this row when the host is shared")
         XCTAssertTrue(bridge.contains("container.hitTest(location, with: nil)"),
                       "the bridge must inspect the actual nested touch surface")
         XCTAssertTrue(bridge.contains("shouldRecognizeSimultaneouslyWith"),
                       "nested controls must not block a horizontal row swipe")
+        XCTAssertTrue(bridge.contains("cancelTracking(listScroll.panGestureRecognizer)"),
+                      "a horizontal claim must cancel the list pan without installing require(toFail)")
     }
 
     func testSwipeBridgeClosesOtherRowsAndExplicitlyHandlesCancellation() throws {
@@ -162,8 +168,10 @@ final class ReminderItemTests: XCTestCase {
                        "the old fixed interaction lock should not remain")
         XCTAssertTrue(row.contains("revealActionLock = true"),
                       "a reveal action must keep the row inert for the current touch")
-        XCTAssertTrue(row.contains("await Task.yield()"),
-                      "the reveal must close after the current touch has finished")
+        XCTAssertTrue(row.contains("completionCriteria: .removed"),
+                      "the reveal must close before the store mutation removes the row")
+        XCTAssertFalse(row.contains("await Task.yield()"),
+                       "closing is the animation completion, not a guessed delay")
     }
 
     func testSwipeBridgeRebindsAfterListCellReuse() throws {
@@ -180,10 +188,8 @@ final class ReminderItemTests: XCTestCase {
     func testTrailingRevealActionsStayInsideListContentEdge() throws {
         let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
-        XCTAssertTrue(bridge.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
-                      "reminder trailing actions must stay within the List hit area")
-        XCTAssertTrue(bridge.contains("alignment == .trailing ? Theme.Metrics.gap : 0"),
-                      "habit trailing actions must stay within the card hit area")
+        XCTAssertTrue(bridge.contains(".frame(maxWidth: .infinity, alignment: alignment)"),
+                      "reveal actions stay in the row bounds instead of sliding out of the list")
     }
 
     func testSwipeBridgeDoesNotExcludeGesturesOnTheRowHost() throws {
@@ -225,10 +231,10 @@ final class ReminderItemTests: XCTestCase {
         }
         XCTAssertTrue(bridge.contains(".opacity(progress)"),
                       "the action underlay should respond continuously to reveal progress")
-        XCTAssertTrue(bridge.contains(".offset(x: alignment == .leading"),
-                      "actions should enter gently from the edge")
-        XCTAssertFalse(bridge.contains(".scaleEffect(0.88 + progress * 0.12"),
-                       "scaling the action hit frame makes the reveal jump")
+        XCTAssertFalse(bridge.contains(".scaleEffect("),
+                       "scaling the action layer on every drag frame rebuilds the row")
+        XCTAssertFalse(bridge.contains(".offset(x: alignment == .leading"),
+                       "sliding the action layer on every drag frame is extra layout work")
         XCTAssertTrue(bridge.contains(".interpolatingSpring("),
                       "opening and cancellation should use the shared spring")
         XCTAssertFalse(bridge.contains(".transition(.identity)"),
@@ -279,10 +285,10 @@ final class ReminderItemTests: XCTestCase {
                        "the stable action layer must not switch layout branches")
         XCTAssertTrue(bridge.contains(".opacity(progress)"),
                       "actions should fade with the reveal progress")
-        XCTAssertFalse(bridge.contains(".scaleEffect(0.88 + progress * 0.12"),
+        XCTAssertFalse(bridge.contains(".scaleEffect("),
                        "the action hit frame must stay stable")
-        XCTAssertTrue(bridge.contains(".offset(x: alignment == .leading"),
-                      "actions should enter from the edge")
+        XCTAssertFalse(bridge.contains(".offset(x: alignment == .leading"),
+                       "sliding the action layer on every drag frame is extra layout work")
         XCTAssertTrue(bridge.contains(".allowsHitTesting(exposedWidth >= actionWidth)"),
                       "partial reveals must not expose an action hit target")
     }
@@ -294,11 +300,13 @@ final class ReminderItemTests: XCTestCase {
         for source in [reminder, habit] {
             XCTAssertTrue(source.contains("revealShouldBegin"),
                           "the bridge must keep the shared direction rules")
-            XCTAssertTrue(source.contains("SwipeReveal.offset"),
-                          "the bridge must use the shared rubber-band offset")
             XCTAssertTrue(source.contains("SwipeReveal.resting"),
                           "the bridge must preserve the existing velocity projection")
         }
+
+        let session = try source("Haiity/Views/SwipeRevealPan.swift")
+        XCTAssertTrue(session.contains("SwipeReveal.offset("),
+                      "the shared session must use the rubber-band offset")
 
         let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
         XCTAssertTrue(bridge.contains("pan.velocity(in: container)"),

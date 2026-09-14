@@ -28,6 +28,54 @@ extension Notification.Name {
 ///
 /// Alle gemeldeten Wege sind SEMANTISCH: leading positiv, trailing negativ
 /// — die RTL-Spiegelung passiert hier, am Übergang aus dem Schirmraum.
+///
+/// The row pan never asks the enclosing list to wait (`require(toFail)`).
+/// N visible rows doing that made every vertical scroll wait on N recognizers.
+/// Vertical work fails immediately; a real horizontal claim cancels the list
+/// pan the same way nested graph pans are cancelled.
+@Observable
+@MainActor
+final class SwipeRevealSession {
+    var offset: CGFloat = 0
+    var start: CGFloat = 0
+    var width: CGFloat = 0
+    var actionLock = false
+
+    func begin() {
+        start = offset
+    }
+
+    func applyTranslation(_ translation: CGFloat, leadingCount: Int, trailingCount: Int) {
+        let next = SwipeReveal.offset(
+            start: start, translation: translation,
+            leadingWidth: SwipeReveal.revealWidth(count: leadingCount),
+            trailingWidth: SwipeReveal.revealWidth(count: trailingCount))
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            offset = next
+        }
+    }
+
+    func snap(to target: CGFloat, velocity: CGFloat = 0, reduceMotion: Bool) {
+        guard abs(target - offset) > 0.5 else { return }
+        if let animation = SwipeRevealMotion.settleAnimation(
+            reduceMotion: reduceMotion,
+            velocity: velocity,
+            distance: target - offset) {
+            withAnimation(animation) {
+                offset = target
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                offset = target
+            }
+        }
+    }
+}
+
 struct SwipeRevealPan: UIViewRepresentable {
     /// Darf DIESER Zug beginnen? (dx semantisch; overGrid/atEnd vom Treffer.)
     let shouldBegin: (_ towardTrailing: Bool, _ horizontal: Bool,
@@ -36,11 +84,15 @@ struct SwipeRevealPan: UIViewRepresentable {
     let changed: (_ translation: CGFloat) -> Void
     let ended: (_ translation: CGFloat, _ velocity: CGFloat) -> Void
     let cancelled: () -> Void
+    /// Only an already-open row broadcasts dismiss on a vertical drag.
+    /// Posting from every visible row made each list scroll O(visible²).
+    var isOpen: () -> Bool = { false }
     let ownerID: UUID
 
     func makeUIView(context: Context) -> PanHost {
         PanHost(ownerID: ownerID, shouldBegin: shouldBegin, began: began,
-                changed: changed, ended: ended, cancelled: cancelled)
+                changed: changed, ended: ended, cancelled: cancelled,
+                isOpen: isOpen)
     }
 
     func updateUIView(_ view: PanHost, context: Context) {
@@ -50,9 +102,10 @@ struct SwipeRevealPan: UIViewRepresentable {
         view.changedCallback = changed
         view.endedCallback = ended
         view.cancelledCallback = cancelled
-        // A List can keep the bridge view while replacing the row's content
-        // after a completion. Reconcile immediately so the recognizer and its
-        // callbacks belong to the current cell before the next swipe.
+        view.isOpenQuery = isOpen
+        // Callbacks belong to the current cell even if List reused the
+        // bridge. Do not walk ancestors on every SwiftUI update — that is
+        // per-frame work while a reveal offset is changing.
         view.reconcileHostForUpdate()
     }
 
@@ -67,6 +120,7 @@ struct SwipeRevealPan: UIViewRepresentable {
         var changedCallback: (CGFloat) -> Void
         var endedCallback: (CGFloat, CGFloat) -> Void
         var cancelledCallback: () -> Void
+        var isOpenQuery: () -> Bool
         private var recognizer: UIPanGestureRecognizer?
         private weak var host: UIView?
 
@@ -75,13 +129,15 @@ struct SwipeRevealPan: UIViewRepresentable {
              began: @escaping () -> Void,
              changed: @escaping (CGFloat) -> Void,
              ended: @escaping (CGFloat, CGFloat) -> Void,
-             cancelled: @escaping () -> Void) {
+             cancelled: @escaping () -> Void,
+             isOpen: @escaping () -> Bool) {
             self.ownerID = ownerID
             self.shouldBeginQuery = shouldBegin
             self.beganCallback = began
             self.changedCallback = changed
             self.endedCallback = ended
             self.cancelledCallback = cancelled
+            self.isOpenQuery = isOpen
             super.init(frame: .zero)
             isUserInteractionEnabled = false
             isHidden = true
@@ -109,12 +165,14 @@ struct SwipeRevealPan: UIViewRepresentable {
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            // A List may reuse its cell after the row model changes while
-            // this hidden bridge stays mounted. Rebind before the next touch.
+            // Once the recognizer sits on a live host, skip the ancestor walk.
+            // List layout during scroll would otherwise rebind every visible row.
+            if host?.window != nil { return }
             reconcileHost()
         }
 
         fileprivate func reconcileHostForUpdate() {
+            if host?.window != nil { return }
             reconcileHost()
         }
 
@@ -150,19 +208,6 @@ struct SwipeRevealPan: UIViewRepresentable {
             recognizer = pan
             host = container
             container.addGestureRecognizer(pan)
-
-            // The List/CollectionView pan otherwise wins the race before a
-            // row can reveal its actions. Let this pan make the horizontal
-            // versus vertical decision first; a vertical drag still fails
-            // here and immediately releases the list to scroll.
-            var scrollAncestor: UIView? = container
-            while let view = scrollAncestor, !(view is UIScrollView) {
-                scrollAncestor = view.superview
-            }
-            if let scroll = scrollAncestor as? UIScrollView,
-               scroll.panGestureRecognizer !== pan {
-                scroll.panGestureRecognizer.require(toFail: pan)
-            }
         }
 
         func detach() {
@@ -204,16 +249,23 @@ struct SwipeRevealPan: UIViewRepresentable {
             // bounds. When List exposes only its shared scroll host, use the
             // bridge's converted row frame so another row cannot respond.
             guard let container = host else { return false }
+            let translation = pan.translation(in: container)
+            let velocity = pan.velocity(in: container)
+            let horizontal = SwipeReveal.horizontalIntent(dx: translation.x, dy: translation.y)
+                || SwipeReveal.horizontalIntent(dx: velocity.x, dy: velocity.y)
+            guard horizontal else {
+                if isOpenQuery() {
+                    NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
+                }
+                return false
+            }
+
             let location = pan.location(in: container)
             let activeFrame = container is UICollectionViewCell || container is UITableViewCell
                 ? container.bounds
                 : convert(bounds, to: container)
             guard activeFrame.contains(location) else { return false }
 
-            let translation = pan.translation(in: container)
-            let velocity = pan.velocity(in: container)
-            let horizontal = SwipeReveal.horizontalIntent(dx: translation.x, dy: translation.y)
-                || SwipeReveal.horizontalIntent(dx: velocity.x, dy: velocity.y)
             let direction = abs(translation.x) > 3 ? translation.x : velocity.x
             let towardTrailing = direction * mirror < 0
 
@@ -236,24 +288,38 @@ struct SwipeRevealPan: UIViewRepresentable {
                 walk = view.superview
             }
             let verdict = shouldBeginQuery(towardTrailing, horizontal, overGrid, atEnd)
-            if !horizontal {
-                NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
-            }
             // Über dem Raster hat dessen Scroll-Pan den Zug meist schon
             // beansprucht, bevor wir gefragt werden — er würde unser
             // Aufziehen im nächsten Umlauf stornieren. Sein Tracking wird
             // deshalb GENAU DANN gekappt (disable/enable bricht die laufende
-            // Erkennung ab), wenn wir übernehmen. Eine Scheitern-Anforderung
-            // (`shouldBeRequiredToFailBy`) stand hier zuerst — sie hielt
-            // aber die Berührungs-Zustellung in den Raster-INHALT auf, bis
-            // unser Pan scheitert, und tötete damit jeden Zellen-Tipp
-            // (nachgemessen: Pille ja, Zelle nie). Kappen statt warten lässt
-            // Tipps unberührt.
-            if verdict, let gridScroll {
-                gridScroll.panGestureRecognizer.isEnabled = false
-                gridScroll.panGestureRecognizer.isEnabled = true
+            // Erkennung ab), wenn wir übernehmen. Dieselbe Kappe gilt für
+            // die umgebende Liste: ohne `require(toFail)` gewinnt sie sonst
+            // den horizontalen Zug, und mit `require(toFail)` an jeder
+            // Zeile wartet jedes vertikale Scrollen auf N Pans.
+            if verdict {
+                cancelTracking(gridScroll?.panGestureRecognizer)
+                if let listScroll = enclosingScroll(from: container),
+                   listScroll !== gridScroll,
+                   listScroll.panGestureRecognizer !== pan {
+                    cancelTracking(listScroll.panGestureRecognizer)
+                }
             }
             return verdict
+        }
+
+        private func enclosingScroll(from view: UIView) -> UIScrollView? {
+            var ancestor: UIView? = view.superview
+            while let current = ancestor {
+                if let scroll = current as? UIScrollView { return scroll }
+                ancestor = current.superview
+            }
+            return nil
+        }
+
+        private func cancelTracking(_ recognizer: UIGestureRecognizer?) {
+            guard let recognizer else { return }
+            recognizer.isEnabled = false
+            recognizer.isEnabled = true
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -361,12 +427,6 @@ struct SwipeRevealActions: View {
     var body: some View {
         sizedActionStack
             .opacity(progress)
-            .scaleEffect(0.92 + progress * 0.08,
-                         anchor: alignment == .leading ? .leading : .trailing)
-            // Settle to full size before enabling the action hit targets.
-            .offset(x: alignment == .leading
-                    ? -(1 - progress) * 10
-                    : (1 - progress) * 10)
             .frame(maxWidth: .infinity, alignment: alignment)
             .accessibilityHidden(exposedWidth < actionWidth)
             .allowsHitTesting(exposedWidth >= actionWidth)

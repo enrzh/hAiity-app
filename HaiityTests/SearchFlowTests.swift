@@ -54,6 +54,26 @@ final class SearchFlowTests: XCTestCase {
         XCTAssertFalse(split.contains(".tabViewSearchActivation"))
     }
 
+    func testSearchListUsesCompactRowsWithoutContributionGraphs() throws {
+        let source = try contentSource()
+        let start = try XCTUnwrap(source.range(of: "private var searchList: some View"))
+        let end = try XCTUnwrap(source.range(of: "private var habitsTabContent",
+                                             range: start.upperBound..<source.endIndex))
+        let searchList = source[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(searchList.contains("searchResults"))
+        XCTAssertTrue(searchList.contains("searchRow(for: habit)"))
+        XCTAssertFalse(searchList.contains("row(for: habit, index: index + 1, inSearchTab: true)"))
+        XCTAssertFalse(searchList.contains("HabitCard("))
+        XCTAssertFalse(searchList.contains("ContributionGrid"))
+        XCTAssertFalse(searchList.contains("GitHubContributionCard"))
+        XCTAssertTrue(source.contains("private var searchResults: [Habit]"))
+        XCTAssertTrue(source.contains("let active = visibleActiveHabits"))
+        XCTAssertTrue(source.contains("SearchResultRow(habit:"))
+        XCTAssertFalse(source.contains("if !inSearchTab { rowProbe(index) }"))
+        XCTAssertTrue(source.contains("if !inSearchTab && editMode == .active { rowProbe(index) }"))
+    }
+
     private func contentSource() throws -> String {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

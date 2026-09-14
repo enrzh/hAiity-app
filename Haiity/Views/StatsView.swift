@@ -528,13 +528,14 @@ struct StatsView: View {
     }
 
     private func statsHabitRanking(_ snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let statsByID = Dictionary(uniqueKeysWithValues: snapshot.perHabit.map { ($0.id, $0) })
+        return VStack(alignment: .leading, spacing: 10) {
             Text(String(localized: "Deine Habits"))
                 .font(.headline.weight(.semibold))
                 .padding(.horizontal, 2)
             LazyVStack(spacing: 0) {
                 ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
-                    if let habitStats = snapshot.perHabit.first(where: { $0.id == habit.id }) {
+                    if let habitStats = statsByID[habit.id] {
                         statsHabitRow(habit, stats: habitStats)
                         .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
                         .accessibilityElement(children: .ignore)
@@ -687,24 +688,28 @@ struct StatsView: View {
         let columns = max(levels.count, 1)
         let pitch = pulseWidth > 0 ? pulseWidth / CGFloat(columns) : 15
         let gap = min(3, max(2, pitch * 0.16))
-        let cell = pitch - gap
-        return HStack(alignment: .top, spacing: gap) {
-            ForEach(Array(levels.enumerated()), id: \.offset) { _, column in
-                VStack(spacing: gap) {
-                    ForEach(Array(column.enumerated()), id: \.offset) { _, level in
-                        RoundedRectangle(cornerRadius: cell * 0.24, style: .continuous)
-                            .fill(Theme.level(level, dark: dark, palette: palettes.style))
-                            .frame(width: cell, height: cell)
-                    }
-                }
+        let cell = max(1, pitch - gap)
+        let snapshot = GridCalendar.Snapshot(
+            weeks: levels.count,
+            today: "",
+            keys: levels.map { column in column.map { _ in "" as String? } },
+            levels: levels,
+            marks: [],
+            filledCount: 0)
+        return ContributionTiles(
+            snapshot: snapshot,
+            cell: cell,
+            gap: gap,
+            radius: cell * 0.24,
+            rows: levels.first?.count ?? GridCalendar.rows) { level in
+                Theme.level(level, dark: dark, palette: palettes.style)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-            pulseWidth = width
-        }
-        // Chronologie läuft immer links -> rechts, wie im großen Raster.
-        .environment(\.layoutDirection, .leftToRight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+                pulseWidth = width
+            }
+            // Chronologie läuft immer links -> rechts, wie im großen Raster.
+            .environment(\.layoutDirection, .leftToRight)
     }
 
     private var statsPreviewWidth: CGFloat {

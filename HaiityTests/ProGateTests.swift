@@ -620,6 +620,8 @@ final class ProGateTests: XCTestCase {
         // applied to the card's presentation, not by replacing its data.
         XCTAssertEqual(stats.components(separatedBy: "mergedGrid(snapshot.mergedLevels)").count - 1, 1,
                        "auch gesperrt wird das ECHTE Raster gezeichnet")
+        XCTAssertTrue(stats.contains("ContributionTiles("),
+                      "the rhythm card must reuse the shared canvas tiles")
         XCTAssertTrue(stats.contains("\"stats-rhythm-card\""))
     }
 

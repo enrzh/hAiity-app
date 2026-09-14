@@ -153,6 +153,7 @@ struct ContentView: View {
     /// Explicit sorting mode for the habit list. Long press remains reserved
     /// for the card preview and its actions.
     @State private var editMode: EditMode = .inactive
+    @State private var listViewportHeight: CGFloat = 0
     @State private var sortingAutoScrollTask: Task<Void, Never>?
     @State private var sortingAutoScrollDirection: Int?
     /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
@@ -696,7 +697,7 @@ struct ContentView: View {
         .navigationChrome()
     }
 
-    /// Der Inhalt des Such-Tabs: DIESELBEN Karten, gefiltert. Leerer
+    /// Der Inhalt des Such-Tabs: kompakte Treffer ohne Raster. Leerer
     /// Suchbegriff zeigt die volle Liste — der Tab ist damit auch ohne
     /// Eingabe kein weißes Loch. Die native Suchleiste bleibt wie im App Store
     /// an der Navigation verankert und reduziert sich beim Scrollen selbst.
@@ -730,13 +731,13 @@ struct ContentView: View {
     @available(iOS 26, *)
     private var searchList: some View {
         List {
-            if filteredHabits.isEmpty {
+            if searchResults.isEmpty {
                 ContentUnavailableView.search(text: search)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             } else {
-                ForEach(Array(filteredHabits.enumerated()), id: \.element.id) { index, habit in
-                    row(for: habit, index: index + 1, inSearchTab: true)
+                ForEach(searchResults) { habit in
+                    searchRow(for: habit)
                 }
             }
         }
@@ -1046,6 +1047,17 @@ struct ContentView: View {
         }
     }
 
+    /// Search ignores the Habits-tab filter. Hidden or "done today" rows
+    /// must still be findable by name.
+    private var searchResults: [Habit] {
+        let active = visibleActiveHabits
+        let q = committedSearch
+        guard !q.isEmpty else { return active }
+        return active.filter {
+            $0.name.localizedCaseInsensitiveContains(q) || $0.emoji.contains(q)
+        }
+    }
+
     private var listFilteredHabits: [Habit] {
         visibleActiveHabits.filter {
             habitFilter.matches($0,
@@ -1213,8 +1225,7 @@ struct ContentView: View {
 
     private var habitList: some View {
         ScrollViewReader { proxy in
-            GeometryReader { viewport in
-                List {
+            List {
                     RootPageTitle(title: String(localized: "Habits"),
                                   subtitle: String(localized: "Dein Rhythmus in einem Blick"))
                         .id("habit-list-title")
@@ -1267,23 +1278,28 @@ struct ContentView: View {
                             ? { store.move(fromOffsets: $0, toOffset: $1) }
                             : nil)
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .modifier(SortingAutoScrollModifier(
-                    enabled: editMode == .active && canSortHabits,
-                    onChanged: { value in
-                        sortingAutoScroll(locationY: value.location.y,
-                                          viewportHeight: viewport.size.height,
-                                          proxy: proxy)
-                    },
-                    onEnded: stopSortingAutoScroll))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+                listViewportHeight = height
+            }
+            .modifier(SortingAutoScrollModifier(
+                enabled: editMode == .active && canSortHabits,
+                onChanged: { value in
+                    sortingAutoScroll(locationY: value.location.y,
+                                      viewportHeight: listViewportHeight,
+                                      proxy: proxy)
+                },
+                onEnded: stopSortingAutoScroll))
             .onAppear { scrollToRequestedHabit(using: proxy) }
             .onChange(of: requestedHabitID) { _, _ in
                 scrollToRequestedHabit(using: proxy)
             }
             .onChange(of: habitsTabSource.map(\.id)) { _, _ in
                 scrollToRequestedHabit(using: proxy)
+            }
+            .onChange(of: editMode) { _, mode in
+                if mode != .active { chrome.rowFrames = [:] }
             }
         }
         .listStyle(.plain)
@@ -1460,6 +1476,24 @@ struct ContentView: View {
     // Messfühler 0 entfiel mit ihm; die Zeilen behalten ihre Indizes ab 1.
 
     @ViewBuilder
+    private func searchRow(for habit: Habit) -> some View {
+        let reveal = revealActions(for: habit)
+        SearchResultRow(habit: habit,
+                        onEdit: { editing = habit },
+                        onToggleReminder: { toggleReminder(habit) },
+                        calendar: habitCalendar(for: habit),
+                        leadingSwipe: reveal.leading,
+                        trailingSwipe: reveal.trailing)
+            .equatable()
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0,
+                                      leading: Theme.Metrics.gutter,
+                                      bottom: Theme.Metrics.gap,
+                                      trailing: Theme.Metrics.gutter))
+    }
+
+    @ViewBuilder
     private func row(for habit: Habit, index: Int, inSearchTab: Bool = false) -> some View {
         #if DEBUG
         let _ = FrameProbe.shared.mark("row")
@@ -1483,7 +1517,7 @@ struct ContentView: View {
                 // cursor are ordinary inputs, so SwiftUI updates the button
                 // state without leaving XCTest/VoiceOver with a stale node.
                 .id("reminder-row-\(habit.id.uuidString)")
-                .background { if !inSearchTab { rowProbe(index) } }
+                .background { if !inSearchTab && editMode == .active { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0,
@@ -1514,7 +1548,7 @@ struct ContentView: View {
                 trailingSwipe: reveal.trailing,
                 calendar: habitCalendar(for: habit))
                 .equatable()
-                .background { if !inSearchTab { rowProbe(index) } }
+                .background { if !inSearchTab && editMode == .active { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0,
@@ -1999,11 +2033,9 @@ struct ContentView: View {
         if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.24), body) }
     }
 
-    /// Meldet die Oberkante JEDER sichtbaren Zeile. Aus zwei Momentaufnahmen
-    /// fällt das exakte Scroll-Delta (alle sichtbaren Zeilen wandern um
-    /// denselben Betrag) — das ist der einzige Weg, der unter iOS 17 UND in
-    /// einer faulen `List` trägt: ein einzelner Messfühler am Listenanfang
-    /// wird beim Scrollen abgeräumt und meldet nichts mehr.
+    /// Meldet die Oberkante sichtbarer Zeilen nur im Sortiermodus.
+    /// Während des normalen Scrollens wäre das ein Preference-Update
+    /// je sichtbarer Zeile je Frame.
     private func rowProbe(_ index: Int) -> some View {
         GeometryReader { geo in
             Color.clear.preference(key: RowOffsetKey.self,
