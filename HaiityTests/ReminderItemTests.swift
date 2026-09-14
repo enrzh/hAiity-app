@@ -216,6 +216,10 @@ final class ReminderItemTests: XCTestCase {
 
         XCTAssertFalse(reminder.contains(".accessibilityRevealActions("),
                        "real revealed buttons must remain directly hittable in a reused List row")
+        XCTAssertTrue(reminder.contains("ReminderVoiceOverActions"),
+                      "VoiceOver still needs named reminder actions on the checkmark")
+        XCTAssertTrue(reminder.contains("content.accessibilityActions"),
+                      "the checkmark rotor must expose the same actions as a swipe")
     }
 
     func testRevealActionsUseStableLayersAndAnimatedSettling() throws {

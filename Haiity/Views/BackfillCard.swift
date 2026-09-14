@@ -316,6 +316,7 @@ struct BackfillCard: View {
                 Text(selecting ? String(localized: "Abbrechen") : String(localized: "Auswählen"))
                     .font(.subheadline)
                     .frame(minHeight: 44)
+                    .contentTransition(.identity)
             }
             .accessibilityIdentifier("history-selection-mode")
             if selecting {
@@ -326,6 +327,7 @@ struct BackfillCard: View {
                          ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"))
                         .font(.subheadline)
                         .frame(minHeight: 44)
+                        .contentTransition(.identity)
                 }
                 .disabled(visibleDays.isEmpty)
                 .accessibilityIdentifier("history-select-all")

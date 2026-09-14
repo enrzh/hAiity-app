@@ -124,6 +124,8 @@ final class BackfillInteractionContractTests: XCTestCase {
         XCTAssertTrue(source.contains("moveVisibleMonth(by:"))
         XCTAssertTrue(source.contains("selectionAccent"))
         XCTAssertTrue(source.contains("scheme == .dark ? 0.32 : 0.16"))
+        XCTAssertEqual(source.components(separatedBy: ".contentTransition(.identity)").count - 1, 2,
+                       "selection tool labels must not crossfade into overlapping text")
     }
 }
 

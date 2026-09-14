@@ -314,6 +314,9 @@ struct ReminderRow: View, Equatable {
                                 ? String(localized: "Erledigt")
                                 : String(localized: "Offen"))
             .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
+            // VoiceOver cannot perform the row pan. Named actions live on the
+            // checkmark so the revealed buttons stay independently hittable.
+            .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)
@@ -475,6 +478,7 @@ struct SearchResultRow: View, Equatable {
                 .foregroundStyle(reminderChecked ? Color.green : Color.secondary)
                 .accessibilityLabel(String(localized: "Erledigt"))
                 .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
+                .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
             }
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
@@ -565,5 +569,23 @@ struct SearchResultRow: View, Equatable {
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
         reveal.snap(to: target, velocity: velocity, reduceMotion: reduceMotion)
+    }
+}
+
+/// VoiceOver substitute for the reminder pan. This is attached to the
+/// checkmark, not the row, so the visible reveal buttons stay hittable.
+private struct ReminderVoiceOverActions: ViewModifier {
+    let actions: [RevealAction]
+
+    func body(content: Content) -> some View {
+        if actions.isEmpty {
+            content
+        } else {
+            content.accessibilityActions {
+                ForEach(actions) { action in
+                    Button(action.title, action: action.handler)
+                }
+            }
+        }
     }
 }

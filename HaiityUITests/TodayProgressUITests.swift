@@ -233,6 +233,36 @@ final class TodayProgressUITests: XCTestCase {
         capture("crowded-accessible-actions")
     }
 
+    func testAccountTimeZoneAndDarkHistorySelectionRemainLegible() {
+        for appearance in ["light", "dark"] {
+            let app = launch("crowded", appearance: appearance, screen: "more")
+            let timezone = app.buttons["open-timezone"].firstMatch
+            XCTAssertTrue(timezone.waitForExistence(timeout: 15))
+            timezone.tap()
+            XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
+            capture("timezone-\(appearance)")
+            app.terminate()
+
+            let account = launch("crowded", appearance: appearance, screen: "more")
+            let accountButton = account.buttons["open-account"].firstMatch
+            XCTAssertTrue(accountButton.waitForExistence(timeout: 15))
+            accountButton.tap()
+            XCTAssertTrue(account.navigationBars.firstMatch.waitForExistence(timeout: 5))
+            capture("account-\(appearance)")
+            account.terminate()
+        }
+
+        let app = launch(appearance: "dark")
+        let history = app.descendants(matching: .any)["habit-history"].firstMatch
+        XCTAssertTrue(history.waitForExistence(timeout: 15))
+        history.tap()
+        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+        app.buttons["history-previous-month"].tap()
+        app.buttons["history-selection-mode"].tap()
+        app.buttons["history-select-all"].tap()
+        capture("history-selection-dark")
+    }
+
     func testLightDarkHomeAndCreationVisualMatrix() {
         for appearance in ["light", "dark"] {
             let app = launch(appearance: appearance)

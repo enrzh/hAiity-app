@@ -146,9 +146,14 @@ final class AppNavigationTests: XCTestCase {
 
     func testGitHubGraphUsesStableGeometryForScrollableWindows() throws {
         let github = try String(contentsOf: sourceURL("Haiity/Views/GitHubContributionGraph.swift"))
+        let habits = try String(contentsOf: sourceURL("Haiity/Views/ContributionGrid.swift"))
 
-        XCTAssertTrue(github.contains("return (GridCell.size, GridCell.gap)"),
-                      "the auto-sized GitHub graph must use stable shared tile geometry")
+        XCTAssertTrue(github.contains("ContributionChart.fittedCell(viewport: viewportWidth"),
+                      "the auto-sized GitHub graph must share the habit graph's fitted columns")
+        XCTAssertTrue(habits.contains("ContributionChart.fittedCell(viewport: viewportWidth"),
+                      "habit graphs keep the same fitted-column geometry")
+        XCTAssertTrue(github.contains("onGeometryChange(for: CGFloat.self, of: { $0.size.width })"),
+                      "viewport width must come from the visible frame, not scrolling content")
         XCTAssertFalse(github.contains("@State private var available: CGFloat = 0"),
                        "the scrollable GitHub graph must not feed its content width back into layout")
         XCTAssertFalse(github.contains("private var widthReader"),

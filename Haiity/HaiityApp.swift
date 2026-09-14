@@ -130,6 +130,7 @@ struct HaiityApp: App {
         cancelStartupBackgroundPrewarm()
         startupContentMounted = true
         startupSplashVisible = false
+        StartupMetrics.event("splashFinished")
     }
 
     private func restartStartupBackgroundPrewarm() {

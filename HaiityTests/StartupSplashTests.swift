@@ -53,11 +53,15 @@ final class StartupSplashTests: XCTestCase {
             "Haiity/Views/ContentView.swift"))
         let stats = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/StatsView.swift"))
+        let app = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/HaiityApp.swift"))
 
         XCTAssertTrue(splash.contains("os_signpost"))
         XCTAssertTrue(content.contains("firstInteractiveFrame"))
         XCTAssertTrue(content.contains("githubCacheHydrated"))
         XCTAssertTrue(stats.contains("statsCalculation"))
+        XCTAssertTrue(app.contains("StartupMetrics.event(\"splashFinished\")"),
+                      "splash removal must be visible in a launch trace")
     }
 
     func testSplashHandoffUsesTheShortTransparentTimeline() {

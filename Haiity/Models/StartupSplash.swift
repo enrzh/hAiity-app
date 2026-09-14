@@ -7,19 +7,23 @@ import OSLog
 /// work that starts after the app is already usable.
 enum StartupMetrics {
     private static let log = OSLog(subsystem: "com.aiity.haiity", category: "startup")
+    private static let logger = Logger(subsystem: "com.aiity.haiity", category: "startup")
 
     static func begin(_ name: StaticString) -> OSSignpostID {
         let id = OSSignpostID(log: log)
         os_signpost(.begin, log: log, name: name, signpostID: id)
+        logger.info("begin \(String(describing: name), privacy: .public)")
         return id
     }
 
     static func end(_ name: StaticString, id: OSSignpostID) {
         os_signpost(.end, log: log, name: name, signpostID: id)
+        logger.info("end \(String(describing: name), privacy: .public)")
     }
 
     static func event(_ name: StaticString) {
         os_signpost(.event, log: log, name: name)
+        logger.info("event \(String(describing: name), privacy: .public)")
     }
 }
 
