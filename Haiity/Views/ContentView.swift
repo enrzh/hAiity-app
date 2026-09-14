@@ -155,12 +155,6 @@ struct ContentView: View {
     /// Explicit sorting mode for the habit list. Long press remains reserved
     /// for the card preview and its actions.
     @State private var editMode: EditMode = .inactive
-    @State private var listViewportHeight: CGFloat = 0
-    @State private var sortingAutoScrollTask: Task<Void, Never>?
-    @State private var sortingAutoScrollDirection: Int?
-    /// Scroll-Buchfuehrung fuer Nacharbeiten-Anker. Sie
-    /// mutiert ohne Observation und verursacht keine Body-Invalidierungen.
-    @State private var chrome = ChromeScrollBox()
     @State private var rootTitleProgress: CGFloat = 0
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
@@ -217,8 +211,6 @@ struct ContentView: View {
                                                           in: GitHubPreferences.defaults)
                 })
     }
-
-    private static let listSpace = "habit-list"
 
     /// Vereinigungs-Kennung der Glasteile unten. Teilen zwei Teile dieselbe,
     /// rechnet iOS ihr Glas als EINE Form: zusammengezogen werden Umschalter
@@ -1098,13 +1090,16 @@ struct ContentView: View {
                                              progress: rootTitleProgress)
                     }
                     ToolbarItemGroup(placement: .topBarLeading) {
-                        habitFilterMenu
+                        if editMode != .active {
+                            habitFilterMenu
+                        }
                         Button {
                             withAnimation {
                                 editMode = editMode == .active ? .inactive : .active
                             }
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
+                                .symbolVariant(editMode == .active ? .fill : .none)
                         }
                         .disabled(!canSortHabits)
                         .accessibilityLabel(editMode == .active
@@ -1119,16 +1114,15 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            if editMode == .active {
-                Button {
+        if editMode == .active {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(String(localized: "Fertig")) {
                     withAnimation { editMode = .inactive }
-                } label: {
-                    Image(systemName: "checkmark")
                 }
-                .accessibilityLabel(String(localized: "Fertig"))
                 .accessibilityIdentifier("finish-reordering")
-            } else {
+            }
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { requestCreate() } label: {
                     Image(systemName: "plus")
                 }
@@ -1234,6 +1228,7 @@ struct ContentView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
+                        .moveDisabled(true)
                     TodayProgressView(
                         progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
@@ -1243,6 +1238,7 @@ struct ContentView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
                                                   bottom: 0, trailing: Theme.Metrics.gutter))
+                        .moveDisabled(true)
                     if let snapshot = github.snapshot {
                         GitHubContributionCard(snapshot: snapshot,
                                                collapsed: collapsed,
@@ -1256,6 +1252,7 @@ struct ContentView: View {
                                                       leading: Theme.Metrics.gutter,
                                                       bottom: 0,
                                                       trailing: Theme.Metrics.gutter))
+                            .moveDisabled(true)
                     }
                     if habitsTabSource.isEmpty {
                         if !habitFilter.isEmpty && committedSearch.isEmpty {
@@ -1270,11 +1267,10 @@ struct ContentView: View {
                                 .listRowBackground(Color.clear)
                         }
                     } else {
-                        ForEach(Array(habitsTabSource.enumerated()), id: \.element.id) { index, habit in
-                            // + 1: Messfühler 0 gehört der Titelzeile (sie ist immer
-                            // da und damit der stabile Anker der Scroll-Messung).
-                            row(for: habit, index: index + 1)
+                        ForEach(habitsTabSource) { habit in
+                            row(for: habit)
                                 .id(rowIdentity(habit))
+                                .deleteDisabled(true)
                         }
                         .onMove(perform: canSortHabits && editMode == .active
                             ? { store.move(fromOffsets: $0, toOffset: $1) }
@@ -1282,26 +1278,12 @@ struct ContentView: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-                listViewportHeight = height
-            }
-            .modifier(SortingAutoScrollModifier(
-                enabled: editMode == .active && canSortHabits,
-                onChanged: { value in
-                    sortingAutoScroll(locationY: value.location.y,
-                                      viewportHeight: listViewportHeight,
-                                      proxy: proxy)
-                },
-                onEnded: stopSortingAutoScroll))
             .onAppear { scrollToRequestedHabit(using: proxy) }
             .onChange(of: requestedHabitID) { _, _ in
                 scrollToRequestedHabit(using: proxy)
             }
             .onChange(of: habitsTabSource.map(\.id)) { _, _ in
                 scrollToRequestedHabit(using: proxy)
-            }
-            .onChange(of: editMode) { _, mode in
-                if mode != .active { chrome.rowFrames = [:] }
             }
         }
         .listStyle(.plain)
@@ -1321,16 +1303,12 @@ struct ContentView: View {
         .contentMargins(.bottom, Theme.Metrics.gap, for: .scrollContent)
         .softScrollEdges()
         .coordinateSpace(.named(RootPageTitle.coordinateSpace))
-        .coordinateSpace(.named(Self.listSpace))
         .onPreferenceChange(RootPageTitleProgressKey.self) { progress in
             guard let progress else { return }
             let collapsed = progress >= 0.5 ? 1 : 0
             if rootTitleProgress != CGFloat(collapsed) {
                 rootTitleProgress = CGFloat(collapsed)
             }
-        }
-        .onPreferenceChange(RowOffsetKey.self) { frames in
-            handleScroll(frames)
         }
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
@@ -1402,80 +1380,9 @@ struct ContentView: View {
         store.add(habit.oneTimeCopy(on: day), after: habit.id)
     }
 
-    private func sortingAutoScroll(locationY: CGFloat,
-                                   viewportHeight: CGFloat,
-                                   proxy: ScrollViewProxy) {
-        guard editMode == .active, canSortHabits else {
-            stopSortingAutoScroll()
-            return
-        }
-
-        let edge = min(128, max(72, viewportHeight * 0.16))
-        let direction: Int
-        if locationY < edge {
-            direction = -1
-        } else if locationY > viewportHeight - edge {
-            direction = 1
-        } else {
-            stopSortingAutoScroll()
-            return
-        }
-
-        guard sortingAutoScrollDirection != direction || sortingAutoScrollTask == nil else {
-            return
-        }
-        stopSortingAutoScroll()
-        sortingAutoScrollDirection = direction
-        sortingAutoScrollTask = Task { @MainActor in
-            while !Task.isCancelled {
-                let visibleIndexes = chrome.rowFrames.keys
-                    .filter { $0 > 0 && habitsTabSource.indices.contains($0 - 1) }
-                guard !visibleIndexes.isEmpty else {
-                    try? await Task.sleep(for: .milliseconds(80))
-                    continue
-                }
-                let target: String?
-                if direction < 0 {
-                    let first = visibleIndexes.min() ?? 1
-                    if first <= 1 {
-                        target = "habit-list-top"
-                    } else {
-                        let candidate = first - 2
-                        target = habitsTabSource.indices.contains(candidate)
-                            ? rowIdentity(habitsTabSource[candidate]) : nil
-                    }
-                } else {
-                    let last = visibleIndexes.max() ?? -1
-                    let candidate = last
-                    target = habitsTabSource.indices.contains(candidate)
-                        ? rowIdentity(habitsTabSource[candidate]) : nil
-                }
-                if let target {
-                    let distance = direction < 0 ? locationY : viewportHeight - locationY
-                    let intensity = max(0.25, min(1, (edge - distance) / edge))
-                    let duration = 0.18 - (0.08 * intensity)
-                    withAnimation(.linear(duration: duration)) {
-                        proxy.scrollTo(target, anchor: direction < 0 ? .top : .bottom)
-                    }
-                }
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-        }
-    }
-
-    private func stopSortingAutoScroll() {
-        sortingAutoScrollTask?.cancel()
-        sortingAutoScrollTask = nil
-        sortingAutoScrollDirection = nil
-    }
-
     // Die Statistik-Karten über dem Titel sind in den eigenen
     // Statistik-Tab umgezogen (siehe StatsView) — die Habit-Liste beginnt
     // wieder mit ihrem Titel.
-
-    // Der Zeilen-Titel („Habits" als Listenzeile) ist Geschichte: er
-    // existierte nur, damit die Statistik-Karten über ihm scrollen konnten.
-    // Messfühler 0 entfiel mit ihm; die Zeilen behalten ihre Indizes ab 1.
 
     @ViewBuilder
     private func searchRow(for habit: Habit) -> some View {
@@ -1496,7 +1403,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func row(for habit: Habit, index: Int, inSearchTab: Bool = false) -> some View {
+    private func row(for habit: Habit, inSearchTab: Bool = false) -> some View {
         #if DEBUG
         let _ = FrameProbe.shared.mark("row")
         #endif
@@ -1519,7 +1426,6 @@ struct ContentView: View {
                 // cursor are ordinary inputs, so SwiftUI updates the button
                 // state without leaving XCTest/VoiceOver with a stale node.
                 .id("reminder-row-\(habit.id.uuidString)")
-                .background { if !inSearchTab && editMode == .active { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0,
@@ -1550,7 +1456,6 @@ struct ContentView: View {
                 trailingSwipe: reveal.trailing,
                 calendar: habitCalendar(for: habit))
                 .equatable()
-                .background { if !inSearchTab && editMode == .active { rowProbe(index) } }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0,
@@ -1864,8 +1769,7 @@ struct ContentView: View {
     /// (bzw. flackert). Also erst das Menü schließen lassen, dann öffnen. Ein
     /// Zellentipp hat dieses Problem nicht und wartet deshalb auch nicht.
     private func openBackfill(_ habit: Habit, day: String, afterMenu: Bool) {
-        let request = BackfillRequest(habitId: habit.id, day: day,
-                                      anchor: backfillAnchor(for: habit))
+        let request = BackfillRequest(habitId: habit.id, day: day)
         guard afterMenu else {
             withCardAnimation { backfill = request }
             return
@@ -1955,43 +1859,6 @@ struct ContentView: View {
         Theme.Haptics.select()
     }
 
-    /// Der Anker, aus dem die Nacharbeiten-Karte wächst: die Zeile des
-    /// Habits, dessen langer Druck (bzw. Zellentipp) sie öffnet — als
-    /// Bildschirmanteil (0…1). Die Zeilenlagen liegen schon in der
-    /// Chrom-Kiste (die Scroll-Messung schreibt sie bei jedem Bild); hier
-    /// wird nur beim ÖFFNEN einmal gelesen. Der feste Aufschlag (~halbe
-    /// Kartenhöhe) zielt auf die Mitte des Rasters statt auf die Oberkante;
-    /// die Klemme hält den Anker auf dem Bildschirm, wenn die Zeile gerade
-    /// halb hinausgescrollt ist. Ohne Messwert (Zeile nicht sichtbar,
-    /// gefilterte Liste): Bildmitte — das alte Verhalten, nie etwas
-    /// Schlechteres.
-    private func backfillAnchor(for habit: Habit) -> UnitPoint {
-        guard let index = habitsTabSource.firstIndex(where: { $0.id == habit.id }),
-              let rowTop = chrome.rowFrames[index + 1] else { return .center }
-        let height = Self.windowHeight()
-        guard height > 0 else { return .center }
-        let y = (Self.windowSafeTop() + rowTop + 110) / height
-        return UnitPoint(x: 0.5, y: min(0.92, max(0.08, y)))
-    }
-
-    /// Höhe bzw. obere Sicherheitszone des AKTIVEN Fensters — dieselbe
-    /// Begründung wie `HabitCard.windowWidth`: im Split View ist das Fenster
-    /// nicht der Bildschirm.
-    private static func activeWindow() -> UIWindow? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        return scene?.keyWindow
-    }
-
-    private static func windowHeight() -> CGFloat {
-        if let height = activeWindow()?.bounds.height, height > 0 { return height }
-        return UIScreen.main.bounds.height
-    }
-
-    private static func windowSafeTop() -> CGFloat {
-        activeWindow()?.safeAreaInsets.top ?? 0
-    }
-
     /// Öffnen/Schließen der Nacharbeiten-Karte: eine Feder mit kurzem,
     /// weichem Ausklang statt der reinen Blendkurve — die Karte SETZT sich,
     /// statt einfach dazustehen. Bei Reduzierter Bewegung bleibt eine reine
@@ -2033,22 +1900,6 @@ struct ContentView: View {
 
     private func withToastAnimation(_ body: () -> Void) {
         if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.24), body) }
-    }
-
-    /// Meldet die Oberkante sichtbarer Zeilen nur im Sortiermodus.
-    /// Während des normalen Scrollens wäre das ein Preference-Update
-    /// je sichtbarer Zeile je Frame.
-    private func rowProbe(_ index: Int) -> some View {
-        GeometryReader { geo in
-            Color.clear.preference(key: RowOffsetKey.self,
-                                   value: [index: geo.frame(in: .named(Self.listSpace)).minY])
-        }
-    }
-
-    private func handleScroll(_ frames: [Int: CGFloat]) {
-        // Ebenfalls Buchführung: die Zeilenlagen für den Anker der
-        // Nacharbeiten-Karte (siehe `backfillAnchor`).
-        chrome.rowFrames = frames
     }
 
     private var emptyState: some View {
@@ -3285,22 +3136,6 @@ struct ContentView: View {
     }
 }
 
-/// Referenz-Kiste fuer Scroll-Buchfuehrung ohne Observation.
-final class ChromeScrollBox {
-    /// Jüngste Oberkanten ALLER sichtbaren Zeilen (Messfühler-Index →
-    /// minY im Listenraum) — reine Buchführung aus `handleScroll`, gelesen
-    /// nur beim Öffnen der Nacharbeiten-Karte (`backfillAnchor`).
-    var rowFrames: [Int: CGFloat] = [:]
-}
-
-/// Oberkanten aller sichtbaren Zeilen, Index -> minY im Listen-Koordinatenraum.
-private struct RowOffsetKey: PreferenceKey {
-    static var defaultValue: [Int: CGFloat] = [:]
-    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
-        value.merge(nextValue()) { a, _ in a }
-    }
-}
-
 // MARK: – Glas-Hüllen
 
 /// Ein Stück Chrom-Glas. Ab iOS 26 ECHTES Liquid Glass (`glassEffect`,
@@ -3738,25 +3573,6 @@ private final class PlatterProbe: UIView {
             if let found = findTabBar(in: sub) { return found }
         }
         return nil
-    }
-}
-
-/// Prevents the reorder observer from competing with ordinary list scrolling
-/// and graph gestures when the list is in its normal viewing state.
-private struct SortingAutoScrollModifier: ViewModifier {
-    let enabled: Bool
-    let onChanged: (DragGesture.Value) -> Void
-    let onEnded: () -> Void
-
-    func body(content: Content) -> some View {
-        if enabled {
-            content.simultaneousGesture(
-                DragGesture(minimumDistance: 1)
-                    .onChanged(onChanged)
-                    .onEnded { _ in onEnded() })
-        } else {
-            content
-        }
     }
 }
 

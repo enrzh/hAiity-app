@@ -63,15 +63,15 @@ final class SearchFlowTests: XCTestCase {
 
         XCTAssertTrue(searchList.contains("searchResults"))
         XCTAssertTrue(searchList.contains("searchRow(for: habit)"))
-        XCTAssertFalse(searchList.contains("row(for: habit, index: index + 1, inSearchTab: true)"))
+        XCTAssertFalse(searchList.contains("row(for: habit, inSearchTab: true)"))
         XCTAssertFalse(searchList.contains("HabitCard("))
         XCTAssertFalse(searchList.contains("ContributionGrid"))
         XCTAssertFalse(searchList.contains("GitHubContributionCard"))
         XCTAssertTrue(source.contains("private var searchResults: [Habit]"))
         XCTAssertTrue(source.contains("let active = visibleActiveHabits"))
         XCTAssertTrue(source.contains("SearchResultRow(habit:"))
-        XCTAssertFalse(source.contains("if !inSearchTab { rowProbe(index) }"))
-        XCTAssertTrue(source.contains("if !inSearchTab && editMode == .active { rowProbe(index) }"))
+        XCTAssertFalse(source.contains("rowProbe"),
+                       "sorting must not install row probes that fight list scrolling")
     }
 
     private func contentSource() throws -> String {

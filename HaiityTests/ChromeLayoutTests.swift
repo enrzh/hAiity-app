@@ -43,14 +43,18 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertTrue(nativeSource.contains("TabView(selection: $nativeTab)"))
     }
 
-    func testSortingModeAddsEdgeAutoScrollWithoutEnablingItElsewhere() throws {
+    func testSortingModeKeepsNativeListScrolling() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("sortingAutoScrollTask"))
-        XCTAssertTrue(content.contains("simultaneousGesture("))
-        XCTAssertTrue(content.contains("DragGesture(minimumDistance: 1)"))
+        XCTAssertFalse(content.contains("SortingAutoScrollModifier"),
+                       "a list-wide drag observer steals ordinary scrolling in sorting mode")
+        XCTAssertFalse(content.contains("sortingAutoScrollTask"))
+        XCTAssertFalse(content.contains("simultaneousGesture("))
+        XCTAssertTrue(content.contains(".onMove("),
+                      "native list reorder already auto-scrolls while dragging a handle")
         XCTAssertTrue(content.contains("editMode == .active"))
-        XCTAssertTrue(content.contains("proxy.scrollTo"))
+        XCTAssertTrue(content.contains("placement: .confirmationAction"))
+        XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }
 
     // MARK: – Wohin der Anlegen-Knopf fährt

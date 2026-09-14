@@ -21,7 +21,7 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(habitList.contains("GitHubContributionCard"))
 
         let cardUse = try XCTUnwrap(habitList.range(of: "GitHubContributionCard"))
-        let foreach = try XCTUnwrap(habitList.range(of: "ForEach(Array(habitsTabSource.enumerated())"))
+        let foreach = try XCTUnwrap(habitList.range(of: "ForEach(habitsTabSource)"))
         XCTAssertLessThan(cardUse.lowerBound, foreach.lowerBound)
         let afterCard = habitList[cardUse.upperBound..<foreach.lowerBound]
         XCTAssertFalse(afterCard.contains(".onMove"))
