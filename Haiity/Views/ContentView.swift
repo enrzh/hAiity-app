@@ -145,7 +145,7 @@ struct ContentView: View {
     /// Keeps keystrokes out of the large lazy list until the user pauses.
     @State private var committedSearch = ""
     @State private var searchCommitTask: Task<Void, Never>?
-    @State private var habitFilter = HabitListFilter()
+    @State private var habitFilter = HabitListFilter.restored()
     @State private var progressNow = Date.now
     /// Nur fuer die iOS-17...25-Fallback-Suche; iOS 26+ zeigt das Feld nativ
     /// dauerhaft auf der dedizierten Suchseite.
@@ -388,6 +388,7 @@ struct ContentView: View {
                 #if DEBUG
                 if let fixtureStore = DesignFixture.makeStore() {
                     store = fixtureStore
+                    habitFilter = HabitListFilter()
                     Pro.setDebugUnlocked(true)
                     handleLaunchScreenArgument()
                     if FrameProbe.enabled { FrameProbe.shared.start() }
@@ -497,6 +498,9 @@ struct ContentView: View {
             }
             .onChange(of: habitFilter) { _, filter in
                 if !filter.isEmpty { editMode = .inactive }
+            }
+            .onChange(of: habitFilter.todayOnly) { _, todayOnly in
+                HabitListFilterPreferences.persistTodayOnly(todayOnly)
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd)")
@@ -846,7 +850,9 @@ struct ContentView: View {
                     .lineLimit(1)
             }, actionTitle: String(localized: "Zurücksetzen"),
                          actionIdentifier: "clear-filters") {
-                    withAnimation { habitFilter = HabitListFilter() }
+                    withAnimation {
+                        habitFilter = HabitListFilter(todayOnly: habitFilter.todayOnly)
+                    }
             }
             .transition(reduceMotion ? .opacity
                         : .move(edge: .bottom).combined(with: .opacity))
@@ -1169,9 +1175,9 @@ struct ContentView: View {
                 Label(String(localized: "Typ"), systemImage: "line.3.horizontal.decrease.circle")
             }
 
-            if !habitFilter.isEmpty {
+            if habitFilter.status != .all || habitFilter.itemType != .all {
                 Button {
-                    habitFilter = HabitListFilter()
+                    habitFilter = HabitListFilter(todayOnly: habitFilter.todayOnly)
                 } label: {
                     Label(String(localized: "Filter zurücksetzen"), systemImage: "arrow.counterclockwise")
                 }

@@ -38,6 +38,32 @@ final class HabitListFilterTests: XCTestCase {
         XCTAssertTrue(filter.isEmpty == false)
     }
 
+    func testTodayOnlyRoundTripsThroughAppGroupDefaults() {
+        let suite = "HabitListFilterTodayOnly-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(HabitListFilter.restored(from: defaults).todayOnly)
+        HabitListFilterPreferences.setTodayOnly(true, in: defaults)
+        XCTAssertTrue(HabitListFilter.restored(from: defaults).todayOnly)
+        HabitListFilterPreferences.setTodayOnly(false, in: defaults)
+        XCTAssertFalse(HabitListFilter.restored(from: defaults).todayOnly)
+    }
+
+    func testHabitsScreenRestoresAndPersistsTodayOnly() throws {
+        let content = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("HabitListFilter.restored()"),
+                      "Heute/Alle must load the last saved viewing mode at launch")
+        XCTAssertTrue(content.contains("HabitListFilterPreferences.persistTodayOnly(todayOnly)"),
+                      "selecting Heute or Alle must write the viewing mode immediately")
+        XCTAssertTrue(content.contains("HabitListFilter(todayOnly: habitFilter.todayOnly)"),
+                      "resetting status/type filters must keep Heute/Alle")
+    }
+
     func testStatusFiltersExcludeUnsheduledDays() {
         let habit = Habit(name: "Montag", recurrence: .weekdays([2], start: "2026-08-24"))
         let filter = HabitListFilter(status: .notDone)

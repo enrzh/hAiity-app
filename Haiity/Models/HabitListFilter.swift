@@ -1,5 +1,23 @@
 import Foundation
 
+/// Device-local Heute/Alle choice. Status and type filters stay session-only;
+/// this picker is a viewing mode and must survive the next launch.
+enum HabitListFilterPreferences {
+    static let todayOnlyKey = "habitListFilterTodayOnly"
+
+    static func todayOnly(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: todayOnlyKey)
+    }
+
+    static func setTodayOnly(_ value: Bool, in defaults: UserDefaults) {
+        defaults.set(value, forKey: todayOnlyKey)
+    }
+
+    static func persistTodayOnly(_ value: Bool) {
+        setTodayOnly(value, in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+    }
+}
+
 /// The filters shown in the Habits toolbar. Status is evaluated for the
 /// current day in each habit's effective timezone; an item that is not
 /// scheduled today cannot be classified as done or not done.
@@ -19,6 +37,13 @@ struct HabitListFilter: Equatable {
     var todayOnly = false
     var status: Status = .all
     var itemType: ItemType = .all
+
+    static func restored(from defaults: UserDefaults? = nil) -> HabitListFilter {
+        let resolved = defaults
+            ?? UserDefaults(suiteName: SharedStorage.appGroup)
+            ?? .standard
+        return HabitListFilter(todayOnly: HabitListFilterPreferences.todayOnly(in: resolved))
+    }
 
     var isEmpty: Bool {
         !todayOnly && status == .all && itemType == .all
