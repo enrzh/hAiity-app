@@ -591,13 +591,17 @@ final class DiagnosticsTests: XCTestCase {
                        "die Konstante meldet einen Kalender, den es nicht geben muss")
 
         let sync = try source("Haiity/Services/CalendarSync.swift")
-        let start = try XCTUnwrap(sync.range(of: "static var activeCalendarTitle"))
-        let end = try XCTUnwrap(sync.range(of: "/// Alles abgleichen"))
+        let start = try XCTUnwrap(sync.range(of: "static func activeCalendarTitle(isReminder:"))
+        let end = try XCTUnwrap(sync.range(of: "static var writableCalendarOptions",
+                                           range: start.upperBound..<sync.endIndex))
         let body = sync[start.lowerBound..<end.lowerBound]
         XCTAssertTrue(body.contains("hasAccess"), "ohne Zugriff gibt es keine Auskunft")
+        XCTAssertTrue(body.contains("CalendarSyncPreferences.calendarTitleKey"),
+                      "gelesen wird die gemerkte Überschrift, nicht EventKit")
         XCTAssertTrue(body.contains("defaults.string(forKey: calendarKey)"),
-                      "gelesen wird die Kennung des WIRKLICH angelegten Kalenders")
-        XCTAssertTrue(body.contains("store.calendar(withIdentifier: id)?.title"))
+                      "ohne gemerkten Titel bleibt die gespeicherte Kennung die Auskunft")
+        XCTAssertFalse(body.contains("store.calendar(withIdentifier:"),
+                       "die Diagnose darf den Main Actor nicht auf EventKit warten")
         for write in ["EKCalendar(", "saveCalendar", "isEnabled ="] {
             XCTAssertFalse(body.contains(write), "die Diagnose darf nichts anlegen: \(write)")
         }

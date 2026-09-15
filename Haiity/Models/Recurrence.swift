@@ -21,13 +21,13 @@ import Foundation
 /// 24-Stunden-Abständen, sonst kippt jede Sommerzeitgrenze.
 struct Recurrence: Equatable {
 
-    enum Frequency: String, CaseIterable, Equatable {
+    enum Frequency: String, CaseIterable, Equatable, Sendable {
         case once, daily, weekly, monthly, yearly
     }
 
     /// A month/day pair without a year. Yearly rules use this value so a
     /// list such as 12 March and 5 October cannot become a cross-product.
-    struct MonthDay: Hashable, Comparable, Codable {
+    struct MonthDay: Hashable, Comparable, Codable, Sendable {
         let month: Int
         let day: Int
 
@@ -81,7 +81,7 @@ struct Recurrence: Equatable {
 
     /// Wann die Regel aufhört. `after` zählt TERMINE, nicht Tage — „nach 10
     /// Malen" ist bei einer Monatsregel etwas völlig anderes als 10 Tage.
-    enum End: Equatable {
+    enum End: Equatable, Sendable {
         case never
         case on(String)     // Tagesschlüssel, EINSCHLIESSLICH
         case after(Int)     // N Termine ab dem Start

@@ -10,7 +10,7 @@ struct CalendarSyncSelection: Equatable {
     }
 }
 
-struct CalendarDestinationOption: Identifiable, Equatable {
+struct CalendarDestinationOption: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
     let sourceTitle: String
@@ -50,6 +50,10 @@ enum CalendarSyncPreferences {
         defaults.set(id, forKey: key)
     }
 
+    static func calendarTitleKey(isReminder: Bool) -> String {
+        isReminder ? "calendarSyncRemindersCalendarTitle" : "calendarSyncHabitsCalendarTitle"
+    }
+
     static func selection(in defaults: UserDefaults) -> CalendarSyncSelection {
         let habits = defaults.object(forKey: habitsEnabledKey) == nil
             ? defaults.bool(forKey: legacyEnabledKey)
@@ -57,21 +61,6 @@ enum CalendarSyncPreferences {
         return CalendarSyncSelection(
             habits: habits,
             reminders: defaults.bool(forKey: remindersEnabledKey))
-    }
-}
-
-/// EventKit posts `EKEventStoreChanged` for our own saves too. The validating
-/// inventory is only for edits made in Apple Calendar; echoes from a local
-/// habit/reminder write must not rescan every calendar.
-enum CalendarStoreChangePolicy {
-    static let localWriteEchoGrace: TimeInterval = 1.5
-    static let nativeValidateDelay: Duration = .milliseconds(400)
-
-    static func shouldIgnoreNativeChange(lastLocalWrite: Date?,
-                                         now: Date = .now,
-                                         grace: TimeInterval = localWriteEchoGrace) -> Bool {
-        guard let lastLocalWrite else { return false }
-        return now.timeIntervalSince(lastLocalWrite) < grace
     }
 }
 
@@ -84,7 +73,7 @@ enum CalendarStoreChangePolicy {
 /// Wochentags-Verabredung („3× pro Woche, irgendwann") haben keinen Termin,
 /// den man eintragen könnte — sie liefern keinen Plan. Flexible Ziele MIT
 /// Verabredung erscheinen an genau diesen Wochentagen.
-struct CalendarEventPlan: Equatable {
+struct CalendarEventPlan: Equatable, Sendable {
     let habitID: UUID
     let isReminder: Bool
     var title: String
@@ -266,38 +255,35 @@ enum CalendarSync {
 
     static func activeCalendarTitle(isReminder: Bool) -> String? {
         guard hasAccess else { return nil }
+        let titleKey = CalendarSyncPreferences.calendarTitleKey(isReminder: isReminder)
+        if let title = defaults.string(forKey: titleKey), !title.isEmpty {
+            return title
+        }
         let calendarKey = isReminder ? remindersCalendarKey : habitsCalendarKey
-        if let id = defaults.string(forKey: calendarKey) {
-            return store.calendar(withIdentifier: id)?.title
+        if defaults.string(forKey: calendarKey) != nil {
+            return destinationTitle(isReminder: isReminder)
         }
-        if let id = selectedCalendarID(isReminder: isReminder),
-           let calendar = store.calendar(withIdentifier: id) {
-            return calendar.title
+        if selectedCalendarID(isReminder: isReminder) != nil {
+            return destinationTitle(isReminder: isReminder)
         }
-        if let id = defaults.string(forKey: fallbackCalendarKey),
-           let calendar = store.calendar(withIdentifier: id) {
-            return calendar.title
+        if defaults.string(forKey: fallbackCalendarKey) != nil {
+            return destinationTitle(isReminder: isReminder)
         }
         return nil
     }
 
     static var writableCalendarOptions: [CalendarDestinationOption] {
         guard hasAccess else { return [] }
-        return store.calendars(for: .event)
-            .filter {
-                $0.allowsContentModifications
-                    && $0.source?.sourceType != .subscribed
-                    && $0.source?.sourceType != .birthdays
-            }
-            .map {
-                CalendarDestinationOption(id: $0.calendarIdentifier,
-                                           title: $0.title,
-                                           sourceTitle: $0.source?.title ?? "")
-            }
-            .sorted {
-                let titleOrder = $0.title.localizedStandardCompare($1.title)
-                return titleOrder == .orderedSame ? $0.id < $1.id : titleOrder == .orderedAscending
-            }
+        return cachedWritableOptions
+    }
+
+    static func refreshDestinationCache() async {
+        guard hasAccess else {
+            cachedWritableOptions = []
+            return
+        }
+        cachedWritableOptions = await CalendarEventKit.shared.writableOptions()
+        await refreshCachedTitles()
     }
 
     nonisolated static func orderedSourceIDs(preferredID: String?,
@@ -310,12 +296,10 @@ enum CalendarSync {
         return result
     }
 
-    private static let store = EKEventStore()
-    private static var observer: NSObjectProtocol?
     private static weak var observedStore: HabitStore?
-    private static var isReconciling = false
-    private static var lastLocalWriteAt: Date?
-    private static var nativeValidateTask: Task<Void, Never>?
+    private static var isSyncing = false
+    private static var nativeRecheckTask: Task<Void, Never>?
+    private static var cachedWritableOptions: [CalendarDestinationOption] = []
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
@@ -346,7 +330,7 @@ enum CalendarSync {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess: return true
         case .notDetermined:
-            return (try? await store.requestFullAccessToEvents()) ?? false
+            return await CalendarEventKit.shared.requestFullAccess()
         default: return false
         }
     }
@@ -355,45 +339,32 @@ enum CalendarSync {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
-    /// Re-check native events when the user changes or deletes one in Apple
-    /// Calendar. The reconciliation remains marker- and ID-scoped, so this
-    /// cannot import unrelated calendar content. Writes from hAiity itself
-    /// are ignored for a short grace window so a single date change cannot
-    /// trigger the 200-year inventory scan.
+    /// Re-check mapped native events when the user changes or deletes one in
+    /// Apple Calendar. The pass looks up persisted event identifiers only, so
+    /// it cannot import unrelated calendar content and never inventories a
+    /// 200-year window.
     static func startObserving(store habitStore: HabitStore) {
         observedStore = habitStore
-        guard observer == nil else { return }
-        observer = NotificationCenter.default.addObserver(
-            forName: .EKEventStoreChanged,
-            object: store,
-            queue: .main) { _ in
+        Task {
+            await CalendarEventKit.shared.startObservingNativeChanges {
                 Task { @MainActor in
                     handleNativeStoreChange()
                 }
             }
+        }
     }
 
-    private static func handleNativeStoreChange() {
-        if CalendarStoreChangePolicy.shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt) {
-            return
-        }
-        nativeValidateTask?.cancel()
-        nativeValidateTask = Task { @MainActor in
-            try? await Task.sleep(for: CalendarStoreChangePolicy.nativeValidateDelay)
-            guard !Task.isCancelled else { return }
-            if CalendarStoreChangePolicy.shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt) {
-                return
-            }
+    static func handleNativeStoreChange() {
+        guard !isSyncing else { return }
+        nativeRecheckTask?.cancel()
+        nativeRecheckTask = Task { @MainActor in
+            try? await Task.sleep(for: CalendarMappedSyncPolicy.nativeRecheckDelay)
+            guard !Task.isCancelled, !isSyncing else { return }
             guard let habitStore = observedStore else { return }
-            reconcile(habits: habitStore.habits,
-                      defaultTimeZoneIdentifier: habitStore.defaultTimeZoneIdentifier,
-                      validate: true)
+            await sync(scope: .allMapped,
+                       habits: habitStore.habits,
+                       defaultTimeZoneIdentifier: habitStore.defaultTimeZoneIdentifier)
         }
-    }
-
-    private static func noteLocalStoreMutation() {
-        lastLocalWriteAt = Date()
-        nativeValidateTask?.cancel()
     }
 
     /// Der Titel des Kalenders, den hAiity WIRKLICH führt — oder `nil`.
@@ -405,17 +376,11 @@ enum CalendarSync {
     /// Diagnose („meine Habits stehen nicht im Kalender") wäre genau das der
     /// unfälschbare Wert — die Frage bliebe unbeantwortet.
     ///
-    /// Gelesen wird ausschließlich über die gemerkte Kennung, also nur der
-    /// eigene Kalender; angelegt, gesucht und geschrieben wird nichts.
+    /// Gelesen wird die gemerkte Überschrift, nicht EventKit — damit die
+    /// Mehr-Seite und die Diagnose den Main Actor nicht auf den Store
+    /// warten.
     static var activeCalendarTitle: String? {
-        guard hasAccess else { return nil }
-        for calendarKey in [habitsCalendarKey, remindersCalendarKey,
-                            calendarKey, fallbackCalendarKey] {
-            guard let id = defaults.string(forKey: calendarKey),
-                  let title = store.calendar(withIdentifier: id)?.title else { continue }
-            return title
-        }
-        return nil
+        activeCalendarTitle(isReminder: false) ?? activeCalendarTitle(isReminder: true)
     }
 
     static var activeCalendarTitles: [String] {
@@ -429,27 +394,25 @@ enum CalendarSync {
         return titles
     }
 
-    /// Alles abgleichen: fehlende Termine anlegen, veränderte neu schreiben,
-    /// verwaiste entfernen. Idempotent; ohne Schalter oder Zugriff ein No-op
-    /// (beim AUSschalten räumt `disable()` auf).
-    ///
-    /// `validate` prüft zusätzlich, ob die gemerkten Termine noch existieren
-    /// und räumt alte Marker auf — das kostet eine vollständige EventKit-
-    /// Inventur. Der normale Start-, Aktivierungs- und lokale Änderungsweg
-    /// übergibt `false` und arbeitet ausschließlich mit der gespeicherten
-    /// Kennung. Echte Änderungen in Apple Calendar laufen weiter über den
-    /// validierenden Beobachter; Echo-Benachrichtigungen unserer eigenen
-    /// Writes werden dort verworfen.
-    static func reconcile(habits: [Habit],
-                          defaultTimeZoneIdentifier: String? = nil,
-                          validate: Bool = true) {
-        guard Pro.isUnlocked else { return }
-        guard isEnabled, hasAccess, !isReconciling else { return }
-        isReconciling = true
-        defer { isReconciling = false }
+    /// Spiegelt geänderte Habits in Calendar. Ein Editor-Save übergibt die
+    /// betroffenen Kennungen; Start, Vordergrund und Einstellungen gleichen
+    /// die gemerkte Abbildung ab. Die Inventur über alle Kalender bleibt
+    /// `removeAllOwnedItems()`.
+    static func sync(habitID: UUID,
+                     habits: [Habit],
+                     defaultTimeZoneIdentifier: String? = nil) async {
+        await sync(scope: .items([habitID]),
+                   habits: habits,
+                   defaultTimeZoneIdentifier: defaultTimeZoneIdentifier)
+    }
 
-        var map = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
-        var prints = (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:]
+    static func sync(scope: CalendarSyncScope,
+                     habits: [Habit],
+                     defaultTimeZoneIdentifier: String? = nil) async {
+        guard Pro.isUnlocked else { return }
+        guard isEnabled, hasAccess, !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
 
         let selection = CalendarSyncSelection(habits: syncHabits, reminders: syncReminders)
         let active = habits.filter { $0.archivedAt == nil && selection.includes($0) }
@@ -458,270 +421,37 @@ enum CalendarSync {
                               defaultTimeZoneIdentifier: defaultTimeZoneIdentifier)
                 .map { (habit.id.uuidString, $0) }
         }
-        if !validate {
-            let wanted = Set(plans.map(\.0))
-            let unchanged = Set(map.keys) == wanted && plans.allSatisfy {
-                prints[$0.0] == $0.1.fingerprint
-            }
-            if unchanged { return }
-
-            // Startup, foreground activation, and local edits use the fast
-            // path. It trusts the persisted event IDs and only touches the
-            // affected series; the validating path below is reserved for
-            // native-store change notifications and explicit cleanup.
-            reconcileFast(plans: plans, map: &map, prints: &prints)
-            return
-        }
-
-        guard removeLegacyOwnedItems() else {
-            trace("calsync: legacy cleanup failed; preserving state for retry")
-            return
-        }
-
-        var calendars: [Bool: EKCalendar] = [:]
-        for isReminder in Set(plans.map { $0.1.isReminder }) {
-            if let calendar = ensureCalendar(isReminder: isReminder) {
-                calendars[isReminder] = calendar
-                trace("calsync: reconcile into '\(calendar.title)' source=\(calendar.source?.title ?? "nil")")
-            } else {
-                trace("calsync: no category calendar (reminder=\(isReminder), sources: \(store.sources.map(\.title)))")
-            }
-        }
-
-        // A stored event ID is only a fast path. Older builds and interrupted
-        // writes can leave several owned series behind, so inventory the
-        // watermark before deciding which ID to reuse.
-        let plansByOwner = Dictionary(uniqueKeysWithValues: plans.compactMap { entry
-            -> (SyncWatermark.Ownership, CalendarEventPlan)? in
-            guard let id = UUID(uuidString: entry.0) else { return nil }
-            let kind: SyncWatermark.Kind = entry.1.isReminder
-                ? .reminderCalendar : .habitCalendar
-            return (SyncWatermark.Ownership(kind: kind, id: id), entry.1)
-        })
-        // iOS 27 can resolve a stored event identifier while omitting the
-        // same event from a date predicate. Include those references in the
-        // inventory so reconciliation can reuse them instead of creating a
-        // second series.
-        let inventory = eventsIncludingStoredMappings(map)
-        let mappedOwners = map.reduce(into: [String: SyncWatermark.Ownership]()) {
-            result, entry in
-            guard let id = UUID(uuidString: entry.key) else { return }
-            let kind: SyncWatermark.Kind = plansByOwner.first(where: { owner, _ in
-                owner.id == id
-            })?.key.kind ?? .habitCalendar
-            result[entry.value] = SyncWatermark.Ownership(kind: kind, id: id)
-        }
-        let ownedByOwner = inventory.reduce(into: [SyncWatermark.Ownership: [EKEvent]]()) {
-            result, event in
-            if let owner = event.notes.flatMap({ SyncWatermark.ownership(in: $0) }),
-               owner.kind == .habitCalendar || owner.kind == .reminderCalendar {
-                result[owner, default: []].append(event)
-                return
-            }
-            let nativeIDs = [event.eventIdentifier, event.calendarItemIdentifier]
-                .compactMap { $0 }
-            guard let owner = nativeIDs.lazy.compactMap({ mappedOwners[$0] }).first else {
-                return
-            }
-            result[owner, default: []].append(event)
-        }
-        var validatedKeys = Set<String>()
-        var validatedEvents: [String: EKEvent] = [:]
-        var removedSeries = Set<String>()
-        var blockedKeys = Set<String>()
-        for (owner, events) in ownedByOwner {
-            guard let plan = plansByOwner[owner] else {
-                for event in events {
-                    removeOwnedEvent(event, removedSeries: &removedSeries)
-                }
-                continue
-            }
-            guard let calendar = calendars[plan.isReminder] else { continue }
-
-            let targetEvents = events.filter {
-                $0.calendar?.calendarIdentifier == calendar.calendarIdentifier
-            }
-            let candidates = targetEvents.compactMap { event
-                -> (id: String, sortKey: String)? in
-                guard let id = nativeID(for: event) else { return nil }
-                return (id: id, sortKey: eventSortKey(event))
-            }
-            let selection = SyncWatermark.selectCanonicalItem(
-                candidates: candidates,
-                preferredID: map[owner.id.uuidString])
-            let retainedID = selection.retainedID
-            let targetIDs = Set(candidates.map { $0.id })
-            var removalFailed = false
-            for event in events {
-                guard let id = nativeID(for: event) else { continue }
-                let keep = id == retainedID
-                    && targetIDs.contains(id)
-                    && !selection.duplicateIDs.contains(id)
-                if !keep {
-                    if !removeOwnedEvent(event, removedSeries: &removedSeries) {
-                        removalFailed = true
-                    }
-                }
-            }
-            if removalFailed {
-                blockedKeys.insert(owner.id.uuidString)
-                continue
-            }
-            if let retainedID,
-               let retainedEvent = targetEvents.first(where: {
-                   nativeID(for: $0) == retainedID
-               }) {
-                let key = owner.id.uuidString
-                map[key] = retainedID
-                validatedKeys.insert(owner.id.uuidString)
-                validatedEvents[key] = retainedEvent
-            } else {
-                map[owner.id.uuidString] = nil
-            }
-        }
-
-        var seen: Set<String> = []
-        for habit in active {
-            let key = habit.id.uuidString
-            guard let plan = CalendarEventPlan(
-                habit: habit,
-                defaultTimeZoneIdentifier: defaultTimeZoneIdentifier) else {
-                _ = removeEvent(for: key, map: &map, prints: &prints)
-                continue
-            }
-            seen.insert(key)
-            guard let calendar = calendars[plan.isReminder] else { continue }
-            if blockedKeys.contains(key) { continue }
-            if prints[key] == plan.fingerprint, map[key] != nil,
-               !validate || validatedKeys.contains(key) {
-                continue
-            }
-            // Neu schreiben statt umbiegen: eine geänderte Wiederholungs-
-            // regel sauber auf einer bestehenden Serie zu ändern ist ein
-            // Minenfeld — Entfernen + Anlegen ist idempotent und eindeutig.
-            if !removeEvent(for: key,
-                            map: &map,
-                            prints: &prints,
-                            existing: validatedEvents[key]) {
-                continue
-            }
-            if let id = createEvent(plan: plan, in: calendar) {
-                map[key] = id
-                prints[key] = plan.fingerprint
-            }
-        }
-
-        // Verwaiste (gelöschte/archivierte Habits) räumen.
-        let unavailableKeys = Set(plansByOwner.compactMap { owner, plan in
-            calendars[plan.isReminder] == nil ? owner.id.uuidString : nil
-        })
-        for key in Array(map.keys) where !seen.contains(key) && !unavailableKeys.contains(key) {
-            _ = removeEvent(for: key, map: &map, prints: &prints)
-        }
-
-        defaults.set(map, forKey: mapKey)
-        defaults.set(prints, forKey: fingerprintKey)
+        let next = await CalendarEventKit.shared.syncMapped(
+            plans: plans,
+            requestedKeys: scope.keys,
+            state: currentKitState())
+        persist(state: next)
+        cachedWritableOptions = await CalendarEventKit.shared.writableOptions()
     }
 
-    /// Reconciles from the device-local event map without scanning every
-    /// calendar event. EventKit's broad date predicates are synchronous and
-    /// can cover 200 years of data, so they must never be part of the normal
-    /// startup or local-change path.
-    private static func reconcileFast(
-        plans: [(String, CalendarEventPlan)],
-        map: inout [String: String],
-        prints: inout [String: String]
-    ) {
-        let wanted = Set(plans.map(\.0))
-        let changedPlans = plans.filter { key, plan in
-            prints[key] != plan.fingerprint || map[key] == nil
-        }
-
-        for key in Array(map.keys) where !wanted.contains(key) {
-            _ = removeEvent(for: key, map: &map, prints: &prints)
-        }
-
-        var calendars: [Bool: EKCalendar] = [:]
-        for (_, plan) in changedPlans {
-            guard calendars[plan.isReminder] == nil else { continue }
-            if let calendar = ensureCalendar(isReminder: plan.isReminder) {
-                calendars[plan.isReminder] = calendar
-            }
-        }
-
-        for (key, plan) in changedPlans {
-            guard let calendar = calendars[plan.isReminder] else { continue }
-            if !removeEvent(for: key, map: &map, prints: &prints) { continue }
-            if let id = createEvent(plan: plan, in: calendar) {
-                map[key] = id
-                prints[key] = plan.fingerprint
-            }
-        }
-
-        defaults.set(map, forKey: mapKey)
-        defaults.set(prints, forKey: fingerprintKey)
+    /// Voller mapped Abgleich — Start, Vordergrund, Kalenderziel. Niemals
+    /// eine 200-Jahre-Inventur.
+    static func reconcile(habits: [Habit],
+                          defaultTimeZoneIdentifier: String? = nil) async {
+        await sync(scope: .allMapped,
+                   habits: habits,
+                   defaultTimeZoneIdentifier: defaultTimeZoneIdentifier)
     }
 
     /// Removes every Calendar item carrying hAiity's current or legacy
     /// ownership marker. This is used during reinstall recovery and explicit
     /// cleanup because native event IDs do not survive a fresh app-group
     /// container.
-    static func removeAllOwnedItems() -> Bool {
+    static func removeAllOwnedItems() async -> Bool {
         guard hasAccess else { return false }
-
-        let storedMap = (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:]
-        let mappedNativeIDs = Set(storedMap.values)
-        // EventKit can return recurring occurrences in an unspecified order.
-        // Removing the earliest occurrence with `.futureEvents` removes the
-        // whole series, including all entries the app may have created before
-        // the reinstall.
-        let events = eventsIncludingStoredMappings(storedMap).sorted {
-            ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast)
+        let (succeeded, next) = await CalendarEventKit.shared.removeAllOwnedItems(
+            state: currentKitState())
+        persist(state: next)
+        if succeeded {
+            defaults.removeObject(forKey: calendarKey)
         }
-        var removedIDs = Set<String>()
-        var succeeded = true
-        for event in events {
-            if let notes = event.notes,
-               SyncWatermark.ownership(in: notes)?.kind == .nativeReminder {
-                continue
-            }
-            // The persisted map is written from `eventIdentifier`. Do not
-            // treat a matching series identifier alone as ownership during
-            // reinstall cleanup; it is an internal EventKit identity and is
-            // not the value hAiity persisted.
-            let isMappedCalendarEvent = event.eventIdentifier.map {
-                mappedNativeIDs.contains($0)
-            } ?? false
-            guard isMappedCalendarEvent || SyncWatermark.isCalendarOwned(
-                notes: event.notes,
-                urlString: event.url?.absoluteString) else {
-                continue
-            }
-            let identity = event.calendarItemIdentifier
-            guard !removedIDs.contains(identity) else { continue }
-            do {
-                noteLocalStoreMutation()
-                try store.remove(event, span: .futureEvents, commit: false)
-                removedIDs.insert(identity)
-            } catch {
-                succeeded = false
-            }
-        }
-        if !removedIDs.isEmpty {
-            do {
-                noteLocalStoreMutation()
-                try store.commit()
-            }
-            catch { succeeded = false }
-        }
-        guard succeeded else { return false }
-        defaults.removeObject(forKey: mapKey)
-        defaults.removeObject(forKey: fingerprintKey)
-        defaults.removeObject(forKey: habitsCalendarKey)
-        defaults.removeObject(forKey: remindersCalendarKey)
-        defaults.removeObject(forKey: calendarKey)
-        defaults.removeObject(forKey: fallbackCalendarKey)
-        return true
+        cachedWritableOptions = []
+        return succeeded
     }
 
     /// Ausschalten: alle eigenen Termine entfernen, Kennungen vergessen.
@@ -731,195 +461,67 @@ enum CalendarSync {
         syncHabits = false
         syncReminders = false
         defaults.removeObject(forKey: fallbackCalendarKey)
-        _ = removeAllOwnedItems()
+        Task { _ = await removeAllOwnedItems() }
     }
 
-    // MARK: – Bausteine
+    private static func currentKitState() -> CalendarKitState {
+        CalendarKitState(
+            map: (defaults.dictionary(forKey: mapKey) as? [String: String]) ?? [:],
+            prints: (defaults.dictionary(forKey: fingerprintKey) as? [String: String]) ?? [:],
+            habitsCalendarID: defaults.string(forKey: habitsCalendarKey),
+            remindersCalendarID: defaults.string(forKey: remindersCalendarKey),
+            fallbackCalendarID: defaults.string(forKey: fallbackCalendarKey),
+            habitsCalendarTitle: defaults.string(
+                forKey: CalendarSyncPreferences.calendarTitleKey(isReminder: false)),
+            remindersCalendarTitle: defaults.string(
+                forKey: CalendarSyncPreferences.calendarTitleKey(isReminder: true)))
+    }
 
-    private static func allEvents() -> [EKEvent] {
-        let calendars = store.calendars(for: .event)
-        guard !calendars.isEmpty else { return [] }
-        var seenSeries = Set<String>()
-        var events: [EKEvent] = []
-        let now = Date.now
-        var startYear = -100
-        while startYear < 100 {
-            guard let start = Calendar.current.date(byAdding: .year,
-                                                    value: startYear,
-                                                    to: now),
-                  let end = Calendar.current.date(byAdding: .year,
-                                                  value: startYear + 10,
-                                                  to: now) else {
-                startYear += 10
-                continue
-            }
-            let predicate = store.predicateForEvents(withStart: start,
-                                                      end: end,
-                                                      calendars: calendars)
-            for event in store.events(matching: predicate)
-                where seenSeries.insert(event.calendarItemIdentifier).inserted {
-                events.append(event)
-            }
-            startYear += 10
+    private static func persist(state: CalendarKitState) {
+        defaults.set(state.map, forKey: mapKey)
+        defaults.set(state.prints, forKey: fingerprintKey)
+        CalendarSyncPreferences.setCalendarID(state.habitsCalendarID,
+                                              isReminder: false,
+                                              in: defaults)
+        CalendarSyncPreferences.setCalendarID(state.remindersCalendarID,
+                                              isReminder: true,
+                                              in: defaults)
+        if let fallback = state.fallbackCalendarID {
+            defaults.set(fallback, forKey: fallbackCalendarKey)
+        } else {
+            defaults.removeObject(forKey: fallbackCalendarKey)
         }
-        return events.sorted { eventSortKey($0) < eventSortKey($1) }
-    }
-
-    private static func eventsIncludingStoredMappings(_ map: [String: String]) -> [EKEvent] {
-        var events = allEvents()
-        var seenSeries = Set(events.map(\.calendarItemIdentifier))
-        for event in map.values.compactMap({ store.event(withIdentifier: $0) })
-            where seenSeries.insert(event.calendarItemIdentifier).inserted {
-            events.append(event)
+        let habitTitleKey = CalendarSyncPreferences.calendarTitleKey(isReminder: false)
+        let reminderTitleKey = CalendarSyncPreferences.calendarTitleKey(isReminder: true)
+        if let title = state.habitsCalendarTitle {
+            defaults.set(title, forKey: habitTitleKey)
+        } else {
+            defaults.removeObject(forKey: habitTitleKey)
         }
-        return events.sorted { eventSortKey($0) < eventSortKey($1) }
-    }
-
-    private static func ownedEvents() -> [EKEvent] {
-        allEvents().filter { event in
-            guard let notes = event.notes,
-                  let owner = SyncWatermark.ownership(in: notes) else { return false }
-            return owner.kind == .habitCalendar || owner.kind == .reminderCalendar
+        if let title = state.remindersCalendarTitle {
+            defaults.set(title, forKey: reminderTitleKey)
+        } else {
+            defaults.removeObject(forKey: reminderTitleKey)
         }
     }
 
-    private static func removeLegacyOwnedItems() -> Bool {
-        var removedSeries = Set<String>()
-        var succeeded = true
-        for event in allEvents() {
-            guard SyncWatermark.isCalendarOwned(
-                notes: event.notes,
-                urlString: event.url?.absoluteString),
-                  SyncWatermark.ownership(in: event.notes ?? "") == nil else { continue }
-            if !removeOwnedEvent(event, removedSeries: &removedSeries) {
-                succeeded = false
-            }
+    private static func refreshCachedTitles() async {
+        if let id = defaults.string(forKey: habitsCalendarKey),
+           let title = await CalendarEventKit.shared.calendarTitle(identifier: id) {
+            defaults.set(title, forKey: CalendarSyncPreferences.calendarTitleKey(isReminder: false))
         }
-        return succeeded
+        if let id = defaults.string(forKey: remindersCalendarKey),
+           let title = await CalendarEventKit.shared.calendarTitle(identifier: id) {
+            defaults.set(title, forKey: CalendarSyncPreferences.calendarTitleKey(isReminder: true))
+        }
     }
 
-    private static func nativeID(for event: EKEvent) -> String? {
-        event.eventIdentifier ?? event.calendarItemIdentifier
-    }
-
-    private static func eventSortKey(_ event: EKEvent) -> String {
-        let start = event.startDate?.timeIntervalSinceReferenceDate ?? .greatestFiniteMagnitude
-        return "\(start)|\(nativeID(for: event) ?? event.calendarItemIdentifier)"
-    }
+    // MARK: – Abbildung ohne EventKit-Store
 
     @discardableResult
-    private static func removeOwnedEvent(_ event: EKEvent,
-                                         removedSeries: inout Set<String>) -> Bool {
-        guard removedSeries.insert(event.calendarItemIdentifier).inserted else { return true }
-        do {
-            noteLocalStoreMutation()
-            try store.remove(event, span: .futureEvents, commit: true)
-            return true
-        } catch {
-            trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
-            return false
-        }
-    }
-
-    private static func removeEvent(for key: String,
-                                    map: inout [String: String],
-                                    prints: inout [String: String],
-                                    existing: EKEvent? = nil) -> Bool {
-        if let event = existing ?? map[key].flatMap({ store.event(withIdentifier: $0) }) {
-            do {
-                noteLocalStoreMutation()
-                try store.remove(event, span: .futureEvents, commit: true)
-            } catch {
-                trace("calsync: remove FAILED '\(event.title ?? "")': \(error)")
-                return false
-            }
-        }
-        map[key] = nil
-        prints[key] = nil
-        return true
-    }
-
-    /// Creates a category calendar when the provider supports it. Some
-    /// providers, including Google calendars exposed through EventKit, allow
-    /// event writes but reject calendar creation; in that case the existing
-    /// writable event calendar is the only usable destination.
-    private static func ensureCalendar(isReminder: Bool) -> EKCalendar? {
-        if let id = CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults),
-           let existing = store.calendar(withIdentifier: id),
-           existing.allowsContentModifications {
-            return existing
-        }
-        if CalendarSyncPreferences.calendarID(isReminder: isReminder, in: defaults) != nil {
-            CalendarSyncPreferences.setCalendarID(nil, isReminder: isReminder, in: defaults)
-        }
-        let title = destinationTitle(isReminder: isReminder)
-        if let existing = store.calendars(for: .event)
-            .first(where: { $0.title == title && $0.allowsContentModifications }) {
-            CalendarSyncPreferences.setCalendarID(existing.calendarIdentifier,
-                                                   isReminder: isReminder,
-                                                   in: defaults)
-            return existing
-        }
-        if let id = defaults.string(forKey: fallbackCalendarKey),
-           let existing = store.calendar(withIdentifier: id),
-           existing.allowsContentModifications {
-            return existing
-        }
-        let sourceCandidates = store.sources.filter {
-            $0.sourceType != .subscribed && $0.sourceType != .birthdays
-        }
-        let sourcesByID = Dictionary(uniqueKeysWithValues: sourceCandidates.map {
-            ($0.sourceIdentifier, $0)
-        })
-        let preferredID = store.defaultCalendarForNewEvents?.source?.sourceIdentifier
-        for sourceID in orderedSourceIDs(
-            preferredID: preferredID,
-            fallbackIDs: sourceCandidates.map(\.sourceIdentifier)) {
-            guard let source = sourcesByID[sourceID] else { continue }
-            let calendar = EKCalendar(for: .event, eventStore: store)
-            calendar.title = title
-            calendar.source = source
-            do {
-                noteLocalStoreMutation()
-                try store.saveCalendar(calendar, commit: true)
-                CalendarSyncPreferences.setCalendarID(calendar.calendarIdentifier,
-                                                       isReminder: isReminder,
-                                                       in: defaults)
-                return calendar
-            } catch {
-                trace("calsync: save category calendar FAILED '\(title)' source='\(source.title)': \(error)")
-            }
-        }
-        let fallback = store.defaultCalendarForNewEvents
-            .flatMap { $0.allowsContentModifications ? $0 : nil }
-            ?? store.calendars(for: .event).first(where: { $0.allowsContentModifications })
-        guard let fallback, fallback.allowsContentModifications else {
-            return nil
-        }
-        defaults.set(fallback.calendarIdentifier, forKey: fallbackCalendarKey)
-        return fallback
-    }
-
-    private static func createEvent(plan: CalendarEventPlan,
-                                    in calendar: EKCalendar) -> String? {
-        let event = EKEvent(eventStore: store)
-        event.calendar = calendar
-        guard configure(event: event, for: plan) else { return nil }
-        do {
-            noteLocalStoreMutation()
-            try store.save(event, span: .futureEvents, commit: true)
-            trace("calsync: saved '\(plan.title)' id=\(event.eventIdentifier ?? "nil")")
-            return event.eventIdentifier
-        } catch {
-            trace("calsync: save FAILED '\(plan.title)': \(error)")
-            return nil
-        }
-    }
-
-    @discardableResult
-    static func configure(event: EKEvent,
-                          for plan: CalendarEventPlan,
-                          calendar: Calendar = .current) -> Bool {
+    nonisolated static func configure(event: EKEvent,
+                                      for plan: CalendarEventPlan,
+                                      calendar: Calendar = .current) -> Bool {
         var itemCalendar = calendar
         itemCalendar.timeZone = TimeZone(identifier: plan.timeZoneIdentifier)
             ?? calendar.timeZone
@@ -947,7 +549,7 @@ enum CalendarSync {
         return true
     }
 
-    static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule? {
+    nonisolated static func recurrenceRule(for plan: CalendarEventPlan) -> EKRecurrenceRule? {
         let frequency: EKRecurrenceFrequency
         switch plan.frequency {
         case .once: return nil

@@ -52,6 +52,7 @@ struct ContentView: View {
     /// is longer than a sheet dismiss so Save/Done can return to Habits
     /// before EventKit and notification work run.
     @State private var maintenance = PushDebouncer(delay: .milliseconds(500))
+    @State private var pendingCalendarSync: CalendarSyncScope?
     @State private var editing: Habit?
     @State private var pendingDelete: Habit?
     @State private var earlyReminderCompletion: PendingReminderCompletion?
@@ -2509,7 +2510,7 @@ struct ContentView: View {
                     trace("calsync: debug hook disabled")
                 } else if await CalendarSync.requestAccess() {
                     CalendarSync.isEnabled = true
-                    CalendarSync.reconcile(habits: store.habits,
+                    await CalendarSync.reconcile(habits: store.habits,
                                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
                     trace("calsync: debug hook enabled")
                 }
@@ -2819,6 +2820,10 @@ struct ContentView: View {
             // Glückwunsch, wenn dieser Check-in den Tag vollgemacht hat.
             Task { await Reminders.celebrateIfPerfectDay(store: store) }
         }
+        store.onCalendarSyncNeeded = { scope in
+            pendingCalendarSync = pendingCalendarSync?.merging(scope) ?? scope
+            scheduleMaintenance()
+        }
         initialBootReady = true
         startupMaintenanceTask?.cancel()
     }
@@ -2848,12 +2853,10 @@ struct ContentView: View {
         startNativeSyncObservers()
         integrationsReady = true
 
-        // A native change notification owns the expensive validating pass.
         // Activation only needs the cached mapping fast path; this avoids a
         // 200-year EventKit inventory scan every time the app becomes active.
-        CalendarSync.reconcile(habits: store.habits,
-                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                               validate: false)
+        await CalendarSync.reconcile(habits: store.habits,
+                               defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         ReminderSync.pullCompletions(into: store,
                                      defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
         await ReminderSync.reconcile(habits: store.habits,
@@ -2970,9 +2973,13 @@ struct ContentView: View {
                 guard !Task.isCancelled else { return }
                 HaiityShortcuts.updateAppShortcutParameters()
                 guard integrationsReady, !nativeSyncRecoveryPending else { return }
-                CalendarSync.reconcile(habits: store.habits,
-                                       defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                       validate: false)
+                let calendarScope = pendingCalendarSync
+                pendingCalendarSync = nil
+                if let calendarScope {
+                    await CalendarSync.sync(scope: calendarScope,
+                                            habits: store.habits,
+                                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                }
                 await ReminderSync.reconcile(
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
@@ -2990,7 +2997,7 @@ struct ContentView: View {
         Task { @MainActor in
             let result = await NativeSyncCleanup.run()
             if result.calendar {
-                CalendarSync.reconcile(
+                await CalendarSync.reconcile(
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }

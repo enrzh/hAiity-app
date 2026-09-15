@@ -117,48 +117,48 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(source.contains("static let calendarKey = \"calendarSyncCalendar\""))
         XCTAssertTrue(source.contains("static let habitsCalendarKey"))
         XCTAssertTrue(source.contains("static let remindersCalendarKey"))
+    }
+
+    func testCalendarKitEnsureCalendarLivesOnTheEventKitActor() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
         XCTAssertTrue(source.contains("func ensureCalendar(isReminder:"))
         XCTAssertTrue(source.contains("ownedEvents()"))
+        XCTAssertTrue(source.contains("actor CalendarEventKit"))
     }
 
     func testCalendarCleanupClearsBothCategoryIDsAndLegacyID() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
-
-        let cleanup = try XCTUnwrap(source.range(of: "static func removeAllOwnedItems()"))
-        let tail = source[cleanup.lowerBound...]
+        let persist = try XCTUnwrap(source.range(of: "private static func persist(state: CalendarKitState)"))
+        let tail = source[persist.lowerBound...]
         XCTAssertTrue(tail.contains("habitsCalendarKey"))
         XCTAssertTrue(tail.contains("remindersCalendarKey"))
-        XCTAssertTrue(tail.contains("calendarKey"))
         XCTAssertTrue(tail.contains("fallbackCalendarKey"))
+        XCTAssertTrue(source.contains("defaults.removeObject(forKey: calendarKey)"))
     }
 
-    func testCalendarMigrationBlocksRecreationAfterRemovalFailure() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
-
-        XCTAssertTrue(source.contains("var blockedKeys"))
-        XCTAssertTrue(source.contains("var removalFailed"))
-        XCTAssertTrue(source.contains("if !removeOwnedEvent("))
-        XCTAssertTrue(source.contains("blockedKeys.contains(key)"))
+    func testMappedSyncSkipsRecreationWhenRemovalFails() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
+        XCTAssertTrue(source.contains("if !removeMappedEvent(for: key, state: &state, commit: false)"))
+        XCTAssertTrue(source.contains("continue"))
+        XCTAssertFalse(source.contains("try? store.remove(event, span: .futureEvents, commit: true)"))
     }
 
-    func testCalendarReconcileUsesStoredIDInventoryWhenDatePredicateOmitsAnEvent() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
-
-        XCTAssertTrue(source.contains("eventsIncludingStoredMappings(map)"))
-        XCTAssertTrue(source.contains("let mappedOwners"))
-        XCTAssertTrue(source.contains("mappedOwners[$0]"))
+    func testCalendarCleanupUsesStoredMappingsWhenDatePredicateOmitsAnEvent() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
+        XCTAssertTrue(source.contains("eventsIncludingStoredMappings(state.map)"))
+        XCTAssertTrue(source.contains("store.event(withIdentifier:"))
     }
 
-    func testFastReconcileDoesNotRunTheBroadCalendarInventory() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
-        let fastStart = try XCTUnwrap(source.range(of: "if !validate {"))
-        let validationStart = try XCTUnwrap(source.range(of: "guard removeLegacyOwnedItems() else",
-                                                         range: fastStart.upperBound..<source.endIndex))
-        let fastEntry = source[fastStart.lowerBound..<validationStart.lowerBound]
-
-        XCTAssertTrue(fastEntry.contains("reconcileFast(plans: plans"))
-        XCTAssertFalse(fastEntry.contains("removeLegacyOwnedItems()"))
-        XCTAssertFalse(fastEntry.contains("eventsIncludingStoredMappings(map)"))
+    func testMappedSyncDoesNotRunTheBroadCalendarInventory() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
+        let mapped = try XCTUnwrap(source.range(of: "func syncMapped("))
+        let inventory = try XCTUnwrap(source.range(of: "func removeAllOwnedItems(state:"))
+        let mappedBody = source[mapped.lowerBound..<inventory.lowerBound]
+        XCTAssertTrue(mappedBody.contains("store.event(withIdentifier:"))
+        XCTAssertFalse(mappedBody.contains("allEvents()"))
+        XCTAssertFalse(mappedBody.contains("predicateForEvents"))
+        XCTAssertTrue(source[inventory.lowerBound...].contains("allEvents()"),
+                      "the 200-year scan remains only on explicit cleanup")
     }
 
     func testLocalStoreChangesScheduleCalendarReconcileAfterTheCurrentTransaction() throws {
@@ -179,24 +179,26 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertTrue(maintenance.contains("maintenance.schedule"))
         XCTAssertTrue(maintenance.contains("await Task.yield()"),
                       "editor dismiss must get a frame before EventKit work")
-        XCTAssertTrue(maintenance.contains("CalendarSync.reconcile"))
+        XCTAssertTrue(maintenance.contains("CalendarSync.sync(scope: calendarScope"))
         XCTAssertTrue(maintenance.contains("await ReminderSync.reconcile"))
 
         XCTAssertTrue(source.contains("PushDebouncer(delay: .milliseconds(500))"),
                       "native work must wait longer than a sheet dismiss")
+        XCTAssertTrue(source.contains("store.onCalendarSyncNeeded"),
+                      "editor saves must request a per-item calendar sync")
     }
 
     func testCalendarCleanupUsesStoredIDsWhenOwnershipMetadataIsMissing() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("let mappedNativeIDs = Set(storedMap.values)"))
+        XCTAssertTrue(source.contains("let mappedNativeIDs = Set(state.map.values)"))
         XCTAssertTrue(source.contains("isMappedCalendarEvent"))
         XCTAssertTrue(source.contains("event.eventIdentifier.map"))
         XCTAssertTrue(source.contains("isMappedCalendarEvent || SyncWatermark.isCalendarOwned"))
     }
 
     func testCalendarInventoryUsesTenYearWindowsAcrossTheFullCleanupHorizon() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
         XCTAssertTrue(source.contains("var startYear = -100"))
         XCTAssertTrue(source.contains("while startYear < 100"))
@@ -227,17 +229,17 @@ final class CalendarSyncSelectionTests: XCTestCase {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
         let disable = try XCTUnwrap(source.range(of: "static func disable()"))
         let tail = source[disable.lowerBound...]
-        XCTAssertTrue(tail.contains("_ = removeAllOwnedItems()"))
+        XCTAssertTrue(tail.contains("_ = await removeAllOwnedItems()"))
     }
 
     func testLegacyCalendarCleanupMustSucceedBeforeRecreation() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("guard removeLegacyOwnedItems() else"))
-        XCTAssertTrue(source.contains("private static func removeLegacyOwnedItems() -> Bool"))
-        let cleanup = try XCTUnwrap(source.range(of: "guard removeLegacyOwnedItems() else"))
-        let calendarSetup = try XCTUnwrap(source.range(of: "var calendars: [Bool: EKCalendar] = [:]"))
-        XCTAssertLessThan(cleanup.lowerBound, calendarSetup.lowerBound)
+        XCTAssertTrue(source.contains("if !removeLegacyOwnedItems()"))
+        XCTAssertTrue(source.contains("private func removeLegacyOwnedItems() -> Bool"))
+        let cleanup = try XCTUnwrap(source.range(of: "func removeAllOwnedItems(state:"))
+        let scan = try XCTUnwrap(source.range(of: "allEvents()"))
+        XCTAssertLessThan(cleanup.lowerBound, scan.lowerBound)
     }
 
     func testCalendarCreationTriesAnotherWritableSourceAfterPreferredFailure() throws {
@@ -247,59 +249,72 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 
     func testCalendarSyncHasAnExistingWritableCalendarFallback() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("fallbackCalendarKey"))
+        XCTAssertTrue(source.contains("fallbackCalendarID"))
         XCTAssertTrue(source.contains("store.defaultCalendarForNewEvents"))
         XCTAssertTrue(source.contains("allowsContentModifications"))
         XCTAssertTrue(source.contains("flatMap { $0.allowsContentModifications ? $0 : nil }"),
                       "a read-only default must fall through to another writable calendar")
-        XCTAssertTrue(source.contains("defaults.string(forKey: fallbackCalendarKey)"))
+        XCTAssertTrue(source.contains("state.fallbackCalendarID"))
     }
 
     func testCalendarSyncReconcilesAfterNativeStoreChanges() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
 
         XCTAssertTrue(source.contains("static func startObserving(store habitStore: HabitStore)"))
-        XCTAssertTrue(source.contains(".EKEventStoreChanged"))
+        XCTAssertTrue(source.contains("startObservingNativeChanges"))
         XCTAssertTrue(source.contains("handleNativeStoreChange()"))
-        XCTAssertTrue(source.contains("validate: true"),
-                      "native calendar changes must run the validating reconciliation")
+        XCTAssertTrue(source.contains("sync(scope: .allMapped"),
+                      "native calendar changes re-check mapped identifiers only")
+        XCTAssertFalse(source.contains("validate: true"))
     }
 
-    func testCalendarStoreChangePolicyIgnoresRecentLocalWrites() {
-        let write = Date()
-        XCTAssertTrue(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
-            lastLocalWrite: write,
-            now: write.addingTimeInterval(0.2)))
-        XCTAssertFalse(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
-            lastLocalWrite: write,
-            now: write.addingTimeInterval(CalendarStoreChangePolicy.localWriteEchoGrace + 0.01)))
-        XCTAssertFalse(CalendarStoreChangePolicy.shouldIgnoreNativeChange(
-            lastLocalWrite: nil,
-            now: write))
+    func testCalendarMappedSyncPolicyRewritesMissingOrChangedSeries() {
+        XCTAssertTrue(CalendarMappedSyncPolicy.needsRewrite(
+            storedFingerprint: "old",
+            planFingerprint: "new",
+            mappedEventExists: true))
+        XCTAssertTrue(CalendarMappedSyncPolicy.needsRewrite(
+            storedFingerprint: "same",
+            planFingerprint: "same",
+            mappedEventExists: false))
+        XCTAssertFalse(CalendarMappedSyncPolicy.needsRewrite(
+            storedFingerprint: "same",
+            planFingerprint: "same",
+            mappedEventExists: true))
+
+        let scoped = CalendarMappedSyncPolicy.keysToSync(
+            requested: ["a"],
+            wanted: ["a", "b"],
+            mapped: ["a", "b"])
+        XCTAssertEqual(scoped.targets, ["a"])
+        XCTAssertFalse(scoped.removeOrphans)
+
+        let all = CalendarMappedSyncPolicy.keysToSync(
+            requested: nil,
+            wanted: ["a"],
+            mapped: ["a", "orphan"])
+        XCTAssertEqual(all.targets, ["a", "orphan"])
+        XCTAssertTrue(all.removeOrphans)
     }
 
-    func testNativeCalendarObserverIgnoresEchoesFromLocalWrites() throws {
+    func testNativeCalendarObserverRechecksMappedIdentifiers() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
         let observerStart = try XCTUnwrap(source.range(of: "static func startObserving(store habitStore: HabitStore)"))
-        let observerEnd = try XCTUnwrap(source.range(of: "private static func noteLocalStoreMutation()",
+        let observerEnd = try XCTUnwrap(source.range(of: "static var activeCalendarTitle: String?",
                                                      range: observerStart.upperBound..<source.endIndex))
         let observer = source[observerStart.lowerBound..<observerEnd.lowerBound]
 
         XCTAssertTrue(observer.contains("handleNativeStoreChange()"))
-        XCTAssertTrue(observer.contains("shouldIgnoreNativeChange(lastLocalWrite: lastLocalWriteAt)"))
-        XCTAssertTrue(observer.contains("CalendarStoreChangePolicy.nativeValidateDelay"))
-        XCTAssertTrue(observer.contains("validate: true"),
-                      "external Calendar edits must still run the validating inventory")
-        XCTAssertFalse(observer.contains("validate: false"))
+        XCTAssertTrue(observer.contains("CalendarMappedSyncPolicy.nativeRecheckDelay"))
+        XCTAssertTrue(observer.contains("sync(scope: .allMapped"))
+        XCTAssertFalse(observer.contains("allEvents()"))
+        XCTAssertFalse(source.contains("noteLocalStoreMutation()"))
 
-        XCTAssertTrue(source.contains("noteLocalStoreMutation()"))
-        XCTAssertTrue(source.contains("try store.save(event, span: .futureEvents, commit: true)"))
-        let create = try XCTUnwrap(source.range(of: "private static func createEvent(plan:"))
-        let createBody = source[create.lowerBound...]
-        XCTAssertTrue(createBody.contains("noteLocalStoreMutation()"),
-                      "creating a series must mark the EventKit echo window before save")
+        let kit = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
+        XCTAssertTrue(kit.contains("try store.save(event, span: .futureEvents, commit: false)"))
+        XCTAssertTrue(kit.contains("try store.commit()"))
     }
 
     func testMoreScreenExposesTheActualCalendarDestinationPicker() throws {
@@ -448,31 +463,28 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testCalendarReconciliationRepairsAllOwnedDuplicates() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("selectCanonicalItem"))
-        XCTAssertTrue(source.contains("SyncWatermark.ownership(in:"))
-        XCTAssertTrue(source.contains("duplicateIDs"))
+        XCTAssertTrue(source.contains("store.event(withIdentifier:"))
+        XCTAssertTrue(source.contains("commit: false"))
         XCTAssertTrue(source.contains("eventIdentifier"))
     }
 
-    func testCalendarValidationReusesScannedCanonicalSeries() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+    func testMappedSyncReusesAnExistingSeriesWhenTheFingerprintMatches() throws {
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("var validatedEvents"),
-                      "validation must carry the fetched canonical event into the save pass")
-        XCTAssertTrue(source.contains("validatedKeys.insert(owner.id.uuidString)"),
-                      "a scanned owner must be trusted even when EventKit ID lookup is unavailable")
-        XCTAssertTrue(source.contains("validatedKeys.contains(key)"),
-                      "the save pass must not recreate a validated recurring series")
+        XCTAssertTrue(source.contains("CalendarMappedSyncPolicy.needsRewrite("),
+                      "mapped sync must skip EventKit writes when the stored series still matches")
+        XCTAssertTrue(source.contains("mappedEventExists"))
+        XCTAssertFalse(source.contains("validatedKeys.contains(key)"))
         XCTAssertFalse(source.contains("!validate || store.event(withIdentifier: map[key]!) != nil"),
-                       "recurring events must not be validated through event(withIdentifier:)")
+                       "recurring events must not be validated through a full inventory")
     }
 
     func testCalendarRemovalPathDoesNotSilentlyDropFailedOwnedSeriesRemovals() throws {
-        let source = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
 
-        XCTAssertTrue(source.contains("if !removeEvent("),
+        XCTAssertTrue(source.contains("if !removeMappedEvent("),
                       "failed event removal must abort recreation in the same pass")
         XCTAssertFalse(source.contains("try? store.remove(event, span: .futureEvents, commit: true)"),
                        "calendar sync must not silently ignore removal failures")
@@ -510,7 +522,7 @@ final class SyncWatermarkTests: XCTestCase {
     }
 
     func testNativeCleanupScansLegacyAndCurrentOwnershipFormats() throws {
-        let calendar = try calendarSyncTestSource("Haiity/Services/CalendarSync.swift")
+        let calendar = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
         let reminders = try calendarSyncTestSource("Haiity/Services/ReminderSync.swift")
 
         XCTAssertTrue(calendar.contains("SyncWatermark.isCalendarOwned"))

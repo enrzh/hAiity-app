@@ -1076,7 +1076,7 @@ struct MoreView: View {
         Task { @MainActor in
             let result = await NativeSyncCleanup.run()
             if result.calendar {
-                CalendarSync.reconcile(
+                await CalendarSync.reconcile(
                     habits: store.habits,
                     defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             }
@@ -1256,14 +1256,19 @@ struct MoreView: View {
                 }
             }
         }
+        .task {
+            await CalendarSync.refreshDestinationCache()
+        }
         .moreSettingsSurface()
     }
 
     private func selectCalendar(_ id: String?) {
         CalendarSync.setSelectedCalendarID(id, isReminder: calendarPickerType == .reminder)
-        CalendarSync.reconcile(
-            habits: store.habits,
-            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        Task {
+            await CalendarSync.reconcile(
+                habits: store.habits,
+                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+        }
         showCalendarPicker = false
     }
 
@@ -1478,9 +1483,11 @@ struct MoreView: View {
                         else { $0.calendarSyncReminders = false }
                     }
                     if CalendarSync.isEnabled {
-                        CalendarSync.reconcile(
-                            habits: store.habits,
-                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                        Task {
+                            await CalendarSync.reconcile(
+                                habits: store.habits,
+                                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                        }
                     }
                     else { CalendarSync.disable() }
                     return
@@ -1507,9 +1514,11 @@ struct MoreView: View {
                             if type == .habit { $0.calendarSyncHabits = true }
                             else { $0.calendarSyncReminders = true }
                         }
-                        CalendarSync.reconcile(
-                            habits: store.habits,
-                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                        Task {
+                            await CalendarSync.reconcile(
+                                habits: store.habits,
+                                defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
+                        }
                     }
                 }
             })

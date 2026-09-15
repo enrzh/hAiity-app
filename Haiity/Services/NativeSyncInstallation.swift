@@ -84,7 +84,7 @@ enum NativeSyncCleanup {
     }
 
     static func run() async -> Result {
-        let calendar = CalendarSync.removeAllOwnedItems()
+        let calendar = await CalendarSync.removeAllOwnedItems()
         let reminders = await ReminderSync.removeAllOwnedItems()
         return Result(calendar: calendar, reminders: reminders)
     }

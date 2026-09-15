@@ -487,12 +487,36 @@ enum HabitStoreChange: Equatable, Sendable {
     case appearance
 }
 
+/// Which calendar series a local store write should touch. Editor saves pass
+/// the changed IDs; foreground, timezone, and iCloud merges use the full set.
+enum CalendarSyncScope: Equatable, Sendable {
+    case items(Set<UUID>)
+    case allMapped
+
+    func merging(_ other: CalendarSyncScope) -> CalendarSyncScope {
+        switch (self, other) {
+        case (.allMapped, _), (_, .allMapped):
+            return .allMapped
+        case let (.items(left), .items(right)):
+            return .items(left.union(right))
+        }
+    }
+
+    var keys: Set<String>? {
+        switch self {
+        case .allMapped: return nil
+        case .items(let ids): return Set(ids.map(\.uuidString))
+        }
+    }
+}
+
 @Observable
 final class HabitStore {
     private(set) var data: HabitData
     let url: URL
     var onChange: (() -> Void)?
     var onChangeKind: ((HabitStoreChange) -> Void)?
+    var onCalendarSyncNeeded: ((CalendarSyncScope) -> Void)?
     /// mtime der Datei beim letzten eigenen Lesen/Schreiben — erkennt
     /// externe Schreiber (Widget-Intent im Extension-Prozess).
     @ObservationIgnored private var loadedMtime: Date?
@@ -550,7 +574,7 @@ final class HabitStore {
             let normalized = HabitTimeZone.sanitizedIdentifier(newValue)
             guard normalized != data.defaultTimeZoneIdentifier else { return }
             data.defaultTimeZoneIdentifier = normalized
-            persist()
+            persist(calendarSync: .allMapped)
         }
     }
 
@@ -715,7 +739,8 @@ final class HabitStore {
 
     func persist(notify: Bool = true,
                  changeKind: HabitStoreChange = .general,
-                 touchTimestamp: Bool = true) {
+                 touchTimestamp: Bool = true,
+                 calendarSync: CalendarSyncScope? = nil) {
         data.appearancePreferences = data.appearancePreferences.normalizedForStorage()
         data.version = HabitData.currentVersion
         if touchTimestamp {
@@ -738,6 +763,9 @@ final class HabitStore {
         if notify {
             onChange?()
             onChangeKind?(changeKind)
+            if let calendarSync {
+                onCalendarSyncNeeded?(calendarSync)
+            }
         }
     }
 
@@ -772,19 +800,19 @@ final class HabitStore {
         } else {
             data.habits.append(habit)
         }
-        persist()
+        persist(calendarSync: .items([habit.id]))
     }
 
     func update(_ habit: Habit) {
         guard let i = data.habits.firstIndex(where: { $0.id == habit.id }) else { return }
         data.habits[i] = habit
-        persist()
+        persist(calendarSync: .items([habit.id]))
     }
 
     func remove(_ id: UUID) {
         data.habits.removeAll { $0.id == id }
         data.sessionHistory.removeAll { $0.habitID == id }
-        persist()
+        persist(calendarSync: .items([id]))
     }
 
     /// Checkbox-Habits: 0 <-> 1.
@@ -985,14 +1013,14 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
               data.habits[i].archivedAt == nil else { return }
         data.habits[i].archivedAt = day
-        persist()
+        persist(calendarSync: .items([id]))
     }
 
     func unarchive(_ id: UUID) {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
               data.habits[i].archivedAt != nil else { return }
         data.habits[i].archivedAt = nil
-        persist()
+        persist(calendarSync: .items([id]))
     }
 
     /// Verschiebt Habits per Drag — die Offsets beziehen sich auf
@@ -1338,7 +1366,8 @@ final class HabitStore {
         mergedPalettes.append(contentsOf: remote.customPalettes.filter { !localPaletteIds.contains($0.id) })
         data.customPalettes = mergedPalettes
         let mergeChangeKind: HabitStoreChange = remoteAppearanceNewer && !remoteNewer ? .appearance : .general
-        persist(changeKind: mergeChangeKind, touchTimestamp: false)
+        persist(changeKind: mergeChangeKind, touchTimestamp: false,
+                calendarSync: mergeChangeKind == .general ? .allMapped : nil)
     }
 
     // MARK: – Export / Import
