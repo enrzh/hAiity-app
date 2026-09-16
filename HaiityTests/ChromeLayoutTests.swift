@@ -56,18 +56,14 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertFalse(content.contains("sortingAutoScrollTask"))
         XCTAssertFalse(content.contains("simultaneousGesture("))
         XCTAssertTrue(content.contains(".onMove("),
-                      "native list reorder already auto-scrolls while dragging a handle")
+                      "dropped rows still persist through the native list move callback")
         XCTAssertTrue(content.contains("editMode == .active"))
         XCTAssertTrue(content.contains("placement: .confirmationAction"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"))
         XCTAssertTrue(content.contains("SortingListScrollGuard(active: editMode == .active)"),
                       "sorting must disable collection-wide interactive movement so rows can scroll")
-        XCTAssertTrue(guardSource.contains("UILongPressGestureRecognizer"),
-                      "the list must not treat every card drag as a reorder")
         XCTAssertTrue(guardSource.contains("dragInteractionEnabled"),
                       "collection-wide cell dragging must not start a reorder from a card pan")
-        XCTAssertTrue(guardSource.contains("suppressCompetingRecognizers"),
-                      "cell-wide reorder pans must yield to list scrolling")
         XCTAssertTrue(habit.contains("if isSorting"),
                       "habit cards must drop the swipe pan while sorting")
         XCTAssertTrue(reminder.contains("if isSorting"),
@@ -76,18 +72,66 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertTrue(reminder.contains("SortingReorderPan()"))
         XCTAssertTrue(swipe.contains("editMode?.wrappedValue == .active"),
                       "a leftover swipe pan must detach instead of racing the list")
+
+        let reorderStart = try XCTUnwrap(guardSource.range(of: "struct SortingReorderPan"))
+        let reorder = guardSource[reorderStart.lowerBound...]
+        XCTAssertTrue(reorder.contains("UILongPressGestureRecognizer"),
+                      "a short press on the row starts the move; an immediate pan must remain a scroll")
+        XCTAssertTrue(reorder.contains("minimumPressDuration"),
+                      "the press delay is what keeps idle scrolling intact")
+        XCTAssertTrue(reorder.contains("SortingReorderPolicy.autoScrollTranslation"),
+                      "long lists must scroll only while a row is being moved")
+        XCTAssertFalse(reorder.contains("isHandleLocation"),
+                       "the whole row is the grab target in sorting mode")
     }
 
-    func testSortingHandleBandIgnoresTheCardBody() {
-        let row = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 90))
-        XCTAssertFalse(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 40, y: 45), in: row),
-                       "a drag on the card body must stay a scroll")
-        XCTAssertTrue(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 310, y: 45), in: row),
-                      "only the trailing handle band may begin a move")
-        row.semanticContentAttribute = .forceRightToLeft
-        XCTAssertTrue(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 10, y: 45), in: row),
-                      "RTL keeps the handle on the trailing edge")
-        XCTAssertFalse(SortingReorderPan.Host.isHandleLocation(CGPoint(x: 310, y: 45), in: row))
+    func testSortingPressDurationIsShortEnoughToGrabAndLongEnoughToScroll() {
+        XCTAssertEqual(SortingReorderPolicy.pressDuration, 0.25, accuracy: 0.001)
+    }
+
+    func testSortingAutoScrollStaysStillAwayFromTheEdges() {
+        XCTAssertEqual(
+            SortingReorderPolicy.autoScrollTranslation(locationY: 200,
+                                                       viewportMinY: 0,
+                                                       viewportMaxY: 400,
+                                                       dt: 1 / 60),
+            0,
+            accuracy: 0.001)
+    }
+
+    func testSortingAutoScrollMovesUpInTheTopBandAndDownInTheBottomBand() {
+        let dt: TimeInterval = 1 / 60
+        let up = SortingReorderPolicy.autoScrollTranslation(locationY: 8,
+                                                            viewportMinY: 0,
+                                                            viewportMaxY: 400,
+                                                            dt: dt)
+        let down = SortingReorderPolicy.autoScrollTranslation(locationY: 392,
+                                                              viewportMinY: 0,
+                                                              viewportMaxY: 400,
+                                                              dt: dt)
+        XCTAssertLessThan(up, 0)
+        XCTAssertGreaterThan(down, 0)
+        XCTAssertEqual(up, -down, accuracy: 0.001)
+    }
+
+    func testSortingAutoScrollSpeedsUpDeeperInTheEdgeBand() {
+        let dt: TimeInterval = 1 / 60
+        let shallow = SortingReorderPolicy.autoScrollTranslation(locationY: 40,
+                                                                viewportMinY: 0,
+                                                                viewportMaxY: 400,
+                                                                dt: dt)
+        let deep = SortingReorderPolicy.autoScrollTranslation(locationY: 4,
+                                                              viewportMinY: 0,
+                                                              viewportMaxY: 400,
+                                                              dt: dt)
+        XCTAssertLessThan(deep, shallow)
+        XCTAssertLessThan(shallow, 0)
+    }
+
+    func testSortingAutoScrollOffsetStaysInsideTheContent() {
+        XCTAssertEqual(SortingReorderPolicy.clampedOffset(-20, min: 0, max: 800), 0)
+        XCTAssertEqual(SortingReorderPolicy.clampedOffset(900, min: 0, max: 800), 800)
+        XCTAssertEqual(SortingReorderPolicy.clampedOffset(120, min: 0, max: 800), 120)
     }
 
     // MARK: – Wohin der Anlegen-Knopf fährt
