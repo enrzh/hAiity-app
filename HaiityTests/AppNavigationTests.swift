@@ -745,7 +745,7 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("@State private var editMode: EditMode"),
                       "sorting should be explicit, not entered by long press")
         XCTAssertTrue(source.contains(".environment(\\.editMode"),
-                      "the list needs native reorder handles in sorting mode")
+                      "sorting still uses list edit mode for onMove")
         XCTAssertTrue(source.contains(".onMove("),
                       "sorting should use the store's existing move behavior")
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))

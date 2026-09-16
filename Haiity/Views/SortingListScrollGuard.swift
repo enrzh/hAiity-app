@@ -61,6 +61,9 @@ struct SortingListScrollGuard: UIViewRepresentable {
                     recognizer.isEnabled = !active
                 }
             }
+            for cell in view.visibleCells {
+                SortingListReorderChrome.apply(active: active, to: cell)
+            }
         }
 
         private func enclosingCollectionView() -> UICollectionView? {
@@ -79,6 +82,44 @@ struct SortingListScrollGuard: UIViewRepresentable {
     }
 }
 
+/// List chrome while sorting: no side grabber, no system drag-and-drop escape.
+enum SortingListReorderChrome {
+    /// Matches `ContentView.habitList`: header section 0, movable habits section 1.
+    static let habitSectionIndex = 1
+
+    static func apply(active: Bool, to root: UIView) {
+        setReorderControlsHidden(active, in: root)
+        setSystemDragAndDropLocked(active, in: root)
+    }
+
+    static func setReorderControlsHidden(_ hidden: Bool, in root: UIView) {
+        if let tableCell = root as? UITableViewCell {
+            tableCell.showsReorderControl = !hidden
+        }
+        for subview in root.subviews {
+            let name = String(describing: type(of: subview))
+            if name.localizedCaseInsensitiveContains("reorder") {
+                subview.isHidden = hidden
+                subview.isUserInteractionEnabled = !hidden
+                subview.alpha = hidden ? 0 : 1
+            }
+            setReorderControlsHidden(hidden, in: subview)
+        }
+    }
+
+    /// Reordering is in-list only — never spring-loaded export or drop targets.
+    static func setSystemDragAndDropLocked(_ locked: Bool, in root: UIView) {
+        for interaction in root.interactions {
+            if let drag = interaction as? UIDragInteraction {
+                drag.isEnabled = !locked
+            }
+        }
+        for subview in root.subviews {
+            setSystemDragAndDropLocked(locked, in: subview)
+        }
+    }
+}
+
 /// Press-and-drag on a sorting-mode row. Idle pans still scroll the list;
 /// auto-scroll runs only while this press is moving an item.
 enum SortingReorderPolicy {
@@ -86,6 +127,8 @@ enum SortingReorderPolicy {
     static let allowableMovement: CGFloat = 20
     static let edgeBand: CGFloat = 56
     static let maxSpeed: CGFloat = 360
+    /// Horizontal slack before we treat a move as leaving the list band.
+    static let horizontalSlack: CGFloat = 12
 
     struct Frame {
         var minY: CGFloat
@@ -161,6 +204,55 @@ enum SortingReorderPolicy {
         }
         return Viewport(minY: minY, maxY: maxY)
     }
+
+    static func intersection(_ a: Viewport, _ b: Viewport) -> Viewport {
+        let minY = max(a.minY, b.minY)
+        let maxY = min(a.maxY, b.maxY)
+        guard maxY >= minY else { return a }
+        return Viewport(minY: minY, maxY: maxY)
+    }
+
+    /// Layout span of every movable row — the finger cannot leave this band.
+    static func itemBand(section: Int,
+                         itemCount: Int,
+                         layoutAttributes: (Int) -> UICollectionViewLayoutAttributes?) -> Viewport? {
+        guard itemCount > 0 else { return nil }
+        var minY = CGFloat.greatestFiniteMagnitude
+        var maxY = -CGFloat.greatestFiniteMagnitude
+        for item in 0..<itemCount {
+            guard let frame = layoutAttributes(item)?.frame else { continue }
+            minY = min(minY, frame.minY)
+            maxY = max(maxY, frame.maxY)
+        }
+        guard maxY > minY, minY.isFinite, maxY.isFinite else { return nil }
+        return Viewport(minY: minY, maxY: maxY)
+    }
+
+    /// Vertical clamp only — used by unit tests and auto-scroll bands.
+    static func movementY(fingerY: CGFloat, sortable: Viewport) -> CGFloat {
+        clampedOffset(fingerY, min: sortable.minY, max: sortable.maxY)
+    }
+
+    /// Hard in-list target: clamp Y to chrome + habit rows, X to the list column.
+    static func lockedMovementTarget(finger: CGPoint,
+                                     collectionBounds: CGRect,
+                                     contentInset: UIEdgeInsets,
+                                     sortable: Viewport,
+                                     itemBand: Viewport?) -> CGPoint {
+        let band = itemBand.map { intersection(sortable, $0) } ?? sortable
+        let y = clampedOffset(finger.y, min: band.minY, max: band.maxY)
+        let minX = contentInset.left + horizontalSlack
+        let maxX = collectionBounds.width - contentInset.right - horizontalSlack
+        let x = clampedOffset(finger.x, min: minX, max: maxX)
+        return CGPoint(x: x, y: y)
+    }
+
+    /// Treat touches above/below the habit band like edge drags for auto-scroll.
+    static func autoScrollFingerY(_ fingerY: CGFloat, sortable: Viewport) -> CGFloat {
+        if fingerY < sortable.minY { return sortable.minY - 1 }
+        if fingerY > sortable.maxY { return sortable.maxY + 1 }
+        return fingerY
+    }
 }
 
 /// Starts a list reorder after a short press anywhere on the row. The list
@@ -180,15 +272,17 @@ struct SortingReorderPan: UIViewRepresentable {
 
     final class Host: UIView, UIGestureRecognizerDelegate {
         private var recognizer: UILongPressGestureRecognizer?
-        private weak var host: UIView?
+        private weak var rowCell: UIView?
         private weak var movingCollection: UICollectionView?
         private var suppressed: [UIGestureRecognizer] = []
         private var displayLink: CADisplayLink?
 
         override init(frame: CGRect) {
             super.init(frame: frame)
-            isUserInteractionEnabled = false
-            isHidden = true
+            isUserInteractionEnabled = true
+            backgroundColor = .clear
+            isAccessibilityElement = false
+            accessibilityElementsHidden = true
         }
 
         @available(*, unavailable)
@@ -206,8 +300,15 @@ struct SortingReorderPan: UIViewRepresentable {
             reconcileHost()
         }
 
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            if let rowCell {
+                frame = rowCell.bounds
+                rowCell.bringSubviewToFront(self)
+            }
+        }
+
         fileprivate func reconcileHostForUpdate() {
-            if host?.window != nil { return }
             reconcileHost()
         }
 
@@ -223,7 +324,10 @@ struct SortingReorderPan: UIViewRepresentable {
                 ancestor = view.superview
             }
             guard let container = cell else { detach(); return }
-            guard container !== host else { return }
+            if container === rowCell, superview === container {
+                setNeedsLayout()
+                return
+            }
 
             detach()
             let press = UILongPressGestureRecognizer(target: self, action: #selector(pressed))
@@ -232,8 +336,12 @@ struct SortingReorderPan: UIViewRepresentable {
             press.cancelsTouchesInView = true
             press.delegate = self
             recognizer = press
-            host = container
-            container.addGestureRecognizer(press)
+            rowCell = container
+            addGestureRecognizer(press)
+            container.addSubview(self)
+            frame = container.bounds
+            autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            container.bringSubviewToFront(self)
             suppressCompetingRecognizers(on: container, besides: press)
         }
 
@@ -241,16 +349,18 @@ struct SortingReorderPan: UIViewRepresentable {
             stopAutoScroll()
             if let movingCollection {
                 movingCollection.cancelInteractiveMovement()
+                restoreScrollPan(on: movingCollection)
             }
             movingCollection = nil
             restoreSuppressedRecognizers()
-            if let recognizer { host?.removeGestureRecognizer(recognizer) }
+            if let recognizer { removeGestureRecognizer(recognizer) }
             recognizer = nil
-            host = nil
+            removeFromSuperview()
+            rowCell = nil
         }
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            gestureRecognizer === recognizer && host != nil
+            gestureRecognizer === recognizer && rowCell != nil
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -259,13 +369,16 @@ struct SortingReorderPan: UIViewRepresentable {
         }
 
         @objc private func pressed(_ press: UILongPressGestureRecognizer) {
-            guard let container = host,
+            guard let container = rowCell,
                   let collection = enclosingCollectionView(from: container) else { return }
             switch press.state {
             case .began:
                 guard let cell = container as? UICollectionViewCell,
-                      let indexPath = collection.indexPath(for: cell) else { return }
+                      let indexPath = collection.indexPath(for: cell),
+                      indexPath.section == SortingListReorderChrome.habitSectionIndex else { return }
+                SortingListReorderChrome.apply(active: true, to: cell)
                 cancelTracking(collection.panGestureRecognizer)
+                collection.panGestureRecognizer.isEnabled = false
                 if collection.beginInteractiveMovementForItem(at: indexPath) {
                     movingCollection = collection
                     collection.updateInteractiveMovementTargetPosition(
@@ -278,10 +391,12 @@ struct SortingReorderPan: UIViewRepresentable {
             case .ended:
                 stopAutoScroll()
                 movingCollection?.endInteractiveMovement()
+                restoreScrollPan(on: collection)
                 movingCollection = nil
             case .cancelled, .failed:
                 stopAutoScroll()
                 movingCollection?.cancelInteractiveMovement()
+                restoreScrollPan(on: collection)
                 movingCollection = nil
             default:
                 break
@@ -305,10 +420,12 @@ struct SortingReorderPan: UIViewRepresentable {
                   let press = recognizer else { return }
             let location = press.location(in: collection)
             let sortable = sortableViewport(in: collection)
+            let scrollBand = lockedSortableBand(in: collection, sortable: sortable)
+            let edgeY = SortingReorderPolicy.autoScrollFingerY(location.y, sortable: scrollBand)
             let delta = SortingReorderPolicy.autoScrollTranslation(
-                locationY: location.y,
-                viewportMinY: sortable.minY,
-                viewportMaxY: sortable.maxY,
+                locationY: edgeY,
+                viewportMinY: scrollBand.minY,
+                viewportMaxY: scrollBand.maxY,
                 dt: link.duration)
             if delta != 0 {
                 let minY = -collection.adjustedContentInset.top
@@ -324,16 +441,41 @@ struct SortingReorderPan: UIViewRepresentable {
             }
             collection.updateInteractiveMovementTargetPosition(
                 movementTarget(for: press, in: collection))
+            for cell in collection.visibleCells {
+                SortingListReorderChrome.apply(active: true, to: cell)
+            }
         }
 
         private func movementTarget(for press: UILongPressGestureRecognizer,
                                     in collection: UICollectionView) -> CGPoint {
+            let location = press.location(in: collection)
             let sortable = sortableViewport(in: collection)
-            var location = press.location(in: collection)
-            location.y = SortingReorderPolicy.clampedOffset(location.y,
-                                                            min: sortable.minY,
-                                                            max: sortable.maxY)
-            return location
+            return SortingReorderPolicy.lockedMovementTarget(
+                finger: location,
+                collectionBounds: collection.bounds,
+                contentInset: collection.adjustedContentInset,
+                sortable: sortable,
+                itemBand: habitItemBand(in: collection))
+        }
+
+        private func habitItemBand(in collection: UICollectionView) -> SortingReorderPolicy.Viewport? {
+            let section = SortingListReorderChrome.habitSectionIndex
+            let count = collection.numberOfItems(inSection: section)
+            return SortingReorderPolicy.itemBand(section: section, itemCount: count) { item in
+                collection.layoutAttributesForItem(at: IndexPath(item: item, section: section))
+            }
+        }
+
+        private func lockedSortableBand(in collection: UICollectionView,
+                                        sortable: SortingReorderPolicy.Viewport) -> SortingReorderPolicy.Viewport {
+            if let band = habitItemBand(in: collection) {
+                return SortingReorderPolicy.intersection(sortable, band)
+            }
+            return sortable
+        }
+
+        private func restoreScrollPan(on collection: UICollectionView) {
+            collection.panGestureRecognizer.isEnabled = true
         }
 
         private func sortableViewport(in collection: UICollectionView) -> SortingReorderPolicy.Viewport {
@@ -358,10 +500,7 @@ struct SortingReorderPan: UIViewRepresentable {
         }
 
         private func isMovableCell(_ cell: UICollectionViewCell) -> Bool {
-            (cell.gestureRecognizers ?? []).contains { recognizer in
-                recognizer is UILongPressGestureRecognizer
-                    && recognizer.delegate is SortingReorderPan.Host
-            }
+            cell.containsSortingReorderOverlay
         }
 
         private func enclosingCollectionView(from view: UIView) -> UICollectionView? {
@@ -397,5 +536,12 @@ struct SortingReorderPan: UIViewRepresentable {
             recognizer.isEnabled = false
             recognizer.isEnabled = true
         }
+    }
+}
+
+private extension UIView {
+    var containsSortingReorderOverlay: Bool {
+        if self is SortingReorderPan.Host { return true }
+        return subviews.contains { $0.containsSortingReorderOverlay }
     }
 }

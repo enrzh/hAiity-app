@@ -49,6 +49,7 @@
 		30D8AB756783A4563746BDAC /* SiriQueryIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65B40E618615C240A25BC /* SiriQueryIntents.swift */; };
 		33AB62BEBCAE33451629EAF7 /* FeedbackReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783FD1CE327D379D221EFABD /* FeedbackReport.swift */; };
 		346B54F21A42A3DE45B8C71C /* HabitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75BC07C243B30F6C8A1872C /* HabitActivityAttributes.swift */; };
+		3646DBA082CEDE1818867D66 /* SortingListScrollGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BA5FA2F3652D1C05B2B582 /* SortingListScrollGuard.swift */; };
 		36B7D86169B58FD34BDBCCD3 /* TodayProgressUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23BF893F92228077A11DDDD /* TodayProgressUITests.swift */; };
 		36E92537FC9AB6AD0A948884 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D140C5E27E29CA4B522AF061 /* PaywallView.swift */; };
 		36F454309EF558C79B2A069E /* ReminderOccurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20C355AA772D102A4344FE4 /* ReminderOccurrence.swift */; };
@@ -105,6 +106,7 @@
 		7559A1963F4573B45892FA35 /* ChromeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382481585951999E4BD937F3 /* ChromeLayout.swift */; };
 		75B776343BC792D3BF117E67 /* SelectGitHubWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51980D67C62CB3D2EB613CA /* SelectGitHubWidgetIntent.swift */; };
 		76C20D821211F11B525D4A7B /* MaterialPreviewPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D40479BF8CA2D5B51E7BED /* MaterialPreviewPicker.swift */; };
+		7716338C0745E20482BD9F23 /* CalendarEventKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCBD767D7FFE7AFFE8E4EB7 /* CalendarEventKit.swift */; };
 		79EB611C9E7664BD8C059E0C /* Backfill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CACC099B6541210AF81713F /* Backfill.swift */; };
 		79F78FF2DF82F112B12A63F0 /* GitHubCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADD4B462108A54E97CAC743 /* GitHubCredentials.swift */; };
 		7A0CFF30FBC32EB083E04AFB /* FeedbackSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6586364C60F1028AE3BF5BAF /* FeedbackSheet.swift */; };
@@ -313,6 +315,7 @@
 		52CD94930E5D2463D1E8BEB2 /* HabitTimeZoneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTimeZoneTests.swift; sourceTree = "<group>"; };
 		53CC78B75F0EDFC69163971C /* EditHabitSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHabitSheet.swift; sourceTree = "<group>"; };
 		5427538662B90637E98ECF0F /* ThemeAndPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeAndPaletteTests.swift; sourceTree = "<group>"; };
+		55BA5FA2F3652D1C05B2B582 /* SortingListScrollGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortingListScrollGuard.swift; sourceTree = "<group>"; };
 		580A7D08D3B754107EAE9576 /* SwipeRevealTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeRevealTests.swift; sourceTree = "<group>"; };
 		5A63BF92DC3014009DC9E6B6 /* SetupFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFlowTests.swift; sourceTree = "<group>"; };
 		5D24ABE3F4518A03A9CCB16C /* Motivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motivation.swift; sourceTree = "<group>"; };
@@ -429,6 +432,7 @@
 		E5C0DF24C97CA5C731BB2F36 /* RecurrenceEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEngineTests.swift; sourceTree = "<group>"; };
 		E89EF580C614DFA83CAEDDFC /* GitHubDeviceFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubDeviceFlow.swift; sourceTree = "<group>"; };
 		ECC349139295FBE0436110A2 /* WidgetGridViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGridViews.swift; sourceTree = "<group>"; };
+		ECCBD767D7FFE7AFFE8E4EB7 /* CalendarEventKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventKit.swift; sourceTree = "<group>"; };
 		EDD4BFADE695271F545EBD6C /* WidgetRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRenderingTests.swift; sourceTree = "<group>"; };
 		EDF2EE0D5460F5D5B06A58C5 /* YesNoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YesNoTests.swift; sourceTree = "<group>"; };
 		F016B327457EA8A81E8B9563 /* MotivationLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotivationLiveActivity.swift; sourceTree = "<group>"; };
@@ -456,6 +460,7 @@
 			isa = PBXGroup;
 			children = (
 				993624BE891C93A76B487EE7 /* AppIcons.swift */,
+				ECCBD767D7FFE7AFFE8E4EB7 /* CalendarEventKit.swift */,
 				7C99EF2A82F574AEA9B597E8 /* CalendarSync.swift */,
 				829A6A18E665430D537501E5 /* CloudSync.swift */,
 				98067159A2F2EE7DB6B5F163 /* GitHubContributions.swift */,
@@ -548,6 +553,7 @@
 				09665D11558201749ED55C90 /* ReminderSetupView.swift */,
 				E3983526F3E7673674D5E187 /* ShakeDetector.swift */,
 				274F9D55773D83EB0F91C64E /* ShareCardView.swift */,
+				55BA5FA2F3652D1C05B2B582 /* SortingListScrollGuard.swift */,
 				BEE02797D8586DEBB5BA0314 /* StartupSplashView.swift */,
 				2E5DABD63C9237AA5A281CF5 /* StatsView.swift */,
 				200E5EF258DF9AC750B77645 /* SwipeRevealPan.swift */,
@@ -881,7 +887,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nbundle=\"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nmkdir -p \"$bundle\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarSync.swift\" \"$bundle/CalendarSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/ReminderSync.swift\" \"$bundle/ReminderSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ContentView.swift\" \"$bundle/ContentView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/EditHabitSheet.swift\" \"$bundle/EditHabitSheet.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/HabitCard.swift\" \"$bundle/HabitCard.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/MoreView.swift\" \"$bundle/MoreView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ReminderRow.swift\" \"$bundle/ReminderRow.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/SwipeRevealPan.swift\" \"$bundle/SwipeRevealPan.txt\"\ncp \"$PROJECT_DIR/Haiity/Localizable.xcstrings\" \"$bundle/Localizable.txt\"\n";
+			shellScript = "set -eu\nbundle=\"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nmkdir -p \"$bundle\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarSync.swift\" \"$bundle/CalendarSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarEventKit.swift\" \"$bundle/CalendarEventKit.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/ReminderSync.swift\" \"$bundle/ReminderSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ContentView.swift\" \"$bundle/ContentView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/EditHabitSheet.swift\" \"$bundle/EditHabitSheet.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/HabitCard.swift\" \"$bundle/HabitCard.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/MoreView.swift\" \"$bundle/MoreView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ReminderRow.swift\" \"$bundle/ReminderRow.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/SwipeRevealPan.swift\" \"$bundle/SwipeRevealPan.txt\"\ncp \"$PROJECT_DIR/Haiity/Localizable.xcstrings\" \"$bundle/Localizable.txt\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1014,6 +1020,7 @@
 				EF337366A4BB8903F53632DC /* ArchiveView.swift in Sources */,
 				79EB611C9E7664BD8C059E0C /* Backfill.swift in Sources */,
 				EC758620EABDA73650B1BCF4 /* BackfillCard.swift in Sources */,
+				7716338C0745E20482BD9F23 /* CalendarEventKit.swift in Sources */,
 				E8FF23C1267F8CDFA94FD813 /* CalendarSync.swift in Sources */,
 				A329B78B1388F2586B2C2A0E /* Celebration.swift in Sources */,
 				8181E141B1420C391F4FD2D6 /* CheckOffHabitIntent.swift in Sources */,
@@ -1094,6 +1101,7 @@
 				622C16A51CB752164B4CCAD0 /* ShakeDetector.swift in Sources */,
 				E2CA83EDB6EDFCA4BC03F224 /* ShareCardView.swift in Sources */,
 				30D8AB756783A4563746BDAC /* SiriQueryIntents.swift in Sources */,
+				3646DBA082CEDE1818867D66 /* SortingListScrollGuard.swift in Sources */,
 				5A22B768A7198517FA384A93 /* StartupSplash.swift in Sources */,
 				48F8E0F6E0B79C3939326A26 /* StartupSplashView.swift in Sources */,
 				A93A5E07779BDCC1AD70E003 /* StatsCardPrefs.swift in Sources */,
@@ -1234,7 +1242,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 191;
+				CURRENT_PROJECT_VERSION = 205;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;
@@ -1255,7 +1263,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 191;
+				CURRENT_PROJECT_VERSION = 205;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1297,7 +1305,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 191;
+				CURRENT_PROJECT_VERSION = 205;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1420,7 +1428,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 191;
+				CURRENT_PROJECT_VERSION = 205;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;

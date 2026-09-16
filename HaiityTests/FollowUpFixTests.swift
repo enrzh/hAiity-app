@@ -112,7 +112,7 @@ final class FollowUpFixTests: XCTestCase {
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"reorder-habits\")"),
                       "sorting needs a stable toolbar action")
         XCTAssertTrue(content.contains(".environment(\\.editMode, $editMode)"),
-                      "the list must expose native reorder handles only in sorting mode")
+                      "sorting still wires list edit mode to onMove")
         XCTAssertTrue(content.contains(".onMove("),
                       "sorting needs the existing store move behavior")
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"),

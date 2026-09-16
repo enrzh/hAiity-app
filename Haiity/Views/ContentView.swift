@@ -1229,6 +1229,7 @@ struct ContentView: View {
     private var habitList: some View {
         ScrollViewReader { proxy in
             List {
+                Section {
                     RootPageTitle(title: String(localized: "Habits"),
                                   subtitle: String(localized: "Dein Rhythmus in einem Blick"))
                         .id("habit-list-title")
@@ -1249,6 +1250,7 @@ struct ContentView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
                                                   bottom: 0, trailing: Theme.Metrics.gutter))
                         .moveDisabled(true)
+                        .allowsHitTesting(editMode != .active)
                     if let snapshot = github.snapshot {
                         GitHubContributionCard(snapshot: snapshot,
                                                collapsed: collapsed,
@@ -1263,6 +1265,7 @@ struct ContentView: View {
                                                       bottom: 0,
                                                       trailing: Theme.Metrics.gutter))
                             .moveDisabled(true)
+                            .allowsHitTesting(editMode != .active)
                     }
                     if habitsTabSource.isEmpty {
                         if !habitFilter.isEmpty && committedSearch.isEmpty {
@@ -1276,7 +1279,10 @@ struct ContentView: View {
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
                         }
-                    } else {
+                    }
+                }
+                if !habitsTabSource.isEmpty {
+                    Section {
                         ForEach(habitsTabSource) { habit in
                             row(for: habit)
                                 .id(rowIdentity(habit))
@@ -1286,6 +1292,7 @@ struct ContentView: View {
                             ? { store.move(fromOffsets: $0, toOffset: $1) }
                             : nil)
                     }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear { scrollToRequestedHabit(using: proxy) }

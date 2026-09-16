@@ -139,9 +139,7 @@ struct HabitCard: View, Equatable {
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
-            if isSorting {
-                SortingReorderPan()
-            } else {
+            if !isSorting {
                 SwipeRevealPan(shouldBegin: revealShouldBegin,
                                began: { reveal.begin() },
                                changed: revealChanged,
@@ -149,6 +147,13 @@ struct HabitCard: View, Equatable {
                                cancelled: { snapReveal(to: 0) },
                                isOpen: { reveal.offset != 0 },
                                ownerID: habit.id)
+            }
+        }
+        .overlay {
+            if isSorting {
+                SortingReorderPan()
+                    .accessibilityLabel(String(localized: "Verschieben"))
+                    .accessibilityAddTraits(.allowsDirectInteraction)
             }
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
@@ -561,28 +566,31 @@ struct HabitCard: View, Equatable {
     /// bliebe bei XXL nur noch "La…" vom Habit-Namen übrig.
     @ViewBuilder
     private var header: some View {
-        if typeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                nameRun
-                HStack(spacing: Theme.Metrics.gap) {
-                    Spacer(minLength: 0)
-                    todayButton
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    nameRun
+                    HStack(spacing: Theme.Metrics.gap) {
+                        Spacer(minLength: 0)
+                        todayButton
+                    }
                 }
+                .padding(.horizontal, 4)
+            } else {
+                HStack(spacing: Theme.Metrics.gap) {
+                    nameRun
+                    Spacer(minLength: Theme.Metrics.gap)
+                    // Zusammengezogen bleibt der Name mit verschmolzenem
+                    // Heute-Zustand.
+                    if !collapsed { todayButton }
+                }
+                .frame(minHeight: headerHeight)
+                // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
+                // erste Rasterspalte stehen in EINER Flucht.
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
-        } else {
-            HStack(spacing: Theme.Metrics.gap) {
-                nameRun
-                Spacer(minLength: Theme.Metrics.gap)
-                // Zusammengezogen bleibt der Name mit verschmolzenem
-                // Heute-Zustand.
-                if !collapsed { todayButton }
-            }
-            .frame(minHeight: headerHeight)
-            // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
-            // erste Rasterspalte stehen in EINER Flucht.
-            .padding(.horizontal, 4)
         }
+        .allowsHitTesting(!isSorting)
     }
 
     // Hier stand der Kopf-„Schlucker" (ein LongPressGesture hinter dem

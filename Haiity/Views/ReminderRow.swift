@@ -49,9 +49,7 @@ struct ReminderRow: View, Equatable {
                                onAction: revealActionTapped,
                                rowContent: { rowContent })
         .background {
-            if isSorting {
-                SortingReorderPan()
-            } else {
+            if !isSorting {
                 SwipeRevealPan(shouldBegin: revealShouldBegin,
                                began: { reveal.begin() },
                                changed: revealChanged,
@@ -59,6 +57,13 @@ struct ReminderRow: View, Equatable {
                                cancelled: { snapReveal(to: 0) },
                                isOpen: { reveal.offset != 0 },
                                ownerID: habit.id)
+            }
+        }
+        .overlay {
+            if isSorting {
+                SortingReorderPan()
+                    .accessibilityLabel(String(localized: "Verschieben"))
+                    .accessibilityAddTraits(.allowsDirectInteraction)
             }
         }
         .accessibilityElement(children: .contain)
@@ -324,6 +329,7 @@ struct ReminderRow: View, Equatable {
             // VoiceOver cannot perform the row pan. Named actions live on the
             // checkmark so the revealed buttons stay independently hittable.
             .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
+            .allowsHitTesting(!isSorting)
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)

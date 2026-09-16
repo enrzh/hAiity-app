@@ -68,8 +68,10 @@ final class ChromeLayoutTests: XCTestCase {
                       "habit cards must drop the swipe pan while sorting")
         XCTAssertTrue(reminder.contains("if isSorting"),
                       "reminder rows must drop the swipe pan while sorting")
-        XCTAssertTrue(habit.contains("SortingReorderPan()"))
-        XCTAssertTrue(reminder.contains("SortingReorderPan()"))
+        XCTAssertTrue(habit.contains(".overlay"),
+                      "sorting drag surface must cover the habit card")
+        XCTAssertTrue(reminder.contains(".overlay"),
+                      "sorting drag surface must cover the reminder row")
         XCTAssertTrue(swipe.contains("editMode?.wrappedValue == .active"),
                       "a leftover swipe pan must detach instead of racing the list")
 
@@ -83,8 +85,23 @@ final class ChromeLayoutTests: XCTestCase {
                       "long lists must scroll only while a row is being moved")
         XCTAssertTrue(reorder.contains("SortingReorderPolicy.sortableBounds"),
                       "the drop target must stay out of the navbar and list header")
-        XCTAssertFalse(reorder.contains("isHandleLocation"),
-                       "the whole row is the grab target in sorting mode")
+        XCTAssertTrue(reorder.contains("SortingReorderPolicy.lockedMovementTarget"),
+                      "reorder targets must stay inside the habit list column")
+        XCTAssertTrue(reorder.contains("SortingListReorderChrome.habitSectionIndex"),
+                      "only habit rows may start an interactive move")
+        XCTAssertTrue(guardSource.contains("setSystemDragAndDropLocked"),
+                      "system drag and drop must stay off while sorting")
+        XCTAssertTrue(guardSource.contains("SortingListReorderChrome"),
+                      "system reorder grabbers must hide while whole-row sorting is active")
+        XCTAssertTrue(reorder.contains("bringSubviewToFront"),
+                      "the row overlay must sit above card controls while sorting")
+
+        let habitListStart = try XCTUnwrap(content.range(of: "private var habitList: some View"))
+        let habitList = content[habitListStart.lowerBound...]
+        XCTAssertTrue(habitList.contains("Section {"),
+                      "header rows must live outside the movable habit section")
+        XCTAssertTrue(habitList.contains("if !habitsTabSource.isEmpty"),
+                      "only habit rows belong in the movable section")
     }
 
     func testSortingPressDurationIsShortEnoughToGrabAndLongEnoughToScroll() {
@@ -168,21 +185,47 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(bounds.maxY, 1120, accuracy: 0.001)
     }
 
-    func testSortingDropTargetClampsOutOfTheNavbarAndHeader() {
-        let bounds = SortingReorderPolicy.sortableBounds(
-            chromeMinY: 118,
-            chromeMaxY: 717,
-            immovableFrames: [SortingReorderPolicy.Frame(minY: 118, maxY: 360)])
-        XCTAssertEqual(SortingReorderPolicy.clampedOffset(40, min: bounds.minY, max: bounds.maxY),
-                       bounds.minY)
-        XCTAssertEqual(SortingReorderPolicy.clampedOffset(900, min: bounds.minY, max: bounds.maxY),
-                       bounds.maxY)
+    func testSortingLockedTargetStaysInsideTheListColumn() {
+        let sortable = SortingReorderPolicy.Viewport(minY: 360, maxY: 717)
+        let band = SortingReorderPolicy.Viewport(minY: 380, maxY: 700)
+        let inset = UIEdgeInsets(top: 118, left: 16, bottom: 83, right: 16)
+        let bounds = CGRect(x: 0, y: 0, width: 393, height: 852)
+        let target = SortingReorderPolicy.lockedMovementTarget(
+            finger: CGPoint(x: -40, y: 180),
+            collectionBounds: bounds,
+            contentInset: inset,
+            sortable: sortable,
+            itemBand: band)
+        XCTAssertEqual(target.y, 380, accuracy: 0.001)
+        XCTAssertEqual(target.x, inset.left + SortingReorderPolicy.horizontalSlack, accuracy: 0.001)
     }
 
-    func testSortingAutoScrollFiresWhenTheFingerIsInTheHeaderAboveSortableRows() {
-        let delta = SortingReorderPolicy.autoScrollTranslation(locationY: 180,
-                                                               viewportMinY: 360,
-                                                               viewportMaxY: 717,
+    func testSortingDropTargetSnapsOntoTheFirstHabitRowFromTheHeader() {
+        let sortable = SortingReorderPolicy.Viewport(minY: 360, maxY: 717)
+        XCTAssertEqual(
+            SortingReorderPolicy.movementY(fingerY: 40, sortable: sortable),
+            360,
+            accuracy: 0.001)
+        XCTAssertEqual(
+            SortingReorderPolicy.movementY(fingerY: 180, sortable: sortable),
+            360,
+            accuracy: 0.001)
+    }
+
+    func testSortingDropTargetSnapsOntoTheLastHabitRowFromBelowTheList() {
+        let sortable = SortingReorderPolicy.Viewport(minY: 360, maxY: 717)
+        XCTAssertEqual(
+            SortingReorderPolicy.movementY(fingerY: 950, sortable: sortable),
+            717,
+            accuracy: 0.001)
+    }
+
+    func testSortingAutoScrollTreatsHeaderTouchesLikeTheTopEdge() {
+        let sortable = SortingReorderPolicy.Viewport(minY: 360, maxY: 717)
+        let edgeY = SortingReorderPolicy.autoScrollFingerY(180, sortable: sortable)
+        let delta = SortingReorderPolicy.autoScrollTranslation(locationY: edgeY,
+                                                               viewportMinY: sortable.minY,
+                                                               viewportMaxY: sortable.maxY,
                                                                dt: 1 / 60)
         XCTAssertLessThan(delta, 0)
     }
