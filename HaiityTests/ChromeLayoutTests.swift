@@ -81,6 +81,8 @@ final class ChromeLayoutTests: XCTestCase {
                       "the press delay is what keeps idle scrolling intact")
         XCTAssertTrue(reorder.contains("SortingReorderPolicy.autoScrollTranslation"),
                       "long lists must scroll only while a row is being moved")
+        XCTAssertTrue(reorder.contains("SortingReorderPolicy.sortableBounds"),
+                      "the drop target must stay out of the navbar and list header")
         XCTAssertFalse(reorder.contains("isHandleLocation"),
                        "the whole row is the grab target in sorting mode")
     }
@@ -132,6 +134,57 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(SortingReorderPolicy.clampedOffset(-20, min: 0, max: 800), 0)
         XCTAssertEqual(SortingReorderPolicy.clampedOffset(900, min: 0, max: 800), 800)
         XCTAssertEqual(SortingReorderPolicy.clampedOffset(120, min: 0, max: 800), 120)
+    }
+
+    func testSortingChromeViewportUsesTheSafeAreaWhenTheListScrollsUnderTheNavbar() {
+        let viewport = SortingReorderPolicy.chromeViewport(boundsMinY: 0,
+                                                           boundsMaxY: 800,
+                                                           adjustedTop: 8,
+                                                           adjustedBottom: 34,
+                                                           safeTop: 118,
+                                                           safeBottom: 83)
+        XCTAssertEqual(viewport.minY, 118, accuracy: 0.001)
+        XCTAssertEqual(viewport.maxY, 717, accuracy: 0.001)
+    }
+
+    func testSortingSortableBoundsSitBelowVisibleHeaderRows() {
+        let bounds = SortingReorderPolicy.sortableBounds(
+            chromeMinY: 118,
+            chromeMaxY: 717,
+            immovableFrames: [
+                SortingReorderPolicy.Frame(minY: 118, maxY: 194),
+                SortingReorderPolicy.Frame(minY: 194, maxY: 360)
+            ])
+        XCTAssertEqual(bounds.minY, 360, accuracy: 0.001)
+        XCTAssertEqual(bounds.maxY, 717, accuracy: 0.001)
+    }
+
+    func testSortingSortableBoundsIgnoreHeadersThatHaveScrolledUnderTheNavbar() {
+        let bounds = SortingReorderPolicy.sortableBounds(
+            chromeMinY: 520,
+            chromeMaxY: 1120,
+            immovableFrames: [SortingReorderPolicy.Frame(minY: 0, maxY: 360)])
+        XCTAssertEqual(bounds.minY, 520, accuracy: 0.001)
+        XCTAssertEqual(bounds.maxY, 1120, accuracy: 0.001)
+    }
+
+    func testSortingDropTargetClampsOutOfTheNavbarAndHeader() {
+        let bounds = SortingReorderPolicy.sortableBounds(
+            chromeMinY: 118,
+            chromeMaxY: 717,
+            immovableFrames: [SortingReorderPolicy.Frame(minY: 118, maxY: 360)])
+        XCTAssertEqual(SortingReorderPolicy.clampedOffset(40, min: bounds.minY, max: bounds.maxY),
+                       bounds.minY)
+        XCTAssertEqual(SortingReorderPolicy.clampedOffset(900, min: bounds.minY, max: bounds.maxY),
+                       bounds.maxY)
+    }
+
+    func testSortingAutoScrollFiresWhenTheFingerIsInTheHeaderAboveSortableRows() {
+        let delta = SortingReorderPolicy.autoScrollTranslation(locationY: 180,
+                                                               viewportMinY: 360,
+                                                               viewportMaxY: 717,
+                                                               dt: 1 / 60)
+        XCTAssertLessThan(delta, 0)
     }
 
     // MARK: – Wohin der Anlegen-Knopf fährt

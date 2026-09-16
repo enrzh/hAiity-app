@@ -87,6 +87,16 @@ enum SortingReorderPolicy {
     static let edgeBand: CGFloat = 56
     static let maxSpeed: CGFloat = 360
 
+    struct Frame {
+        var minY: CGFloat
+        var maxY: CGFloat
+    }
+
+    struct Viewport {
+        var minY: CGFloat
+        var maxY: CGFloat
+    }
+
     static func autoScrollTranslation(locationY: CGFloat,
                                       viewportMinY: CGFloat,
                                       viewportMaxY: CGFloat,
@@ -109,6 +119,47 @@ enum SortingReorderPolicy {
 
     static func clampedOffset(_ y: CGFloat, min: CGFloat, max: CGFloat) -> CGFloat {
         Swift.min(max, Swift.max(min, y))
+    }
+
+    /// Visible list area after overlay chrome. The list scrolls under the
+    /// navbar, so the safe-area inset is the floor even when content insets
+    /// are smaller.
+    static func chromeViewport(boundsMinY: CGFloat,
+                               boundsMaxY: CGFloat,
+                               adjustedTop: CGFloat,
+                               adjustedBottom: CGFloat,
+                               safeTop: CGFloat,
+                               safeBottom: CGFloat) -> Viewport {
+        let minY = boundsMinY + max(adjustedTop, safeTop)
+        let maxY = boundsMaxY - max(adjustedBottom, safeBottom)
+        guard maxY > minY else {
+            return Viewport(minY: boundsMinY, maxY: boundsMaxY)
+        }
+        return Viewport(minY: minY, maxY: maxY)
+    }
+
+    /// Drop and auto-scroll live in the habit rows, not in the title / Heute
+    /// header or under the navbar. Immovable rows that currently occupy the
+    /// top or bottom of the chrome viewport push that range inward.
+    static func sortableBounds(chromeMinY: CGFloat,
+                               chromeMaxY: CGFloat,
+                               immovableFrames: [Frame]) -> Viewport {
+        var minY = chromeMinY
+        var maxY = chromeMaxY
+        for frame in immovableFrames.sorted(by: { $0.minY < $1.minY }) {
+            if frame.minY <= minY + 1, frame.maxY > minY {
+                minY = max(minY, frame.maxY)
+            }
+        }
+        for frame in immovableFrames.sorted(by: { $0.maxY > $1.maxY }) {
+            if frame.maxY >= maxY - 1, frame.minY < maxY {
+                maxY = min(maxY, frame.minY)
+            }
+        }
+        guard maxY - minY >= edgeBand else {
+            return Viewport(minY: chromeMinY, maxY: chromeMaxY)
+        }
+        return Viewport(minY: minY, maxY: maxY)
     }
 }
 
@@ -217,11 +268,13 @@ struct SortingReorderPan: UIViewRepresentable {
                 cancelTracking(collection.panGestureRecognizer)
                 if collection.beginInteractiveMovementForItem(at: indexPath) {
                     movingCollection = collection
-                    collection.updateInteractiveMovementTargetPosition(press.location(in: collection))
+                    collection.updateInteractiveMovementTargetPosition(
+                        movementTarget(for: press, in: collection))
                     startAutoScroll()
                 }
             case .changed:
-                movingCollection?.updateInteractiveMovementTargetPosition(press.location(in: collection))
+                movingCollection?.updateInteractiveMovementTargetPosition(
+                    movementTarget(for: press, in: collection))
             case .ended:
                 stopAutoScroll()
                 movingCollection?.endInteractiveMovement()
@@ -251,12 +304,11 @@ struct SortingReorderPan: UIViewRepresentable {
             guard let collection = movingCollection,
                   let press = recognizer else { return }
             let location = press.location(in: collection)
-            let visibleMin = collection.bounds.minY + collection.adjustedContentInset.top
-            let visibleMax = collection.bounds.maxY - collection.adjustedContentInset.bottom
+            let sortable = sortableViewport(in: collection)
             let delta = SortingReorderPolicy.autoScrollTranslation(
                 locationY: location.y,
-                viewportMinY: visibleMin,
-                viewportMaxY: visibleMax,
+                viewportMinY: sortable.minY,
+                viewportMaxY: sortable.maxY,
                 dt: link.duration)
             if delta != 0 {
                 let minY = -collection.adjustedContentInset.top
@@ -270,7 +322,46 @@ struct SortingReorderPan: UIViewRepresentable {
                                                               max: maxY)
                 collection.setContentOffset(offset, animated: false)
             }
-            collection.updateInteractiveMovementTargetPosition(press.location(in: collection))
+            collection.updateInteractiveMovementTargetPosition(
+                movementTarget(for: press, in: collection))
+        }
+
+        private func movementTarget(for press: UILongPressGestureRecognizer,
+                                    in collection: UICollectionView) -> CGPoint {
+            let sortable = sortableViewport(in: collection)
+            var location = press.location(in: collection)
+            location.y = SortingReorderPolicy.clampedOffset(location.y,
+                                                            min: sortable.minY,
+                                                            max: sortable.maxY)
+            return location
+        }
+
+        private func sortableViewport(in collection: UICollectionView) -> SortingReorderPolicy.Viewport {
+            let chrome = SortingReorderPolicy.chromeViewport(
+                boundsMinY: collection.bounds.minY,
+                boundsMaxY: collection.bounds.maxY,
+                adjustedTop: collection.adjustedContentInset.top,
+                adjustedBottom: collection.adjustedContentInset.bottom,
+                safeTop: collection.safeAreaInsets.top,
+                safeBottom: collection.safeAreaInsets.bottom)
+            return SortingReorderPolicy.sortableBounds(
+                chromeMinY: chrome.minY,
+                chromeMaxY: chrome.maxY,
+                immovableFrames: immovableFrames(in: collection))
+        }
+
+        private func immovableFrames(in collection: UICollectionView) -> [SortingReorderPolicy.Frame] {
+            collection.visibleCells.compactMap { cell in
+                guard !isMovableCell(cell) else { return nil }
+                return SortingReorderPolicy.Frame(minY: cell.frame.minY, maxY: cell.frame.maxY)
+            }
+        }
+
+        private func isMovableCell(_ cell: UICollectionViewCell) -> Bool {
+            (cell.gestureRecognizers ?? []).contains { recognizer in
+                recognizer is UILongPressGestureRecognizer
+                    && recognizer.delegate is SortingReorderPan.Host
+            }
         }
 
         private func enclosingCollectionView(from view: UIView) -> UICollectionView? {
