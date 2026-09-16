@@ -141,8 +141,8 @@ final class GraphContextMenuRegressionTests: XCTestCase {
     func testHabitReorderingRequiresExplicitSortingMode() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("canSortHabits && editMode == .active"),
-                      "drag reordering must be enabled only in explicit sorting mode")
+        XCTAssertTrue(content.contains("habitSortingActive"))
+        XCTAssertTrue(content.contains("HabitSortingSession("))
     }
 
     func testReminderContextMenuUsesTheSharedPreviewBridge() throws {

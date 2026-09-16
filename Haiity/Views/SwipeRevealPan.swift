@@ -88,7 +88,6 @@ struct SwipeRevealPan: UIViewRepresentable {
     /// Posting from every visible row made each list scroll O(visible²).
     var isOpen: () -> Bool = { false }
     let ownerID: UUID
-    @Environment(\.editMode) private var editMode
 
     func makeUIView(context: Context) -> PanHost {
         PanHost(ownerID: ownerID, shouldBegin: shouldBegin, began: began,
@@ -104,13 +103,6 @@ struct SwipeRevealPan: UIViewRepresentable {
         view.endedCallback = ended
         view.cancelledCallback = cancelled
         view.isOpenQuery = isOpen
-        // A sorting-mode list already owns vertical pans. Leaving this
-        // recognizer in `.possible` on every visible cell races the reorder
-        // gesture and freezes scrolling.
-        if editMode?.wrappedValue == .active {
-            view.detach()
-            return
-        }
         // Callbacks belong to the current cell even if List reused the
         // bridge. Do not walk ancestors on every SwiftUI update — that is
         // per-frame work while a reveal offset is changing.

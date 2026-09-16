@@ -107,16 +107,12 @@ final class FollowUpFixTests: XCTestCase {
     func testHabitToolbarRestoresSortingAlongsideFiltering() throws {
         let content = try source("Haiity/Views/ContentView.swift")
 
-        XCTAssertTrue(content.contains("@State private var editMode: EditMode"),
-                      "sorting needs the native list edit state")
+        XCTAssertTrue(content.contains("habitSortingActive"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"reorder-habits\")"),
                       "sorting needs a stable toolbar action")
-        XCTAssertTrue(content.contains(".environment(\\.editMode, $editMode)"),
-                      "sorting still wires list edit mode to onMove")
-        XCTAssertTrue(content.contains(".onMove("),
-                      "sorting needs the existing store move behavior")
+        XCTAssertTrue(content.contains("HabitSortingSession("))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"),
-                      "sorting needs a way to leave edit mode")
+                      "sorting needs a way to leave inline sort mode")
     }
 
     func testTodayFilterIsNotOfferedInTheMenu() throws {

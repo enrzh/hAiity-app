@@ -1026,12 +1026,14 @@ final class HabitStore {
     /// Verschiebt Habits per Drag — die Offsets beziehen sich auf
     /// `activeHabits` (was die Liste zeigt); archivierte Habits behalten
     /// ihre Positionen im Gesamtarray.
-    func move(fromOffsets source: IndexSet, toOffset destination: Int) {
+    func move(fromOffsets source: IndexSet, toOffset destination: Int, persist: Bool = true) {
         var active = activeHabits
         active.move(fromOffsets: source, toOffset: destination)
         var iterator = active.makeIterator()
         data.habits = data.habits.map { $0.archivedAt == nil ? (iterator.next() ?? $0) : $0 }
-        persist()
+        if persist {
+            self.persist()
+        }
     }
 
     /// Offene AKTIVE Habits für heute (für die Abend-Zusammenfassung).

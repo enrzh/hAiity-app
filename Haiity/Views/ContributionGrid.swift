@@ -49,7 +49,6 @@ struct ContributionGrid: View, Equatable {
     /// GLOBALE Farbe + eigene Paletten; die Habit-eigene Farbe legt sich
     /// darüber (aufgelöst in `PaletteStyle.resolve`).
     @Environment(\.palettes) private var palettes
-    @Environment(\.editMode) private var editMode
     /// A cold graph must not make the first habit-list frame wait on date
     /// generation and intensity calculation.
     @State private var renderedSnapshot: (key: GridCalendar.HabitSnapshotKey, value: GridCalendar.Snapshot)?
@@ -112,7 +111,6 @@ struct ContributionGrid: View, Equatable {
                         // overflows. Fitting graphs stay optically centered.
                         .defaultScrollAnchor(.trailing)
                         .padding(.horizontal, 4)
-                        .scrollDisabled(editMode?.wrappedValue == .active)
                     } else {
                         graphContent(snapshot: snapshot,
                                      cell: m.cell,

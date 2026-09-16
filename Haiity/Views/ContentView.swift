@@ -153,9 +153,8 @@ struct ContentView: View {
     /// The search page owns focus. Selecting it shows the field; selecting the
     /// already-visible Search tab again is the explicit keyboard request.
     @FocusState private var searchFieldFocused: Bool
-    /// Explicit sorting mode for the habit list. Long press remains reserved
-    /// for the card preview and its actions.
-    @State private var editMode: EditMode = .inactive
+    /// Inline custom reorder on the habits list — not list `EditMode`.
+    @State private var habitSortingActive = false
     @State private var rootTitleProgress: CGFloat = 0
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
@@ -485,7 +484,7 @@ struct ContentView: View {
                 backfill = nil
             }
             .onChange(of: search) { _, query in
-                if !query.isEmpty { editMode = .inactive }
+                if !query.isEmpty { habitSortingActive = false }
                 searchCommitTask?.cancel()
                 let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
                 searchCommitTask = Task { @MainActor in
@@ -497,7 +496,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: habitFilter) { _, filter in
-                if !filter.isEmpty { editMode = .inactive }
+                if !filter.isEmpty { habitSortingActive = false }
             }
             .onChange(of: habitFilter.todayOnly) { _, todayOnly in
                 HabitListFilterPreferences.persistTodayOnly(todayOnly)
@@ -1083,11 +1082,8 @@ struct ContentView: View {
                 }
         } else {
             habitList
-                // The large title is part of the scrollable list; the native
-                // navigation title is intentionally omitted so it cannot
-                // duplicate the centered scrolling title.
                 .navigationBarTitleDisplayMode(.inline)
-                .environment(\.editMode, $editMode)
+                .environment(\.habitInlineSortingActive, habitSortingActive)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
@@ -1097,19 +1093,17 @@ struct ContentView: View {
                                              progress: rootTitleProgress)
                     }
                     ToolbarItemGroup(placement: .topBarLeading) {
-                        if editMode != .active {
+                        if !habitSortingActive {
                             habitFilterMenu
                         }
                         Button {
-                            withAnimation {
-                                editMode = editMode == .active ? .inactive : .active
-                            }
+                            habitSortingActive = true
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
-                                .symbolVariant(editMode == .active ? .fill : .none)
+                                .symbolVariant(habitSortingActive ? .fill : .none)
                         }
-                        .disabled(!canSortHabits)
-                        .accessibilityLabel(editMode == .active
+                        .disabled(!canSortHabits || habitsTabSource.isEmpty)
+                        .accessibilityLabel(habitSortingActive
                                             ? String(localized: "Sortieren beenden")
                                             : String(localized: "Habits sortieren"))
                         .accessibilityIdentifier("reorder-habits")
@@ -1121,10 +1115,10 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var createToolbarItem: some ToolbarContent {
-        if editMode == .active {
+        if habitSortingActive {
             ToolbarItem(placement: .confirmationAction) {
                 Button(String(localized: "Fertig")) {
-                    withAnimation { editMode = .inactive }
+                    finishHabitSorting()
                 }
                 .accessibilityIdentifier("finish-reordering")
             }
@@ -1237,9 +1231,7 @@ struct ContentView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                         .moveDisabled(true)
-                        .background {
-                            SortingListScrollGuard(active: editMode == .active)
-                        }
+                        .allowsHitTesting(!habitSortingActive)
                     TodayProgressView(
                         progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
@@ -1250,7 +1242,7 @@ struct ContentView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
                                                   bottom: 0, trailing: Theme.Metrics.gutter))
                         .moveDisabled(true)
-                        .allowsHitTesting(editMode != .active)
+                        .allowsHitTesting(!habitSortingActive)
                     if let snapshot = github.snapshot {
                         GitHubContributionCard(snapshot: snapshot,
                                                collapsed: collapsed,
@@ -1265,7 +1257,7 @@ struct ContentView: View {
                                                       bottom: 0,
                                                       trailing: Theme.Metrics.gutter))
                             .moveDisabled(true)
-                            .allowsHitTesting(editMode != .active)
+                            .allowsHitTesting(!habitSortingActive)
                     }
                     if habitsTabSource.isEmpty {
                         if !habitFilter.isEmpty && committedSearch.isEmpty {
@@ -1288,24 +1280,36 @@ struct ContentView: View {
                                 .id(rowIdentity(habit))
                                 .deleteDisabled(true)
                         }
-                        .onMove(perform: canSortHabits && editMode == .active
-                            ? { store.move(fromOffsets: $0, toOffset: $1) }
-                            : nil)
                     }
                 }
             }
+            .accessibilityIdentifier(habitSortingActive ? "habit-sorting-active" : "habit-list")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear { scrollToRequestedHabit(using: proxy) }
             .onChange(of: requestedHabitID) { _, _ in
                 scrollToRequestedHabit(using: proxy)
             }
             .onChange(of: habitsTabSource.map(\.id)) { _, _ in
+                guard !habitSortingActive else { return }
                 scrollToRequestedHabit(using: proxy)
             }
         }
         .listStyle(.plain)
+        .background {
+            HabitSortingSession(
+                active: habitSortingActive,
+                move: reorderHabit,
+                persist: { store.persist() })
+        }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
             progressNow = now
+        }
+        .onChange(of: habitSortingActive) { _, active in
+            guard active else {
+                store.persist()
+                return
+            }
+            NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
         }
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
@@ -1386,7 +1390,20 @@ struct ContentView: View {
     }
 
     private func enableSorting() {
-        withAnimation { editMode = .active }
+        habitSortingActive = true
+    }
+
+    private func finishHabitSorting() {
+        habitSortingActive = false
+        store.persist()
+    }
+
+    private func reorderHabit(from source: IndexSet, to destination: Int, persist: Bool) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            store.move(fromOffsets: source, toOffset: destination, persist: persist)
+        }
     }
 
     private func createOneTime(from habit: Habit) {

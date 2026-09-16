@@ -29,8 +29,7 @@ struct ReminderRow: View, Equatable {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.palettes) private var palettes
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.editMode) private var editMode
-    private var isSorting: Bool { editMode?.wrappedValue == .active }
+    @Environment(\.habitInlineSortingActive) private var habitInlineSortingActive
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -49,7 +48,9 @@ struct ReminderRow: View, Equatable {
                                onAction: revealActionTapped,
                                rowContent: { rowContent })
         .background {
-            if !isSorting {
+            if habitInlineSortingActive {
+                Color.clear.accessibilityHidden(true)
+            } else {
                 SwipeRevealPan(shouldBegin: revealShouldBegin,
                                began: { reveal.begin() },
                                changed: revealChanged,
@@ -57,13 +58,6 @@ struct ReminderRow: View, Equatable {
                                cancelled: { snapReveal(to: 0) },
                                isOpen: { reveal.offset != 0 },
                                ownerID: habit.id)
-            }
-        }
-        .overlay {
-            if isSorting {
-                SortingReorderPan()
-                    .accessibilityLabel(String(localized: "Verschieben"))
-                    .accessibilityAddTraits(.allowsDirectInteraction)
             }
         }
         .accessibilityElement(children: .contain)
@@ -309,7 +303,7 @@ struct ReminderRow: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
                     .frame(maxWidth: previewWidth)
-                    .allowsHitTesting(!isSorting)
+                    .allowsHitTesting(!habitInlineSortingActive)
             }
 
             Button(action: toggleFromCheckmark) {
@@ -329,7 +323,6 @@ struct ReminderRow: View, Equatable {
             // VoiceOver cannot perform the row pan. Named actions live on the
             // checkmark so the revealed buttons stay independently hittable.
             .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
-            .allowsHitTesting(!isSorting)
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)

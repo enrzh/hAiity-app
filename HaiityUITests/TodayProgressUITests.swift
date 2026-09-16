@@ -80,20 +80,19 @@ final class TodayProgressUITests: XCTestCase {
         capture("today-completion-undo")
     }
 
-    func testSortingModeUsesNativeDoneAndHidesFilter() {
+    func testSortingStaysOnTheHabitsPageAndDoneExitsInlineMode() {
         let app = launch("crowded")
         let sort = app.buttons["reorder-habits"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         sort.tap()
 
+        XCTAssertTrue(app.otherElements["habit-sorting-active"].waitForExistence(timeout: 8))
         let done = app.buttons["finish-reordering"]
-        XCTAssertTrue(done.waitForExistence(timeout: 5),
-                      "sorting should replace create with a native Done action")
-        XCTAssertFalse(app.buttons["habit-filter"].exists,
-                       "filter should yield the toolbar while sorting")
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
         capture("sorting-mode")
         done.tap()
-        XCTAssertTrue(app.buttons["create-habit"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["habit-list"].waitForExistence(timeout: 5))
+        XCTAssertTrue(sort.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["habit-filter"].waitForExistence(timeout: 5))
     }
 

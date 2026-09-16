@@ -742,12 +742,8 @@ final class AppNavigationTests: XCTestCase {
 
     func testContentViewExposesExplicitSortingMode() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("@State private var editMode: EditMode"),
-                      "sorting should be explicit, not entered by long press")
-        XCTAssertTrue(source.contains(".environment(\\.editMode"),
-                      "sorting still uses list edit mode for onMove")
-        XCTAssertTrue(source.contains(".onMove("),
-                      "sorting should use the store's existing move behavior")
+        XCTAssertTrue(source.contains("habitSortingActive"))
+        XCTAssertTrue(source.contains("HabitSortingSession("))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }
