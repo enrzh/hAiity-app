@@ -67,6 +67,9 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"))
         XCTAssertFalse(habit.contains("SortingReorderPan"))
         XCTAssertFalse(reminder.contains("SortingReorderPan"))
+        XCTAssertTrue(content.contains("withHabitChromeAnimation"))
+        XCTAssertTrue(content.contains("contentTransition(.symbolEffect(.replace))"))
+        XCTAssertTrue(content.contains("symbolEffect(.bounce"))
         XCTAssertTrue(habit.contains("habitInlineSortingActive"))
     }
 
@@ -94,50 +97,93 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 120, frames: frames, current: 1), 1)
     }
 
-    func testRowMovesOnlyAfterCrossingNeighborMidpoint() {
+    func testRowMovesAfterEnteringTheNeighbor() {
         let frames = [
             CGRect(x: 0, y: 0, width: 320, height: 80),
             CGRect(x: 0, y: 88, width: 320, height: 80),
             CGRect(x: 0, y: 176, width: 320, height: 80)
         ]
-        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 120, frames: frames, current: 0), 0)
-        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 140, frames: frames, current: 0), 1)
-        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 40, frames: frames, current: 1), 1)
-        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 30, frames: frames, current: 1), 0)
+        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 100, frames: frames, current: 0), 0)
+        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 110, frames: frames, current: 0), 1)
+        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 70, frames: frames, current: 1), 1)
+        XCTAssertEqual(CustomHabitReorderPolicy.destinationIndex(fingerY: 50, frames: frames, current: 1), 0)
     }
 
-    func testRepeatedMidpointCrossingsWalkOneRowAtATime() {
+    func testRepeatedNeighborCrossingsWalkOneRowAtATime() {
         let frames = [
             CGRect(x: 0, y: 0, width: 320, height: 80),
             CGRect(x: 0, y: 88, width: 320, height: 80),
             CGRect(x: 0, y: 176, width: 320, height: 80)
         ]
         var current = 0
-        current = CustomHabitReorderPolicy.destinationIndex(fingerY: 140, frames: frames, current: current)
+        current = CustomHabitReorderPolicy.destinationIndex(fingerY: 110, frames: frames, current: current)
         XCTAssertEqual(current, 1)
-        current = CustomHabitReorderPolicy.destinationIndex(fingerY: 230, frames: frames, current: current)
+        current = CustomHabitReorderPolicy.destinationIndex(fingerY: 200, frames: frames, current: current)
         XCTAssertEqual(current, 2)
     }
 
-    func testShortReminderDoesNotBounceThroughTallHabit() {
+    func testReminderMovesAsSoonAsItEntersATallHabit() {
         let habit = CGRect(x: 0, y: 0, width: 320, height: 280)
         let reminder = CGRect(x: 0, y: 288, width: 320, height: 56)
         XCTAssertEqual(
-            CustomHabitReorderPolicy.destinationIndex(fingerY: 200, frames: [habit, reminder], current: 1),
+            CustomHabitReorderPolicy.destinationIndex(fingerY: 270, frames: [habit, reminder], current: 1),
             1,
-            "finger still below the habit midpoint must keep the reminder in place")
+            "still in the reminder until the finger actually enters the habit")
         XCTAssertEqual(
-            CustomHabitReorderPolicy.destinationIndex(fingerY: 120, frames: [habit, reminder], current: 1),
+            CustomHabitReorderPolicy.destinationIndex(fingerY: 250, frames: [habit, reminder], current: 1),
             0)
+    }
 
+    func testShortReminderDoesNotBounceThroughTallHabit() {
         let swapped = [
             CGRect(x: 0, y: 0, width: 320, height: 56),
             CGRect(x: 0, y: 64, width: 320, height: 280)
         ]
         XCTAssertEqual(
-            CustomHabitReorderPolicy.destinationIndex(fingerY: 120, frames: swapped, current: 0),
+            CustomHabitReorderPolicy.destinationIndex(
+                fingerY: 120,
+                frames: swapped,
+                current: 0,
+                lastMoveFingerY: 120,
+                lastMoveDelta: -1),
             0,
             "after the swap the same finger must not bounce the reminder back")
+    }
+
+    func testReminderWalksThroughAStackOfHabits() {
+        var heights: [CGFloat] = [56, 280, 280, 280]
+        let spacing: CGFloat = 8
+        func frames() -> [CGRect] {
+            CustomHabitReorderPolicy.stackedFrames(
+                heights: heights, originY: 0, spacing: spacing, width: 320)
+        }
+        var current = 0
+        var lastY: CGFloat?
+        var lastDelta = 0
+        let fingers: [CGFloat] = [90, 380, 670]
+        for fingerY in fingers {
+            let next = CustomHabitReorderPolicy.destinationIndex(
+                fingerY: fingerY,
+                frames: frames(),
+                current: current,
+                lastMoveFingerY: lastY,
+                lastMoveDelta: lastDelta)
+            XCTAssertEqual(next, current + 1, "finger \(fingerY) should advance one habit")
+            heights = CustomHabitReorderPolicy.movedHeights(heights, from: current, to: next)
+            lastDelta = 1
+            lastY = fingerY
+            current = next
+        }
+        XCTAssertEqual(current, 3)
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.destinationIndex(
+                fingerY: 670,
+                frames: frames(),
+                current: current,
+                lastMoveFingerY: lastY,
+                lastMoveDelta: lastDelta),
+            3,
+            "holding the finger after the last swap must not bounce")
     }
 
     func testLiftFollowsTheGrabPoint() {
@@ -149,11 +195,156 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(CustomHabitReorderPolicy.liftScale, 1.04, accuracy: 0.001)
     }
 
+    func testLockedLiftStaysInsideTheChromeBand() {
+        let top = CustomHabitReorderPolicy.lockedLiftOrigin(
+            finger: CGPoint(x: 100, y: 10),
+            grabOffset: CGPoint(x: 20, y: 40),
+            liftSize: CGSize(width: 200, height: 80),
+            bandMinY: 100,
+            bandMaxY: 500)
+        XCTAssertEqual(top.x, 80, accuracy: 0.001)
+        XCTAssertEqual(top.y, 100, accuracy: 0.001)
+
+        let bottom = CustomHabitReorderPolicy.lockedLiftOrigin(
+            finger: CGPoint(x: 100, y: 900),
+            grabOffset: CGPoint(x: 20, y: 0),
+            liftSize: CGSize(width: 200, height: 80),
+            bandMinY: 100,
+            bandMaxY: 500)
+        XCTAssertEqual(bottom.y, 420, accuracy: 0.001)
+    }
+
+    func testFingerYClampsToTheVisibleBand() {
+        XCTAssertEqual(CustomHabitReorderPolicy.clampedValue(40, min: 100, max: 500), 100, accuracy: 0.001)
+        XCTAssertEqual(CustomHabitReorderPolicy.clampedValue(240, min: 100, max: 500), 240, accuracy: 0.001)
+        XCTAssertEqual(CustomHabitReorderPolicy.clampedValue(800, min: 100, max: 500), 500, accuracy: 0.001)
+    }
+
+    func testStackedFramesFollowCachedHeightsAfterASwap() {
+        let heights: [CGFloat] = [280, 56, 280]
+        let before = CustomHabitReorderPolicy.stackedFrames(
+            heights: heights, originY: 100, spacing: 8, width: 320)
+        XCTAssertEqual(before[0].minY, 100, accuracy: 0.001)
+        XCTAssertEqual(before[1].minY, 388, accuracy: 0.001)
+        XCTAssertEqual(before[1].height, 56, accuracy: 0.001)
+
+        let afterHeights = CustomHabitReorderPolicy.movedHeights(heights, from: 1, to: 0)
+        XCTAssertEqual(afterHeights, [56, 280, 280])
+        let after = CustomHabitReorderPolicy.stackedFrames(
+            heights: afterHeights, originY: 100, spacing: 8, width: 320)
+        XCTAssertEqual(after[0].height, 56, accuracy: 0.001)
+        XCTAssertEqual(after[1].minY, 164, accuracy: 0.001)
+    }
+
+    func testLogicalOriginIgnoresContentOffsetSoAutoScrollCanReachLaterRows() {
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.logicalOriginY(
+                capturedSectionMinY: 240, contentOffsetY: 900, capturedOffsetY: 120),
+            240, accuracy: 0.001)
+    }
+
+    func testOffscreenRowsArePaddedIntoTheHeightCache() {
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.paddedHeights([56, 56], count: 5, fallback: 56),
+            [56, 56, 56, 56, 56])
+    }
+
+    func testVisibleHabitHeightsReplaceEstimatesWithoutTouchingTheDraggedRow() {
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.mergedHeights(
+                current: [56, 56, 56, 56],
+                visible: [(index: 2, height: 280), (index: 3, height: 280)],
+                draggedIndex: 0),
+            [56, 56, 280, 280])
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.mergedHeights(
+                current: [56, 280],
+                visible: [(index: 0, height: 0), (index: 1, height: 280)],
+                draggedIndex: 0)[0],
+            56, accuracy: 0.001)
+    }
+
+    func testFingerCanEnterAHabitRevealedByScrolling() {
+        let heights: [CGFloat] = [56, 280, 280]
+        let origin: CGFloat = 200
+        let frames = CustomHabitReorderPolicy.stackedFrames(
+            heights: heights, originY: origin, spacing: 8, width: 320)
+        let intoFirstHabit = origin + 56 + 8 + 40
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.destinationIndex(
+                fingerY: intoFirstHabit, frames: frames, current: 0),
+            1)
+
+        let shiftedWithScroll = CustomHabitReorderPolicy.stackedFrames(
+            heights: heights, originY: origin + 400, spacing: 8, width: 320)
+        XCTAssertEqual(
+            CustomHabitReorderPolicy.destinationIndex(
+                fingerY: intoFirstHabit, frames: shiftedWithScroll, current: 0),
+            0,
+            "if the stack scrolled with the content offset, the revealed habit would miss the finger")
+    }
+
+    func testMoveCooldownWaitsForTheRowSlide() {
+        XCTAssertTrue(CustomHabitReorderPolicy.canApplyMove(now: 1, lastMoveAt: nil))
+        XCTAssertFalse(CustomHabitReorderPolicy.canApplyMove(now: 1.05, lastMoveAt: 1))
+        XCTAssertTrue(CustomHabitReorderPolicy.canApplyMove(
+            now: 1 + CustomHabitReorderPolicy.moveLockDuration + 0.001, lastMoveAt: 1))
+    }
+
+    func testReorderAnimatesNeighborRowsInsteadOfJumping() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
+        XCTAssertTrue(content.contains("withAnimation(.spring(response: 0.32"))
+        XCTAssertFalse(content.contains("transaction.animation = nil\n        withTransaction(transaction) {\n            store.move"))
+        XCTAssertTrue(sorting.contains("stackedFrames"))
+        XCTAssertTrue(sorting.contains("movedHeights"))
+        XCTAssertTrue(sorting.contains("lastMoveAt"))
+    }
+
+    func testSortingKeepsFramesInContentSpaceWhileAutoScrolling() throws {
+        let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
+        XCTAssertTrue(sorting.contains("logicalOriginY("))
+        XCTAssertTrue(sorting.contains("refreshVisibleHeights(in: collection)"))
+        XCTAssertTrue(sorting.contains("paddedHeights"))
+        XCTAssertFalse(sorting.contains("sectionMinY + (collection.contentOffset.y - sectionOffsetY)"))
+    }
+
     func testSortingSessionLiftsASnapshotOfTheDraggedRow() throws {
         let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
         XCTAssertTrue(sorting.contains("liftScale"))
         XCTAssertTrue(sorting.contains("drawHierarchy") || sorting.contains("snapshotView"))
         XCTAssertTrue(sorting.contains("shadowOpacity"))
+        XCTAssertTrue(sorting.contains("liftSnapshot(of:"))
+    }
+
+    func testSortingSnapshotsTheRowBeforeHidingIt() throws {
+        let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
+        let lift = try XCTUnwrap(sorting.range(of: "beginLift(at: index"))
+        let hide = try XCTUnwrap(sorting.range(of: "setDraggingID(habitIDs[index])"))
+        XCTAssertLessThan(lift.lowerBound, hide.lowerBound)
+    }
+
+    func testSortingPressLivesOnTheWindowSoNavbarCannotCancelIt() throws {
+        let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
+        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertTrue(sorting.contains("attachPress(to: collection)"))
+        XCTAssertTrue(sorting.contains("collection.window ?? collection"))
+        XCTAssertTrue(sorting.contains("target.addGestureRecognizer(press)"))
+        XCTAssertTrue(sorting.contains("if window == nil"))
+        XCTAssertTrue(sorting.contains("if !dragging { detach(persistIfDragging: false) }"))
+        XCTAssertTrue(sorting.contains("lockedLiftOrigin"))
+        XCTAssertTrue(content.contains("allowsHitTesting(sortingDraggedID == nil)"))
+    }
+
+    func testDraggedRowIsHiddenByIdentityNotCollectionIndex() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let sorting = try source("Haiity/Views/HabitSortingScreen.swift")
+        XCTAssertTrue(content.contains("sortingDraggedID"))
+        XCTAssertTrue(content.contains("onDraggingIDChange"))
+        XCTAssertTrue(sorting.contains("onDraggingIDChange"))
+        XCTAssertFalse(sorting.contains("cell.alpha = hidden ? 0 : 1"),
+                       "hiding the cell at currentIndex blanks the habit a reminder is sliding through")
+        XCTAssertTrue(content.contains("sortingDraggedID == habit.id ? 0 : 1"))
     }
 
     func testAutoScrollStaysStillAwayFromEdges() {

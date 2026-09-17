@@ -111,6 +111,7 @@ final class FollowUpFixTests: XCTestCase {
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"reorder-habits\")"),
                       "sorting needs a stable toolbar action")
         XCTAssertTrue(content.contains("HabitSortingSession("))
+        XCTAssertTrue(content.contains("withHabitChromeAnimation"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"),
                       "sorting needs a way to leave inline sort mode")
     }

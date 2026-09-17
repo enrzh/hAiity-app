@@ -155,6 +155,7 @@ struct ContentView: View {
     @FocusState private var searchFieldFocused: Bool
     /// Inline custom reorder on the habits list — not list `EditMode`.
     @State private var habitSortingActive = false
+    @State private var sortingDraggedID: UUID?
     @State private var rootTitleProgress: CGFloat = 0
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
@@ -484,7 +485,7 @@ struct ContentView: View {
                 backfill = nil
             }
             .onChange(of: search) { _, query in
-                if !query.isEmpty { habitSortingActive = false }
+                if !query.isEmpty { setHabitSortingActive(false) }
                 searchCommitTask?.cancel()
                 let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
                 searchCommitTask = Task { @MainActor in
@@ -496,7 +497,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: habitFilter) { _, filter in
-                if !filter.isEmpty { habitSortingActive = false }
+                if !filter.isEmpty { setHabitSortingActive(false) }
             }
             .onChange(of: habitFilter.todayOnly) { _, todayOnly in
                 HabitListFilterPreferences.persistTodayOnly(todayOnly)
@@ -1091,17 +1092,23 @@ struct ContentView: View {
                     ToolbarItem(placement: .principal) {
                         RootPageCompactTitle(title: String(localized: "Habits"),
                                              progress: rootTitleProgress)
+                            .allowsHitTesting(sortingDraggedID == nil)
                     }
                     ToolbarItemGroup(placement: .topBarLeading) {
                         if !habitSortingActive {
                             habitFilterMenu
+                                .transition(.scale(scale: 0.6, anchor: .leading)
+                                    .combined(with: .opacity))
                         }
                         Button {
-                            habitSortingActive = true
+                            setHabitSortingActive(true)
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                                 .symbolVariant(habitSortingActive ? .fill : .none)
+                                .contentTransition(.symbolEffect(.replace))
                         }
+                        .symbolEffect(.bounce, value: habitSortingActive)
+                        .allowsHitTesting(sortingDraggedID == nil)
                         .disabled(!canSortHabits || habitsTabSource.isEmpty)
                         .accessibilityLabel(habitSortingActive
                                             ? String(localized: "Sortieren beenden")
@@ -1120,6 +1127,8 @@ struct ContentView: View {
                 Button(String(localized: "Fertig")) {
                     finishHabitSorting()
                 }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .allowsHitTesting(sortingDraggedID == nil)
                 .accessibilityIdentifier("finish-reordering")
             }
         } else {
@@ -1127,6 +1136,7 @@ struct ContentView: View {
                 Button { requestCreate() } label: {
                     Image(systemName: "plus")
                 }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
                 .modifier(MoreZoomSource(id: Self.createZoomID,
                                          namespace: createZoomNamespace))
                 .accessibilityLabel(CreateAccessibility.label)
@@ -1278,6 +1288,8 @@ struct ContentView: View {
                         ForEach(habitsTabSource) { habit in
                             row(for: habit)
                                 .id(rowIdentity(habit))
+                                .opacity(sortingDraggedID == habit.id ? 0 : 1)
+                                .animation(nil, value: sortingDraggedID)
                                 .deleteDisabled(true)
                         }
                     }
@@ -1298,14 +1310,19 @@ struct ContentView: View {
         .background {
             HabitSortingSession(
                 active: habitSortingActive,
+                habitIDs: habitsTabSource.map(\.id),
                 move: reorderHabit,
-                persist: { store.persist() })
+                persist: { store.persist() },
+                onDraggingIDChange: { id in
+                    sortingDraggedID = id
+                })
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
             progressNow = now
         }
         .onChange(of: habitSortingActive) { _, active in
             guard active else {
+                sortingDraggedID = nil
                 store.persist()
                 return
             }
@@ -1390,19 +1407,26 @@ struct ContentView: View {
     }
 
     private func enableSorting() {
-        habitSortingActive = true
+        setHabitSortingActive(true)
     }
 
     private func finishHabitSorting() {
-        habitSortingActive = false
+        setHabitSortingActive(false)
         store.persist()
     }
 
+    private func setHabitSortingActive(_ active: Bool) {
+        guard habitSortingActive != active else { return }
+        withHabitChromeAnimation { habitSortingActive = active }
+    }
+
     private func reorderHabit(from source: IndexSet, to destination: Int, persist: Bool) {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
+        if reduceMotion {
             store.move(fromOffsets: source, toOffset: destination, persist: persist)
+        } else {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                store.move(fromOffsets: source, toOffset: destination, persist: persist)
+            }
         }
     }
 
@@ -1934,6 +1958,18 @@ struct ContentView: View {
 
     private func withToastAnimation(_ body: () -> Void) {
         if reduceMotion { body() } else { withAnimation(.snappy(duration: 0.24), body) }
+    }
+
+    /// Header-Knöpfe beim Sortieren: Filter und Plus weichen, Fertig kommt,
+    /// und die bleibenden Sitze rutschen mit. Dieselbe Feder wie die
+    /// Nacharbeiten-Karte — kurz genug für Chrom, weich genug, dass die
+    /// Glaskapseln nicht springen. Reduzierte Bewegung lässt sie stehen.
+    private func withHabitChromeAnimation(_ body: () -> Void) {
+        if reduceMotion {
+            body()
+        } else {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82), body)
+        }
     }
 
     private var emptyState: some View {

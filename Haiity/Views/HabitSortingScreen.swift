@@ -22,11 +22,14 @@ enum HabitListLayout {
 /// No `EditMode`, no per-row overlay, no system grabber.
 struct HabitSortingSession: UIViewRepresentable {
     var active: Bool
+    var habitIDs: [UUID]
     let move: (IndexSet, Int, Bool) -> Void
     let persist: () -> Void
+    let onDraggingIDChange: (UUID?) -> Void
 
     func makeUIView(context: Context) -> Host {
-        let host = Host(move: move, persist: persist)
+        let host = Host(habitIDs: habitIDs, move: move, persist: persist,
+                        onDraggingIDChange: onDraggingIDChange)
         host.isUserInteractionEnabled = false
         host.isHidden = true
         host.active = active
@@ -36,6 +39,10 @@ struct HabitSortingSession: UIViewRepresentable {
     func updateUIView(_ view: Host, context: Context) {
         view.move = move
         view.persist = persist
+        view.onDraggingIDChange = onDraggingIDChange
+        if !view.isDragging {
+            view.habitIDs = habitIDs
+        }
         view.active = active
         view.reconcile()
     }
@@ -46,13 +53,16 @@ struct HabitSortingSession: UIViewRepresentable {
     }
 
     final class Host: UIView, UIGestureRecognizerDelegate {
+        var habitIDs: [UUID]
         var move: (IndexSet, Int, Bool) -> Void
         var persist: () -> Void
+        var onDraggingIDChange: (UUID?) -> Void
         var active = false {
             didSet {
                 if oldValue != active { reconcile() }
             }
         }
+        var isDragging: Bool { dragging }
 
         private weak var collectionView: UICollectionView?
         private var recognizer: UILongPressGestureRecognizer?
@@ -62,11 +72,23 @@ struct HabitSortingSession: UIViewRepresentable {
         private var lift: UIView?
         private var liftGrabOffset: CGPoint = .zero
         private var liftSize: CGSize = .zero
+        private var rowHeights: [CGFloat] = []
+        private var rowSpacing: CGFloat = 0
+        private var sectionMinY: CGFloat = 0
+        private var sectionOffsetY: CGFloat = 0
+        private var lastMoveAt: TimeInterval?
+        private var lastMoveFingerY: CGFloat?
+        private var lastMoveDelta = 0
+        private var draggingID: UUID?
 
-        init(move: @escaping (IndexSet, Int, Bool) -> Void,
-             persist: @escaping () -> Void) {
+        init(habitIDs: [UUID],
+             move: @escaping (IndexSet, Int, Bool) -> Void,
+             persist: @escaping () -> Void,
+             onDraggingIDChange: @escaping (UUID?) -> Void) {
+            self.habitIDs = habitIDs
             self.move = move
             self.persist = persist
+            self.onDraggingIDChange = onDraggingIDChange
             super.init(frame: .zero)
         }
 
@@ -92,8 +114,12 @@ struct HabitSortingSession: UIViewRepresentable {
         }
 
         func reconcile() {
-            guard window != nil, active else {
+            guard active else {
                 detach(persistIfDragging: dragging)
+                return
+            }
+            if window == nil {
+                if !dragging { detach(persistIfDragging: false) }
                 return
             }
             guard let collection = enclosingCollectionView() else { return }
@@ -106,8 +132,8 @@ struct HabitSortingSession: UIViewRepresentable {
                 press.cancelsTouchesInView = true
                 press.delegate = self
                 recognizer = press
-                collection.addGestureRecognizer(press)
             }
+            attachPress(to: collection)
         }
 
         func detach(persistIfDragging: Bool) {
@@ -116,15 +142,20 @@ struct HabitSortingSession: UIViewRepresentable {
             if dragging {
                 dragging = false
                 currentIndex = nil
+                lastMoveAt = nil
+                lastMoveFingerY = nil
+                lastMoveDelta = 0
+                rowHeights = []
+                setDraggingID(nil)
                 if persistIfDragging { persist() }
             }
             if let collection = collectionView {
                 restorePlaceholders(in: collection)
                 unlockListScroll(collection)
                 collection.dragInteractionEnabled = true
-                if let recognizer {
-                    collection.removeGestureRecognizer(recognizer)
-                }
+            }
+            if let recognizer {
+                recognizer.view?.removeGestureRecognizer(recognizer)
             }
             recognizer = nil
             collectionView = nil
@@ -149,7 +180,7 @@ struct HabitSortingSession: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
-            false
+            dragging && gestureRecognizer === recognizer
         }
 
         @objc private func pressed(_ press: UILongPressGestureRecognizer) {
@@ -162,10 +193,16 @@ struct HabitSortingSession: UIViewRepresentable {
                 guard let index = habitIndex(at: point, in: collection) else { return }
                 dragging = true
                 currentIndex = index
+                captureRowMetrics(in: collection)
+                lastMoveAt = nil
+                lastMoveFingerY = nil
+                lastMoveDelta = 0
                 lockListScroll(collection)
                 NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
                 beginLift(at: index, press: press, in: collection)
-                syncPlaceholder(in: collection)
+                if habitIDs.indices.contains(index) {
+                    setDraggingID(habitIDs[index])
+                }
                 Theme.Haptics.select()
                 startAutoScroll()
             case .changed:
@@ -184,27 +221,42 @@ struct HabitSortingSession: UIViewRepresentable {
         private func applyFinger(_ press: UILongPressGestureRecognizer,
                                  in collection: UICollectionView) {
             guard dragging, let from = currentIndex else { return }
-            let y = press.location(in: collection).y
-            let frames = habitFrames(in: collection)
+            refreshVisibleHeights(in: collection)
+            let now = ProcessInfo.processInfo.systemUptime
+            guard CustomHabitReorderPolicy.canApplyMove(now: now, lastMoveAt: lastMoveAt) else { return }
+            let frames = logicalFrames(in: collection)
+            let viewport = sortableViewport(in: collection)
+            let fingerY = CustomHabitReorderPolicy.clampedValue(
+                press.location(in: collection).y,
+                min: viewport.minY,
+                max: viewport.maxY)
             let target = CustomHabitReorderPolicy.destinationIndex(
-                fingerY: y, frames: frames, current: from)
+                fingerY: fingerY,
+                frames: frames,
+                current: from,
+                lastMoveFingerY: lastMoveFingerY,
+                lastMoveDelta: lastMoveDelta)
             guard target != from else { return }
             CustomHabitReorderPolicy.applyMove(from: from, to: target, persist: false, move: move)
+            rowHeights = CustomHabitReorderPolicy.movedHeights(rowHeights, from: from, to: target)
+            habitIDs = CustomHabitReorderPolicy.movedItems(habitIDs, from: from, to: target)
             currentIndex = target
-            collection.layoutIfNeeded()
-            syncPlaceholder(in: collection)
+            lastMoveAt = now
+            lastMoveFingerY = fingerY
+            lastMoveDelta = target > from ? 1 : -1
         }
 
         private func finishDrag(in collection: UICollectionView, save: Bool) {
             stopAutoScroll()
             if save { persist() }
-            collection.layoutIfNeeded()
-            syncPlaceholder(in: collection)
             settleLift(in: collection) { [weak self] in
                 guard let self else { return }
+                self.setDraggingID(nil)
                 self.restorePlaceholders(in: collection)
                 self.dragging = false
                 self.currentIndex = nil
+                self.lastMoveFingerY = nil
+                self.lastMoveDelta = 0
                 self.unlockListScroll(collection)
             }
         }
@@ -216,16 +268,7 @@ struct HabitSortingSession: UIViewRepresentable {
             guard let cell = collection.cellForItem(
                 at: IndexPath(item: index, section: HabitListLayout.habitSectionIndex)),
                   let window = collection.window else { return }
-            let renderer = UIGraphicsImageRenderer(bounds: cell.bounds)
-            let image = renderer.image { _ in
-                cell.drawHierarchy(in: cell.bounds, afterScreenUpdates: true)
-            }
-            let snapshot = UIImageView(image: image)
-            snapshot.frame = CGRect(origin: .zero, size: cell.bounds.size)
-            snapshot.contentMode = .scaleToFill
-            snapshot.clipsToBounds = true
-            snapshot.layer.cornerRadius = Theme.Metrics.cardRadius
-            snapshot.layer.cornerCurve = .continuous
+            let snapshot = liftSnapshot(of: cell)
 
             let card = UIView(frame: .zero)
             card.layer.shadowColor = UIColor.black.cgColor
@@ -236,6 +279,7 @@ struct HabitSortingSession: UIViewRepresentable {
                 roundedRect: cell.bounds,
                 cornerRadius: Theme.Metrics.cardRadius).cgPath
             card.isUserInteractionEnabled = false
+            card.layer.zPosition = 10_000
             card.addSubview(snapshot)
             let frame = collection.convert(cell.frame, to: window)
             card.frame = frame
@@ -253,9 +297,13 @@ struct HabitSortingSession: UIViewRepresentable {
         private func moveLift(_ press: UILongPressGestureRecognizer,
                               in collection: UICollectionView) {
             guard let lift, let window = collection.window ?? lift.window else { return }
-            let origin = CustomHabitReorderPolicy.liftOrigin(
+            let band = movementBand(in: collection, window: window)
+            let origin = CustomHabitReorderPolicy.lockedLiftOrigin(
                 finger: press.location(in: window),
-                grabOffset: liftGrabOffset)
+                grabOffset: liftGrabOffset,
+                liftSize: liftSize,
+                bandMinY: band.minY,
+                bandMaxY: band.maxY)
             lift.center = CGPoint(x: origin.x + liftSize.width / 2,
                                   y: origin.y + liftSize.height / 2)
         }
@@ -273,10 +321,14 @@ struct HabitSortingSession: UIViewRepresentable {
                let window {
                 target = collection.convert(cell.frame, to: window)
             } else if let window {
+                let band = movementBand(in: collection, window: window)
                 target = CGRect(
-                    origin: CustomHabitReorderPolicy.liftOrigin(
+                    origin: CustomHabitReorderPolicy.lockedLiftOrigin(
                         finger: recognizer?.location(in: window) ?? lift.center,
-                        grabOffset: liftGrabOffset),
+                        grabOffset: liftGrabOffset,
+                        liftSize: liftSize,
+                        bandMinY: band.minY,
+                        bandMaxY: band.maxY),
                     size: liftSize)
             } else {
                 target = lift.frame
@@ -298,16 +350,53 @@ struct HabitSortingSession: UIViewRepresentable {
             liftSize = .zero
         }
 
-        private func syncPlaceholder(in collection: UICollectionView) {
-            guard dragging, let currentIndex else {
-                restorePlaceholders(in: collection)
-                return
+        /// Pixel snapshot of the still-visible cell. Hiding first, then
+        /// `afterScreenUpdates: true`, captures an empty view and leaves only
+        /// the shadow wrapper.
+        private func liftSnapshot(of cell: UICollectionViewCell) -> UIView {
+            let bounds = cell.bounds
+            let renderer = UIGraphicsImageRenderer(bounds: bounds)
+            let image = renderer.image { ctx in
+                if !cell.drawHierarchy(in: bounds, afterScreenUpdates: false),
+                   !cell.drawHierarchy(in: bounds, afterScreenUpdates: true) {
+                    cell.layer.render(in: ctx.cgContext)
+                }
             }
-            for cell in collection.visibleCells {
-                let path = collection.indexPath(for: cell)
-                let hidden = path?.section == HabitListLayout.habitSectionIndex
-                    && path?.item == currentIndex
-                cell.alpha = hidden ? 0 : 1
+            let snapshot = UIImageView(image: image)
+            snapshot.contentMode = .scaleToFill
+            snapshot.frame = CGRect(origin: .zero, size: bounds.size)
+            snapshot.clipsToBounds = true
+            snapshot.layer.cornerRadius = Theme.Metrics.cardRadius
+            snapshot.layer.cornerCurve = .continuous
+            snapshot.isUserInteractionEnabled = false
+            return snapshot
+        }
+
+        /// Keep the press on the window so navbar/header chrome cannot cancel it.
+        private func attachPress(to collection: UICollectionView) {
+            guard let press = recognizer, !dragging else { return }
+            let target: UIView = collection.window ?? collection
+            if press.view === target { return }
+            press.view?.removeGestureRecognizer(press)
+            target.addGestureRecognizer(press)
+        }
+
+        private func movementBand(in collection: UICollectionView,
+                                  window: UIWindow) -> CustomHabitReorderPolicy.Viewport {
+            let chrome = sortableViewport(in: collection)
+            let top = collection.convert(CGPoint(x: 0, y: chrome.minY), to: window).y
+            let bottom = collection.convert(CGPoint(x: 0, y: chrome.maxY), to: window).y
+            return CustomHabitReorderPolicy.Viewport(
+                minY: min(top, bottom),
+                maxY: max(top, bottom))
+        }
+
+        private func setDraggingID(_ id: UUID?) {
+            draggingID = id
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                onDraggingIDChange(id)
             }
         }
 
@@ -365,7 +454,6 @@ struct HabitSortingSession: UIViewRepresentable {
             }
             applyFinger(press, in: collection)
             moveLift(press, in: collection)
-            syncPlaceholder(in: collection)
         }
 
         private func sortableViewport(in collection: UICollectionView) -> CustomHabitReorderPolicy.Viewport {
@@ -391,13 +479,77 @@ struct HabitSortingSession: UIViewRepresentable {
             return nil
         }
 
+        private func captureRowMetrics(in collection: UICollectionView) {
+            let frames = habitFrames(in: collection)
+            let count = collection.numberOfItems(inSection: HabitListLayout.habitSectionIndex)
+            let fallback = frames.first(where: { $0.height > 1 })?.height ?? 56
+            rowHeights = CustomHabitReorderPolicy.paddedHeights(
+                frames.map(\.height), count: count, fallback: fallback)
+            rowSpacing = 0
+            if frames.count >= 2 {
+                rowSpacing = max(0, frames[1].minY - frames[0].maxY)
+            }
+            sectionMinY = frames.first?.minY ?? 0
+            sectionOffsetY = collection.contentOffset.y
+        }
+
+        private func logicalFrames(in collection: UICollectionView) -> [CGRect] {
+            let count = collection.numberOfItems(inSection: HabitListLayout.habitSectionIndex)
+            rowHeights = CustomHabitReorderPolicy.paddedHeights(
+                rowHeights, count: count, fallback: rowHeights.last ?? 56)
+            let originY = CustomHabitReorderPolicy.logicalOriginY(
+                capturedSectionMinY: sectionMinY,
+                contentOffsetY: collection.contentOffset.y,
+                capturedOffsetY: sectionOffsetY)
+            let width = collection.bounds.width
+            return CustomHabitReorderPolicy.stackedFrames(
+                heights: rowHeights, originY: originY, spacing: rowSpacing, width: width)
+        }
+
+        /// Off-screen rows often have no attributes or estimated 44 pt heights.
+        /// As auto-scroll reveals them, replace those estimates with real frames.
+        private func refreshVisibleHeights(in collection: UICollectionView) {
+            let section = HabitListLayout.habitSectionIndex
+            let count = collection.numberOfItems(inSection: section)
+            rowHeights = CustomHabitReorderPolicy.paddedHeights(
+                rowHeights, count: count, fallback: rowHeights.last ?? 56)
+            var visible: [(index: Int, height: CGFloat)] = []
+            if let attributes = collection.collectionViewLayout.layoutAttributesForElements(
+                in: collection.bounds) {
+                for attribute in attributes
+                where attribute.representedElementCategory == .cell
+                    && attribute.indexPath.section == section {
+                    visible.append((attribute.indexPath.item, attribute.frame.height))
+                }
+            }
+            for cell in collection.visibleCells {
+                guard let path = collection.indexPath(for: cell),
+                      path.section == section else { continue }
+                visible.append((path.item, cell.frame.height))
+            }
+            rowHeights = CustomHabitReorderPolicy.mergedHeights(
+                current: rowHeights,
+                visible: visible,
+                draggedIndex: currentIndex)
+        }
+
         private func habitFrames(in collection: UICollectionView) -> [CGRect] {
             let section = HabitListLayout.habitSectionIndex
             let count = collection.numberOfItems(inSection: section)
-            return (0..<count).compactMap { item in
-                collection.layoutAttributesForItem(
-                    at: IndexPath(item: item, section: section))?.frame
+            let width = collection.bounds.width
+            let fallback = rowHeights.last ?? 56
+            var frames: [CGRect] = []
+            frames.reserveCapacity(count)
+            for item in 0..<count {
+                if let frame = collection.layoutAttributesForItem(
+                    at: IndexPath(item: item, section: section))?.frame {
+                    frames.append(frame)
+                } else {
+                    let y = frames.last.map { $0.maxY + rowSpacing } ?? sectionMinY
+                    frames.append(CGRect(x: 0, y: y, width: width, height: fallback))
+                }
             }
+            return frames
         }
 
         private func enclosingCollectionView() -> UICollectionView? {
@@ -441,6 +593,9 @@ enum CustomHabitReorderPolicy {
     static let liftShadowOpacity: Float = 0.28
     static let liftShadowRadius: CGFloat = 18
     static let liftShadowOffset = CGSize(width: 0, height: 10)
+    static let moveLockDuration: TimeInterval = 0.12
+    static let moveHysteresis: CGFloat = 20
+    static let reverseSlop: CGFloat = 28
 
     struct Viewport {
         var minY: CGFloat
@@ -451,25 +606,139 @@ enum CustomHabitReorderPolicy {
         dragActive
     }
 
-    /// One neighbour at a time, only after the finger crosses that neighbour's
-    /// midpoint. Frame-containment ping-pongs a short reminder through a tall
-    /// habit: after the swap the finger is still inside the habit.
+    /// One neighbour at a time. Entering the next row by a small hysteresis
+    /// is enough to swap — waiting for a tall habit's midpoint made dragging
+    /// a reminder over a stack of habits look like a no-op. Reverse swaps
+    /// stay locked until the finger recrosses the last swap point, otherwise
+    /// the short row bounces back while the finger is still inside the habit.
     static func destinationIndex(fingerY: CGFloat,
                                  frames: [CGRect],
-                                 current: Int) -> Int {
+                                 current: Int,
+                                 lastMoveFingerY: CGFloat? = nil,
+                                 lastMoveDelta: Int = 0) -> Int {
         guard !frames.isEmpty else { return current }
         let bounded = min(max(current, 0), frames.count - 1)
-        if bounded + 1 < frames.count, fingerY > frames[bounded + 1].midY {
-            return bounded + 1
+        if bounded + 1 < frames.count {
+            let next = frames[bounded + 1]
+            let enter = next.minY + hysteresis(current: frames[bounded], neighbor: next)
+            if fingerY > enter,
+               allowsMove(direction: 1,
+                          fingerY: fingerY,
+                          lastMoveFingerY: lastMoveFingerY,
+                          lastMoveDelta: lastMoveDelta) {
+                return bounded + 1
+            }
         }
-        if bounded > 0, fingerY < frames[bounded - 1].midY {
-            return bounded - 1
+        if bounded > 0 {
+            let prev = frames[bounded - 1]
+            let enter = prev.maxY - hysteresis(current: frames[bounded], neighbor: prev)
+            if fingerY < enter,
+               allowsMove(direction: -1,
+                          fingerY: fingerY,
+                          lastMoveFingerY: lastMoveFingerY,
+                          lastMoveDelta: lastMoveDelta) {
+                return bounded - 1
+            }
         }
         return bounded
     }
 
+    static func hysteresis(current: CGRect, neighbor: CGRect) -> CGFloat {
+        min(moveHysteresis, min(current.height, neighbor.height) * 0.4)
+    }
+
+    static func allowsMove(direction: Int,
+                           fingerY: CGFloat,
+                           lastMoveFingerY: CGFloat?,
+                           lastMoveDelta: Int) -> Bool {
+        guard lastMoveDelta != 0,
+              lastMoveDelta != direction,
+              let lastMoveFingerY else { return true }
+        if direction > 0 {
+            return fingerY > lastMoveFingerY + reverseSlop
+        }
+        return fingerY < lastMoveFingerY - reverseSlop
+    }
+
     static func liftOrigin(finger: CGPoint, grabOffset: CGPoint) -> CGPoint {
         CGPoint(x: finger.x - grabOffset.x, y: finger.y - grabOffset.y)
+    }
+
+    static func clampedValue(_ value: CGFloat, min: CGFloat, max: CGFloat) -> CGFloat {
+        Swift.min(max, Swift.max(min, value))
+    }
+
+    static func lockedLiftOrigin(finger: CGPoint,
+                                 grabOffset: CGPoint,
+                                 liftSize: CGSize,
+                                 bandMinY: CGFloat,
+                                 bandMaxY: CGFloat) -> CGPoint {
+        var origin = liftOrigin(finger: finger, grabOffset: grabOffset)
+        let maxOriginY = Swift.max(bandMinY, bandMaxY - liftSize.height)
+        origin.y = clampedValue(origin.y, min: bandMinY, max: maxOriginY)
+        return origin
+    }
+
+    static func canApplyMove(now: TimeInterval, lastMoveAt: TimeInterval?) -> Bool {
+        guard let lastMoveAt else { return true }
+        return now - lastMoveAt >= moveLockDuration
+    }
+
+    static func stackedFrames(heights: [CGFloat],
+                              originY: CGFloat,
+                              spacing: CGFloat,
+                              width: CGFloat) -> [CGRect] {
+        var y = originY
+        return heights.map { height in
+            let frame = CGRect(x: 0, y: y, width: width, height: height)
+            y += height + spacing
+            return frame
+        }
+    }
+
+    /// Cell frames live in content coordinates. Scrolling must not shift the
+    /// stack, or the finger stays glued to the rows that were on screen when
+    /// the drag started and auto-revealed habits never receive it.
+    static func logicalOriginY(capturedSectionMinY: CGFloat,
+                               contentOffsetY _: CGFloat,
+                               capturedOffsetY _: CGFloat) -> CGFloat {
+        capturedSectionMinY
+    }
+
+    static func paddedHeights(_ heights: [CGFloat],
+                              count: Int,
+                              fallback: CGFloat) -> [CGFloat] {
+        if count <= 0 { return [] }
+        if heights.count >= count { return Array(heights.prefix(count)) }
+        let pad = max(fallback, 1)
+        return heights + Array(repeating: pad, count: count - heights.count)
+    }
+
+    static func mergedHeights(current: [CGFloat],
+                              visible: [(index: Int, height: CGFloat)],
+                              draggedIndex: Int?) -> [CGFloat] {
+        var next = current
+        for item in visible {
+            guard next.indices.contains(item.index),
+                  item.index != draggedIndex,
+                  item.height > 1 else { continue }
+            next[item.index] = item.height
+        }
+        return next
+    }
+
+    static func movedHeights(_ heights: [CGFloat], from: Int, to: Int) -> [CGFloat] {
+        movedItems(heights, from: from, to: to)
+    }
+
+    static func movedItems<T>(_ items: [T], from: Int, to: Int) -> [T] {
+        guard items.indices.contains(from),
+              items.indices.contains(to),
+              from != to else { return items }
+        var next = items
+        let toOffset = to > from ? to + 1 : to
+        next.move(fromOffsets: IndexSet(integer: from), toOffset: toOffset)
+        return next
     }
 
     static func autoScrollTranslation(locationY: CGFloat,
