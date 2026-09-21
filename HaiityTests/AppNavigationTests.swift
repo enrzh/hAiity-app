@@ -261,9 +261,25 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(main.contains("moreHubGroup"))
         XCTAssertTrue(main.contains("pageRow(MoreRoute.appearance"))
         XCTAssertTrue(main.contains("pageRow(MoreRoute.habitBehavior"))
-        XCTAssertTrue(main.contains("pageRow(.timeZone"))
+        XCTAssertTrue(main.contains("defaultTimeZonePicker"))
+        XCTAssertFalse(main.contains("pageRow(.timeZone"))
         XCTAssertFalse(main.contains("List {"),
                        "the rebuilt hub must not collapse multiple routes into one List row")
+    }
+
+    func testDefaultTimeZoneUsesTheWholeSettingsRowAsTheMenuLabel() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let start = try XCTUnwrap(more.range(of: "private var defaultTimeZonePicker: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var compactModeSection: some View",
+                                           range: start.upperBound..<more.endIndex))
+        let picker = more[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(picker.contains("Menu {"),
+                      "the timezone selector should remain a native menu")
+        XCTAssertTrue(picker.contains("} label: {\n            AppSettingsRow("),
+                      "the entire settings row must open the timezone menu")
+        XCTAssertFalse(picker.contains("symbol: \"globe\") {\n            Menu {"),
+                       "the row must not be nested inside a trailing-only menu label")
     }
 
     func testMoreRowsKeepTheirOwnRouteAndNotificationSourceHitTarget() throws {

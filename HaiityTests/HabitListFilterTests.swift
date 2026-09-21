@@ -72,4 +72,57 @@ final class HabitListFilterTests: XCTestCase {
                                       now: now,
                                       base: calendar))
     }
+
+    func testTodayKeepsUnfinishedOverdueReminders() {
+        var overdue = Habit(name: "Arzt", itemType: .reminder,
+                            timeMinutes: 9 * 60,
+                            recurrence: Recurrence(frequency: .once, start: "2026-08-20"))
+        overdue.createdAt = "2026-08-20"
+        var weekly = Habit(name: "Tabletten", itemType: .reminder,
+                           timeMinutes: 9 * 60,
+                           recurrence: .weekdays([2], start: "2026-08-17"))
+        weekly.createdAt = "2026-08-17"
+        var future = Habit(name: "Später", itemType: .reminder,
+                           timeMinutes: 9 * 60,
+                           recurrence: Recurrence(frequency: .once, start: "2026-08-30"))
+        future.createdAt = "2026-08-20"
+        let unscheduledHabit = Habit(name: "Montag",
+                                     recurrence: .weekdays([2], start: "2026-08-01"))
+
+        var filter = HabitListFilter(todayOnly: true)
+        XCTAssertTrue(filter.matches(overdue,
+                                     defaultTimeZoneIdentifier: nil,
+                                     now: now,
+                                     base: calendar))
+        XCTAssertTrue(filter.matches(weekly,
+                                     defaultTimeZoneIdentifier: nil,
+                                     now: now,
+                                     base: calendar))
+        XCTAssertFalse(filter.matches(future,
+                                      defaultTimeZoneIdentifier: nil,
+                                      now: now,
+                                      base: calendar))
+        XCTAssertFalse(filter.matches(unscheduledHabit,
+                                      defaultTimeZoneIdentifier: nil,
+                                      now: now,
+                                      base: calendar))
+
+        filter.status = .notDone
+        XCTAssertTrue(filter.matches(overdue,
+                                     defaultTimeZoneIdentifier: nil,
+                                     now: now,
+                                     base: calendar))
+        filter.status = .done
+        XCTAssertFalse(filter.matches(overdue,
+                                      defaultTimeZoneIdentifier: nil,
+                                      now: now,
+                                      base: calendar))
+
+        overdue.log["2026-08-20"] = 1
+        filter.status = .all
+        XCTAssertFalse(filter.matches(overdue,
+                                      defaultTimeZoneIdentifier: nil,
+                                      now: now,
+                                      base: calendar))
+    }
 }

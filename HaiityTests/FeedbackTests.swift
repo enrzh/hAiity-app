@@ -349,18 +349,16 @@ final class FeedbackTests: XCTestCase {
 
     func testFloatingToastsUseCompactTypeAndSharedAppearanceSurface() throws {
         let content = try source("Haiity/Views/ContentView.swift")
+        let components = try source("Haiity/Views/AppUIComponents.swift")
 
         XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.footnote)"))
         XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
-        XCTAssertTrue(content.contains(".appSurface(cornerRadius: 999)"))
+        XCTAssertTrue(content.contains(".appToastSurface()"))
+        XCTAssertTrue(components.contains(".appSurface(cornerRadius: 999)"))
     }
 
     func testNativeToastsUseTheTabViewSafeAreaAndSharedAppearanceSurface() throws {
         let content = try source("Haiity/Views/ContentView.swift")
-        let nativeStart = try XCTUnwrap(content.range(of: "private var nativeShell"))
-        let nativeEnd = try XCTUnwrap(content.range(of: "private var statsTabContent",
-                                                     range: nativeStart.upperBound..<content.endIndex))
-        let nativeShell = content[nativeStart.lowerBound..<nativeEnd.lowerBound]
 
         XCTAssertTrue(content.contains(".overlay(alignment: .bottom) { nativeToastOverlay }"),
                       "the toast must be attached to the root shell outside tab content")
@@ -371,10 +369,28 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(overlay.contains(".zIndex(200)"),
                       "the native toast must paint above the tab bar")
 
-        let surfaceStart = try XCTUnwrap(content.range(of: "private struct ToastSurface"))
-        let surface = content[surfaceStart.lowerBound...]
-        XCTAssertTrue(surface.contains(".appSurface(cornerRadius: 999)"),
+        let components = try source("Haiity/Views/AppUIComponents.swift")
+        XCTAssertTrue(components.contains("struct AppToastSurface: ViewModifier"))
+        XCTAssertTrue(components.contains(".appSurface(cornerRadius: 999)"),
                       "toasts must follow the selected appearance material")
+    }
+
+    func testSettingsRowsUseOneSharedLayoutContract() throws {
+        let components = try source("Haiity/Views/AppUIComponents.swift")
+        let more = try source("Haiity/Views/MoreView.swift")
+        let github = try source("Haiity/Views/GitHubSettingsView.swift")
+        let reminderSetup = try source("Haiity/Views/ReminderSetupView.swift")
+
+        XCTAssertTrue(components.contains("struct AppSettingsRow<Trailing: View>: View"))
+        XCTAssertTrue(components.contains("Theme.Metrics.settingsRowMinHeight"))
+        XCTAssertTrue(more.contains("AppSettingsRow(title: title,"))
+        XCTAssertTrue(more.contains("AppSettingsRow(title: String(localized: \"GitHub\"),"))
+        XCTAssertTrue(github.contains("AppSettingsRow(title: String(localized: \"GitHub-Namen anzeigen\"),"))
+        XCTAssertTrue(github.contains("AppSettingsRow(title: String(localized: \"GitHub-Monate anzeigen\"),"))
+        XCTAssertTrue(reminderSetup.contains("AppSettingsRow(title: title, detail: text, symbol: symbol)"))
+        XCTAssertTrue(reminderSetup.contains("AppSettingsRow(title: String(localized: \"Habit-Erinnerungen\"),"))
+        XCTAssertFalse(more.contains("moreIcon("),
+                       "More must not keep a second icon-row implementation")
     }
 
     func testSimulatorCanStageOwnerAndToastOnlyThroughDebugHooks() throws {
@@ -679,7 +695,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertFalse(more.contains("moreCloudRow"))
         XCTAssertFalse(more.contains("icloud-status"))
         let hubStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let hubEnd = try XCTUnwrap(more.range(of: "private var moreStatusHero: some View"))
+        let hubEnd = try XCTUnwrap(more.range(of: "private var accentColor: Color"))
         let hub = more[hubStart.lowerBound..<hubEnd.lowerBound]
         XCTAssertFalse(hub.contains("moreCloudRow"))
         XCTAssertFalse(hub.contains("cloudStatus.state.title"))
@@ -694,6 +710,10 @@ final class FeedbackTests: XCTestCase {
                         "Beim Anpassen des App-Icons fragt iOS einmal kurz nach."] {
             XCTAssertFalse(more.contains(verbose), verbose)
         }
+        XCTAssertTrue(more.contains("Mitteilungen und Kalender konfigurieren"))
+        XCTAssertTrue(more.contains("App-weite Vorgaben und Teilen"))
+        XCTAssertFalse(more.contains("moreStatusHero"))
+        XCTAssertFalse(more.contains("moreOverview"))
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
     }
 
@@ -803,7 +823,7 @@ final class FeedbackTests: XCTestCase {
 
     func testMoreUsesRequestedPageOrderAndDedicatedSettingsScreens() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        for route in ["case archive, about, developer, appearance, habitBehavior, timeZone, github",
+        for route in ["case archive, about, developer, appearance, habitBehavior, github",
                       "case .appearance:", "case .habitBehavior:",
                       "Darstellung", "Verhalten & Teilen"] {
             XCTAssertTrue(more.contains(route), route)

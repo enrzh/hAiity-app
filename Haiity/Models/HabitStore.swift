@@ -930,9 +930,9 @@ final class HabitStore {
         return changed
     }
 
-    /// Applies each item's selected result to occurrences whose local
-    /// schedule boundary has passed. The method is idempotent, so activation
-    /// and repeated notification rescheduling are safe.
+    /// Applies each item's selected result after its local scheduled day has
+    /// ended. The method is idempotent, so activation and repeated
+    /// notification rescheduling are safe.
     @discardableResult
     func resolveExpiredOccurrences(now: Date = .now) -> Bool {
         var changed = false
@@ -1031,6 +1031,39 @@ final class HabitStore {
         active.move(fromOffsets: source, toOffset: destination)
         var iterator = active.makeIterator()
         data.habits = data.habits.map { $0.archivedAt == nil ? (iterator.next() ?? $0) : $0 }
+        if persist {
+            self.persist()
+        }
+    }
+
+    /// Reorders only the visible active items while leaving filtered-out
+    /// active items in their existing slots. The Heute view passes its visible
+    /// IDs here because its drag offsets are not offsets into `activeHabits`.
+    func moveVisible(_ visibleIDs: [UUID],
+                     fromOffsets source: IndexSet,
+                     toOffset destination: Int,
+                     persist: Bool = true) {
+        guard !visibleIDs.isEmpty,
+              Set(visibleIDs).count == visibleIDs.count,
+              visibleIDs.allSatisfy({ id in
+                  data.habits.contains { $0.id == id && $0.archivedAt == nil }
+              }) else { return }
+
+        var reorderedIDs = visibleIDs
+        reorderedIDs.move(fromOffsets: source, toOffset: destination)
+        let visibleSet = Set(visibleIDs)
+        let originalByID = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
+        var iterator = reorderedIDs.makeIterator()
+
+        data.habits = data.habits.map { habit in
+            guard habit.archivedAt == nil,
+                  visibleSet.contains(habit.id),
+                  let replacementID = iterator.next(),
+                  let replacement = originalByID[replacementID] else {
+                return habit
+            }
+            return replacement
+        }
         if persist {
             self.persist()
         }

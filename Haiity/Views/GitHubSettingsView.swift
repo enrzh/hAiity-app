@@ -59,21 +59,25 @@ struct GitHubSettingsView: View {
         Section {
             VStack(spacing: 0) {
                 Toggle(isOn: $showsUsername) {
-                    Label(String(localized: "GitHub-Namen anzeigen"),
-                          systemImage: "person.crop.circle")
+                    AppSettingsRow(title: String(localized: "GitHub-Namen anzeigen"),
+                                   symbol: "person.crop.circle") {
+                        EmptyView()
+                    }
                 }
+                .tint(Theme.accentFill(palettes.style))
                 .accessibilityIdentifier("github-username-toggle")
-                .frame(minHeight: Theme.Metrics.hit)
 
                 Divider()
-                    .padding(.leading, 32)
+                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 4)
 
                 Toggle(isOn: $showsMonthLabels) {
-                    Label(String(localized: "GitHub-Monate anzeigen"),
-                          systemImage: "calendar")
+                    AppSettingsRow(title: String(localized: "GitHub-Monate anzeigen"),
+                                   symbol: "calendar") {
+                        EmptyView()
+                    }
                 }
+                .tint(Theme.accentFill(palettes.style))
                 .accessibilityIdentifier("github-month-labels-toggle")
-                .frame(minHeight: Theme.Metrics.hit)
             }
             .padding(.vertical, 2)
             .accessibilityIdentifier("github-display-settings")

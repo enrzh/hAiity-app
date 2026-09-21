@@ -157,9 +157,9 @@ enum ReminderOccurrenceEngine {
             }
     }
 
-    /// Scheduled occurrences whose own boundary has passed without a user
-    /// decision. An explicit time closes the occurrence at that local time;
-    /// without one, the local day closes at the next midnight.
+    /// Scheduled occurrences whose day has ended without a user decision.
+    /// Auto-resolve is deliberately a day-level setting: an item's reminder
+    /// time must never close the open result before the local day ends.
     static func expiredOccurrences(for habit: Habit,
                                    now: Date = .now,
                                    calendar: Calendar = .current) -> [String] {
@@ -176,13 +176,21 @@ enum ReminderOccurrenceEngine {
             .filter { day in
                 guard habit.log[day] == nil,
                       !habit.missedDays.contains(day),
-                      let boundary = completionBoundary(day: day,
-                                                        reminder: habit,
-                                                        calendar: calendar) else {
+                      let boundary = autoResolveBoundary(day: day,
+                                                         calendar: calendar) else {
                     return false
                 }
                 return boundary <= now
-            }
+        }
+    }
+
+    /// The auto-resolve boundary is always the next local midnight. This is
+    /// separate from `completionBoundary`, which still drives reminder
+    /// overdue state and explicitly timed occurrence progression.
+    static func autoResolveBoundary(day: String,
+                                    calendar: Calendar = .current) -> Date? {
+        guard let start = DayKey.date(from: day, calendar: calendar) else { return nil }
+        return calendar.date(byAdding: .day, value: 1, to: start)
     }
 
     /// The local point at which an occurrence can no longer remain open.

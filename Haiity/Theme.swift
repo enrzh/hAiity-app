@@ -84,6 +84,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     var gradientStartHex: UInt32?
     var gradientEndHex: UInt32?
     var backgroundImageData: Data?
+    var backgroundImageFocusX: Double
+    var backgroundImageFocusY: Double
     /// Disables expensive glass effects while keeping the selected background
     /// and colors intact.
     var performanceMode: Bool
@@ -97,6 +99,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
          backgroundColorHex: UInt32? = nil,
          gradientStartHex: UInt32? = nil,
          gradientEndHex: UInt32? = nil,
+         backgroundImageFocusX: Double = 0.5,
+         backgroundImageFocusY: Double = 0.5,
          backgroundResetAt: TimeInterval? = nil,
          performanceMode: Bool = false) {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
@@ -112,6 +116,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         // A photo only belongs to Image mode. Keeping it in Color/Gradient
         // makes stale iCloud payloads look like a locked editor state.
         self.backgroundImageData = requestedMode == .image ? boundedImage : nil
+        self.backgroundImageFocusX = min(max(backgroundImageFocusX, 0), 1)
+        self.backgroundImageFocusY = min(max(backgroundImageFocusY, 0), 1)
         self.backgroundResetAt = backgroundResetAt
         self.performanceMode = performanceMode
     }
@@ -193,7 +199,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
-             gradientEndHex, backgroundImageData, backgroundResetAt,
+             gradientEndHex, backgroundImageData, backgroundImageFocusX,
+             backgroundImageFocusY, backgroundResetAt,
              performanceMode, adaptive
     }
 
@@ -212,6 +219,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             backgroundColorHex: try c.decodeIfPresent(UInt32.self, forKey: .backgroundColorHex),
             gradientStartHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientStartHex),
             gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex),
+            backgroundImageFocusX: try c.decodeIfPresent(Double.self, forKey: .backgroundImageFocusX) ?? 0.5,
+            backgroundImageFocusY: try c.decodeIfPresent(Double.self, forKey: .backgroundImageFocusY) ?? 0.5,
             backgroundResetAt: try c.decodeIfPresent(TimeInterval.self,
                                                       forKey: .backgroundResetAt),
             performanceMode: try c.decodeIfPresent(Bool.self,
@@ -233,6 +242,8 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         try c.encodeIfPresent(gradientStartHex, forKey: .gradientStartHex)
         try c.encodeIfPresent(gradientEndHex, forKey: .gradientEndHex)
         try c.encodeIfPresent(backgroundImageData, forKey: .backgroundImageData)
+        try c.encode(backgroundImageFocusX, forKey: .backgroundImageFocusX)
+        try c.encode(backgroundImageFocusY, forKey: .backgroundImageFocusY)
         try c.encodeIfPresent(backgroundResetAt, forKey: .backgroundResetAt)
         try c.encode(performanceMode, forKey: .performanceMode)
     }
@@ -1336,11 +1347,22 @@ struct AppearanceBackground: View {
                         ? Theme.adaptiveBackgroundScrimOpacity(preferences: preferences,
                                                               dark: colorScheme == .dark)
                         : 0.28
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .overlay(Color(.systemBackground).opacity(scrim))
-                        .clipped()
+                    GeometryReader { proxy in
+                        let scale = max(proxy.size.width / image.size.width,
+                                        proxy.size.height / image.size.height)
+                        let imageSize = CGSize(width: image.size.width * scale,
+                                               height: image.size.height * scale)
+                        let excess = CGSize(width: max(imageSize.width - proxy.size.width, 0),
+                                            height: max(imageSize.height - proxy.size.height, 0))
+                        Image(uiImage: image)
+                            .resizable()
+                            .frame(width: imageSize.width, height: imageSize.height)
+                            .offset(x: (0.5 - preferences.backgroundImageFocusX) * excess.width,
+                                    y: (0.5 - preferences.backgroundImageFocusY) * excess.height)
+                            .overlay(Color(.systemBackground).opacity(scrim))
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .clipped()
+                    }
                 } else {
                     fallbackColor
                 }

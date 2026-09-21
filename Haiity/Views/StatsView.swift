@@ -114,14 +114,13 @@ struct StatsView: View {
     private var emptyState: some View {
         ScrollView {
             VStack(spacing: 12) {
-                RootPageTitle(title: String(localized: "Statistik"),
-                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
                 Spacer(minLength: 72)
                 RampSwatch(style: palettes.style, dark: dark, size: 16)
                 Text(String(localized: "Noch keine Habits"))
                     .font(.title3.bold())
-                Text(String(localized: "Lege deinen ersten Eintrag an."))
+                Text(String(localized: "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -161,8 +160,7 @@ struct StatsView: View {
         let activeCards = viewPreferences.statsCards.active
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                RootPageTitle(title: String(localized: "Statistik"),
-                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
                 statsTodayCard(snapshot)
@@ -225,20 +223,10 @@ struct StatsView: View {
     private var statsLoadingState: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                RootPageTitle(title: String(localized: "Statistik"),
-                              subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 118)
-                    .appSurface()
-                    .accessibilityLabel(String(localized: "Statistik wird geladen"))
-
-                RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
-                                 style: .continuous)
-                    .fill(Color.primary.opacity(0.07))
-                    .frame(maxWidth: .infinity, minHeight: 120)
-                    .redacted(reason: .placeholder)
+                statsTodayLoadingCard
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.nativeTabBarClearance)
@@ -257,6 +245,29 @@ struct StatsView: View {
         .overlay(alignment: .top) {
             RootPageHeaderBlur(progress: rootTitleProgress)
         }
+    }
+
+    private var statsPageTitle: some View {
+        RootPageTitle(title: String(localized: "Statistik"),
+                      subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+    }
+
+    private var statsTodayLoadingCard: some View {
+        statsTodayCard(statsLoadingSnapshot)
+            .redacted(reason: .placeholder)
+            .accessibilityElement(children: .ignore)
+            .allowsHitTesting(false)
+            .accessibilityLabel(String(localized: "Statistik wird geladen"))
+            .accessibilityIdentifier("stats-loading-today")
+    }
+
+    private var statsLoadingSnapshot: StatsEngine.Snapshot {
+        StatsEngine.Snapshot(today: DayKey.today(), todayDone: 0, todayTotal: 0,
+                             streak: 0, bestStreak: 0,
+                             week: .init(done: 0, total: 0),
+                             previousWeek: .init(done: 0, total: 0),
+                             last7: [], last7HasData: [], mergedLevels: [],
+                             perHabit: [], totalCheckIns: 0)
     }
 
     private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {

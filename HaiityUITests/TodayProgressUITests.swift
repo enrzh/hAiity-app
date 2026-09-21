@@ -86,12 +86,14 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         sort.tap()
 
-        XCTAssertTrue(app.otherElements["habit-sorting-active"].waitForExistence(timeout: 8))
+        let sortingList = app.descendants(matching: .any)["habit-sorting-active"].firstMatch
+        XCTAssertTrue(sortingList.waitForExistence(timeout: 8))
         let done = app.buttons["finish-reordering"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         capture("sorting-mode")
         done.tap()
-        XCTAssertTrue(app.otherElements["habit-list"].waitForExistence(timeout: 5))
+        let habitList = app.descendants(matching: .any)["habit-list"].firstMatch
+        XCTAssertTrue(habitList.waitForExistence(timeout: 5))
         XCTAssertTrue(sort.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["habit-filter"].waitForExistence(timeout: 5))
     }
@@ -252,11 +254,15 @@ final class TodayProgressUITests: XCTestCase {
     func testAccountTimeZoneAndDarkHistorySelectionRemainLegible() {
         for appearance in ["light", "dark"] {
             let app = launch("crowded", appearance: appearance, screen: "more")
-            let timezone = app.buttons["open-timezone"].firstMatch
+            let timezone = app.buttons["default-timezone-picker"].firstMatch
             XCTAssertTrue(timezone.waitForExistence(timeout: 15))
             timezone.tap()
-            XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
-            capture("timezone-\(appearance)")
+            let deviceTimeZone = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", "Device time zone"))
+                .firstMatch
+            XCTAssertTrue(deviceTimeZone.waitForExistence(timeout: 5))
+            capture("timezone-menu-\(appearance)")
+            deviceTimeZone.tap()
             app.terminate()
 
             let account = launch("crowded", appearance: appearance, screen: "more")

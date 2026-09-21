@@ -41,6 +41,26 @@ final class ReorderTests: XCTestCase {
         XCTAssertEqual(store.habits.map(\.name), ["C", "B", "D", "A"])
     }
 
+    func testMoveVisibleReordersHeuteItemsWithoutMovingHiddenActiveItems() {
+        let hiddenBefore = Habit(name: "Nicht heute")
+        let first = Habit(name: "Erster")
+        let hiddenBetween = Habit(name: "Auch nicht heute")
+        let second = Habit(name: "Zweiter")
+        let third = Habit(name: "Dritter")
+        store.add(hiddenBefore)
+        store.add(first)
+        store.add(hiddenBetween)
+        store.add(second)
+        store.add(third)
+
+        store.moveVisible([first.id, second.id, third.id],
+                          fromOffsets: IndexSet(integer: 0),
+                          toOffset: 3)
+
+        XCTAssertEqual(store.habits.map(\.name),
+                       ["Nicht heute", "Zweiter", "Auch nicht heute", "Dritter", "Erster"])
+    }
+
     func testArchiveUnarchiveRoundTripKeepsSlot() {
         let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
         store.add(a); store.add(b); store.add(c)

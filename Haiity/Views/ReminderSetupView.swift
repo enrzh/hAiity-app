@@ -33,7 +33,6 @@ struct ReminderSetupView: View {
 
     private static let lastPage = 2
 
-    private var accent: Color { Theme.accentText(store.paletteStyle) }
     private var unlocked: Bool {
         _ = proStatus.unlocked
         return Pro.isUnlocked
@@ -131,27 +130,13 @@ struct ReminderSetupView: View {
     private func summaryCard(symbol: String, title: String, text: String,
                              isOn: Binding<Bool>, identifier: String) -> some View {
         card {
-            HStack(alignment: .top, spacing: Theme.Metrics.gap) {
-                iconTile(symbol)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                    Text(text)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            Toggle(isOn: isOn) {
+                AppSettingsRow(title: title, detail: text, symbol: symbol) {
+                    EmptyView()
                 }
-                Spacer(minLength: Theme.Metrics.gap)
-                Toggle(title, isOn: isOn)
-                    .labelsHidden()
-                    .tint(Theme.accentFill(store.paletteStyle))
-                    .accessibilityLabel(title)
-                    .accessibilityValue(isOn.wrappedValue
-                                        ? String(localized: "Ein")
-                                        : String(localized: "Aus"))
-                    .accessibilityIdentifier(identifier)
             }
-            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
+            .tint(Theme.accentFill(store.paletteStyle))
+            .accessibilityIdentifier(identifier)
         }
     }
 
@@ -159,17 +144,10 @@ struct ReminderSetupView: View {
     /// der Uhrzeit des einzelnen Habits. Die Karte sagt nur, wo sie wohnen.
     private var habitReminderCard: some View {
         card {
-            HStack(alignment: .top, spacing: Theme.Metrics.gap) {
-                iconTile("bell.badge.fill")
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(String(localized: "Habit-Erinnerungen"))
-                        .font(.subheadline.weight(.semibold))
-                    Text(String(localized: "Die Uhrzeit stellst du direkt am Eintrag ein."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
+            AppSettingsRow(title: String(localized: "Habit-Erinnerungen"),
+                           detail: String(localized: "Die Uhrzeit stellst du direkt am Eintrag ein."),
+                           symbol: "bell.badge.fill") {
+                EmptyView()
             }
         }
     }
@@ -212,13 +190,7 @@ struct ReminderSetupView: View {
                                permission: NativePermission,
                                action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: Theme.Metrics.gap) {
-                Image(systemName: symbol)
-                    .foregroundStyle(accent)
-                    .frame(width: 24)
-                Text(title)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: Theme.Metrics.gap)
+            AppSettingsRow(title: title, symbol: symbol) {
                 if requestingPermission == permission {
                     ProgressView()
                         .controlSize(.small)
@@ -230,15 +202,14 @@ struct ReminderSetupView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                 } else {
-                    Image(systemName: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                 }
             }
-            .frame(minHeight: Theme.Metrics.hit, alignment: .center)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .foregroundStyle(.primary)
         .disabled(!unlocked || requestingPermission != nil)
         .accessibilityLabel(title)
         .accessibilityValue(
@@ -256,16 +227,6 @@ struct ReminderSetupView: View {
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .appSurface()
-    }
-
-    private func iconTile(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 17, weight: .semibold))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(accent)
-            .frame(width: 36, height: 36)
-            .background(Theme.accent(store.paletteStyle).opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
     private var deniedHint: some View {

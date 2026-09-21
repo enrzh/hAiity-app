@@ -143,6 +143,24 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains("draft.hasTime = true"))
     }
 
+    func testNotificationPermissionWaitsForSavingTheDraft() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/EditHabitSheet.swift"))
+        XCTAssertFalse(source.contains(".onChange(of: draft.hasTime)"))
+        XCTAssertFalse(source.contains("dismiss()\n        if draft.hasTime"))
+        XCTAssertTrue(source.contains("await Reminders.reschedule(store: store)"))
+        XCTAssertTrue(source.contains("isSaving = true"))
+        XCTAssertTrue(source.contains("savedWhileAwaitingPermission = true"))
+        XCTAssertTrue(source.contains("guard !isSaving, !savedWhileAwaitingPermission else { return }"))
+        XCTAssertTrue(source.contains("Button(String(localized: \"Nicht jetzt\"), role: .cancel) { dismiss() }"))
+        XCTAssertTrue(source.contains(".interactiveDismissDisabled(isSaving || savedWhileAwaitingPermission)"))
+        XCTAssertTrue(source.contains(".disabled(isSaving || savedWhileAwaitingPermission)"))
+        XCTAssertTrue(source.contains("guard draft.hasTime, notificationMode != .off"))
+        XCTAssertTrue(source.contains("if existing == nil { store.add(habit) } else { store.update(habit) }"))
+    }
+
     func testAnImpossibleTimeNeverReachesTheSentence() {
         XCTAssertEqual(RecurrenceText.summary(.daily, timeMinutes: 4000, calendar: calendar),
                        "Jeden Tag")

@@ -751,10 +751,14 @@ final class AppearanceSettingTests: XCTestCase {
                       "the image removal action must use a native hit-testable plain button")
         XCTAssertFalse(remove.contains(".buttonStyle(.bordered)"),
                        "a bordered button is not reliable inside this iOS 27 list row")
-        XCTAssertTrue(more.contains("HStack(alignment: .center, spacing: Theme.Metrics.gap)"),
-                      "the dynamic icon control should keep its icon inline")
-        XCTAssertTrue(more.contains("Image(systemName: \"app.badge\")"),
-                      "the dynamic icon control should render its icon in the inline row")
+        let iconStart = try XCTUnwrap(more.range(of: "private var iconAppearanceSection: some View"))
+        let iconEnd = try XCTUnwrap(more.range(of: "private var materialBinding: Binding<AppearanceMaterial>",
+                                               range: iconStart.upperBound..<more.endIndex))
+        let iconSection = more[iconStart.lowerBound..<iconEnd.lowerBound]
+        XCTAssertTrue(iconSection.contains("AppSettingsRow(title: String(localized: \"App-Icon dynamisch\")"),
+                      "the dynamic icon control should use the shared settings row")
+        XCTAssertTrue(iconSection.contains("symbol: \"app.badge\""),
+                      "the dynamic icon control should keep its icon in the shared row")
     }
 
     func testAppearanceEditorUsesAHitTestableScrollContainer() throws {
@@ -871,13 +875,13 @@ final class AppearanceSettingTests: XCTestCase {
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
         let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let behaviorStart = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
-        let timezoneStart = try XCTUnwrap(more.range(of: "private var timeZoneSettings: some View"))
+        let compactStart = try XCTUnwrap(more.range(of: "private var compactModeSection: some View"))
 
         XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
         XCTAssertFalse(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
                        "More groups should stay on the continuous page plane")
-        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".moreSettingsSurface()"))
-        XCTAssertTrue(more[behaviorStart.lowerBound..<timezoneStart.lowerBound].contains(".moreSettingsSection()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains(".moreSettingsSurface()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains(".moreSettingsSection()"))
     }
 
     func testTaskOneSharedSettingsSurfaceContractIsScopedToItsImplementations() throws {
@@ -935,7 +939,7 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(more.contains(".moreSettingsSurface()"),
                       "native More subpages must use the shared continuous surface")
         for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
-                         "case .habitBehavior: habitBehaviorSettings", "case .timeZone: timeZoneSettings"] {
+                         "case .habitBehavior: habitBehaviorSettings"] {
             XCTAssertTrue(screenSwitch.contains(caseName),
                           "More screen routing must retain the appearance-aware subpage: \(caseName)")
         }
@@ -1222,7 +1226,7 @@ final class AppearanceSettingTests: XCTestCase {
         let content = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/ContentView.swift"))
         let start = try XCTUnwrap(content.range(of: "private struct ChromeGlass"))
-        let end = try XCTUnwrap(content.range(of: "/// Schwebende Pillen",
+        let end = try XCTUnwrap(content.range(of: "private struct MoreZoomSource",
                                               range: start.upperBound..<content.endIndex))
         let chrome = content[start.lowerBound..<end.lowerBound]
 

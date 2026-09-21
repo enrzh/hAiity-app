@@ -19,8 +19,11 @@ enum HabitListFilterPreferences {
 }
 
 /// The filters shown in the Habits toolbar. Status is evaluated for the
-/// current day in each habit's effective timezone; an item that is not
-/// scheduled today cannot be classified as done or not done.
+/// current day in each habit's effective timezone. Heute keeps what is
+/// scheduled today, and also an unfinished reminder whose due time has
+/// already passed: that reminder is postponed work. Erledigt is a scheduled
+/// item that is complete and not overdue. Nicht erledigt includes the
+/// overdue reminder.
 struct HabitListFilter: Equatable {
     enum Status: String, CaseIterable, Equatable {
         case all
@@ -66,16 +69,26 @@ struct HabitListFilter: Equatable {
                                               base: base)
         let today = DayKey.key(for: now, calendar: calendar)
         let scheduledToday = habit.recurrence.isScheduled(on: today, calendar: calendar)
-        if todayOnly && !scheduledToday { return false }
+        let overdue = isOverdueReminder(habit, now: now, calendar: calendar)
+        if todayOnly && !scheduledToday && !overdue { return false }
 
         switch status {
         case .all:
             return true
         case .done:
-            return scheduledToday && completed(habit, day: today)
+            return scheduledToday && !overdue && completed(habit, day: today)
         case .notDone:
-            return scheduledToday && !completed(habit, day: today)
+            return overdue || (scheduledToday && !completed(habit, day: today))
         }
+    }
+
+    /// A reminder still open after its due time. The list treats that as
+    /// postponed work, including when the scheduled day is already in the past.
+    private func isOverdueReminder(_ habit: Habit, now: Date, calendar: Calendar) -> Bool {
+        guard habit.isReminder else { return false }
+        return ReminderOccurrenceEngine.state(for: habit,
+                                              now: now,
+                                              calendar: calendar).overdueCount > 0
     }
 
     private func completed(_ habit: Habit, day: String) -> Bool {

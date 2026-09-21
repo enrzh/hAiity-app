@@ -16,20 +16,100 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, timeZone, github
+    case archive, about, developer, appearance, habitBehavior, github
 
     var id: Self { self }
 }
 
+private struct BackgroundCropSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let preferences: AppearancePreferences
+    let onSave: (Double, Double) -> Void
+    @State private var focus: CGPoint
+    @State private var dragOrigin: CGPoint?
+    @State private var zoom: CGFloat = 1
+    @State private var zoomOrigin: CGFloat = 1
+
+    init(preferences: AppearancePreferences, onSave: @escaping (Double, Double) -> Void) {
+        self.preferences = preferences
+        self.onSave = onSave
+        _focus = State(initialValue: CGPoint(x: preferences.backgroundImageFocusX,
+                                             y: preferences.backgroundImageFocusY))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                GeometryReader { proxy in
+                    if let image = preferences.backgroundImage {
+                        let baseScale = max(proxy.size.width / image.size.width,
+                                            proxy.size.height / image.size.height)
+                        let imageSize = CGSize(width: image.size.width * baseScale * zoom,
+                                               height: image.size.height * baseScale * zoom)
+                        let excess = CGSize(width: max(imageSize.width - proxy.size.width, 0),
+                                            height: max(imageSize.height - proxy.size.height, 0))
+                        Image(uiImage: image)
+                            .resizable()
+                            .frame(width: imageSize.width, height: imageSize.height)
+                            .offset(x: (0.5 - focus.x) * excess.width,
+                                    y: (0.5 - focus.y) * excess.height)
+                            .overlay(Color.black.opacity(0.16))
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .contentShape(Rectangle())
+                            .simultaneousGesture(MagnificationGesture().onChanged { value in
+                                zoom = min(max(zoomOrigin * value, 1), 4)
+                            }.onEnded { _ in
+                                zoomOrigin = zoom
+                            })
+                            .simultaneousGesture(DragGesture().onChanged { value in
+                                if dragOrigin == nil { dragOrigin = focus }
+                                let dx = value.translation.width / max(excess.width, 1)
+                                let dy = value.translation.height / max(excess.height, 1)
+                                let origin = dragOrigin ?? focus
+                                focus = CGPoint(x: min(max(origin.x - dx, 0), 1),
+                                                y: min(max(origin.y - dy, 0), 1))
+                            }.onEnded { _ in
+                                dragOrigin = nil
+                            })
+                    } else {
+                        ContentUnavailableView(String(localized: "Kein Bild"),
+                                               systemImage: "photo")
+                    }
+                }
+                .aspectRatio(0.46, contentMode: .fit)
+                Text(String(localized: "Ziehe das Bild, um den sichtbaren Ausschnitt festzulegen."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .navigationTitle(String(localized: "Hintergrund anpassen"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Abbrechen")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Sichern")) {
+                        onSave(Double(focus.x), Double(focus.y))
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 enum MoreScreen: Hashable {
-    case main, appearance, habitBehavior, timeZone
+    case main, appearance, habitBehavior
 
     var title: String {
         switch self {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
         case .habitBehavior: String(localized: "Verhalten & Teilen")
-        case .timeZone: String(localized: "Zeitzone")
         }
     }
 }
@@ -40,7 +120,7 @@ enum MoreScreen: Hashable {
 ///
 /// Wohnt auf der MEHR-SEITE (fullScreenCover aus dem Menü oben rechts,
 /// siehe ContentView.morePage) — wieder eine eigene Seite mit
-/// System-Navigationsleiste. Die drei seitenartigen Ziele bleiben Knöpfe,
+/// System-Navigationsleiste. Die zwei seitenartigen Ziele bleiben Knöpfe,
 /// die ein Blatt öffnen (`onOpen`), präsentiert vom Aufrufer ÜBER der Seite.
 ///
 struct MoreView: View {
@@ -75,6 +155,7 @@ struct MoreView: View {
     @State private var showWeeklyWeekdayPicker = false
     @State private var pickedBackgroundItem: PhotosPickerItem?
     @State private var backgroundImageError = false
+    @State private var showingBackgroundCrop = false
     @State private var backgroundImageImportToken = UUID()
     // App-Icon-Auswahl: was der Homescreen gerade zeigt, und ob der letzte
     // Wechsel scheiterte (supportsAlternateIcons == false o. ä.).
@@ -153,7 +234,6 @@ struct MoreView: View {
             case .main: mainSettings
             case .appearance: appearanceSettings
             case .habitBehavior: habitBehaviorSettings
-            case .timeZone: timeZoneSettings
             }
         }
         // A presented More screen must not reuse the previous screen's view tree.
@@ -330,13 +410,10 @@ struct MoreView: View {
                     pageRow(MoreRoute.habitBehavior,
                             title: String(localized: "Verhalten & Teilen"),
                             symbol: "hand.draw",
-                            identifier: "open-habit-behavior")
+                            identifier: "open-habit-behavior",
+                            detail: String(localized: "App-weite Vorgaben und Teilen"))
                     Divider().padding(.leading, 48)
-                    pageRow(.timeZone,
-                            title: String(localized: "Standardzeitzone"),
-                            symbol: "globe",
-                            identifier: "open-timezone",
-                            badge: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier))
+                    defaultTimeZonePicker
                 }
 
                 moreHubGroup(title: String(localized: "Verbindungen")) {
@@ -361,7 +438,7 @@ struct MoreView: View {
 
                 moreHubGroup(title: String(localized: "Werkzeuge")) {
                     moreHubRow(title: String(localized: "Setup wiederholen"),
-                               detail: String(localized: "Erinnerungen erneut einrichten"),
+                               detail: String(localized: "Mitteilungen und Kalender konfigurieren"),
                                symbol: "arrow.clockwise",
                                identifier: "open-reminder-setup") {
                         showReminderSetup = true
@@ -402,52 +479,6 @@ struct MoreView: View {
         }
     }
 
-    private var moreStatusHero: some View {
-        let tracked = store.activeTrackedHabits
-        let snapshot = StatsEngine.snapshot(habits: tracked)
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                moreIcon("checkmark.circle.fill")
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(String(localized: "Dein Überblick"))
-                        .font(.headline.weight(.semibold))
-                    Text(tracked.isEmpty
-                         ? String(localized: "Lege deinen ersten Habit an")
-                         : String(localized: "Alles Wichtige an einem Ort"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 0) {
-                moreMetric(String(tracked.count), title: String(localized: "Aktiv"))
-                moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
-                moreMetric(String(snapshot.streak), title: String(localized: "Serie"))
-            }
-            HStack {
-                Spacer(minLength: 0)
-                Text(unlocked ? String(localized: "Pro aktiv") : String(localized: "Kostenlos"))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(unlocked ? accentColor : .secondary)
-            }
-        }
-        .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .morePanel()
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("more-status-hero")
-    }
-
-    private func moreIcon(_ symbol: String, tint: Color? = nil) -> some View {
-        let color = tint ?? accentColor
-        return Image(systemName: symbol)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(color)
-            .frame(width: 32, height: 32)
-            .background(color.opacity(0.11), in: Circle())
-    }
-
     private var accentColor: Color {
         Theme.accentText(palettes.style)
     }
@@ -474,24 +505,12 @@ struct MoreView: View {
                             identifier: String,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                moreIcon(symbol)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+            AppSettingsRow(title: title,
+                           detail: detail,
+                           symbol: symbol,
+                           showsChevron: true) {
+                EmptyView()
             }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
         .accessibilityIdentifier(identifier)
@@ -500,22 +519,12 @@ struct MoreView: View {
     private var moreGitHubRow: some View {
         HStack(spacing: 12) {
             Button { onOpen(.github) } label: {
-                HStack(spacing: 12) {
-                    moreIcon("chevron.left.forwardslash.chevron.right")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(String(localized: "GitHub"))
-                            .font(.body.weight(.medium))
-                        Text(github.snapshot?.username ?? String(localized: "Noch nicht verbunden"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                AppSettingsRow(title: String(localized: "GitHub"),
+                               detail: github.snapshot?.username ?? String(localized: "Noch nicht verbunden"),
+                               symbol: "chevron.left.forwardslash.chevron.right",
+                               showsChevron: true) {
+                    EmptyView()
                 }
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("open-github-settings")
@@ -530,54 +539,6 @@ struct MoreView: View {
             }
         }
         .frame(minHeight: 52)
-    }
-
-    private var moreOverview: some View {
-        let tracked = store.activeTrackedHabits
-        let snapshot = StatsEngine.snapshot(habits: tracked)
-        return VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
-            HStack(spacing: Theme.Metrics.gap + 4) {
-                Image(systemName: "checkmark.circle")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palettes.style))
-                    .frame(width: 36, height: 36)
-                    .background(Theme.accentFill(palettes.style).opacity(0.13),
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(localized: "Übersicht"))
-                        .font(.subheadline.weight(.semibold))
-                    Text(tracked.isEmpty
-                         ? String(localized: "Noch keine Habits")
-                         : String(localized: "Dein aktueller Rhythmus"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            if !tracked.isEmpty {
-                HStack(spacing: 0) {
-                    moreMetric(String(tracked.count), title: String(localized: "Aktiv"))
-                    moreMetric(String(snapshot.todayDone), title: String(localized: "Heute"))
-                    moreMetric(String(StatsMath.totalCheckIns(tracked)), title: String(localized: "Check-ins"))
-                }
-                .padding(.top, 4)
-            }
-        }
-        .padding(Theme.Metrics.cardPadding)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("more-overview")
-    }
-
-    private func moreMetric(_ value: String, title: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var moreRowInsets: EdgeInsets {
@@ -720,10 +681,42 @@ struct MoreView: View {
         }
     }
 
-    private var timeZoneSettings: some View {
-        HabitTimeZoneList(selection: defaultTimeZoneBinding,
-                          inheritedLabel: String(localized: "Gerätezeitzone"),
-                          allowsDeviceOverride: false)
+    private var defaultTimeZonePicker: some View {
+        Menu {
+            Button {
+                store.defaultTimeZoneIdentifier = nil
+            } label: {
+                if store.defaultTimeZoneIdentifier == nil {
+                    Label(String(localized: "Gerätezeitzone"), systemImage: "checkmark")
+                } else {
+                    Text(String(localized: "Gerätezeitzone"))
+                }
+            }
+            ForEach(HabitTimeZone.options) { option in
+                Button {
+                    store.defaultTimeZoneIdentifier = option.identifier
+                } label: {
+                    let title = "\(option.identifier) · \(option.offset)"
+                    if store.defaultTimeZoneIdentifier == option.identifier {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+            }
+        } label: {
+            AppSettingsRow(title: String(localized: "Standardzeitzone"),
+                           detail: HabitTimeZone.displayName(for: store.defaultTimeZoneIdentifier),
+                           symbol: "globe") {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tint(.primary)
+        .accessibilityLabel(String(localized: "Standardzeitzone"))
+        .accessibilityIdentifier("default-timezone-picker")
     }
 
     // Die Statistik-Karten-Auswahl stand hier (bis zu zwei Karten über der
@@ -734,15 +727,23 @@ struct MoreView: View {
 
     private var compactModeSection: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            Toggle(String(localized: "Kompakte Ansicht"), isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { statsCards.compactMode },
-                set: { statsCards.compactMode = $0 }))
-            .padding(.vertical, 2)
+                set: { statsCards.compactMode = $0 })) {
+                AppSettingsRow(title: String(localized: "Kompakte Ansicht"),
+                               symbol: "rectangle.compress.vertical") {
+                    EmptyView()
+                }
+            }
             .accessibilityIdentifier("compact-mode-toggle")
-            Toggle(String(localized: "Rückgängig in Widgets"), isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { statsCards.widgetResetEnabled },
-                set: { statsCards.widgetResetEnabled = $0 }))
-            .padding(.vertical, 2)
+                set: { statsCards.widgetResetEnabled = $0 })) {
+                AppSettingsRow(title: String(localized: "Rückgängig in Widgets"),
+                               symbol: "arrow.uturn.backward.circle") {
+                    EmptyView()
+                }
+            }
             .accessibilityIdentifier("widget-reset-toggle")
         }
     }
@@ -750,12 +751,17 @@ struct MoreView: View {
     private var swipeActionsSection: some View {
         Section {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
-                Toggle(String(localized: "Wischaktionen"), isOn: Binding(
+                Toggle(isOn: Binding(
                     get: { statsCards.preferences.swipeActions.enabled },
                     set: { enabled in
                         statsCards.update { $0.swipeActions.enabled = enabled }
-                    }))
-                    .accessibilityIdentifier("swipe-actions-toggle")
+                    })) {
+                    AppSettingsRow(title: String(localized: "Wischaktionen"),
+                                   symbol: "hand.draw") {
+                        EmptyView()
+                    }
+                }
+                .accessibilityIdentifier("swipe-actions-toggle")
 
                 if statsCards.preferences.swipeActions.enabled {
                     Picker(String(localized: "Nach rechts wischen"), selection: swipeLeadingBinding) {
@@ -784,15 +790,20 @@ struct MoreView: View {
     private var notificationActionsSection: some View {
         Section {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
-                Toggle(String(localized: "Schnellaktionen in Mitteilungen"), isOn: Binding(
+                Toggle(isOn: Binding(
                     get: { statsCards.preferences.notificationActionsEnabled },
                     set: { enabled in
                         statsCards.update { $0.notificationActionsEnabled = enabled }
                         NotificationPresenter.configureQuickActions(
                             enabled: enabled,
                             choices: statsCards.preferences.notificationActions.slots)
-                    }))
-                    .accessibilityIdentifier("notification-actions-toggle")
+                    })) {
+                    AppSettingsRow(title: String(localized: "Schnellaktionen in Mitteilungen"),
+                                   symbol: "bell.badge") {
+                        EmptyView()
+                    }
+                }
+                .accessibilityIdentifier("notification-actions-toggle")
 
                 if statsCards.preferences.notificationActionsEnabled {
                     ForEach(0..<NotificationActionPreferences.slotCount, id: \.self) { index in
@@ -1581,18 +1592,13 @@ struct MoreView: View {
                     }
                 }
             } label: {
-                HStack(spacing: Theme.Metrics.gap) {
-                    Label(String(localized: "Erscheinungsbild"), systemImage: "circle.lefthalf.filled")
-                    Spacer(minLength: Theme.Metrics.gap)
-                    Text(store.appearance.displayName)
-                        .foregroundStyle(.tint)
+                AppSettingsRow(title: String(localized: "Erscheinungsbild"),
+                               detail: store.appearance.displayName,
+                               symbol: "circle.lefthalf.filled") {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tint)
                 }
-                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
-                       alignment: .leading)
-                .contentShape(Rectangle())
             }
             .accessibilityIdentifier("appearance-picker")
 
@@ -1606,7 +1612,10 @@ struct MoreView: View {
                 .accessibilityIdentifier("appearance-material-picker")
 
             Toggle(isOn: performanceModeBinding) {
-                Label(String(localized: "Performance-Modus"), systemImage: "speedometer")
+                AppSettingsRow(title: String(localized: "Performance-Modus"),
+                               symbol: "speedometer") {
+                    EmptyView()
+                }
             }
             .accessibilityIdentifier("performance-mode-toggle")
         }
@@ -1615,31 +1624,20 @@ struct MoreView: View {
     private var iconAppearanceSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Toggle(isOn: graphShowsMonthLabels) {
-                HStack(spacing: Theme.Metrics.gap) {
-                    Image(systemName: "calendar")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.tint)
-                        .frame(width: 24)
-                    Text(String(localized: "Monate anzeigen"))
+                AppSettingsRow(title: String(localized: "Monate anzeigen"),
+                               symbol: "calendar") {
+                    EmptyView()
                 }
             }
             .accessibilityIdentifier("graph-month-labels-toggle")
 
             Toggle(isOn: matchIconBinding) {
-                HStack(alignment: .center, spacing: Theme.Metrics.gap) {
-                    Image(systemName: "app.badge")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.tint)
-                        .frame(width: 24)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(String(localized: "App-Icon dynamisch"))
-                        Text(String(localized: "Gleiche Farbe wie Graph-Farbe."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                AppSettingsRow(title: String(localized: "App-Icon dynamisch"),
+                               detail: String(localized: "Gleiche Farbe wie Graph-Farbe."),
+                               symbol: "app.badge") {
+                    EmptyView()
                 }
             }
-            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
             .accessibilityIdentifier("match-icon-toggle")
 
             if !store.matchAppIcon {
@@ -1970,14 +1968,26 @@ struct MoreView: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                     }
-                    .allowsHitTesting(false)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showingBackgroundCrop = true }
                     .accessibilityLabel(String(localized: "Ausgewähltes Hintergrundbild"))
+                    .accessibilityHint(String(localized: "Tippen, um den Bildausschnitt anzupassen"))
             }
             if backgroundImageError {
                 Text(String(localized: "Das Bild konnte nicht übernommen werden."))
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+        }
+        .sheet(isPresented: $showingBackgroundCrop) {
+            BackgroundCropSheet(preferences: store.appearancePreferences) { x, y in
+                updateAppearance {
+                    $0.backgroundImageFocusX = x
+                    $0.backgroundImageFocusY = y
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -2001,6 +2011,7 @@ struct MoreView: View {
                 }
                 store.appearancePreferences = next
                 backgroundImageError = false
+                showingBackgroundCrop = true
             }
         }
     }
@@ -2342,30 +2353,17 @@ struct MoreView: View {
                          title: String,
                          symbol: String,
                          identifier: String,
+                         detail: String? = nil,
                          badge: String? = nil) -> some View {
         Button {
             onOpen(route)
         } label: {
-            HStack(spacing: Theme.Metrics.gap + 4) {
-                moreIcon(symbol)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let badge {
-                        Text(badge)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+            AppSettingsRow(title: title,
+                           detail: detail ?? badge,
+                           symbol: symbol,
+                           showsChevron: true) {
+                EmptyView()
             }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
         .accessibilityIdentifier(identifier)
@@ -2373,11 +2371,6 @@ struct MoreView: View {
 
     private var appearanceBinding: Binding<AppearanceSetting> {
         Binding(get: { store.appearance }, set: { store.appearance = $0 })
-    }
-
-    private var defaultTimeZoneBinding: Binding<String?> {
-        Binding(get: { store.defaultTimeZoneIdentifier },
-                set: { store.defaultTimeZoneIdentifier = $0 })
     }
 
     private var matchIconBinding: Binding<Bool> {

@@ -57713,6 +57713,46 @@
         }
       }
     },
+    "Mitteilungen und Kalender konfigurieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configure notifications and calendar"
+          }
+        }
+      }
+    },
+    "App-weite Vorgaben und Teilen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-wide defaults and sharing"
+          }
+        }
+      }
+    },
+    "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create your first entry and check it off to see your grid grow."
+          }
+        }
+      }
+    },
+    "Die Uhrzeit legt den Eintrag fest; die Benachrichtigung erinnert dich dann daran.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The time schedules the entry; the notification reminds you then."
+          }
+        }
+      }
+    },
     "Mehr Habits, Farben, Kalender und Statistik.": {
       "localizations": {
         "en": {

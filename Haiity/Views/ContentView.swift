@@ -918,11 +918,6 @@ struct ContentView: View {
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .habitBehavior)
-            case .timeZone:
-                MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences, onOpen: presentMoreSheet,
-                         graphShowsMonthLabels: githubMonthLabelsBinding,
-                         routeToken: routeToken, screen: .timeZone)
             // Check ownership at the destination too, not only at the row that
             // opens it. A stale local flag must never build this page.
             case .developer:
@@ -1157,7 +1152,9 @@ struct ContentView: View {
     }
 
     private var canSortHabits: Bool {
-        committedSearch.isEmpty && habitFilter.isEmpty
+        committedSearch.isEmpty
+            && habitFilter.status == .all
+            && habitFilter.itemType == .all
     }
 
     @ViewBuilder
@@ -1421,11 +1418,18 @@ struct ContentView: View {
     }
 
     private func reorderHabit(from source: IndexSet, to destination: Int, persist: Bool) {
+        let visibleIDs = habitsTabSource.map(\.id)
         if reduceMotion {
-            store.move(fromOffsets: source, toOffset: destination, persist: persist)
+            store.moveVisible(visibleIDs,
+                              fromOffsets: source,
+                              toOffset: destination,
+                              persist: persist)
         } else {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                store.move(fromOffsets: source, toOffset: destination, persist: persist)
+                store.moveVisible(visibleIDs,
+                                  fromOffsets: source,
+                                  toOffset: destination,
+                                  persist: persist)
             }
         }
     }
@@ -1977,7 +1981,7 @@ struct ContentView: View {
             DemoGrid(palette: effectivePaletteStyle)
             Text(String(localized: "Noch keine Habits"))
                 .font(.title3.bold())
-            Text(String(localized: "Lege deinen ersten Eintrag an."))
+            Text(String(localized: "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -2264,7 +2268,7 @@ struct ContentView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
         .fixedSize(horizontal: false, vertical: true)
-        .modifier(ToastSurface())
+        .appToastSurface()
     }
 
     /// Kurzlebige Sync-Rückmeldung — eine kleine Glas-Pille über dem Chrom.
@@ -2275,7 +2279,7 @@ struct ContentView: View {
                 .font(.footnote)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .modifier(ToastSurface())
+                .appToastSurface()
                 .foregroundStyle(.secondary)
                 .allowsHitTesting(false)
                 .transition(.opacity)
@@ -2493,7 +2497,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .timeZone, .github: nil
+        case .about, .developer, .appearance, .habitBehavior, .github: nil
         }
     }
 
@@ -2507,7 +2511,6 @@ struct ContentView: View {
         case .developer: .developer
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
-        case .timeZone: .timeZone
         case .github: .github
         }
     }
@@ -2519,7 +2522,6 @@ struct ContentView: View {
         case .developer: .developer
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
-        case .timeZone: .timeZone
         case .github: .github
         }
     }
@@ -3330,17 +3332,6 @@ private struct ChromeGlass: ViewModifier {
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
         }
-    }
-}
-
-/// Schwebende Pillen über der Liste (Sync-Rückmeldung, Rückgängig-Toast):
-/// dieselbe Materialwahl wie Karten und Einstellungen, damit die Rückmeldung
-/// auf Solid, Milchglas, Liquid Glass und Auto nicht aus dem Design fällt.
-private struct ToastSurface: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .appSurface(cornerRadius: 999)
-            .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
     }
 }
 

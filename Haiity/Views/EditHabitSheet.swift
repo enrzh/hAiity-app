@@ -78,6 +78,8 @@ struct EditHabitSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
     @State private var showingCreationAdvanced = false
+    @State private var isSaving = false
+    @State private var savedWhileAwaitingPermission = false
     private enum IdentityField: Hashable { case name, emoji }
     @FocusState private var focusedIdentity: IdentityField?
 
@@ -203,9 +205,6 @@ struct EditHabitSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                if isCreating {
-                    creationPreview
-                }
                 Section {
                     Picker(String(localized: "Art"), selection: $itemType) {
                         Text(String(localized: "Habit")).tag(HabitItemType.habit)
@@ -226,6 +225,9 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("habit-emoji")
                 }
                 .settingsListRow()
+                if isCreating {
+                    creationPreview
+                }
                 recurrenceSection.settingsListRow()
                 if isCreating {
                     if itemType == .habit { kindSection.settingsListRow() }
@@ -284,6 +286,7 @@ struct EditHabitSheet: View {
                     .settingsListRow()
                 }
             }
+            .disabled(isSaving || savedWhileAwaitingPermission)
             .settingsSurface()
             .scrollDismissesKeyboard(.interactively)
             .appPageHeader(existing == nil ? creationTitle : String(localized: "Bearbeiten"))
@@ -297,13 +300,15 @@ struct EditHabitSheet: View {
                         }
                         .accessibilityLabel(String(localized: "Schließen"))
                         .accessibilityIdentifier("close-create")
+                        .disabled(isSaving || savedWhileAwaitingPermission)
                     } else {
                         Button(String(localized: "Abbrechen")) { dismiss() }
+                            .disabled(isSaving || savedWhileAwaitingPermission)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Sichern")) { save() }
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSaving || savedWhileAwaitingPermission || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("save-habit")
                 }
             }
@@ -385,16 +390,10 @@ struct EditHabitSheet: View {
             }
             autoResolveChoice = .notDone
         }
-        .onChange(of: draft.hasTime) { _, enabled in
-            guard enabled, notificationMode != .off else { return }
-            requestNotificationPermissionIfNeeded()
-        }
         .onChange(of: notificationMode) { _, mode in
             if mode == .timeSensitive && !draft.hasTime {
                 draft.hasTime = true
             }
-            guard mode != .off else { return }
-            requestNotificationPermissionIfNeeded()
         }
         .alert(String(localized: "Mitteilungen aktivieren"),
                isPresented: $notificationDenied) {
@@ -402,11 +401,13 @@ struct EditHabitSheet: View {
                 if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
+                dismiss()
             }
-            Button(String(localized: "Nicht jetzt"), role: .cancel) {}
+            Button(String(localized: "Nicht jetzt"), role: .cancel) { dismiss() }
         } message: {
             Text(String(localized: "Erlaube Mitteilungen, damit hAiity dich zur gewählten Zeit erinnert."))
         }
+        .interactiveDismissDisabled(isSaving || savedWhileAwaitingPermission)
     }
 
     private var creationPreview: some View {
@@ -613,6 +614,10 @@ struct EditHabitSheet: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("habit-notification-mode")
+            Text(String(localized: "Die Uhrzeit legt den Eintrag fest; die Benachrichtigung erinnert dich dann daran."))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if !isCreating {
                 Button {
                     showTimeZonePicker = true
@@ -1044,9 +1049,10 @@ struct EditHabitSheet: View {
         }
     }
 
-    /// Sichern bleibt synchron. Die Berechtigung wird beim Einschalten der
-    /// Erinnerung angefragt, nicht erst beim Schreiben des Habits.
+    /// Sichern bleibt synchron. Die Berechtigung gehört zum bestätigten
+    /// Eintrag, nicht zu einem möglicherweise verworfenen Entwurf.
     private func save(skipGate: Bool = false) {
+        guard !isSaving, !savedWhileAwaitingPermission else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if !skipGate,
@@ -1092,14 +1098,28 @@ struct EditHabitSheet: View {
                                                               target: recurrence.target) : .checkbox
         if existing == nil { store.add(habit) } else { store.update(habit) }
         Theme.Haptics.success()
-        dismiss()
-    }
-
-    private func requestNotificationPermissionIfNeeded() {
+        guard draft.hasTime, notificationMode != .off else {
+            dismiss()
+            return
+        }
+        savedWhileAwaitingPermission = true
+        isSaving = true
         Task {
             let granted = await Reminders.ensurePermission()
-            guard !granted, !NotificationPromptPreference.isSuppressed else { return }
-            await MainActor.run { notificationDenied = true }
+            if granted {
+                // Store persistence schedules the normal change path; this
+                // explicit pass closes the permission-grant race as well.
+                await Reminders.reschedule(store: store)
+            }
+            let suppressed = NotificationPromptPreference.isSuppressed
+            await MainActor.run {
+                isSaving = false
+                if granted || suppressed {
+                    dismiss()
+                } else {
+                    notificationDenied = true
+                }
+            }
         }
     }
 }

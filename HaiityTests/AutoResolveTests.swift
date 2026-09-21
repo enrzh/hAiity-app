@@ -21,7 +21,7 @@ final class AutoResolveTests: XCTestCase {
         XCTAssertEqual(decoded.autoResolveChoice, .notDone)
     }
 
-    func testExpiredOccurrenceWaitsUntilConfiguredTime() {
+    func testAutoResolveWaitsUntilEndOfDayDespiteConfiguredTime() {
         var habit = Habit(name: "Lesen", timeMinutes: 18 * 60)
         habit.createdAt = "2026-08-14"
 
@@ -36,7 +36,34 @@ final class AutoResolveTests: XCTestCase {
                 for: habit,
                 now: date("2026-08-14", minutes: 18 * 60),
                 calendar: calendar),
+            [])
+        XCTAssertEqual(
+            ReminderOccurrenceEngine.expiredOccurrences(
+                for: habit,
+                now: date("2026-08-14", minutes: 23 * 60 + 59),
+                calendar: calendar),
+            [])
+        XCTAssertEqual(
+            ReminderOccurrenceEngine.expiredOccurrences(
+                for: habit,
+                now: date("2026-08-15", minutes: 0),
+                calendar: calendar),
             ["2026-08-14"])
+    }
+
+    func testReminderAutoResolveWaitsUntilEndOfDayDespiteConfiguredTime() {
+        var reminder = Habit(name: "Tabletten", itemType: .reminder,
+                             timeMinutes: 9 * 60)
+        reminder.createdAt = "2026-08-14"
+
+        XCTAssertFalse(ReminderOccurrenceEngine.expiredOccurrences(
+            for: reminder,
+            now: date("2026-08-14", minutes: 18 * 60),
+            calendar: calendar).contains("2026-08-14"))
+        XCTAssertTrue(ReminderOccurrenceEngine.expiredOccurrences(
+            for: reminder,
+            now: date("2026-08-15", minutes: 0),
+            calendar: calendar).contains("2026-08-14"))
     }
 
     func testCheckboxCanBeAutoResolvedAsNotDoneAndRunsOnlyOnce() {
@@ -47,7 +74,7 @@ final class AutoResolveTests: XCTestCase {
         let now = date("2026-08-15", minutes: 12 * 60)
 
         XCTAssertTrue(store.resolveExpiredOccurrences(now: now))
-        XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14", "2026-08-15"])
+        XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14"])
         XCTAssertFalse(store.resolveExpiredOccurrences(now: now))
     }
 
@@ -164,7 +191,7 @@ final class AutoResolveTests: XCTestCase {
         reminder.createdAt = "2026-08-14"
         reminder.autoResolveChoice = .notDone
         let store = makeStore(reminder)
-        let now = date("2026-08-14", minutes: 18 * 60)
+        let now = date("2026-08-15", minutes: 12 * 60)
 
         XCTAssertTrue(store.resolveExpiredOccurrences(now: now))
         XCTAssertEqual(store.habits[0].missedDays, ["2026-08-14"])

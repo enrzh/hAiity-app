@@ -150,11 +150,12 @@ final class SetupFlowTests: XCTestCase {
 
     func testSetupControlsUseStableNativeHitTargets() throws {
         let setup = try source("Haiity/Views/ReminderSetupView.swift")
+        let components = try source("Haiity/Views/AppUIComponents.swift")
 
-        XCTAssertTrue(setup.contains(".frame(minHeight: Theme.Metrics.settingsRowMinHeight"),
-                      "setup cards need a readable minimum row height")
-        XCTAssertTrue(setup.contains(".frame(minHeight: Theme.Metrics.hit"),
-                      "permission rows must retain a native hit target")
+        XCTAssertTrue(components.contains("minHeight: Theme.Metrics.settingsRowMinHeight"),
+                      "shared settings rows need a readable minimum height")
+        XCTAssertTrue(setup.contains("AppSettingsRow(title: title, symbol: symbol)"),
+                      "permission rows must use the shared native hit target")
         XCTAssertTrue(setup.contains("minHeight: Theme.Metrics.hit"),
                       "footer actions must remain reachable at normal and large type")
         XCTAssertTrue(setup.contains("accessibilityValue"),

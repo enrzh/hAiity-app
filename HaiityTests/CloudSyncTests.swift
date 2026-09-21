@@ -694,8 +694,10 @@ final class CloudSyncStatusTests: XCTestCase {
             XCTAssertFalse(state.detail.isEmpty)
             XCTAssertFalse(state.systemImage.isEmpty)
         }
-        // Nicht angemeldet MUSS sagen, dass nichts verloren geht.
-        XCTAssertTrue(CloudState.signedOut.detail.contains("bleiben hier"))
+        // Nicht angemeldet MUSS den iCloud-Kontext nennen. Die konkrete
+        // Zusicherung bleibt sprachneutral, weil diese Suite auch mit
+        // englischer Test-Lokalisierung laufen darf.
+        XCTAssertTrue(CloudState.signedOut.detail.localizedCaseInsensitiveContains("iCloud"))
     }
 }
 
