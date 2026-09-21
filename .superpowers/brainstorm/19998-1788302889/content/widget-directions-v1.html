@@ -1,0 +1,121 @@
+<style>
+  :root { --ink:#15171a; --muted:#70767d; --line:rgba(21,23,26,.12); --paper:#f4f5f7; --panel:rgba(255,255,255,.86); --blue:#1976d2; --green:#35a36a; --amber:#d18a24; --red:#d35e57; }
+  * { box-sizing:border-box; }
+  body { background:linear-gradient(145deg,#edf2f6 0%,#f7f4ef 100%); color:var(--ink); }
+  .intro { max-width:920px; margin:0 auto 24px; }
+  .intro h2 { margin-bottom:6px; }
+  .intro p { max-width:760px; }
+  .choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; max-width:1120px; margin:0 auto; }
+  .choice { cursor:pointer; border:1px solid rgba(21,23,26,.13); border-radius:18px; padding:12px; background:rgba(255,255,255,.55); box-shadow:0 8px 24px rgba(38,47,57,.08); transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+  .choice:hover { transform:translateY(-2px); box-shadow:0 12px 30px rgba(38,47,57,.13); }
+  .choice.selected { border:2px solid #1677df; padding:11px; box-shadow:0 0 0 3px rgba(22,119,223,.15),0 12px 30px rgba(38,47,57,.14); }
+  .choice h3 { font-size:16px; margin:8px 4px 3px; }
+  .choice .desc { color:var(--muted); font-size:12px; line-height:1.4; margin:0 4px 8px; }
+  .widget-pair { display:grid; gap:10px; }
+  .device-label { text-transform:uppercase; letter-spacing:.08em; font-size:10px; color:var(--muted); margin:4px 5px 0; }
+  .widget { width:100%; aspect-ratio:332/356; border-radius:14px; overflow:hidden; background:var(--panel); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); padding:13px; }
+  .widget.dark { background:#202328; color:#f4f5f6; --muted:#a7adb5; --line:rgba(255,255,255,.12); --panel:rgba(255,255,255,.08); }
+  .w-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .w-head strong { font-size:16px; letter-spacing:-.02em; }
+  .w-head span { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .list-rows { display:grid; gap:0; }
+  .list-row { min-height:67px; display:grid; grid-template-columns:24px minmax(0,1fr) auto; column-gap:9px; align-items:center; border-top:1px solid var(--line); }
+  .list-row:first-child { border-top:0; }
+  .status { width:22px; height:22px; border-radius:50%; border:1.5px solid var(--muted); display:grid; place-items:center; color:white; font-size:12px; }
+  .status.done { background:var(--green); border-color:var(--green); }
+  .status.no { border-color:var(--red); color:var(--red); }
+  .row-copy { min-width:0; }
+  .row-title { font-size:13px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row-meta { font-size:10px; color:var(--muted); margin-top:2px; }
+  .row-value { text-align:right; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .row-value b { display:block; color:var(--ink); font-size:14px; }
+  .dark .row-value b { color:#f4f5f6; }
+  .mini-strip { grid-column:2 / 4; height:5px; margin:0 0 8px; border-radius:4px; background:linear-gradient(90deg,var(--line) 0 12%,var(--green) 12% 28%,var(--line) 28% 40%,var(--green) 40% 62%,var(--amber) 62% 76%,var(--line) 76%); }
+  .grid-widget { padding:11px; }
+  .grid-head { display:flex; justify-content:space-between; align-items:center; margin:1px 2px 9px; }
+  .grid-head strong { font-size:15px; }
+  .grid-head span { font-size:10px; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; height:calc(100% - 26px); }
+  .tile { position:relative; overflow:hidden; border-radius:12px; padding:9px; background:#e9eef2; }
+  .dark .tile { background:#2b3036; }
+  .tile::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.03),rgba(0,0,0,.18)); pointer-events:none; }
+  .tile-top { position:relative; z-index:1; display:flex; justify-content:space-between; gap:4px; align-items:center; }
+  .tile-title { font-size:11px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile-mark { width:18px; height:18px; border-radius:50%; display:grid; place-items:center; background:rgba(255,255,255,.78); color:var(--green); font-size:11px; flex:none; }
+  .dark .tile-mark { background:rgba(0,0,0,.24); }
+  .heat { position:absolute; inset:38px 9px 27px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(7,1fr); gap:3px; align-content:stretch; }
+  .heat i { border-radius:3px; background:rgba(75,112,137,.18); }
+  .heat i:nth-child(3n) { background:rgba(53,163,106,.65); }
+  .heat i:nth-child(4n) { background:rgba(53,163,106,.35); }
+  .heat i:nth-child(9n) { background:rgba(209,138,36,.8); }
+  .tile-foot { position:absolute; z-index:1; left:9px; right:9px; bottom:8px; display:flex; justify-content:space-between; align-items:baseline; color:rgba(21,23,26,.68); font-size:10px; }
+  .dark .tile-foot { color:rgba(244,245,246,.68); }
+  .tile-foot b { font-size:13px; color:var(--ink); }
+  .dark .tile-foot b { color:#f4f5f6; }
+  .hero { display:grid; grid-template-rows:auto 1fr auto; height:100%; }
+  .hero-graph { border-radius:13px; background:#e8eff0; position:relative; overflow:hidden; padding:12px; }
+  .dark .hero-graph { background:#293237; }
+  .hero-graph .heat { inset:42px 15px 42px; grid-template-columns:repeat(12,1fr); }
+  .hero-copy { position:relative; z-index:2; display:flex; justify-content:space-between; }
+  .hero-copy strong { font-size:16px; }
+  .hero-copy span { font-size:11px; color:var(--muted); }
+  .hero-foot { display:flex; gap:8px; padding-top:10px; }
+  .pill { flex:1; padding:8px 9px; border-radius:10px; background:rgba(127,139,150,.1); font-size:10px; color:var(--muted); }
+  .pill b { display:block; color:var(--ink); font-size:13px; }
+  .dark .pill b { color:#f4f5f6; }
+  @media (max-width:900px) { .choices { grid-template-columns:1fr; max-width:430px; } .widget { aspect-ratio:332/356; } }
+</style>
+
+<div class="intro">
+  <h2>Choose the new widget language</h2>
+  <p class="subtitle">Three directions for the large Liste and Raster widgets. Each keeps the data glanceable, removes nested legacy cards, and leaves the full canvas for the user’s habits. Select the direction that feels closest to hAiity.</p>
+</div>
+
+<div class="choices">
+  <div class="choice" data-choice="quiet" onclick="toggleSelect(this)">
+    <div class="label">A · recommended</div>
+    <div class="widget-pair">
+      <div><div class="device-label">Liste</div><div class="widget">
+        <div class="w-head"><strong>Heute</strong><span>3 von 4</span></div>
+        <div class="list-rows">
+          <div class="list-row"><div class="status done">✓</div><div class="row-copy"><div class="row-title">Morgenlauf</div><div class="row-meta">Serie 12 Tage</div></div><div class="row-value"><b>12</b> Tage</div><div class="mini-strip"></div></div>
+          <div class="list-row"><div class="status"></div><div class="row-copy"><div class="row-title">Wasser</div><div class="row-meta">4 von 8 Gläsern</div></div><div class="row-value"><b>4/8</b> heute</div><div class="mini-strip"></div></div>
+          <div class="list-row"><div class="status done">✓</div><div class="row-copy"><div class="row-title">Lesen</div><div class="row-meta">Serie 5 Tage</div></div><div class="row-value"><b>5</b> Tage</div><div class="mini-strip"></div></div>
+          <div class="list-row"><div class="status no">×</div><div class="row-copy"><div class="row-title">Abendjournal</div><div class="row-meta">Heute um 21:00</div></div><div class="row-value"><b>0</b> offen</div><div class="mini-strip"></div></div>
+        </div>
+      </div></div>
+      <div><div class="device-label">Raster</div><div class="widget grid-widget">
+        <div class="grid-head"><strong>Heute</strong><span>4 Einträge</span></div>
+        <div class="grid"><div class="tile"><div class="tile-top"><span class="tile-title">Morgenlauf</span><span class="tile-mark">✓</span></div><div class="heat"></div><div class="tile-foot"><span>Serie</span><b>12</b></div></div><div class="tile"><div class="tile-top"><span class="tile-title">Wasser</span><span class="tile-mark">+</span></div><div class="heat"></div><div class="tile-foot"><span>heute</span><b>4/8</b></div></div><div class="tile"><div class="tile-top"><span class="tile-title">Lesen</span><span class="tile-mark">✓</span></div><div class="heat"></div><div class="tile-foot"><span>Serie</span><b>5</b></div></div><div class="tile"><div class="tile-top"><span class="tile-title">Journal</span><span class="tile-mark">×</span></div><div class="heat"></div><div class="tile-foot"><span>offen</span><b>21:00</b></div></div></div>
+      </div></div>
+    </div>
+    <h3>Quiet utility</h3><p class="desc">One surface, clear rows, status first. Best for quick daily scanning and mixed habits/reminders.</p>
+  </div>
+
+  <div class="choice" data-choice="hero" onclick="toggleSelect(this)">
+    <div class="label">B · data-first</div>
+    <div class="widget-pair">
+      <div><div class="device-label">Liste</div><div class="widget dark"><div class="hero"><div class="w-head"><strong>Heute</strong><span>3/4 erledigt</span></div><div class="hero-graph"><div class="hero-copy"><strong>Morgenlauf</strong><span>Serie 12</span></div><div class="heat"></div><div class="tile-foot"><span>letzte 12 Wochen</span><b>86%</b></div></div><div class="hero-foot"><div class="pill"><b>Wasser</b>4/8 heute</div><div class="pill"><b>Lesen</b>5 Tage</div></div></div></div></div>
+      <div><div class="device-label">Raster</div><div class="widget grid-widget dark"><div class="grid-head"><strong>Deine Woche</strong><span>4 Habits</span></div><div class="grid" style="grid-template-columns:1fr;gap:8px"><div class="tile" style="min-height:74px"><div class="tile-top"><span class="tile-title">Morgenlauf</span><span class="tile-mark">✓</span></div><div class="heat" style="inset:30px 10px 20px;grid-template-columns:repeat(16,1fr)"></div><div class="tile-foot"><span>Serie</span><b>12 Tage</b></div></div><div class="tile" style="min-height:74px"><div class="tile-top"><span class="tile-title">Wasser · Lesen · Journal</span><span class="tile-mark">3</span></div><div class="heat" style="inset:30px 10px 20px;grid-template-columns:repeat(16,1fr)"></div><div class="tile-foot"><span>heute</span><b>3/4</b></div></div></div></div></div>
+    </div>
+    <h3>Featured progress</h3><p class="desc">A dominant graph gives one habit the focus while the footer keeps the remaining state visible.</p>
+  </div>
+
+  <div class="choice" data-choice="board" onclick="toggleSelect(this)">
+    <div class="label">C · expressive</div>
+    <div class="widget-pair">
+      <div><div class="device-label">Liste</div><div class="widget" style="background:#eef2f4"><div class="w-head"><strong>Dein Tag</strong><span>03 / 04</span></div><div class="list-rows" style="gap:8px"><div class="list-row" style="border:0;padding:0 10px;background:#dfe9e6;border-radius:12px;grid-template-columns:25px 1fr auto"><div class="status done">✓</div><div class="row-copy"><div class="row-title">Morgenlauf</div><div class="row-meta">12 Tage Serie</div></div><div class="row-value"><b>86%</b></div></div><div class="list-row" style="border:0;padding:0 10px;background:#e9e5d8;border-radius:12px;grid-template-columns:25px 1fr auto"><div class="status"></div><div class="row-copy"><div class="row-title">Wasser</div><div class="row-meta">4 von 8</div></div><div class="row-value"><b>50%</b></div></div><div class="list-row" style="border:0;padding:0 10px;background:#e8e0e7;border-radius:12px;grid-template-columns:25px 1fr auto"><div class="status done">✓</div><div class="row-copy"><div class="row-title">Lesen</div><div class="row-meta">5 Tage Serie</div></div><div class="row-value"><b>100%</b></div></div><div class="list-row" style="border:0;padding:0 10px;background:#eee0db;border-radius:12px;grid-template-columns:25px 1fr auto"><div class="status no">×</div><div class="row-copy"><div class="row-title">Abendjournal</div><div class="row-meta">fällig 21:00</div></div><div class="row-value"><b>offen</b></div></div></div></div></div>
+      <div><div class="device-label">Raster</div><div class="widget grid-widget" style="background:#eef2f4"><div class="grid-head"><strong>Deine Habits</strong><span>Woche 35</span></div><div class="grid"><div class="tile" style="background:#dfe9e6"><div class="tile-top"><span class="tile-title">Morgenlauf</span><span class="tile-mark">✓</span></div><div class="heat"></div><div class="tile-foot"><span>Serie</span><b>12</b></div></div><div class="tile" style="background:#e9e5d8"><div class="tile-top"><span class="tile-title">Wasser</span><span class="tile-mark">+</span></div><div class="heat"></div><div class="tile-foot"><span>heute</span><b>4/8</b></div></div><div class="tile" style="background:#e8e0e7"><div class="tile-top"><span class="tile-title">Lesen</span><span class="tile-mark">✓</span></div><div class="heat"></div><div class="tile-foot"><span>Serie</span><b>5</b></div></div><div class="tile" style="background:#eee0db"><div class="tile-top"><span class="tile-title">Journal</span><span class="tile-mark">×</span></div><div class="heat"></div><div class="tile-foot"><span>offen</span><b>21:00</b></div></div></div></div></div>
+    </div>
+    <h3>Color-coded board</h3><p class="desc">More personality through soft semantic tints, while preserving the same structure in both widgets.</p>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.heat').forEach((heat) => {
+    const count = heat.closest('.hero-graph') ? 84 : 56;
+    for (let index = 0; index < count; index += 1) {
+      heat.appendChild(document.createElement('i'));
+    }
+  });
+</script>

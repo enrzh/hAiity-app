@@ -1,0 +1,216 @@
+<section class="branch-lab" aria-labelledby="branch-title">
+  <header class="branch-header">
+    <div>
+      <p class="branch-kicker">hAiity / splash concept / branching pulse</p>
+      <h2 id="branch-title">One graph becomes three.</h2>
+      <p class="branch-subtitle">A centered contribution graph appears first. Two copies grow out from its center, the three graphs breathe together, and the Habits page fades in underneath.</p>
+    </div>
+    <div class="branch-actions">
+      <button class="branch-button" id="replay-branch" type="button">Replay</button>
+      <span class="branch-choice" id="branch-choice">Recommended direction</span>
+    </div>
+  </header>
+
+  <div class="branch-stage" data-choice="recommended" onclick="selectBranch(this)">
+    <div class="branch-copy">
+      <span class="branch-label">Launch handoff</span>
+      <div class="branch-steps" aria-label="Animation sequence">
+        <span><b>01</b> one graph</span>
+        <span><b>02</b> three emerge</span>
+        <span><b>03</b> pulse</span>
+        <span><b>04</b> Habits</span>
+      </div>
+    </div>
+
+    <div class="branch-phone-wrap">
+      <div class="branch-phone-shell">
+        <div class="branch-island"></div>
+        <div class="branch-screen">
+          <div class="branch-app" aria-hidden="true"></div>
+          <div class="branch-surface" aria-hidden="true"></div>
+          <div class="graph-cluster" aria-hidden="true">
+            <div class="graph-unit graph-left"><div class="unit-grid"></div></div>
+            <div class="graph-unit graph-center"><div class="unit-grid"></div></div>
+            <div class="graph-unit graph-right"><div class="unit-grid"></div></div>
+          </div>
+          <span class="branch-note">hAiity</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="branch-footnote">The center graph remains the visual anchor. The two companions are a brief sense of expansion, not three separate screens.</p>
+  </div>
+
+  <footer class="branch-footer">
+    <span class="branch-dot"></span>
+    <span>Same 21 x 7 graph pattern, reused as a compact three-part cluster.</span>
+    <span class="branch-hint">Click the preview to mark it as the direction.</span>
+  </footer>
+</section>
+
+<style>
+  :root {
+    --branch-ink: #17251d;
+    --branch-muted: #6d7c72;
+    --branch-line: #dbe3dc;
+    --branch-paper: #f5f7f3;
+    --branch-green: #2fb357;
+    --branch-deep: #1b653a;
+  }
+
+  * { box-sizing: border-box; }
+  .branch-lab { max-width: 1040px; margin: 0 auto; padding: 18px 20px 30px; color: var(--branch-ink); }
+  .branch-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 8px 0 22px; border-bottom: 1px solid var(--branch-line); }
+  .branch-kicker { margin: 0 0 8px; color: var(--branch-green); font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .branch-header h2 { margin: 0; font: 760 clamp(28px, 4.2vw, 46px)/1.02 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.03em; }
+  .branch-subtitle { max-width: 680px; margin: 10px 0 0; color: var(--branch-muted); font: 15px/1.48 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .branch-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  .branch-button { border: 0; border-radius: 999px; padding: 12px 17px; background: var(--branch-ink); color: #fff; cursor: pointer; font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .branch-button:hover { transform: translateY(-1px); }
+  .branch-choice { min-width: 128px; color: var(--branch-muted); font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+  .branch-stage { --branch-offset: 70px; position: relative; display: grid; min-height: 650px; place-items: center; margin-top: 20px; border: 1px solid var(--branch-line); border-radius: 14px; background: var(--branch-paper); cursor: pointer; overflow: hidden; transition: border-color .2s ease, box-shadow .2s ease; }
+  .branch-stage:hover { border-color: var(--branch-green); box-shadow: 0 12px 30px rgba(23, 37, 29, .08); }
+  .branch-stage.selected { border-color: var(--branch-green); box-shadow: 0 0 0 2px rgba(47, 179, 87, .14), 0 12px 30px rgba(23, 37, 29, .08); }
+  .branch-copy { position: absolute; z-index: 8; top: 28px; left: 30px; }
+  .branch-label { color: var(--branch-deep); font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .branch-steps { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; color: var(--branch-muted); font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .branch-steps span { display: inline-flex; align-items: center; gap: 5px; }
+  .branch-steps b { color: var(--branch-green); font-weight: 800; }
+  .branch-footnote { position: absolute; right: 30px; bottom: 28px; max-width: 280px; margin: 0; color: var(--branch-muted); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+  .branch-phone-wrap { position: relative; z-index: 2; width: min(100%, 280px); }
+  .branch-phone-shell { position: relative; padding: 8px; border: 1px solid #29372d; border-radius: 38px; background: #0b120e; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 20px 42px rgba(16, 30, 21, .22); }
+  .branch-island { position: absolute; z-index: 8; top: 14px; left: 50%; width: 74px; height: 19px; border-radius: 999px; background: #050806; transform: translateX(-50%); }
+  .branch-screen { position: relative; aspect-ratio: 9 / 18.8; overflow: hidden; border-radius: 30px; background: #101a14; isolation: isolate; }
+  .branch-app { position: absolute; inset: 0; z-index: 1; padding: 48px 14px 16px; background: #f4f7f1; color: #17251d; opacity: 0; transform: scale(.985); }
+  .branch-app::before { content: "hAiity     Habits                         TODAY"; display: block; padding-bottom: 18px; border-bottom: 1px solid #dfe9df; color: #1d7b42; white-space: pre; font: 800 9px/1 ui-monospace, monospace; }
+  .branch-app::after { content: "Habits       Stats        More                 +\A\A  Morning run                         7 day streak\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A\A  Read 20 pages                              3 / 7\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪"; display: block; margin-top: 18px; padding: 12px; border: 1px solid #dfe9df; border-radius: 13px; background: rgba(255,255,255,.84); color: #58705e; white-space: pre; font: 700 8px/2.1 ui-monospace, monospace; }
+  .branch-surface { position: absolute; z-index: 2; inset: 0; background: #f4f7f1; }
+  .graph-cluster { position: absolute; z-index: 3; top: 50%; left: 0; width: 100%; height: 30px; }
+  .graph-unit { position: absolute; top: 50%; left: 50%; width: 60px; height: 22px; opacity: 0; transform-origin: center; }
+  .graph-center { transform: translate(-50%, -50%) scale(.42); }
+  .graph-left, .graph-right { transform: translate(-50%, -50%) scale(.2); }
+  .graph-left { --branch-direction: -1; }
+  .graph-right { --branch-direction: 1; }
+  .unit-grid { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(21, 1fr); gap: 2px; }
+  .unit-grid i { min-width: 0; border-radius: 1px; background: #dff0df; opacity: 0; transform: scale(.65); }
+  .unit-grid i:nth-child(3n) { background: #a9dda9; }
+  .unit-grid i:nth-child(5n) { background: #67c479; }
+  .unit-grid i:nth-child(11n) { background: #2e9d4f; }
+  .unit-grid i:nth-child(17n) { background: #186d39; }
+  .branch-note { position: absolute; z-index: 5; right: 13px; bottom: 11px; color: rgba(23,37,29,.45); font: 700 7px/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; opacity: 0; }
+
+  .is-branching .graph-center { animation: center-graph 1.78s cubic-bezier(.2,.78,.25,1) both; }
+  .is-branching .graph-left { animation: side-graph-left 1.78s cubic-bezier(.2,.78,.25,1) both; }
+  .is-branching .graph-right { animation: side-graph-right 1.78s cubic-bezier(.2,.78,.25,1) both; }
+  .is-branching .graph-center .unit-grid i { animation: center-tile 1.78s cubic-bezier(.2,.78,.25,1) both; animation-delay: calc((0.04 + var(--unit-distance)) * 1s); }
+  .is-branching .graph-left .unit-grid i, .is-branching .graph-right .unit-grid i { animation: side-tile 1.78s cubic-bezier(.2,.78,.25,1) both; animation-delay: calc((0.38 + var(--unit-distance)) * 1s); }
+  .is-branching .branch-surface { animation: branch-surface-fade 1.78s cubic-bezier(.2,.78,.25,1) both; }
+  .is-branching .branch-app { animation: branch-app-settle 1.78s cubic-bezier(.2,.78,.25,1) both; }
+  .is-branching .branch-note { animation: branch-note-fade 1.78s ease both; }
+  .has-branched .graph-unit { opacity: 0; }
+  .has-branched .branch-surface { opacity: 0; }
+  .has-branched .branch-app { opacity: 1; transform: scale(1); }
+
+  @keyframes center-graph {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.42); }
+    14% { opacity: 1; transform: translate(-50%, -50%) scale(2.05); }
+    38% { opacity: 1; transform: translate(-50%, -50%) scale(2.05); }
+    58% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    74% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+  }
+  @keyframes side-graph-left {
+    0%, 40% { opacity: 0; transform: translate(-50%, -50%) translateX(0) scale(.2); }
+    58% { opacity: 1; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1); }
+    74% { opacity: 1; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1.1); }
+  }
+  @keyframes side-graph-right {
+    0%, 40% { opacity: 0; transform: translate(-50%, -50%) translateX(0) scale(.2); }
+    58% { opacity: 1; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1); }
+    74% { opacity: 1; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -50%) translateX(calc(var(--branch-direction) * var(--branch-offset))) scale(1.1); }
+  }
+  @keyframes center-tile {
+    0% { opacity: 0; transform: scale(.62); }
+    14% { opacity: 1; transform: scale(.92); }
+    32% { opacity: 1; transform: scale(1.08); }
+    48%, 80% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1); }
+  }
+  @keyframes side-tile {
+    0%, 34% { opacity: 0; transform: scale(.65); }
+    48% { opacity: 1; transform: scale(.94); }
+    64% { opacity: 1; transform: scale(1.12); }
+    78% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1); }
+  }
+  @keyframes branch-surface-fade { 0%, 52% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes branch-app-settle { 0%, 45% { opacity: 0; transform: scale(.985); } 70% { opacity: .72; transform: scale(.995); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes branch-note-fade { 0%, 70% { opacity: 0; } 100% { opacity: .55; } }
+
+  .branch-footer { display: flex; align-items: center; gap: 8px; padding: 18px 2px 0; color: var(--branch-muted); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .branch-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--branch-green); box-shadow: 0 0 0 4px #e1f2e4; }
+  .branch-hint { margin-left: auto; color: #85938a; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .is-branching .graph-center, .is-branching .graph-left, .is-branching .graph-right, .is-branching .unit-grid i, .is-branching .branch-surface, .is-branching .branch-app, .is-branching .branch-note { animation-duration: .01ms; animation-iteration-count: 1; }
+  }
+  @media (max-width: 620px) {
+    .branch-lab { padding: 10px 12px 22px; }
+    .branch-header { align-items: flex-start; flex-direction: column; gap: 16px; }
+    .branch-actions { width: 100%; justify-content: space-between; }
+    .branch-choice { text-align: left; }
+    .branch-stage { --branch-offset: 50px; min-height: 650px; margin-top: 14px; }
+    .branch-copy { top: 20px; left: 18px; right: 18px; }
+    .branch-steps { gap: 8px 12px; font-size: 9px; }
+    .branch-phone-wrap { width: min(70%, 230px); }
+    .graph-unit { width: 44px; height: 16px; }
+    .branch-footnote { right: 18px; bottom: 20px; max-width: 210px; font-size: 9px; }
+    .branch-footer { align-items: flex-start; flex-wrap: wrap; font-size: 9px; }
+    .branch-hint { width: 100%; margin-left: 15px; }
+  }
+</style>
+
+<script>
+  (() => {
+    function buildGraphs() {
+      document.querySelectorAll('.unit-grid').forEach(grid => {
+        grid.innerHTML = '';
+        for (let index = 0; index < 147; index += 1) {
+          const column = index % 21;
+          const row = Math.floor(index / 21);
+          const distance = Math.sqrt((column - 10) ** 2 + (row - 3) ** 2);
+          const tile = document.createElement('i');
+          tile.setAttribute('aria-hidden', 'true');
+          tile.style.setProperty('--unit-distance', `${distance * 0.003}`);
+          grid.appendChild(tile);
+        }
+      });
+    }
+
+    function playBranch() {
+      const stage = document.querySelector('.branch-stage');
+      stage.classList.remove('has-branched', 'is-branching');
+      void stage.offsetWidth;
+      stage.classList.add('is-branching');
+      window.setTimeout(() => stage.classList.add('has-branched'), 1930);
+    }
+
+    window.selectBranch = stage => {
+      stage.classList.add('selected');
+      document.getElementById('branch-choice').textContent = 'Recommended direction';
+      if (typeof toggleSelect === 'function') toggleSelect(stage);
+    };
+
+    document.getElementById('replay-branch').addEventListener('click', event => {
+      event.stopPropagation();
+      playBranch();
+    });
+
+    buildGraphs();
+    window.setTimeout(playBranch, 180);
+  })();
+</script>

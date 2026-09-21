@@ -1,0 +1,92 @@
+<style>
+  :root { --ink:#f7f8fb; --muted:#aeb7c2; --panel:rgba(28,34,39,.82); --line:rgba(255,255,255,.12); --green:#4bd879; --orange:#ff8b68; --blue:#83c9ff; }
+  .widget-choices { max-width:1180px; margin:0 auto; }
+  .intro { margin-bottom:24px; }
+  .intro h2 { margin-bottom:6px; }
+  .choices-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+  .choice { cursor:pointer; border:1px solid var(--line); border-radius:22px; overflow:hidden; background:rgba(255,255,255,.045); transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; }
+  .choice:hover { transform:translateY(-3px); border-color:rgba(255,255,255,.34); }
+  .choice.selected { border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.15),0 14px 34px rgba(0,0,0,.25); }
+  .choice-head { display:flex; align-items:center; gap:10px; padding:16px 18px 12px; }
+  .badge { width:28px; height:28px; display:grid; place-items:center; border-radius:9px; background:#f1f3f5; color:#20252a; font-weight:800; }
+  .choice-head h3 { margin:0; font-size:17px; }
+  .choice-head p { margin:2px 0 0; color:var(--muted); font-size:12px; }
+  .widget { margin:0 12px 12px; padding:14px; border-radius:20px; background:linear-gradient(145deg,#333c43,#20272d); box-shadow:inset 0 1px rgba(255,255,255,.1); min-height:480px; color:var(--ink); }
+  .widget-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .widget-top strong { font-size:20px; }
+  .count { color:var(--muted); font-size:13px; }
+  .tile-row { display:grid; grid-template-columns:repeat(28,1fr); gap:2px; height:38px; align-items:end; }
+  .tile { aspect-ratio:1; border-radius:2px; background:#3b464b; }
+  .tile.on { background:var(--green); }.tile.hot { background:var(--orange); }.tile.blue { background:var(--blue); }
+  .item { position:relative; border:1px solid var(--line); border-radius:14px; padding:10px; margin-top:9px; background:rgba(255,255,255,.055); }
+  .item-title { display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:700; font-size:13px; }
+  .item-meta { color:var(--muted); font-size:11px; margin-top:5px; }
+  .actions { display:flex; gap:7px; margin-top:10px; }
+  .actions button { flex:1; min-height:34px; border:0; border-radius:10px; color:#fff; background:rgba(255,255,255,.13); font-weight:700; font-size:12px; }
+  .actions button.primary { background:var(--green); color:#112018; }.actions button.no { background:rgba(255,139,104,.24); color:#ffb49b; }
+  .reminder { min-height:57px; display:flex; align-items:center; gap:10px; }.bell { font-size:21px; color:var(--blue); }.reminder .actions { margin:0 0 0 auto; width:95px; }
+  .grid-layout { display:grid; grid-template-columns:1fr 1fr; gap:9px; }.grid-layout .item { margin:0; min-height:105px; }.grid-layout .tile-row { height:24px; grid-template-columns:repeat(14,1fr); margin-top:9px; }.grid-layout .actions { margin-top:8px; }
+  .featured { padding:14px; border:1px solid rgba(131,201,255,.35); border-radius:16px; background:rgba(131,201,255,.08); }.featured .tile-row { height:76px; margin:12px 0; }.queue { margin-top:12px; }.queue .item { min-height:48px; display:flex; align-items:center; justify-content:space-between; margin-top:7px; }.queue .item-meta { margin:2px 0 0; }.queue .actions { width:78px; margin:0; }.queue button { min-height:32px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:11px; margin-top:12px; }.legend span { display:inline-flex; align-items:center; gap:5px; }.dot { width:8px; height:8px; border-radius:2px; background:var(--green); }.dot.orange{background:var(--orange)}.dot.blue{background:var(--blue)}
+  @media (max-width:900px) { .choices-grid { grid-template-columns:1fr; }.widget { min-height:0; } }
+</style>
+
+<section class="widget-choices">
+  <div class="intro">
+    <div class="label">GROSSES WIDGET · 3 ENTWÜRFE</div>
+    <h2>Welche Übersicht fühlt sich richtig an?</h2>
+    <p class="subtitle">Alle Varianten zeigen dieselben Inhalte, aber mit mehr Luft: Check, Ja/Nein, Count und Erinnerung.</p>
+  </div>
+  <div class="choices-grid">
+    <article class="choice" data-choice="a" onclick="toggleSelect(this)">
+      <header class="choice-head"><span class="badge">A</span><div><h3>Refined list</h3><p>4 Elemente, klar gestaffelt</p></div></header>
+      <div class="widget">
+        <div class="widget-top"><strong>Heute</strong><span class="count">1/4&nbsp;&nbsp; +4</span></div>
+        <div class="item"><div class="item-title"><span>Training</span><span>Streak 8</span></div><div class="tile-row">${'<i class="tile on"></i>'.repeat(14)}${'<i class="tile"></i>'.repeat(10)}${'<i class="tile hot"></i>'.repeat(4)}</div><div class="actions"><button class="primary">✓ Done</button><button class="no">✕ Nein</button><button>↶</button></div></div>
+        <div class="item"><div class="item-title"><span>Wasser trinken</span><span>2 / 3</span></div><div class="tile-row">${'<i class="tile blue"></i>'.repeat(9)}${'<i class="tile"></i>'.repeat(19)}</div><div class="actions"><button class="primary">+1</button><button>↶</button></div></div>
+        <div class="item reminder"><span class="bell">◌</span><div><div class="item-title"><span>Arzttermin</span></div><div class="item-meta">Heute noch offen</div></div><div class="actions"><button class="primary">✓</button><button>↶</button></div></div>
+        <div class="item reminder"><span class="bell">◌</span><div><div class="item-title"><span>Medikament</span></div><div class="item-meta">Fällig morgen</div></div><div class="actions"><button class="primary">✓</button><button>↶</button></div></div>
+        <div class="legend"><span><i class="dot"></i> erledigt</span><span><i class="dot orange"></i> heute</span><span><i class="dot blue"></i> count</span></div>
+      </div>
+    </article>
+
+    <article class="choice" data-choice="b" onclick="toggleSelect(this)">
+      <header class="choice-head"><span class="badge">B</span><div><h3>Two-column grid</h3><p>6 Elemente, maximal kompakt</p></div></header>
+      <div class="widget">
+        <div class="widget-top"><strong>Heute</strong><span class="count">1/4&nbsp;&nbsp; +4</span></div>
+        <div class="grid-layout">
+          <div class="item"><div class="item-title"><span>Training</span><span>8</span></div><div class="tile-row">${'<i class="tile on"></i>'.repeat(8)}${'<i class="tile"></i>'.repeat(6)}</div><div class="actions"><button class="primary">✓</button><button>↶</button></div></div>
+          <div class="item"><div class="item-title"><span>Wasser</span><span>2/3</span></div><div class="tile-row">${'<i class="tile blue"></i>'.repeat(5)}${'<i class="tile"></i>'.repeat(9)}</div><div class="actions"><button class="primary">+1</button><button>↶</button></div></div>
+          <div class="item"><div class="item-title"><span>Yoga</span><span>Ja?</span></div><div class="tile-row">${'<i class="tile hot"></i>'.repeat(4)}${'<i class="tile"></i>'.repeat(10)}</div><div class="actions"><button class="primary">Ja</button><button class="no">Nein</button></div></div>
+          <div class="item reminder"><span class="bell">◌</span><div><div class="item-title"><span>Arzt</span></div><div class="item-meta">heute</div></div></div>
+          <div class="item reminder"><span class="bell">◌</span><div><div class="item-title"><span>Medikament</span></div><div class="item-meta">morgen</div></div></div>
+          <div class="item"><div class="item-title"><span>Lesen</span><span>4</span></div><div class="tile-row">${'<i class="tile on"></i>'.repeat(7)}${'<i class="tile"></i>'.repeat(7)}</div><div class="actions"><button class="primary">✓</button><button>↶</button></div></div>
+        </div>
+        <div class="legend"><span><i class="dot"></i> habit</span><span><i class="dot blue"></i> reminder</span></div>
+      </div>
+    </article>
+
+    <article class="choice" data-choice="c" onclick="toggleSelect(this)">
+      <header class="choice-head"><span class="badge">C</span><div><h3>Focus + queue</h3><p>1 großes Habit, 3 schnelle Einträge</p></div></header>
+      <div class="widget">
+        <div class="widget-top"><strong>Heute</strong><span class="count">1/4&nbsp;&nbsp; +4</span></div>
+        <div class="featured"><div class="item-title"><span>Training</span><span>Streak 8</span></div><div class="tile-row">${'<i class="tile on"></i>'.repeat(16)}${'<i class="tile"></i>'.repeat(8)}${'<i class="tile hot"></i>'.repeat(4)}</div><div class="actions"><button class="primary">✓ Done</button><button class="no">✕ Nein</button><button>↶</button></div></div>
+        <div class="queue"><div class="item"><div><div class="item-title"><span>Wasser trinken</span></div><div class="item-meta">2 / 3 · Count</div></div><div class="actions"><button class="primary">+1</button></div></div><div class="item"><div><div class="item-title"><span>Arzttermin</span></div><div class="item-meta">Heute noch offen</div></div><div class="actions"><button class="primary">✓</button></div></div><div class="item"><div><div class="item-title"><span>Medikament</span></div><div class="item-meta">Fällig morgen</div></div><div class="actions"><button class="primary">✓</button></div></div></div>
+        <div class="legend"><span>Graph bleibt groß und lesbar</span></div>
+      </div>
+    </article>
+  </div>
+</section>
+<script>
+  document.querySelectorAll('.tile-row').forEach((row, index) => {
+    row.textContent = '';
+    const total = row.closest('.grid-layout') ? 14 : 28;
+    const active = [14,9,4,7,8,5,4,0,0,7,16][index] || 0;
+    const color = index === 1 || index === 5 ? 'blue' : index === 2 ? 'hot' : 'on';
+    for (let i = 0; i < total; i += 1) {
+      const tile = document.createElement('i');
+      tile.className = 'tile' + (i < active ? ' ' + color : '');
+      row.appendChild(tile);
+    }
+  });
+</script>

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "updatedAt": 1,
+  "habits": [
+    {
+      "id": "0F4E8B64-AB73-4A23-A0F4-1AB1D0B2C301",
+      "name": "Test habit",
+      "emoji": "",
+      "createdAt": "2026-08-01",
+      "log": {
+        "2026-08-24": 1,
+        "2026-08-25": 1
+      }
+    }
+  ]
+}

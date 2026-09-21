@@ -1,0 +1,521 @@
+<section class="splash-lab" aria-labelledby="lab-title">
+  <header class="lab-header">
+    <div>
+      <p class="lab-kicker">hAiity / splash lab</p>
+      <h2 id="lab-title">Which opening fits hAiity?</h2>
+      <p class="lab-subtitle">Four ways to bring the GitHub tiles into the Habits page without losing the portrait frame.</p>
+    </div>
+    <div class="lab-actions">
+      <button class="lab-button" id="replay-all" type="button">Replay all</button>
+      <span class="choice-note" id="choice-note">Choose a direction</span>
+    </div>
+  </header>
+
+  <div class="variant-grid">
+    <article class="variant-card" data-choice="a" onclick="selectVariant(this)">
+      <div class="variant-meta">
+        <span class="variant-index">A</span>
+        <div>
+          <h3>Safe-area fit</h3>
+          <p>Quiet, balanced, always inside the phone.</p>
+        </div>
+      </div>
+      <div class="device" data-variant="a" data-label="Safe-area fit">
+        <div class="device-shell">
+          <div class="dynamic-island"></div>
+          <div class="screen">
+            <div class="mock-app">{{APP}}</div>
+            <div class="tile-grid" aria-hidden="true"></div>
+            <span class="screen-caption">fit / spread / fade</span>
+          </div>
+        </div>
+      </div>
+      <div class="variant-footer">
+        <span>Most native</span>
+        <button class="replay-button" type="button" onclick="replayVariant(event, this)">Replay</button>
+      </div>
+    </article>
+
+    <article class="variant-card" data-choice="b" onclick="selectVariant(this)">
+      <div class="variant-meta">
+        <span class="variant-index">B</span>
+        <div>
+          <h3>Full-bleed field</h3>
+          <p>More energy, with the edges doing the work.</p>
+        </div>
+      </div>
+      <div class="device" data-variant="b" data-label="Full-bleed field">
+        <div class="device-shell">
+          <div class="dynamic-island"></div>
+          <div class="screen">
+            <div class="mock-app">{{APP}}</div>
+            <div class="tile-grid" aria-hidden="true"></div>
+            <span class="screen-caption">fill / expand / fade</span>
+          </div>
+        </div>
+      </div>
+      <div class="variant-footer">
+        <span>Most expressive</span>
+        <button class="replay-button" type="button" onclick="replayVariant(event, this)">Replay</button>
+      </div>
+    </article>
+
+    <article class="variant-card" data-choice="c" onclick="selectVariant(this)">
+      <div class="variant-meta">
+        <span class="variant-index">C</span>
+        <div>
+          <h3>Center zoom</h3>
+          <p>The cluster becomes the doorway into the app.</p>
+        </div>
+      </div>
+      <div class="device" data-variant="c" data-label="Center zoom">
+        <div class="device-shell">
+          <div class="dynamic-island"></div>
+          <div class="screen">
+            <div class="mock-app">{{APP}}</div>
+            <div class="tile-grid" aria-hidden="true"></div>
+            <span class="screen-caption">cluster / zoom / reveal</span>
+          </div>
+        </div>
+      </div>
+      <div class="variant-footer">
+        <span>Closest to current idea</span>
+        <button class="replay-button" type="button" onclick="replayVariant(event, this)">Replay</button>
+      </div>
+    </article>
+
+    <article class="variant-card" data-choice="d" onclick="selectVariant(this)">
+      <div class="variant-meta">
+        <span class="variant-index">D</span>
+        <div>
+          <h3>Row spread</h3>
+          <p>Rows breathe apart before the page settles.</p>
+        </div>
+      </div>
+      <div class="device" data-variant="d" data-label="Row spread">
+        <div class="device-shell">
+          <div class="dynamic-island"></div>
+          <div class="screen">
+            <div class="mock-app">{{APP}}</div>
+            <div class="tile-grid" aria-hidden="true"></div>
+            <span class="screen-caption">rows / rhythm / fade</span>
+          </div>
+        </div>
+      </div>
+      <div class="variant-footer">
+        <span>Most graphic</span>
+        <button class="replay-button" type="button" onclick="replayVariant(event, this)">Replay</button>
+      </div>
+    </article>
+  </div>
+
+  <footer class="lab-footer">
+    <span class="status-dot"></span>
+    <span>All four use the same tile palette and reveal the same Habits page.</span>
+    <span class="lab-hint">Click a card to mark your favorite.</span>
+  </footer>
+</section>
+
+<style>
+  :root {
+    --lab-ink: #17251d;
+    --lab-muted: #6d7c72;
+    --lab-line: #dbe3dc;
+    --lab-paper: #f5f7f3;
+    --lab-green: #2fb357;
+    --lab-deep: #1b653a;
+  }
+
+  * { box-sizing: border-box; }
+
+  .splash-lab {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 18px 20px 30px;
+    color: var(--lab-ink);
+  }
+
+  .lab-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 22px;
+    padding: 8px 0 22px;
+    border-bottom: 1px solid var(--lab-line);
+  }
+
+  .lab-kicker {
+    margin: 0 0 8px;
+    color: var(--lab-green);
+    font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .lab-header h2 {
+    margin: 0;
+    font: 760 clamp(25px, 4vw, 42px)/1.02 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -.03em;
+  }
+
+  .lab-subtitle {
+    max-width: 620px;
+    margin: 10px 0 0;
+    color: var(--lab-muted);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  }
+
+  .lab-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+
+  .lab-button, .replay-button {
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  }
+
+  .lab-button {
+    padding: 12px 16px;
+    background: var(--lab-ink);
+    color: #fff;
+  }
+
+  .lab-button:hover, .replay-button:hover { transform: translateY(-1px); }
+
+  .choice-note {
+    min-width: 118px;
+    color: var(--lab-muted);
+    font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: right;
+  }
+
+  .variant-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    padding-top: 20px;
+  }
+
+  .variant-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    border: 1px solid var(--lab-line);
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+
+  .variant-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(23, 37, 29, .08); }
+  .variant-card.selected { border-color: var(--lab-green); box-shadow: 0 0 0 2px rgba(47, 179, 87, .16), 0 12px 28px rgba(23, 37, 29, .1); }
+
+  .variant-meta {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 76px;
+    padding: 14px 14px 10px;
+  }
+
+  .variant-index {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border-radius: 7px;
+    background: #e7f5e9;
+    color: var(--lab-deep);
+    font: 800 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .variant-meta h3 { margin: 1px 0 4px; font: 750 15px/1.1 ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; }
+  .variant-meta p { margin: 0; color: var(--lab-muted); font: 11px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; }
+
+  .device { padding: 0 14px; }
+
+  .device-shell {
+    position: relative;
+    width: min(100%, 230px);
+    margin: 0 auto;
+    padding: 7px;
+    border: 1px solid #29372d;
+    border-radius: 32px;
+    background: #0b120e;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 14px 30px rgba(16, 30, 21, .22);
+  }
+
+  .dynamic-island {
+    position: absolute;
+    z-index: 3;
+    top: 12px;
+    left: 50%;
+    width: 62px;
+    height: 17px;
+    border-radius: 999px;
+    background: #050806;
+    transform: translateX(-50%);
+  }
+
+  .screen {
+    position: relative;
+    aspect-ratio: 9 / 18.8;
+    overflow: hidden;
+    border-radius: 26px;
+    background: #101a14;
+    isolation: isolate;
+  }
+
+  .mock-app {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    padding: 42px 12px 14px;
+    background: #f4f7f1;
+    color: #17251d;
+    opacity: 0;
+    transform: scale(1.055);
+  }
+
+  .is-playing .mock-app { animation: app-reveal 3.25s cubic-bezier(.2,.8,.2,1) both; }
+
+  .mock-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mock-brand { display: flex; align-items: center; gap: 7px; }
+  .mock-mark { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #1e7c43; color: #fff; font: 800 9px/1 ui-monospace, monospace; }
+  .mock-brand strong { display: block; font: 800 13px/1 ui-rounded, "SF Pro Rounded", sans-serif; }
+  .mock-brand small { display: block; margin-top: 3px; color: #829087; font: 8px/1 ui-monospace, monospace; }
+  .mock-date { color: #809087; font: 8px/1 ui-monospace, monospace; }
+  .mock-tabs { display: flex; align-items: center; gap: 5px; margin: 18px 0 10px; }
+  .mock-tabs span { padding: 5px 7px; border-radius: 999px; color: #809087; font: 700 8px/1 ui-monospace, monospace; }
+  .mock-tabs .active { background: #dff0e1; color: #1d7b42; }
+  .mock-plus { display: grid; width: 18px; height: 18px; margin-left: auto; place-items: center; border-radius: 6px; background: #1b6f3c; color: #fff; font: 900 12px/1 sans-serif; }
+  .mock-card { margin-top: 10px; padding: 11px; border: 1px solid #e0e9df; border-radius: 13px; background: rgba(255,255,255,.82); box-shadow: 0 4px 12px rgba(38,73,48,.06); }
+  .mock-card-head { display: flex; align-items: center; gap: 6px; font: 750 10px/1 ui-rounded, "SF Pro Rounded", sans-serif; }
+  .mock-card-head .dot { width: 7px; height: 7px; border-radius: 3px; background: #2fb357; }
+  .mock-card-head .count { margin-left: auto; color: #2b8f4a; font: 800 8px/1 ui-monospace, monospace; }
+  .mini-grid { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; margin-top: 11px; }
+  .mini-grid i { aspect-ratio: 1; border-radius: 2px; background: #e5efe4; }
+  .mini-grid i:nth-child(3n) { background: #b8e5b8; }
+  .mini-grid i:nth-child(5n) { background: #68c27b; }
+  .mini-grid i:nth-child(11n) { background: #2e9c4d; }
+  .mock-card.muted { opacity: .65; }
+  .mock-footer { display: flex; justify-content: space-between; margin-top: 19px; color: #829087; font: 8px/1 ui-monospace, monospace; }
+
+  .tile-grid {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .tile {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.12);
+  }
+
+  .tile.level-0 { background: #dff0df; }
+  .tile.level-1 { background: #a9dda9; }
+  .tile.level-2 { background: #67c479; }
+  .tile.level-3 { background: #2e9d4f; }
+  .tile.level-4 { background: #186d39; }
+
+  .is-playing[data-variant="a"] .tile { animation: safe-spread 3.25s cubic-bezier(.17,.84,.35,1) both; animation-delay: calc(var(--delay) * 1s); }
+  .is-playing[data-variant="b"] .tile { animation: full-spread 3.25s cubic-bezier(.17,.84,.35,1) both; animation-delay: calc(var(--delay) * 1s); }
+  .is-playing[data-variant="c"] .tile { animation: center-zoom 3.25s cubic-bezier(.17,.84,.35,1) both; animation-delay: calc(var(--delay) * 1s); }
+  .is-playing[data-variant="d"] .tile { animation: row-spread 3.25s cubic-bezier(.17,.84,.35,1) both; animation-delay: calc(var(--delay) * 1s); }
+
+  .screen-caption {
+    position: absolute;
+    z-index: 4;
+    right: 12px;
+    bottom: 10px;
+    color: rgba(255,255,255,.52);
+    font: 7px/1 ui-monospace, monospace;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: 0;
+  }
+
+  .is-playing .screen-caption { animation: caption-fade 3.25s ease both; }
+
+  @keyframes safe-spread {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.12); }
+    17% { opacity: 1; transform: translate(-50%, -50%) scale(.38); }
+    64% { opacity: 1; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(.84); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(.92); }
+  }
+
+  @keyframes full-spread {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.11); }
+    15% { opacity: 1; transform: translate(-50%, -50%) scale(.48); }
+    62% { opacity: 1; transform: translate(calc(-50% + var(--full-x)), calc(-50% + var(--full-y))) scale(1.1); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--full-x)), calc(-50% + var(--full-y))) scale(1.24); }
+  }
+
+  @keyframes center-zoom {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.12); }
+    19% { opacity: 1; transform: translate(-50%, -50%) scale(.42); }
+    49% { opacity: 1; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(.9); }
+    70% { opacity: 1; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1.55); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(7.5); }
+  }
+
+  @keyframes row-spread {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.12); }
+    14% { opacity: 1; transform: translate(-50%, -50%) scale(.36); }
+    65% { opacity: 1; transform: translate(calc(-50% + var(--row-x)), calc(-50% + var(--row-y))) scale(.8); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--row-x)), calc(-50% + var(--row-y))) scale(.9); }
+  }
+
+  @keyframes app-reveal {
+    0%, 57% { opacity: 0; transform: scale(1.055); }
+    78% { opacity: .75; transform: scale(1.015); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes caption-fade {
+    0%, 65% { opacity: 0; }
+    77%, 100% { opacity: .65; }
+  }
+
+  .variant-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    padding: 12px 14px 14px;
+    color: var(--lab-muted);
+    font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .replay-button { padding: 8px 11px; background: #e7f5e9; color: #1d7b42; }
+
+  .lab-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 2px 0;
+    color: var(--lab-muted);
+    font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lab-green); box-shadow: 0 0 0 4px #e1f2e4; }
+  .lab-hint { margin-left: auto; color: #85938a; }
+
+  @media (max-width: 960px) {
+    .variant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 620px) {
+    .splash-lab { padding: 10px 12px 22px; }
+    .lab-header { align-items: flex-start; flex-direction: column; }
+    .lab-actions { width: 100%; justify-content: space-between; }
+    .choice-note { text-align: left; }
+    .variant-grid { grid-template-columns: 1fr 1fr; gap: 9px; padding-top: 14px; }
+    .variant-meta { min-height: 92px; padding: 10px 9px 7px; gap: 6px; }
+    .variant-index { width: 21px; height: 21px; border-radius: 6px; font-size: 10px; }
+    .variant-meta h3 { font-size: 12px; }
+    .variant-meta p { font-size: 9px; }
+    .device { padding: 0 7px; }
+    .device-shell { border-radius: 24px; padding: 5px; }
+    .screen { border-radius: 20px; }
+    .dynamic-island { top: 9px; width: 50px; height: 13px; }
+    .variant-footer { padding: 9px; font-size: 8px; }
+    .replay-button { padding: 7px 8px; font-size: 10px; }
+    .lab-footer { align-items: flex-start; flex-wrap: wrap; font-size: 9px; }
+    .lab-hint { width: 100%; margin-left: 15px; }
+  }
+</style>
+
+<script>
+  (() => {
+    const levels = [
+      0, 1, 0, 2, 0, 3, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      1, 0, 2, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      0, 1, 0, 3, 0, 2, 0, 1, 0, 4, 0, 2, 0, 1, 0, 3, 0, 2, 0, 1, 0, 2,
+      1, 0, 2, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      0, 1, 0, 2, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2,
+      1, 0, 2, 0, 3, 0, 1, 0, 2, 0, 4, 0, 1, 0, 2, 0, 3, 0, 1, 0, 2
+    ];
+
+    const appMarkup = `
+      <div class="mock-header">
+        <div class="mock-brand"><span class="mock-mark">hA</span><div><strong>hAiity</strong><small>Habits</small></div></div>
+        <span class="mock-date">TODAY</span>
+      </div>
+      <div class="mock-tabs"><span class="active">Habits</span><span>Stats</span><span>More</span><b class="mock-plus">+</b></div>
+      <div class="mock-card"><div class="mock-card-head"><i class="dot"></i><span>Morning run</span><span class="count">7 day streak</span></div><div class="mini-grid">${Array.from({length: 42}, () => '<i></i>').join('')}</div></div>
+      <div class="mock-card muted"><div class="mock-card-head"><i class="dot"></i><span>Read 20 pages</span><span class="count">3 / 7</span></div><div class="mini-grid">${Array.from({length: 28}, () => '<i></i>').join('')}</div></div>
+      <div class="mock-footer"><span>2 habits left</span><span>hAiity PRO</span></div>
+    `;
+
+    function buildTiles() {
+      document.querySelectorAll('.mock-app').forEach(app => { app.innerHTML = appMarkup; });
+      document.querySelectorAll('.tile-grid').forEach(grid => {
+        grid.innerHTML = '';
+        for (let index = 0; index < 147; index += 1) {
+          const col = index % 21;
+          const row = Math.floor(index / 21);
+          const tile = document.createElement('i');
+          tile.className = `tile level-${levels[index] || 0}`;
+          const x = (col - 10) * 8.6;
+          const y = (row - 3) * 8.6;
+          tile.style.setProperty('--x', `${x}px`);
+          tile.style.setProperty('--y', `${y}px`);
+          tile.style.setProperty('--full-x', `${x * 1.3}px`);
+          tile.style.setProperty('--full-y', `${y * 1.6}px`);
+          tile.style.setProperty('--row-x', `${x * 1.02}px`);
+          tile.style.setProperty('--row-y', `${y * 1.72}px`);
+          tile.style.setProperty('--delay', `${0.02 + (index % 21) * 0.004 + row * 0.012}`);
+          grid.appendChild(tile);
+        }
+      });
+    }
+
+    window.replayVariant = (event, button) => {
+      event.stopPropagation();
+      playDevice(button.closest('.variant-card').querySelector('.device'));
+    };
+
+    window.selectVariant = card => {
+      document.querySelectorAll('.variant-card').forEach(item => item.classList.remove('selected'));
+      card.classList.add('selected');
+      const label = card.querySelector('h3')?.textContent || card.dataset.choice;
+      document.getElementById('choice-note').textContent = `Selected: ${label}`;
+      if (typeof toggleSelect === 'function') toggleSelect(card);
+    };
+
+    function playDevice(device) {
+      device.classList.remove('is-playing');
+      void device.offsetWidth;
+      device.classList.add('is-playing');
+      window.setTimeout(() => device.classList.remove('is-playing'), 3700);
+    }
+
+    document.getElementById('replay-all').addEventListener('click', () => {
+      document.querySelectorAll('.device').forEach((device, index) => {
+        window.setTimeout(() => playDevice(device), index * 110);
+      });
+    });
+
+    buildTiles();
+    window.setTimeout(() => document.querySelectorAll('.device').forEach((device, index) => {
+      window.setTimeout(() => playDevice(device), index * 120);
+    }), 180);
+  })();
+</script>

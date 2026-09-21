@@ -1,0 +1,52 @@
+<h2>Large widget: reduce information, protect the graph</h2>
+<p class="subtitle">All options keep icon-only actions and use real long names. Select the direction that feels most like hAiity.</p>
+
+<style>
+  .widget-grid{display:grid;grid-template-columns:repeat(3,minmax(250px,1fr));gap:18px;margin-top:22px}
+  .direction{border:1px solid var(--border);border-radius:16px;padding:14px;cursor:pointer;transition:.18s ease;background:var(--card)}
+  .direction.selected{outline:3px solid #34a853;outline-offset:2px}
+  .widget{aspect-ratio:1/1.02;border-radius:28px;padding:18px;background:#403951;color:#f7f5fb;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);overflow:hidden}
+  .head{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:18px;margin-bottom:14px}.progress{font-size:12px;color:#aaa3b8;font-weight:500}
+  .row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:10px 0}.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:650;font-size:13px}.state{font-size:12px;color:#9dffb4}.actions{display:flex;gap:7px;color:#b890ff;font-size:16px}.graph{height:32px;display:grid;grid-template-columns:repeat(11,1fr);grid-template-rows:repeat(4,1fr);gap:2px;margin-top:5px}.graph i{background:#262334;border-radius:2px}.graph i:nth-child(4n),.graph i:nth-child(7n){background:#34a853}.graph.red i:nth-child(5n){background:#d95a4c}.graph.violet i:nth-child(6n){background:#b788f6}
+  .tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tile{min-width:0}.tile .graph{height:65px;grid-template-rows:repeat(7,1fr);grid-template-columns:repeat(8,1fr)}.tile .actions{justify-content:space-around;margin-top:8px;height:24px;align-items:center}.meta{display:flex;gap:5px;align-items:center;min-width:0}.badge{margin-left:auto;flex:0 0 auto;font-size:13px}
+  .hero .graph{height:112px;grid-template-rows:repeat(7,1fr);grid-template-columns:repeat(14,1fr)}.hero-actions{display:flex;justify-content:flex-end;gap:18px;margin:8px 0;color:#b890ff}.queue{display:flex;gap:9px;align-items:center;height:34px}.queue .name{flex:1}.queue .actions{flex:0 0 auto}.reminder{height:34px;border-left:3px solid #b788f6;padding-left:8px;display:flex;align-items:center;gap:6px}.tiny{font-size:10px;color:#aaa3b8;white-space:nowrap}
+  .direction h3{margin:14px 2px 4px}.direction p{font-size:13px;color:var(--muted);margin:0 2px}
+  @media(max-width:950px){.widget-grid{grid-template-columns:1fr}.widget{max-width:390px;margin:auto}}
+</style>
+
+<div class="widget-grid">
+  <div class="direction" data-choice="a" onclick="toggleSelect(this)">
+    <div class="widget">
+      <div class="head"><span>Heute</span><span class="progress">2 / 3</span></div>
+      <div class="row"><div><div class="name">🏃 运动了吗 <span class="state">✕</span></div><div class="graph red">${'<i></i>'.repeat(44)}</div></div><div class="actions">✓ ✕ ↩</div></div>
+      <div class="row"><div><div class="name">🌶️ 戒辣 <span class="state">✓</span></div><div class="graph violet">${'<i></i>'.repeat(44)}</div></div><div class="actions">✓ ↩</div></div>
+      <div class="row"><div><div class="name">😤 戒 <span class="state">✓</span></div><div class="graph">${'<i></i>'.repeat(44)}</div></div><div class="actions">✓ ✕ ↩</div></div>
+      <div class="row"><div class="reminder"><span>💬</span><span class="name">取一下微信免额</span><span class="tiny">23:45</span></div><div class="actions">✓ ↩</div></div>
+    </div>
+    <h3>A. Compact rows</h3><p>Four items. Status becomes one glyph; reminders use a short time instead of a sentence.</p>
+  </div>
+
+  <div class="direction selected" data-choice="b" onclick="toggleSelect(this)">
+    <div class="widget">
+      <div class="head"><span>Heute</span><span class="progress">2 / 3</span></div>
+      <div class="tile-grid">
+        <div class="tile"><div class="meta"><span class="name">🏃 运动了吗</span><span class="badge">✕</span></div><div class="graph red">${'<i></i>'.repeat(56)}</div><div class="actions">✓ ✕ ↩</div></div>
+        <div class="tile"><div class="meta"><span class="name">🌶️ 戒辣</span><span class="badge">✓</span></div><div class="graph violet">${'<i></i>'.repeat(56)}</div><div class="actions">✓ ↩</div></div>
+        <div class="tile"><div class="meta"><span class="name">😤 戒</span><span class="badge">✓</span></div><div class="graph">${'<i></i>'.repeat(56)}</div><div class="actions">✓ ✕ ↩</div></div>
+        <div class="tile"><div class="meta"><span class="name">💬 取一下微信免额</span><span class="badge">23:45</span></div><div style="height:65px;display:flex;align-items:center;color:#aaa3b8;font-size:12px">Reminder</div><div class="actions">✓ ↩</div></div>
+      </div>
+    </div>
+    <h3>B. Graph-first grid</h3><p>Recommended. Four stable tiles, full graphs, one-line names, symbol-only state and actions.</p>
+  </div>
+
+  <div class="direction" data-choice="c" onclick="toggleSelect(this)">
+    <div class="widget hero">
+      <div class="head"><span>Heute</span><span class="progress">2 / 3</span></div>
+      <div class="meta"><span class="name">🏃 运动了吗</span><span class="badge">✕</span></div><div class="graph red">${'<i></i>'.repeat(98)}</div><div class="hero-actions">✓ ✕ ↩</div>
+      <div class="queue"><span class="name">🌶️ 戒辣</span><span class="state">✓</span><span class="actions">✓ ↩</span></div>
+      <div class="queue"><span class="name">😤 戒</span><span class="state">✓</span><span class="actions">✓ ✕ ↩</span></div>
+      <div class="queue"><span class="name">💬 取一下微信免额</span><span class="tiny">23:45</span><span class="actions">✓ ↩</span></div>
+    </div>
+    <h3>C. Focus + queue</h3><p>One large graph. Queue items intentionally have no tiny graph, only identity, state and actions.</p>
+  </div>
+</div>

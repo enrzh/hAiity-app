@@ -1,0 +1,181 @@
+<section class="pulse-lab" aria-labelledby="pulse-title">
+  <header class="pulse-header">
+    <div>
+      <p class="pulse-kicker">hAiity / splash concept / recommended</p>
+      <h2 id="pulse-title">Contribution pulse</h2>
+      <p class="pulse-subtitle">The real 21 x 7 GitHub graph stays recognizable for a beat, breathes outward from its own cells, then dissolves into the Habits page. No screen rotation, no hard zoom, no logo animation competing with the product.</p>
+    </div>
+    <div class="pulse-actions">
+      <button class="pulse-button" id="replay-pulse" type="button">Replay</button>
+      <span class="pulse-choice" id="pulse-choice">Recommended direction</span>
+    </div>
+  </header>
+
+  <div class="pulse-stage" data-choice="recommended" onclick="selectPulse(this)">
+    <div class="stage-copy">
+      <span class="stage-label">Launch handoff</span>
+      <div class="stage-steps" aria-label="Animation sequence">
+        <span><b>01</b> graph appears</span>
+        <span><b>02</b> cells breathe</span>
+        <span><b>03</b> Habits settles</span>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-shell">
+        <div class="phone-island"></div>
+        <div class="phone-screen">
+          <div class="app-scene" aria-hidden="true"></div>
+          <div class="splash-surface" aria-hidden="true"></div>
+          <div class="pulse-grid" aria-hidden="true"></div>
+          <span class="screen-note">hAiity</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="stage-footnote">A 1.4 second handoff keeps the launch recognizable without holding the user outside the app.</p>
+  </div>
+
+  <footer class="pulse-footer">
+    <span class="pulse-dot"></span>
+    <span>Uses the app's grouped background and contribution palette in light and dark mode.</span>
+    <span class="pulse-hint">Click the preview to mark it as the direction.</span>
+  </footer>
+</section>
+
+<style>
+  :root {
+    --pulse-ink: #17251d;
+    --pulse-muted: #6d7c72;
+    --pulse-line: #dbe3dc;
+    --pulse-paper: #f5f7f3;
+    --pulse-green: #2fb357;
+    --pulse-deep: #1b653a;
+  }
+
+  * { box-sizing: border-box; }
+
+  .pulse-lab { max-width: 1040px; margin: 0 auto; padding: 18px 20px 30px; color: var(--pulse-ink); }
+  .pulse-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 8px 0 22px; border-bottom: 1px solid var(--pulse-line); }
+  .pulse-kicker { margin: 0 0 8px; color: var(--pulse-green); font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .pulse-header h2 { margin: 0; font: 760 clamp(28px, 4.2vw, 46px)/1.02 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.03em; }
+  .pulse-subtitle { max-width: 680px; margin: 10px 0 0; color: var(--pulse-muted); font: 15px/1.48 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .pulse-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  .pulse-button { border: 0; border-radius: 999px; padding: 12px 17px; background: var(--pulse-ink); color: #fff; cursor: pointer; font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .pulse-button:hover { transform: translateY(-1px); }
+  .pulse-choice { min-width: 128px; color: var(--pulse-muted); font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+  .pulse-stage { position: relative; display: grid; min-height: 650px; place-items: center; margin-top: 20px; border: 1px solid var(--pulse-line); border-radius: 14px; background: var(--pulse-paper); cursor: pointer; overflow: hidden; transition: border-color .2s ease, box-shadow .2s ease; }
+  .pulse-stage:hover { border-color: var(--pulse-green); box-shadow: 0 12px 30px rgba(23, 37, 29, .08); }
+  .pulse-stage.selected { border-color: var(--pulse-green); box-shadow: 0 0 0 2px rgba(47, 179, 87, .14), 0 12px 30px rgba(23, 37, 29, .08); }
+  .stage-copy { position: absolute; z-index: 8; top: 28px; left: 30px; }
+  .stage-label { color: var(--pulse-deep); font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .stage-steps { display: flex; gap: 14px; margin-top: 10px; color: var(--pulse-muted); font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .stage-steps span { display: inline-flex; align-items: center; gap: 5px; }
+  .stage-steps b { color: var(--pulse-green); font-weight: 800; }
+  .stage-footnote { position: absolute; right: 30px; bottom: 28px; max-width: 280px; margin: 0; color: var(--pulse-muted); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+  .phone-wrap { position: relative; z-index: 2; width: min(100%, 280px); }
+  .phone-shell { position: relative; padding: 8px; border: 1px solid #29372d; border-radius: 38px; background: #0b120e; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 20px 42px rgba(16, 30, 21, .22); }
+  .phone-island { position: absolute; z-index: 8; top: 14px; left: 50%; width: 74px; height: 19px; border-radius: 999px; background: #050806; transform: translateX(-50%); }
+  .phone-screen { position: relative; aspect-ratio: 9 / 18.8; overflow: hidden; border-radius: 30px; background: #101a14; isolation: isolate; }
+
+  .app-scene { position: absolute; inset: 0; z-index: 1; padding: 48px 14px 16px; background: #f4f7f1; color: #17251d; opacity: 0; transform: scale(.985); }
+  .app-scene::before { content: "hAiity     Habits                         TODAY"; display: block; padding-bottom: 18px; border-bottom: 1px solid #dfe9df; color: #1d7b42; white-space: pre; font: 800 9px/1 ui-monospace, monospace; }
+  .app-scene::after { content: "Habits       Stats        More                 +\A\A  Morning run                         7 day streak\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A\A  Read 20 pages                              3 / 7\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪"; display: block; margin-top: 18px; padding: 12px; border: 1px solid #dfe9df; border-radius: 13px; background: rgba(255,255,255,.84); color: #58705e; white-space: pre; font: 700 8px/2.1 ui-monospace, monospace; }
+  .splash-surface { position: absolute; z-index: 2; inset: 0; background: #f4f7f1; }
+  .pulse-grid { position: absolute; z-index: 3; top: 50%; left: 50%; display: grid; width: min(78%, 220px); grid-template-columns: repeat(21, 1fr); gap: 3px; transform: translate(-50%, -50%); }
+  .pulse-grid i { aspect-ratio: 1; min-width: 0; border-radius: 2px; background: #dff0df; opacity: 0; transform: scale(.62); }
+  .pulse-grid i:nth-child(3n) { background: #a9dda9; }
+  .pulse-grid i:nth-child(5n) { background: #67c479; }
+  .pulse-grid i:nth-child(11n) { background: #2e9d4f; }
+  .pulse-grid i:nth-child(17n) { background: #186d39; }
+  .screen-note { position: absolute; z-index: 5; right: 13px; bottom: 11px; color: rgba(23,37,29,.45); font: 700 7px/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; opacity: 0; }
+
+  .is-playing .pulse-grid i { animation: tile-pulse 1.42s cubic-bezier(.2,.78,.25,1) both; animation-delay: calc(var(--pulse-delay) * 1s); }
+  .is-playing .splash-surface { animation: surface-fade 1.42s cubic-bezier(.2,.78,.25,1) both; }
+  .is-playing .app-scene { animation: app-settle 1.42s cubic-bezier(.2,.78,.25,1) both; }
+  .is-playing .screen-note { animation: note-fade 1.42s ease both; }
+  .has-played .pulse-grid i { opacity: 0; transform: scale(1); }
+  .has-played .splash-surface { opacity: 0; }
+  .has-played .app-scene { opacity: 1; transform: scale(1); }
+
+  @keyframes tile-pulse {
+    0% { opacity: 0; transform: translate(0, 0) scale(.62); }
+    18% { opacity: 1; transform: translate(0, 0) scale(.92); }
+    46% { opacity: 1; transform: translate(var(--pulse-x), var(--pulse-y)) scale(1.12); }
+    70% { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(0, 0) scale(1); }
+  }
+  @keyframes surface-fade { 0%, 42% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes app-settle { 0%, 35% { opacity: 0; transform: scale(.985); } 68% { opacity: .7; transform: scale(.995); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes note-fade { 0%, 65% { opacity: 0; } 100% { opacity: .55; } }
+
+  .pulse-footer { display: flex; align-items: center; gap: 8px; padding: 18px 2px 0; color: var(--pulse-muted); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pulse-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--pulse-green); box-shadow: 0 0 0 4px #e1f2e4; }
+  .pulse-hint { margin-left: auto; color: #85938a; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .is-playing .pulse-grid i, .is-playing .splash-surface, .is-playing .app-scene, .is-playing .screen-note { animation-duration: .01ms; animation-iteration-count: 1; }
+  }
+  @media (max-width: 620px) {
+    .pulse-lab { padding: 10px 12px 22px; }
+    .pulse-header { align-items: flex-start; flex-direction: column; gap: 16px; }
+    .pulse-actions { width: 100%; justify-content: space-between; }
+    .pulse-choice { text-align: left; }
+    .pulse-stage { min-height: 650px; margin-top: 14px; }
+    .stage-copy { top: 20px; left: 18px; right: 18px; }
+    .stage-steps { flex-wrap: wrap; gap: 8px 12px; font-size: 9px; }
+    .phone-wrap { width: min(70%, 230px); }
+    .stage-footnote { right: 18px; bottom: 20px; max-width: 210px; font-size: 9px; }
+    .pulse-footer { align-items: flex-start; flex-wrap: wrap; font-size: 9px; }
+    .pulse-hint { width: 100%; margin-left: 15px; }
+  }
+</style>
+
+<script>
+  (() => {
+    function buildGrid() {
+      document.querySelectorAll('.pulse-grid').forEach(grid => {
+        grid.innerHTML = '';
+        for (let index = 0; index < 147; index += 1) {
+          const column = index % 21;
+          const row = Math.floor(index / 21);
+          const centerColumn = 10;
+          const centerRow = 3;
+          const dx = column - centerColumn;
+          const dy = row - centerRow;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const tile = document.createElement('i');
+          tile.setAttribute('aria-hidden', 'true');
+          tile.style.setProperty('--pulse-x', `${(dx / 10) * 4}px`);
+          tile.style.setProperty('--pulse-y', `${(dy / 3) * 4}px`);
+          tile.style.setProperty('--pulse-delay', `${0.05 + distance * 0.012}`);
+          grid.appendChild(tile);
+        }
+      });
+    }
+
+    function playPulse() {
+      const stage = document.querySelector('.pulse-stage');
+      stage.classList.remove('has-played', 'is-playing');
+      void stage.offsetWidth;
+      stage.classList.add('is-playing');
+      window.setTimeout(() => stage.classList.add('has-played'), 1570);
+    }
+
+    window.selectPulse = stage => {
+      stage.classList.add('selected');
+      document.getElementById('pulse-choice').textContent = 'Recommended direction';
+      if (typeof toggleSelect === 'function') toggleSelect(stage);
+    };
+
+    document.getElementById('replay-pulse').addEventListener('click', event => {
+      event.stopPropagation();
+      playPulse();
+    });
+
+    buildGrid();
+    window.setTimeout(playPulse, 180);
+  })();
+</script>

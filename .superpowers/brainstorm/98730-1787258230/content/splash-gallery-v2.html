@@ -1,0 +1,182 @@
+<section class="turn-lab" aria-labelledby="turn-title">
+  <header class="turn-header">
+    <div>
+      <p class="turn-kicker">hAiity / splash lab / v2</p>
+      <h2 id="turn-title">Portrait graph. Quarter-turn. Habits.</h2>
+      <p class="turn-subtitle">Each option keeps the GitHub graph vertical, then rotates it 90 degrees while the Habits page fades in and expands from the same center.</p>
+    </div>
+    <div class="turn-actions">
+      <button class="turn-button" id="replay-turns" type="button">Replay all</button>
+      <span class="turn-choice" id="turn-choice">Choose a direction</span>
+    </div>
+  </header>
+
+  <div class="turn-grid">
+    <article class="turn-card" data-choice="a" onclick="selectTurn(this)">
+      <div class="turn-meta"><span class="turn-index">A</span><div><h3>Clean quarter-turn</h3><p>One calm rotation, then the app settles.</p></div></div>
+      <div class="turn-device" data-variant="a">
+        <div class="turn-shell"><div class="turn-island"></div><div class="turn-screen"><div class="turn-app"></div><div class="portrait-graph"></div><span class="turn-caption">vertical / rotate / fade</span></div></div>
+      </div>
+      <div class="turn-footer"><span>Most native</span><button class="turn-replay" type="button" onclick="replayTurn(event, this)">Replay</button></div>
+    </article>
+
+    <article class="turn-card" data-choice="b" onclick="selectTurn(this)">
+      <div class="turn-meta"><span class="turn-index">B</span><div><h3>Quarter-turn dissolve</h3><p>Tiles soften as the page takes over.</p></div></div>
+      <div class="turn-device" data-variant="b">
+        <div class="turn-shell"><div class="turn-island"></div><div class="turn-screen"><div class="turn-app"></div><div class="portrait-graph"></div><span class="turn-caption">vertical / dissolve / fade</span></div></div>
+      </div>
+      <div class="turn-footer"><span>Softest handoff</span><button class="turn-replay" type="button" onclick="replayTurn(event, this)">Replay</button></div>
+    </article>
+
+    <article class="turn-card" data-choice="c" onclick="selectTurn(this)">
+      <div class="turn-meta"><span class="turn-index">C</span><div><h3>Quarter-turn bloom</h3><p>The portrait field expands through the whole screen.</p></div></div>
+      <div class="turn-device" data-variant="c">
+        <div class="turn-shell"><div class="turn-island"></div><div class="turn-screen"><div class="turn-app"></div><div class="portrait-graph"></div><span class="turn-caption">vertical / bloom / fade</span></div></div>
+      </div>
+      <div class="turn-footer"><span>Most expressive</span><button class="turn-replay" type="button" onclick="replayTurn(event, this)">Replay</button></div>
+    </article>
+  </div>
+
+  <footer class="turn-footer-note"><span class="turn-dot"></span><span>The graph starts as a tall portrait field; the app reveal follows the same 90-degree movement.</span><span class="turn-hint">Click a card to mark your favorite.</span></footer>
+</section>
+
+<style>
+  :root {
+    --turn-ink: #17251d;
+    --turn-muted: #6d7c72;
+    --turn-line: #dbe3dc;
+    --turn-green: #2fb357;
+    --turn-deep: #1b653a;
+  }
+
+  * { box-sizing: border-box; }
+
+  .turn-lab { max-width: 1080px; margin: 0 auto; padding: 18px 20px 30px; color: var(--turn-ink); }
+  .turn-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; padding: 8px 0 22px; border-bottom: 1px solid var(--turn-line); }
+  .turn-kicker { margin: 0 0 8px; color: var(--turn-green); font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .turn-header h2 { margin: 0; font: 760 clamp(25px, 4vw, 42px)/1.02 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.03em; }
+  .turn-subtitle { max-width: 680px; margin: 10px 0 0; color: var(--turn-muted); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .turn-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  .turn-button, .turn-replay { border: 0; border-radius: 999px; cursor: pointer; font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .turn-button { padding: 12px 16px; background: var(--turn-ink); color: #fff; }
+  .turn-button:hover, .turn-replay:hover { transform: translateY(-1px); }
+  .turn-choice { min-width: 118px; color: var(--turn-muted); font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+  .turn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-top: 20px; }
+  .turn-card { display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--turn-line); border-radius: 12px; background: #fff; cursor: pointer; overflow: hidden; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+  .turn-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(23, 37, 29, .08); }
+  .turn-card.selected { border-color: var(--turn-green); box-shadow: 0 0 0 2px rgba(47, 179, 87, .16), 0 12px 28px rgba(23, 37, 29, .1); }
+  .turn-meta { display: flex; align-items: flex-start; gap: 10px; min-height: 76px; padding: 14px 14px 10px; }
+  .turn-index { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 7px; background: #e7f5e9; color: var(--turn-deep); font: 800 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .turn-meta h3 { margin: 1px 0 4px; font: 750 15px/1.1 ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; }
+  .turn-meta p { margin: 0; color: var(--turn-muted); font: 11px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; }
+  .turn-device { padding: 0 14px; }
+  .turn-shell { position: relative; width: min(100%, 230px); margin: 0 auto; padding: 7px; border: 1px solid #29372d; border-radius: 32px; background: #0b120e; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 14px 30px rgba(16, 30, 21, .22); }
+  .turn-island { position: absolute; z-index: 5; top: 12px; left: 50%; width: 62px; height: 17px; border-radius: 999px; background: #050806; transform: translateX(-50%); }
+  .turn-screen { position: relative; aspect-ratio: 9 / 18.8; overflow: hidden; border-radius: 26px; background: #0e1b13; isolation: isolate; }
+  .turn-app { position: absolute; inset: 0; z-index: 1; padding: 42px 12px 14px; background: #f4f7f1; color: #17251d; opacity: 0; transform: scale(.82); }
+  .turn-app::before { content: "hAiity   Habits                 TODAY"; display: block; padding-bottom: 18px; border-bottom: 1px solid #dce8dc; color: #1d7b42; white-space: pre; font: 800 9px/1 ui-monospace, monospace; }
+  .turn-app::after { content: "Habits     Stats       More       +\A\A  Morning run                 7 day streak\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A  ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪\A\A  Read 20 pages                    3 / 7"; display: block; margin-top: 18px; padding: 11px; border: 1px solid #dfe9df; border-radius: 13px; background: rgba(255,255,255,.84); color: #58705e; white-space: pre; font: 700 8px/2 ui-monospace, monospace; }
+  .portrait-graph { position: absolute; z-index: 3; top: 50%; left: 50%; display: grid; width: 58px; height: 300px; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 3px; padding: 4px; border-radius: 8px; background: rgba(15, 47, 26, .28); transform: translate(-50%, -50%) rotate(0deg) scale(.44); transform-origin: center; opacity: 0; }
+  .portrait-graph i { min-width: 0; min-height: 0; border-radius: 2px; background: #dff0df; }
+  .portrait-graph i:nth-child(3n) { background: #a9dda9; }
+  .portrait-graph i:nth-child(5n) { background: #67c479; }
+  .portrait-graph i:nth-child(11n) { background: #2e9d4f; }
+  .portrait-graph i:nth-child(17n) { background: #186d39; }
+  .turn-caption { position: absolute; z-index: 6; right: 12px; bottom: 10px; color: rgba(255,255,255,.6); font: 7px/1 ui-monospace, monospace; letter-spacing: .04em; text-transform: uppercase; opacity: 0; }
+
+  .is-turning .portrait-graph { animation: portrait-turn 3.5s cubic-bezier(.2,.8,.2,1) both; }
+  .is-turning .turn-app { animation: app-turn-reveal 3.5s cubic-bezier(.2,.8,.2,1) both; }
+  .is-turning .turn-caption { animation: caption-turn 3.5s ease both; }
+  .turn-device[data-variant="b"] .portrait-graph { gap: 4px; }
+  .turn-device[data-variant="b"] .turn-app { background: #f7f9f5; }
+  .turn-device[data-variant="c"] .portrait-graph { width: 70px; height: 330px; gap: 2px; }
+
+  @keyframes portrait-turn {
+    0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg) scale(.44); filter: blur(1px); }
+    12% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(.66); filter: blur(0); }
+    37% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+    63% { opacity: .94; transform: translate(-50%, -50%) rotate(90deg) scale(1.08); }
+    82% { opacity: .2; transform: translate(-50%, -50%) rotate(90deg) scale(3.9); filter: blur(1px); }
+    100% { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(6.4); filter: blur(5px); }
+  }
+
+  @keyframes app-turn-reveal {
+    0%, 42% { opacity: 0; transform: scale(.82); }
+    60% { opacity: .24; transform: scale(.88); }
+    79% { opacity: .76; transform: scale(.98); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes caption-turn { 0%, 58% { opacity: 0; } 71%, 100% { opacity: .64; } }
+
+  .turn-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding: 12px 14px 14px; color: var(--turn-muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .turn-replay { padding: 8px 11px; background: #e7f5e9; color: #1d7b42; }
+  .turn-footer-note { display: flex; align-items: center; gap: 8px; padding: 18px 2px 0; color: var(--turn-muted); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .turn-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--turn-green); box-shadow: 0 0 0 4px #e1f2e4; }
+  .turn-hint { margin-left: auto; color: #85938a; }
+
+  @media (max-width: 900px) { .turn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 620px) {
+    .turn-lab { padding: 10px 12px 22px; }
+    .turn-header { align-items: flex-start; flex-direction: column; }
+    .turn-actions { width: 100%; justify-content: space-between; }
+    .turn-choice { text-align: left; }
+    .turn-grid { grid-template-columns: 1fr 1fr; gap: 9px; padding-top: 14px; }
+    .turn-meta { min-height: 92px; padding: 10px 9px 7px; gap: 6px; }
+    .turn-index { width: 21px; height: 21px; border-radius: 6px; font-size: 10px; }
+    .turn-meta h3 { font-size: 12px; }
+    .turn-meta p { font-size: 9px; }
+    .turn-device { padding: 0 7px; }
+    .turn-shell { border-radius: 24px; padding: 5px; }
+    .turn-screen { border-radius: 20px; }
+    .turn-island { top: 9px; width: 50px; height: 13px; }
+    .portrait-graph { width: 42px; height: 210px; gap: 2px; }
+    .turn-device[data-variant="c"] .portrait-graph { width: 50px; height: 230px; }
+    .turn-footer { padding: 9px; font-size: 8px; }
+    .turn-replay { padding: 7px 8px; font-size: 10px; }
+    .turn-footer-note { align-items: flex-start; flex-wrap: wrap; font-size: 9px; }
+    .turn-hint { width: 100%; margin-left: 15px; }
+  }
+</style>
+
+<script>
+  (() => {
+    function buildGraph() {
+      document.querySelectorAll('.portrait-graph').forEach(graph => {
+        graph.innerHTML = '';
+        for (let index = 0; index < 196; index += 1) {
+          const tile = document.createElement('i');
+          tile.setAttribute('aria-hidden', 'true');
+          graph.appendChild(tile);
+        }
+      });
+    }
+
+    window.replayTurn = (event, button) => {
+      event.stopPropagation();
+      playTurn(button.closest('.turn-card').querySelector('.turn-device'));
+    };
+
+    window.selectTurn = card => {
+      document.querySelectorAll('.turn-card').forEach(item => item.classList.remove('selected'));
+      card.classList.add('selected');
+      document.getElementById('turn-choice').textContent = `Selected: ${card.querySelector('h3')?.textContent || card.dataset.choice}`;
+      if (typeof toggleSelect === 'function') toggleSelect(card);
+    };
+
+    function playTurn(device) {
+      device.classList.remove('is-turning');
+      void device.offsetWidth;
+      device.classList.add('is-turning');
+      window.setTimeout(() => device.classList.remove('is-turning'), 3900);
+    }
+
+    document.getElementById('replay-turns').addEventListener('click', () => {
+      document.querySelectorAll('.turn-device').forEach((device, index) => window.setTimeout(() => playTurn(device), index * 130));
+    });
+
+    buildGraph();
+    window.setTimeout(() => document.querySelectorAll('.turn-device').forEach((device, index) => window.setTimeout(() => playTurn(device), index * 140)), 180);
+  })();
+</script>

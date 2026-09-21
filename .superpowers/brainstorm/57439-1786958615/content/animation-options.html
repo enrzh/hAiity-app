@@ -1,0 +1,221 @@
+<style>
+  :root {
+    --ink: #162019;
+    --muted: #607066;
+    --line: #d8e2da;
+    --paper: #f6faf6;
+    --panel: #ffffff;
+    --green-0: #dce8de;
+    --green-1: #b7d5bb;
+    --green-2: #68a873;
+    --green-3: #287a3a;
+    --green-4: #155d29;
+  }
+
+  .splash-intro {
+    max-width: 760px;
+    margin-bottom: 22px;
+  }
+
+  .splash-intro h2 { margin-bottom: 8px; }
+  .splash-intro p { color: var(--muted); max-width: 680px; }
+
+  .motion-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .motion-option {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--panel);
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .motion-option:hover { transform: translateY(-2px); }
+  .motion-option.selected { border-color: var(--green-3); box-shadow: 0 0 0 3px rgba(40, 122, 58, .15); }
+
+  .phone {
+    position: relative;
+    aspect-ratio: .74;
+    min-height: 260px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #fcfffc, #eaf3eb);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .phone::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 13px;
+    width: 72px;
+    height: 5px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: #b7c4b9;
+  }
+
+  .phone::after {
+    content: "hAiity";
+    position: absolute;
+    left: 18px;
+    bottom: 13px;
+    font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .08em;
+    color: #77907c;
+  }
+
+  .tiles {
+    --size: 9px;
+    --gap: 3px;
+    position: absolute;
+    left: 50%;
+    top: 51%;
+    display: grid;
+    grid-template-columns: repeat(13, var(--size));
+    grid-template-rows: repeat(7, var(--size));
+    gap: var(--gap);
+    transform: translate(-50%, -50%) scale(.34);
+    transform-origin: center;
+  }
+
+  .tile {
+    width: var(--size);
+    height: var(--size);
+    border-radius: 2px;
+    background: var(--green-0);
+    opacity: .98;
+  }
+
+  .tile:nth-child(4n) { background: var(--green-1); }
+  .tile:nth-child(7n) { background: var(--green-2); }
+  .tile:nth-child(11n) { background: var(--green-3); }
+  .tile:nth-child(17n) { background: var(--green-4); }
+
+  .tile:nth-child(1), .tile:nth-child(2), .tile:nth-child(3),
+  .tile:nth-child(14), .tile:nth-child(15), .tile:nth-child(16),
+  .tile:nth-child(27), .tile:nth-child(28), .tile:nth-child(29),
+  .tile:nth-child(40), .tile:nth-child(41), .tile:nth-child(42),
+  .tile:nth-child(53), .tile:nth-child(54), .tile:nth-child(55),
+  .tile:nth-child(66), .tile:nth-child(67), .tile:nth-child(68),
+  .tile:nth-child(79), .tile:nth-child(80), .tile:nth-child(81) { background: var(--green-2); }
+
+  .bloom .tiles { animation: bloom 3.4s cubic-bezier(.2, .75, .2, 1) infinite; }
+  .bloom .tile { animation: tile-in 3.4s ease-out infinite; }
+  .bloom .tile:nth-child(3n) { animation-delay: 70ms; }
+  .bloom .tile:nth-child(5n) { animation-delay: 140ms; }
+  .bloom .tile:nth-child(7n) { animation-delay: 210ms; }
+
+  .reveal .tiles { transform: translate(-50%, -50%) scale(.86); }
+  .reveal .tile { animation: reveal 3.4s ease-out infinite; }
+  .reveal .tile:nth-child(2n) { animation-delay: 110ms; }
+  .reveal .tile:nth-child(3n) { animation-delay: 220ms; }
+  .reveal .tile:nth-child(4n) { animation-delay: 330ms; }
+
+  .soft .tiles { animation: soft-grid 3.4s ease-in-out infinite; }
+  .soft .tile { animation: soft-tile 3.4s ease-in-out infinite; }
+  .soft .tile:nth-child(2n) { animation-delay: 90ms; }
+  .soft .tile:nth-child(5n) { animation-delay: 180ms; }
+
+  @keyframes bloom {
+    0%, 12% { transform: translate(-50%, -50%) scale(.28); }
+    60%, 100% { transform: translate(-50%, -50%) scale(3.2); }
+  }
+
+  @keyframes tile-in {
+    0%, 15% { opacity: .2; transform: scale(.55); }
+    48% { opacity: 1; transform: scale(1.05); }
+    62%, 100% { opacity: .92; transform: scale(1); }
+  }
+
+  @keyframes reveal {
+    0%, 15% { opacity: 0; transform: translateX(-14px); }
+    45%, 100% { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes soft-grid {
+    0%, 15% { transform: translate(-50%, -50%) scale(.78); opacity: .2; }
+    55%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  @keyframes soft-tile {
+    0%, 15% { transform: scale(.7); opacity: 0; }
+    55%, 100% { transform: scale(1); opacity: 1; }
+  }
+
+  .motion-copy { padding: 14px 15px 16px; }
+  .motion-copy h3 { margin: 0 0 5px; font-size: 15px; }
+  .motion-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .recommendation { color: var(--green-3); font-weight: 700; }
+
+  @media (max-width: 760px) {
+    .motion-options { grid-template-columns: 1fr; }
+    .phone { min-height: 220px; aspect-ratio: 1.5; }
+  }
+</style>
+
+<div class="splash-intro">
+  <div class="label">Startup motion</div>
+  <h2>Choose the GitHub tile entrance</h2>
+  <p>Each preview loops. The app would show the chosen motion on every launch, then transition into the habit page. All tiles are local placeholders, so the splash is independent of login, cache, and network state.</p>
+</div>
+
+<div class="motion-options">
+  <div class="motion-option" data-choice="center-bloom" onclick="toggleSelect(this)">
+    <div class="phone bloom">
+      <div class="tiles">
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+      </div>
+    </div>
+    <div class="motion-copy">
+      <h3>Center bloom <span class="recommendation">Recommended</span></h3>
+      <p>Starts as a centered cluster, spreads into the grid, then zooms through the tiles into the app.</p>
+    </div>
+  </div>
+
+  <div class="motion-option" data-choice="left-to-right" onclick="toggleSelect(this)">
+    <div class="phone reveal">
+      <div class="tiles">
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+      </div>
+    </div>
+    <div class="motion-copy">
+      <h3>Left-to-right reveal</h3>
+      <p>Builds the grid like a contribution history, with no camera zoom.</p>
+    </div>
+  </div>
+
+  <div class="motion-option" data-choice="soft-scale" onclick="toggleSelect(this)">
+    <div class="phone soft">
+      <div class="tiles">
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+      </div>
+    </div>
+    <div class="motion-copy">
+      <h3>Soft scale-in</h3>
+      <p>Fades and scales the full grid into place, keeping the startup quiet and compact.</p>
+    </div>
+  </div>
+</div>
