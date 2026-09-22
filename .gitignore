@@ -4,3 +4,5 @@ xcuserdata/
 .DS_Store
 graphify-out/
 .worktrees/
+.superpowers/brainstorm/.last-token
+.superpowers/brainstorm/**/server-info
