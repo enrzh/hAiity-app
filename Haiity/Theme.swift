@@ -86,6 +86,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     var backgroundImageData: Data?
     var backgroundImageFocusX: Double
     var backgroundImageFocusY: Double
+    /// Cover-scale multiplier from the crop sheet. Older payloads omit it and
+    /// stay at 1×, which is the previous focus-only crop.
+    var backgroundImageZoom: Double
     /// Disables expensive glass effects while keeping the selected background
     /// and colors intact.
     var performanceMode: Bool
@@ -101,6 +104,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
          gradientEndHex: UInt32? = nil,
          backgroundImageFocusX: Double = 0.5,
          backgroundImageFocusY: Double = 0.5,
+         backgroundImageZoom: Double = 1,
          backgroundResetAt: TimeInterval? = nil,
          performanceMode: Bool = false) {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
@@ -118,6 +122,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         self.backgroundImageData = requestedMode == .image ? boundedImage : nil
         self.backgroundImageFocusX = min(max(backgroundImageFocusX, 0), 1)
         self.backgroundImageFocusY = min(max(backgroundImageFocusY, 0), 1)
+        self.backgroundImageZoom = BackgroundImagePlacement.clampedZoom(backgroundImageZoom)
         self.backgroundResetAt = backgroundResetAt
         self.performanceMode = performanceMode
     }
@@ -136,6 +141,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
                 normalized.backgroundImageData = nil
             }
         }
+        normalized.backgroundImageZoom = BackgroundImagePlacement.clampedZoom(backgroundImageZoom)
         return normalized
     }
 
@@ -176,6 +182,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         guard let usable = Self.usableImageData(data) else { return false }
         backgroundImageData = usable
         backgroundMode = .image
+        backgroundImageZoom = 1
         backgroundResetAt = Date().timeIntervalSince1970
         return true
     }
@@ -185,6 +192,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     mutating func removeBackgroundImage() {
         backgroundImageData = nil
         backgroundMode = .color
+        backgroundImageZoom = 1
         backgroundResetAt = Date().timeIntervalSince1970
     }
 
@@ -194,13 +202,14 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         gradientStartHex = nil
         gradientEndHex = nil
         backgroundImageData = nil
+        backgroundImageZoom = 1
         backgroundResetAt = Date().timeIntervalSince1970
     }
 
     private enum CodingKeys: String, CodingKey {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
              gradientEndHex, backgroundImageData, backgroundImageFocusX,
-             backgroundImageFocusY, backgroundResetAt,
+             backgroundImageFocusY, backgroundImageZoom, backgroundResetAt,
              performanceMode, adaptive
     }
 
@@ -221,6 +230,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             gradientEndHex: try c.decodeIfPresent(UInt32.self, forKey: .gradientEndHex),
             backgroundImageFocusX: try c.decodeIfPresent(Double.self, forKey: .backgroundImageFocusX) ?? 0.5,
             backgroundImageFocusY: try c.decodeIfPresent(Double.self, forKey: .backgroundImageFocusY) ?? 0.5,
+            backgroundImageZoom: try c.decodeIfPresent(Double.self, forKey: .backgroundImageZoom) ?? 1,
             backgroundResetAt: try c.decodeIfPresent(TimeInterval.self,
                                                       forKey: .backgroundResetAt),
             performanceMode: try c.decodeIfPresent(Bool.self,
@@ -244,6 +254,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         try c.encodeIfPresent(backgroundImageData, forKey: .backgroundImageData)
         try c.encode(backgroundImageFocusX, forKey: .backgroundImageFocusX)
         try c.encode(backgroundImageFocusY, forKey: .backgroundImageFocusY)
+        try c.encode(backgroundImageZoom, forKey: .backgroundImageZoom)
         try c.encodeIfPresent(backgroundResetAt, forKey: .backgroundResetAt)
         try c.encode(performanceMode, forKey: .performanceMode)
     }
@@ -266,6 +277,43 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             return AnyHashable("reset:\(backgroundResetAt)")
         }
         return AnyHashable("legacy:\(AppearanceImageCache.identity(for: backgroundImageData))")
+    }
+}
+
+/// Cover-and-pan math shared by the crop sheet and the live background.
+/// Zoom multiplies the cover scale. A centered focus stays centered; any other
+/// focus pans farther as zoom increases, so both values have to be stored.
+struct BackgroundImagePlacement: Equatable, Sendable {
+    static let minimumZoom = 1.0
+    static let maximumZoom = 4.0
+
+    var size: CGSize
+    var offset: CGSize
+
+    static func clampedZoom(_ zoom: Double) -> Double {
+        min(max(zoom, minimumZoom), maximumZoom)
+    }
+
+    static func make(imageSize: CGSize,
+                     containerSize: CGSize,
+                     focusX: Double,
+                     focusY: Double,
+                     zoom: Double) -> BackgroundImagePlacement {
+        let safeZoom = clampedZoom(zoom)
+        let imageWidth = max(imageSize.width, 1)
+        let imageHeight = max(imageSize.height, 1)
+        let base = max(containerSize.width / imageWidth,
+                       containerSize.height / imageHeight)
+        let size = CGSize(width: imageWidth * base * safeZoom,
+                          height: imageHeight * base * safeZoom)
+        let excessWidth = max(size.width - containerSize.width, 0)
+        let excessHeight = max(size.height - containerSize.height, 0)
+        let clampedX = min(max(focusX, 0), 1)
+        let clampedY = min(max(focusY, 0), 1)
+        return BackgroundImagePlacement(
+            size: size,
+            offset: CGSize(width: (0.5 - clampedX) * excessWidth,
+                           height: (0.5 - clampedY) * excessHeight))
     }
 }
 
@@ -1348,17 +1396,17 @@ struct AppearanceBackground: View {
                                                               dark: colorScheme == .dark)
                         : 0.28
                     GeometryReader { proxy in
-                        let scale = max(proxy.size.width / image.size.width,
-                                        proxy.size.height / image.size.height)
-                        let imageSize = CGSize(width: image.size.width * scale,
-                                               height: image.size.height * scale)
-                        let excess = CGSize(width: max(imageSize.width - proxy.size.width, 0),
-                                            height: max(imageSize.height - proxy.size.height, 0))
+                        let placement = BackgroundImagePlacement.make(
+                            imageSize: image.size,
+                            containerSize: proxy.size,
+                            focusX: preferences.backgroundImageFocusX,
+                            focusY: preferences.backgroundImageFocusY,
+                            zoom: preferences.backgroundImageZoom)
                         Image(uiImage: image)
                             .resizable()
-                            .frame(width: imageSize.width, height: imageSize.height)
-                            .offset(x: (0.5 - preferences.backgroundImageFocusX) * excess.width,
-                                    y: (0.5 - preferences.backgroundImageFocusY) * excess.height)
+                            .frame(width: placement.size.width, height: placement.size.height)
+                            .offset(x: placement.offset.width,
+                                    y: placement.offset.height)
                             .overlay(Color(.systemBackground).opacity(scrim))
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .clipped()

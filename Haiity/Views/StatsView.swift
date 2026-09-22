@@ -4,11 +4,12 @@ import SwiftUI
 /// Habit-Liste plus Unterseite in „Mehr", sondern eine Seite, die beides
 /// vereint:
 ///
-///  1. **Jahres-Puls** als Held: das vereinigte Raster aller Habits über
+///  1. **Rhythmus** als Held: das vereinigte Raster aller Habits über
 ///     die volle Kartenbreite, in der Sprache der App (dieselbe Rampe wie
 ///     die großen Raster; reine Nein-Tage in der Verneinungsfarbe).
-///  2. **Vier Kacheln** im 2er-Raster: Serie, Heute, Woche, Gesamt — kurze
-///     Zahlen, monospaced, eine Aussage je Kachel.
+///  2. **Check-ins** als einzige Standard-Kachel. Serie, Heute und Woche
+///     bleiben in der Anpassung; sie stehen schon auf der Heute- und
+///     Wochenkarte.
 ///  3. **Je Habit** die vertraute Zeile: Quoten 30/90/365, Serien, Summe und
 ///     12 Monats-Balken.
 ///
@@ -35,6 +36,7 @@ struct StatsView: View {
     @State private var renderedSnapshot: StatsEngine.Snapshot?
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.openURL) private var openURL
     @Environment(\.palettes) private var palettes
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
@@ -125,6 +127,18 @@ struct StatsView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
+                Button {
+                    openURL(AppDestination.create.url)
+                } label: {
+                    Text(String(localized: "Ersten Habit anlegen"))
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Theme.accentFill(palettes.style), in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("add-first-habit")
                 Spacer(minLength: 160)
             }
             .frame(maxWidth: .infinity, minHeight: 520)
@@ -312,9 +326,7 @@ struct StatsView: View {
         .appSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Heute"))
-        .accessibilityValue(total == 0
-                            ? String(localized: "Kein Habit fällig")
-                            : String(localized: "\(done) von \(total) erledigt"))
+        .accessibilityValue(statsTodayAccessibilityValue(snapshot))
         .accessibilityIdentifier("stats-today-summary")
     }
 
@@ -341,6 +353,16 @@ struct StatsView: View {
         return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen")
     }
 
+    private func statsTodayAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
+        let open = max(snapshot.todayTotal - snapshot.todayDone, 0)
+        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
+        let metrics = String(localized: "\(open) offen, Serie \(snapshot.streak), diese Woche \(weekPercent) Prozent")
+        if snapshot.todayTotal == 0 {
+            return String(localized: "Kein Habit fällig, \(metrics)")
+        }
+        return String(localized: "\(snapshot.todayDone) von \(snapshot.todayTotal) erledigt, \(metrics)")
+    }
+
     private func statsRhythmCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         statsRhythmContent(snapshot)
             .padding(Theme.Metrics.cardPadding + 2)
@@ -353,9 +375,7 @@ struct StatsView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "Rhythmus"))
-            .accessibilityValue(unlocked
-                                ? String(localized: "Die letzten fünf Monate")
-                                : String(localized: "Nur mit hAiity Pro"))
+            .accessibilityValue(statsRhythmAccessibilityValue(snapshot))
             .accessibilityAddTraits(unlocked ? [] : .isButton)
             .accessibilityAction {
                 if !unlocked { paywall = .stats }
@@ -399,6 +419,14 @@ struct StatsView: View {
             }
             .padding(.top, 2)
         }
+    }
+
+    private func statsRhythmAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
+        guard unlocked else { return String(localized: "Nur mit hAiity Pro") }
+        let filled = snapshot.mergedLevels.reduce(0) { total, column in
+            total + column.reduce(0) { count, level in count + (level > 0 ? 1 : 0) }
+        }
+        return String(localized: "\(filled) Tage in den letzten fünf Monaten")
     }
 
     private func statsMetricGrid(_ snapshot: StatsEngine.Snapshot,
@@ -530,7 +558,20 @@ struct StatsView: View {
         .padding(Theme.Metrics.cardPadding + 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "Letzte 7 Tage"))
+        .accessibilityValue(statsWeekAccessibilityValue(snapshot))
         .accessibilityIdentifier("stats-week-card")
+    }
+
+    private func statsWeekAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
+        let days = (-6...0).compactMap { DayKey.shifted(snapshot.today, by: $0) }
+        let percents = days.enumerated().map { index, _ -> String in
+            let fraction = snapshot.last7.indices.contains(index) ? snapshot.last7[index] : 0
+            let hasData = snapshot.last7HasData.indices.contains(index) && snapshot.last7HasData[index]
+            return hasData ? "\(Int((fraction * 100).rounded())) %" : "-"
+        }.joined(separator: ", ")
+        return "\(percents), \(momentumSentence(snapshot))"
     }
 
     private func statsWeekdayLabel(_ key: String) -> String {
@@ -552,6 +593,8 @@ struct StatsView: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(habit.name)
                         .accessibilityValue(statsHabitAccessibilityValue(habit, stats: habitStats))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { openHabit(habit.id) }
                         .accessibilityIdentifier("stats-row")
                         .overlay {
                             statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
@@ -609,6 +652,10 @@ struct StatsView: View {
         let completion = Int((stats.completion30 * 100).rounded())
         let streak = stats.current
         return String(localized: "30 Tage: \(completion) Prozent, Serie \(streak) Tage")
+    }
+
+    private func openHabit(_ id: UUID) {
+        openURL(AppDestination.habit(id).url)
     }
 
     private func openStatsAdjustments() {
@@ -744,7 +791,16 @@ struct StatsView: View {
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> some View {
-        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+        let habitID = id.hasPrefix("habit-")
+            ? UUID(uuidString: String(id.dropFirst("habit-".count)))
+            : nil
+        let commit: () -> Void
+        if let habitID {
+            commit = { openHabit(habitID) }
+        } else {
+            commit = openStatsAdjustments
+        }
+        return GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                          previewWidth: statsPreviewWidth,
                          previewHeight: height,
                          // The preview builder owns the one rounded surface;
@@ -753,7 +809,8 @@ struct StatsView: View {
                          previewAccessibilityIdentifier: "stats-preview",
                          preview: preview,
                          actions: statsContextActions,
-                         commit: openStatsAdjustments,
+                         commit: commit,
+                         performsCommitOnTap: habitID != nil,
                          onMenuVisibilityChanged: { visible in
                              if visible {
                                  activeContextMenuID = id

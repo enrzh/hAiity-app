@@ -329,6 +329,98 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertNil(preferences.backgroundImageData)
     }
 
+    func testBackgroundZoomDefaultsToCoverAndSurvivesARoundTrip() throws {
+        let legacy = Data(#"{"material":"solid","backgroundMode":"color"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: legacy)
+        XCTAssertEqual(decoded.backgroundImageZoom, 1)
+
+        var preferences = AppearancePreferences(backgroundImageZoom: 9)
+        XCTAssertEqual(preferences.backgroundImageZoom, 4)
+        preferences.backgroundImageZoom = 0.2
+        preferences = preferences.normalizedForStorage()
+        XCTAssertEqual(preferences.backgroundImageZoom, 1)
+
+        let stored = try JSONDecoder().decode(
+            AppearancePreferences.self,
+            from: JSONEncoder().encode(AppearancePreferences(backgroundImageZoom: 2.5)))
+        XCTAssertEqual(stored.backgroundImageZoom, 2.5)
+    }
+
+    func testInstallingAnImageResetsZoomButKeepsTheExistingFocus() throws {
+        var preferences = AppearancePreferences(backgroundImageFocusX: 0.2,
+                                                backgroundImageFocusY: 0.8,
+                                                backgroundImageZoom: 3)
+
+        XCTAssertTrue(preferences.setBackgroundImage(try validImageData()))
+
+        XCTAssertEqual(preferences.backgroundImageZoom, 1)
+        XCTAssertEqual(preferences.backgroundImageFocusX, 0.2)
+        XCTAssertEqual(preferences.backgroundImageFocusY, 0.8)
+    }
+
+    func testBackgroundPlacementUsesTheSameZoomOnTheCropFrameAndTheScreen() {
+        let image = CGSize(width: 800, height: 1200)
+        let crop = CGSize(width: 201, height: 437)
+        let screen = CGSize(width: 402, height: 874)
+        XCTAssertEqual(BackgroundCropFrame.aspect(of: CGRect(origin: .zero, size: screen)),
+                       screen.width / screen.height)
+        XCTAssertEqual(BackgroundCropFrame.aspect(of: .zero), 0.46)
+
+        let cropped = BackgroundImagePlacement.make(imageSize: image,
+                                                    containerSize: crop,
+                                                    focusX: 0.2,
+                                                    focusY: 0.75,
+                                                    zoom: 2.5)
+        let live = BackgroundImagePlacement.make(imageSize: image,
+                                                 containerSize: screen,
+                                                 focusX: 0.2,
+                                                 focusY: 0.75,
+                                                 zoom: 2.5)
+        let cover = BackgroundImagePlacement.make(imageSize: image,
+                                                  containerSize: screen,
+                                                  focusX: 0.2,
+                                                  focusY: 0.75,
+                                                  zoom: 1)
+
+        XCTAssertEqual(live.size.width / cropped.size.width, 2, accuracy: 0.001)
+        XCTAssertEqual(live.offset.width / cropped.offset.width, 2, accuracy: 0.001)
+        XCTAssertEqual(live.offset.height / cropped.offset.height, 2, accuracy: 0.001)
+        XCTAssertGreaterThan(abs(live.offset.width), abs(cover.offset.width),
+                             "a saved zoom has to pan farther than the old focus-only crop")
+        XCTAssertEqual(BackgroundImagePlacement.make(imageSize: image,
+                                                     containerSize: screen,
+                                                     focusX: 0.5,
+                                                     focusY: 0.5,
+                                                     zoom: 4).offset,
+                       .zero)
+    }
+
+    func testBackgroundCropSavesZoomAndMatchesTheLiveScreen() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
+        let cropStart = try XCTUnwrap(more.range(of: "private struct BackgroundCropSheet"))
+        let cropEnd = try XCTUnwrap(more.range(of: "enum MoreScreen",
+                                               range: cropStart.upperBound..<more.endIndex))
+        let crop = more[cropStart.lowerBound..<cropEnd.lowerBound]
+        let backgroundStart = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
+        let backgroundEnd = try XCTUnwrap(theme.range(of: "private struct AppSurfaceModifier",
+                                                      range: backgroundStart.upperBound..<theme.endIndex))
+        let background = theme[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
+
+        XCTAssertTrue(crop.contains("BackgroundImagePlacement.make("))
+        XCTAssertTrue(crop.contains("BackgroundCropFrame.liveScreenAspect"))
+        XCTAssertFalse(crop.contains("aspectRatio(0.46"))
+        XCTAssertTrue(crop.contains("backgroundImageZoom"))
+        XCTAssertTrue(more.contains("$0.backgroundImageZoom = zoom"))
+        XCTAssertTrue(background.contains("zoom: preferences.backgroundImageZoom"))
+        XCTAssertTrue(background.contains("BackgroundImagePlacement.make("))
+        XCTAssertFalse(background.contains("preferences.backgroundImage}"),
+                       "the live background must still avoid a synchronous JPEG decode")
+    }
+
     func testDecodedColorModeDropsStaleImageData() throws {
         let raw = Data(#"{"material":"solid","backgroundMode":"color","backgroundImageData":"AQID"}"#.utf8)
 

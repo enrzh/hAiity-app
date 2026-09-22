@@ -11,11 +11,11 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .yearPulse:    return String(localized: "Jahres-Puls")
-        case .streakFlame:  return String(localized: "Streak-Flamme")
-        case .todayRing:    return String(localized: "Heute-Ring")
-        case .weekMomentum: return String(localized: "Wochen-Momentum")
-        case .totals:       return String(localized: "Gesamt")
+        case .yearPulse:    return String(localized: "Rhythmus")
+        case .streakFlame:  return String(localized: "Aktuelle Serie")
+        case .todayRing:    return String(localized: "Heute")
+        case .weekMomentum: return String(localized: "Diese Woche")
+        case .totals:       return String(localized: "Check-ins")
         }
     }
 
@@ -23,7 +23,7 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
     var detail: String {
         switch self {
         case .yearPulse:
-            return String(localized: "Alle Habits als ein Raster, dazu der Heute-Ring.")
+            return String(localized: "Alle Habits als ein Raster über die letzten fünf Monate.")
         case .streakFlame:
             return String(localized: "Deine Gesamt-Serie über alle Habits.")
         case .todayRing:
@@ -51,20 +51,22 @@ enum StatsCard: String, Codable, CaseIterable, Identifiable, Sendable {
 struct StatsCardPrefs: Codable, Equatable {
     static let maxActive = StatsCard.allCases.count
     static let storageKey = "statsCards"
+    /// Rhythmus plus Check-ins. Heute and the week card are always on the
+    /// page, so the other metric tiles are opt-in.
+    static let defaultActive: [StatsCard] = [.yearPulse, .totals]
 
     private(set) var active: [StatsCard]
-    /// Old builds stored the default as just `yearPulse`. A missing marker is
-    /// therefore a legacy default, while an explicit empty or partial choice
-    /// made in the new stats settings must remain exactly as selected.
+    /// Old builds stored the default as just `yearPulse`. A missing marker on
+    /// that payload, or on the current default, is not a user choice. Any
+    /// other stored selection, including an explicit all-five choice, stays.
     private(set) var isCustomized: Bool
 
-    /// Standard: alle fünf Karten. Die Reihenfolge ist die Reihenfolge in der
-    /// Statistikseite.
-    init(active: [StatsCard] = StatsCard.allCases, customized: Bool? = nil) {
+    /// Standard: Rhythmus and Check-ins, in page order.
+    init(active: [StatsCard] = StatsCardPrefs.defaultActive, customized: Bool? = nil) {
         var seen = Set<StatsCard>()
         let normalized = Array(active.filter { seen.insert($0).inserted }.prefix(Self.maxActive))
         self.active = normalized
-        self.isCustomized = customized ?? (normalized != StatsCard.allCases)
+        self.isCustomized = customized ?? (normalized != Self.defaultActive)
     }
 
     var isFull: Bool { active.count >= Self.maxActive }
@@ -101,10 +103,12 @@ struct StatsCardPrefs: Codable, Equatable {
             .filter { seen.insert($0).inserted }
             .prefix(Self.maxActive))
         // Builds before the explicit marker stored the default as only the
-        // year card. Any other payload, including an intentional empty or
-        // partial selection, is therefore already a user choice.
+        // year card. That payload and the current default are not a choice.
+        // Any other payload, including an intentional empty, partial, or
+        // all-five selection, is therefore already a user choice.
+        let storedDefault = active == [.yearPulse] || active == Self.defaultActive
         isCustomized = try c.decodeIfPresent(Bool.self, forKey: .customized)
-            ?? (active != [.yearPulse])
+            ?? !storedDefault
     }
 
     func encode(to encoder: Encoder) throws {
@@ -115,8 +119,8 @@ struct StatsCardPrefs: Codable, Equatable {
 
     // MARK: – Ablage
 
-    /// Kein gespeicherter Wert -> Standard (Jahres-Puls). Kaputte Daten
-    /// ebenso — lieber der Standard als ein Crash über einer Einstellung.
+    /// Kein gespeicherter Wert -> Standard (Rhythmus und Check-ins). Kaputte
+    /// Daten ebenso — lieber der Standard als ein Crash über einer Einstellung.
     static func load(from defaults: UserDefaults) -> StatsCardPrefs {
         guard let raw = defaults.data(forKey: storageKey),
               let prefs = try? JSONDecoder().decode(StatsCardPrefs.self, from: raw)

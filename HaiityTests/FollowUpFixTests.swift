@@ -197,10 +197,76 @@ final class FollowUpFixTests: XCTestCase {
                        "large statistics values must scale with Dynamic Type")
         XCTAssertTrue(row.contains(".accessibilityElement(children: .combine)"),
                       "each habit statistics row should be one readable VoiceOver element")
+        XCTAssertTrue(stats.contains("statsTodayAccessibilityValue"),
+                      "the today card must expose its open count, streak, and week percent")
+        XCTAssertTrue(stats.contains("statsRhythmAccessibilityValue"),
+                      "the rhythm card must expose how many days are filled")
+        XCTAssertTrue(stats.contains("statsWeekAccessibilityValue"),
+                      "the week card must expose the seven daily percents")
+        XCTAssertTrue(stats.contains("accessibilityElement(children: .ignore)"),
+                      "each statistics block stays one VoiceOver element")
         XCTAssertTrue(stats.contains(".navigationChrome()"),
                       "statistics navigation must keep the selected header material")
         XCTAssertFalse(stats.contains(".background(AppearanceBackground(preferences: store.appearancePreferences))"),
                        "the statistics page must use the single page-level appearance layer")
+    }
+
+    func testStatsHabitRowCommitOpensTheHabitCard() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let menuStart = try XCTUnwrap(stats.range(of: "private func statsContextMenu"))
+        let menuEnd = try XCTUnwrap(stats.range(of: "private func statsPreview",
+                                                range: menuStart.upperBound..<stats.endIndex))
+        let menu = stats[menuStart.lowerBound..<menuEnd.lowerBound]
+        let habitCommit = try XCTUnwrap(menu.range(of: "commit = { openHabit(habitID) }"))
+        let otherCommit = try XCTUnwrap(menu.range(of: "commit = openStatsAdjustments"))
+
+        XCTAssertTrue(stats.contains("openURL(AppDestination.habit(id).url)"),
+                      "a ranking row must open the existing habit card")
+        XCTAssertLessThan(habitCommit.lowerBound, otherCommit.lowerBound)
+        XCTAssertTrue(menu.contains("performsCommitOnTap: habitID != nil"),
+                      "a short tap on the ranking row must run that same commit")
+        XCTAssertTrue(menu.contains("id.hasPrefix(\"habit-\")"),
+                      "metric tiles and the year grid keep the customize commit")
+    }
+
+    func testEmptyStatisticsContainsTheCreateButton() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let start = try XCTUnwrap(stats.range(of: "private var emptyState"))
+        let end = try XCTUnwrap(stats.range(of: "private var statsList",
+                                            range: start.upperBound..<stats.endIndex))
+        let empty = stats[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(empty.contains("add-first-habit"))
+        XCTAssertTrue(empty.contains("Ersten Habit anlegen"))
+        XCTAssertTrue(empty.contains("openURL(AppDestination.create.url)"),
+                      "empty statistics must use the existing create route")
+    }
+
+    func testStatsAccessibilityValuesIncludeTheChartNumbers() throws {
+        let stats = try source("Haiity/Views/StatsView.swift")
+        let today = try functionBody(stats, "private func statsTodayAccessibilityValue")
+        let rhythm = try functionBody(stats, "private func statsRhythmAccessibilityValue")
+        let week = try functionBody(stats, "private func statsWeekAccessibilityValue")
+
+        XCTAssertTrue(today.contains("offen"))
+        XCTAssertTrue(today.contains("Serie"))
+        XCTAssertTrue(today.contains("diese Woche"))
+        XCTAssertTrue(rhythm.contains("Nur mit hAiity Pro"))
+        XCTAssertTrue(rhythm.contains("letzten fünf Monaten"))
+        XCTAssertTrue(rhythm.contains("level > 0"))
+        XCTAssertTrue(week.contains("momentumSentence(snapshot)"))
+        XCTAssertTrue(week.contains("%"))
+        XCTAssertTrue(stats.contains(".accessibilityValue(statsTodayAccessibilityValue(snapshot))"))
+        XCTAssertTrue(stats.contains(".accessibilityValue(statsRhythmAccessibilityValue(snapshot))"))
+        XCTAssertTrue(stats.contains(".accessibilityValue(statsWeekAccessibilityValue(snapshot))"))
+    }
+
+    private func functionBody(_ source: String, _ name: String) throws -> Substring {
+        let start = try XCTUnwrap(source.range(of: name))
+        let next = source.range(of: "\n    private func ", range: start.upperBound..<source.endIndex)
+            ?? source.range(of: "\n    private var ", range: start.upperBound..<source.endIndex)
+        let end = next?.lowerBound ?? source.endIndex
+        return source[start.lowerBound..<end]
     }
 
     func testStatsPreviewsKeepOneSurfaceAndAFlexibleHeight() throws {

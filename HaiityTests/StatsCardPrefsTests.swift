@@ -9,7 +9,8 @@ final class StatsCardPrefsTests: XCTestCase {
         let prefs = ViewPreferences()
 
         XCTAssertFalse(prefs.compactMode)
-        XCTAssertEqual(prefs.statsCards.active, StatsCard.allCases)
+        XCTAssertEqual(prefs.statsCards.active, StatsCardPrefs.defaultActive)
+        XCTAssertFalse(prefs.statsCards.isCustomized)
         XCTAssertTrue(prefs.swipeActions.enabled)
         XCTAssertEqual(prefs.swipeActions.leading, .primary)
         XCTAssertEqual(prefs.swipeActions.trailing, .secondary)
@@ -151,7 +152,10 @@ final class StatsCardPrefsTests: XCTestCase {
     // MARK: – Grundzustand und Auswahl
 
     func testDefaultIncludesEveryStatsCard() {
-        XCTAssertEqual(StatsCardPrefs().active, StatsCard.allCases)
+        XCTAssertEqual(StatsCardPrefs().active, [.yearPulse, .totals])
+        XCTAssertEqual(StatsCardPrefs.defaultActive, [.yearPulse, .totals])
+        XCTAssertFalse(StatsCardPrefs().isCustomized)
+        XCTAssertTrue(StatsCardPrefs(active: StatsCard.allCases).isCustomized)
     }
 
     func testSetActivatesAndDeactivatesInOrder() {
@@ -196,7 +200,7 @@ final class StatsCardPrefsTests: XCTestCase {
         let raw = try JSONEncoder().encode(empty)
         let back = try JSONDecoder().decode(StatsCardPrefs.self, from: raw)
         // „Alle aus" ist eine Entscheidung — sie darf beim Lesen nicht zum
-        // Standard (Jahres-Puls) zurückspringen.
+        // Standard (Rhythmus und Check-ins) zurückspringen.
         XCTAssertEqual(back.active, [])
     }
 
@@ -224,7 +228,26 @@ final class StatsCardPrefsTests: XCTestCase {
     func testLoadWithoutStoredValueIsDefault() {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
-        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCard.allCases)
+        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCardPrefs.defaultActive)
+    }
+
+    func testUncustomizedLoadUsesThePageDefaultAndKeepsAnExplicitAllFiveChoice() {
+        let (defaults, cleanup) = scratchDefaults()
+        defer { cleanup() }
+
+        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, [.yearPulse, .totals])
+        XCTAssertFalse(StatsCardPrefs.load(from: defaults).isCustomized)
+
+        defaults.set(Data(#"{"active":["yearPulse"]}"#.utf8), forKey: StatsCardPrefs.storageKey)
+        let legacy = StatsCardPrefs.load(from: defaults)
+        XCTAssertEqual(legacy.active, [.yearPulse, .totals])
+        XCTAssertFalse(legacy.isCustomized)
+
+        let allFive = StatsCardPrefs(active: StatsCard.allCases, customized: true)
+        allFive.save(to: defaults)
+        let kept = StatsCardPrefs.load(from: defaults)
+        XCTAssertEqual(kept.active, StatsCard.allCases)
+        XCTAssertTrue(kept.isCustomized)
     }
 
     func testSaveThenLoadRoundTrips() {
@@ -240,7 +263,7 @@ final class StatsCardPrefsTests: XCTestCase {
         let (defaults, cleanup) = scratchDefaults()
         defer { cleanup() }
         defaults.set(Data("kaputt".utf8), forKey: StatsCardPrefs.storageKey)
-        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCard.allCases)
+        XCTAssertEqual(StatsCardPrefs.load(from: defaults).active, StatsCardPrefs.defaultActive)
     }
 
     func testStoreWritesEveryChange() {

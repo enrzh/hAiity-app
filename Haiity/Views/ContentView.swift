@@ -2627,7 +2627,9 @@ struct ContentView: View {
                 habit.log[DayKey.today()] = 1
                 store.add(habit)
             }
-            viewPreferences.update { $0.statsCards = StatsCardPrefs() }
+            viewPreferences.update {
+                $0.statsCards = StatsCardPrefs(active: StatsCard.allCases, customized: true)
+            }
         }
         if args.contains("-seed-reminder-interactions") {
             if store.habits.contains(where: { $0.id == reminderInteractionID }) {

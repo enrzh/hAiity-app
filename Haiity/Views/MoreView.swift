@@ -21,20 +21,39 @@ enum MoreRoute: Hashable, Identifiable {
     var id: Self { self }
 }
 
+/// The crop frame has to match the live screen, not a fixed phone ratio.
+/// A missing scene keeps the previous 0.46 fallback so previews still fit.
+enum BackgroundCropFrame {
+    static func aspect(of screenBounds: CGRect) -> CGFloat {
+        guard screenBounds.width > 0, screenBounds.height > 0 else { return 0.46 }
+        return screenBounds.width / screenBounds.height
+    }
+
+    static var liveScreenAspect: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return aspect(of: scene?.screen.bounds ?? .zero)
+    }
+}
+
 private struct BackgroundCropSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     let preferences: AppearancePreferences
-    let onSave: (Double, Double) -> Void
+    let onSave: (Double, Double, Double) -> Void
     @State private var focus: CGPoint
     @State private var dragOrigin: CGPoint?
-    @State private var zoom: CGFloat = 1
-    @State private var zoomOrigin: CGFloat = 1
+    @State private var zoom: CGFloat
+    @State private var zoomOrigin: CGFloat
 
-    init(preferences: AppearancePreferences, onSave: @escaping (Double, Double) -> Void) {
+    init(preferences: AppearancePreferences, onSave: @escaping (Double, Double, Double) -> Void) {
         self.preferences = preferences
         self.onSave = onSave
+        let initialZoom = CGFloat(BackgroundImagePlacement.clampedZoom(preferences.backgroundImageZoom))
         _focus = State(initialValue: CGPoint(x: preferences.backgroundImageFocusX,
                                              y: preferences.backgroundImageFocusY))
+        _zoom = State(initialValue: initialZoom)
+        _zoomOrigin = State(initialValue: initialZoom)
     }
 
     var body: some View {
@@ -42,24 +61,26 @@ private struct BackgroundCropSheet: View {
             VStack(spacing: 12) {
                 GeometryReader { proxy in
                     if let image = preferences.backgroundImage {
-                        let baseScale = max(proxy.size.width / image.size.width,
-                                            proxy.size.height / image.size.height)
-                        let imageSize = CGSize(width: image.size.width * baseScale * zoom,
-                                               height: image.size.height * baseScale * zoom)
-                        let excess = CGSize(width: max(imageSize.width - proxy.size.width, 0),
-                                            height: max(imageSize.height - proxy.size.height, 0))
+                        let placement = BackgroundImagePlacement.make(
+                            imageSize: image.size,
+                            containerSize: proxy.size,
+                            focusX: Double(focus.x),
+                            focusY: Double(focus.y),
+                            zoom: Double(zoom))
+                        let excess = CGSize(width: max(placement.size.width - proxy.size.width, 0),
+                                            height: max(placement.size.height - proxy.size.height, 0))
                         Image(uiImage: image)
                             .resizable()
-                            .frame(width: imageSize.width, height: imageSize.height)
-                            .offset(x: (0.5 - focus.x) * excess.width,
-                                    y: (0.5 - focus.y) * excess.height)
+                            .frame(width: placement.size.width, height: placement.size.height)
+                            .offset(x: placement.offset.width,
+                                    y: placement.offset.height)
                             .overlay(Color.black.opacity(0.16))
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .contentShape(Rectangle())
                             .simultaneousGesture(MagnificationGesture().onChanged { value in
-                                zoom = min(max(zoomOrigin * value, 1), 4)
+                                zoom = CGFloat(BackgroundImagePlacement.clampedZoom(Double(zoomOrigin * value)))
                             }.onEnded { _ in
                                 zoomOrigin = zoom
                             })
@@ -78,7 +99,8 @@ private struct BackgroundCropSheet: View {
                                                systemImage: "photo")
                     }
                 }
-                .aspectRatio(0.46, contentMode: .fit)
+                .aspectRatio(BackgroundCropFrame.liveScreenAspect, contentMode: .fit)
+                .id(verticalSizeClass)
                 Text(String(localized: "Ziehe das Bild, um den sichtbaren Ausschnitt festzulegen."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -93,7 +115,8 @@ private struct BackgroundCropSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Sichern")) {
-                        onSave(Double(focus.x), Double(focus.y))
+                        onSave(Double(focus.x), Double(focus.y),
+                               BackgroundImagePlacement.clampedZoom(Double(zoom)))
                         dismiss()
                     }
                 }
@@ -1980,10 +2003,11 @@ struct MoreView: View {
             }
         }
         .sheet(isPresented: $showingBackgroundCrop) {
-            BackgroundCropSheet(preferences: store.appearancePreferences) { x, y in
+            BackgroundCropSheet(preferences: store.appearancePreferences) { x, y, zoom in
                 updateAppearance {
                     $0.backgroundImageFocusX = x
                     $0.backgroundImageFocusY = y
+                    $0.backgroundImageZoom = zoom
                 }
             }
             .presentationDetents([.large])

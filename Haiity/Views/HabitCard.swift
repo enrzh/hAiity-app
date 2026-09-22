@@ -964,6 +964,9 @@ struct GraphContextMenu: UIViewRepresentable {
     let preview: () -> AnyView
     let actions: [GraphMenuAction]
     let commit: () -> Void
+    /// A short tap has no context-menu callback. Ranking rows opt in so that
+    /// tap runs `commit`; every other card keeps the long-press menu only.
+    var performsCommitOnTap = false
     var onMenuVisibilityChanged: (Bool) -> Void = { _ in }
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
@@ -992,6 +995,7 @@ struct GraphContextMenu: UIViewRepresentable {
                  previewOwnsSurface: previewOwnsSurface,
                  previewAccessibilityIdentifier: previewAccessibilityIdentifier,
                  preview: preview, actions: actions, commit: commit,
+                 performsCommitOnTap: performsCommitOnTap,
                  palettes: palettes,
                  appearancePreferences: appearancePreferences,
                  onMenuVisibilityChanged: onMenuVisibilityChanged)
@@ -1006,6 +1010,7 @@ struct GraphContextMenu: UIViewRepresentable {
         view.preview = preview
         view.actions = actions
         view.commit = commit
+        view.performsCommitOnTap = performsCommitOnTap
         view.palettes = palettes
         view.appearancePreferences = appearancePreferences
         view.onMenuVisibilityChanged = onMenuVisibilityChanged
@@ -1024,6 +1029,7 @@ struct GraphContextMenu: UIViewRepresentable {
         var preview: () -> AnyView
         var actions: [GraphMenuAction]
         var commit: () -> Void
+        var performsCommitOnTap: Bool
         var palettes: PaletteBook
         var appearancePreferences: AppearancePreferences
         var onMenuVisibilityChanged: (Bool) -> Void
@@ -1038,6 +1044,7 @@ struct GraphContextMenu: UIViewRepresentable {
              preview: @escaping () -> AnyView,
              actions: [GraphMenuAction],
              commit: @escaping () -> Void,
+             performsCommitOnTap: Bool = false,
              palettes: PaletteBook,
              appearancePreferences: AppearancePreferences,
              onMenuVisibilityChanged: @escaping (Bool) -> Void) {
@@ -1049,6 +1056,7 @@ struct GraphContextMenu: UIViewRepresentable {
             self.preview = preview
             self.actions = actions
             self.commit = commit
+            self.performsCommitOnTap = performsCommitOnTap
             self.palettes = palettes
             self.appearancePreferences = appearancePreferences
             self.onMenuVisibilityChanged = onMenuVisibilityChanged
@@ -1084,6 +1092,13 @@ struct GraphContextMenu: UIViewRepresentable {
             if interactions.contains(where: { $0 === interaction }) {
                 removeInteraction(interaction)
             }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesEnded(touches, with: event)
+            guard performsCommitOnTap, !menuVisible, let touch = touches.first else { return }
+            guard bounds.contains(touch.location(in: self)) else { return }
+            commit()
         }
 
         func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
