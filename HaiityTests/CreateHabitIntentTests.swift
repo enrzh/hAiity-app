@@ -184,8 +184,49 @@ final class CreateHabitIntentTests: XCTestCase {
         let source = try String(contentsOf: sourceURL("Haiity/Intents/CreateHabitIntent.swift"))
         XCTAssertTrue(source.contains("struct CreateHabitIntent: AppIntent"))
         XCTAssertTrue(source.contains("struct CreateItemFromTextIntent: AppIntent"))
-        XCTAssertTrue(source.contains("Benötigt iOS 26 und ein unterstütztes Gerät"),
-                      "the model-backed intent must state its requirement without restricted branding")
+        XCTAssertTrue(source.contains("Benötigt ein unterstütztes Gerät"),
+                      "the model-backed intent must state its requirement up front")
+    }
+
+    /// Regression guard for ITMS-90626.
+    ///
+    /// Apple's Siri metadata validation rejects an App Intent description that
+    /// contains a brand or platform name. Build 216 was refused for containing
+    /// "Apple"; "iOS" is on the same blocklist and went too. That validation
+    /// cannot be run locally, and a refusal costs a whole build and review
+    /// cycle — so the blocklist is checked here instead of discovered on App
+    /// Store Connect.
+    func testNoAppIntentMetadataMentionsABrandOrPlatform() throws {
+        let blocked = ["apple", "siri", "iphone", "ipad", "macbook", "ios",
+                       "itunes", "icloud", "app store", "airpods", "vision pro"]
+        let directory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Intents")
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertFalse(files.isEmpty, "the intents directory must exist for this guard to mean anything")
+
+        for name in files where name.hasSuffix(".swift") {
+            let raw = try String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)
+            // A comment is documentation. Only the code the validator actually
+            // reads is checked, otherwise this test would forbid the very note
+            // that explains why the terms are forbidden.
+            let metadata = raw.split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            // Extract the CONTENTS of double-quoted literals properly. Splitting
+            // the file on a quote character would also match identifiers such as
+            // `AppIntents`, and quote parity breaks on anything escaped.
+            let literal = try NSRegularExpression(pattern: "\"((?:[^\"\\\\]|\\\\.)*)\"")
+            let range = NSRange(metadata.startIndex..<metadata.endIndex, in: metadata)
+            for match in literal.matches(in: metadata, range: range) {
+                guard let found = Range(match.range(at: 1), in: metadata) else { continue }
+                let lower = metadata[found].lowercased()
+                for term in blocked where lower.contains(term) {
+                    XCTFail("\(name) mentions \"\(term)\" in App Intent metadata: \(metadata[found].prefix(90))")
+                }
+            }
+        }
     }
 
     /// An `AppShortcut` phrase may only interpolate an `AppEntity`, because Siri

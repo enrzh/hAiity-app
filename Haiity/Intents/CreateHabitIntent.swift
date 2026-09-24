@@ -159,8 +159,15 @@ struct CreateItemFromTextIntent: AppIntent {
 
     static var title: LocalizedStringResource = "Aus einem Satz anlegen"
     static var description = IntentDescription(
-        "Liest einen Satz wie „morgens um 7 Wasser trinken“ und legt daraus ein Habit oder eine Erinnerung an. Benötigt iOS 26 und ein unterstütztes Gerät.")
+        "Liest einen Satz wie „morgens um 7 Wasser trinken“ und legt daraus ein Habit oder eine Erinnerung an. Benötigt ein unterstütztes Gerät.")
 
+    /// **No brand or platform names in this description.** Apple's Siri
+    /// metadata validation (ITMS-90626) rejects an App Intent description that
+    /// contains them — build 216 was turned away for saying "Apple
+    /// Intelligence", and "iOS" is on the same blocklist, so it is out too.
+    /// The requirement itself is not lost: the app's own captions say why a
+    /// device cannot write a sentence, and the person finds out immediately if
+    /// they run the action on one that cannot.
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Satz")
