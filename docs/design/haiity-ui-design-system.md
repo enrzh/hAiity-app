@@ -368,6 +368,36 @@ The rule is tested from both directions: a finished day must produce no plan,
 and the *next* day must still be planned — otherwise "don't remind me when
 done" would quietly become "stop tracking this habit".
 
+### The speak button
+
+One standing control, in the shell so it is on every tab, in the **trailing
+column directly above** the floating control that lives there (the prominent
+search button on iOS 27, the create button before it). Trailing rather than
+leading because that column already belongs to global actions, and Apple
+reserves that trailing slot for search in the tab bar itself
+(`tab-bars.md` › Phone (iOS): "A tab bar can include a dedicated search tab at
+the trailing end"). Stacking in the same column reads as one group rather than
+two unrelated corners.
+
+**It is deliberately the quieter of the two.** Two accent-filled circles in one
+column compete for the same glance, and the control underneath is the system's
+own search — the primary global action. So the mic gets thin material, a 0.5 pt
+border and no drop shadow, while search keeps the glass and the shadow. Apple's
+guidance is to keep prominent buttons to one or two per view
+(`buttons.md` › Style) and to leave enough space around a button that it can be
+told apart from its surroundings — hence the 12 pt stack gap rather than a
+touching pair.
+
+The stack is measured, not guessed: `ChromeLayout` carries the trailing
+control's inset and diameter, and the mic's offsets are derived from them. When
+either diameter changes, the pair stays aligned and the content clearance
+follows.
+
+On iOS 26 the search role is a tab rather than a floating control, so the mic
+keeps the same trailing position with empty space beneath it rather than moving
+per system version — one place for the control beats a position that shifts
+between OS releases.
+
 ### Dictation
 
 Apple's system keyboard dictation is already available in every text field in

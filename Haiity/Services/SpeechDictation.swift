@@ -166,7 +166,18 @@ final class SpeechDictation {
                 if let result {
                     self.transcript = result.bestTranscription.formattedString
                 }
-                if error != nil || result?.isFinal == true {
+                if let error {
+                    // Previously this fell through to `stop()`, so a failed
+                    // session was indistinguishable from finishing normally:
+                    // the waveform froze and the status line went back to
+                    // "Tippe auf den Knopf" with nothing said, which reads as
+                    // "it did not hear me" rather than "it broke".
+                    NSLog("SpeechDictation: recognition failed: %@", String(describing: error))
+                    self.teardown()
+                    self.state = .failed(String(localized: "Erkennung ist fehlgeschlagen."))
+                    return
+                }
+                if result?.isFinal == true {
                     self.stop()
                 }
             }

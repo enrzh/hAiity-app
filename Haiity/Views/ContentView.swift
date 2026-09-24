@@ -277,10 +277,10 @@ struct ContentView: View {
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
             // Der Sprachknopf liegt am SHELL, nicht auf einer Seite: er soll auf
             // jedem Tab stehen, und an vier Stellen eine Kopie zu bauen wäre die
-            // übliche Art, wie so etwas auseinanderläuft. Unten LINKS, weil
-            // iOS 27 die Suchrolle unten rechts setzt — zwei schwebende Knöpfe
-            // in einer Ecke wären einer zu viel.
-            .overlay(alignment: .bottomLeading) { speakButton }
+            // übliche Art, wie so etwas auseinanderläuft. Er sitzt in derselben
+            // Trailing-Spalte wie der schwebende Suchknopf, direkt DARÜBER — als
+            // untergeordneter Begleiter, nicht als zweite Hauptaktion.
+            .overlay(alignment: .bottomTrailing) { speakButton }
             .sheet(isPresented: $showSpeakToCreate) {
                 SpeakToCreateSheet(store: store)
                     .themed(store, palettes: effectivePalettes)
@@ -560,17 +560,28 @@ struct ContentView: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
                     .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Theme.accentText(effectivePaletteStyle).opacity(0.18)))
-                    // Same shadow the other floating chrome uses, so the two
-                    // bottom controls read as one family.
-                    .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+                    .background(.thinMaterial, in: Circle())
+                    // Secondary, not a second primary.
+                    //
+                    // Two accent-filled circles in one column compete for the
+                    // same glance, and the control underneath is the system's
+                    // own search — the app's primary global action. A thinner
+                    // stroke, a lighter fill and no drop shadow put the mic in
+                    // the same column while leaving search the louder of the
+                    // two, which is what "one prominent action per view" asks
+                    // for.
+                    .overlay(Circle().strokeBorder(
+                        Theme.accentText(effectivePaletteStyle).opacity(0.14),
+                        lineWidth: 0.5))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Aus einem Satz anlegen"))
             .accessibilityIdentifier("speak-to-create")
-            .padding(.leading, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 8)
+            // Trailing column, directly above the control it pairs with. The
+            // numbers come from the layout constants so the stack survives a
+            // change to either diameter.
+            .padding(.trailing, ChromeLayout.speakButtonTrailing)
+            .padding(.bottom, ChromeLayout.speakButtonBottom)
         }
     }
 
@@ -1417,7 +1428,7 @@ struct ContentView: View {
     /// `chromeFootprint` is deliberately zero — which leaves nothing accounting
     /// for a control that floats ABOVE that bar.
     private var speakButtonFootprint: CGFloat {
-        chromeFootprint + Theme.Metrics.control + 8
+        chromeFootprint + ChromeLayout.speakButtonTop + 8
     }
 
     private var chromeFootprint: CGFloat {

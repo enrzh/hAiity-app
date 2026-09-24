@@ -71,6 +71,15 @@ struct SpeakToCreateSheet: View {
         }
         .onAppear { startListening() }
         .onDisappear { stopEverything() }
+        .onChange(of: dictation.transcript) { _, spoken in
+            // The recogniser owns the text while it is running. Without this the
+            // recognised words landed in `SpeechDictation.transcript` and never
+            // reached the field, so the sheet looked like it was hearing nothing
+            // at all. A partial result replaces what is there, so a correction
+            // shows up as it is made rather than only at the end.
+            guard dictation.state.isListening, !spoken.isEmpty else { return }
+            text = spoken
+        }
         .task {
             // A repeating sample while the sheet is up. Cancelled on disappear,
             // so the recogniser never outlives the UI that draws it.
@@ -161,8 +170,13 @@ struct SpeakToCreateSheet: View {
 
     private func toggleListening() {
         if dictation.state.isListening {
-            dictation.stop()
+            stopEverything()
         } else {
+            // Starting over replaces the sentence. Anything typed by hand stays
+            // until the person asks to record again, at which point their
+            // intention is unambiguous.
+            text = ""
+            dictation.reset()
             levels = []
             Task { await dictation.start() }
         }
@@ -294,6 +308,10 @@ struct SpeakToCreateSheet: View {
     private func stopEverything() {
         sampler?.cancel()
         sampler = nil
+        // The final result can arrive after listening has ended, so take the
+        // transcript first; `stop()` clears the listening state and the
+        // live-sync above would then refuse it.
+        if !dictation.transcript.isEmpty { text = dictation.transcript }
         dictation.stop()
         levels = []
     }

@@ -32,8 +32,46 @@ enum ChromeLayout {
     /// Only the shell's root pages use this. Sheets and sub-pages are modal —
     /// the speak button is hidden while one is up — so they keep the smaller
     /// value and do not carry dead space.
-    static let floatingControlsClearance: CGFloat = nativeTabBarClearance
-        + Theme.Metrics.control + 8
+
+    // MARK: – Die schwebende Trailing-Spalte
+
+    /// The trailing floating control: the prominent search button on iOS 27, the
+    /// create button before it. Both are circles of the same size, centred the
+    /// same distance from the corner, so anything that stacks beside one of them
+    /// has to measure from the same numbers — otherwise the stack drifts apart
+    /// the moment either of those diameters changes.
+    static let trailingControlInset: CGFloat = 52
+    static let trailingControlDiameter: CGFloat = 62
+
+    /// How far the trailing control's own edges sit from the bottom edge.
+    static let trailingControlTop: CGFloat = trailingControlInset
+        + trailingControlDiameter / 2
+    static let trailingControlBottom: CGFloat = trailingControlInset
+        - trailingControlDiameter / 2
+
+    /// Gap between the speak button and the control it stacks above.
+    ///
+    /// Sized so the two read as two controls and not as one shape. Apple's
+    /// buttons guidance is explicit that a button needs enough space around it
+    /// to be told apart from what surrounds it; anything tighter and the corner
+    /// becomes a single blob.
+    static let trailingStackGap: CGFloat = 12
+
+    /// Bottom offset for the speak button, derived from the control it stacks on.
+    static let speakButtonBottom: CGFloat = trailingControlTop + trailingStackGap
+
+    /// Where the speak button's own centre sits horizontally, so it shares the
+    /// trailing column rather than merely being near the corner.
+    static let speakButtonTrailing: CGFloat = trailingControlInset
+        - Theme.Metrics.control / 2
+
+    /// Clearance for content that has to clear BOTH the tab bar and the speak
+    /// button stacked above the trailing control.
+    static let speakButtonTop: CGFloat = speakButtonBottom + Theme.Metrics.control
+
+    /// Clearance for a root page's scroll content: the tab bar, plus the speak
+    /// button stacked above the trailing control.
+    static let floatingControlsClearance: CGFloat = speakButtonTop + 8
 
     static func toastBottomPadding(nativeBar: Bool, searching: Bool) -> CGFloat {
         nativeBar && !searching ? nativeTabBarClearance : 0
