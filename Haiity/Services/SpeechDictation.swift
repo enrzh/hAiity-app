@@ -54,6 +54,15 @@ final class SpeechDictation {
     @ObservationIgnored private var request: SFSpeechAudioBufferRecognitionRequest?
     @ObservationIgnored private var task: SFSpeechRecognitionTask?
     @ObservationIgnored private let engine = AVAudioEngine()
+    /// The input node is captured once and reused. Reaching through
+    /// `engine.inputNode` a second time can hand back a different wrapper, and
+    /// removing a tap from a node it was never installed on leaves the real one
+    /// running.
+    @ObservationIgnored private var inputNode: AVAudioNode?
+    /// Guards the tap so it is installed once and removed once, whatever path
+    /// gets us here. Installing a second tap on a live engine is the classic way
+    /// to take an app down with an audio crash.
+    @ObservationIgnored private var tapInstalled = false
     /// Smooths the bars. A raw amplitude track looks like a seismograph; speech
     /// reads better with a short rise and a slower fall.
     @ObservationIgnored private var smoothedLevel: Double = 0
@@ -136,23 +145,27 @@ final class SpeechDictation {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else {
+        // A zero sample rate means the hardware gave us nothing usable. Asking
+        // `inputNode` for a format at all can also raise on some routes, which
+        // Swift cannot catch, so the check has to happen before the tap exists.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
             state = .failed(String(localized: "Das Mikrofon ließ sich nicht öffnen."))
             teardown()
             return false
         }
-        input.removeTap(onBus: 0)
+        inputNode = input
+        if tapInstalled { input.removeTap(onBus: 0) }
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             request.append(buffer)
             let amplitude = Self.rmsLevel(of: buffer)
             Task { @MainActor [weak self] in self?.absorb(amplitude) }
         }
+        tapInstalled = true
 
         engine.prepare()
         do {
             try engine.start()
         } catch {
-            input.removeTap(onBus: 0)
             state = .failed(String(localized: "Das Mikrofon ließ sich nicht öffnen."))
             teardown()
             return false
@@ -187,10 +200,7 @@ final class SpeechDictation {
     }
 
     func stop() {
-        guard state.isListening || engine.isRunning else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
-        request?.endAudio()
+        guard state.isListening || engine.isRunning || tapInstalled else { return }
         teardown()
         state = .idle
     }
@@ -205,7 +215,19 @@ final class SpeechDictation {
         if case .unavailable = state { state = .idle }
     }
 
+    /// Stop everything, in the only order that is safe, and do it idempotently.
+    ///
+    /// This used to leave the engine running. Every failure path called it, so a
+    /// session that failed once left a live engine with a live tap, and the next
+    /// attempt installed a second tap on top of it. Engine first, then the tap,
+    /// then the session, then the references.
     private func teardown() {
+        if engine.isRunning { engine.stop() }
+        if tapInstalled {
+            inputNode?.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        inputNode = nil
         request?.endAudio()
         request = nil
         task?.cancel()

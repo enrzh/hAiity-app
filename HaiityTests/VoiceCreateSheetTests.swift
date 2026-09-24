@@ -80,6 +80,44 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "the status line must be read as one thing with the panel")
     }
 
+    /// The audio teardown has to be complete and idempotent.
+    ///
+    /// It used to leave the engine running and the tap installed, so a session
+    /// that failed once left live audio hardware behind and the next attempt put
+    /// a second tap on an already-running engine. That is the shape of crash this
+    /// guards, and it cannot be observed without a microphone.
+    func testAudioTeardownStopsEverythingExactlyOnce() throws {
+        let dictation = try source("Haiity/Services/SpeechDictation.swift")
+
+        let teardown = try XCTUnwrap(dictation.range(of: "private func teardown()"))
+        let body = dictation[teardown.upperBound...]
+            .prefix(700)
+        for step in ["engine.stop()", "removeTap", "tapInstalled = false",
+                     "inputNode = nil", "task?.cancel()",
+                     "setActive(false"] {
+            XCTAssertTrue(body.contains(step),
+                          "teardown must include \(step) or a failure leaves audio hardware live")
+        }
+        // Stopping must route through teardown rather than half-doing the job.
+        let stop = try XCTUnwrap(dictation.range(of: "func stop() {"))
+        let stopBody = dictation[stop.upperBound...].prefix(260)
+        XCTAssertTrue(stopBody.contains("teardown()"),
+                      "stop() must delegate to teardown so there is one owner of the audio stack")
+        XCTAssertFalse(stopBody.contains("engine.inputNode"),
+                       "stop() must not re-query inputNode; the captured instance is the one with the tap")
+    }
+
+    /// A tap is installed behind a guard, so a retry cannot stack a second one.
+    func testTheTapIsInstalledBehindAGuard() throws {
+        let dictation = try source("Haiity/Services/SpeechDictation.swift")
+        XCTAssertTrue(dictation.contains("if tapInstalled { input.removeTap"),
+                      "an existing tap must be removed before a new one is installed")
+        XCTAssertTrue(dictation.contains("tapInstalled = true"),
+                      "the guard has to be set once the tap exists")
+        XCTAssertTrue(dictation.contains("inputNode = input"),
+                      "the node the tap is installed on must be the one later removed")
+    }
+
     private func sourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
