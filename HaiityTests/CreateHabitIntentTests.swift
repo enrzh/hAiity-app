@@ -184,8 +184,8 @@ final class CreateHabitIntentTests: XCTestCase {
         let source = try String(contentsOf: sourceURL("Haiity/Intents/CreateHabitIntent.swift"))
         XCTAssertTrue(source.contains("struct CreateHabitIntent: AppIntent"))
         XCTAssertTrue(source.contains("struct CreateItemFromTextIntent: AppIntent"))
-        XCTAssertTrue(source.contains("Braucht iOS 26 und Apple Intelligence"),
-                      "the model-backed intent must state its requirement up front")
+        XCTAssertTrue(source.contains("Benötigt iOS 26 und ein unterstütztes Gerät"),
+                      "the model-backed intent must state its requirement without restricted branding")
     }
 
     /// An `AppShortcut` phrase may only interpolate an `AppEntity`, because Siri

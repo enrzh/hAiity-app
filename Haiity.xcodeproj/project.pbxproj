@@ -149,6 +149,7 @@
 		A534F2DA22D2AB1CEA4F8CE8 /* DesignFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872C3987D44EF30A57E31F1C /* DesignFixture.swift */; };
 		A6773BBE24E037FDD9F6283F /* HaiityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D438A604A3C7DDB240B66B83 /* HaiityWidget.swift */; };
 		A6A6BA25C27F9874E79A8F73 /* SelectGraphIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7CAADC296C370566092836 /* SelectGraphIntent.swift */; };
+		A6D5F944B78579270FF1A99B /* SpeakToCreateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81F72B33B921ED267B1DA4A3 /* SpeakToCreateSheet.swift */; };
 		A76B8955F3E6DA8848A657E6 /* LargeWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298091F217F0747A21F0942F /* LargeWidgetIntent.swift */; };
 		A7ADC0E3D8031FE7C462CA3B /* ThemeAndPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5427538662B90637E98ECF0F /* ThemeAndPaletteTests.swift */; };
 		A9042F5CE206E89FAE6371E7 /* GoalEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72ED21DCE4513A757075B7FE /* GoalEngineTests.swift */; };
@@ -172,6 +173,7 @@
 		BDEB1CD5AE645835032859C6 /* ContributionGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F7C445D6053ABA1A4B56A /* ContributionGridTests.swift */; };
 		C0F71DC05118C02236A68E36 /* ReminderItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D06513C852AB97864CE03 /* ReminderItemTests.swift */; };
 		C34203431C62176A53DF1D2B /* GitHubSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C836108CF2C4CD9FBEFDF473 /* GitHubSettingsView.swift */; };
+		C465E281EFC453AE9A81AE6D /* SpeechDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F225CC621F8320AD61D72F41 /* SpeechDictation.swift */; };
 		C87C5539733460FCE6A4C883 /* HabitTimeZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3899E978F911B0CF69FA88A8 /* HabitTimeZone.swift */; };
 		C8A7F9406EBB67B210BA41D0 /* MotivationWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */; };
 		C91259412A264D3F232FD12C /* StatsContextMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9095AA437F97F79369CC1282 /* StatsContextMenuUITests.swift */; };
@@ -198,6 +200,7 @@
 		DCBE0842E82A1DA91F31567C /* StartupSplashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D357E1399AFCED61A44605 /* StartupSplashTests.swift */; };
 		DF2B1B10586C112319138E94 /* GitHubContributionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE78D3F50802D61583AF6FE4 /* GitHubContributionModels.swift */; };
 		DFEEE843071CDF08B3D6FA47 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A965D62A77EE176C1649E3C4 /* Localizable.xcstrings */; };
+		E0E3E97B0C71C6A9A3B18E2E /* VoiceWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */; };
 		E2CA83EDB6EDFCA4BC03F224 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F9D55773D83EB0F91C64E /* ShareCardView.swift */; };
 		E326A92DB11D9802A45C7A18 /* RecurrenceText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F15FE0042D351865BF907B3 /* RecurrenceText.swift */; };
 		E3902454417B275FE5A8BF4F /* OnDeviceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9320D1BBAE280F927079882D /* OnDeviceModel.swift */; };
@@ -288,6 +291,7 @@
 		14F2579B3CB56539C9201629 /* SiriIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntentTests.swift; sourceTree = "<group>"; };
 		16A494D858754FEF9344A9CB /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		17504878E3315A0FC287499E /* HabitTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTimeTests.swift; sourceTree = "<group>"; };
+		1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveform.swift; sourceTree = "<group>"; };
 		1ADD4B462108A54E97CAC743 /* GitHubCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCredentials.swift; sourceTree = "<group>"; };
 		1B20632DF097CB569849CA67 /* GesturePerfTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GesturePerfTests.swift; sourceTree = "<group>"; };
 		1DFDC9742F618CE927094067 /* GitHubPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubPreferencesTests.swift; sourceTree = "<group>"; };
@@ -356,6 +360,7 @@
 		7E5B63C379C1C639DA82F7B8 /* GraphContextMenuRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphContextMenuRegressionTests.swift; sourceTree = "<group>"; };
 		811F897535CB62EDFEC75EE3 /* GitHubContributionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubContributionCard.swift; sourceTree = "<group>"; };
 		814D06513C852AB97864CE03 /* ReminderItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderItemTests.swift; sourceTree = "<group>"; };
+		81F72B33B921ED267B1DA4A3 /* SpeakToCreateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakToCreateSheet.swift; sourceTree = "<group>"; };
 		829A6A18E665430D537501E5 /* CloudSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSync.swift; sourceTree = "<group>"; };
 		82E7C7954EFD1E684D419612 /* GeneratedMotivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedMotivation.swift; sourceTree = "<group>"; };
 		845AFA2BB735078119DCF8AE /* ReminderSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSync.swift; sourceTree = "<group>"; };
@@ -454,6 +459,7 @@
 		EDF2EE0D5460F5D5B06A58C5 /* YesNoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YesNoTests.swift; sourceTree = "<group>"; };
 		EF455DC0FE9C2297450AAA02 /* CreateItemWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateItemWriter.swift; sourceTree = "<group>"; };
 		F016B327457EA8A81E8B9563 /* MotivationLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotivationLiveActivity.swift; sourceTree = "<group>"; };
+		F225CC621F8320AD61D72F41 /* SpeechDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictation.swift; sourceTree = "<group>"; };
 		F40EAD00EB9A2D941541FAF9 /* HabitStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStore.swift; sourceTree = "<group>"; };
 		F586DECA4C0563952891685A /* AppUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIComponents.swift; sourceTree = "<group>"; };
 		F6F5ED5749F37D382556C39B /* HabitSortingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitSortingScreen.swift; sourceTree = "<group>"; };
@@ -495,6 +501,7 @@
 				C9C9475096CE96883F24B65E /* NotificationPresenter.swift */,
 				32AA2D8B217041642946DB00 /* Reminders.swift */,
 				845AFA2BB735078119DCF8AE /* ReminderSync.swift */,
+				F225CC621F8320AD61D72F41 /* SpeechDictation.swift */,
 				A8D391AD017EC32038980521 /* StatsReadingWriter.swift */,
 				3FE683A092E3C7026D0F6BE6 /* SyncWatermark.swift */,
 			);
@@ -579,10 +586,12 @@
 				09665D11558201749ED55C90 /* ReminderSetupView.swift */,
 				E3983526F3E7673674D5E187 /* ShakeDetector.swift */,
 				274F9D55773D83EB0F91C64E /* ShareCardView.swift */,
+				81F72B33B921ED267B1DA4A3 /* SpeakToCreateSheet.swift */,
 				BEE02797D8586DEBB5BA0314 /* StartupSplashView.swift */,
 				2E5DABD63C9237AA5A281CF5 /* StatsView.swift */,
 				200E5EF258DF9AC750B77645 /* SwipeRevealPan.swift */,
 				4C07A90E12C1CAC5ACB4EB1A /* TodayProgressView.swift */,
+				1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1140,6 +1149,8 @@
 				622C16A51CB752164B4CCAD0 /* ShakeDetector.swift in Sources */,
 				E2CA83EDB6EDFCA4BC03F224 /* ShareCardView.swift in Sources */,
 				30D8AB756783A4563746BDAC /* SiriQueryIntents.swift in Sources */,
+				A6D5F944B78579270FF1A99B /* SpeakToCreateSheet.swift in Sources */,
+				C465E281EFC453AE9A81AE6D /* SpeechDictation.swift in Sources */,
 				5A22B768A7198517FA384A93 /* StartupSplash.swift in Sources */,
 				48F8E0F6E0B79C3939326A26 /* StartupSplashView.swift in Sources */,
 				A93A5E07779BDCC1AD70E003 /* StatsCardPrefs.swift in Sources */,
@@ -1154,6 +1165,7 @@
 				9499A41ED752CCD7D28CAA6C /* SyncWatermark.swift in Sources */,
 				CCB7B1C9107C136413559C85 /* Theme.swift in Sources */,
 				1628FA2E2EF4E5029FEFDBA6 /* TodayProgressView.swift in Sources */,
+				E0E3E97B0C71C6A9A3B18E2E /* VoiceWaveform.swift in Sources */,
 				9C545FC8CD4CC4B53DCD3A3F /* WidgetGridViews.swift in Sources */,
 				7EC98172D1F62DCDE5FEC49B /* WidgetLogic.swift in Sources */,
 			);
@@ -1282,7 +1294,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 215;
+				CURRENT_PROJECT_VERSION = 217;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;
@@ -1303,7 +1315,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 215;
+				CURRENT_PROJECT_VERSION = 217;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1345,7 +1357,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 215;
+				CURRENT_PROJECT_VERSION = 217;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1468,7 +1480,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 215;
+				CURRENT_PROJECT_VERSION = 217;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;

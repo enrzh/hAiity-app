@@ -496,7 +496,7 @@ struct MoreView: View {
         .softScrollEdges()
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear
-                .frame(height: ChromeLayout.nativeTabBarClearance)
+                .frame(height: ChromeLayout.floatingControlsClearance)
                 .accessibilityHidden(true)
         }
         .settingsChrome()

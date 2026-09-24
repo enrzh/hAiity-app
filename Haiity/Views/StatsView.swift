@@ -147,7 +147,7 @@ struct StatsView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 520)
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .padding(.bottom, ChromeLayout.floatingControlsClearance)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -206,7 +206,7 @@ struct StatsView: View {
                 }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .padding(.bottom, ChromeLayout.floatingControlsClearance)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -249,7 +249,7 @@ struct StatsView: View {
                 statsTodayLoadingCard
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .padding(.bottom, ChromeLayout.floatingControlsClearance)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()

@@ -20,6 +20,21 @@ enum ChromeLayout {
     static let nativeTabBarClearance: CGFloat = Theme.Metrics.control
         + Theme.Metrics.gutter + Theme.Metrics.gap * 3
 
+    /// Clearance for scroll content that has to clear BOTH floating controls:
+    /// the tab bar, and the speak button that floats above it on the shell's
+    /// root pages.
+    ///
+    /// `nativeTabBarClearance` alone is not enough. The speak button sits at
+    /// `nativeTabBarClearance + 8` from the bottom and is a full `control` tall,
+    /// so content padded to the tab bar's clearance still scrolls underneath it
+    /// and the last row ends up unreadable behind a floating circle.
+    ///
+    /// Only the shell's root pages use this. Sheets and sub-pages are modal —
+    /// the speak button is hidden while one is up — so they keep the smaller
+    /// value and do not carry dead space.
+    static let floatingControlsClearance: CGFloat = nativeTabBarClearance
+        + Theme.Metrics.control + 8
+
     static func toastBottomPadding(nativeBar: Bool, searching: Bool) -> CGFloat {
         nativeBar && !searching ? nativeTabBarClearance : 0
     }

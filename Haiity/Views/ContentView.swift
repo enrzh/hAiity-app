@@ -111,6 +111,7 @@ struct ContentView: View {
     /// Das Melde-Blatt (Schütteln). Es hängt hier oben, weil die Geste überall
     /// gilt — sie gehört keinem Bereich, sondern der App.
     @State private var showFeedback = false
+    @State private var showSpeakToCreate = false
     /// Wann das Melde-Blatt zuletzt zuging. Ein Schütteln endet oft mit einem
     /// Nachschütteln (die Hand hört später auf als der Kopf) — ohne diese
     /// Ruhezeit spränge das eben geschlossene Blatt sofort wieder auf.
@@ -274,6 +275,17 @@ struct ContentView: View {
             // wie „Mehr": ein fullScreenCover, das ab iOS 18 mit der
             // Zoom-Transition aus dem Anlegen-Knopf wächst und
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
+            // Der Sprachknopf liegt am SHELL, nicht auf einer Seite: er soll auf
+            // jedem Tab stehen, und an vier Stellen eine Kopie zu bauen wäre die
+            // übliche Art, wie so etwas auseinanderläuft. Unten LINKS, weil
+            // iOS 27 die Suchrolle unten rechts setzt — zwei schwebende Knöpfe
+            // in einer Ecke wären einer zu viel.
+            .overlay(alignment: .bottomLeading) { speakButton }
+            .sheet(isPresented: $showSpeakToCreate) {
+                SpeakToCreateSheet(store: store)
+                    .themed(store, palettes: effectivePalettes)
+                    .environment(\.appearanceBackgroundOwned, false)
+            }
             .fullScreenCover(isPresented: $showAdd,
                              onDismiss: deliverPendingCreateDismissalRoute) {
                 createPage.onAppear { createCoverDidPresent() }
@@ -526,6 +538,40 @@ struct ContentView: View {
         }
         guard #available(iOS 27, *) else { return }
         DispatchQueue.main.async { searchFieldFocused = true }
+    }
+
+    // MARK: – Sprachknopf
+
+    /// The standing "say it instead of typing it" control.
+    ///
+    /// Sized to the same 52 pt circle as the app's other floating controls and
+    /// offset by the same tab-bar clearance, so it sits in the band's bottom
+    /// row rather than on top of the tab bar. Hidden while a sheet or the
+    /// create page is up: a floating control over a modal is a tap target with
+    /// nothing behind it.
+    @ViewBuilder
+    private var speakButton: some View {
+        if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback {
+            Button {
+                showSpeakToCreate = true
+                Theme.Haptics.select()
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentText(effectivePaletteStyle))
+                    .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
+                    .background(.regularMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.accentText(effectivePaletteStyle).opacity(0.18)))
+                    // Same shadow the other floating chrome uses, so the two
+                    // bottom controls read as one family.
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Aus einem Satz anlegen"))
+            .accessibilityIdentifier("speak-to-create")
+            .padding(.leading, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 8)
+        }
     }
 
     // MARK: – Bereiche
@@ -1337,7 +1383,10 @@ struct ContentView: View {
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
         // letzten Karte, und zwar in RTL genauso.
-        .contentMargins(.bottom, chromeFootprint, for: .scrollContent)
+        // The speak button floats above the tab bar, so the list needs margin
+        // for it as well as for the bar. Without this the last habit's title ends
+        // up behind the button instead of above it.
+        .contentMargins(.bottom, speakButtonFootprint, for: .scrollContent)
         // Karten sind weiß/#1C1C1E, die Seite muss also die gruppierte
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
@@ -1362,6 +1411,15 @@ struct ContentView: View {
     /// Wert ist ABSICHTLICH unabhängig vom Zusammenziehen — würde die Marge
     /// mitschrumpfen, verschöbe sich der Inhalt, das Scroll-Signal bekäme
     /// eine Bewegung ohne Finger und der Umschalter triebe sich selbst.
+    /// Extra room below the habit list for the shell's speak button.
+    ///
+    /// On iOS 26 and later the native bar supplies its own inset, so
+    /// `chromeFootprint` is deliberately zero — which leaves nothing accounting
+    /// for a control that floats ABOVE that bar.
+    private var speakButtonFootprint: CGFloat {
+        chromeFootprint + Theme.Metrics.control + 8
+    }
+
     private var chromeFootprint: CGFloat {
         // Ab iOS 26 stellt die NATIVE Leiste ihre eigene Sicherheitszone —
         // die Liste endet automatisch über ihr, eine zusätzliche Marge wäre

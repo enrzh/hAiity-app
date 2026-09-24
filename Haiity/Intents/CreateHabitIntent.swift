@@ -159,7 +159,7 @@ struct CreateItemFromTextIntent: AppIntent {
 
     static var title: LocalizedStringResource = "Aus einem Satz anlegen"
     static var description = IntentDescription(
-        "Liest einen Satz wie „morgens um 7 Wasser trinken“ und legt daraus ein Habit oder eine Erinnerung an. Braucht iOS 26 und Apple Intelligence.")
+        "Liest einen Satz wie „morgens um 7 Wasser trinken“ und legt daraus ein Habit oder eine Erinnerung an. Benötigt iOS 26 und ein unterstütztes Gerät.")
 
     static var openAppWhenRun: Bool = false
 
