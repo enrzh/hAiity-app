@@ -724,16 +724,21 @@ final class FeedbackTests: XCTestCase {
                                            range: start.upperBound..<more.endIndex))
         let section = more[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(section.contains("Section {"),
-                      "notification controls need one native grouped list row")
-        XCTAssertTrue(section.contains("Text(String(localized: \"Mitteilungen\"))"),
-                      "the notification title must remain visible")
+        XCTAssertTrue(section.contains("AppSettingsGroup"),
+                      "notification controls need the shared settings group surface")
+        XCTAssertFalse(section.contains("List {"),
+                       "a grouped List drops taps on iOS 27, so it must not come back")
+        XCTAssertEqual(section.components(separatedBy: "AppSettingsGroup(title:").count - 1, 4,
+                       "each notification group needs its own labelled surface")
         XCTAssertEqual(section.components(separatedBy: ".notificationSettingsRow()").count - 1, 4,
                        "each notification group needs its own native hit boundary")
         XCTAssertFalse(section.contains("notificationDivider"),
                        "internal dividers are no longer needed between separate rows")
         let rows = ["notificationOptOutRows", "dailySummaryRows", "weeklySummaryRows", "motivationRows"]
-        let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows", "openSourceMotivationEnabled"]
+        // `motivationRows` is now followed by the source picker, which used to
+        // be preceded by the retired `openSourceMotivationEnabled` binding.
+        let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows",
+                        "motivationSourceControl"]
         for (row, nextRow) in zip(rows, nextRows) {
             let rowStart = try XCTUnwrap(more.range(of: "private var \(row): some View"))
             let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
@@ -764,21 +769,30 @@ final class FeedbackTests: XCTestCase {
                       "weekday choices should be presented independently from the list row")
     }
 
-    func testMotivationSourceLinkCannotClaimTheWholeNotificationRow() throws {
+    /// The source control used to be a link out to a quote repository, and the
+    /// hazard this test guarded was real: a `Button` inside a settings row can
+    /// inherit the whole row on iOS 27 and steal taps from its neighbours. The
+    /// link is gone, and the replacement is a segmented `Picker` plus a caption.
+    /// What must survive is the shape — a bounded native control, never a
+    /// row-wide gesture, and never a caption that claims the row.
+    func testTheMotivationSourceControlStaysABoundedNativeControl() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let start = try XCTUnwrap(more.range(of: "private var motivationRows: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var motivationSourceURL: URL",
+        let end = try XCTUnwrap(more.range(of: "private var motivationSourceControl: some View",
                                            range: start.upperBound..<more.endIndex))
         let rows = more[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"),
-                      "the source action must stay local to its visible label")
-        XCTAssertTrue(rows.contains("Label(String(localized: \"Quelle: mubaris/motivate · MIT-Lizenz\")"),
-                      "the source label must remain visible")
-        XCTAssertTrue(rows.contains(".fixedSize(horizontal: true, vertical: false)"),
-                      "only the visible source label should open the repository")
-        XCTAssertTrue(rows.contains("Button(action: openMotivationSource)"),
-                      "the source must be a bounded control, not a row-wide gesture")
+        XCTAssertTrue(rows.contains("motivationSourceControl"),
+                      "the source picker must be referenced from the motivation rows")
+        let control = more[end.lowerBound..<more.endIndex]
+        XCTAssertTrue(control.contains(".pickerStyle(.segmented)"),
+                      "a segmented picker is a bounded native control")
+        XCTAssertTrue(control.contains("accessibilityIdentifier(\"motivation-source-picker\")"),
+                      "the control needs its own identifier for UI tests")
+        XCTAssertFalse(control.contains(".onTapGesture"),
+                       "a gesture on the caption can expand across the row")
+        XCTAssertFalse(more.contains("openMotivationSource"),
+                       "the retired repository link must not come back")
     }
 
     func testBehaviorAndDeveloperCategoriesUseOneMaterialRow() throws {
@@ -792,12 +806,14 @@ final class FeedbackTests: XCTestCase {
             return String(source[start.lowerBound..<end.lowerBound])
         }
 
+        // Both pages moved off `List` to the shared group surface, because iOS
+        // 27 drops taps on grouped list rows. One group, one material row.
         for (category, next) in [("autoArchiveSection", "private var compactModeSection: some View"),
                                  ("swipeActionsSection", "private var notificationActionsSection: some View"),
                                  ("notificationActionsSection", "private func notificationSlotTitle"),
                                  ("calendarSection", "private func cleanupNativeEntries")] {
             let body = try categoryBody(more, category, next)
-            XCTAssertTrue(body.contains("Section {\n            VStack("), category)
+            XCTAssertTrue(body.contains("AppSettingsGroup(title:"), category)
         }
 
         let developerCategories = [("appSection", "private var dataSection: some View"),
@@ -811,8 +827,12 @@ final class FeedbackTests: XCTestCase {
                                    ("ownerSection", "private func handleImport")]
         for (category, next) in developerCategories {
             let body = try categoryBody(developer, category, next)
-            XCTAssertTrue(body.contains("Section {\n            VStack("), category)
+            XCTAssertTrue(body.contains("AppSettingsGroup(title:"), category)
         }
+        XCTAssertFalse(more.contains("moreSettingsSection()"),
+                       "the More settings pages must not go back to a List-backed section")
+        XCTAssertFalse(developer.contains("moreSettingsSection()"),
+                       "the developer page must not go back to a List-backed section")
     }
 
     func testOwnerDeveloperAccessHasNoNonWorkingHideControl() throws {
@@ -832,16 +852,18 @@ final class FeedbackTests: XCTestCase {
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
         let main = more[body.lowerBound..<end.lowerBound]
+        // Grouped by intent, not taxonomy: Alltag, then Konto & Verbindungen,
+        // then Archiv & Über. The order inside the hub is the contract.
         let ordered = ["MoreRoute.appearance",
-                       "MoreRoute.habitBehavior", "moreGitHubRow",
-                       "showingPersonalSettings", "showingNotificationSettings",
+                       "showingNotificationSettings", "MoreRoute.habitBehavior",
+                       "moreGitHubRow", "showingPersonalSettings",
                        "showReminderSetup", "pageRow(.archive", "pageRow(.about", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)
             cursor = range.upperBound
         }
-        XCTAssertTrue(main.contains("moreHubGroup"),
+        XCTAssertTrue(main.contains("AppSettingsGroup"),
                       "the rebuilt More page must keep each group in its own surface")
 
         let appearanceStart = try XCTUnwrap(

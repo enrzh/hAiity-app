@@ -34,6 +34,9 @@ struct StatsView: View {
     /// The last completed value remains visible while changed data is
     /// recalculated in the background.
     @State private var renderedSnapshot: StatsEngine.Snapshot?
+    /// What the reading block is doing. It is always rendered — the block is the
+    /// affordance, so it cannot disappear when there is nothing to show yet.
+    @State private var statsReadingPhase: StatsReadingPhase = .idle
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
@@ -94,6 +97,7 @@ struct StatsView: View {
         .onChange(of: routeToken) { _, _ in paywall = nil }
         .task(id: statsRefreshKey) {
             await loadStatsSnapshot()
+            restoreStatsReadingIfAny()
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -190,6 +194,8 @@ struct StatsView: View {
 
                 statsWeekCard(snapshot)
 
+                statsReadingCard
+
                 if unlocked {
                     statsHabitRanking(snapshot)
                 } else {
@@ -261,9 +267,10 @@ struct StatsView: View {
         }
     }
 
+    /// No subtitle: the page's first card already says what today is, and a
+    /// "your rhythm at a glance" line only restates the title.
     private var statsPageTitle: some View {
-        RootPageTitle(title: String(localized: "Statistik"),
-                      subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+        RootPageTitle(title: String(localized: "Statistik"))
     }
 
     private var statsTodayLoadingCard: some View {
@@ -287,8 +294,6 @@ struct StatsView: View {
     private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         let total = snapshot.todayTotal
         let done = snapshot.todayDone
-        let open = max(total - done, 0)
-        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
         return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: Theme.Metrics.cardPadding + 4) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -311,15 +316,6 @@ struct StatsView: View {
                 Spacer(minLength: 8)
                 segmentedRing(done: done, total: total, size: 72, line: 8)
             }
-
-            Divider()
-                .opacity(0.55)
-
-            HStack(spacing: 0) {
-                statsTodayMetric(value: "\(open)", title: String(localized: "Offen"))
-                statsTodayMetric(value: "\(snapshot.streak)", title: String(localized: "Aktuelle Serie"))
-                statsTodayMetric(value: "\(weekPercent)%", title: String(localized: "Diese Woche"))
-            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -330,17 +326,174 @@ struct StatsView: View {
         .accessibilityIdentifier("stats-today-summary")
     }
 
-    private func statsTodayMetric(value: String, title: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .fixedSize(horizontal: false, vertical: true)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+    /// One sentence carries what the removed three-column footer repeated.
+    /// The same numbers stay in `statsTodayAccessibilityValue`.
+    /// One sentence about the pattern over time, written on device — but only
+    /// when the reader asks for it.
+    ///
+    /// **Why a tap instead of a page load.** Running the model makes the device
+    /// warm, and this page is the one people open most often. Generating on
+    /// every visit would spend heat continuously, which is exactly the cost the
+    /// person should get to decide about. So the block is always visible and
+    /// the work starts only on a tap.
+    ///
+    /// **Why it is always visible.** An affordance that appears only once it has
+    /// a result is invisible until it is useful, which is how a feature like
+    /// this stays undiscovered. The block is the invitation; its content
+    /// changes. That also means the "unavailable" state has to be a real,
+    /// explained state rather than a missing card.
+    @ViewBuilder
+    private var statsReadingCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            HStack(spacing: Theme.Metrics.gap) {
+                Image(systemName: "text.quote")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
+                    .background(accent.opacity(0.11), in: Circle())
+                    .accessibilityHidden(true)
+                Text(String(localized: "Dein Muster"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+
+            switch statsReadingPhase {
+            case .idle:
+                statsReadingIdleBody
+            case .working:
+                HStack(spacing: Theme.Metrics.gap) {
+                    ProgressView()
+                    Text(String(localized: "Denkt nach…"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            case .shown(let text):
+                statsReadingShownBody(text)
+            case .unavailable(let reason):
+                Text(statsReadingUnavailableText(reason))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .failed:
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    Text(String(localized: "Das hat nicht geklappt."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    statsReadingButton(title: String(localized: "Erneut versuchen")) {
+                        Task { await generateStatsReading(reroll: true) }
+                    }
+                }
+            }
         }
+        .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("stats-reading")
+    }
+
+    private var statsReadingIdleBody: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            Text(statsReadingIdleText)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            statsReadingButton(title: String(localized: "Kurz zusammenfassen")) {
+                Task { await generateStatsReading(reroll: false) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statsReadingShownBody(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            Text(text)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+            // A re-roll is a second deliberate request for the same heat the
+            // first one cost, so it is offered but never automatic.
+            statsReadingButton(title: String(localized: "Anderer Satz")) {
+                Task { await generateStatsReading(reroll: true) }
+            }
+        }
+    }
+
+    private func statsReadingButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(statsReadingPhase == .working)
+        .accessibilityIdentifier("stats-reading-action")
+    }
+
+    /// The block has to say something useful before it asks for work. With no
+    /// habits or no history there is no pattern to describe, and inviting a tap
+    /// that would then decline is worse than saying so up front.
+    private var statsReadingIdleText: String {
+        guard let snapshot = renderedSnapshot else {
+            return String(localized: "Aus deinen Zahlen wird ein Satz.")
+        }
+        return StatsReadingFacts(snapshot: snapshot).hasSomethingToSay
+            ? String(localized: "Aus deinen Zahlen wird ein Satz.")
+            : String(localized: "Sobald du Check-ins hast, steht hier ein Satz dazu.")
+    }
+
+    private func statsReadingUnavailableText(_ reason: OnDeviceModelAvailability) -> String {
+        switch reason {
+        case .available:
+            return String(localized: "Aus deinen Zahlen wird ein Satz.")
+        case .appleIntelligenceOff:
+            return String(localized: "Apple Intelligence ist aus. Schalte sie in den iOS-Einstellungen ein.")
+        case .modelNotReady:
+            return String(localized: "Das Modell lädt noch.")
+        case .deviceNotEligible:
+            return String(localized: "Dieses Gerät kann das Modell nicht ausführen.")
+        case .unsupportedSystem:
+            return String(localized: "Das braucht iOS 26.")
+        }
+    }
+
+    /// Run the model because the reader asked. Also the only place the
+    /// availability check happens for this feature, so the block can show an
+    /// explanation instead of a control that quietly does nothing.
+    /// Show today's reading if one was already written. Free, and it keeps the
+    /// block from looking unfinished when the person comes back to the page.
+    private func restoreStatsReadingIfAny() {
+        if let cached = StatsReadingDaily.cachedReading(for: DayKey.today(),
+                                                        in: SharedStorage.defaults) {
+            statsReadingPhase = .shown(cached)
+        }
+    }
+
+    private func generateStatsReading(reroll: Bool) async {
+        guard let snapshot = renderedSnapshot else { return }
+        let reason = OnDeviceModel.availability
+        guard reason == .available else {
+            statsReadingPhase = .unavailable(reason)
+            return
+        }
+        let facts = StatsReadingFacts(snapshot: snapshot)
+        guard facts.hasSomethingToSay else {
+            statsReadingPhase = .failed
+            return
+        }
+        statsReadingPhase = .working
+
+        let dayKey = DayKey.today()
+        let defaults = SharedStorage.defaults
+        let language = Locale.current.language.languageCode?.identifier ?? "en"
+        let text = await StatsReadingDaily.write(
+            for: dayKey, facts: facts, language: language, defaults: defaults,
+            reroll: reroll, write: StatsReadingDaily.onDeviceWriter)
+
+        await MainActor.run {
+            statsReadingPhase = text.map(StatsReadingPhase.shown) ?? .failed
+        }
     }
 
     private func statsTodaySentence(_ snapshot: StatsEngine.Snapshot) -> String {
@@ -350,7 +503,8 @@ struct StatsView: View {
         if snapshot.todayDone == snapshot.todayTotal {
             return String(localized: "Alles erledigt. Gute Arbeit.")
         }
-        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen")
+        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
+        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen · Serie \(snapshot.streak) · Woche \(weekPercent) %")
     }
 
     private func statsTodayAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
@@ -470,12 +624,12 @@ struct StatsView: View {
                     Spacer(minLength: 0)
             }
             Text(statsMetricValue(card, snapshot: snapshot))
-                .font(.system(.title3, design: .rounded, weight: .bold).monospacedDigit())
-                .lineLimit(1)
+                .font(.title3.weight(.bold).monospacedDigit())
+                .fixedSize(horizontal: false, vertical: true)
             Text(statsMetricTitle(card))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -511,10 +665,12 @@ struct StatsView: View {
         }
     }
 
+    /// The accent means progress; the trend sentence keeps the only other
+    /// status color. A heat ramp on the streak icon used to compete with the
+    /// user's own palette, so the streak is a number now.
     private func statsMetricColor(_ card: StatsCard,
                                   snapshot: StatsEngine.Snapshot) -> Color {
         switch card {
-        case .streakFlame: return flameColor(snapshot.streak)
         case .weekMomentum: return trendColor(snapshot)
         default: return accent
         }
@@ -542,11 +698,13 @@ struct StatsView: View {
                         Text(hasData ? "\(Int((fraction * 100).rounded()))%" : "-")
                             .font(.caption2.weight(.semibold).monospacedDigit())
                             .foregroundStyle(hasData ? .primary : .tertiary)
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(!hasData
-                                  ? Color.primary.opacity(0.08)
-                                  : accent.opacity(0.2 + fraction * 0.8))
-                            .frame(height: 30)
+                        // Same square, same ramp as every other graph in the app.
+                        // No second chart language, no new component: GridCell already
+                        // owns the tile geometry.
+                        GridCell(color: hasData
+                                 ? Theme.level(Self.statsDayLevel(fraction), dark: dark, palette: palettes.style)
+                                 : Color(.quaternaryLabel),
+                                size: GridCell.size * 2.5)
                         Text(statsWeekdayLabel(day))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -572,6 +730,17 @@ struct StatsView: View {
             return hasData ? "\(Int((fraction * 100).rounded())) %" : "-"
         }.joined(separator: ", ")
         return "\(percents), \(momentumSentence(snapshot))"
+    }
+
+    /// Maps a day fraction onto the same 0…4 ramp the contribution tiles use.
+    /// ponytail: four quarter-buckets, not a continuous gradient. `floor` rather
+    /// than `round`/`ceil` on purpose — with `ceil` a 67% and a 75% day both land
+    /// on level 3 and a real difference disappears. With `floor`, 100% is the
+    /// only level 4 and each quarter of the range is its own bucket. The exact
+    /// percentage stays visible above the square and in the accessibility value.
+    static func statsDayLevel(_ fraction: Double) -> Int {
+        guard fraction > 0 else { return 0 }
+        return min(4, max(1, Int(floor(fraction * 4))))
     }
 
     private func statsWeekdayLabel(_ key: String) -> String {
@@ -786,21 +955,31 @@ struct StatsView: View {
                          handler: openStatsAdjustments)]
     }
 
+    /// The habit behind a `"habit-<uuid>"` context-menu id, or nil for the
+    /// page-level menu.
+    ///
+    /// These two live out here rather than as locals inside the menu function:
+    /// a `@ViewBuilder` reads an `if/else` as a view branch, so deciding a
+    /// closure inside one only works behind an explicit `return` — which turns
+    /// the result builder off for the whole body and warns about it. Deciding
+    /// before the view expression is both correct and quieter.
+    private func statsContextHabitID(_ id: String) -> UUID? {
+        guard id.hasPrefix("habit-") else { return nil }
+        return UUID(uuidString: String(id.dropFirst("habit-".count)))
+    }
+
+    /// A per-habit card opens its habit; the page-level menu opens the settings.
+    private func statsContextCommit(for id: String) -> () -> Void {
+        guard let habitID = statsContextHabitID(id) else { return openStatsAdjustments }
+        return { openHabit(habitID) }
+    }
+
     @ViewBuilder
     private func statsContextMenu(id: String,
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> some View {
-        let habitID = id.hasPrefix("habit-")
-            ? UUID(uuidString: String(id.dropFirst("habit-".count)))
-            : nil
-        let commit: () -> Void
-        if let habitID {
-            commit = { openHabit(habitID) }
-        } else {
-            commit = openStatsAdjustments
-        }
-        return GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
                          previewWidth: statsPreviewWidth,
                          previewHeight: height,
                          // The preview builder owns the one rounded surface;
@@ -809,8 +988,8 @@ struct StatsView: View {
                          previewAccessibilityIdentifier: "stats-preview",
                          preview: preview,
                          actions: statsContextActions,
-                         commit: commit,
-                         performsCommitOnTap: habitID != nil,
+                         commit: statsContextCommit(for: id),
+                         performsCommitOnTap: statsContextHabitID(id) != nil,
                          onMenuVisibilityChanged: { visible in
                              if visible {
                                  activeContextMenuID = id
@@ -863,15 +1042,6 @@ struct StatsView: View {
     }
 
     // MARK: – kleine Zeichenhelfer
-
-    private func flameColor(_ streak: Int) -> Color {
-        switch streak {
-        case ..<1:   return .secondary
-        case ..<7:   return .orange
-        case ..<30:  return Color(red: 1.0, green: 0.42, blue: 0.21)
-        default:     return .red
-        }
-    }
 
     /// Ring mit einem SEGMENT je heute fälligem Habit; erledigte Segmente in
     /// der Akzentfarbe. Bei 0 fälligen: ein leerer gestrichelter Ring.

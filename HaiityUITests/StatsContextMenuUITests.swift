@@ -66,7 +66,13 @@ final class StatsContextMenuUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Statistik anpassen"].waitForExistence(timeout: 3))
         let screen = XCUIScreen.main.screenshot()
-        XCTAssertGreaterThan(brightnessVariation(of: screen.image, in: totalsFrame), 12,
+        // The threshold sits in the measured gap between the two states, not on
+        // a tuned edge. An absent tile leaves a uniform context-menu backdrop and
+        // scores 0.0-2.0; a rendered-but-dimmed tile carries its label and
+        // surface and scores 11.4-16.0. Anything in between proves the pixels are
+        // still there, while leaving room for the backdrop dim or the card
+        // padding to change without turning a correct screen into a failure.
+        XCTAssertGreaterThan(brightnessVariation(of: screen.image, in: totalsFrame), 6,
                              "The sibling total tile must remain rendered while another tile is enlarged")
         let screenshot = XCTAttachment(screenshot: screen)
         screenshot.name = "stats-small-tile-context-menu"

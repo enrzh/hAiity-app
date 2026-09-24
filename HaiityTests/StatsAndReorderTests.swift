@@ -198,4 +198,23 @@ final class StatsMathTests: XCTestCase {
         XCTAssertEqual(GoalEngine.completion(habit: h, lastNDays: 365, today: "2026-08-09", calendar: berlin),
                        9.0 / 365.0, accuracy: 0.0001)
     }
+
+    /// The seven-day strip reuses the contribution ramp, so a day fraction has
+    /// to land on the same 0…4 buckets the graphs use. 0 stays "empty", 100% is
+    /// the only level 4, and neighbouring days in the common 60–90% band must
+    /// not collapse onto the same square.
+    func testStatsDayLevelMapsFractionsOntoTheContributionRamp() {
+        XCTAssertEqual(StatsView.statsDayLevel(0), 0)
+        XCTAssertEqual(StatsView.statsDayLevel(0.01), 1)
+        XCTAssertEqual(StatsView.statsDayLevel(0.25), 1)
+        XCTAssertEqual(StatsView.statsDayLevel(0.5), 2)
+        XCTAssertEqual(StatsView.statsDayLevel(0.67), 2)
+        XCTAssertEqual(StatsView.statsDayLevel(0.75), 3)
+        XCTAssertEqual(StatsView.statsDayLevel(0.99), 3)
+        XCTAssertEqual(StatsView.statsDayLevel(1.0), 4)
+        XCTAssertEqual(StatsView.statsDayLevel(4.0), 4)
+        XCTAssertEqual(StatsView.statsDayLevel(-1), 0)
+        XCTAssertNotEqual(StatsView.statsDayLevel(0.67), StatsView.statsDayLevel(0.75),
+                          "a 67% and a 75% day must not look identical")
+    }
 }

@@ -281,6 +281,77 @@ final class SummaryPlanTests: XCTestCase {
                                                 now: now, calendar: calendar))
     }
 
+    /// The rule: once nothing is left, there is nothing to remind anyone about.
+    ///
+    /// The per-habit reminders already honour this — `habitPlans` skips a day
+    /// that is done or answered. The daily summary did not: it was rebuilt from
+    /// `SummaryStatus` on every check-in and re-armed even at `missing: []`, so
+    /// finishing everything at breakfast still bought an evening notification
+    /// reading "Heute geschafft: 3 von 3". The perfect-day celebration is a
+    /// separate, deliberate notification, so suppressing this loses nothing.
+    func testDailyPlanIsSkippedWhenEverythingIsAlreadyDone() {
+        let finished = SummaryStatus(done: 3, total: 3, missing: [])
+        XCTAssertNil(Reminders.dailySummaryPlan(minutes: 20 * 60, status: finished,
+                                                now: now, calendar: calendar),
+                     "a day with nothing outstanding must not send a reminder")
+    }
+
+    /// Anything still open keeps the summary, and the boundary is exactly the
+    /// last outstanding item rather than a ratio.
+    func testDailyPlanSurvivesUntilTheLastItemIsDone() {
+        let oneLeft = SummaryStatus(done: 2, total: 3, missing: ["Laufen"])
+        XCTAssertNotNil(Reminders.dailySummaryPlan(minutes: 20 * 60, status: oneLeft,
+                                                   now: now, calendar: calendar))
+    }
+
+    /// A per-habit reminder for a day already ticked off must not be planned, in
+    /// either direction: a fixed daily habit and a flexible goal.
+    func testAPerHabitReminderIsNotPlannedForADayThatIsAlreadyDone() {
+        var habit = Habit(name: "Laufen", timeMinutes: 20 * 60)
+        habit.recurrence = .daily
+        let today = DayKey.key(for: now, calendar: calendar)
+        habit.log[today] = 1
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+        XCTAssertFalse(plans.contains { $0.identifier == Reminders.habitReminderIdentifier(habitID: habit.id, day: today) },
+                       "a habit finished early must not get an evening reminder")
+    }
+
+    /// Answering at all counts as handled — including "no". Otherwise declining
+    /// an item would leave its reminder armed for the rest of the day, which is
+    /// the same complaint from the other direction.
+    func testAPerHabitReminderIsNotPlannedForAnAnsweredDay() {
+        // A yes/no habit answered "no" is stored as the reserved `Answer.no`
+        // value, not as a zero and not in `missedDays`.
+        var habit = Habit(name: "Meditation", timeMinutes: 20 * 60)
+        habit.recurrence = .daily
+        habit.kind = .yesNo
+        let today = DayKey.key(for: now, calendar: calendar)
+        habit.log[today] = Habit.Answer.no
+
+        XCTAssertTrue(habit.isDeclined(today))
+        XCTAssertTrue(habit.isAnswered(today))
+
+        let plans = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+        XCTAssertFalse(plans.contains { $0.identifier == Reminders.habitReminderIdentifier(habitID: habit.id, day: today) },
+                       "an item already answered must not get an evening reminder")
+    }
+
+    /// Tomorrow is a different day and must still be planned, or suppressing
+    /// today's reminder would silently stop the habit being tracked.
+    func testTheNextDayIsStillPlannedAfterTodayIsFinished() {
+        var habit = Habit(name: "Laufen", timeMinutes: 20 * 60)
+        habit.recurrence = .daily
+        let today = DayKey.key(for: now, calendar: calendar)
+        habit.log[today] = 1
+
+        let plans = Reminders.habitPlans(habits: [habit],
+                                         now: now,
+                                         calendar: calendar)
+        XCTAssertFalse(plans.isEmpty, "finishing today must not silence the habit")
+        XCTAssertTrue(plans.allSatisfy { $0.identifier != Reminders.habitReminderIdentifier(habitID: habit.id, day: today) })
+    }
+
     func testDailyPlanCarriesTheSummaryAsItsBody() {
         let plan = Reminders.dailySummaryPlan(minutes: 20 * 60, status: open,
                                               now: now, calendar: calendar)

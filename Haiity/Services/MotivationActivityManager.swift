@@ -39,7 +39,7 @@ actor MotivationActivityManager {
 
     func reconcile(motivationMinutes: Int?, name: String?,
                    delivery: MotivationDelivery = .liveActivity,
-                   additionalEntries: [MotivationFeedEntry] = [],
+                   source: Motivation.Source = .builtIn,
                    now: Date = .now,
                    calendar: Calendar = .current) async {
         let today = DayKey.key(for: now, calendar: calendar)
@@ -81,8 +81,12 @@ actor MotivationActivityManager {
             // foreground callbacks cannot create duplicate activities.
             guard startingDayKeys.insert(dayKey).inserted else { return }
 
+            // The Live Activity must show the same line the notification
+            // carries, so it only READS the day's cached line. Writing here
+            // would run the model on a path the person never tapped.
+            let generated = MotivationDaily.cachedLine(for: dayKey, in: defaults)
             let message = Motivation.message(name: name, today: dayKey,
-                                             additionalEntries: additionalEntries)
+                                             generatedLine: generated)
             let request = MotivationActivityRequest(dayKey: dayKey,
                                                      title: message.title,
                                                      body: message.body,

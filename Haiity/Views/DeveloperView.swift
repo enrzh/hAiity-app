@@ -74,18 +74,26 @@ struct DeveloperView: View {
     private var isCollected: Bool { collected != nil }
 
     var body: some View {
-        List {
-            appSection.moreSettingsSection()
-            dataSection.moreSettingsSection()
-            cloudSection.moreSettingsSection()
-            notificationSection.moreSettingsSection()
-            calendarSection.moreSettingsSection()
-            proSection.moreSettingsSection()
-            dataTransferSection.moreSettingsSection()
-            actionSection.moreSettingsSection()
-            ownerSection.moreSettingsSection()
+        // Not a `List`: iOS 27 drops taps on grouped list rows, and this page
+        // is a column of tappable diagnostics and actions.
+        ScrollView {
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                appSection
+                dataSection
+                cloudSection
+                notificationSection
+                calendarSection
+                proSection
+                dataTransferSection
+                actionSection
+                ownerSection
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .moreSettingsSurface()
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .settingsChrome()
         .appPageHeader(String(localized: "Entwickler"))
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }
@@ -97,7 +105,7 @@ struct DeveloperView: View {
     // MARK: – (1) App
 
     private var appSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "App"), symbol: "app.badge") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 factRow(Text(String(localized: "Version")), facts.appVersion.isEmpty
                         ? nil : "\(facts.appVersion) (\(facts.build))")
@@ -107,15 +115,13 @@ struct DeveloperView: View {
                 factRow(Text(String(localized: "Gerät")), facts.deviceModel)
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "App"), symbol: "app.badge")
         }
     }
 
     // MARK: – (2) Daten
 
     private var dataSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Daten"), symbol: "externaldrive") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 factRow(Text(String(localized: "Aktive Habits")), count(facts.activeHabits))
                 factRow(Text(String(localized: "Archivierte Habits")), count(facts.archivedHabits))
@@ -126,8 +132,6 @@ struct DeveloperView: View {
                 factRow(Text(verbatim: "App-Group"), facts.appGroupContainer)
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Daten"), symbol: "externaldrive")
         }
     }
 
@@ -141,20 +145,18 @@ struct DeveloperView: View {
     // MARK: – (3) iCloud
 
     private var cloudSection: some View {
-        Section {
+        AppSettingsGroup(title: "iCloud", symbol: "icloud") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 factRow(Text(String(localized: "Status")), facts.cloudStatus)
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader("iCloud", symbol: "icloud", localized: false)
         }
     }
 
     // MARK: – (4) Mitteilungen
 
     private var notificationSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Mitteilungen"), symbol: "bell") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Berechtigung")), facts.notificationAuthorization)
             factRow(Text(String(localized: "Geplant")), count(facts.pendingNotifications))
@@ -177,8 +179,6 @@ struct DeveloperView: View {
             if testFailed || isNotificationAccessDenied { notificationSettingsLink }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Mitteilungen"), symbol: "bell")
         }
     }
 
@@ -243,37 +243,33 @@ struct DeveloperView: View {
     // MARK: – (5) Kalender
 
     private var calendarSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Kalender"), symbol: "calendar") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Habits im Kalender")), yesNo(facts.calendarEnabled))
             factRow(Text(String(localized: "Kalendertitel")), facts.calendarTitle)
             factRow(Text(String(localized: "Gespiegelte Termine")), count(facts.calendarEvents))
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Kalender"), symbol: "calendar")
         }
     }
 
     // MARK: – (6) Pro
 
     private var proSection: some View {
-        Section {
+        AppSettingsGroup(title: "hAiity Pro", symbol: "checkmark.seal") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Freigeschaltet")), yesNo(facts.proUnlocked))
             factRow(Text(verbatim: "Produkt-ID"), facts.proProductID)
             factRow(Text(String(localized: "Preis")), facts.proPrice)
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader("hAiity Pro", symbol: "checkmark.seal", localized: false)
         }
     }
 
     // MARK: – (7) Aktionen
 
     private var dataTransferSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Import & Export"), symbol: "arrow.up.arrow.down") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             ShareLink(item: HabitExport(data: store.exportJSON() ?? Data()),
                       preview: SharePreview(String(localized: "hAiity-Export"))) {
@@ -297,13 +293,11 @@ struct DeveloperView: View {
             }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Import & Export"), symbol: "arrow.up.arrow.down")
         }
     }
 
     private var actionSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Aktionen"), symbol: "wrench.and.screwdriver") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             Button {
                 WidgetCenter.shared.reloadAllTimelines()
@@ -384,8 +378,6 @@ struct DeveloperView: View {
             }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Aktionen"), symbol: "wrench.and.screwdriver")
         }
     }
 
@@ -403,7 +395,7 @@ struct DeveloperView: View {
     /// lässt sich kein Mensch ablesen. Sie steht deshalb hier — und trotzdem
     /// NICHT im Diagnosetext: dieser wird verschickt, diese Seite nicht.
     private var ownerSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Besitzer"), symbol: "person.badge.key") {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
             factRow(Text(String(localized: "Apple-Kennung dieses Geräts")),
                     appleUserID ?? String(localized: "Nicht angemeldet"))
@@ -428,8 +420,6 @@ struct DeveloperView: View {
             }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            sectionHeader(String(localized: "Besitzer"), symbol: "person.badge.key")
         }
     }
 
@@ -458,17 +448,6 @@ struct DeveloperView: View {
     }
 
     // MARK: – Zeilen
-
-    private func sectionHeader(_ title: String, symbol: String,
-                               localized: Bool = true) -> some View {
-        // `localized: false` ist für Namen, die in keiner Sprache anders
-        // heißen (iCloud, hAiity Pro) — sie gehören in keinen Katalog.
-        Label {
-            localized ? Text(title) : Text(verbatim: title)
-        } icon: {
-            Image(systemName: symbol)
-        }
-    }
 
     /// Eine Tatsache: links die Frage, rechts die Antwort. Fehlt sie, steht
     /// dort dasselbe `n/a` wie im Bericht — ein leeres Feld sähe aus wie ein

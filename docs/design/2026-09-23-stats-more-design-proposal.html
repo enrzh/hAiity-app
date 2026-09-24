@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hAiity | Statistics and Settings design proposal</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --board:#f6f5f1; --ink:#20231f; --muted:#747970; --line:#dfdfd8;
+      --card:#fffefa; --soft:#eceee8; --accent:#4f8f62; --accent-soft:#dcebdc;
+      --warn:#b36a52;
+    }
+    body.dark {
+      --board:#181a18; --ink:#f5f5ed; --muted:#a9aea5; --line:#383d37;
+      --card:#202320; --soft:#2a2e2a; --accent-soft:#304b36;
+    }
+    * { box-sizing:border-box; }
+    html { background:var(--board); }
+    body {
+      margin:0; padding:48px clamp(18px,5vw,80px) 72px;
+      color:var(--ink); background:var(--board);
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+      transition:background .2s, color .2s;
+    }
+    .board { max-width:1420px; margin:auto; }
+    .masthead { display:flex; justify-content:space-between; align-items:end; gap:24px; margin-bottom:14px; }
+    .eyebrow { color:var(--accent); font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; margin:0 0 10px; }
+    h1 { font-size:clamp(28px,4vw,46px); line-height:1.05; letter-spacing:-.03em; margin:0; font-weight:700; }
+    .subhead { max-width:430px; margin:0; color:var(--muted); font-size:15px; line-height:1.45; }
+    .caption { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin:44px 0 18px; }
+    .caption:first-of-type { margin-top:30px; }
+    .rule {
+      display:flex; gap:18px; align-items:start; max-width:900px;
+      padding:16px 20px; border-radius:14px; background:var(--card); border:1px solid var(--line);
+    }
+    .rule b { color:var(--accent); white-space:nowrap; }
+    .rule p { margin:0; font-size:14px; line-height:1.5; color:var(--muted); }
+    .rule p strong { color:var(--ink); }
+    .toggle {
+      position:fixed; right:18px; bottom:18px; z-index:20;
+      border:1px solid var(--line); border-radius:999px; padding:9px 16px;
+      background:var(--card); color:var(--ink); font:inherit; font-size:12px; font-weight:700; cursor:pointer;
+    }
+
+    /* ---- mockup frame ---- */
+    .pairs { display:grid; grid-template-columns:repeat(3,minmax(250px,1fr)); gap:30px; align-items:start; }
+    .col-label { font-size:12px; font-weight:700; margin:0 0 10px 6px; color:var(--muted); }
+    .col-label.new { color:var(--accent); }
+    .phone { width:100%; max-width:320px; margin:auto; border:7px solid #292c29; border-radius:38px; padding:9px; background:#292c29; box-shadow:0 20px 36px rgba(37,42,35,.14); }
+    .screen { height:626px; overflow-y:auto; border-radius:27px; padding:18px 16px 22px; color:var(--ink); background:var(--card); position:relative; }
+    .screen.wallpaper { background:linear-gradient(168deg,#dfe9dc 0%,#eef0e6 42%,#e3e6ee 100%); }
+    .dark .screen { background:#202320; }
+    .dark .screen.wallpaper { background:linear-gradient(168deg,#1e2a22 0%,#242a26 42%,#22242e 100%); }
+    .status { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; font-weight:700; padding:2px 6px 18px; }
+    .nav { display:flex; align-items:center; gap:9px; padding:2px 4px 16px; }
+    .nav h2 { font-size:16px; margin:0; font-weight:700; letter-spacing:-.01em; }
+    .nav .spacer { flex:1; }
+    .nav .icon-button { width:30px; height:30px; border-radius:50%; border:1px solid var(--line); color:var(--ink); background:transparent; font-size:15px; line-height:1; display:grid; place-items:center; }
+    .screen h2.big { font-size:30px; line-height:1.06; letter-spacing:-.03em; margin:0 0 3px; }
+    .screen .screen-sub { color:var(--muted); font-size:12px; margin:0 0 18px; }
+    .small { color:var(--muted); font-size:12px; line-height:1.35; }
+    .eyebrow-row { display:flex; justify-content:space-between; align-items:center; margin:20px 0 9px; }
+    .eyebrow-row h3 { font-size:15px; font-weight:700; margin:0; letter-spacing:-.01em; }
+
+    /* surfaces */
+    .panel { border-radius:16px; background:var(--card); border:1px solid var(--line); overflow:hidden; }
+    .wallpaper .panel { background:rgba(255,254,250,.72); backdrop-filter:blur(18px); }
+    .dark .panel { background:#232623; }
+    .dark .wallpaper .panel { background:rgba(28,30,28,.68); }
+    .panel.flat { background:transparent; border:0; border-radius:0; }
+
+    /* today card */
+    .today { display:flex; align-items:start; gap:14px; padding:16px; }
+    .today .fraction { font-size:34px; font-weight:650; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1; }
+    .today .label { font-size:12px; font-weight:650; color:var(--muted); margin-bottom:5px; }
+    .today .sentence { font-size:12px; color:var(--muted); margin-top:7px; line-height:1.35; }
+    .today-foot { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+    .today-foot div { padding-left:16px; }
+    .today-foot b { display:block; font-size:16px; font-variant-numeric:tabular-nums; }
+    .today-foot span { font-size:11px; color:var(--muted); }
+    .ring { flex:none; }
+
+    /* heatmap — 7 day rows, week columns, same as the app renderer */
+    .heatmap {
+      display:grid; grid-template-rows:repeat(7,1fr); grid-auto-flow:column;
+      grid-auto-columns:1fr; gap:3px;
+    }
+    .heatmap.dense { gap:2px; }
+    .sq { aspect-ratio:1; border-radius:2px; background:#e2e5de; }
+    .sq.l1 { background:#c5dec8; }.sq.l2 { background:#8ebc98; }
+    .sq.l3 { background:#5f9b6c; }.sq.l4 { background:#36714a; }
+    .sq.neg { background:#c08a78; }
+    .dark .sq { background:#343a34; }
+    .dark .sq.l1 { background:#42644b; }.dark .sq.l2 { background:#4f805a; }
+    .dark .sq.l3 { background:#65a472; }.dark .sq.l4 { background:#8ac58f; }
+    .dark .sq.neg { background:#7a4f43; }
+
+    /* chips and tiles */
+    .chip {
+      display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:999px;
+      background:var(--accent-soft); color:var(--accent); font-size:11px; font-weight:700;
+      font-variant-numeric:tabular-nums;
+    }
+    .chip.quiet { background:var(--soft); color:var(--muted); }
+    .metric-grid { display:grid; grid-template-columns:1fr 1fr; }
+    .metric { padding:13px 15px; min-height:86px; }
+    .metric:nth-child(odd) { border-right:1px solid var(--line); }
+    .metric:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+    .metric .icon { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; background:rgba(79,143,98,.13); color:var(--accent); font-size:12px; }
+    .metric b { display:block; margin-top:7px; font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .metric span { font-size:11px; color:var(--muted); }
+    .metric.rounded b { font-family:ui-rounded,-apple-system,"SF Pro Rounded",sans-serif; }
+
+    /* week bars vs week tiles */
+    .bars { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; padding:15px 16px 16px; }
+    .bars .bar { text-align:center; }
+    .bars .bar em { display:block; font-style:normal; font-size:10px; font-weight:650; font-variant-numeric:tabular-nums; margin-bottom:5px; }
+    .bars .bar i { display:block; height:30px; border-radius:4px; background:var(--accent); }
+    .bars .bar span { display:block; font-size:10px; color:var(--muted); margin-top:5px; }
+    .week-tiles { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; padding:15px 16px 16px; }
+    .week-tiles div { text-align:center; }
+    .week-tiles i { display:block; aspect-ratio:1; border-radius:5px; }
+    .week-tiles span { display:block; font-size:10px; color:var(--muted); margin-top:6px; }
+    .momentum { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); padding:0 16px 15px; }
+    .momentum b { color:var(--accent); font-weight:650; }
+
+    /* habit rows */
+    .habit-row { display:grid; grid-template-columns:32px 1fr; gap:11px; align-items:center; padding:11px 15px; }
+    .habit-row + .habit-row { border-top:1px solid var(--line); }
+    .emoji { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; background:rgba(79,143,98,.12); font-size:15px; }
+    .habit-row b { display:block; font-size:13px; font-weight:650; }
+    .habit-row small { color:var(--muted); font-size:11px; }
+    .monthbars { display:flex; align-items:end; gap:2px; height:18px; margin-top:6px; }
+    .monthbars i { width:5px; border-radius:2px; background:var(--accent); opacity:.32; }
+    .monthbars i.on { opacity:1; }
+
+    /* settings rows */
+    .group-label { font-size:12px; font-weight:650; color:var(--muted); padding:0 6px 7px; }
+    .srow { display:flex; align-items:center; gap:12px; min-height:52px; padding:8px 15px; }
+    .srow + .srow { border-top:1px solid var(--line); }
+    .srow .glyph { width:32px; height:32px; flex:none; border-radius:9px; display:grid; place-items:center; font-size:14px; }
+    .tinted .glyph { background:rgba(79,143,98,.12); color:var(--accent); }
+    .plain .glyph { background:transparent; color:var(--ink); }
+    .srow .txt { min-width:0; }
+    .srow .txt b { display:block; font-size:14px; font-weight:600; }
+    .srow .txt small { display:block; color:var(--muted); font-size:11px; margin-top:2px; line-height:1.3; }
+    .srow .value { margin-left:auto; color:var(--muted); font-size:13px; white-space:nowrap; }
+    .srow .chev { margin-left:auto; color:var(--muted); font-size:14px; }
+    .status-panel .srow + .srow { border-top:1px solid var(--line); }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block; margin-right:6px; }
+    .dot.warn { background:var(--warn); }
+    .pill {
+      margin-top:18px; display:flex; align-items:center; gap:10px; padding:12px 15px;
+      border-radius:999px; background:var(--accent-soft);
+    }
+    .pill b { font-size:12px; color:var(--accent); }
+    .pill span { font-size:11px; color:var(--muted); }
+    .pill .go { margin-left:auto; font-size:12px; font-weight:700; color:var(--accent); }
+
+    /* stock list (sub-page "current") */
+    .stocklist { margin:0 -16px; background:transparent; }
+    .stocklist .grouplabel { font-size:12px; color:var(--muted); font-weight:650; padding:14px 22px 6px; }
+    .stockrow { display:flex; align-items:center; gap:11px; min-height:44px; padding:8px 16px; background:var(--card); }
+    .stockrow + .stockrow { border-top:1px solid rgba(0,0,0,.07); }
+    .dark .stockrow + .stockrow { border-top-color:rgba(255,255,255,.09); }
+    .stockrow .txt b { display:block; font-size:15px; font-weight:400; }
+    .stockrow .txt small { display:block; font-size:11px; color:var(--muted); }
+    .stockrow .value { margin-left:auto; color:var(--muted); font-size:14px; }
+    .sw { margin-left:auto; width:38px; height:22px; border-radius:999px; background:var(--accent); position:relative; }
+    .sw i { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; background:#fff; }
+
+    /* annotations */
+    .notes { display:grid; grid-template-columns:repeat(3,minmax(250px,1fr)); gap:30px; margin-top:20px; }
+    .notes .col-label { margin:0 0 10px; }
+    .note { font-size:13px; line-height:1.5; color:var(--muted); margin:0 0 11px; }
+    .note strong { color:var(--ink); }
+    .note .tag {
+      display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+      padding:2px 7px; border-radius:5px; margin-right:7px; background:var(--soft); color:var(--muted); vertical-align:1px;
+    }
+    .note .tag.cut { background:#f3e2dc; color:#9a5a44; }
+    .note .tag.add { background:var(--accent-soft); color:var(--accent); }
+    .dark .note .tag.cut { background:#4a2f28; color:#e0a892; }
+    .dark .note .tag.add { background:#2c4433; color:#8ac58f; }
+
+    /* text sections */
+    .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:26px; }
+    section.text h3 { font-size:14px; margin:0 0 10px; }
+    section.text p, section.text li { font-size:13.5px; line-height:1.55; color:var(--muted); }
+    section.text ul { margin:0; padding-left:18px; }
+    section.text li { margin-bottom:7px; }
+    section.text code { font-size:12px; background:var(--soft); padding:1px 5px; border-radius:4px; color:var(--ink); }
+    .quote { border-left:2px solid var(--accent); padding:2px 0 2px 14px; margin:0 0 12px; }
+    .quote p { margin:0; font-style:italic; }
+    .quote cite { font-style:normal; font-size:11px; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+    td { color:var(--muted); }
+    td b { color:var(--ink); font-weight:600; }
+    .foot { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+
+    @media (max-width:1080px) {
+      .pairs, .notes { grid-template-columns:repeat(2,minmax(250px,320px)); justify-content:center; }
+    }
+    @media (max-width:700px) {
+      body { padding:30px 16px 56px; }
+      .masthead { display:block; }
+      .subhead { margin-top:14px; }
+      .pairs, .notes { grid-template-columns:minmax(250px,320px); gap:34px; }
+      .toggle { bottom:12px; right:12px; }
+    }
+  </style>
+</head>
+<body>
+  <button class="toggle" id="mode">Light / dark</button>
+  <main class="board">
+
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">hAiity / design change proposal</p>
+        <h1>Statistics &amp; Settings,<br>one visual system.</h1>
+      </div>
+      <p class="subhead">A concrete design change for the two pages that currently feel assembled rather than designed. Mockups, not app screenshots. Nothing here is implemented.</p>
+    </header>
+
+    <div class="rule">
+      <b>The rule</b>
+      <p><strong>Spend the visual effort where the product is</strong> — the contribution grid, the user's chosen background, the one number that matters today. Everything else stays quiet and native. <strong>Fancy means structure, depth and one signature moment per page</strong>, not more glass and more cards. Glass stays on the functional layer: tab bar, sheets, context menus, header blur.</p>
+    </div>
+
+    <p class="caption">Statistics — current vs proposed</p>
+    <section class="pairs" aria-label="Statistics page mockups, current and proposed">
+      <div>
+        <p class="col-label">Current</p>
+        <div class="phone"><div class="screen">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav">
+            <div class="icon-button">≡</div>
+            <h2>Statistik</h2>
+            <span class="spacer"></span>
+            <div class="icon-button">☷</div>
+          </div>
+          <h2 class="big">Statistik</h2>
+          <p class="screen-sub">Dein Rhythmus in einem Blick</p>
+
+          <div class="panel">
+            <div class="today">
+              <div style="flex:1">
+                <div class="label">Heute</div>
+                <div class="fraction">3/5</div>
+                <div class="sentence">Noch 2 offen</div>
+              </div>
+              <svg class="ring" width="80" height="80" viewBox="0 0 80 80" aria-hidden="true">
+                <g transform="rotate(-90 40 40)" fill="none" stroke-width="8" stroke-linecap="round">
+                  <circle cx="40" cy="40" r="32" stroke="#eceee8" stroke-dasharray="33 201" stroke-dashoffset="0"/>
+                  <circle cx="40" cy="40" r="32" stroke="#eceee8" stroke-dasharray="33 201" stroke-dashoffset="-40"/>
+                  <circle cx="40" cy="40" r="32" stroke="#eceee8" stroke-dasharray="33 201" stroke-dashoffset="-80"/>
+                  <circle cx="40" cy="40" r="32" stroke="#4f8f62" stroke-dasharray="33 201" stroke-dashoffset="-120"/>
+                  <circle cx="40" cy="40" r="32" stroke="#4f8f62" stroke-dasharray="33 201" stroke-dashoffset="-160"/>
+                </g>
+              </svg>
+            </div>
+            <div class="today-foot">
+              <div><b>2</b><span>Offen</span></div>
+              <div><b>6</b><span>Aktuelle Serie</span></div>
+              <div><b>71%</b><span>Diese Woche</span></div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:12px; padding:14px 15px 15px;">
+            <div style="display:flex; align-items:start; gap:10px;">
+              <div style="flex:1">
+                <b style="font-size:15px;">Rhythmus</b>
+                <p class="small" style="margin:3px 0 0;">Die letzten fünf Monate</p>
+              </div>
+              <span class="chip">🔥 6</span>
+            </div>
+            <div class="heatmap dense" data-weeks="20"></div>
+          </div>
+
+          <div class="panel metric-grid" style="margin-top:12px;">
+            <div class="metric rounded"><span class="icon">🔥</span><b>6</b><span>Tage Serie</span></div>
+            <div class="metric rounded"><span class="icon">◌</span><b>3/5</b><span>Heute</span></div>
+            <div class="metric rounded"><span class="icon">↗</span><b>71%</b><span>Diese Woche</span></div>
+            <div class="metric rounded"><span class="icon">#</span><b>412</b><span>Check-ins</span></div>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow-row" style="padding:14px 16px 0; margin:0;"><h3>Letzte 7 Tage</h3><span class="small" style="color:var(--accent); font-weight:650;">3 % besser als letzte Woche</span></div>
+            <div class="bars">
+              <div class="bar"><em>80</em><i style="opacity:.8"></i><span>M</span></div>
+              <div class="bar"><em>60</em><i style="opacity:.55"></i><span>D</span></div>
+              <div class="bar"><em>-</em><i style="background:var(--soft)"></i><span>M</span></div>
+              <div class="bar"><em>100</em><i style="opacity:1"></i><span>D</span></div>
+              <div class="bar"><em>40</em><i style="opacity:.4"></i><span>F</span></div>
+              <div class="bar"><em>80</em><i style="opacity:.75"></i><span>S</span></div>
+              <div class="bar"><em>60</em><i style="opacity:.55"></i><span>S</span></div>
+            </div>
+          </div>
+
+          <div style="margin-top:22px; padding:0 2px 8px;"><b style="font-size:15px;">Deine Habits</b></div>
+          <div class="panel">
+            <div class="habit-row">
+              <span class="emoji">🏃</span>
+              <span><b>Laufen</b><small>30 Tage: 82% · Serie 6</small>
+                <span class="monthbars"><i class="on" style="height:12px"></i><i class="on" style="height:16px"></i><i style="height:7px"></i><i class="on" style="height:18px"></i><i class="on" style="height:14px"></i><i class="on" style="height:9px"></i><i style="height:5px"></i><i class="on" style="height:15px"></i><i class="on" style="height:11px"></i><i class="on" style="height:17px"></i><i style="height:8px"></i><i class="on" style="height:13px"></i></span>
+              </span>
+            </div>
+            <div class="habit-row">
+              <span class="emoji">📖</span>
+              <span><b>Lesen</b><small>30 Tage: 65% · Serie 0</small>
+                <span class="monthbars"><i style="height:9px"></i><i class="on" style="height:14px"></i><i class="on" style="height:11px"></i><i style="height:6px"></i><i class="on" style="height:12px"></i><i class="on" style="height:16px"></i><i class="on" style="height:10px"></i><i style="height:7px"></i><i class="on" style="height:13px"></i><i style="height:4px"></i><i class="on" style="height:11px"></i><i class="on" style="height:15px"></i></span>
+              </span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label new">Proposed</p>
+        <div class="phone"><div class="screen wallpaper">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav">
+            <div class="icon-button">☷</div>
+            <h2>Statistik</h2>
+          </div>
+          <h2 class="big" style="margin-bottom:16px;">Statistik</h2>
+
+          <div class="panel">
+            <div class="today">
+              <div style="flex:1">
+                <div class="label">Heute</div>
+                <div class="fraction">3/5</div>
+                <div class="sentence">Noch 2 offen · Serie 6 · Woche 71 %</div>
+              </div>
+              <svg class="ring" width="80" height="80" viewBox="0 0 80 80" aria-hidden="true">
+                <g transform="rotate(-90 40 40)" fill="none" stroke-width="8" stroke-linecap="round">
+                  <circle cx="40" cy="40" r="32" stroke="#ffffff" stroke-opacity=".7" stroke-dasharray="33 201" stroke-dashoffset="0"/>
+                  <circle cx="40" cy="40" r="32" stroke="#ffffff" stroke-opacity=".7" stroke-dasharray="33 201" stroke-dashoffset="-40"/>
+                  <circle cx="40" cy="40" r="32" stroke="#ffffff" stroke-opacity=".7" stroke-dasharray="33 201" stroke-dashoffset="-80"/>
+                  <circle cx="40" cy="40" r="32" stroke="#36714a" stroke-dasharray="33 201" stroke-dashoffset="-120"/>
+                  <circle cx="40" cy="40" r="32" stroke="#36714a" stroke-dasharray="33 201" stroke-dashoffset="-160"/>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <div style="margin-top:22px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; padding:0 2px;">
+              <b style="font-size:15px;">Rhythmus</b>
+              <span class="small">5 Monate</span>
+            </div>
+            <div class="heatmap dense" data-weeks="20" style="margin-top:0;"></div>
+          </div>
+
+          <div style="margin-top:22px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; padding:0 2px;">
+              <b style="font-size:15px;">Letzte 7 Tage</b>
+              <span class="small" style="color:var(--accent); font-weight:650;">3 % besser</span>
+            </div>
+            <div class="week-tiles panel" style="padding:13px 14px 14px;">
+              <div><i class="sq l3"></i><span>M</span></div>
+              <div><i class="sq l2"></i><span>D</span></div>
+              <div><i class="sq"></i><span>M</span></div>
+              <div><i class="sq l4"></i><span>D</span></div>
+              <div><i class="sq l1"></i><span>F</span></div>
+              <div><i class="sq l3"></i><span>S</span></div>
+              <div><i class="sq l2"></i><span>S</span></div>
+            </div>
+          </div>
+
+          <div style="margin-top:22px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; padding:0 2px;">
+              <b style="font-size:15px;">Deine Habits</b>
+              <span class="chip quiet">412 Check-ins</span>
+            </div>
+            <div class="panel">
+              <div class="habit-row">
+                <span class="emoji">🏃</span>
+                <span><b>Laufen</b><small>30 Tage: 82% · Serie 6</small>
+                  <span class="monthbars"><i class="on" style="height:12px"></i><i class="on" style="height:16px"></i><i style="height:7px"></i><i class="on" style="height:18px"></i><i class="on" style="height:14px"></i><i class="on" style="height:9px"></i><i style="height:5px"></i><i class="on" style="height:15px"></i><i class="on" style="height:11px"></i><i class="on" style="height:17px"></i><i style="height:8px"></i><i class="on" style="height:13px"></i></span>
+                </span>
+              </div>
+              <div class="habit-row">
+                <span class="emoji">📖</span>
+                <span><b>Lesen</b><small>30 Tage: 65% · Serie 0</small>
+                  <span class="monthbars"><i style="height:9px"></i><i class="on" style="height:14px"></i><i class="on" style="height:11px"></i><i style="height:6px"></i><i class="on" style="height:12px"></i><i class="on" style="height:16px"></i><i class="on" style="height:10px"></i><i style="height:7px"></i><i class="on" style="height:13px"></i><i style="height:4px"></i><i class="on" style="height:11px"></i><i class="on" style="height:15px"></i></span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label new">What changed</p>
+        <div>
+          <p class="note"><span class="tag cut">cut</span><strong>The three-column footer.</strong> Offen, Aktuelle Serie and Diese Woche repeated the sentence above them and were repeated again by the tiles. The one sentence now carries all three, which also restores the metric to VoiceOver.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The 2×2 icon tile grid.</strong> Heute and Diese Woche were always on the page, so offering them as optional tiles was noise. Check-ins survives as a quiet chip in the section header; longest streak can be the second tile if you want it.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The streak chip on Rhythmus.</strong> The grid is already the streak. A flame in a tinted capsule is also glass in the content layer, which the design system reserves for the functional layer.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The flame colour ramp.</strong> Orange to red after 7 and 30 days is a habit-app cliché and it competes with the user's own palette. A streak is a number.</p>
+          <p class="note"><span class="tag add">add</span><strong>Rhythmus as the one open band.</strong> No card, minimal padding, close to the gutter. The wallpaper is visible around it, so the page has one deliberate moment instead of five equal cards.</p>
+          <p class="note"><span class="tag add">add</span><strong>Seven days as tiles.</strong> The week strip now uses the same squares and ramp as every other graph in the app, so one visual language covers today, the week and the months.</p>
+          <p class="note"><span class="tag add">add</span><strong>One number voice.</strong> <code>largeTitle</code> and tiles both use the default design with monospaced digits. <code>.rounded</code> is dropped: the grid is the distinctive shape, rounded type is not needed on top of it.</p>
+          <p class="note"><span class="tag add">add</span><strong>One card, then open sections.</strong> A single surface for today, then a continuous canvas for rhythm, week and habits.</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="caption">Settings hub and sub-pages — current vs proposed</p>
+    <section class="pairs" aria-label="Settings page mockups, current and proposed">
+      <div>
+        <p class="col-label">Current hub</p>
+        <div class="phone"><div class="screen">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav"><div class="icon-button">×</div><h2>Mehr</h2></div>
+          <h2 class="big">Mehr</h2>
+          <p class="screen-sub">Deine Einstellungen an einem Ort</p>
+
+          <p class="group-label">Verwalten</p>
+          <div class="panel tinted">
+            <div class="srow"><span class="glyph">◐</span><span class="txt"><b>Darstellung</b></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">✋</span><span class="txt"><b>Verhalten &amp; Teilen</b><small>App-weite Vorgaben und Teilen</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">◷</span><span class="txt"><b>Zeitzone</b></span><span class="value">Berlin</span></div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Verbindungen</p>
+          <div class="panel tinted">
+            <div class="srow"><span class="glyph">◑</span><span class="txt"><b>GitHub</b><small>enrzh</small></span><span class="small" style="color:var(--warn); margin-left:auto;">Abmelden</span></div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Persönlich</p>
+          <div class="panel tinted">
+            <div class="srow"><span class="glyph">☺</span><span class="txt"><b>Konto</b><small>Alias und Apple-Anmeldung</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">◔</span><span class="txt"><b>Mitteilungen</b><small>Zusammenfassungen und Ruhezeiten</small></span><span class="chev">›</span></div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Werkzeuge</p>
+          <div class="panel tinted">
+            <div class="srow"><span class="glyph">↻</span><span class="txt"><b>Setup wiederholen</b><small>Mitteilungen und Kalender konfigurieren</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">▤</span><span class="txt"><b>Archiv</b></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">⛨</span><span class="txt"><b>Über &amp; Datenschutz</b></span><span class="chev">›</span></div>
+          </div>
+
+          <div class="panel" style="margin-top:20px; padding:14px 15px;">
+            <b style="font-size:13px;">hAiity Pro</b>
+            <p class="small" style="margin:4px 0 10px;">Alle Statistiken, unbegrenzte Habits, Live-Aktivität.</p>
+            <span class="chip">Mehr erfahren</span>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label new">Proposed hub</p>
+        <div class="phone"><div class="screen wallpaper">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav"><div class="icon-button">×</div><h2>Mehr</h2></div>
+          <h2 class="big" style="margin-bottom:16px;">Mehr</h2>
+
+          <div class="panel status-panel">
+            <div class="srow">
+              <span class="glyph">☁</span>
+              <span class="txt"><b><span class="dot"></span>iCloud</b><small>Aktiv · schreibt deine Daten in deine eigene iCloud</small></span>
+            </div>
+            <div class="srow">
+              <span class="glyph">◑</span>
+              <span class="txt"><b>GitHub</b><small>Verbunden als enrzh</small></span>
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Alltag</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">◐</span><span class="txt"><b>Darstellung</b></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">◔</span><span class="txt"><b>Mitteilungen</b><small>Zusammenfassungen und Ruhezeiten</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">✋</span><span class="txt"><b>Verhalten &amp; Teilen</b><small>App-weite Vorgaben und Teilen</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">◷</span><span class="txt"><b>Zeitzone</b></span><span class="value">Berlin</span></div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Konto</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">☺</span><span class="txt"><b>Konto</b><small>Alias und Apple-Anmeldung</small></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">↻</span><span class="txt"><b>Setup wiederholen</b><small>Mitteilungen und Kalender konfigurieren</small></span><span class="chev">›</span></div>
+          </div>
+
+          <p class="group-label" style="padding-top:20px;">Archiv &amp; Über</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">▤</span><span class="txt"><b>Archiv</b></span><span class="chev">›</span></div>
+            <div class="srow"><span class="glyph">⛨</span><span class="txt"><b>Über &amp; Datenschutz</b></span><span class="chev">›</span></div>
+          </div>
+
+          <div class="pill">
+            <b>hAiity Pro</b>
+            <span>Alle Statistiken</span>
+            <span class="go">Mehr ›</span>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label">What changed</p>
+        <div>
+          <p class="note"><span class="tag add">add</span><strong>One status panel first.</strong> iCloud and GitHub are the two things that silently change how the app behaves. Today they are scattered across group headings. The first thing on the page now answers "is this working for me".</p>
+          <p class="note"><span class="tag cut">cut</span><strong>Four headings became two.</strong> Verwalten, Verbindungen, Persönlich, Werkzeuge groups by taxonomy, not by what a person is doing. Everyday, Konto, Archiv &amp; Über reads as three jobs.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The Pro card became a pill.</strong> A single row that says what it unlocks, instead of a fourth section with a paragraph. It stops competing with the settings that are free.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The tinted icon square on every row.</strong> Thirty-two identical tinted squares are decoration. Plain SF Symbols in the shared 32 pt slot look intentional; if you want colour, tint per group instead of per row.</p>
+          <p class="note"><span class="tag add">add</span><strong>More air per group.</strong> Same <code>moreHubGroup</code> and <code>moreSettingsSurface</code> tokens, fewer groups, so the page can breathe without a new token.</p>
+          <p class="note"><span class="tag">keep</span><strong>Everything else.</strong> Row order, identifiers, the full-row timezone <code>Menu</code>, the GitHub disconnect action, and every existing accessibility identifier stay as they are.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="pairs" aria-label="Sub-page mockups, current and proposed">
+      <div>
+        <p class="col-label">Sub-page today (stock List)</p>
+        <div class="phone"><div class="screen">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav"><div class="icon-button">‹</div><h2>Mitteilungen</h2></div>
+          <div class="stocklist">
+            <div class="grouplabel">ZUSAMMENFASSUNG</div>
+            <div class="stockrow"><span class="txt"><b>Tagesmeldung</b></span><span class="sw"><i></i></span></div>
+            <div class="stockrow"><span class="txt"><b>Wochensumme</b><small>Sonntag, 18:00</small></span><span class="sw"><i></i></span></div>
+            <div class="stockrow"><span class="txt"><b>Motivationsnachricht</b></span><span class="sw"><i></i></span></div>
+            <div class="grouplabel">RUHEZEITEN</div>
+            <div class="stockrow"><span class="txt"><b>Keine Benachrichtigungen</b></span><span class="sw" style="background:var(--soft)"><i style="right:18px"></i></span></div>
+            <div class="stockrow"><span class="txt"><b>Beginn</b></span><span class="value">22:00 ›</span></div>
+            <div class="stockrow"><span class="txt"><b>Ende</b></span><span class="value">07:00 ›</span></div>
+            <div class="grouplabel">WOCHENTAGE</div>
+            <div class="stockrow"><span class="txt"><b>Aktive Wochentage</b></span><span class="value">6 von 7 ›</span></div>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label new">Sub-page proposed (continuous surface)</p>
+        <div class="phone"><div class="screen wallpaper">
+          <div class="status"><span>9:41</span><span>5G ▮</span></div>
+          <div class="nav"><div class="icon-button">‹</div><h2>Mitteilungen</h2></div>
+          <p class="group-label" style="padding:6px 6px 7px;">Zusammenfassung</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">☀</span><span class="txt"><b>Tagesmeldung</b><small>Am Abend, wenn etwas offen ist</small></span><span class="sw" style="background:var(--accent)"><i></i></span></div>
+            <div class="srow"><span class="glyph">◑</span><span class="txt"><b>Wochensumme</b><small>Sonntag, 18:00</small></span><span class="sw" style="background:var(--accent)"><i></i></span></div>
+            <div class="srow"><span class="glyph">✦</span><span class="txt"><b>Motivationsnachricht</b><small>Ein Satz, wenn du durch bist</small></span><span class="sw" style="background:var(--soft)"><i style="right:18px"></i></span></div>
+          </div>
+          <p class="group-label" style="padding:20px 6px 7px;">Ruhezeiten</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">◔</span><span class="txt"><b>Keine Benachrichtigungen</b><small>Stille von Beginn bis Ende</small></span><span class="sw" style="background:var(--soft)"><i style="right:18px"></i></span></div>
+            <div class="srow"><span class="glyph">◷</span><span class="txt"><b>Beginn</b></span><span class="value">22:00</span></div>
+            <div class="srow"><span class="glyph">◷</span><span class="txt"><b>Ende</b></span><span class="value">07:00</span></div>
+          </div>
+          <p class="group-label" style="padding:20px 6px 7px;">Wochentage</p>
+          <div class="panel plain">
+            <div class="srow"><span class="glyph">▦</span><span class="txt"><b>Aktive Wochentage</b></span><span class="value">6 von 7</span></div>
+          </div>
+          <p class="small" style="margin:18px 6px 0;">Der Rand der Seite gehört zum Hintergrund. Gruppen tragen die Gliederung, nicht die Oberfläche.</p>
+        </div></div>
+      </div>
+
+      <div>
+        <p class="col-label new">What changed</p>
+        <div>
+          <p class="note"><span class="tag add">add</span><strong>One surface family across the whole settings area.</strong> This is the single change that makes the hub and its sub-pages feel like one product instead of a custom hub plus four stock iOS screens. It reuses <code>moreSettingsSurface</code>, <code>moreSettingsSection</code> and the shared page header that already exist.</p>
+          <p class="note"><span class="tag add">add</span><strong>Rows explain themselves.</strong> Each toggle gets one short consequence line, so the label does not have to carry both settings and behaviour.</p>
+          <p class="note"><span class="tag cut">cut</span><strong>The hairline grid.</strong> Full-width separators between every row read as a table. One inset divider per group at the 48 pt icon edge, same as the hub, reads as a list of related things.</p>
+          <p class="note"><span class="tag">keep</span><strong>Native <code>Toggle</code> and <code>Menu</code>.</strong> They stay in the trailing slot, keep their own hit testing, and keep the system look. Only the row around them changes.</p>
+          <p class="note"><span class="tag">note</span><strong>This is the largest job in the proposal.</strong> Account, Mitteilungen, Appearance and GitHub each have real state and timing behaviour, so this pass is separate from the hub and the Stats change.</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="caption">Where this lands in the code</p>
+    <section class="text">
+      <table>
+        <thead><tr><th>Surface</th><th>Files</th><th>Scope</th></tr></thead>
+        <tbody>
+          <tr><td><b>Stats hierarchy</b></td><td><code>Haiity/Views/StatsView.swift</code></td><td><code>statsListContent</code>, <code>statsTodayCard</code>, <code>statsMetricGrid</code>, <code>statsWeekCard</code>, <code>statsRhythmCard</code>. Order today → rhythm → week → habits. Keep <code>stats-today-summary</code>, <code>stats-rhythm-card</code>, <code>stats-week-card</code>, <code>stats-habit-ranking</code> and <code>stats-metrics</code> as identifiers; tests and UI tests already use them.</td></tr>
+          <tr><td><b>Shared week tiles</b></td><td><code>ContributionGrid</code> or the graph renderer already used by <code>mergedGrid</code></td><td>Reuse the existing tile path rather than adding a second small chart. No new renderer, no new geometry token.</td></tr>
+          <tr><td><b>Settings hub</b></td><td><code>Haiity/Views/MoreView.swift</code></td><td><code>mainSettings</code>, <code>moreHubGroup</code>, the status panel and <code>proSection</code>. Reuse <code>AppSettingsRow</code>, <code>morePanel</code>, <code>RootPageTitle</code>. No new row component.</td></tr>
+          <tr><td><b>Sub-pages</b></td><td>Mitteilungen, Konto, Darstellung, GitHub</td><td>Replace the stock <code>List</code> grouping with the shared continuous surface. Highest risk, own pass.</td></tr>
+          <tr><td><b>Contract</b></td><td><code>docs/design/haiity-ui-design-system.md</code></td><td>Revise in the same change. The current contract says a continuous canvas with glass only on the functional layer; the proposal keeps that and changes the page recipes. A design change that leaves this file stale creates two systems.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <p class="caption">The floor that does not move</p>
+    <section class="text cols">
+      <div>
+        <h3>Accessibility</h3>
+        <ul>
+          <li>Every row still has a 44 pt hit target and a 52 pt default rhythm, so a decorative icon never shrinks the target.</li>
+          <li>The Heute card keeps one accessibility element with a value that includes streak and week, since the footer is going away.</li>
+          <li>The Rhythmus grid needs a value that describes the range, not just the title "Die letzten fünf Monate".</li>
+          <li>Titles and captions wrap at AX5. Today they use <code>lineLimit(1)</code> on tile captions, which will clip in German.</li>
+          <li>Status is never colour-only. The iCloud dot is paired with its label.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Appearance and motion</h3>
+        <ul>
+          <li>The open Rhythmus band must stay legible over every user background, including photos, in light and dark, so it needs the same readability treatment the full-screen background already has.</li>
+          <li>Reduce Transparency turns the status and Rhythmus surfaces solid without changing hierarchy.</li>
+          <li>Increase Contrast must keep the open band distinct from the canvas.</li>
+          <li>Nothing here adds a new animation. The one motion worth considering later is the tile transition on refresh, and only if measurement says the current one is wrong.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Sequence</h3>
+        <ul>
+          <li><strong>1. Stats hierarchy.</strong> One page, screenshot before and after in light and dark, English and German, default text and AX3. Lowest risk, clearest payoff.</li>
+          <li><strong>2. Settings status panel and group collapse.</strong> Structure only, same tokens, same rows. No new component.</li>
+          <li><strong>3. Sub-page surface migration.</strong> The large job, with its own verification pass.</li>
+          <li><strong>4. Contract update</strong> in <code>haiity-ui-design-system.md</code> alongside step 1, not at the end.</li>
+        </ul>
+        <p style="margin-top:12px;">This is the first source change in a while that would justify a new TestFlight build. The next archive is 212 or higher; nothing here should be uploaded from this Mac, so the upload stays on Xcode Cloud.</p>
+      </div>
+    </section>
+
+    <p class="caption">What this deliberately does not do</p>
+    <section class="text cols">
+      <div>
+        <h3>Not on the table</h3>
+        <ul>
+          <li>Glass on content. The tab bar, sheets, context menus and header blur already own it.</li>
+          <li>Gradients, glows, or shadows on the canvas. The user's wallpaper is the gradient.</li>
+          <li>A new accent colour, a second type ramp, or any new token unless it has three callers.</li>
+          <li>A hero number with a small label and a gradient accent. The grid is the hero.</li>
+          <li>Bigger cards. If a section does not earn its height it gets shorter or goes.</li>
+          <li>New insights, trends, or AI. This is a reading page, not a coaching surface.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Why the restraint</h3>
+        <div class="quote">
+          <p>Place items to convey their relative importance. People often start by viewing items in reading order.</p>
+          <cite>layout.md › Visual hierarchy</cite>
+        </div>
+        <div class="quote">
+          <p>Charts are visually prominent, so take advantage of that prominence by clearly communicating what people can learn from the data they care about.</p>
+          <cite>charting-data.md › Best practices</cite>
+        </div>
+        <div class="quote">
+          <p>If multiple charts in your app serve a similar purpose, use a consistent visual approach so people can use what they learn from one chart in another.</p>
+          <cite>charting-data.md › Designing effective charts</cite>
+        </div>
+        <p style="margin-top:14px;">The current page already fails the last one quietly: the same week is a bar chart, a percent tile and a column. The proposal fixes that by making every data mark the same square.</p>
+      </div>
+    </section>
+
+    <p class="foot">
+      Design mockups built from the current <code>Theme.Metrics</code> values, not app screenshots. Palette ramp colours are approximations for the board only. Nothing on this page is implemented, committed, or uploaded.
+    </p>
+  </main>
+  <script>
+    document.getElementById('mode').addEventListener('click', function () {
+      document.body.classList.toggle('dark');
+    });
+
+    // Fill the mockup contribution grids the way the app renders them:
+    // seven day rows, one column per week, oldest week on the left.
+    document.querySelectorAll('.heatmap').forEach(function (grid) {
+      var weeks = Number(grid.dataset.weeks || 20);
+      var out = '';
+      for (var week = 0; week < weeks; week++) {
+        for (var day = 0; day < 7; day++) {
+          var n = (week * 7 + day * 3) % 11;
+          var level = n < 2 ? 0 : n < 5 ? 1 : n < 7 ? 2 : n < 9 ? 3 : 4;
+          if (day === 2 && week % 9 === 4) level = 'neg';
+          out += '<i class="sq' + (level ? ' l' + level : '') + '"></i>';
+        }
+      }
+      grid.innerHTML = out;
+    });
+  </script>
+</body>
+</html>

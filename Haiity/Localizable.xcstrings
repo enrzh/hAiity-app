@@ -45725,13 +45725,8 @@
     },
     "Zusätzliche Motivation": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Zusätzliche Motivation" } }
-      }
-    },
-    "Quelle: mubaris/motivate · MIT-Lizenz": {
-      "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Quelle: mubaris/motivate · MIT-Lizenz" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Source: mubaris/motivate · MIT license" } }
+        "de": { "stringUnit": { "state": "translated", "value": "Zusätzliche Motivation" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Extra motivation" } }
       }
     },
     "Optional; ohne Internet bleiben integrierte Nachrichten aktiv.": {
@@ -45748,17 +45743,20 @@
     },
     "Laden…": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Laden…" } }
+        "de": { "stringUnit": { "state": "translated", "value": "Laden…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Loading…" } }
       }
     },
     "Geladen": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Geladen" } }
+        "de": { "stringUnit": { "state": "translated", "value": "Geladen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Loaded" } }
       }
     },
     "Fehler – integrierte Nachrichten bleiben aktiv": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Fehler – integrierte Nachrichten bleiben aktiv" } }
+        "de": { "stringUnit": { "state": "translated", "value": "Fehler – integrierte Nachrichten bleiben aktiv" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Failed – built-in messages stay active" } }
       }
     },
     "Uhrzeit": {
@@ -57403,12 +57401,12 @@
         }
       }
     },
-    "Einmalige Einträge automatisch archivieren": {
+    "Einmalige archivieren": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatically archive one-time items"
+            "value": "Archive one-time items"
           }
         }
       }
@@ -57473,16 +57471,6 @@
         }
       }
     },
-    "Verwalten": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manage"
-          }
-        }
-      }
-    },
     "Aktiv": {
       "localizations": {
         "en": {
@@ -57493,32 +57481,952 @@
         }
       }
     },
-    "Verbindungen": {
+    "Alltag": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connections"
+            "value": "Everyday"
           }
         }
       }
     },
-    "Persönlich": {
+    "Konto & Verbindungen": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personal"
+            "value": "Account & Connections"
           }
         }
       }
     },
-    "Werkzeuge": {
+    "Archiv & Über": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tools"
+            "value": "Archive & About"
+          }
+        }
+      }
+    },
+    "Archivierung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archiving"
+          }
+        }
+      }
+    },
+    "Quelle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        }
+      }
+    },
+    "Integriert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built in"
+          }
+        }
+      }
+    },
+    "Auf dem Gerät": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On device"
+          }
+        }
+      }
+    },
+    "Dein Muster": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pattern"
+          }
+        }
+      }
+    },
+    "Kurz zusammenfassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short summary"
+          }
+        }
+      }
+    },
+    "Anderer Satz": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Different sentence"
+          }
+        }
+      }
+    },
+    "Denkt nach…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking…"
+          }
+        }
+      }
+    },
+    "Das hat nicht geklappt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That didn't work."
+          }
+        }
+      }
+    },
+    "Aus deinen Zahlen wird ein Satz.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your numbers become one sentence."
+          }
+        }
+      }
+    },
+    "Sobald du Check-ins hast, steht hier ein Satz dazu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once you have check-ins, a sentence appears here."
+          }
+        }
+      }
+    },
+    "Dieses Gerät kann das Modell nicht ausführen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device can't run the model."
+          }
+        }
+      }
+    },
+    "Das braucht iOS 26.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This needs iOS 26."
+          }
+        }
+      }
+    },
+    "Schreibt einen Satz…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing a sentence…"
+          }
+        }
+      }
+    },
+    "Satz schreiben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write a sentence"
+          }
+        }
+      }
+    },
+    "Hat nicht geklappt – heute gilt der integrierte Satz.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Didn't work – today's built-in sentence applies."
+          }
+        }
+      }
+    },
+    "Jeder Tag ein neuer Satz, geschrieben auf diesem Gerät. Bleibt offline und wird nicht mitgesendet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A new sentence each day, written on this device. It stays offline and is never sent anywhere."
+          }
+        }
+      }
+    },
+    "Apple Intelligence ist aus. Schalte sie in den iOS-Einstellungen ein, um eigene Sätze zu erhalten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence is off. Turn it on in iOS Settings to get your own sentences."
+          }
+        }
+      }
+    },
+    "Das Modell lädt noch. Bis dahin kommen die integrierten Sätze.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model is still downloading. Until then, the built-in sentences are used."
+          }
+        }
+      }
+    },
+    "Dieses Gerät kann das On-Device-Modell nicht ausführen. Die integrierten Sätze bleiben aktiv.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device can't run the on-device model. The built-in sentences stay active."
+          }
+        }
+      }
+    },
+    "Eigene Sätze brauchen iOS 26. Die integrierten Sätze bleiben aktiv.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom sentences need iOS 26. The built-in sentences stay active."
+          }
+        }
+      }
+    },
+    "Auswahl": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selection"
+          }
+        }
+      }
+    },
+    "Alle Habits als ein Raster über die letzten fünf Monate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All habits as one grid over the last five months."
+          }
+        }
+      }
+    },
+    "Alle Check-ins und aktiven Habits zusammen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All check-ins and active habits combined."
+          }
+        }
+      }
+    },
+    "Standardaktion": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default action"
+          }
+        }
+      }
+    },
+    "Zurücksetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset"
+          }
+        }
+      }
+    },
+    "Zurücksetzen / Nein": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset / No"
+          }
+        }
+      }
+    },
+    "Aktualisierung fehlgeschlagen – letzter Bestand bleibt aktiv": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update failed – the last result stays active"
+          }
+        }
+      }
+    },
+    "Noch %lld offen · Serie %lld · Woche %lld %%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld left · Streak %lld · Week %lld%%"
+          }
+        }
+      }
+    },
+    "Kein Habit fällig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No habit due"
+          }
+        }
+      }
+    },
+    "%lld offen, Serie %lld, diese Woche %lld Prozent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld open, streak %lld, this week %lld percent"
+          }
+        }
+      }
+    },
+    "Kein Habit fällig, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No habit due, %@"
+          }
+        }
+      }
+    },
+    "%lld von %lld erledigt, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of %lld done, %@"
+          }
+        }
+      }
+    },
+    "%lld Tage in den letzten fünf Monaten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days in the last five months"
+          }
+        }
+      }
+    },
+    "Letzte 7 Tage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last 7 days"
+          }
+        }
+      }
+    },
+    "Deine Habits": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your habits"
+          }
+        }
+      }
+    },
+    "30 Tage: %lld%%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 days: %lld%%"
+          }
+        }
+      }
+    },
+    "Serie %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Streak %lld"
+          }
+        }
+      }
+    },
+    "30 Tage: %lld Prozent, Serie %lld Tage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 days: %lld percent, streak %lld days"
+          }
+        }
+      }
+    },
+    "Check-ins der letzten 12 Monate: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check-ins in the last 12 months: %lld"
+          }
+        }
+      }
+    },
+    "Statistik wird geladen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics are loading"
+          }
+        }
+      }
+    },
+    "Statistik anpassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customize Statistics"
+          }
+        }
+      }
+    },
+    "Statistikvorschau": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics preview"
+          }
+        }
+      }
+    },
+    "Statistikkarten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics cards"
+          }
+        }
+      }
+    },
+    "Details für jedes Habit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details for each habit."
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        }
+      }
+    },
+    "Zeitzonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time zones"
+          }
+        }
+      }
+    },
+    "Verbindung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection"
+          }
+        }
+      }
+    },
+    "Ruhezeiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quiet hours"
+          }
+        }
+      }
+    },
+    "Tagesmeldung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily summary"
+          }
+        }
+      }
+    },
+    "Wochensumme": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly summary"
+          }
+        }
+      }
+    },
+    "Motivation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motivation"
+          }
+        }
+      }
+    },
+    "Kein Bild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photo"
+          }
+        }
+      }
+    },
+    "Ziehe das Bild, um den sichtbaren Ausschnitt festzulegen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the photo to set the visible crop."
+          }
+        }
+      }
+    },
+    "Hintergrund anpassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjust background"
+          }
+        }
+      }
+    },
+    "Verhalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Behavior"
+          }
+        }
+      }
+    },
+    "Synchronisierung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sync"
+          }
+        }
+      }
+    },
+    "Erledigte einmalige Einträge und letzte Wiederholungen landen automatisch im Archiv.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed one-time entries and final repeats move to the archive automatically."
+          }
+        }
+      }
+    },
+    "Kompakte Ansicht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compact view"
+          }
+        }
+      }
+    },
+    "Rückgängig in Widgets": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo in widgets"
+          }
+        }
+      }
+    },
+    "Wischaktionen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe actions"
+          }
+        }
+      }
+    },
+    "Nach rechts wischen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe right"
+          }
+        }
+      }
+    },
+    "Nach links wischen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe left"
+          }
+        }
+      }
+    },
+    "Schnellaktionen in Mitteilungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick actions in notifications"
+          }
+        }
+      }
+    },
+    "Einträge werden aufgeräumt …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cleaning up entries…"
+          }
+        }
+      }
+    },
+    "Aufräumen erneut versuchen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try cleanup again"
+          }
+        }
+      }
+    },
+    "Native Einträge aufräumen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean up native entries"
+          }
+        }
+      }
+    },
+    "Native Einträge bereinigt und neu synchronisiert.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native entries cleaned and resynced."
+          }
+        }
+      }
+    },
+    "Native Einträge bereinigt und neu synchronisiert: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native entries cleaned and resynced: %@"
+          }
+        }
+      }
+    },
+    "Einträge teilweise bereinigt. Prüfe die Berechtigungen und versuche es erneut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some entries were cleaned. Check the permissions and try again."
+          }
+        }
+      }
+    },
+    "Native Einträge konnten nicht bereinigt werden. Prüfe die Berechtigungen und versuche es erneut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native entries could not be cleaned. Check the permissions and try again."
+          }
+        }
+      }
+    },
+    "Apple-ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple ID"
+          }
+        }
+      }
+    },
+    "Apple hat keinen Namen geliefert. Nutze einen Alias.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not provide a name. Use an alias."
+          }
+        }
+      }
+    },
+    "Performance-Modus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Performance mode"
+          }
+        }
+      }
+    },
+    "Monate anzeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show months"
+          }
+        }
+      }
+    },
+    "App-Icon dynamisch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dynamic app icon"
+          }
+        }
+      }
+    },
+    "Gleiche Farbe wie Graph-Farbe.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same color as the graph color."
+          }
+        }
+      }
+    },
+    "Oben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top"
+          }
+        }
+      }
+    },
+    "Unten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom"
+          }
+        }
+      }
+    },
+    "dein Raum": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "your space"
+          }
+        }
+      }
+    },
+    "Tippen, um den Bildausschnitt anzupassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to adjust the image crop"
+          }
+        }
+      }
+    },
+    "Das Bild konnte nicht übernommen werden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The photo could not be applied."
+          }
+        }
+      }
+    },
+    "Farbton %@°": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue %@°"
+          }
+        }
+      }
+    },
+    "Bis": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until"
+          }
+        }
+      }
+    },
+    "Noch %%d Std. %%d Min.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In %d hr %d min"
+          }
+        }
+      }
+    },
+    "Noch %%d Min.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In %d min"
+          }
+        }
+      }
+    },
+    "Wochentag auswählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose weekday"
+          }
+        }
+      }
+    },
+    "Live-Aktivitäten starten, sobald hAiity einmal geöffnet wurde.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live Activities start once hAiity has been opened."
+          }
+        }
+      }
+    },
+    "Dein Alltag als Contribution-Graph.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your everyday life as a contribution graph."
+          }
+        }
+      }
+    },
+    "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tracking, no hAiity server. Your data stays on your devices and in your private iCloud."
+          }
+        }
+      }
+    },
+    "Vom Standard übernehmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inherit from default"
+          }
+        }
+      }
+    },
+    "Zeitzone suchen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search time zone"
           }
         }
       }

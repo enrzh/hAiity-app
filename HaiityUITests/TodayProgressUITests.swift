@@ -57,11 +57,88 @@ final class TodayProgressUITests: XCTestCase {
             XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
             capture("contribution-chart-\(appearance)")
             app.descendants(matching: .any)["habit-history"].firstMatch.tap()
-            XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5),
+                      "the history sheet did not open")
             app.buttons["history-previous-month"].tap()
             capture("history-editor-\(appearance)")
             app.terminate()
         }
+    }
+
+    /// iOS 27 drops taps on grouped `List` rows, so the settings sub-pages were
+    /// moved to the hub's continuous group surface. This drives the real taps so
+    /// a regression back to `List` fails here instead of on a user's phone.
+    func testMigratedSettingsPagesKeepTheirRowsHittable() {
+        let pages: [(row: String, target: String, name: String)] = [
+            ("open-notifications", "dnd-toggle", "migrated-notifications"),
+            ("open-account", "personal-alias", "migrated-account"),
+            ("open-github-settings", "github-username-toggle", "migrated-github"),
+            ("open-github-settings", "github-month-labels-toggle", "migrated-github-months")
+        ]
+
+        for page in pages {
+            let app = launch("crowded", screen: "more")
+            let row = app.buttons[page.row].firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 15), page.row)
+            XCTAssertTrue(row.isHittable, page.row)
+            row.tap()
+
+            let target = app.descendants(matching: .any)[page.target].firstMatch
+            XCTAssertTrue(target.waitForExistence(timeout: 10), page.target)
+            XCTAssertTrue(target.isHittable,
+                          "\(page.target) must stay tappable after moving off List")
+            capture(page.name)
+            app.terminate()
+        }
+    }
+
+    /// Behavior & sharing is the densest settings page in the app: five groups
+    /// of toggles, pickers and action rows, all of them tap targets. This taps
+    /// one for real so a regression back to `List` cannot pass silently.
+    func testBehaviorPageTogglesStayTappableAfterLeavingTheList() {
+        let app = launch("crowded", screen: "notification-actions")
+        let autoArchive = app.switches["auto-archive-completed-items-toggle"].firstMatch
+        XCTAssertTrue(autoArchive.waitForExistence(timeout: 15))
+        XCTAssertTrue(autoArchive.isHittable)
+
+        let before = (autoArchive.value as? String) ?? ""
+        autoArchive.tap()
+        XCTAssertNotEqual((autoArchive.value as? String) ?? "", before,
+                          "the archive toggle must actually respond to a tap")
+
+        // The calendar group sits below the fold, so scroll to it first: a
+        // control that is off-screen is not in the accessibility tree yet.
+        app.swipeUp()
+        app.swipeUp()
+        for identifier in ["calendar-sync-habits-toggle",
+                           "calendar-sync-reminders-toggle"] {
+            let control = app.descendants(matching: .any)[identifier].firstMatch
+            XCTAssertTrue(control.waitForExistence(timeout: 5), identifier)
+            XCTAssertTrue(control.isHittable, identifier)
+        }
+        capture("migrated-behavior")
+    }
+
+    /// The design system requires every shared component to survive AX5 without
+    /// clipped or hidden text. The statistics captions and the notification
+    /// rows lost their `lineLimit(1)` for exactly this reason, so it needs a
+    /// look at the largest text size, not just a source assertion.
+    func testMigratedPagesSurviveAccessibilityTextSize() {
+        let stats = launch("crowded", largeText: true, appearance: "dark", screen: "stats")
+        XCTAssertTrue(stats.descendants(matching: .any)["stats-today-summary"]
+            .firstMatch.waitForExistence(timeout: 15))
+        capture("a11y-ax5-stats-dark")
+
+        let more = launch("crowded", largeText: true, appearance: "dark", screen: "more")
+        let notifications = more.buttons["open-notifications"].firstMatch
+        XCTAssertTrue(notifications.waitForExistence(timeout: 15))
+        XCTAssertTrue(notifications.isHittable,
+                      "a hub row must stay hittable when its label wraps to several lines")
+        capture("a11y-ax5-more-dark")
+        notifications.tap()
+        XCTAssertTrue(more.descendants(matching: .any)["dnd-toggle"]
+            .firstMatch.waitForExistence(timeout: 10))
+        capture("a11y-ax5-notifications-dark")
     }
 
     func testCompletionUndoAndTodayFilterKeepFirstHabitInPlace() {
@@ -98,7 +175,19 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(app.buttons["habit-filter"].waitForExistence(timeout: 5))
     }
 
-    func testSearchTabShowsFieldAndFieldTapActivatesInput() {
+    /// The Search tab must show a search field that a hand tap actually turns
+    /// into live input.
+    ///
+    /// iOS 27's prominent search role owns that navigation bar: the app cannot
+    /// focus the field on tab entry, cannot re-open it from the tab-bar
+    /// magnifier, and cannot add its own toolbar item there. Tapping the visible
+    /// field is the supported way in, so that is what this pins.
+    ///
+    /// The assertion is that typed text reaches the field, not that a software
+    /// keyboard window appears. The simulator here has a hardware keyboard
+    /// attached, so the software keyboard never exists even on a correct focus;
+    /// asserting it made this test fail for the environment rather than the app.
+    func testSearchTabShowsATappableSearchField() {
         let app = launch()
         let searchTab = app.tabBars.buttons["Search"].firstMatch
         XCTAssertTrue(searchTab.waitForExistence(timeout: 15))
@@ -108,19 +197,27 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(searchTab.isSelected)
         let searchField = app.searchFields.firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
-
-        searchField.swipeUp()
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        XCTAssertTrue(searchField.isHittable,
+                      "the visible search field is the way into search on iOS 27")
 
         searchField.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        searchField.typeText("lesen")
+        // The field re-renders on every keystroke as the results filter, so
+        // XCUITest can drop a character mid-burst. Waiting for "any query landed"
+        // pins the behaviour that matters — the tap focused the field and it
+        // accepts input — without depending on every character surviving.
+        let entered = NSPredicate(format: "value != %@", searchField.placeholderValue ?? "")
+        expectation(for: entered, evaluatedWith: searchField)
+        waitForExpectations(timeout: 5)
+        let value = searchField.value as? String ?? ""
+        XCTAssertFalse(value.isEmpty,
+                       "tapping the field must focus it so typing is accepted")
     }
 
     func testGraphOpensHistoryAndCanEditAnEarlierMonth() {
         let app = launch()
         let history = app.descendants(matching: .any)["habit-history"].firstMatch
-        XCTAssertTrue(history.waitForExistence(timeout: 15))
+        XCTAssertTrue(history.waitForExistence(timeout: 15), "the Habits page has no history row")
         XCTAssertTrue(history.isHittable)
         history.tap()
         XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
@@ -254,22 +351,32 @@ final class TodayProgressUITests: XCTestCase {
     func testAccountTimeZoneAndDarkHistorySelectionRemainLegible() {
         for appearance in ["light", "dark"] {
             let app = launch("crowded", appearance: appearance, screen: "more")
+            // The default time zone moved from the More hub into Verhalten &
+            // Teilen, so reach the selector the way a user does.
+            let behavior = app.buttons["open-habit-behavior"].firstMatch
+            XCTAssertTrue(behavior.waitForExistence(timeout: 15), "no Verhalten & Teilen row on the hub")
+            behavior.tap()
             let timezone = app.buttons["default-timezone-picker"].firstMatch
-            XCTAssertTrue(timezone.waitForExistence(timeout: 15))
+            for _ in 0..<6 {
+                if timezone.isHittable { break }
+                app.swipeUp(velocity: .slow)
+            }
+            XCTAssertTrue(timezone.waitForExistence(timeout: 15), "no timezone selector inside Verhalten & Teilen")
             timezone.tap()
             let deviceTimeZone = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", "Device time zone"))
                 .firstMatch
-            XCTAssertTrue(deviceTimeZone.waitForExistence(timeout: 5))
+            XCTAssertTrue(deviceTimeZone.waitForExistence(timeout: 5), "the timezone menu did not open")
             capture("timezone-menu-\(appearance)")
             deviceTimeZone.tap()
             app.terminate()
 
             let account = launch("crowded", appearance: appearance, screen: "more")
             let accountButton = account.buttons["open-account"].firstMatch
-            XCTAssertTrue(accountButton.waitForExistence(timeout: 15))
+            XCTAssertTrue(accountButton.waitForExistence(timeout: 15), "no Konto row on the hub")
             accountButton.tap()
-            XCTAssertTrue(account.navigationBars.firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(account.navigationBars.firstMatch.waitForExistence(timeout: 5),
+                          "the account page did not push a navigation bar")
             capture("account-\(appearance)")
             account.terminate()
         }

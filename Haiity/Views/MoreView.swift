@@ -170,9 +170,10 @@ struct MoreView: View {
     @State private var reminderSyncDenied = false
     @State private var weeklyDenied = false
     @State private var motivationDenied = false
-    @State private var motivationFeedStatus: String?
     @State private var notificationDND = NotificationPromptPreference.state
     @State private var dndCustomDate = Date().addingTimeInterval(2 * 60 * 60)
+    @State private var motivationIsWriting = false
+    @State private var motivationWriteFailed = false
     @State private var dndNow = Date()
     @State private var showReminderSetup = false
     @State private var showWeeklyWeekdayPicker = false
@@ -283,9 +284,16 @@ struct MoreView: View {
         }
         .sheet(isPresented: $showingPersonalSettings) {
             NavigationStack {
-                List { personalSection }
-                    .moreSettingsSurface()
-                    .appPageHeader(String(localized: "Konto"))
+                // Not a `List`: iOS 27 drops taps on grouped list rows.
+                ScrollView {
+                    personalSection
+                        .padding(.horizontal, Theme.Metrics.gutter)
+                        .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+                }
+                .scrollIndicators(.hidden)
+                .softScrollEdges()
+                .settingsChrome()
+                .appPageHeader(String(localized: "Konto"))
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button(String(localized: "Fertig")) { showingPersonalSettings = false }
@@ -298,9 +306,16 @@ struct MoreView: View {
         }
         .sheet(isPresented: $showingNotificationSettings) {
             NavigationStack {
-                List { notificationSettingsSection }
-                    .moreSettingsSurface()
-                    .appPageHeader(String(localized: "Mitteilungen"))
+                // Not a `List`: iOS 27 drops taps on grouped list rows.
+                ScrollView {
+                    notificationSettingsSection
+                        .padding(.horizontal, Theme.Metrics.gutter)
+                        .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+                }
+                .scrollIndicators(.hidden)
+                .softScrollEdges()
+                .settingsChrome()
+                .appPageHeader(String(localized: "Mitteilungen"))
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button(String(localized: "Fertig")) { showingNotificationSettings = false }
@@ -317,9 +332,6 @@ struct MoreView: View {
                 ?? NotificationPromptPreference.state
             if notificationDND.mode == .custom, let until = notificationDND.until {
                 dndCustomDate = until
-            }
-            if store.openSourceMotivationEnabled {
-                refreshMotivationFeedIfNeeded()
             }
             #if DEBUG
             // Nur Debug: das Farb-Blatt direkt zeigen — Klicks durch die
@@ -424,32 +436,14 @@ struct MoreView: View {
                               subtitle: String(localized: "Deine Einstellungen an einem Ort"))
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
-                moreHubGroup(title: String(localized: "Verwalten")) {
+                // Drei Gruppen nach dem, was jemand hier tun will, statt vier
+                // nach Taxonomie. Dieselben `AppSettingsGroup`-Flächen, dieselben
+                // `AppSettingsRow`-Zeilen — nur zwei Überschriften weniger.
+                AppSettingsGroup(title: String(localized: "Alltag")) {
                     pageRow(MoreRoute.appearance,
                             title: String(localized: "Darstellung"),
                             symbol: "paintpalette",
                             identifier: "open-appearance")
-                    Divider().padding(.leading, 48)
-                    pageRow(MoreRoute.habitBehavior,
-                            title: String(localized: "Verhalten & Teilen"),
-                            symbol: "hand.draw",
-                            identifier: "open-habit-behavior",
-                            detail: String(localized: "App-weite Vorgaben und Teilen"))
-                    Divider().padding(.leading, 48)
-                    defaultTimeZonePicker
-                }
-
-                moreHubGroup(title: String(localized: "Verbindungen")) {
-                    moreGitHubRow
-                }
-
-                moreHubGroup(title: String(localized: "Persönlich")) {
-                    moreHubRow(title: String(localized: "Konto"),
-                               detail: String(localized: "Alias und Apple-Anmeldung"),
-                               symbol: "person.crop.circle",
-                               identifier: "open-account") {
-                        showingPersonalSettings = true
-                    }
                     Divider().padding(.leading, 48)
                     moreHubRow(title: String(localized: "Mitteilungen"),
                                detail: String(localized: "Zusammenfassungen und Ruhezeiten"),
@@ -457,16 +451,33 @@ struct MoreView: View {
                                identifier: "open-notifications") {
                         showingNotificationSettings = true
                     }
+                    Divider().padding(.leading, 48)
+                    pageRow(MoreRoute.habitBehavior,
+                            title: String(localized: "Verhalten & Teilen"),
+                            symbol: "hand.draw",
+                            identifier: "open-habit-behavior",
+                            detail: String(localized: "App-weite Vorgaben und Teilen"))
                 }
 
-                moreHubGroup(title: String(localized: "Werkzeuge")) {
+                AppSettingsGroup(title: String(localized: "Konto & Verbindungen")) {
+                    moreGitHubRow
+                    Divider().padding(.leading, 48)
+                    moreHubRow(title: String(localized: "Konto"),
+                               detail: String(localized: "Alias und Apple-Anmeldung"),
+                               symbol: "person.crop.circle",
+                               identifier: "open-account") {
+                        showingPersonalSettings = true
+                    }
+                    Divider().padding(.leading, 48)
                     moreHubRow(title: String(localized: "Setup wiederholen"),
                                detail: String(localized: "Mitteilungen und Kalender konfigurieren"),
                                symbol: "arrow.clockwise",
                                identifier: "open-reminder-setup") {
                         showReminderSetup = true
                     }
-                    Divider().padding(.leading, 48)
+                }
+
+                AppSettingsGroup(title: String(localized: "Archiv & Über")) {
                     pageRow(.archive,
                             title: String(localized: "Archiv"),
                             symbol: "archivebox",
@@ -504,22 +515,6 @@ struct MoreView: View {
 
     private var accentColor: Color {
         Theme.accentText(palettes.style)
-    }
-
-    @ViewBuilder
-    private func moreHubGroup<Content: View>(title: String,
-                                             @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 14)
-            VStack(spacing: 0) { content() }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
-                .morePanel()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func moreHubRow(title: String,
@@ -564,13 +559,6 @@ struct MoreView: View {
         .frame(minHeight: 52)
     }
 
-    private var moreRowInsets: EdgeInsets {
-        EdgeInsets(top: 0,
-                   leading: Theme.Metrics.gutter + 4,
-                   bottom: 0,
-                   trailing: Theme.Metrics.gutter + 4)
-    }
-
     private var githubSection: some View {
         Section {
             HStack(spacing: Theme.Metrics.gap) {
@@ -585,7 +573,7 @@ struct MoreView: View {
                         Spacer(minLength: 0)
                         Text(github.snapshot?.username ?? String(localized: "Verbinden"))
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .contentShape(Rectangle())
                 }
@@ -636,20 +624,29 @@ struct MoreView: View {
     }
 
     private var habitBehaviorSettings: some View {
-        List {
-            cloudSyncSection.moreSettingsSection()
-            autoArchiveSection.moreSettingsSection()
-            swipeActionsSection.moreSettingsSection()
-            notificationActionsSection.moreSettingsSection()
-            calendarSection.moreSettingsSection()
+        // Not a `List`: iOS 27 drops taps on grouped list rows, and this page is
+        // nothing but tappable settings controls.
+        ScrollView {
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                cloudSyncSection
+                autoArchiveSection
+                swipeActionsSection
+                notificationActionsSection
+                defaultTimeZoneGroup
+                calendarSection
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .moreSettingsSurface()
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .settingsChrome()
     }
 
     /// Sync status is useful while editing integration behavior, but does not
     /// belong on the More hub where it becomes permanent ambient noise.
     private var cloudSyncSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Synchronisierung")) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: cloudStatus.state.systemImage)
                     .font(.body.weight(.semibold))
@@ -668,9 +665,8 @@ struct MoreView: View {
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cloud-sync-status")
-        } header: {
-            Text(String(localized: "Synchronisierung"))
         }
     }
 
@@ -688,19 +684,45 @@ struct MoreView: View {
             .tracking(0.7)
     }
 
+    /// One toggle, so it gets the same row treatment as every other setting:
+    /// an icon, one short imperative title, and the consequence underneath. The
+    /// old title spelled out the mechanism ("automatisch archivieren") that the
+    /// caption and the toggle's own immediacy already convey.
     private var autoArchiveSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
-                Toggle(String(localized: "Einmalige Einträge automatisch archivieren"), isOn: Binding(
+        AppSettingsGroup(title: String(localized: "Archivierung")) {
+            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                Toggle(isOn: Binding(
                     get: { statsCards.preferences.autoArchiveCompletedItems },
                     set: { enabled in
                         statsCards.update { $0.autoArchiveCompletedItems = enabled }
-                    }))
-                    .accessibilityIdentifier("auto-archive-completed-items-toggle")
+                    })) {
+                    AppSettingsRow(title: String(localized: "Einmalige archivieren"),
+                                   symbol: "archivebox") {
+                        EmptyView()
+                    }
+                }
+                .accessibilityIdentifier("auto-archive-completed-items-toggle")
+
+                Text(String(localized: "Erledigte einmalige Einträge und letzte Wiederholungen landen automatisch im Archiv."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    // Align with the row title, not the card edge: this is the
+                    // caption for the row above, and `AppSettingsRow` already
+                    // lines its own detail up with its title. Derived from the
+                    // badge so it survives a metric change.
+                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } footer: {
-            Text(String(localized: "Erledigte einmalige und letzte Wiederholungen landen automatisch im Archiv."))
+        }
+    }
+
+    /// The default time zone is an app-wide default, so it belongs with the
+    /// app-wide behavior controls rather than as a loose row on the hub. The
+    /// selector itself is unchanged: a full-row native `Menu`.
+    private var defaultTimeZoneGroup: some View {
+        AppSettingsGroup(title: String(localized: "Standardzeitzone")) {
+            defaultTimeZonePicker
         }
     }
 
@@ -767,12 +789,13 @@ struct MoreView: View {
                     EmptyView()
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("widget-reset-toggle")
         }
     }
 
     private var swipeActionsSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Wischaktionen")) {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 Toggle(isOn: Binding(
                     get: { statsCards.preferences.swipeActions.enabled },
@@ -805,13 +828,11 @@ struct MoreView: View {
                 }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            Text(String(localized: "Wischaktionen"))
         }
     }
 
     private var notificationActionsSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Mitteilungen")) {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 Toggle(isOn: Binding(
                     get: { statsCards.preferences.notificationActionsEnabled },
@@ -844,8 +865,6 @@ struct MoreView: View {
                 }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            Text(String(localized: "Mitteilungen"))
         }
     }
 
@@ -935,7 +954,7 @@ struct MoreView: View {
     // Katalog und darf in keiner Sprache anders heissen.
 
     private var proSection: some View {
-        moreHubGroup(title: String(localized: "hAiity Pro")) {
+        AppSettingsGroup(title: String(localized: "hAiity Pro")) {
             if unlocked {
                 Button {
                     paywall = .settings
@@ -1018,7 +1037,7 @@ struct MoreView: View {
     // Termine bleiben gerätelokal und werden beim Abgleich geprüft.
 
     private var calendarSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Kalender")) {
             VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
                 calendarToggle(type: .habit,
                                title: String(localized: "Habits im Kalender"),
@@ -1233,54 +1252,46 @@ struct MoreView: View {
 
     private var calendarDestinationPicker: some View {
         NavigationStack {
-            List {
-                Section {
-                    Button {
-                        selectCalendar(nil)
-                    } label: {
-                        HStack {
-                            Label(String(localized: "Automatisch"), systemImage: "wand.and.stars")
-                            Spacer()
-                            if CalendarSync.selectedCalendarID(isReminder: calendarPickerType == .reminder) == nil {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.tint)
+            // Not a `List`: iOS 27 drops taps on grouped list rows, and every
+            // row here is a tap target.
+            ScrollView {
+                VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                    AppSettingsGroup(title: String(localized: "Auswahl")) {
+                        calendarOptionRow(title: String(localized: "Automatisch"),
+                                          subtitle: nil,
+                                          selected: CalendarSync.selectedCalendarID(
+                                            isReminder: calendarPickerType == .reminder) == nil) {
+                            selectCalendar(nil)
+                        }
+                    }
+
+                    AppSettingsGroup(title: String(localized: "Kalenderziel")) {
+                        let options = CalendarSync.writableCalendarOptions
+                        if options.isEmpty {
+                            Text(String(localized: "Keine schreibbaren Kalender verfügbar"))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                                if index > 0 { Divider().padding(.leading, Theme.Metrics.gap) }
+                                calendarOptionRow(
+                                    title: option.title,
+                                    subtitle: option.sourceTitle.isEmpty ? nil : option.sourceTitle,
+                                    selected: CalendarSync.selectedCalendarID(
+                                        isReminder: calendarPickerType == .reminder) == option.id) {
+                                        selectCalendar(option.id)
+                                    }
                             }
                         }
                     }
-                    .foregroundStyle(.primary)
                 }
-                Section(String(localized: "Kalenderziel")) {
-                    let options = CalendarSync.writableCalendarOptions
-                    if options.isEmpty {
-                        Text(String(localized: "Keine schreibbaren Kalender verfügbar"))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(options) { option in
-                            Button {
-                                selectCalendar(option.id)
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(option.title)
-                                        if !option.sourceTitle.isEmpty {
-                                            Text(option.sourceTitle)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    if CalendarSync.selectedCalendarID(isReminder: calendarPickerType == .reminder)
-                                        == option.id {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                            }
-                            .foregroundStyle(.primary)
-                        }
-                    }
-                }
+                .padding(.horizontal, Theme.Metrics.gutter)
+                .padding(.bottom, ChromeLayout.nativeTabBarClearance)
             }
+            .scrollIndicators(.hidden)
+            .softScrollEdges()
+            .settingsChrome()
             .appPageHeader(String(localized: "Kalenderziel"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1293,7 +1304,39 @@ struct MoreView: View {
         .task {
             await CalendarSync.refreshDestinationCache()
         }
-        .moreSettingsSurface()
+    }
+
+    /// One tappable calendar destination. The checkmark is paired with the row
+    /// label, so the selection is never carried by color alone.
+    private func calendarOptionRow(title: String,
+                                    subtitle: String?,
+                                    selected: Bool,
+                                    action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body.weight(.medium))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: Theme.Metrics.gap)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.accentText(palettes.style))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.settingsRowMinHeight,
+                   alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func selectCalendar(_ id: String?) {
@@ -1328,7 +1371,7 @@ struct MoreView: View {
     // leer zurück, sagt die Zeile das ehrlich, statt still nichts zu tun.
 
     private var personalSection: some View {
-        Section {
+        AppSettingsGroup(title: String(localized: "Anrede")) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: Theme.Metrics.gap) {
                     personalLeadingIcon("person.crop.circle")
@@ -1403,10 +1446,7 @@ struct MoreView: View {
                 }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        } header: {
-            Text(String(localized: "Anrede"))
         }
-        .moreSettingsSection()
         .onAppear {
             aliasDraft = PersonalName.alias ?? ""
             storedAppleName = PersonalName.appleName
@@ -2429,47 +2469,26 @@ struct MoreView: View {
     // aktiven Einschalten, nie beim Start.
 
     private var notificationSettingsSection: some View {
-        Group {
-            Section {
+        VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            AppSettingsGroup(title: String(localized: "Ruhezeiten")) {
                 notificationOptOutRows
                     .notificationSettingsRow()
-                    .padding(.horizontal, Theme.Metrics.cardPadding)
-                    .padding(.vertical, Theme.Metrics.gap)
-            } header: {
-                Text(String(localized: "Mitteilungen"))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(nil)
             }
-            .moreSettingsSection()
-            .listRowInsets(moreRowInsets)
 
-            Section {
+            AppSettingsGroup(title: String(localized: "Tagesmeldung")) {
                 dailySummaryRows
                     .notificationSettingsRow()
-                    .padding(.horizontal, Theme.Metrics.cardPadding)
-                    .padding(.vertical, Theme.Metrics.gap)
             }
-            .moreSettingsSection()
-            .listRowInsets(moreRowInsets)
 
-            Section {
+            AppSettingsGroup(title: String(localized: "Wochensumme")) {
                 weeklySummaryRows
                     .notificationSettingsRow()
-                    .padding(.horizontal, Theme.Metrics.cardPadding)
-                    .padding(.vertical, Theme.Metrics.gap)
             }
-            .moreSettingsSection()
-            .listRowInsets(moreRowInsets)
 
-            Section {
+            AppSettingsGroup(title: String(localized: "Motivation")) {
                 motivationRows
                     .notificationSettingsRow()
-                    .padding(.horizontal, Theme.Metrics.cardPadding)
-                    .padding(.vertical, Theme.Metrics.gap)
             }
-            .moreSettingsSection()
-            .listRowInsets(moreRowInsets)
         }
     }
 
@@ -2704,50 +2723,13 @@ struct MoreView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Toggle(isOn: openSourceMotivationEnabled) {
-                        notificationLabel(String(localized: "Zusätzliche Motivation"),
-                                          symbol: "arrow.down.circle")
-                    }
-                    .accessibilityIdentifier("motivation-open-source-toggle")
-                    .padding(.leading, -notificationDetailsInset)
-                    if store.openSourceMotivationEnabled {
-                        VStack(alignment: .leading, spacing: 4) {
-                            // Keep the hit target on the visible label. A
-                            // nested List button can inherit the whole row on
-                            // iOS 27 and steal taps from the other controls.
-                            Button(action: openMotivationSource) {
-                                Label(String(localized: "Quelle: mubaris/motivate · MIT-Lizenz"),
-                                      systemImage: "link")
-                                    .lineLimit(1)
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.borderless)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .accessibilityIdentifier("motivation-source-link")
-                            if let motivationFeedStatus {
-                                Text(motivationFeedStatus)
-                                    .font(.caption2)
-                                    .foregroundStyle(motivationFeedStatus == String(localized: "Fehler – integrierte Nachrichten bleiben aktiv") ? .orange : .secondary)
-                                    .accessibilityIdentifier("motivation-open-source-status")
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 2)
-                    }
+                    motivationSourceControl
                 }
                 .padding(.leading, notificationDetailsInset)
             }
             if motivationDenied { permissionHint }
         }
         .padding(.vertical, Theme.Metrics.gap / 2)
-    }
-
-    private var motivationSourceURL: URL {
-        URL(string: "https://github.com/mubaris/motivate")!
-    }
-
-    private func openMotivationSource() {
-        UIApplication.shared.open(motivationSourceURL)
     }
 
     private func personalLeadingIcon(_ symbol: String) -> some View {
@@ -2761,9 +2743,11 @@ struct MoreView: View {
 
     private var personalLeadingColumnWidth: CGFloat { 44 }
 
+    /// Fixed on purpose: the slot is `Theme.Metrics.glyph`, so a Dynamic-Type
+    /// font would let the glyph overflow its own background at AX5.
     private func notificationSymbolSurface(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.caption.weight(.bold))
+            .font(.system(size: 15, weight: .bold))
             .foregroundStyle(Theme.accentText(palettes.style))
             .frame(width: Theme.Metrics.glyph,
                    height: Theme.Metrics.glyph)
@@ -2773,86 +2757,175 @@ struct MoreView: View {
             .accessibilityHidden(true)
     }
 
+    /// No `lineLimit` and no `minimumScaleFactor`: at AX5 the toggle label has
+    /// to wrap. Shrinking or truncating it was clipping "Do not disturb" to
+    /// "Do not dist…", which the design system's accessibility floor forbids.
     private func notificationLabel(_ title: String, symbol: String) -> some View {
-        HStack(spacing: Theme.Metrics.gap + 4) {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap + 4) {
             notificationSymbolSurface(symbol)
             Text(title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .layoutPriority(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var openSourceMotivationEnabled: Binding<Bool> {
-        Binding(
-            get: { store.openSourceMotivationEnabled },
-            set: { enabled in
-                store.openSourceMotivationEnabled = enabled
-                let defaults = SharedStorage.defaults
-                guard enabled else {
-                    MotivationFeedCache.clear(in: defaults)
-                    motivationFeedStatus = String(localized: "Integrierte Nachrichten")
-                    Task {
-                        await Reminders.reschedule(store: store)
-                        await MotivationActivityManager.shared.reconcile(
-                            motivationMinutes: store.motivationMinutes,
-                            name: PersonalName.effective,
-                            delivery: store.motivationDelivery,
-                            additionalEntries: MotivationFeedCache.load(
-                                in: SharedStorage.defaults))
-                    }
-                    return
+
+
+    /// Where the daily line comes from: the translated pool, or a fresh line
+    /// from the on-device model.
+    ///
+    /// The model row is only offered when the model can actually run. An
+    /// ineligible device gets the pool and an honest reason, never a control
+    /// that silently does nothing — and never the retired network feed, which is
+    /// why the source is a choice between two things the app owns.
+    private var motivationSourceControl: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            Picker(String(localized: "Quelle"), selection: motivationSourceBinding) {
+                ForEach(Motivation.Source.allCases) { source in
+                    Text(source.displayName).tag(source)
                 }
-                motivationFeedStatus = String(localized: "Laden…")
-                refreshMotivationFeedIfNeeded()
-            })
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("motivation-source-picker")
+
+            Text(motivationSourceCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                // Indented to the title edge like every other caption, so the
+                // detail reads as belonging to the row it explains.
+                .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if store.motivationSource == .onDevice {
+                motivationWriteControl
+            }
+        }
+        .padding(.leading, -notificationDetailsInset)
+        .padding(.top, 2)
     }
 
-    private func refreshMotivationFeedIfNeeded() {
-        let defaults = SharedStorage.defaults
+    /// The explicit "write me a sentence" action.
+    ///
+    /// Nothing here runs on its own. The scheduler only reads what a tap has
+    /// already written, so a day without a tap gets the built-in line — which
+    /// is the same thing an unavailable model would produce, just cheaper.
+    @ViewBuilder
+    private var motivationWriteControl: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            if motivationIsWriting {
+                HStack(spacing: Theme.Metrics.gap) {
+                    ProgressView()
+                    Text(String(localized: "Schreibt einen Satz…"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let written = motivationWrittenLine {
+                Text(written)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Anderer Satz")) {
+                    writeMotivationLine(reroll: true)
+                }
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .accessibilityIdentifier("motivation-reroll")
+            } else {
+                Button(String(localized: "Satz schreiben")) {
+                    writeMotivationLine(reroll: false)
+                }
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .accessibilityIdentifier("motivation-write")
+
+                if motivationWriteFailed {
+                    // The built-in line is what today's notification will use,
+                    // so say that rather than implying the message is missing.
+                    Text(String(localized: "Hat nicht geklappt – heute gilt der integrierte Satz."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("motivation-write-failed")
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private var motivationWrittenLine: String? {
+        MotivationDaily.cachedLine(for: DayKey.today(), in: SharedStorage.defaults)
+    }
+
+    /// Write today's line because the person asked. A repeat tap without a
+    /// re-roll returns the cached line instead of paying for a second call.
+    private func writeMotivationLine(reroll: Bool) {
+        motivationIsWriting = true
+        motivationWriteFailed = false
         Task {
-            do {
-                _ = try await MotivationFeed.refreshIfNeeded(
-                    enabled: true, now: .now, defaults: defaults) { request in
-                        let (data, rawResponse) = try await URLSession.shared.data(for: request)
-                        guard store.openSourceMotivationEnabled else {
-                            throw CancellationError()
-                        }
-                        guard let response = rawResponse as? HTTPURLResponse else {
-                            throw MotivationFeed.Error.invalidFeed
-                        }
-                        return (data, response)
-                    }
-                guard store.openSourceMotivationEnabled else {
-                    MotivationFeedCache.clear(in: defaults)
-                    return
-                }
-                await MainActor.run {
-                    motivationFeedStatus = String(localized: "Geladen")
-                }
-            } catch {
-                guard store.openSourceMotivationEnabled else {
-                    MotivationFeedCache.clear(in: defaults)
-                    return
-                }
-                await MainActor.run {
-                    motivationFeedStatus = MotivationFeedCache.load(in: defaults).isEmpty
-                        ? String(localized: "Fehler – integrierte Nachrichten bleiben aktiv")
-                        : String(localized: "Aktualisierung fehlgeschlagen – letzter Bestand bleibt aktiv")
-                }
+            let language = Locale.current.language.languageCode?.identifier ?? "en"
+            let line = await MotivationDaily.rerollOrWriteLine(
+                for: DayKey.today(), language: language,
+                reroll: reroll, defaults: SharedStorage.defaults)
+            await MainActor.run {
+                motivationIsWriting = false
+                motivationWriteFailed = line == nil
             }
-            guard store.openSourceMotivationEnabled else {
-                MotivationFeedCache.clear(in: defaults)
-                return
-            }
+            // The scheduled notification carries the day's text, so it has to be
+            // re-planned or today's line stays the built-in one until the next
+            // unrelated settings change.
             await Reminders.reschedule(store: store)
             await MotivationActivityManager.shared.reconcile(
                 motivationMinutes: store.motivationMinutes,
                 name: PersonalName.effective,
                 delivery: store.motivationDelivery,
-                additionalEntries: MotivationFeedCache.load(
-                    in: SharedStorage.defaults))
+                source: store.motivationSource)
         }
+    }
+
+    private var motivationSourceCaption: String {
+        switch OnDeviceModel.availability {
+        case .available:
+            return String(localized: "Jeder Tag ein neuer Satz, geschrieben auf diesem Gerät. Bleibt offline und wird nicht mitgesendet.")
+        case .appleIntelligenceOff:
+            return String(localized: "Apple Intelligence ist aus. Schalte sie in den iOS-Einstellungen ein, um eigene Sätze zu erhalten.")
+        case .modelNotReady:
+            return String(localized: "Das Modell lädt noch. Bis dahin kommen die integrierten Sätze.")
+        case .deviceNotEligible:
+            return String(localized: "Dieses Gerät kann das On-Device-Modell nicht ausführen. Die integrierten Sätze bleiben aktiv.")
+        case .unsupportedSystem:
+            return String(localized: "Eigene Sätze brauchen iOS 26. Die integrierten Sätze bleiben aktiv.")
+        }
+    }
+
+    /// Only the sources that can actually run are selectable. If the model
+    /// becomes unavailable after it was chosen, the stored choice stays but the
+    /// pool serves the message — losing the setting on a later launch would be
+    /// worse than quietly honouring it when it comes back.
+    private var selectableMotivationSources: [Motivation.Source] {
+        Motivation.Source.allCases.filter {
+            $0 == .builtIn || OnDeviceModel.isAvailable
+        }
+    }
+
+    private var motivationSourceBinding: Binding<Motivation.Source> {
+        Binding(
+            get: { store.motivationSource },
+            set: { source in
+                store.motivationSource = source
+                if source == .builtIn {
+                    MotivationGeneratedStore.clear(in: SharedStorage.defaults)
+                }
+                Task {
+                    await Reminders.reschedule(store: store)
+                    await MotivationActivityManager.shared.reconcile(
+                        motivationMinutes: store.motivationMinutes,
+                        name: PersonalName.effective,
+                        delivery: store.motivationDelivery,
+                        source: store.motivationSource)
+                }
+            })
     }
 
     private var permissionHint: some View {

@@ -178,7 +178,7 @@ final class AppNavigationTests: XCTestCase {
 
         XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\"),"),
                       "the habits root list needs the shared leading title")
-        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\"),"),
+        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\")"),
                       "the stats root list needs the shared leading title")
         XCTAssertTrue(more.contains("RootPageTitle(title: screen.title,"),
                       "the Mehr root list needs the shared leading title")
@@ -258,17 +258,22 @@ final class AppNavigationTests: XCTestCase {
         let main = more[start.lowerBound..<end.lowerBound]
 
         XCTAssertTrue(main.contains("ScrollView"))
-        XCTAssertTrue(main.contains("moreHubGroup"))
+        XCTAssertTrue(main.contains("AppSettingsGroup"))
         XCTAssertTrue(main.contains("pageRow(MoreRoute.appearance"))
         XCTAssertTrue(main.contains("pageRow(MoreRoute.habitBehavior"))
-        XCTAssertTrue(main.contains("defaultTimeZonePicker"))
-        XCTAssertFalse(main.contains("pageRow(.timeZone"))
+        XCTAssertFalse(main.contains("defaultTimeZonePicker"),
+                       "the default time zone moved to Verhalten & Teilen")
         XCTAssertFalse(main.contains("List {"),
                        "the rebuilt hub must not collapse multiple routes into one List row")
     }
 
     func testDefaultTimeZoneUsesTheWholeSettingsRowAsTheMenuLabel() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let behavior = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
+        let behaviorEnd = try XCTUnwrap(more.range(of: "private var cloudSyncSection: some View",
+                                                   range: behavior.upperBound..<more.endIndex))
+        XCTAssertTrue(more[behavior.lowerBound..<behaviorEnd.lowerBound].contains("defaultTimeZoneGroup"),
+                      "the default time zone belongs to Verhalten & Teilen")
         let start = try XCTUnwrap(more.range(of: "private var defaultTimeZonePicker: some View"))
         let end = try XCTUnwrap(more.range(of: "private var compactModeSection: some View",
                                            range: start.upperBound..<more.endIndex))
@@ -282,18 +287,16 @@ final class AppNavigationTests: XCTestCase {
                        "the row must not be nested inside a trailing-only menu label")
     }
 
-    func testMoreRowsKeepTheirOwnRouteAndNotificationSourceHitTarget() throws {
+    func testMoreRowsKeepTheirOwnRouteAndBoundedSourceControl() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 
         XCTAssertTrue(more.contains("Button {\n            onOpen(route)"),
                       "each More row must dispatch the route it was given")
-        XCTAssertTrue(more.contains("UIApplication.shared.open(motivationSourceURL)"),
-                      "the source action must remain available")
-        XCTAssertTrue(more.contains("openMotivationSource()"),
-                      "the source action must remain available")
-        XCTAssertTrue(more.contains(".fixedSize(horizontal: true, vertical: false)"),
-                      "the source action must keep an intrinsic hit target")
+        XCTAssertTrue(more.contains("motivationSourceControl"),
+                      "the motivation source must remain selectable from the rows")
+        XCTAssertTrue(more.contains("private var motivationSourceControl: some View"),
+                      "the source control needs its own declaration to be a bounded target")
         XCTAssertTrue(content.contains("morePageRoute = nil"),
                       "a new More destination must not inherit a stale child route")
         XCTAssertTrue(content.contains("moreRoutePresentationTask"),

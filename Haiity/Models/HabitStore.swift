@@ -166,8 +166,8 @@ struct HabitData: Codable {
     /// Auslieferungsart der täglichen Motivation. Alte Dateien fallen auf
     /// lokale Mitteilungen zurück, damit ihr bisheriges Verhalten bleibt.
     var motivationDelivery: MotivationDelivery
-    /// Optional opt-in for additional messages from an open-source feed.
-    var openSourceMotivationEnabled: Bool
+    /// Where the daily motivational line comes from.
+    var motivationSource: Motivation.Source
     /// Wochentag der Wochenzusammenfassung (1 = So … 7 = Sa).
     var weeklySummaryWeekday: Int
     var habits: [Habit]
@@ -231,7 +231,7 @@ struct HabitData: Codable {
          sessionHistory: [HabitSessionRecord] = [],
          motivationMinutes: Int? = nil,
          motivationDelivery: MotivationDelivery = .notification,
-         openSourceMotivationEnabled: Bool = false) {
+         motivationSource: Motivation.Source = .builtIn) {
         self.version = version
         self.updatedAt = updatedAt
         self.appearanceUpdatedAt = appearanceUpdatedAt
@@ -240,7 +240,7 @@ struct HabitData: Codable {
         self.weeklySummaryMinutes = weeklySummaryMinutes
         self.motivationMinutes = motivationMinutes
         self.motivationDelivery = motivationDelivery
-        self.openSourceMotivationEnabled = openSourceMotivationEnabled
+        self.motivationSource = motivationSource
         self.weeklySummaryWeekday = (1...7).contains(weeklySummaryWeekday)
             ? weeklySummaryWeekday : Self.defaultSummaryWeekday
         self.habits = habits
@@ -280,7 +280,7 @@ extension HabitData {
         case cloudPreferences
         // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
         // sie überliest den Schlüssel, kein Versionssprung nötig.
-        case motivationMinutes, motivationDelivery, openSourceMotivationEnabled
+        case motivationMinutes, motivationDelivery, motivationSource
         // Nur zum Einlesen alter Wurzel-Einstellungen; encode schreibt sie
         // nie wieder, weil die neue Konfiguration in viewPreferences liegt.
         case leadingSwipe, trailingSwipe
@@ -307,8 +307,15 @@ extension HabitData {
         motivationMinutes = try c.decodeIfPresent(Int.self, forKey: .motivationMinutes)
         motivationDelivery = try c.decodeIfPresent(MotivationDelivery.self,
                                                     forKey: .motivationDelivery) ?? .notification
-        openSourceMotivationEnabled = try c.decodeIfPresent(Bool.self,
-                                                            forKey: .openSourceMotivationEnabled) ?? false
+        // The retired open-source feed stored a Bool. Its quotes are gone, so a
+        // stored `true` is not a choice between the two surviving sources — it
+        // becomes the built-in pool, and picking the model stays an explicit
+        // opt-in. An unknown string also falls back rather than failing decode.
+        // `decodeIfPresent` THROWS on an unknown raw value instead of returning
+        // nil, so a source added by a newer build would take the whole file
+        // down with it. `try? decode` treats missing and unrecognised alike.
+        motivationSource = (try? c.decode(Motivation.Source.self,
+                                          forKey: .motivationSource)) ?? .builtIn
         let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
@@ -356,8 +363,8 @@ extension HabitData {
         if motivationMinutes != nil || motivationDelivery != .notification {
             try c.encode(motivationDelivery, forKey: .motivationDelivery)
         }
-        if openSourceMotivationEnabled {
-            try c.encode(true, forKey: .openSourceMotivationEnabled)
+        if motivationSource != .builtIn {
+            try c.encode(motivationSource, forKey: .motivationSource)
         }
         // Der Wochentag steht nur da, wenn die Wochenzusammenfassung
         // überhaupt läuft — sonst wäre er eine Einstellung ohne Wirkung in
@@ -559,11 +566,11 @@ final class HabitStore {
         set { data.motivationDelivery = newValue; persist() }
     }
 
-    var openSourceMotivationEnabled: Bool {
-        get { data.openSourceMotivationEnabled }
+    var motivationSource: Motivation.Source {
+        get { data.motivationSource }
         set {
-            guard data.openSourceMotivationEnabled != newValue else { return }
-            data.openSourceMotivationEnabled = newValue
+            guard data.motivationSource != newValue else { return }
+            data.motivationSource = newValue
             persist()
         }
     }
@@ -1346,7 +1353,7 @@ final class HabitStore {
             data.weeklySummaryWeekday = remote.weeklySummaryWeekday
             data.motivationMinutes = remote.motivationMinutes
             data.motivationDelivery = remote.motivationDelivery
-            data.openSourceMotivationEnabled = remote.openSourceMotivationEnabled
+            data.motivationSource = remote.motivationSource
             data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
             data.updatedAt = remote.updatedAt
             if let remoteShowsUsername = remote.githubShowsUsername {

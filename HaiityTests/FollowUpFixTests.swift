@@ -213,20 +213,25 @@ final class FollowUpFixTests: XCTestCase {
 
     func testStatsHabitRowCommitOpensTheHabitCard() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
-        let menuStart = try XCTUnwrap(stats.range(of: "private func statsContextMenu"))
-        let menuEnd = try XCTUnwrap(stats.range(of: "private func statsPreview",
-                                                range: menuStart.upperBound..<stats.endIndex))
-        let menu = stats[menuStart.lowerBound..<menuEnd.lowerBound]
-        let habitCommit = try XCTUnwrap(menu.range(of: "commit = { openHabit(habitID) }"))
-        let otherCommit = try XCTUnwrap(menu.range(of: "commit = openStatsAdjustments"))
+
+        // The commit decision lives in its own function, not as an `if/else`
+        // inside the @ViewBuilder: a builder reads an if/else as a view branch,
+        // so deciding a closure in there only compiles behind an explicit
+        // `return`, which disables the builder for the whole body.
+        XCTAssertTrue(stats.contains("private func statsContextHabitID(_ id: String) -> UUID?"),
+                      "the habit behind a context-menu id must be derived in one place")
+        XCTAssertTrue(stats.contains("id.hasPrefix(\"habit-\")"))
+        XCTAssertTrue(stats.contains("private func statsContextCommit(for id: String) -> () -> Void"))
+        XCTAssertTrue(stats.contains("return { openHabit(habitID) }"),
+                      "a per-habit card must open that habit")
+        XCTAssertTrue(stats.contains("return openStatsAdjustments"),
+                      "every other menu must open the customize sheet")
 
         XCTAssertTrue(stats.contains("openURL(AppDestination.habit(id).url)"),
                       "a ranking row must open the existing habit card")
-        XCTAssertLessThan(habitCommit.lowerBound, otherCommit.lowerBound)
-        XCTAssertTrue(menu.contains("performsCommitOnTap: habitID != nil"),
+        XCTAssertTrue(stats.contains("commit: statsContextCommit(for: id)"))
+        XCTAssertTrue(stats.contains("performsCommitOnTap: statsContextHabitID(id) != nil"),
                       "a short tap on the ranking row must run that same commit")
-        XCTAssertTrue(menu.contains("id.hasPrefix(\"habit-\")"),
-                      "metric tiles and the year grid keep the customize commit")
     }
 
     func testEmptyStatisticsContainsTheCreateButton() throws {

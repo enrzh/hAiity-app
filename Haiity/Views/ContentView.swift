@@ -516,6 +516,18 @@ struct ContentView: View {
             }
     }
 
+    /// One owner for "show the keyboard on the search tab". Both the deep-link
+    /// route and a hand tap on the tab go through here, so the two paths cannot
+    /// drift apart.
+    private func focusSearchField() {
+        guard #available(iOS 26, *) else {
+            searching = true
+            return
+        }
+        guard #available(iOS 27, *) else { return }
+        DispatchQueue.main.async { searchFieldFocused = true }
+    }
+
     // MARK: – Bereiche
 
     /// Ab iOS 26 die NATIVE Tableiste, darunter die Fallback-Leiste (das
@@ -1004,12 +1016,8 @@ struct ContentView: View {
         guard routeWorkIsCurrent(routeGeneration), !showAdd else { return }
         if #available(iOS 26, *) {
             nativeTab = .search
-            if #available(iOS 27, *) {
-                DispatchQueue.main.async {
-                    guard routeWorkIsCurrent(routeGeneration) else { return }
-                    searchFieldFocused = true
-                }
-            }
+            guard routeWorkIsCurrent(routeGeneration) else { return }
+            focusSearchField()
         } else {
             searching = true
         }
@@ -3023,8 +3031,7 @@ struct ContentView: View {
             motivationMinutes: store.motivationMinutes,
             name: PersonalName.effective,
             delivery: store.motivationDelivery,
-            additionalEntries: MotivationFeedCache.load(
-                in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard))
+            source: store.motivationSource)
     }
 
     /// A local write is immediately durable and visible. Its secondary
@@ -3717,12 +3724,13 @@ private struct CreateCircle: View {
             .modifier(MoreZoomSource(id: zoomID, namespace: zoomNamespace))
             .accessibilityLabel(CreateAccessibility.label)
             .accessibilityIdentifier(CreateAccessibility.identifier)
+        // `CreateCircle` is already `@available(iOS 27, *)`, so the glass style
+        // is always in scope here. The `else` branch that used to carry a
+        // `#available` guard was unreachable and only produced a warning.
         if appearancePreferences.performanceMode {
             styledButton
-        } else if #available(iOS 26, *) {
-            styledButton.glassEffect(.regular.interactive(), in: .circle)
         } else {
-            styledButton
+            styledButton.glassEffect(.regular.interactive(), in: .circle)
         }
     }
 }

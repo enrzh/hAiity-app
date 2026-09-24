@@ -969,11 +969,11 @@ final class AppearanceSettingTests: XCTestCase {
         let behaviorStart = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
         let compactStart = try XCTUnwrap(more.range(of: "private var compactModeSection: some View"))
 
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("moreHubGroup"))
+        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("AppSettingsGroup"))
         XCTAssertFalse(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
                        "More groups should stay on the continuous page plane")
-        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains(".moreSettingsSurface()"))
-        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains(".moreSettingsSection()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("AppSettingsGroup"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("settingsChrome()"))
     }
 
     func testTaskOneSharedSettingsSurfaceContractIsScopedToItsImplementations() throws {
@@ -1020,16 +1020,18 @@ final class AppearanceSettingTests: XCTestCase {
                       "settings rows need one reusable material-aware surface entry point")
         let screenSwitch = try body(from: "switch screen {",
                                     to: "}\n        }\n        // A presented More screen", in: more)
-        XCTAssertTrue(more.contains("moreHubGroup"),
+        XCTAssertTrue(more.contains("AppSettingsGroup"),
                       "More main content must use grouped app surfaces")
         XCTAssertTrue(more.contains("proSection"),
                       "the main More hub must keep the Pro entry point")
-        XCTAssertTrue(more.contains(".moreSettingsSection()"),
-                      "native More settings rows must use the continuous section treatment")
+        XCTAssertTrue(more.contains("AppSettingsGroup"),
+                      "native More settings rows must use the shared continuous group treatment")
+        XCTAssertFalse(more.contains("moreSettingsSection()"),
+                       "More must not return to List-backed settings sections")
         XCTAssertTrue(more.contains(".settingsChrome()"),
                       "the appearance page must use the shared appearance chrome")
-        XCTAssertTrue(more.contains(".moreSettingsSurface()"),
-                      "native More subpages must use the shared continuous surface")
+        XCTAssertTrue(more.contains("settingsChrome()"),
+                      "native More subpages must use the shared continuous chrome")
         for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
                          "case .habitBehavior: habitBehaviorSettings"] {
             XCTAssertTrue(screenSwitch.contains(caseName),
@@ -1042,18 +1044,35 @@ final class AppearanceSettingTests: XCTestCase {
     func testMoreDetailPagesUseTheContinuousSurfaceFamily() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-        let files = [
-            "Haiity/Views/MoreView.swift",
+        // Pages migrated off `List` use the shared group surface instead of the
+        // list-backed one. Both are the same continuous family; `List` is the one
+        // form that must not come back, because iOS 27 drops taps on its rows.
+        let migratedToGroups = [
             "Haiity/Views/GitHubSettingsView.swift",
-            "Haiity/Views/ArchiveView.swift",
-            "Haiity/Views/DeveloperView.swift",
-            "Haiity/Views/HabitTimeZoneSettingsView.swift"
+            "Haiity/Views/HabitTimeZoneSettingsView.swift",
+            "Haiity/Views/MoreView.swift",
+            "Haiity/Views/DeveloperView.swift"
+        ]
+        let stillListBacked = [
+            "Haiity/Views/ArchiveView.swift"
         ]
 
-        for file in files {
+        for file in migratedToGroups {
+            let source = try String(contentsOf: root.appendingPathComponent(file))
+            XCTAssertTrue(source.contains("AppSettingsGroup"),
+                          "(file) should use the shared settings group surface")
+            XCTAssertTrue(source.contains("settingsChrome()"),
+                          "(file) should keep the shared non-List chrome")
+            XCTAssertFalse(source.contains("List {"),
+                           "(file) must not return to a List, which drops taps on iOS 27")
+        }
+        for file in stillListBacked {
             let source = try String(contentsOf: root.appendingPathComponent(file))
             XCTAssertTrue(source.contains("moreSettingsSurface()"),
                           "(file) should use the More surface")
+        }
+        for file in migratedToGroups + stillListBacked {
+            let source = try String(contentsOf: root.appendingPathComponent(file))
             XCTAssertFalse(source.contains("settingsListRow()"),
                            "(file) should not restore rounded settings cells")
         }
@@ -1063,13 +1082,13 @@ final class AppearanceSettingTests: XCTestCase {
             "Haiity/Views/HabitTimeZoneSettingsView.swift"))
         XCTAssertFalse(timezone.contains("secondarySystemGroupedBackground"),
                        "timezone rows must not bypass the selected appearance")
-        XCTAssertTrue(timezone.contains(".moreSettingsSection()"),
-                      "timezone groups must use the same material-backed rows as More")
+        XCTAssertTrue(timezone.contains("AppSettingsGroup"),
+                      "timezone groups must use the same material-backed group surface as More")
         XCTAssertTrue(more.contains(".appPageHeader(String(localized: \"Konto\"))"),
                       "Account must keep the shared secondary-page header")
         XCTAssertTrue(more.contains("private var personalSection: some View")
-                      && more.contains(".moreSettingsSection()"),
-                      "Account must use the shared appearance-aware section surface")
+                      && more.contains("AppSettingsGroup"),
+                      "Account must use the shared appearance-aware group surface")
         XCTAssertTrue(more.contains("morePageRule"),
                       "the appearance page should use quiet rules between sections")
     }

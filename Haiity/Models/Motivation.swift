@@ -38,6 +38,32 @@ enum Motivation {
 
     // MARK: - Auswahl
 
+    /// Woher die tägliche Zeile kommt.
+    ///
+    /// **Warum das Gerät und nicht der Server.** Die App verspricht
+    /// Zero-Server, und `Celebration` hält dieses Versprechen bereits durch
+    /// Vorlagen. Ein entfernter Zitat-Feed brach es — die Texte kamen von
+    /// einem fremden Repository, und die App konnte weder ihre Herkunft noch
+    /// ihren Inhalt garantieren. Das On-Device-Modell stellt dieselbe
+    /// Vielfalt wieder her, ohne dass ein Byte das Gerät verlässt: die Zeile
+    /// entsteht lokal und wird für den Tag gecacht.
+    enum Source: String, Codable, CaseIterable, Identifiable, Sendable {
+        /// Die 24 übersetzten Zeilen aus diesem File. Immer verfügbar.
+        case builtIn
+        /// Ein Satz pro Tag, geschrieben vom On-Device-Modell. Nur wählbar,
+        /// wenn `OnDeviceModel.isAvailable`; sonst übernimmt `builtIn`.
+        case onDevice
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .builtIn:  return String(localized: "Integriert")
+            case .onDevice: return String(localized: "Auf dem Gerät")
+            }
+        }
+    }
+
     /// Salz der Anrede — die Ziffern sind die ASCII-Bytes von „opener".
     /// Ein Zahlenwert mit Bedeutung ist beim Nachlesen ehrlicher als eine
     /// zufällige Konstante, und er darf sich NIE ändern: ein anderes Salz
@@ -91,20 +117,20 @@ enum Motivation {
 
     /// Titel (Anrede) und Text (Zeile) der Nachricht des Tages.
     /// `name` = nil oder leer ⇒ die neutrale Fassung der Anrede.
+    ///
+    /// `generatedLine` overrides only the *line*. The greeting stays with the
+    /// catalog because it is translated, reviewed, and has to place the name
+    /// correctly per language — a job the model should not be asked to redo. A
+    /// missing or unusable generated line simply falls through to the pool, so
+    /// this function never fails and never returns an empty message.
     static func message(name: String?, today: String,
-                        additionalEntries: [MotivationFeedEntry] = [],
+                        generatedLine: String? = nil,
                         languageCode: String? = nil) -> (title: String, body: String) {
         // Über die kleinere der beiden Anrede-Listen indizieren: die Listen
         // sind gleich lang (Vertrag im Test), aber ein Griff ins Leere darf
         // auch dann nicht passieren, wenn jemand eine Zeile vergisst.
         let openerCount = min(openersNamed.count, openersPlain.count)
         let opener = index(for: today, salt: openerSalt, count: openerCount)
-        let language = (languageCode ?? Locale.current.language.languageCode?.identifier ?? "en").lowercased()
-        let matching = additionalEntries.filter {
-            $0.language.lowercased().split(separator: "-").first.map(String.init)
-                == language.split(separator: "-").first.map(String.init)
-        }
-        let line = index(for: today, salt: lineSalt, count: matching.isEmpty ? lines.count : matching.count)
 
         let title: String
         if let name, !name.isEmpty {
@@ -112,7 +138,10 @@ enum Motivation {
         } else {
             title = openersPlain[opener]
         }
-        return (title, matching.isEmpty ? lines[line] : matching[line].text)
+        if let generatedLine, !generatedLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (title, generatedLine)
+        }
+        return (title, lines[index(for: today, salt: lineSalt, count: lines.count)])
     }
 
     // MARK: - Vorrat: Anrede

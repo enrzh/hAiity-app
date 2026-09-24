@@ -26,37 +26,43 @@ struct CustomPaletteSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    HueTileGrid(selected: base) { color = Theme.color($0) }
-                        .padding(.vertical, 4)
-                        .accessibilityIdentifier("custom-palette-tiles")
-                    ColorPicker(selection: $color, supportsOpacity: false) {
-                        Label(String(localized: "Feinabstimmung"), systemImage: "eyedropper")
+            // Same continuous surface as every other More sub-page, not a stock
+            // `Form`: iOS 27 drops taps on grouped list rows, and this sheet is
+            // all tap targets.
+            ScrollView {
+                VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                    AppSettingsGroup(title: String(localized: "Grundfarbe")) {
+                        HueTileGrid(selected: base) { color = Theme.color($0) }
+                            .padding(.vertical, 4)
+                            .accessibilityIdentifier("custom-palette-tiles")
+                        groupDivider
+                        ColorPicker(selection: $color, supportsOpacity: false) {
+                            Label(String(localized: "Feinabstimmung"), systemImage: "eyedropper")
+                        }
+                        .accessibilityIdentifier("custom-palette-color")
+                        Text(String(localized: "hAiity erzeugt daraus alle Rasterstufen."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .accessibilityIdentifier("custom-palette-color")
-                } header: {
-                    Text(String(localized: "Grundfarbe"))
-                } footer: {
-                    Text(String(localized: "hAiity erzeugt daraus alle Rasterstufen."))
-                }
-                .settingsListRow()
 
-                Section {
-                    preview(String(localized: "Hell"), dark: false)
-                    preview(String(localized: "Dunkel"), dark: true)
-                } header: {
-                    Text(String(localized: "Vorschau"))
-                }
-                .settingsListRow()
+                    AppSettingsGroup(title: String(localized: "Vorschau")) {
+                        preview(String(localized: "Hell"), dark: false)
+                        groupDivider
+                        preview(String(localized: "Dunkel"), dark: true)
+                    }
 
-                Section {
-                    TextField(String(localized: "Name (z. B. Petrol)"), text: $name)
-                        .accessibilityIdentifier("custom-palette-name")
+                    AppSettingsGroup(title: String(localized: "Name")) {
+                        TextField(String(localized: "Name (z. B. Petrol)"), text: $name)
+                            .accessibilityIdentifier("custom-palette-name")
+                    }
                 }
-                .settingsListRow()
+                .padding(.horizontal, Theme.Metrics.gutter)
+                .padding(.bottom, ChromeLayout.nativeTabBarClearance)
             }
-            .settingsSurface()
+            .scrollIndicators(.hidden)
+            .softScrollEdges()
+            .settingsChrome()
             .appPageHeader(existing == nil
                            ? String(localized: "Eigene Farbe")
                            : String(localized: "Farbe bearbeiten"))
@@ -79,6 +85,11 @@ struct CustomPaletteSheet: View {
                 name = existing.name
             }
         }
+    }
+
+    /// Inset to the text edge, matching the other settings groups.
+    private var groupDivider: some View {
+        Divider().padding(.leading, Theme.Metrics.gap)
     }
 
     /// Eine Vorschauzeile: Beschriftung plus das Markenmotiv als ECHTES

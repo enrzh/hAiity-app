@@ -111,6 +111,18 @@ Use the system type scale and let Dynamic Type determine actual size:
 | Primary item | `.body.weight(.semibold)` | habit/reminder names |
 | Supporting text | `.subheadline` | explanations and summaries |
 | Metadata | `.caption` | recurrence/time/detail text |
+| Data value | text style + `.monospacedDigit()` | statistics numbers |
+
+Data-value rules: every statistics number uses the **default** design with
+monospaced digits. Do not mix in a second personality (`.rounded`) for tiles
+only, and do not give a streak a heat ramp of its own — the accent means
+progress, the trend sentence owns the only other status color. Captions and
+metadata wrap at accessibility sizes; never hold a row to one line with
+`lineLimit(1)`.
+
+One fact, one place: a value may appear in a summary sentence and in an
+accessibility value, but not a third time in a tile or a footer column. When a
+summary already carries it, the repeated row is deleted rather than restyled.
 
 Text rules:
 
@@ -197,8 +209,46 @@ Bottom clearance for tab bar
 ```
 
 Habits keeps the graph-led item layout. Search keeps its dedicated tab and
-visible native search field. Stats keeps its statistics hierarchy. More remains
-a settings hub rather than a dashboard.
+visible native search field. More remains a settings hub rather than a dashboard.
+
+#### Statistics
+
+```text
+Heute          one solid surface: fraction, segmented ring, one sentence
+Rhythmus       the merged grid, full card width, same ramp as every other graph
+Letzte 7 Tage  seven squares on the same ramp, momentum sentence in the header
+Deine Habits   section label + one list surface, rows open the existing card
+```
+
+Rules:
+
+- Reading order is today first, then the grid, then the week, then the index.
+  Exactly one card is the primary surface; the sections below it stay quiet.
+- A day fraction maps onto the **same 0…4 ramp** as the contribution tiles via
+  `StatsView.statsDayLevel`. The seven-day strip is not a bar chart, and it does
+  not get its own color language. The exact percentage stays visible above the
+  square and in the block's accessibility value.
+- Keep one block per accessibility element, with the chart's own numbers in the
+  value rather than spread over decorative children.
+- The metric tiles remain a **customization** for users who ask for them. The
+  default selection is Rhythmus + Check-ins; a customized all-five selection
+  still shows the grid, so UI tests and existing preferences keep working.
+- No extra insight, range, or second graph destination.
+
+### Settings hub
+
+```text
+Root title
+Grouped panels, grouped by what a person is doing
+```
+
+The hub carries three groups — **Alltag**, **Konto & Verbindungen**, **Archiv &
+Über** — not one heading per taxonomy. Rows, `AppSettingsRow`, and the group
+surface are unchanged by this grouping; only the headings and their order move.
+
+iCloud sync status deliberately stays **off** the hub (it is ambient noise at
+rest) and remains on the behavior page. GitHub state is already a hub row.
+Settings ownership stays in the page that owns the setting.
 
 ### Secondary pages and sheets
 
@@ -212,8 +262,154 @@ Explicit Done/Close action where appropriate
 
 Account, Appearance, Notifications, GitHub settings, and habit behavior use
 the same header, section, row, material, and bottom-clearance rules. The
-standard timezone remains a direct selector on More; it is not a secondary
-page.
+standard timezone is a direct native `Menu` selector, but it lives inside
+**Verhalten & Teilen** rather than loose on the More hub: it is an app-wide
+behavior default, so it belongs with the other app-wide behavior controls
+instead of competing with the hub's navigation rows for attention. The hub
+only carries destinations.
+
+Settings sub-pages are **`ScrollView` + `AppSettingsGroup`**, not `List`.
+iOS 27 drops taps on grouped `List` rows, so a tappable settings page must not
+use one; `List` is the form that must not come back. This is now the whole
+settings surface: the More hub, Notifications, Account, Behavior & sharing, the
+GitHub page, the timezone list, the calendar-destination picker, the
+Developer page, and the custom-palette sheet. `moreSettingsSection()` is gone
+from the app — the list-backed modifier has no callers left, so it should not
+be reintroduced.
+
+`AppSettingsGroup` takes an optional leading `symbol`. The hub's groups are
+text-only; the Developer page labels its groups with an SF Symbol. One
+component serves both rather than the page composing its own.
+
+When a group is migrated, keep each control individually addressable: outside a
+`List` a plain container identifier bleeds onto its children, so a group needs
+`.accessibilityElement(children: .contain)` or every child answers with the
+group's identifier.
+
+A `List` `footer:` has no equivalent in a continuous surface, so its text
+becomes a caption inside the group. A `header:` becomes the group label.
+
+A single on/off setting is still a row, not a bare `Toggle` with a long label.
+Wrap it in `AppSettingsRow` with a symbol and keep the title to one short
+imperative — the mechanism ("automatically", "after completing") belongs in the
+caption, not the title, because a toggle is already immediate. A caption that
+describes the row above it is indented to the title's left edge, derived from
+the badge (`Theme.Metrics.glyph + Theme.Metrics.gap + 4`) so it survives a
+metric change. Sub-*controls* like pickers may span the full panel instead;
+descriptive text may not, because `AppSettingsRow` already lines its own
+`detail:` up with its title.
+
+### On-device generation
+
+Two features use the on-device model: the daily motivational line and the
+statistics reading. Both follow the same contract, and neither may break it.
+
+**Availability is asked, never assumed.** `OnDeviceModel.availability` is the
+single place `FoundationModels` is touched. The app deploys to iOS 17 while the
+framework needs iOS 26 plus an eligible device with Apple Intelligence on, so
+every caller branches on that enum instead of on the system version. The writers
+are `@available(iOS 26.0, *)`; the UI never shows a control that cannot work, and
+says why when it cannot.
+
+**The model writes words, never facts.** For the motivation line the model writes
+only the body — the greeting stays in the catalog, because it is translated,
+reviewed, and has to place the name per language. For the statistics reading the
+facts are extracted in `StatsReadingFacts` (pure, testable, no model), handed over
+as a closed list, and every number in the output is checked against that list by
+`StatsReadingValidator`. A number the facts do not contain rejects the whole
+reading.
+
+**A reading must add something the page does not already say.** The statistics
+page's first card owns today, so the reading covers only the pattern over time —
+the week against last week, the longest run, the habit carrying it. Restating
+today in a second voice is the noise this design system already forbids.
+
+**Nothing runs without a tap.** Running the model makes the device warm, and the
+statistics page is the screen people open most. So reading and writing are
+separate operations: the cache read is free and happens on every visit, and the
+write is reached only from a button. The notification scheduler and the Live
+Activity are pure cache reads — a reschedule happens on every settings change
+and a reconcile can run in the background, so neither may ever reach the model.
+A day without a tap gets the built-in line, which is the same thing an
+unavailable model would produce, just cheaper.
+
+A re-roll is a second, separate request for the same heat. It is offered as its
+own labelled action and is never inferred, and a repeat tap without one returns
+the cached line rather than paying for a second call.
+
+**The block is always visible; its content changes.** The reading block is the
+affordance, so it cannot be conditional. An invitation that only appears once it
+has a result stays undiscovered. Five states are all rendered and all
+explained: idle (the invitation), working, shown, unavailable (which of the four
+reasons), and failed. There is no greyed-out placeholder and no silent absence
+— a missing sentence would be a small loss, but so would a feature nobody finds.
+
+**Nothing leaves the device.** The retired open-source quote feed was removed
+because it broke the app's zero-server promise: its text came from a third-party
+repository. The on-device model restores variety without breaking it.
+
+### Notifications: nothing left means nothing sent
+
+A reminder is a statement that something is still outstanding. When it is not,
+it is noise, and the person who finished early is the one paying for it.
+
+- **Per-habit reminders** are planned only for a day that is neither done nor
+  answered. `habitPlans` skips it, and the pending request for that habit is
+  removed and rebuilt on every check-in. Answering "no" counts as handled —
+  declining an item must not leave its reminder armed.
+- **The daily summary** is suppressed when nothing is outstanding. Finishing
+  everything at breakfast must not buy an evening notification reading "Heute
+  geschafft: 3 von 3". The perfect-day celebration is the notification that
+  belongs to that moment, and it fires on its own from `celebrateIfPerfectDay`.
+- **The weekly summary and the motivational line** are not tied to one day
+  being done, so they are unaffected.
+
+The rule is tested from both directions: a finished day must produce no plan,
+and the *next* day must still be planned — otherwise "don't remind me when
+done" would quietly become "stop tracking this habit".
+
+### Dictation
+
+Apple's system keyboard dictation is already available in every text field in
+the app and needs nothing from the app to work: no entitlement, no
+`NSMicrophoneUsageDescription` (that key is only for recording *inside* the app),
+and no API call. The mic lives on the keyboard, not in the field, which is the
+usual reason people think it is missing.
+
+Adding an in-app microphone button would mean a second dictation stack —
+`Speech`/`AVFoundation`, a permission prompt, its own errors — to duplicate a
+control iOS already provides on every keyboard. The cost is not the code, it is
+two dictation paths that can disagree. So the app does not add one, and the
+creation field is left as a plain `TextField` so dictation keeps working in it.
+
+### Creating items from outside the app
+
+Two App Intents, because they answer two different requests:
+
+- `CreateHabitIntent` — explicit fields (name, kind, emoji, time). No model, no
+  parsing, no guessing. This is what a reusable Shortcut is built from.
+- `CreateItemFromTextIntent` — one sentence in. This is the "work out what I
+  said" request, and it is the only place the model reads a whole sentence.
+
+Both write through `CreateItemSaver`, which is the single place a new item is
+saved. The free-habit limit and the notification reschedule are product rules,
+and two copies of them in two intents is how a Shortcut quietly becomes a way
+around the paywall.
+
+The time is read deterministically (`stripTime`) and the model's opinion is
+never allowed to override it. A clock time in a sentence is a fact; the model is
+the part that can be wrong. The no-model path deliberately does very little —
+it takes the time out and leaves the rest as the name — because a hand-rolled
+parser for "every morning" or "on weekdays" would be a second, worse language
+than the one already chosen.
+
+### Shared component contracts
+
+`AppSettingsGroup` is the one grouped settings surface: a label, a panel, and
+caller-owned rows and dividers. It was `MoreView.moreHubGroup` and moved to
+`AppUIComponents.swift` when the sub-pages needed it. The hub and every
+migrated sub-page render the same component, so there is one visual family
+rather than a custom hub beside stock iOS screens.
 
 The shared settings-row contract is used by the More hub, appearance and
 behavior controls, GitHub display settings, and Reminder Setup. Native menus,

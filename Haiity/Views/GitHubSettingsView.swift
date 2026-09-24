@@ -11,12 +11,20 @@ struct GitHubSettingsView: View {
     @Environment(\.palettes) private var palettes
 
     var body: some View {
-        List {
-            connectionSection
-            displaySection
+        // Not a `List`: iOS 27 drops taps on grouped list rows. The hub already
+        // uses the continuous group surface, and this page now matches it.
+        ScrollView {
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                connectionGroup
+                displayGroup
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .moreSettingsSurface()
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
         .appPageHeader("GitHub")
+        .settingsChrome()
         .onAppear {
             copyCode(store.deviceCode)
             // Hydrate from the cache first. A stale graph may refresh in the
@@ -39,8 +47,8 @@ struct GitHubSettingsView: View {
         }
     }
 
-    private var connectionSection: some View {
-        Section {
+    private var connectionGroup: some View {
+        AppSettingsGroup(title: String(localized: "Verbindung")) {
             VStack(alignment: .leading, spacing: 0) {
                 connectionStatusRow
                 contributionPreview
@@ -52,11 +60,10 @@ struct GitHubSettingsView: View {
             .padding(.vertical, 4)
             .accessibilityIdentifier("github-connection")
         }
-        .moreSettingsSection()
     }
 
-    private var displaySection: some View {
-        Section {
+    private var displayGroup: some View {
+        AppSettingsGroup(title: String(localized: "Darstellung")) {
             VStack(spacing: 0) {
                 Toggle(isOn: $showsUsername) {
                     AppSettingsRow(title: String(localized: "GitHub-Namen anzeigen"),
@@ -80,11 +87,12 @@ struct GitHubSettingsView: View {
                 .accessibilityIdentifier("github-month-labels-toggle")
             }
             .padding(.vertical, 2)
+            // Contain, don't merge: outside a `List` a plain container
+            // identifier bleeds onto its children and both toggles answer as
+            // "github-display-settings". This keeps each toggle addressable.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("github-display-settings")
-        } header: {
-            Text(String(localized: "Darstellung"))
         }
-        .moreSettingsSection()
     }
 
     @ViewBuilder
@@ -239,19 +247,19 @@ struct GitHubSettingsView: View {
                    case .connected = store.phase {
                     Text(String(localized: "Verbunden als \(username)"))
                         .font(.body.weight(.medium))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("github-connected-name")
                 } else {
                     Text(statusTitle)
                         .font(.body.weight(.medium))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if case .connected = store.phase,
                    let snapshot = store.snapshot {
                     Text(snapshot.fetchedAt, style: .relative)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(statusSubtitle)
                         .font(.caption)
@@ -313,10 +321,9 @@ struct GitHubSettingsView: View {
 
     private var statusTitle: String {
         switch store.phase {
-        case .connected: return String(localized: "GitHub-Beitragskalender")
+        case .connected, .disconnected: return String(localized: "GitHub-Beitragskalender")
         case .connecting: return String(localized: "Code auf GitHub eingeben")
         case .failed: return String(localized: "Die Verbindung zu GitHub ist fehlgeschlagen.")
-        case .disconnected: return String(localized: "GitHub verbinden")
         }
     }
 

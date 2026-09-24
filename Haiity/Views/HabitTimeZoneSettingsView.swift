@@ -21,59 +21,70 @@ struct HabitTimeZoneList: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                Button {
-                    selection = nil
-                } label: {
-                    zoneRow(symbol: "arrow.triangle.branch",
-                            title: inheritedLabel,
-                            subtitle: allowsDeviceOverride
-                                ? String(localized: "Vom Standard übernehmen")
-                                : TimeZone.current.identifier,
-                            selected: selection == nil)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("timezone-inherit")
-
-                if allowsDeviceOverride {
+        // Not a `List`: iOS 27 drops taps on grouped list rows, and this page is
+        // a long tappable list of time zones. Same group surface as the hub.
+        ScrollView {
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                AppSettingsGroup(title: String(localized: "Standard")) {
                     Button {
-                        selection = HabitTimeZone.deviceIdentifier
+                        selection = nil
                     } label: {
-                        zoneRow(symbol: "iphone",
-                                title: String(localized: "Gerätezeitzone"),
-                                subtitle: TimeZone.current.identifier,
-                                selected: selection == HabitTimeZone.deviceIdentifier)
+                        zoneRow(symbol: "arrow.triangle.branch",
+                                title: inheritedLabel,
+                                subtitle: allowsDeviceOverride
+                                    ? String(localized: "Vom Standard übernehmen")
+                                    : TimeZone.current.identifier,
+                                selected: selection == nil)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("timezone-device")
-                }
-            }
-            .moreSettingsSection()
+                    .accessibilityIdentifier("timezone-inherit")
 
-            Section {
-                ForEach(filteredOptions) { option in
-                    Button {
-                        selection = option.identifier
-                    } label: {
-                        zoneRow(symbol: "globe",
-                                title: option.identifier.split(separator: "/").last.map(String.init)?
-                                    .replacingOccurrences(of: "_", with: " ") ?? option.name,
-                                subtitle: option.offset + " · " + option.name,
-                                selected: selection == option.identifier)
+                    if allowsDeviceOverride {
+                        zoneDivider
+                        Button {
+                            selection = HabitTimeZone.deviceIdentifier
+                        } label: {
+                            zoneRow(symbol: "iphone",
+                                    title: String(localized: "Gerätezeitzone"),
+                                    subtitle: TimeZone.current.identifier,
+                                    selected: selection == HabitTimeZone.deviceIdentifier)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("timezone-device")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(timezoneIdentifier(for: option.identifier))
+                }
+
+                AppSettingsGroup(title: String(localized: "Zeitzonen")) {
+                    ForEach(Array(filteredOptions.enumerated()), id: \.element.id) { index, option in
+                        if index > 0 { zoneDivider }
+                        Button {
+                            selection = option.identifier
+                        } label: {
+                            zoneRow(symbol: "globe",
+                                    title: option.identifier.split(separator: "/").last.map(String.init)?
+                                        .replacingOccurrences(of: "_", with: " ") ?? option.name,
+                                    subtitle: option.offset + " · " + option.name,
+                                    selected: selection == option.identifier)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(timezoneIdentifier(for: option.identifier))
+                    }
                 }
             }
-            .moreSettingsSection()
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
         .searchable(text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Zeitzone suchen"))
-        .listStyle(.insetGrouped)
-        .moreSettingsSurface()
-        .listRowSpacing(0)
+        .settingsChrome()
+    }
+
+    /// Inset to the text edge, matching the hub's grouped rows.
+    private var zoneDivider: some View {
+        Divider().padding(.leading, Theme.Metrics.gap)
     }
 
     private func zoneRow(symbol: String,

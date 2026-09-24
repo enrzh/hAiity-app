@@ -5,6 +5,15 @@ import AppIntents
 /// Jede Phrase MUSS `.applicationName` enthalten (System-Anforderung);
 /// `\(\.$habit)` wird über die suggestedEntities der HabitEntityQuery zu
 /// konkreten Habit-Namen ausmultipliziert.
+/// **Why the two create intents carry no `phrases` here.** An `AppShortcut`
+/// phrase may only interpolate an `AppEntity`: Siri builds its training corpus
+/// from the list of entities it can offer, and a free-text `String` parameter has
+/// no such list. A phrase naming one does not become a phrase: the build emits an
+/// "unresolved variable" warning for every utterance and the phrase never works.
+/// It cost 187 warnings before this was understood. The create intents are still fully usable, because the
+/// Shortcuts editor is where free text belongs: they appear there with a field
+/// to type or dictate into. The phrases below all interpolate `HabitEntity`, so
+/// they are the ones that resolve.
 struct HaiityShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

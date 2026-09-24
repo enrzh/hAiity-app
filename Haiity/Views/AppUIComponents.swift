@@ -84,6 +84,54 @@ struct AppSettingsRow<Trailing: View>: View {
     }
 }
 
+/// Grouped settings surface: one label, one panel, caller-owned rows and
+/// dividers. Shared by the More hub and the non-List settings pages so a
+/// sub-page looks like the hub instead of a stock iOS list.
+///
+/// This is the former `MoreView.moreHubGroup`, moved here unchanged. It now has
+/// callers in more than one file, which is the bar the design system sets for a
+/// shared component; before that it was private to MoreView.
+struct AppSettingsGroup<Content: View>: View {
+    let title: String
+    /// Optional leading symbol. The hub's groups are text-only; the diagnostics
+    /// page labels its groups with an SF Symbol. One component serves both
+    /// rather than the page composing its own.
+    var symbol: String?
+    private let content: Content
+
+    init(title: String,
+         symbol: String? = nil,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.symbol = symbol
+        self.content = content()
+    }
+
+    private var label: some View {
+        Group {
+            if let symbol {
+                Label(title, systemImage: symbol)
+            } else {
+                Text(title)
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label
+                .padding(.horizontal, 14)
+            VStack(spacing: 0) { content }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 4)
+                .morePanel()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Appearance-aware surface used by compact feedback above the tab bar.
 struct AppToastSurface: ViewModifier {
     func body(content: Content) -> some View {

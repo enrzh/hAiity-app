@@ -388,6 +388,11 @@ enum Reminders {
                                  status: SummaryStatus,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> ReminderPlan? {
+        // Nothing outstanding means nothing to remind anyone about. Finishing
+        // everything at breakfast must not buy an evening notification reading
+        // "Heute geschafft" — the perfect-day celebration is the notification
+        // that belongs to that moment, and it fires on its own.
+        guard !status.missing.isEmpty else { return nil }
         guard let minutes, (0..<24 * 60).contains(minutes),
               let body = SummaryText.daily(status, locale: calendar.locale ?? .current)
         else { return nil }
@@ -472,12 +477,41 @@ enum Reminders {
     /// vorbei, fällt der Tag über `fire > now` von selbst heraus.
     static func motivationPlans(minutes: Int?,
                                 name: String?,
-                                additionalEntries: [MotivationFeedEntry] = [],
+                                generatedLines: [String: String] = [:],
                                 days: Int = motivationDays,
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> [ReminderPlan] {
         guard let minutes, (0..<24 * 60).contains(minutes), days > 0 else { return [] }
-        var plans: [ReminderPlan] = []
+        let calendar = calendar
+        let upcoming = upcomingMotivationDays(minutes: minutes, days: days,
+                                              now: now, calendar: calendar)
+        return upcoming.map { day in
+            var c = calendar.dateComponents([.year, .month, .day],
+                                           from: DayKey.date(from: day, calendar: calendar) ?? now)
+            c.hour = minutes / 60
+            c.minute = minutes % 60
+            let message = Motivation.message(name: name, today: day,
+                                             generatedLine: generatedLines[day])
+            return ReminderPlan(identifier: motivationId(day: day),
+                                title: message.title,
+                                body: message.body,
+                                dateMatching: c,
+                                repeats: false)
+        }
+    }
+
+    /// The days a motivation reminder would actually fire on.
+    ///
+    /// Extracted because two callers need the same list: the planner below, and
+    /// the writer that has to put a line in the cache for exactly those days
+    /// before the notification text is built. Sharing it means a day can never
+    /// be planned without a line, or given a line for a day nothing will show.
+    static func upcomingMotivationDays(minutes: Int?,
+                                       days: Int = motivationDays,
+                                       now: Date = Date(),
+                                       calendar: Calendar = .current) -> [String] {
+        guard let minutes, (0..<24 * 60).contains(minutes), days > 0 else { return [] }
+        var result: [String] = []
         var day = DayKey.key(for: now, calendar: calendar)
         for offset in 0 ..< days {
             if offset > 0 {
@@ -493,15 +527,9 @@ enum Reminders {
             // Stunde (Zeitumstellung) nil liefern — dann fällt genau dieser
             // Tag aus, statt dass die ganze Reihe abbricht.
             guard let fire = calendar.date(from: c), fire > now else { continue }
-            let message = Motivation.message(name: name, today: day,
-                                             additionalEntries: additionalEntries)
-            plans.append(ReminderPlan(identifier: motivationId(day: day),
-                                      title: message.title,
-                                      body: message.body,
-                                      dateMatching: c,
-                                      repeats: false))
+            result.append(day)
         }
-        return plans
+        return result
     }
 
     /// Verdient dieser Tag eine Erinnerung an dieses Habit?
@@ -745,13 +773,22 @@ enum Reminders {
             // VOR den Habit-Weckrufen: bleibt am Ende doch etwas liegen,
             // soll es ein einzelner Habit-Wecker in ferner Zukunft sein und
             // nicht die Nachricht von morgen früh.
-            let feed = data.openSourceMotivationEnabled
-                ? MotivationFeedCache.load(in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
-                : []
             if data.motivationDelivery == .notification {
+                // READ ONLY. Rescheduling happens on every settings change, so
+                // this must never run the model — writing here would spend heat
+                // nobody asked for. Days with a line the person wrote keep it;
+                // every other day uses the built-in pool, which is the same
+                // fallback an unavailable model would produce.
+                let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+                let days = upcomingMotivationDays(minutes: data.motivationMinutes,
+                                                  now: .now,
+                                                  calendar: .current)
+                let lines = days.reduce(into: [String: String]()) { result, day in
+                    result[day] = MotivationDaily.cachedLine(for: day, in: defaults)
+                }
                 plans += motivationPlans(minutes: data.motivationMinutes,
                                          name: PersonalName.effective,
-                                         additionalEntries: feed)
+                                         generatedLines: lines)
             }
             let reservingMotivation = data.motivationMinutes != nil
                 && data.motivationDelivery == .notification
