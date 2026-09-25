@@ -110,12 +110,20 @@ enum CreateItemSaver {
         "Das kostenlose Limit an Habits ist erreicht. In hAiity freischalten oder eine Erinnerung anlegen."
 
     @MainActor
-    static func save(_ draft: CreateItemDraft) async -> Outcome {
+    static func save(_ draft: CreateItemDraft, into store: HabitStore? = nil) async -> Outcome {
         let trimmed = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .emptyName }
 
-        let store = HabitStore(url: SharedStorage.dataURL())
-        let activeTracked = store.habits.filter {
+        // **The store the list is already observing, when there is one.**
+        //
+        // A Shortcut runs with no view tree and legitimately opens its own. The
+        // in-app path must not: writing through a second instance puts the habit
+        // on disk and leaves the list showing yesterday, because the only re-read
+        // runs on foregrounding. The item then appears to have not been created
+        // at all, and it turns up after a restart.
+        let target = store ?? HabitStore(url: SharedStorage.dataURL())
+
+        let activeTracked = target.habits.filter {
             $0.itemType == .habit && $0.archivedAt == nil
         }.count
         // The free allowance is a product limit, not a technical one, so the
@@ -126,10 +134,10 @@ enum CreateItemSaver {
                                           unlocked: ProStatus.shared.unlocked)
         else { return .limitReached }
 
-        store.add(draft.makeHabit())
+        target.add(draft.makeHabit())
         // The new item needs its notification and the day's summary pulled
         // along, or it would sit silent until some later settings change.
-        await Reminders.reschedule(store: store)
+        await Reminders.reschedule(store: target)
         return .saved
     }
 
@@ -268,10 +276,12 @@ struct CreateItemSchedule: Equatable, Sendable {
     var recurrence: Recurrence {
         switch frequency {
         case .once:
-            // "Once" with no date can only mean from today. A `.once` rule with
-            // no start renders as "Keine Termine" and would never land on any
-            // day at all, which is a worse failure than choosing today.
-            return Recurrence(frequency: .once, start: startDay ?? DayKey.today())
+            // "Once" with no date can only mean from today, and a one-off whose
+            // day has already gone would create a habit that can never fire —
+            // it would not appear on any day at all, which is the worst possible
+            // outcome for something the person just asked to be created. Both
+            // move to a day that can still happen.
+            return Recurrence(frequency: .once, start: Self.upcoming(startDay ?? DayKey.today()))
         case .daily:
             return Recurrence(frequency: .daily)
         case .weekly:
@@ -305,6 +315,59 @@ struct CreateItemSchedule: Equatable, Sendable {
                               month: month > 0 ? month : nil,
                               start: startDay)
         }
+    }
+
+    // MARK: - Moving a day that has gone
+
+    /// The same month and day in the next year in which it has not passed yet.
+    ///
+    /// Said in September, "einmal am 14. März" means the March that is coming,
+    /// not the one that just went. Left in the past it would be a habit that
+    /// never appears again, created by a button whose whole promise is that the
+    /// thing now exists. The preview shows the moved date before anything is
+    /// saved, so the correction is visible rather than silent.
+    static func upcoming(_ day: String, calendar: Calendar = .current) -> String {
+        let today = DayKey.today(calendar: calendar)
+        // Validate before comparing: a string that is not a date at all sorts
+        // unpredictably against one, and must never be handed on as a day.
+        guard let parts = DayKey.components(day) else { return today }
+        guard day < today else { return day }
+
+        // Count forward from the CURRENT year, not from the year the model
+        // supplied. A supplied year far in the past is the very thing being
+        // repaired, and starting there would walk decades forward to no effect:
+        // 1999-07-04 said today means 2027-07-04, not "give up and use today".
+        let now = DayKey.date(from: today, calendar: calendar) ?? Date()
+        let year = calendar.component(.year, from: now)
+        for candidate in [year, year + 1] {
+            guard let key = clampedKey(year: candidate, month: parts.month,
+                                       day: parts.day, calendar: calendar)
+            else { continue }
+            if key >= today { return key }
+        }
+        return today
+    }
+
+    /// A real day key for that month, with the day pulled inside the month.
+    ///
+    /// The clamp is what keeps 29 February from rolling into March: `Calendar`
+    /// would happily turn 2027-02-29 into 2027-03-01, and then the person asked
+    /// for the 29th and got the 1st.
+    private static func clampedKey(year: Int, month: Int, day: Int,
+                                   calendar: Calendar) -> String? {
+        var probe = DateComponents()
+        probe.year = year
+        probe.month = month
+        probe.day = 1
+        guard let firstOfMonth = calendar.date(from: probe),
+              let days = calendar.range(of: .day, in: .month, for: firstOfMonth)?.count
+        else { return nil }
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = min(day, days)
+        guard let date = calendar.date(from: parts) else { return nil }
+        return DayKey.key(for: date, calendar: calendar)
     }
 }
 

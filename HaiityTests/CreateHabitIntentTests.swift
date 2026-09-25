@@ -349,6 +349,11 @@ final class CreateHabitIntentTests: XCTestCase {
             XCTAssertTrue(writer.contains(example),
                           "the prompt lost its worked example: \(example)")
         }
+        // A date in the past is the failure that produced a one-off which could
+        // never fire, so the prompt has to rule it out at the source as well as
+        // the mapping repairing it.
+        XCTAssertTrue(writer.contains("never be in the past"),
+                      "the prompt must forbid a past date, not just say which year to use")
     }
 
     /// The preview used to append a hard-coded "täglich", so it showed a daily
@@ -370,6 +375,98 @@ final class CreateHabitIntentTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent(path)
+    }
+
+    // MARK: - Writing through the store the list is watching
+
+    /// The habit has to land in the instance the list is already observing, not
+    /// merely on disk.
+    ///
+    /// This is the "it didn't create the entry, it only shows up after a
+    /// restart" bug. A second `HabitStore` on the same file writes the habit
+    /// perfectly well, so nothing errors and nothing looks wrong — but the list
+    /// is bound to the first instance, and the only re-read runs when the app
+    /// comes back to the foreground.
+    @MainActor
+    func testTheHabitLandsInTheStoreThatWasPassedIn() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("create-saver-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url)
+
+        let outcome = await CreateItemSaver.save(
+            CreateItemDraft(name: "Wasser trinken", emoji: "💧", minutes: 7 * 60),
+            into: store)
+
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(store.habits.count, 1,
+                       "the store the list observes must see the habit immediately")
+        XCTAssertEqual(store.habits.first?.name, "Wasser trinken")
+        // And it is genuinely on disk too, so a restart agrees with the screen.
+        XCTAssertEqual(HabitStore(url: url).habits.count, 1)
+    }
+
+    /// The sheet has a store handed to it and used to ignore it, which is what
+    /// let the saver quietly open its own. Cheap to check, easy to regress.
+    func testTheSpeakSheetSavesIntoTheStoreItWasGiven() throws {
+        let source = try scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift")
+        let sheet = try String(contentsOf: source, encoding: .utf8)
+        XCTAssertTrue(sheet.contains("save(draft, into: store)"),
+                      "the sheet must write through the store the list is observing")
+        XCTAssertFalse(sheet.contains("save(draft)"),
+                       "saving without the store is the bug this replaces")
+    }
+
+    // MARK: - A date that has already gone
+
+    /// A one-off in the past is a habit that can never fire — it appears on no
+    /// day at all — so the day moves to the next time that month and day come
+    /// round. Said in September, "einmal am 14. März" is the March coming.
+    func testAPastOneOffMovesToWhenThatDayComesRoundAgain() throws {
+        let past = CreateItemSchedule(
+            frequency: "once", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "2020-03-14")
+        let rule = past.recurrence
+        let start = try XCTUnwrap(rule.start)
+
+        XCTAssertGreaterThan(start, DayKey.today(calendar: calendar),
+                             "a one-off must never be left in the past")
+        XCTAssertTrue(start.hasSuffix("-03-14"),
+                      "the month and day the person said are kept, got \(start)")
+        XCTAssertTrue(rule.isScheduled(on: start, calendar: calendar),
+                      "and it has to land on a real day")
+    }
+
+    /// A future date is left exactly as it was — the roll-forward is a repair,
+    /// not a transformation.
+    func testAFutureOneOffIsLeftAlone() {
+        XCTAssertEqual(CreateItemSchedule.upcoming("2099-12-24", calendar: calendar), "2099-12-24")
+    }
+
+    func testTodayIsLeftAlone() {
+        let today = DayKey.today(calendar: calendar)
+        XCTAssertEqual(CreateItemSchedule.upcoming(today, calendar: calendar), today)
+    }
+
+    /// 29 February in a common year has to become the 28th, not roll into March.
+    /// `Calendar` would silently give the 1st of March, and then the person asked
+    /// for the 29th and got something else entirely.
+    func testTheTwentyNinthOfFebruaryIsClampedInsideItsMonth() {
+        // 2027 is not a leap year.
+        let moved = CreateItemSchedule.upcoming("2024-02-29", calendar: calendar)
+        XCTAssertEqual(moved, "2027-02-28")
+        XCTAssertTrue(DayKey.isValid(moved, calendar: calendar))
+    }
+
+    /// A date far enough back still has to end up ahead of today, not give up.
+    func testAVeryOldDateStillLandsInTheFuture() {
+        let moved = CreateItemSchedule.upcoming("1999-07-04", calendar: calendar)
+        XCTAssertGreaterThan(moved, DayKey.today(calendar: calendar))
+    }
+
+    func testAnUnparseableDateFallsBackToToday() {
+        XCTAssertEqual(CreateItemSchedule.upcoming("not-a-day", calendar: calendar),
+                       DayKey.today(calendar: calendar))
     }
 
     // MARK: - The free allowance

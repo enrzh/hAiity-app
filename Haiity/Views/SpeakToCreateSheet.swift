@@ -286,7 +286,7 @@ struct SpeakToCreateSheet: View {
         let full = await CreateItemDraft.read(from: text)
         if !full.name.isEmpty { draft = full }
 
-        switch await CreateItemSaver.save(draft) {
+        switch await CreateItemSaver.save(draft, into: store) {
         case .saved:
             didCreate = true
             stopEverything()

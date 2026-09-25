@@ -30,7 +30,7 @@ enum CreateItemWriter {
         var dayOfMonth: Int
         @Guide(description: "The month as 1 to 12 for a yearly rule, or 0 when the sentence does not name one.")
         var month: Int
-        @Guide(description: "The date as yyyy-MM-dd, or an empty string when the sentence gives no date. Required for \"once\". Use the year the sentence implies, or the current year when it implies none.")
+        @Guide(description: "The date as yyyy-MM-dd, or an empty string when the sentence gives no date. Required for \"once\". It must never be in the past: when the sentence gives a month and day but no year, use the next year in which that date has not yet passed — said in September, \"on 14 March\" is the March coming, not the one just gone.")
         var startDay: String
     }
 
@@ -75,8 +75,10 @@ enum CreateItemWriter {
     0 when the days are fixed or the sentence is silent.
     - `dayOfMonth` is 1 to 31, or 0. "on the 15th" is 15.
     - `month` is 1 to 12 for a yearly rule, or 0.
-    - `startDay` is yyyy-MM-dd, or an empty string. Required for "once". Use the year the sentence \
-    implies, or the current year when it implies none.
+    - `startDay` is yyyy-MM-dd, or an empty string. Required for "once". It is never in the past: when the \
+    sentence names a month and day but no year, use the next year in which that date has not yet passed. \
+    Said in September, "on 14 March" is the March coming, not the one just gone — and the app keeps \
+    showing that date in the preview, so getting it wrong is visible rather than silent.
 
     Rules:
     - Do not invent anything that is not in the sentence. Say "daily" with every other schedule field \
