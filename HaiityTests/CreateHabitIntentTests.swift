@@ -138,6 +138,240 @@ final class CreateHabitIntentTests: XCTestCase {
         XCTAssertEqual(draft.kind, .reminder)
     }
 
+    // MARK: - The repeat rule
+
+    private var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        c.locale = Locale(identifier: "de_DE")
+        c.firstWeekday = 2
+        c.minimumDaysInFirstWeek = 4
+        return c
+    }()
+
+    /// The bug this whole section exists for: the draft's rule was never passed
+    /// to `Habit`, and `Habit.init` defaults to `.daily`. So every sentence —
+    /// including "jeden Montag" — became a daily habit and the person never saw
+    /// it, because the preview also hard-coded "täglich".
+    func testTheRepeatRuleReachesTheStoredHabit() {
+        let schedule = CreateItemSchedule(frequency: "weekly", interval: 1,
+                                          weekdays: [2], timesPerPeriod: 0,
+                                          dayOfMonth: 0, month: 0, startDay: "")
+        let habit = CreateItemDraft(name: "Wasser trinken", emoji: "💧",
+                                    minutes: 7 * 60, schedule: schedule).makeHabit()
+        XCTAssertEqual(habit.recurrence.frequency, .weekly)
+        XCTAssertEqual(habit.recurrence.weekdays, [2])
+        XCTAssertNotEqual(habit.recurrence, .daily,
+                          "a weekly sentence must not be stored as a daily habit")
+    }
+
+    func testNamedWeekdaysBecomeTheDaysTheyName() {
+        // 1 = Sunday … 7 = Saturday, the same numbering `Calendar` uses.
+        let mondayAndThursday = CreateItemSchedule(
+            frequency: "weekly", interval: 1, weekdays: [2, 5], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "")
+        let rule = mondayAndThursday.recurrence
+        XCTAssertEqual(rule.frequency, .weekly)
+        XCTAssertEqual(rule.weekdays, [2, 5])
+        XCTAssertTrue(rule.isScheduled(on: "2026-08-10", calendar: calendar), "a Monday")
+        XCTAssertTrue(rule.isScheduled(on: "2026-08-13", calendar: calendar), "a Thursday")
+        XCTAssertFalse(rule.isScheduled(on: "2026-08-11", calendar: calendar), "not a Tuesday")
+    }
+
+    /// The weekday numbering is stated in the prompt, so the prompt and the app
+    /// have to agree. Getting this wrong teaches the model to put habits on the
+    /// wrong day, which is worse than not reading the schedule at all.
+    func testTheWeekdayNumberingThePromptGivesIsTheAppsNumbering() {
+        var english = calendar
+        english.locale = Locale(identifier: "en_US")
+        // (Calendar weekday, English name, a date in August 2026 with that weekday)
+        let cases: [(Int, String, String)] = [
+            (1, "Sunday", "2026-08-16"),
+            (2, "Monday", "2026-08-10"),
+            (5, "Thursday", "2026-08-13"),
+            (6, "Friday", "2026-08-14"),
+            (7, "Saturday", "2026-08-15"),
+        ]
+        for (weekday, name, day) in cases {
+            XCTAssertEqual(RecurrenceText.weekdayName(weekday, calendar: english), name)
+            let rule = CreateItemSchedule(
+                frequency: "weekly", interval: 1, weekdays: [weekday], timesPerPeriod: 0,
+                dayOfMonth: 0, month: 0, startDay: "").recurrence
+            XCTAssertTrue(rule.isScheduled(on: day, calendar: calendar),
+                          "weekday \(weekday) must land on a \(name)")
+        }
+    }
+
+    /// "Werktags" is five days, not one — the model has to be able to say so.
+    func testWeekdaysCanNameEveryWorkingDay() {
+        let weekdays = CreateItemSchedule(
+            frequency: "weekly", interval: 1, weekdays: [2, 3, 4, 5, 6],
+            timesPerPeriod: 0, dayOfMonth: 0, month: 0, startDay: "")
+        XCTAssertEqual(weekdays.recurrence.weekdays.count, 5)
+    }
+
+    func testAFlexibleCountBecomesTheCount() {
+        let threeTimes = CreateItemSchedule(
+            frequency: "weekly", interval: 1, weekdays: [], timesPerPeriod: 3,
+            dayOfMonth: 0, month: 0, startDay: "")
+        let rule = threeTimes.recurrence
+        XCTAssertEqual(rule.timesPerPeriod, 3)
+        XCTAssertTrue(rule.isScheduled(on: "2026-08-10", calendar: calendar),
+                      "a flexible week is active on any of its days")
+    }
+
+    /// "Every 2 weeks" has no named day, and the engine only fills in days when
+    /// the rule is flexible. Without that it matches nothing at all — a habit
+    /// that silently never fires, and reads "Keine Termine" in the editor.
+    func testAnIntervalWithNoNamedDayStillSchedules() {
+        let everyTwoWeeks = CreateItemSchedule(
+            frequency: "weekly", interval: 2, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "")
+        let rule = everyTwoWeeks.recurrence
+        XCTAssertEqual(rule.interval, 2)
+        XCTAssertEqual(rule.timesPerPeriod, 1, "one occurrence in an active fortnight")
+        XCTAssertTrue(rule.isScheduled(on: "2026-08-10", calendar: calendar),
+                      "the rule must actually reach a day, not just look well formed")
+    }
+
+    func testMonthlyKeepsTheDayOfTheMonth() {
+        let rent = CreateItemSchedule(
+            frequency: "monthly", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 15, month: 0, startDay: "")
+        let rule = rent.recurrence
+        XCTAssertEqual(rule.frequency, .monthly)
+        XCTAssertTrue(rule.isScheduled(on: "2026-08-15", calendar: calendar))
+        XCTAssertFalse(rule.isScheduled(on: "2026-08-16", calendar: calendar))
+    }
+
+    func testYearlyKeepsTheMonth() {
+        let gifts = CreateItemSchedule(
+            frequency: "yearly", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 24, month: 12, startDay: "")
+        let rule = gifts.recurrence
+        XCTAssertEqual(rule.frequency, .yearly)
+        XCTAssertEqual(rule.month, 12)
+        XCTAssertTrue(rule.isScheduled(on: "2026-12-24", calendar: calendar))
+        XCTAssertFalse(rule.isScheduled(on: "2026-11-24", calendar: calendar))
+    }
+
+    func testAOneOffKeepsItsDate() {
+        let once = CreateItemSchedule(
+            frequency: "once", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "2027-03-14")
+        let rule = once.recurrence
+        XCTAssertEqual(rule.frequency, .once)
+        XCTAssertTrue(rule.isScheduled(on: "2027-03-14", calendar: calendar))
+        XCTAssertFalse(rule.isScheduled(on: "2027-03-15", calendar: calendar))
+    }
+
+    /// "Once" with no date can only mean from today. A `.once` rule with no start
+    /// matches no day whatsoever, so a habit would be created that never appears.
+    func testAOneOffWithoutADateFallsBackToTodayRatherThanNever() {
+        let once = CreateItemSchedule(
+            frequency: "once", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "")
+        let rule = once.recurrence
+        XCTAssertEqual(rule.start, DayKey.today())
+        XCTAssertTrue(rule.isScheduled(on: DayKey.today(), calendar: calendar),
+                      "a one-off must land somewhere, not on no day at all")
+    }
+
+    /// An unrecognised frequency has to become daily. A schedule that is merely
+    /// absent is recoverable; one that is plausible and wrong is not.
+    func testAnUnknownFrequencyBecomesDaily() {
+        for raw in ["", "Daily", " every day ", "taeglich", "sometimes", "7"] {
+            let schedule = CreateItemSchedule(
+                frequency: raw, interval: 1, weekdays: [2], timesPerPeriod: 0,
+                dayOfMonth: 0, month: 0, startDay: "")
+            XCTAssertEqual(schedule.frequency, .daily, "\\(raw) should not be trusted")
+        }
+    }
+
+    /// Case and spacing come from a model, so they cannot be assumed.
+    func testFrequencyIsReadCaseAndSpaceInsensitively() {
+        let schedule = CreateItemSchedule(
+            frequency: "  Weekly ", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: "")
+        XCTAssertEqual(schedule.frequency, .weekly)
+    }
+
+    /// Every out-of-range value is dropped rather than clamped into meaning. A
+    /// weekday 9 or a 99th of the month is a model miscount, not a request.
+    func testImpossibleValuesAreDroppedRatherThanClamped() {
+        let schedule = CreateItemSchedule(
+            frequency: "weekly", interval: 0, weekdays: [0, 2, 8, -1],
+            timesPerPeriod: -4, dayOfMonth: 99, month: 13, startDay: "not-a-day")
+        XCTAssertEqual(schedule.interval, 1, "a zero interval still means every week")
+        XCTAssertEqual(schedule.weekdays, [2])
+        XCTAssertEqual(schedule.timesPerPeriod, 0)
+        XCTAssertEqual(schedule.dayOfMonth, 0)
+        XCTAssertEqual(schedule.month, 0)
+        XCTAssertNil(schedule.startDay, "an unparseable date is worse than none")
+    }
+
+    func testAValidStartDayIsKept() {
+        let schedule = CreateItemSchedule(
+            frequency: "once", interval: 1, weekdays: [], timesPerPeriod: 0,
+            dayOfMonth: 0, month: 0, startDay: " 2027-03-14 ")
+        XCTAssertEqual(schedule.startDay, "2027-03-14")
+    }
+
+    /// A draft with no schedule is daily, and that is what the no-model path
+    /// produces. The deterministic parser reads a clock time and nothing else,
+    /// so it must not start claiming a repeat it did not parse.
+    func testTheNoModelPathDoesNotInventARepeat() async {
+        let draft = await CreateItemDraft.read(from: "jeden Montag lesen", useModel: false)
+        XCTAssertEqual(draft.schedule, .daily)
+        XCTAssertEqual(draft.makeHabit().recurrence, .daily)
+    }
+
+    // MARK: - The schedule contract, in the source
+
+    /// The prompt used to tell the model to strip "every morning" and gave it
+    /// nowhere to put it, which is why the repeat was always wrong. Both halves
+    /// of that sentence have to stay: the strip and the field it goes into.
+    func testThePromptPutsTheScheduleSomewhereInsteadOfThrowingItAway() throws {
+        let source = try scheduleSourceURL("Haiity/Services/CreateItemWriter.swift")
+        let writer = try String(contentsOf: source, encoding: .utf8)
+
+        XCTAssertTrue(writer.contains("weekdays"),
+                      "the model has to be given a field for named days")
+        XCTAssertTrue(writer.contains("timesPerPeriod"),
+                      "the model has to be given a field for a flexible count")
+        XCTAssertTrue(writer.contains("interval"),
+                      "the model has to be given a field for the period count")
+        // The worked examples are the part that actually carries the behaviour,
+        // so a prompt rewrite cannot quietly drop them.
+        for example in ["jeden Montag und Donnerstag", "3 mal pro Woche",
+                        "alle zwei Wochen", "einmal am 14. März",
+                        "jeden Monat am 15.", "jedes Jahr im Dezember"] {
+            XCTAssertTrue(writer.contains(example),
+                          "the prompt lost its worked example: \(example)")
+        }
+    }
+
+    /// The preview used to append a hard-coded "täglich", so it showed a daily
+    /// habit even when the parse behind it was right.
+    func testThePreviewNoLongerHardCodesDaily() throws {
+        let source = try scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift")
+        let sheet = try String(contentsOf: source, encoding: .utf8)
+        let subtitle = try XCTUnwrap(sheet.range(of: "func draftSubtitle"))
+        let body = sheet[subtitle.upperBound...].prefix(900)
+
+        XCTAssertFalse(body.contains("String(localized: \"täglich\")"),
+                       "the preview must show the actual rule, not a fixed one")
+        XCTAssertTrue(body.contains("RecurrenceText.pattern"),
+                      "the preview should reuse the one tested recurrence sentence")
+    }
+
+    private func scheduleSourceURL(_ path: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path)
+    }
+
     // MARK: - The free allowance
 
     /// The Shortcut path is a creation path, so the free habit limit has to

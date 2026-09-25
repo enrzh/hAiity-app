@@ -247,7 +247,11 @@ struct SpeakToCreateSheet: View {
             parts.append(String(format: String(localized: "um %02d:%02d"),
                                 minutes / 60, minutes % 60))
         }
-        parts.append(String(localized: "täglich"))
+        // The rule itself, not a fixed "täglich". This used to print "täglich"
+        // unconditionally, so a sentence saying "jeden Montag" previewed a lie
+        // even on the days the parse was right — and the person had no way to
+        // see the repeat before creating the item.
+        parts.append(RecurrenceText.pattern(draft.schedule.recurrence))
         return parts.joined(separator: " · ")
     }
 

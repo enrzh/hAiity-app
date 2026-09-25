@@ -136,9 +136,15 @@ enum CreateItemSaver {
     static func confirmation(for draft: CreateItemDraft) -> String {
         let kind = draft.isReminder ? "Erinnerung" : "Habit"
         let when = draft.minutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
+        // The repeat is named here too. The Shortcut never showed a preview, so
+        // this sentence was the only place the rule could surface — and it used
+        // to omit it, leaving a Shortcut-created "every Monday" habit
+        // indistinguishable from a daily one.
+        let cadence = RecurrenceText.pattern(draft.schedule.recurrence)
         // The German quotes are U+201E and U+201C on purpose: an ASCII double
         // quote here would close the Swift literal in the middle of the German.
-        return "„\(draft.name)“ als \(kind)\(when.map { " für \($0)" } ?? "") angelegt."
+        return "„\(draft.name)“ als \(kind), \(cadence)"
+            + (when.map { ", um \($0)" } ?? "") + ", angelegt."
     }
 }
 
@@ -202,6 +208,106 @@ struct CreateItemFromTextIntent: AppIntent {
     }
 }
 
+/// The repeat rule, as a model reports it.
+///
+/// **Why flat and not a `Recurrence`.** A `Recurrence` nests a `DayRule` inside a
+/// frequency inside an end clause. Handing that shape to a model invites it to
+/// fill in branches that do not apply — a day of the month for a weekly rule —
+/// and a wrong branch is not cosmetic, it is a habit on the wrong days. So the
+/// model fills a handful of bounded values, and this type turns them into a real
+/// `Recurrence` in one place. Every clamp and every fallback below is ordinary
+/// test code rather than model behaviour we can only hope for.
+struct CreateItemSchedule: Equatable, Sendable {
+
+    enum Frequency: String, Equatable, Sendable {
+        case once, daily, weekly, monthly, yearly
+    }
+
+    var frequency: Frequency = .daily
+    /// Every n periods. Anything below 1 means every period.
+    var interval: Int = 1
+    /// 1 = Sunday … 7 = Saturday, matching `Calendar` and `Recurrence`.
+    var weekdays: Set<Int> = []
+    /// "3× per week" — a flexible target instead of fixed days. 0 = none.
+    var timesPerPeriod: Int = 0
+    /// Day inside the month. 0 = not stated.
+    var dayOfMonth: Int = 0
+    /// 1–12. 0 = not stated.
+    var month: Int = 0
+    /// Day key for a one-off, or nil.
+    var startDay: String?
+
+    /// The rule a sentence with no schedule words produces: every day.
+    static let daily = CreateItemSchedule()
+
+    init() {}
+
+    /// Takes the model's raw answers and keeps only what means something.
+    ///
+    /// The frequency arrives as a string on purpose. A model asked for an enum
+    /// can only answer with a case or fail, and a misread schedule is far more
+    /// damaging than an absent one — so anything unrecognised becomes daily
+    /// rather than something plausible and wrong.
+    init(frequency: String, interval: Int, weekdays: [Int],
+         timesPerPeriod: Int, dayOfMonth: Int, month: Int, startDay: String) {
+        self.frequency = Frequency(
+            rawValue: frequency.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        ) ?? .daily
+        self.interval = max(1, interval)
+        self.weekdays = Set(weekdays.filter { (1...7).contains($0) })
+        self.timesPerPeriod = max(0, timesPerPeriod)
+        self.dayOfMonth = (1...31).contains(dayOfMonth) ? dayOfMonth : 0
+        self.month = (1...12).contains(month) ? month : 0
+        // A key that is not a real day is worse than no key at all: `Recurrence`
+        // drops it silently, so the one-off would quietly move to another day.
+        let trimmed = startDay.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.startDay = DayKey.components(trimmed) != nil ? trimmed : nil
+    }
+
+    /// The real rule. `Recurrence`'s own init does the last mile of clamping.
+    var recurrence: Recurrence {
+        switch frequency {
+        case .once:
+            // "Once" with no date can only mean from today. A `.once` rule with
+            // no start renders as "Keine Termine" and would never land on any
+            // day at all, which is a worse failure than choosing today.
+            return Recurrence(frequency: .once, start: startDay ?? DayKey.today())
+        case .daily:
+            return Recurrence(frequency: .daily)
+        case .weekly:
+            // A flexible target is how the engine fills in unspecified days
+            // (`isActivePeriod` plus `isFlexible`), and it is the only thing that
+            // makes "every 2 weeks" work at all: a weekly rule with an interval
+            // but no named days otherwise matches nothing at all and reads
+            // "Keine Termine". So the days, the count and the interval are three
+            // ways of saying the same thing and exactly one of them is set.
+            if timesPerPeriod > 0 {
+                return Recurrence(frequency: .weekly,
+                                  interval: interval,
+                                  weekdays: weekdays,
+                                  timesPerPeriod: timesPerPeriod)
+            }
+            if !weekdays.isEmpty {
+                return Recurrence(frequency: .weekly,
+                                  interval: interval,
+                                  weekdays: weekdays)
+            }
+            return Recurrence(frequency: .weekly, interval: interval, timesPerPeriod: 1)
+        case .monthly:
+            return Recurrence(frequency: .monthly,
+                              interval: interval,
+                              rule: dayOfMonth > 0 ? .dayOfMonth(dayOfMonth) : nil,
+                              start: startDay)
+        case .yearly:
+            return Recurrence(frequency: .yearly,
+                              interval: interval,
+                              rule: dayOfMonth > 0 ? .dayOfMonth(dayOfMonth) : nil,
+                              month: month > 0 ? month : nil,
+                              start: startDay)
+        }
+    }
+}
+
 /// What a sentence turned into. Plain data, so the intent and the tests never
 /// need the model to talk about it.
 struct CreateItemDraft: Equatable, Sendable {
@@ -212,6 +318,10 @@ struct CreateItemDraft: Equatable, Sendable {
     /// A one-off reminder rather than a tracked habit. Defaults to a habit,
     /// because that is what people mean when they do not say otherwise.
     var isReminder: Bool = false
+    /// How often it repeats. Defaults to daily, which is both what an
+    /// unremarkable sentence means and what the no-model path can honestly
+    /// promise — the deterministic parser reads a clock time and nothing else.
+    var schedule: CreateItemSchedule = .daily
 
     var kind: CreateItemKind { isReminder ? .reminder : .habit }
 
@@ -284,10 +394,12 @@ struct CreateItemDraft: Equatable, Sendable {
         return CreateItemDraft(name: parsed.name.isEmpty ? stripped.name : parsed.name,
                                emoji: parsed.emoji,
                                minutes: stripped.minutes ?? parsed.minutes,
-                               isReminder: parsed.isReminder)
+                               isReminder: parsed.isReminder,
+                               schedule: parsed.schedule)
     }
 
     func makeHabit() -> Habit {
-        Habit(name: name, emoji: emoji, itemType: kind.itemType, timeMinutes: minutes)
+        Habit(name: name, emoji: emoji, itemType: kind.itemType,
+              timeMinutes: minutes, recurrence: schedule.recurrence)
     }
 }
