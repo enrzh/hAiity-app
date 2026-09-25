@@ -291,6 +291,26 @@ final class GitHubContributionStore {
         phase = .disconnected
     }
 
+    /// Give up on a login that has not finished, without treating it as a
+    /// disconnection.
+    ///
+    /// A device code on screen is not a connection: nobody has authorised
+    /// anything yet, so there are no credentials to revoke and no cache to
+    /// delete. Calling `disconnect()` here would also wipe a perfectly good
+    /// connection if the person opened this page to retry a stale code, and it
+    /// would ask them to confirm a destructive action for something that is
+    /// only a cancelled attempt.
+    func cancelConnect() {
+        connectionGeneration &+= 1
+        connectionTaskID &+= 1
+        connectionTask?.cancel()
+        connectionTask = nil
+        deviceCode = nil
+        removePendingLogin()
+        refreshFeedback = .none
+        phase = .disconnected
+    }
+
     private func performRefresh(now: Date, forced: Bool, generation: UInt) async {
         let token: String
         do {

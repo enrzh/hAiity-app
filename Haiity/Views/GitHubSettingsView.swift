@@ -8,6 +8,9 @@ struct GitHubSettingsView: View {
     @Binding var showsMonthLabels: Bool
     @State private var confirmDisconnect = false
     @State private var codeCopied = false
+    /// Owns the "copied" tick. Held so leaving the page cancels it instead of
+    /// leaving a timer running against a view that is gone.
+    @State private var copyReset: Task<Void, Never>?
     @Environment(\.palettes) private var palettes
 
     var body: some View {
@@ -26,15 +29,17 @@ struct GitHubSettingsView: View {
         .appPageHeader("GitHub")
         .settingsChrome()
         .onAppear {
-            copyCode(store.deviceCode)
+            // No copying here. The code used to be put on the pasteboard the
+            // moment this page appeared, which overwrote whatever the person was
+            // holding without them asking for it. The button is right next to the
+            // code and says what it does.
+            //
             // Hydrate from the cache first. A stale graph may refresh in the
             // background, but opening this page must not show a blank action
             // row or force a network request every time it appears.
             Task { await store.resumeOrRefresh() }
         }
-        .onChange(of: store.deviceCode) { _, code in
-            copyCode(code)
-        }
+        .onDisappear { copyReset?.cancel() }
         .confirmationDialog(String(localized: "GitHub-Konto trennen?"),
                             isPresented: $confirmDisconnect,
                             titleVisibility: .visible) {
@@ -48,7 +53,8 @@ struct GitHubSettingsView: View {
     }
 
     private var connectionGroup: some View {
-        AppSettingsGroup(title: String(localized: "Verbindung")) {
+        AppSettingsGroup(title: String(localized: "Verbindung"),
+                         footer: connectionFooter) {
             VStack(alignment: .leading, spacing: 0) {
                 connectionStatusRow
                 contributionPreview
@@ -59,6 +65,20 @@ struct GitHubSettingsView: View {
             }
             .padding(.vertical, 4)
             .accessibilityIdentifier("github-connection")
+        }
+    }
+
+    /// What the group is for, in the group's own terms. The "not configured"
+    /// state used to be one grey sentence with no action and no explanation —
+    /// a dead end that read like an error the person had caused.
+    private var connectionFooter: String? {
+        switch store.phase {
+        case .disconnected where !GitHubAppConfig.isConfigured:
+            return String(localized: "In dieser Fassung ist die GitHub-Verbindung nicht enthalten. Der Beitragskalender lässt sich deshalb nicht verbinden.")
+        case .connected:
+            return String(localized: "hAiity liest nur den Beitragskalender. Es wird nichts auf deinem GitHub-Konto verändert.")
+        default:
+            return nil
         }
     }
 
@@ -109,13 +129,18 @@ struct GitHubSettingsView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("github-connect")
             } else {
+                // The sentence stays as it was — it is translated into every
+                // shipped language and a contract test holds it there. The
+                // missing "why" is the footer's job, not a reworded error.
                 Text(String(localized: "GitHub ist nicht eingerichtet."))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         case .connecting:
             if let code = store.deviceCode {
                 VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
-                    Text(String(localized: "Code auf GitHub eingeben"))
+                    Text(String(localized: "Dein Code"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     HStack(spacing: Theme.Metrics.gap) {
@@ -146,11 +171,31 @@ struct GitHubSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("github-open-verification")
+                    // A spinner with nothing beside it tells the person their app
+                    // is busy and nothing about what it is waiting for. GitHub's
+                    // device flow is a round trip through a website and can sit
+                    // idle for a while, so it says what is pending and offers a
+                    // way out — a pending code is not a connection, so leaving
+                    // costs nothing.
                     HStack(spacing: Theme.Metrics.gap) {
                         ProgressView()
                             .controlSize(.small)
-                            .accessibilityLabel(String(localized: "Code auf GitHub eingeben"))
+                        Text(String(localized: "Warte auf die Bestätigung in GitHub. Das kann einen Moment dauern."))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(String(localized: "Warte auf die Bestätigung in GitHub."))
+                    Button(String(localized: "Abbrechen")) {
+                        store.cancelConnect()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
+                           alignment: .leading)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("github-cancel-connect")
                 }
             }
         case .connected:
@@ -276,30 +321,61 @@ struct GitHubSettingsView: View {
     private var contributionPreview: some View {
         if case .connected = store.phase,
            let snapshot = store.snapshot {
+            // One source of truth for the grid. The cell size used to subtract a
+            // hard-coded column-count times a hard-coded gap while also passing a
+            // different `gap` to the graph, so the maths and the grid could
+            // disagree the moment either number changed — and the last column
+            // would quietly overflow.
+            let weeks = 24
+            let gap: CGFloat = 3
             GeometryReader { geometry in
+                let columns = CGFloat(weeks - 1)
                 GitHubContributionGraph(days: snapshot.days,
-                                    weeks: 24,
-                                    cellSize: max(1, (geometry.size.width - 23 * 3) / 24),
-                                    gap: 3,
-                                    showsMonthLabels: false,
-                                    interactive: false,
-                                    palette: palettes.style)
+                                        weeks: weeks,
+                                        cellSize: max(1, (geometry.size.width - columns * gap) / CGFloat(weeks)),
+                                        gap: gap,
+                                        showsMonthLabels: false,
+                                        interactive: false,
+                                        palette: palettes.style)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-                .aspectRatio(24.0 / 7.0, contentMode: .fit)
+                .aspectRatio(CGFloat(weeks) / CGFloat(GridCalendar.rows), contentMode: .fit)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
+                // The graph labels itself "GitHub-Beitragskalender", which is true
+                // but not useful here: this is the proof of what connecting gets
+                // you, sitting above the controls that do the connecting.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(String(localized: "Vorschau deines Beitragskalenders"))
                 .accessibilityIdentifier("github-settings-preview")
         }
     }
 
+    /// The only control here that can lose something, so it has to look like it.
+    ///
+    /// It declared `role: .destructive` and then used `.buttonStyle(.plain)`,
+    /// which discards exactly the red that role is supposed to add — the one
+    /// action that unlinks an account looked identical to "Aktualisieren". The
+    /// colour is set here rather than left to the style, and there is a symbol as
+    /// well, so the difference does not rest on colour alone.
     private var disconnectButton: some View {
-        Button(String(localized: "Verbindung trennen"), role: .destructive) {
+        Button(role: .destructive) {
             confirmDisconnect = true
+        } label: {
+            HStack(spacing: Theme.Metrics.gap) {
+                Image(systemName: "link.badge.minus")
+                    .font(.body.weight(.semibold))
+                    .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
+                Text(String(localized: "Verbindung trennen"))
+                    .font(.body)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
+                   alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
-               alignment: .leading)
         .accessibilityIdentifier("github-disconnect")
     }
 
@@ -319,24 +395,30 @@ struct GitHubSettingsView: View {
         }
     }
 
+    /// The title is the thing, not the state. It used to hold a whole sentence
+    /// in the failure case — "Die Verbindung zu GitHub ist fehlgeschlagen." —
+    /// which made the most important row the least scannable one and repeated
+    /// what the red message underneath already said.
     private var statusTitle: String {
         switch store.phase {
-        case .connected, .disconnected: return String(localized: "GitHub-Beitragskalender")
-        case .connecting: return String(localized: "Code auf GitHub eingeben")
-        case .failed: return String(localized: "Die Verbindung zu GitHub ist fehlgeschlagen.")
+        case .connecting: return String(localized: "Anmeldung läuft")
+        case .connected, .disconnected, .failed: return String(localized: "GitHub-Beitragskalender")
         }
     }
 
+    /// The state, in a few words. The specific reason for a failure stays in the
+    /// message below the controls, where it can be read in full instead of being
+    /// clipped to two lines, and the action stays on the button.
     private var statusSubtitle: String {
         switch store.phase {
         case .connected:
             return String(localized: "Dein offizieller GitHub-Beitragskalender erscheint auf der Habits-Seite.")
-        case .connecting:
-            return String(localized: "Code auf GitHub eingeben")
-        case .failed:
-            return String(localized: "Erneut versuchen")
         case .disconnected:
-            return String(localized: "Dein offizieller GitHub-Beitragskalender erscheint auf der Habits-Seite.")
+            return String(localized: "Zeigt die Beiträge der letzten Monate auf der Habits-Seite.")
+        case .connecting:
+            return String(localized: "Der Code muss bei GitHub bestätigt werden.")
+        case .failed:
+            return String(localized: "Nicht verbunden")
         }
     }
 
@@ -356,8 +438,12 @@ struct GitHubSettingsView: View {
         UIPasteboard.general.string = code.userCode
         codeCopied = true
         Theme.Haptics.success()
-        Task { @MainActor in
+        // Replaces any tick still running, so a second tap cannot be undone by
+        // the first one's timer firing.
+        copyReset?.cancel()
+        copyReset = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled else { return }
             codeCopied = false
         }
     }

@@ -97,13 +97,19 @@ struct AppSettingsGroup<Content: View>: View {
     /// page labels its groups with an SF Symbol. One component serves both
     /// rather than the page composing its own.
     var symbol: String?
+    /// A line under the group that says what the group is for, or what a control
+    /// inside it actually does. Lives here so a page does not hand-roll a
+    /// caption in a different size and indent from every other one.
+    var footer: String?
     private let content: Content
 
     init(title: String,
          symbol: String? = nil,
+         footer: String? = nil,
          @ViewBuilder content: () -> Content) {
         self.title = title
         self.symbol = symbol
+        self.footer = footer
         self.content = content()
     }
 
@@ -127,6 +133,13 @@ struct AppSettingsGroup<Content: View>: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 4)
                 .morePanel()
+            if let footer {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

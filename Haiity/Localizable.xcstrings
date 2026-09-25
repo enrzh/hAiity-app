@@ -73,6 +73,16 @@
     "Weitere Einstellungen": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Advanced settings" } } }
     },
+    "Vorschau deines Beitragskalenders": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview of your contribution calendar"
+          }
+        }
+      }
+    },
     "Vorschau: %@, %@": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Preview: %1$@, %2$@" } } }
     },
@@ -93,6 +103,16 @@
     },
     "Flexible Ziele werden nach ihrer eigenen Periode ausgewertet.": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Flexible goals are measured over their own period." } } }
+    },
+    "In dieser Fassung ist die GitHub-Verbindung nicht enthalten. Der Beitragskalender lässt sich deshalb nicht verbinden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The GitHub connection is not part of this version, so the contribution calendar cannot be connected."
+          }
+        }
+      }
     },
     "In dieser Woche waren keine Termine fällig.": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "No fixed habits were scheduled that week." } } }
@@ -10871,6 +10891,16 @@
         }
       }
     },
+    "Anmeldung läuft": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in in progress"
+          }
+        }
+      }
+    },
     "Anrede": {
       "localizations": {
         "ar": {
@@ -16183,6 +16213,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "App Store 刚才没有响应。请检查网络连接后再试一次。"
+          }
+        }
+      }
+    },
+    "Der Code muss bei GitHub bestätigt werden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code has to be confirmed on GitHub."
           }
         }
       }
@@ -38957,6 +38997,16 @@
         }
       }
     },
+    "Nicht verbunden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
+          }
+        }
+      }
+    },
     "Nichts offen geblieben. Das war ein guter Tag.": {
       "localizations": {
         "ar": {
@@ -47415,6 +47465,26 @@
         }
       }
     },
+    "Warte auf die Bestätigung in GitHub.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for confirmation on GitHub."
+          }
+        }
+      }
+    },
+    "Warte auf die Bestätigung in GitHub. Das kann einen Moment dauern.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for confirmation on GitHub. This can take a moment."
+          }
+        }
+      }
+    },
     "Warten auf iCloud": {
       "localizations": {
         "ar": {
@@ -50115,6 +50185,16 @@
         }
       }
     },
+    "Zeigt die Beiträge der letzten Monate auf der Habits-Seite.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the last few months of contributions on the Habits page."
+          }
+        }
+      }
+    },
     "Zeit": {
       "localizations": {
         "ar": {
@@ -51511,6 +51591,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "hAiity 没有服务器。你的数据保存在这台设备上——如果你登录了 iCloud，也会同时保存在你自己的私人 iCloud 里。我们永远看不到。没有分析，没有追踪，没有账号。"
+          }
+        }
+      }
+    },
+    "hAiity liest nur den Beitragskalender. Es wird nichts auf deinem GitHub-Konto verändert.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hAiity only reads the contribution calendar. Nothing on your GitHub account is changed."
           }
         }
       }
@@ -57597,6 +57687,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "On device"
+          }
+        }
+      }
+    },
+    "Dein Code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your code"
           }
         }
       }

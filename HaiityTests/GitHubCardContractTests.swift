@@ -3,6 +3,106 @@ import XCTest
 @testable import Haiity
 
 final class GitHubCardContractTests: XCTestCase {
+
+    // MARK: - The settings page says one thing once
+
+    /// The failure state used to put a whole sentence in the title slot AND
+    /// repeat it in the red message underneath, which made the most important
+    /// row the least scannable one on the page. The title names the thing, the
+    /// subtitle names the state, and the specific reason stays where it can be
+    /// read in full.
+    func testTheStatusRowNamesTheThingAndTheStateSeparately() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        let title = try XCTUnwrap(view.range(of: "private var statusTitle"))
+        let titleBody = String(view[title.upperBound...].prefix(420))
+        XCTAssertFalse(titleBody.contains("fehlgeschlagen"),
+                       "a full sentence does not belong in the title slot")
+        XCTAssertTrue(titleBody.contains("GitHub-Beitragskalender"),
+                      "the title should stay the stable name of the thing")
+
+        let subtitle = try XCTUnwrap(view.range(of: "private var statusSubtitle"))
+        let subtitleBody = String(view[subtitle.upperBound...].prefix(700))
+        XCTAssertFalse(subtitleBody.contains("Erneut versuchen"),
+                       "an action label does not belong in a state slot")
+        // The connecting state said "Code auf GitHub eingeben" in the row and
+        // again directly below it. Once now.
+        XCTAssertEqual(subtitleBody.components(separatedBy: "Code auf GitHub eingeben").count - 1, 0,
+                       "the instruction must not be stated twice on one screen")
+    }
+
+    /// A destructive action that looks like every other row is an action people
+    /// tap by accident. The role was declared and `.plain` threw the red away.
+    func testDisconnectingActuallyLooksDestructive() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        let button = try XCTUnwrap(view.range(of: "private var disconnectButton"))
+        let body = String(view[button.upperBound...].prefix(900))
+
+        XCTAssertTrue(body.contains("role: .destructive"))
+        XCTAssertTrue(body.contains(".foregroundStyle(.red)"),
+                      "plain button style discards the role's colour, so set it here")
+        XCTAssertTrue(body.contains("link.badge.minus"),
+                      "a symbol as well as a colour, so the difference is not colour alone")
+    }
+
+    /// The clipboard used to be overwritten the moment the page appeared, with
+    /// nobody asking. The button beside the code is the way to do it.
+    func testTheCodeIsOnlyCopiedWhenAsked() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        let appear = try XCTUnwrap(view.range(of: ".onAppear {"))
+        let body = String(view[appear.upperBound...].prefix(500))
+        XCTAssertFalse(body.contains("copyCode"),
+                       "appearing on the page is not a request to replace the clipboard")
+        XCTAssertTrue(view.contains("copyReset?.cancel()"),
+                       "the copied tick needs an owner so a second tap cannot be undone by the first")
+    }
+
+    /// GitHub's device flow is a round trip through a website. A lone spinner
+    /// told the person the app was busy and nothing about what it was waiting
+    /// for, with no way to give up.
+    func testWaitingForGitHubSaysWhatItWaitsForAndOffersAWayOut() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        XCTAssertTrue(view.contains("Warte auf die Bestätigung in GitHub."),
+                      "the spinner needs a sentence beside it")
+        XCTAssertTrue(view.contains("store.cancelConnect()"),
+                      "a pending code should be abandonable")
+        let store = try source("Haiity/Models/GitHubContributionStore.swift")
+        let cancel = try XCTUnwrap(store.range(of: "func cancelConnect()"))
+        let body = String(store[cancel.upperBound...].prefix(700))
+        XCTAssertFalse(body.contains("vault.delete()"),
+                       "giving up on an unfinished login must not delete stored credentials")
+        XCTAssertTrue(body.contains("deviceCode = nil"))
+        XCTAssertTrue(body.contains("phase = .disconnected"))
+    }
+
+    /// The preview sized its cells from a literal `23 * 3` while passing
+    /// `gap: 3`, so the maths and the grid could disagree and the last column
+    /// would quietly overflow.
+    func testThePreviewGridHasOneSourceOfTruthForItsGap() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        let preview = try XCTUnwrap(view.range(of: "private var contributionPreview"))
+        let body = String(view[preview.upperBound...].prefix(1800))
+
+        XCTAssertTrue(body.contains("let gap: CGFloat"))
+        XCTAssertTrue(body.contains("columns * gap"))
+        XCTAssertFalse(body.contains("23 * 3"),
+                       "the gap must not be repeated as a literal in the size maths")
+        XCTAssertTrue(body.contains("CGFloat(GridCalendar.rows)"),
+                      "the row count should come from the grid, not a 7")
+        XCTAssertTrue(body.contains("Vorschau deines Beitragskalenders"),
+                      "the preview should say what it is for a screen reader")
+    }
+
+    /// "GitHub ist nicht eingerichtet." was a dead end: one grey sentence, no
+    /// action, no explanation, reading like something the person had broken.
+    func testTheNotConfiguredStateExplainsItself() throws {
+        let view = try source("Haiity/Views/GitHubSettingsView.swift")
+        XCTAssertTrue(view.contains("private var connectionFooter"))
+        XCTAssertTrue(view.contains("footer: connectionFooter"),
+                      "the explanation has to actually be wired to the group")
+        XCTAssertTrue(view.contains("nicht enthalten"),
+                      "and it has to say the connection is absent, not broken")
+    }
+
     func testHabitsPageHostsTheCardOutsideSearchAndHabitActions() throws {
         let content = try source("Haiity/Views/ContentView.swift")
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
@@ -83,13 +183,20 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(settings.contains("url.scheme?.lowercased() == \"https\""))
     }
 
-    func testGitHubDeviceCodeCopiesOnAppearanceAndCanBeCopiedAgain() throws {
+    /// The code reaches the clipboard when the button is tapped, and the button
+    /// says so. It used to be copied as soon as the page appeared — and again
+    /// whenever a new code arrived — replacing whatever the person was holding
+    /// without them asking for it.
+    func testTheDeviceCodeIsCopiedOnRequestAndSaysThatItWas() throws {
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
 
         XCTAssertTrue(settings.contains("UIPasteboard.general.string = code.userCode"))
-        XCTAssertTrue(settings.contains(".onAppear"))
-        XCTAssertTrue(settings.contains("copyCode(store.deviceCode)"))
-        XCTAssertTrue(settings.contains(".onChange(of: store.deviceCode)"))
+        XCTAssertTrue(settings.contains("copyCode(code)"),
+                      "the button beside the code is the way to copy it")
+        XCTAssertFalse(settings.contains("copyCode(store.deviceCode)"),
+                       "appearing on the page is not a request to replace the clipboard")
+        XCTAssertFalse(settings.contains(".onChange(of: store.deviceCode)"),
+                       "nor is a code arriving a request to replace the clipboard")
         XCTAssertTrue(settings.contains("symbolEffect(.bounce, value: codeCopied)"))
         XCTAssertTrue(settings.contains("Code kopiert."))
         XCTAssertTrue(settings.contains("Code kopieren"))
