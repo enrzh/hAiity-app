@@ -100,16 +100,17 @@ struct ChromeGlass: ViewModifier {
                 .glassEffectID(id, in: namespace)
                 .glassEffectUnion(id: union, namespace: namespace)
         case .bar:
-            // A bar carries a visible edge. A pill reads as a pill because of its
-            // silhouette; a full-width bar sitting on a bright wallpaper needs the
-            // hairline to say where it stops, or it dissolves into the picture.
-            content.glassEffect(style,
-                                in: RoundedRectangle(cornerRadius: CornerRadius.hero,
-                                                     style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
-                )
+            // The same opaque backing as the material path, for the same reason:
+            // real Liquid Glass over a plain wallpaper is lovely, but real Liquid
+            // Glass with a paragraph sliding under it is unreadable. The glass is
+            // still doing the work — it is the edge and the tint of the surface —
+            // it is just not being asked to be see-through over text.
+            let shape = RoundedRectangle(cornerRadius: CornerRadius.hero,
+                                         style: .continuous)
+            content
+                .background(Color(.systemBackground).opacity(0.92), in: shape)
+                .glassEffect(style, in: shape)
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5))
                 .glassEffectID(id, in: namespace)
         }
     }
@@ -149,17 +150,18 @@ struct ChromeGlass: ViewModifier {
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
         case .bar:
-            // Below iOS 26 there is no morph to preserve, so no matchedGeometry
-            // and no shadow — a full-width bar with a drop shadow reads as a
-            // separate slab sitting on top of the sheet.
+            // A bar has content sliding underneath it, so it carries an opaque
+            // backing under the material. Without it the text of the card behind
+            // reads straight through the blur and the bar looks like a rendering
+            // fault — the screenshot showed a sentence sliced in half by the dock.
+            // A pill can be thin because nothing passes behind it; a full-width
+            // bar cannot.
+            let shape = RoundedRectangle(cornerRadius: CornerRadius.hero,
+                                         style: .continuous)
             content
-                .background(.ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: CornerRadius.hero,
-                                                 style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous)
-                        .strokeBorder(.quaternary, lineWidth: 0.5)
-                )
+                .background(Color(.systemBackground).opacity(0.92), in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(.quaternary, lineWidth: 0.5))
         }
     }
 }

@@ -69,6 +69,7 @@ struct SpeakToCreateSheet: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: Theme.Metrics.settingsSectionGap) {
                     waveformPanel
@@ -78,11 +79,15 @@ struct SpeakToCreateSheet: View {
                     }
                 }
                 .padding(.horizontal, Theme.Metrics.gutter)
-                // Room for the dock to float over the last card without ever
-                // covering it, and the home-indicator inset beneath that.
-                .padding(.bottom, dockClearance)
+                .id("speak-content")
             }
             .scrollIndicators(.hidden)
+            // The dock floats, so the content has to be able to move out from
+            // under it. The inset alone was not enough once the keyboard was up
+            // inside a half-height sheet: the draft card ended up underneath the
+            // dock with its last line sliced off. This is a scroll-content margin
+            // rather than padding, so it survives the viewport shrinking.
+            .contentMargins(.bottom, dockClearance, for: .scrollContent)
             .softScrollEdges()
             .settingsChrome()
             .navigationTitle(String(localized: "Aus einem Satz anlegen"))
@@ -102,6 +107,19 @@ struct SpeakToCreateSheet: View {
             .presentationDragIndicator(.visible)
             .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
             .presentationCornerRadius(CornerRadius.hero)
+            // The dock floats, so content passes under it — that is what a
+            // floating bar does. The problem is the resting position: the draft
+            // card arrived at the bottom of the viewport and sat half-sliced by
+            // the dock, which reads as a fault rather than as depth. Scrolling to
+            // the end when the draft appears puts the thing that matters above
+            // the bar, and scrolling still moves content under it after that.
+            .onChange(of: draft != nil) { _, hasDraft in
+                guard hasDraft else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo("speak-content", anchor: .bottom)
+                }
+            }
+            }
         }
         .onAppear { startListening() }
         .onDisappear { stopEverything() }
@@ -399,8 +417,13 @@ struct SpeakToCreateSheet: View {
 
     /// The primary action, and the one coloured control in the sheet. A filled
     /// capsule rather than glass, so it reads as the action against the bar.
+    ///
+    /// Disabled, it goes neutral rather than fading the accent. A pale green
+    /// button at half opacity looks like a rendering mistake; a grey one looks
+    /// like what it is.
     private var createControl: some View {
-        Button {
+        let ready = draft != nil && !isWorking && !didCreate
+        return Button {
             Task { await create() }
         } label: {
             HStack(spacing: Theme.Metrics.gap) {
@@ -409,15 +432,17 @@ struct SpeakToCreateSheet: View {
                      ? String(localized: "Angelegt")
                      : String(localized: "Anlegen"))
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(ready ? Color.white : Color.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.control)
-            .background(Theme.accentFill(palettes.style), in: Capsule())
+            .background(ready
+                        ? AnyShapeStyle(Theme.accentFill(palettes.style))
+                        : AnyShapeStyle(Color(.tertiarySystemFill)),
+                        in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(draft == nil || isWorking || didCreate)
-        .opacity(draft == nil ? 0.45 : 1)
+        .disabled(!ready)
         .accessibilityIdentifier("speak-to-create-confirm")
     }
 

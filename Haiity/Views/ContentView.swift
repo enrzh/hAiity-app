@@ -571,11 +571,13 @@ struct ContentView: View {
                     .modifier(ChromeGlass(id: "speak-button",
                                           namespace: glassNamespace,
                                           kind: .circle,
-                                          accent: effectivePaletteStyle,
                                           union: "speak-button"))
-                    // Secondary, not a second primary. The create action in the
-                    // toolbar is the app's primary global action, so this carries
-                    // no drop shadow — the edge and the material say where it is.
+                    // No accent tint. A tinted glass circle is a green button with
+                    // a material behind it, which is not what this is: the tint
+                    // filled the shape and the glass stopped being visible at all.
+                    // The sparkle keeps the accent, so the colour still says
+                    // "writing", and the bar underneath is neutral so the search
+                    // below stays the louder of the two.
                     .overlay(Circle().strokeBorder(
                         Theme.accentText(effectivePaletteStyle).opacity(0.14),
                         lineWidth: 0.5))

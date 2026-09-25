@@ -241,9 +241,13 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "and it sits neutral when idle, not accent all the time")
 
         let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
-        XCTAssertTrue(sheet[create.upperBound...].prefix(700)
+        XCTAssertTrue(sheet[create.upperBound...].prefix(1200)
             .contains("Theme.accentFill(palettes.style)"),
                       "the primary action is the one that is always coloured")
+        // And it goes neutral rather than fading when there is nothing to create.
+        XCTAssertTrue(sheet[create.upperBound...].prefix(1200)
+            .contains("Color(.tertiarySystemFill)"),
+                      "a faded accent reads as a rendering fault, not as disabled")
     }
 
     /// The glass component was private to ContentView, so the sheet could not

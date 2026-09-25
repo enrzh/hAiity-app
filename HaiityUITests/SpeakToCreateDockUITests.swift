@@ -91,4 +91,37 @@ final class SpeakToCreateDockUITests: XCTestCase {
         XCTAssertEqual(mic.frame.minY, before, accuracy: 1,
                        "the dock must not scroll away with the content")
     }
+
+    /// Writes the sheet at both heights to disk so the material can be looked at
+    /// rather than argued about. Layout assertions cannot tell you whether glass
+    /// reads as glass; only a picture can, and the previous round of this work
+    /// shipped a dock that every assertion passed and that looked broken.
+    func testCaptureTheSheetForReview() throws {
+        let shots = ProcessInfo.processInfo.environment["HAIITY_SHOT_DIR"]
+            ?? "/private/var/folders/gp/c79f6sdj4h1d1t7rrpq24k8m0000gn/T/opencode/shots"
+        try? FileManager.default.createDirectory(atPath: shots,
+                                                 withIntermediateDirectories: true)
+        func capture(_ name: String) {
+            let data = XCUIScreen.main.screenshot().image.pngData()
+            try? data?.write(to: URL(fileURLWithPath: "\(shots)/\(name).png"))
+        }
+
+        // The main page, so the entry point can be judged against its neighbours.
+        let opener = app.buttons["speak-to-create"]
+        XCTAssertTrue(opener.waitForExistence(timeout: 20))
+        capture("dock-00-main")
+
+        opener.tap()
+        let field = app.textFields["speak-to-create-text"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        capture("dock-01-half")
+
+        // Typing expands the sheet to the full page, and the draft comes to rest
+        // above the dock rather than underneath it.
+        field.tap()
+        field.typeText("jeden Montag und Donnerstag morgens um 7 Wasser trinken")
+        XCTAssertTrue(app.descendants(matching: .any)["speak-to-create-draft"]
+            .waitForExistence(timeout: 5))
+        capture("dock-02-full")
+    }
 }
