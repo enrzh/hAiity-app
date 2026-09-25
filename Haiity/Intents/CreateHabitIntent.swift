@@ -388,6 +388,22 @@ struct CreateItemDraft: Equatable, Sendable {
 
     var kind: CreateItemKind { isReminder ? .reminder : .habit }
 
+    /// **A one-off is a reminder, whatever the model said.**
+    ///
+    /// The prompt asks for this, but a model that answers `isReminder: false` for
+    /// "einmal morgen Zahnarzt" files a thing that happens once under habits,
+    /// where it is tracked forever and counts against the free allowance. Wrong on
+    /// both counts, so the rule is applied here instead of trusted. A repeated
+    /// thing still decides for itself, which is where "remind me every Monday"
+    /// means something the frequency cannot.
+    ///
+    /// It lives on the draft rather than in the writer so it is testable without
+    /// a model, and so every path that fills a draft gets it — including the
+    /// Shortcut.
+    static func isReminder(_ proposed: Bool, schedule: CreateItemSchedule) -> Bool {
+        proposed || schedule.frequency == .once
+    }
+
     // MARK: - Reading a sentence
 
     /// Remove clock times from free text without inventing anything.

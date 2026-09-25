@@ -6,6 +6,51 @@ import XCTest
 /// misread, and a name that is not a name.
 final class CreateHabitIntentTests: XCTestCase {
 
+    /// Anything that happens once is a reminder, not a tracked habit. A habit
+    /// that fires a single time is tracked forever and counts against the free
+    /// allowance, which is the wrong home for "einmal morgen Zahnarzt" on both
+    /// counts — so the rule is applied to whatever the model proposed rather than
+    /// trusted to it.
+    func testAOneOffIsAlwaysAReminder() {
+        let oneOff = CreateItemSchedule(frequency: "once", interval: 1, weekdays: [],
+                                        timesPerPeriod: 0, dayOfMonth: 0, month: 0,
+                                        startDay: "2099-03-14")
+        XCTAssertTrue(CreateItemDraft.isReminder(false, schedule: oneOff),
+                      "a one-off is a reminder even when the model says otherwise")
+        XCTAssertTrue(CreateItemDraft.isReminder(true, schedule: oneOff))
+    }
+
+    /// A repeated thing still decides for itself — that is where "remind me every
+    /// Monday" says something the frequency cannot.
+    func testARepeatedThingIsAHabitUnlessItAsksToBeNudged() {
+        for raw in ["daily", "weekly", "monthly", "yearly"] {
+            let repeated = CreateItemSchedule(
+                frequency: raw, interval: 1,
+                weekdays: raw == "weekly" ? [2] : [], timesPerPeriod: 0,
+                dayOfMonth: 0, month: 0, startDay: "")
+            XCTAssertFalse(CreateItemDraft.isReminder(false, schedule: repeated),
+                           "\(raw) with no nudge is a habit")
+            XCTAssertTrue(CreateItemDraft.isReminder(true, schedule: repeated),
+                          "\(raw) asked to be nudged is a reminder")
+        }
+    }
+
+    /// And it reaches the item, not just the flag: the kind is what the store and
+    /// the list actually use.
+    func testAOneOffDraftProducesAReminder() {
+        let draft = CreateItemDraft(
+            name: "Zahnarzt", emoji: "",
+            schedule: CreateItemSchedule(frequency: "once", interval: 1, weekdays: [],
+                                         timesPerPeriod: 0, dayOfMonth: 0, month: 0,
+                                         startDay: "2099-03-14"))
+        let normalised = CreateItemDraft(name: draft.name, emoji: draft.emoji,
+                                         isReminder: CreateItemDraft.isReminder(
+                                            draft.isReminder, schedule: draft.schedule),
+                                         schedule: draft.schedule)
+        XCTAssertEqual(normalised.kind, .reminder)
+        XCTAssertEqual(normalised.makeHabit().itemType, .reminder)
+    }
+
     // MARK: - The no-model time strip
 
     /// A clock time in a sentence is a fact, so it has to survive the model's
@@ -478,10 +523,14 @@ final class CreateHabitIntentTests: XCTestCase {
             XCTAssertTrue(writer.contains(filler),
                           "the prompt lost its filler example: \(filler)")
         }
-        // A one-off you tick off is not a reminder, and conflating the two sends
-        // a habit the person meant to track to the untracked list.
-        XCTAssertTrue(writer.contains("TICK OFF"),
-                      "the prompt has to separate a one-off habit from a nudge")
+        // A one-off you tick off is not a reminder, and a month is not a thing
+        // that happens once.
+        XCTAssertTrue(writer.contains("isReminder true, frequency \"once\""),
+                      "the worked example has to agree with the rule")
+        XCTAssertTrue(writer.contains("isReminder false, frequency \"monthly\""),
+                      "a repeated thing stays a habit")
+        XCTAssertTrue(writer.contains("TICK OFF") || writer.contains("ONCE"),
+                      "the prompt has to state the one-off rule outright")
     }
 
     /// The preview used to append a hard-coded "täglich", so it showed a daily

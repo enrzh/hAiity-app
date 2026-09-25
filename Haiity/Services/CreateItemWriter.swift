@@ -65,9 +65,10 @@ enum CreateItemWriter {
     times, schedule words, "at work", "don't forget to", please words, filler.
     - `emoji` is ONE emoji that fits the thing, or an empty string if none is obvious. Never more than one. \
     A flag, a skin tone or a family counts as one.
-    - `isReminder` is true only when the sentence asks to be NAGGED — "remind me", "don't let me forget", \
-    "erinner mich". A reminder only notifies and is not tracked. A one-off you mean to TICK OFF is not a \
-    reminder: it stays a habit with frequency "once".
+    - A reminder only notifies and is not tracked; a habit is tracked over time. \
+    - `isReminder` is true for anything that happens ONCE — "einmal am 14. März", "tomorrow", "next \
+    Tuesday" — and for a repeated thing the person asks to be NAGGED about ("remind me", "don't let me \
+    forget", "erinner mich"). It is false only for a repeated thing meant to be tracked.
     - `frequency` is exactly one of "once", "daily", "weekly", "monthly", "yearly". Say "daily" when the \
     sentence says nothing about repeating — that is the honest reading, not a missing answer.
     - `interval` is how many periods pass between repeats: 2 for "every 2 weeks", 1 otherwise.
@@ -94,7 +95,7 @@ enum CreateItemWriter {
     month 0, startDay ""
     - "3 mal pro Woche joggen" -> name "Joggen", frequency "weekly", weekdays [], timesPerPeriod 3
     - "alle zwei Wochen Zahnarzt" -> name "Zahnarzt", frequency "weekly", interval 2, weekdays []
-    - "einmal am 14. März" -> name "Zahnarzt", isReminder false, frequency "once", startDay that date
+    - "einmal am 14. März" -> name "Zahnarzt", isReminder true, frequency "once", startDay that date
     - "jeden Monat am 15. Miete zahlen" -> name "Miete zahlen", frequency "monthly", dayOfMonth 15
     - "jedes Jahr im Dezember Geschenke kaufen" -> name "Geschenke kaufen", frequency "yearly", month 12
     - "Wasser trinken" -> name "Wasser trinken", frequency "daily", every other schedule field 0 or ""
@@ -104,6 +105,7 @@ enum CreateItemWriter {
     - "remember to call mum on fridays" -> name "Call mum", frequency "weekly", weekdays [6]
     - "don't let me forget the bins tomorrow" -> name "Bins", isReminder true, frequency "once"
     - "could you please take out the recycling tonight" -> name "Recycling", isReminder true
+    - "jeden Monat Miete zahlen" -> name "Miete zahlen", isReminder false, frequency "monthly"
 
     Do not return a sentence as the name.
     """
@@ -134,8 +136,9 @@ enum CreateItemWriter {
             dayOfMonth: parsed.schedule.dayOfMonth,
             month: parsed.schedule.month,
             startDay: parsed.schedule.startDay)
+        let isReminder = CreateItemDraft.isReminder(parsed.isReminder, schedule: schedule)
         return CreateItemDraft(name: name, emoji: emoji, minutes: nil,
-                               isReminder: parsed.isReminder, schedule: schedule)
+                               isReminder: isReminder, schedule: schedule)
     }
 
     /// A model asked to return a name will sometimes return the whole sentence,
