@@ -23,6 +23,13 @@ struct SpeakToCreateSheet: View {
     @State private var text = ""
     @State private var isWorking = false
     @State private var didCreate = false
+    /// The model's reading of the sentence, and the exact text it was made
+    /// from. Kept apart because a reading belongs to one sentence: edit a word
+    /// and it is stale, and saving a stale reading means saving something the
+    /// person never saw.
+    @State private var readDraft: CreateItemDraft?
+    @State private var readFrom = ""
+    @State private var isReading = false
     @FocusState private var fieldFocused: Bool
     /// The waveform's trail. Sampled here rather than in the recogniser so it
     /// stops the instant the sheet goes away.
@@ -32,15 +39,29 @@ struct SpeakToCreateSheet: View {
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
-    /// What the current text would become, before anything is created.
+    /// What pressing "Anlegen" would create right now.
     ///
-    /// Only the deterministic half — the time out, the rest as the name. The
-    /// model runs on confirm, not on every keystroke, because it costs heat and
-    /// a person editing a word should not trigger it.
+    /// A reading is used only while it still matches the text. Otherwise this is
+    /// the deterministic half alone: the name, and a time if the sentence had
+    /// one. The model is never run from here — it costs heat, so it runs when
+    /// the person asks for it, and not on every keystroke.
     private var draft: CreateItemDraft? {
+        if let readDraft, readFrom == text { return readDraft }
         let stripped = CreateItemDraft.stripTime(from: text)
         guard !stripped.name.isEmpty else { return nil }
         return CreateItemDraft(name: stripped.name, emoji: "", minutes: stripped.minutes)
+    }
+
+    /// Whether what is on screen came from this exact sentence, or is only the
+    /// part that can be known without asking.
+    private var needsReading: Bool { readDraft == nil || readFrom != text }
+
+    private var hasSentence: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canRead: Bool {
+        OnDeviceModel.isAvailable && hasSentence && !isReading && !isWorking
     }
 
     var body: some View {
@@ -220,7 +241,17 @@ struct SpeakToCreateSheet: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             HStack(spacing: Theme.Metrics.gap + 4) {
-                AppIconBadge(symbol: draft.kind == .reminder ? "bell" : "checkmark.circle")
+                // The emoji the model picked, once there is one. Before that the
+                // kind carries the badge, so the row never sits there empty.
+                if draft.emoji.isEmpty {
+                    AppIconBadge(symbol: draft.kind == .reminder ? "bell" : "checkmark.circle")
+                } else {
+                    Text(draft.emoji)
+                        .font(.body)
+                        .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
+                        .background(accent.opacity(0.11), in: Circle())
+                        .accessibilityHidden(true)
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(draft.name)
                         .font(.body.weight(.medium))
@@ -231,12 +262,46 @@ struct SpeakToCreateSheet: View {
                 }
                 Spacer(minLength: 0)
             }
+            if OnDeviceModel.isAvailable { readRow }
         }
         .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("speak-to-create-draft")
+    }
+
+    /// The one control that spends heat, so it says so.
+    ///
+    /// The reading is a separate, visible step rather than something tucked
+    /// inside "Anlegen" for two reasons: the person decides when the device gets
+    /// warm, and they get to see and change what the model made of the sentence
+    /// before it becomes a habit they have to delete.
+    private var readRow: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            Button {
+                Task { await read() }
+            } label: {
+                HStack(spacing: Theme.Metrics.gap) {
+                    if isReading { ProgressView() }
+                    Text(readDraft == nil
+                         ? String(localized: "Satz lesen")
+                         : String(localized: "Neu lesen"))
+                        .font(.subheadline.weight(.medium))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!canRead)
+            .accessibilityIdentifier("speak-to-create-read")
+
+            Text(needsReading
+                 ? String(localized: "Liest Name, Symbol und Wiederholung aus dem Satz. Das Gerät wird dabei wärmer, also nur wenn du es möchtest.")
+                 : String(localized: "Gelesen. Ändere den Satz, und du kannst ihn neu lesen."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func draftSubtitle(_ draft: CreateItemDraft) -> String {
@@ -247,11 +312,15 @@ struct SpeakToCreateSheet: View {
             parts.append(String(format: String(localized: "um %02d:%02d"),
                                 minutes / 60, minutes % 60))
         }
-        // The rule itself, not a fixed "täglich". This used to print "täglich"
-        // unconditionally, so a sentence saying "jeden Montag" previewed a lie
-        // even on the days the parse was right — and the person had no way to
-        // see the repeat before creating the item.
-        parts.append(RecurrenceText.pattern(draft.schedule.recurrence))
+        // The repeat only once it has actually been read. Printing "Jeden Tag"
+        // here would be a guess dressed up as a result: the create button reads
+        // the sentence, and that is where the repeat comes from, so the preview
+        // would promise daily and the list would show Mondays.
+        if needsReading, OnDeviceModel.isAvailable {
+            parts.append(String(localized: "Wiederholung noch offen"))
+        } else {
+            parts.append(RecurrenceText.pattern(draft.schedule.recurrence))
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -275,18 +344,30 @@ struct SpeakToCreateSheet: View {
         .accessibilityIdentifier("speak-to-create-confirm")
     }
 
+    /// Ask the model what the sentence means, once, because the person pressed
+    /// the button.
+    private func read() async {
+        let sentence = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sentence.isEmpty, !isReading else { return }
+        isReading = true
+        defer { isReading = false }
+        readDraft = await CreateItemDraft.read(from: sentence)
+        // Recorded after the await, so a sentence edited while the model was
+        // working is not quietly claimed to have been read.
+        readFrom = text
+    }
+
     private func create() async {
-        guard var draft, !didCreate else { return }
+        guard let draft, !didCreate else { return }
         isWorking = true
         defer { isWorking = false }
 
-        // The model is asked only here, once, because the person pressed the
-        // button. Without it the deterministic read of the sentence still
-        // produces a usable name and time.
-        let full = await CreateItemDraft.read(from: text)
-        if !full.name.isEmpty { draft = full }
+        // A reading the person already asked for is reused rather than paid for a
+        // second time. Only an unread sentence is read now, which is also what
+        // keeps this from being a hidden second model call.
+        let final = needsReading ? await CreateItemDraft.read(from: text) : draft
 
-        switch await CreateItemSaver.save(draft, into: store) {
+        switch await CreateItemSaver.save(final, into: store) {
         case .saved:
             didCreate = true
             stopEverything()

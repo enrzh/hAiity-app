@@ -63,6 +63,86 @@ final class CreateHabitIntentTests: XCTestCase {
         XCTAssertNil(CreateItemDraft.stripTime(from: "99:99 lesen").minutes)
     }
 
+    // MARK: - The hour a word introduces
+
+    /// "morgens um 7 Wasser trinken" is the sentence the feature is named after,
+    /// and the stripper did not find a time in it: `7` with nothing after it is
+    /// not a clock time on its own. The word in front is what makes it one.
+    func testABareHourAfterAWordIsFound() {
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "morgens um 7 Wasser trinken").minutes,
+                       7 * 60)
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "gegen 8 kaffee").minutes, 8 * 60)
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "ca. 6 Frühstück").minutes, 6 * 60)
+    }
+
+    /// The app ships sixteen localisations, and "at 7" is the English way of
+    /// saying the same thing.
+    func testTheEnglishHourIsFoundToo() {
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "at 7 drink water").minutes, 7 * 60)
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "Workout at 5").minutes, 5 * 60)
+    }
+
+    func testAnEveningHourAfterAWordStillRollsOver() {
+        XCTAssertEqual(CreateItemDraft.stripTime(from: "at 7pm yoga").minutes, 19 * 60)
+    }
+
+    /// The word introducing the hour has to go with it. Leaving "um" at the front
+    /// of the name produced "um Wasser", which reads as a mistake because it is
+    /// one.
+    func testTheIntroducingWordIsRemovedWithTheTime() {
+        for sentence in ["um 7:30 Wasser", "morgens um 7 Wasser trinken",
+                         "gegen 8 kaffee", "at 7 drink water"] {
+            let name = CreateItemDraft.stripTime(from: sentence).name.lowercased()
+            for word in ["um ", "at ", "gegen ", "ca. "] where sentence.lowercased().contains(word) {
+                XCTAssertFalse(name.contains(word),
+                               "\"\(name)\" kept the word that introduced the time in \(sentence)")
+            }
+        }
+    }
+
+    /// English puts "at" in front of quantities as well as clock times, and a
+    /// habit sentence is full of quantities. Reading "3 sets at 10 reps" as ten
+    /// o'clock would put a notification on a workout.
+    func testAQuantityIsNotAClockTime() {
+        for sentence in ["3 sets at 10 reps", "train at 5 km", "warte 10 min",
+                         "5 mal am Tag", "7 Tage meditieren", "meeting at 100"] {
+            XCTAssertNil(CreateItemDraft.stripTime(from: sentence).minutes,
+                         "\"\(sentence)\" is a quantity, not a time")
+        }
+    }
+
+    /// A habit has one time. When a sentence carries two, both leave the name and
+    /// the first one is the time — the other would otherwise sit in the list row
+    /// looking like part of the thing.
+    func testTwoTimesBothLeaveTheNameAndTheFirstIsKept() {
+        let result = CreateItemDraft.stripTime(from: "7:30 Wasser und 18 Uhr Yoga")
+        XCTAssertEqual(result.minutes, 7 * 60 + 30)
+        XCTAssertEqual(result.name, "Wasser und Yoga")
+    }
+
+    // MARK: - The name invariant
+
+    /// The prompt asks for a name with no time in it and the model mostly
+    /// complies. When it does not, the time is taken back out rather than saved,
+    /// because "Wasser trinken um 7" is not a name and the time is already a
+    /// field of its own.
+    func testANameThatKeptItsTimeHasItRemoved() {
+        XCTAssertEqual(CreateItemDraft.cleanedName("Wasser trinken um 7"), "Wasser trinken")
+        XCTAssertEqual(CreateItemDraft.cleanedName("Yoga at 7:30"), "Yoga")
+    }
+
+    /// A name that was nothing but a time is not a name. Returning it trimmed
+    /// lets the caller fall back to the whole sentence rather than save a blank.
+    func testANameThatIsOnlyATimeComesBackUntouched() {
+        XCTAssertEqual(CreateItemDraft.cleanedName("7:30"), "7:30")
+    }
+
+    func testTheNameInvariantSurvivesRepetition() {
+        let once = CreateItemDraft.cleanedName("Wasser trinken um 7")
+        XCTAssertEqual(CreateItemDraft.cleanedName(once), once,
+                       "cleaning an already-clean name must not change it")
+    }
+
     // MARK: - Reading without the model
 
     /// With the model switched off the sentence is still usable: a name, and a
@@ -370,6 +450,47 @@ final class CreateHabitIntentTests: XCTestCase {
                       "the preview should reuse the one tested recurrence sentence")
     }
 
+    /// A reading belongs to the sentence it was made from. Edit one word and it
+    /// is stale, and saving a stale reading means saving something the person
+    /// never saw — which is the whole reason the read is a visible step.
+    func testAReadingIsOnlyUsedWhileItStillMatchesTheText() throws {
+        let sheet = try String(contentsOf: scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift"),
+                               encoding: .utf8)
+        XCTAssertTrue(sheet.contains("readFrom == text"),
+                      "a reading must be checked against the text it came from")
+        XCTAssertTrue(sheet.contains("readDraft == nil || readFrom != text"),
+                      "a changed sentence has to read as needing a fresh reading")
+    }
+
+    /// Printing a repeat before the model has run is a guess dressed up as a
+    /// result. The preview used to promise "Jeden Tag" and then save Mondays,
+    /// because the create button is what actually reads the sentence.
+    func testThePreviewDoesNotPromiseARepeatItHasNotRead() throws {
+        let sheet = try String(contentsOf: scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift"),
+                               encoding: .utf8)
+        let subtitle = try XCTUnwrap(sheet.range(of: "func draftSubtitle"))
+        let body = sheet[subtitle.upperBound...].prefix(1200)
+
+        XCTAssertTrue(body.contains("needsReading"),
+                      "the subtitle has to know whether the sentence has been read")
+        XCTAssertTrue(body.contains("Wiederholung noch offen"),
+                      "an unread sentence must say the repeat is still open")
+    }
+
+    /// Heat is the reason the read is a separate, visible step, so creating must
+    /// not quietly pay for a second one behind the person's back.
+    func testCreatingReusesTheReadingInsteadOfPayingForASecond() throws {
+        let sheet = try String(contentsOf: scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift"),
+                               encoding: .utf8)
+        let create = try XCTUnwrap(sheet.range(of: "private func create()"))
+        let body = sheet[create.upperBound...].prefix(700)
+
+        XCTAssertTrue(body.contains("needsReading ? await CreateItemDraft.read"),
+                      "only an unread sentence may be read at create time")
+        XCTAssertEqual(body.components(separatedBy: "CreateItemDraft.read(from:").count - 1, 1,
+                       "create must not read the sentence more than once")
+    }
+
     private func scheduleSourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -411,9 +532,9 @@ final class CreateHabitIntentTests: XCTestCase {
     func testTheSpeakSheetSavesIntoTheStoreItWasGiven() throws {
         let source = try scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift")
         let sheet = try String(contentsOf: source, encoding: .utf8)
-        XCTAssertTrue(sheet.contains("save(draft, into: store)"),
+        XCTAssertTrue(sheet.contains("into: store"),
                       "the sheet must write through the store the list is observing")
-        XCTAssertFalse(sheet.contains("save(draft)"),
+        XCTAssertFalse(sheet.contains("CreateItemSaver.save(draft)"),
                        "saving without the store is the bug this replaces")
     }
 

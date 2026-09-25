@@ -183,6 +183,16 @@
         }
       }
     },
+    "Liest Name, Symbol und Wiederholung aus dem Satz. Das Gerät wird dabei wärmer, also nur wenn du es möchtest.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reads the name, symbol and repeat from the sentence. It warms the device, so it only runs when you want it to."
+          }
+        }
+      }
+    },
     "Liquid Glass": {
       "localizations": {
         "en": {
@@ -369,6 +379,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Off"
+          }
+        }
+      }
+    },
+    "Wiederholung noch offen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeat not decided yet"
           }
         }
       }
@@ -25383,6 +25403,16 @@
         }
       }
     },
+    "Gelesen. Ändere den Satz, und du kannst ihn neu lesen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read. Change the sentence and you can read it again."
+          }
+        }
+      }
+    },
     "Genau wie letzte Woche": {
       "localizations": {
         "ar": {
@@ -38493,6 +38523,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "告诉你某个习惯当前的连击。"
+          }
+        }
+      }
+    },
+    "Neu lesen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read again"
           }
         }
       }
@@ -57647,6 +57687,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Writing a sentence…"
+          }
+        }
+      }
+    },
+    "Satz lesen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read the sentence"
           }
         }
       }

@@ -390,46 +390,90 @@ struct CreateItemDraft: Equatable, Sendable {
 
     // MARK: - Reading a sentence
 
-    /// Remove a clock time from free text without inventing anything.
+    /// Remove clock times from free text without inventing anything.
     ///
     /// This is the no-model path, so it deliberately does far less than the
-    /// model: it finds `7:30`, `7.30` and `7 Uhr` and takes them out, and leaves
-    /// the rest alone. "Every morning" survives as part of the name, which is
-    /// honest — a wrong schedule silently applied would be worse than a name the
-    /// person edits.
+    /// model: it finds times and takes them out, and leaves everything else
+    /// alone. "Every morning" survives as part of the name, which is honest — a
+    /// wrong schedule silently applied would be worse than a name the person
+    /// edits.
+    ///
+    /// A bare hour is only a time when a word introduces it. `7 Uhr`, `7:30` and
+    /// `at 7` are times; `7 Tage` and `backlog at 5 items` are not, and reading
+    /// those as midnight would set the wrong notification on a habit about
+    /// something that has nothing to do with the clock.
     static func stripTime(from text: String) -> (name: String, minutes: Int?) {
-        // Three forms, because people write all three: `7:30`, `7.30 Uhr`, and a
-        // bare `7 Uhr` / `7 PM` with no minutes at all.
-        let pattern = "(?<!\\d)([01]?\\d|2[0-3])[:.]([0-5]\\d)\\s*(?:Uhr|AM|PM)?"
-            + "|\\b([01]?\\d|2[0-3])\\s*(?:Uhr|AM|PM)\\b"
+        // Four forms, because people write all four: `7:30`, `7.30 Uhr`, a bare
+        // `7 Uhr` / `7 PM`, and a bare hour introduced by a word — `um 7`, `at 7`,
+        // `gegen 7`. The introducing word is part of the match so that `um 7:30`
+        // does not leave a stray "um" at the front of the name.
+        //
+        // The last form is the one that can misfire, because English puts "at" in
+        // front of quantities as well as clock times: "3 sets at 10 reps" is not
+        // a reminder at ten o'clock. A short list of unit words after the number
+        // is what keeps that apart, and it only has to cover the words a habit
+        // sentence realistically contains.
+        let units = "(?!\\s*(?:reps?|kg|ml|km|cm|min|minuten|sek|sec|std|mal|x)\\b)"
+        let lead = "(?:\\b(?:um|at|around|gegen|ca\\.|circa)\\s+)?"
+        let pattern = "(?<![\\d:])" + lead + "([01]?\\d|2[0-3])[:.]([0-5]\\d)\\s*(?:Uhr|AM|PM)?"
+            + "|" + lead + "\\b([01]?\\d|2[0-3])\\s*(?:Uhr|AM|PM)\\b"
+            + "|\\b(?:um|at|around|gegen|ca\\.|circa)\\s+([01]?\\d|2[0-3])\\b"
+            + units + "\\s*(?:Uhr|AM|PM|o'?clock)?"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return (text, nil)
         }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        guard let match = regex.firstMatch(in: text, range: range),
-              let whole = Range(match.range, in: text) else {
+        let matches = regex.matches(in: text, range: range)
+        guard let first = matches.first, let whole = Range(first.range, in: text) else {
             return (text, nil)
         }
 
         var hours = 0
         var minutes = 0
-        if let hourRange = Range(match.range(at: 1), in: text),
+        if let hourRange = Range(first.range(at: 1), in: text),
            let hour = Int(text[hourRange]) {
             hours = hour
-            if let minuteRange = Range(match.range(at: 2), in: text),
+            if let minuteRange = Range(first.range(at: 2), in: text),
                let minute = Int(text[minuteRange]) {
                 minutes = minute
             }
-        } else if let hourRange = Range(match.range(at: 3), in: text),
+        } else if let hourRange = Range(first.range(at: 3), in: text),
+                  let hour = Int(text[hourRange]) {
+            hours = hour
+        } else if let hourRange = Range(first.range(at: 4), in: text),
                   let hour = Int(text[hourRange]) {
             hours = hour
         }
         if matched(text, whole).lowercased().contains("pm"), hours < 12 { hours += 12 }
 
-        let name = text.replacingCharacters(in: whole, with: " ")
+        // Every occurrence goes, not just the first. "7:30 Wasser und 18 Uhr Yoga"
+        // is one sentence with two times in it, and leaving the second behind
+        // puts it in the name where it reads as part of the thing. Working
+        // backwards keeps the ranges from the untouched text valid as the string
+        // shrinks. The first one is the time; there is only one time on a habit.
+        var name = text
+        for match in matches.reversed() {
+            guard let r = Range(match.range, in: text) else { continue }
+            name = name.replacingCharacters(in: r, with: " ")
+        }
+        name = name
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (name.isEmpty ? text : name, hours * 60 + minutes)
+    }
+
+    /// A name with no clock time left in it, whatever produced it.
+    ///
+    /// The prompt asks the model for a name with no time in it and it mostly
+    /// complies. When it does not, the time is something we can find without the
+    /// model, so it is taken back out deterministically instead of being left
+    /// sitting in a list row.
+    static func cleanedName(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let withoutTime = stripTime(from: trimmed).name
+        // A name that was nothing but a time is not a name; the caller falls back
+        // to the whole sentence rather than saving an empty row.
+        return withoutTime.isEmpty ? trimmed : withoutTime
     }
 
     private static func matched(_ text: String, _ range: Range<String.Index>) -> String {
@@ -453,8 +497,12 @@ struct CreateItemDraft: Equatable, Sendable {
             return CreateItemDraft(name: stripped.name, emoji: "", minutes: stripped.minutes)
         }
         // The deterministic time wins over the model's: a clock time in the
-        // sentence is a fact, and the model is the part that can be wrong.
-        return CreateItemDraft(name: parsed.name.isEmpty ? stripped.name : parsed.name,
+        // sentence is a fact, and the model is the part that can be wrong. The
+        // name gets the same treatment — a time that survived into it is taken
+        // back out rather than saved, because "Wasser trinken um 7" is not a
+        // name, and the time is already a field of its own.
+        return CreateItemDraft(name: CreateItemDraft.cleanedName(
+                                    parsed.name.isEmpty ? stripped.name : parsed.name),
                                emoji: parsed.emoji,
                                minutes: stripped.minutes ?? parsed.minutes,
                                isReminder: parsed.isReminder,
