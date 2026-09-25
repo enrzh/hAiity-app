@@ -1060,12 +1060,50 @@ enum Theme {
         /// Innenabstand der Rasterfläche.
         static let cardPadding: CGFloat = 12
         /// Eckradius der Rasterfläche.
-        static let cardRadius: CGFloat = 16
+        static let cardRadius: CGFloat = CornerRadius.card
         /// Kästchen JEDES Chrom-Symbols. Gleich groß, damit die Mittelpunkte
         /// auf einer Linie sitzen; die Punktgrößen darin sind optisch
         /// abgeglichen (siehe ContentView.glyph).
         static let glyph: CGFloat = 32
     }
+}
+
+/// Eckradien als benannte Stufen.
+///
+/// Die View-Schicht hatte 44 Stellen mit **dreizehn** verschiedenen Zahlen als
+/// Literal — 2, 3, 5, 6, 7, 8, 9, 10, 11, 14, 16, 18, 20 — und nichts sagte,
+/// welche davon Absicht war und welche davon beim Bauen entstanden sind. Zwei
+/// gleich große Flächen mit 9 und 10 daneben lesen sich als Zufall, und bei
+/// dreizehn Stufen ist der Radius das erste, was beim Umstellen auffällt.
+///
+/// Benannte Stufen machen die Absicht sichtbar, und `RadiusScaleTests` verbietet
+/// die nächste frei erfundene Zahl. Für winzige Flächen, die eher einem Punkt
+/// als einer Ecke entsprechen, gibt es `Theme.radius`.
+///
+/// Die Stufen sind nicht neu erfunden, sondern die, die im App bereits vorkamen —
+/// aufgerundet auf die nächstgelegene Stufe, damit benachbarte Flächen wirklich
+/// dieselbe Kante bekommen.
+enum CornerRadius {
+    /// Winzige Flächen, die eher einem Punkt als einer Ecke entsprechen: ein
+    /// Zähler, ein Punkt auf einer Linie. Eigene Stufe statt `GridCell.radius`,
+    /// denn dessen Token gehört einem anderen Bauteil.
+    static let pixel: CGFloat = 3
+    /// Kleinstes Raster: Farbfelder, Kacheln.
+    static let tile: CGFloat = 5
+    /// Icons, Chips, Zähler, kleine Karten.
+    static let chip: CGFloat = 8
+    /// Schalter, Regler, Auswahlkacheln.
+    static let control: CGFloat = 10
+    /// Mittlere Flächen: Kacheln, Innenflächen.
+    static let panel: CGFloat = 14
+    /// Die Standardkarte. `Theme.Metrics.cardRadius` zeigt hierher.
+    static let card: CGFloat = 16
+    /// Größte Fläche: Hero, Vollbildkarte.
+    static let hero: CGFloat = 20
+
+    /// Jede Stufe, die im App vorkommen darf. Der Test liest diese Liste, damit
+    /// eine neue Stufe nicht hinzugefügt wird, ohne dass jemand sie hier einträgt.
+    static let scale: [CGFloat] = [pixel, tile, chip, control, panel, card, hero]
 }
 
 /// Shared contribution tile geometry used by the app graph, GitHub graph,

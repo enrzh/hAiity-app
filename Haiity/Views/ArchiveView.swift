@@ -78,7 +78,7 @@ struct ArchiveView: View {
                     .foregroundStyle(Theme.accentText(palettes.style))
                     .frame(width: 48, height: 48)
                     .background(Theme.accentText(palettes.style).opacity(0.13),
-                                in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous))
 
                 Text(String(localized: "Archivierte Habits"))
                     .font(.headline.weight(.semibold))

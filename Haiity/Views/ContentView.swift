@@ -2903,7 +2903,7 @@ struct ContentView: View {
                 // Die Kachel des Kontrollzentrums zeichnet das System; hier
                 // steht nur eine Fläche, die dem Schema folgt — sonst läge
                 // schwarze Schrift auf schwarzem Grund.
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous)
                     .fill(Color(.secondarySystemBackground))
                     .padding(4)
             }

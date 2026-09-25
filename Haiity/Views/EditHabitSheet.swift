@@ -436,7 +436,7 @@ struct EditHabitSheet: View {
                     if itemType == .habit {
                         HStack(spacing: 4) {
                             ForEach(0..<5, id: \.self) { level in
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
                                     .fill(Theme.level(level,
                                                       dark: scheme == .dark,
                                                       palette: previewStyle))

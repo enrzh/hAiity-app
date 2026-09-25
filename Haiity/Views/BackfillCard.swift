@@ -382,13 +382,13 @@ struct BackfillCard: View {
                 day = key
             } label: {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                         .fill(fill)
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                             .fill(selectionAccent.opacity(scheme == .dark ? 0.32 : 0.16))
                             .overlay {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                                     .strokeBorder(selectionAccent, lineWidth: 2.5)
                                     .padding(1)
                             }
@@ -412,7 +412,7 @@ struct BackfillCard: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                             .strokeBorder(Color.primary.opacity(scheme == .dark ? 0.85 : 0.7), lineWidth: 0.8)
                             .padding(4)
                     }

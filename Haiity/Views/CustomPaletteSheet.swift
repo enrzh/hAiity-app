@@ -106,7 +106,7 @@ struct CustomPaletteSheet: View {
                 .environment(\.colorScheme, dark ? .dark : .light)
                 .padding(8)
                 .background(Theme.color(PaletteGenerator.cardHex(dark: dark)),
-                            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)

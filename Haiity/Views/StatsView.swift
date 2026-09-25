@@ -620,7 +620,7 @@ struct StatsView: View {
                     .foregroundStyle(statsMetricColor(card, snapshot: snapshot))
                     .frame(width: 28, height: 28)
                     .background(Color.primary.opacity(0.1),
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                     Spacer(minLength: 0)
             }
             Text(statsMetricValue(card, snapshot: snapshot))
@@ -794,7 +794,7 @@ struct StatsView: View {
             Text(habit.emoji.isEmpty ? "-" : habit.emoji)
                 .font(.title3)
                 .frame(width: 32, height: 32)
-                .background(Theme.accent(style).opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Theme.accent(style).opacity(0.12), in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(habit.name)
                     .font(.subheadline.weight(.semibold))
@@ -884,7 +884,7 @@ struct StatsView: View {
                     .foregroundStyle(accent)
                     .frame(width: 36, height: 36)
                     .background(Theme.accent(palettes.style).opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(String(localized: "Je Habit im Detail"))
                         .font(.subheadline.weight(.semibold))

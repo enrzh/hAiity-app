@@ -43,11 +43,11 @@ struct HueTileGrid: View {
             onPick(hex)
             Theme.Haptics.select()
         } label: {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.tile, style: .continuous)
                 .fill(Theme.color(hex))
                 .aspectRatio(1, contentMode: .fit)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: CornerRadius.tile, style: .continuous)
                         .strokeBorder(.primary.opacity(isSelected ? 0.9 : 0),
                                       lineWidth: 2)
                 )

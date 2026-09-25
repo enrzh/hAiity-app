@@ -69,7 +69,7 @@ private struct AppearanceStylePreview: View {
                 Spacer(minLength: Theme.Metrics.gap)
                 HStack(spacing: 4) {
                     ForEach(0..<5, id: \.self) { level in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
                             .fill(Theme.level(level,
                                               dark: colorScheme == .dark))
                             .frame(width: 16, height: 16)
@@ -81,9 +81,9 @@ private struct AppearanceStylePreview: View {
             .environment(\.appearancePreferences, previewPreferences)
         }
         .frame(height: 112)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
         }
         .accessibilityElement(children: .ignore)
@@ -134,9 +134,9 @@ private struct MaterialOptionCard: View {
                 sampleSurface
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                             .strokeBorder(isSelected
                                           ? Color.accentColor.opacity(0.9)
                                           : Color.primary.opacity(0.10),
@@ -158,9 +158,9 @@ private struct MaterialOptionCard: View {
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.primary.opacity(isSelected ? 0.075 : 0.025),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
                     .strokeBorder(isSelected
                                   ? Color.accentColor.opacity(0.35)
                                   : Color.primary.opacity(0.06),
@@ -178,7 +178,7 @@ private struct MaterialOptionCard: View {
             ForEach(Array(Self.rampPattern.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 3) {
                     ForEach(row, id: \.self) { level in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
                             .fill(Theme.level(level, dark: colorScheme == .dark))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -189,9 +189,9 @@ private struct MaterialOptionCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.appearancePreferences, preferences.withMaterial(material))
         .background(Color(.secondarySystemBackground),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    in: RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
                 .fill(Color.accentColor.opacity(material == .solid ? 0.035 : 0.06))
                 .allowsHitTesting(false)
         }

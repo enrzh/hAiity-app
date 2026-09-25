@@ -242,7 +242,13 @@ enum RecurrenceText {
 
     /// Wochentage in der Reihenfolge des Nutzerkalenders, mit „und" verbunden.
     static func weekdayList(_ weekdays: Set<Int>, calendar: Calendar = .current) -> String {
-        let names = ordered(weekdays, calendar: calendar).map { weekdayName($0, calendar: calendar) }
+        // `calendar.weekdaySymbols` baut bei JEDEM Zugriff ein frisches Array aus
+        // acht lokalisierten Namen. Ein Name pro Wochentag zu holen hieß also,
+        // siebenmal dasselbe zu holen — pro Habit, pro Render. Einmal geholt und
+        // indiziert; `weekdayName` reicht seine Liste an die gemeinsame Helferin
+        // weiter, damit beide Wege identisch bleiben.
+        let symbols = calendar.weekdaySymbols
+        let names = ordered(weekdays, calendar: calendar).map { name(of: $0, from: symbols) }
         guard names.count > 1 else { return names.first ?? "" }
         let formatter = ListFormatter()
         formatter.locale = calendar.locale ?? .current
@@ -259,10 +265,13 @@ enum RecurrenceText {
         (weekday - calendar.firstWeekday + 7) % 7
     }
 
-    static func weekdayName(_ weekday: Int, calendar: Calendar = .current) -> String {
-        let symbols = calendar.weekdaySymbols
+    private static func name(of weekday: Int, from symbols: [String]) -> String {
         guard weekday >= 1, weekday <= symbols.count else { return "" }
         return symbols[weekday - 1]
+    }
+
+    static func weekdayName(_ weekday: Int, calendar: Calendar = .current) -> String {
+        name(of: weekday, from: calendar.weekdaySymbols)
     }
 
     static func shortWeekdayName(_ weekday: Int, calendar: Calendar = .current) -> String {

@@ -368,7 +368,7 @@ struct GitHubContributionGraph: View, Equatable {
         let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
         let surfaceInset = interactive ? 8 : 0
         let labelHeight = showsMonthLabels ? 16 : 0
-        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+        return RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
             .fill(Color.primary.opacity(0.06))
             .frame(width: max(width, 1),
                    height: tileHeight + CGFloat(surfaceInset) + CGFloat(labelHeight))

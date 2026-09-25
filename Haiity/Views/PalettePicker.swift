@@ -70,9 +70,9 @@ struct PalettePicker: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(Color(.tertiarySystemFill),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
                     .strokeBorder(selected ? Theme.accentText(style) : .clear, lineWidth: 2)
             }
         }

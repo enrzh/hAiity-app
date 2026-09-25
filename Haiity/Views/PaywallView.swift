@@ -238,7 +238,7 @@ struct PaywallView: View {
             .foregroundStyle(accent)
             .frame(width: 36, height: 36)
             .background(Theme.accent(palettes.style).opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
     }
 
     // MARK: – Fuß

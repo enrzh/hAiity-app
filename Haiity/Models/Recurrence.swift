@@ -125,6 +125,36 @@ struct Recurrence: Equatable {
     /// verdrahtet, damit sie wenigstens reproduzierbar ist.
     static let fallbackAnchorDay = "2000-01-03"   // ein Montag
 
+    /// Die Teile des Ankers, EINMAL zerlegt.
+    ///
+    /// `Schedule` braucht für jede Regel ohne Start einen Anker, und der ist
+    /// immer derselbe. Ihn über `DayKey.date(from:)` zu holen heißt: den String
+    /// zerlegen, ein Datum bauen und es zum Rundenprobieren wieder formatieren —
+    /// bei JEDER Schedule-Frage, also mehrfach pro Habit und View-Body. Gemessen
+    /// waren das 0,0059 von 0,0063 ms, also rund 95 % des Aufbaus. Die Zerlegung
+    /// passiert hier einmal; pro Kalender bleibt nur noch `Calendar.date(from:)`.
+    ///
+    /// Bewusst kein Cache mit Lock: die Teile sind konstant, ein `static let`
+    /// ist in Swift thread-sicher und braucht keinen `Mutex` — den gäbe es vor
+    /// iOS 18 auch gar nicht.
+    private static let fallbackAnchorComponents: DateComponents? = {
+        guard let parts = DayKey.components(fallbackAnchorDay) else { return nil }
+        var components = DateComponents()
+        components.year = parts.year
+        components.month = parts.month
+        components.day = parts.day
+        return components
+    }()
+
+    /// Mitternacht des Ankers in diesem Kalender.
+    static func fallbackAnchorDate(calendar: Calendar) -> Date {
+        guard let parts = fallbackAnchorComponents,
+              let date = calendar.date(from: parts) else {
+            return Date(timeIntervalSince1970: 0)
+        }
+        return date
+    }
+
     init(frequency: Frequency = .daily,
          interval: Int = 1,
          weekdays: Set<Int> = [],
@@ -321,9 +351,7 @@ extension Recurrence {
             self.recurrence = recurrence
             self.calendar = calendar
             self.startDate = start
-            self.anchor = start
-                ?? DayKey.date(from: Recurrence.fallbackAnchorDay, calendar: calendar)
-                ?? Date(timeIntervalSince1970: 0)
+            self.anchor = start ?? Recurrence.fallbackAnchorDate(calendar: calendar)
             self.lastDay = lastDay
         }
 

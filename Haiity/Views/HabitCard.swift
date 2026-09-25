@@ -430,7 +430,7 @@ struct HabitCard: View, Equatable {
                         .font(.title3)
                         .frame(width: 32, height: 32)
                         .background(Theme.accent(habitStyle).opacity(0.14),
-                                    in: RoundedRectangle(cornerRadius: 9,
+                                    in: RoundedRectangle(cornerRadius: CornerRadius.chip,
                                                          style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 2) {

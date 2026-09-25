@@ -61,7 +61,7 @@ struct ShareCardView: View {
             ForEach(Array(snapshot.keys.enumerated()), id: \.offset) { wi, column in
                 VStack(spacing: gap) {
                     ForEach(0..<GridCalendar.rows, id: \.self) { r in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
                             .fill(Theme.level(snapshot.levels[wi][r],
                                               dark: scheme == .dark,
                                               palette: palette))

@@ -77,7 +77,7 @@ private struct BackgroundCropSheet: View {
                             .overlay(Color.black.opacity(0.16))
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous))
                             .contentShape(Rectangle())
                             .simultaneousGesture(MagnificationGesture().onChanged { value in
                                 zoom = CGFloat(BackgroundImagePlacement.clampedZoom(Double(zoomOrigin * value)))
@@ -653,7 +653,7 @@ struct MoreView: View {
                     .foregroundStyle(Theme.accentText(palettes.style))
                     .frame(width: 32, height: 32)
                     .background(Theme.accentFill(palettes.style).opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(cloudStatus.state.title)
                         .font(.subheadline.weight(.semibold))
@@ -1002,7 +1002,7 @@ struct MoreView: View {
                 .frame(width: 34, height: 34)
                 .background(highlighted ? AnyShapeStyle(Theme.accentFill(palettes.style))
                                         : AnyShapeStyle(Color.secondary),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: "hAiity Pro")
                     .font(.body.weight(.semibold))
@@ -1464,7 +1464,7 @@ struct MoreView: View {
         .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
         .frame(maxWidth: .infinity)
         .frame(height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
         .accessibilityIdentifier("apple-signin")
     }
 
@@ -1945,9 +1945,9 @@ struct MoreView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 82)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
         }
         .allowsHitTesting(false)
@@ -2026,9 +2026,9 @@ struct MoreView: View {
                 }
                     .frame(maxWidth: .infinity)
                     .frame(height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
                             .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                     }
                     .contentShape(Rectangle())
@@ -2135,9 +2135,9 @@ struct MoreView: View {
                 // das Icon-Motiv nach — dunkle Kachel, Raster in der Rampe.
                 iconThumbnail(style: style)
                     .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
                             .strokeBorder(selected ? Theme.accentFill(palettes.style)
                                                    : Color.secondary.opacity(0.25),
                                           lineWidth: selected ? 2.5 : 1))
@@ -2168,7 +2168,7 @@ struct MoreView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 iconThumbnail(style: AppIcons.style(forIconName: snappedFreeIconName))
                     .frame(width: 30, height: 30)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                     .accessibilityHidden(true)
             }
             freeIconColorAction
@@ -2219,7 +2219,7 @@ struct MoreView: View {
                 ForEach(0..<2, id: \.self) { row in
                     HStack(spacing: 3) {
                         ForEach(0..<2, id: \.self) { col in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
                                 .fill(Theme.level([2, 4, 3, 1][row * 2 + col],
                                                   dark: true, palette: style))
                                 .frame(width: 14, height: 14)
@@ -2753,7 +2753,7 @@ struct MoreView: View {
                    height: Theme.Metrics.glyph)
             .background(
                 Theme.accentText(palettes.style).opacity(0.12),
-                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
             .accessibilityHidden(true)
     }
 
@@ -3148,7 +3148,7 @@ struct AboutView: View {
                     .foregroundStyle(.white)
                     .frame(width: 54, height: 54)
                     .background(Theme.accentFill(palettes.style),
-                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: CornerRadius.card, style: .continuous))
                 Spacer(minLength: 0)
                 Image(systemName: "checkmark.seal")
                     .font(.title3)
