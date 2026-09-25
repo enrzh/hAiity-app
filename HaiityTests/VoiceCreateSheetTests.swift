@@ -333,6 +333,44 @@ final class VoiceCreateSheetTests: XCTestCase {
                        "one prominent action per view; this one stays secondary")
     }
 
+    /// The draft belongs at the full height only.
+    ///
+    /// It used to appear at half as well, and that is what produced the reported
+    /// bug: the sheet is for listening at half, the draft card does not fit there,
+    /// and arriving scrolled the waveform and the sentence up under a transparent
+    /// navigation bar — so the words being spoken showed through "Abbrechen" and
+    /// the title while someone was still talking.
+    func testTheDraftOnlyExistsOnTheFullPage() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("if let draft, detent == .large {"),
+                      "the draft card must wait for the full page")
+        XCTAssertFalse(sheet.contains("if let draft {"),
+                       "an ungated draft is the bug this replaces")
+    }
+
+    /// And the scroll that keeps the card clear of the dock waits for the same
+    /// moment, so it can never move the listening surface out of view.
+    func testScrollingToTheDraftWaitsForTheFullPage() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+
+        // Both things that can change the answer are watched, because neither
+        // alone is sufficient: expanding happens when the field is focused, which
+        // is before a word is typed, and the draft arrives after that.
+        XCTAssertTrue(sheet.contains(".onChange(of: detent)"),
+                      "the height has to be watched, or the scroll never runs")
+        XCTAssertTrue(sheet.contains(".onChange(of: draft != nil)"),
+                      "so does the draft arriving, or it scrolls against nothing")
+
+        let helper = try XCTUnwrap(sheet.range(of: "private func scrollDraftIntoView"))
+        let body = sheet[helper.upperBound...].prefix(400)
+        XCTAssertTrue(body.contains("detent == .large"),
+                      "half is the listening surface; scrolling there is the bug")
+        XCTAssertTrue(body.contains("draft != nil"),
+                      "and there is nothing to bring into view without one")
+        XCTAssertFalse(sheet.contains(".onChange(of: draft != nil) { _, hasDraft in"),
+                       "the scroll must go through the guard, not around it")
+    }
+
     private func sourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

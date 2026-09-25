@@ -74,7 +74,16 @@ struct SpeakToCreateSheet: View {
                 VStack(spacing: Theme.Metrics.settingsSectionGap) {
                     waveformPanel
                     transcriptField
-                    if let draft {
+                    // The draft only exists at the full height.
+                    //
+                    // It used to appear at half too, which is where the trouble
+                    // started: the sheet is for LISTENING at half, the draft card
+                    // does not fit, and arriving there scrolled the content up
+                    // under a transparent navigation bar — so the sentence being
+                    // spoken showed through "Abbrechen" and the title while
+                    // someone was still talking. Half is the waveform and the
+                    // sentence; the full page is where the reading gets reviewed.
+                    if let draft, detent == .large {
                         draftPreview(draft)
                     }
                 }
@@ -107,18 +116,15 @@ struct SpeakToCreateSheet: View {
             .presentationDragIndicator(.visible)
             .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
             .presentationCornerRadius(CornerRadius.hero)
-            // The dock floats, so content passes under it — that is what a
-            // floating bar does. The problem is the resting position: the draft
-            // card arrived at the bottom of the viewport and sat half-sliced by
-            // the dock, which reads as a fault rather than as depth. Scrolling to
-            // the end when the draft appears puts the thing that matters above
-            // the bar, and scrolling still moves content under it after that.
-            .onChange(of: draft != nil) { _, hasDraft in
-                guard hasDraft else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    proxy.scrollTo("speak-content", anchor: .bottom)
-                }
-            }
+            // Only once the sheet is at the full height AND there is a draft.
+            // Both have to be watched: expanding happens when the field is
+            // focused, which is before a single word has been typed, so listening
+            // to the height alone fired the scroll against a nil draft and never
+            // ran. And watching the draft alone was the original bug — it scrolled
+            // the listening surface out of view and up under the bar.
+            .onChange(of: detent) { _, _ in scrollDraftIntoView(proxy) }
+            .onChange(of: draft != nil) { _, _ in scrollDraftIntoView(proxy) }
+            .onChange(of: text) { _, _ in scrollDraftIntoView(proxy) }
             }
         }
         .onAppear { startListening() }
@@ -499,6 +505,21 @@ struct SpeakToCreateSheet: View {
     /// the primary action here, so the sheet opens ready to listen and the
     /// keyboard arrives when someone actually taps the text.
     private func startListening() {}
+
+    /// The dock floats, so content passes under it by design — what must not
+    /// happen is the draft coming to rest half-sliced by it.
+    ///
+    /// Both conditions are required. The full height, because half is the
+    /// listening surface and scrolling there moved the waveform and the sentence
+    /// out of view. And a draft, because watching only the height fired the scroll
+    /// against a nil draft — expanding happens when the field is focused, which is
+    /// before a word has been typed — so nothing moved at all.
+    private func scrollDraftIntoView(_ proxy: ScrollViewProxy) {
+        guard detent == .large, draft != nil else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            proxy.scrollTo("speak-content", anchor: .bottom)
+        }
+    }
 
     /// Give the sheet its full height once there is a sentence to work on.
     ///
