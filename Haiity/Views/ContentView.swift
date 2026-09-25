@@ -550,26 +550,32 @@ struct ContentView: View {
     /// create page is up: a floating control over a modal is a tap target with
     /// nothing behind it.
     @ViewBuilder
+    /// The on-device writing entry point, on the same glass as the rest of the
+    /// floating chrome.
+    ///
+    /// It was a microphone, which said "record a voice note" and understated what
+    /// this actually is: a sentence that becomes a habit, worked out on the
+    /// device. A sparkle says that, and it is distinct from the microphone inside
+    /// the sheet and from the keyboard's own dictation key, so the three never get
+    /// confused for each other.
     private var speakButton: some View {
         if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback {
             Button {
                 showSpeakToCreate = true
                 Theme.Haptics.select()
             } label: {
-                Image(systemName: "mic.fill")
+                Image(systemName: "sparkles")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
                     .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
-                    .background(.thinMaterial, in: Circle())
-                    // Secondary, not a second primary.
-                    //
-                    // Two accent-filled circles in one column compete for the
-                    // same glance, and the control underneath is the system's
-                    // own search — the app's primary global action. A thinner
-                    // stroke, a lighter fill and no drop shadow put the mic in
-                    // the same column while leaving search the louder of the
-                    // two, which is what "one prominent action per view" asks
-                    // for.
+                    .modifier(ChromeGlass(id: "speak-button",
+                                          namespace: glassNamespace,
+                                          kind: .circle,
+                                          accent: effectivePaletteStyle,
+                                          union: "speak-button"))
+                    // Secondary, not a second primary. The create action in the
+                    // toolbar is the app's primary global action, so this carries
+                    // no drop shadow — the edge and the material say where it is.
                     .overlay(Circle().strokeBorder(
                         Theme.accentText(effectivePaletteStyle).opacity(0.14),
                         lineWidth: 0.5))

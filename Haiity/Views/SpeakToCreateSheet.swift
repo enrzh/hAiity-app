@@ -30,6 +30,9 @@ struct SpeakToCreateSheet: View {
     @State private var readDraft: CreateItemDraft?
     @State private var readFrom = ""
     @State private var isReading = false
+    /// Half a page while there is nothing to decide, the full page once the
+    /// sentence is in and the draft has to be looked at.
+    @State private var detent: PresentationDetent = .fraction(0.5)
     @FocusState private var fieldFocused: Bool
     /// The waveform's trail. Sampled here rather than in the recogniser so it
     /// stops the instant the sheet goes away.
@@ -91,9 +94,30 @@ struct SpeakToCreateSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { dock }
+            // Half a page to begin with, and the full page when there is something
+            // to look at. A grabber is there so it can also be dragged by hand,
+            // and the page behind stays live at the short detent — which is the
+            // point of a half sheet: you can see what you are adding to.
+            .presentationDetents([.fraction(0.5), .large], selection: $detent)
+            .presentationDragIndicator(.visible)
+            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
+            .presentationCornerRadius(CornerRadius.hero)
         }
         .onAppear { startListening() }
         .onDisappear { stopEverything() }
+        // Dictation finished with something in the field: grow the sheet, because
+        // the next decision — name, symbol, repeat — cannot be made in half a page.
+        .onChange(of: dictation.state) { old, new in
+            guard case .listening = old, !dictation.state.isListening else { return }
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                expandForReview()
+            }
+            _ = new
+        }
+        // Tapping the text is a request to edit, which also needs the room.
+        .onChange(of: fieldFocused) { _, focused in
+            if focused { expandForReview() }
+        }
         .onChange(of: dictation.transcript) { _, spoken in
             // The recogniser owns the text while it is running. Without this the
             // recognised words landed in `SpeechDictation.transcript` and never
@@ -321,43 +345,33 @@ struct SpeakToCreateSheet: View {
         ChromeLayout.nativeTabBarClearance + Theme.Metrics.control + Theme.Metrics.gap * 2
     }
 
-    /// The sheet's one piece of glass.
+    /// The sheet's one piece of glass: a single bar, not two floating pills.
     ///
-    /// Liquid Glass belongs to the floating functional layer, never to content —
-    /// so the waveform panel, the text field and the draft stay ordinary opaque
-    /// surfaces, and the glass is spent on the two controls that actually float
-    /// above the scroll. Both live in one `GlassEffectContainer` and share a
-    /// `glassEffectUnion`, so iOS draws them as ONE shape that morphs rather than
-    /// as two panes of blur sitting next to each other. Glass stacked on glass is
-    /// the exact thing the material exists to avoid.
+    /// The first attempt put a glass circle and a glass capsule in an HStack and
+    /// asked a `glassEffectUnion` to merge them. It does not work: a union joins
+    /// shapes that are already touching, and these had a gap between them, so the
+    /// result was two distant circles floating over the wallpaper with no dock
+    /// around them. One bar is also the correct reading of the material — a
+    /// bottom action bar is a functional-layer element, and the glass is on the
+    /// bar, not on the two controls inside it. Glass on glass is what the material
+    /// exists to avoid, so nothing inside here is glass.
     private var dock: some View {
-        Group {
-            if #available(iOS 26, *) {
-                GlassEffectContainer(spacing: Theme.Metrics.gap) { dockRow }
-            } else {
-                dockRow
-            }
-        }
-        .padding(.horizontal, Theme.Metrics.gutter)
-        .padding(.bottom, Theme.Metrics.gap)
-        // A whisper of a background so the glass has something to sample. Fully
-        // clear, because a real fill here would turn the dock into a second card.
-        .background(Color(.systemBackground).opacity(0.001))
-    }
-
-    private var dockRow: some View {
         HStack(spacing: Theme.Metrics.gap) {
             micControl
             createControl
         }
+        .padding(Theme.Metrics.gap)
+        .frame(maxWidth: .infinity)
+        .modifier(ChromeGlass(id: "speak-dock",
+                              namespace: glassNamespace,
+                              kind: .bar,
+                              union: dockUnion))
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .padding(.bottom, Theme.Metrics.gap)
     }
 
-    /// The microphone, out of the waveform panel and down into the dock.
-    ///
-    /// It was a button living inside a content card, which is the one place the
-    /// material must not go. Here it is a control that floats over the content,
-    /// within thumb reach of the primary action beside it. Neutral glass while
-    /// idle, so the one coloured control in the sheet stays the one people mean.
+    /// The microphone. A solid circle inside the glass, accent only while it is
+    /// actually listening — so the colour means something rather than decorating.
     private var micControl: some View {
         Button {
             toggleListening()
@@ -366,11 +380,13 @@ struct SpeakToCreateSheet: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(dictation.state.isListening ? Color.white : accent)
                 .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
+                .background(
+                    dictation.state.isListening
+                        ? AnyShapeStyle(Theme.accentFill(palettes.style))
+                        : AnyShapeStyle(Color(.tertiarySystemFill)),
+                    in: Circle()
+                )
                 .contentShape(Circle())
-                .modifier(ChromeGlass(id: "speak-dock-mic",
-                                      namespace: glassNamespace,
-                                      kind: .circle,
-                                      union: dockUnion))
         }
         .buttonStyle(.plain)
         .disabled(!canToggleListening)
@@ -381,8 +397,8 @@ struct SpeakToCreateSheet: View {
         .accessibilityIdentifier("speak-to-create-toggle")
     }
 
-    /// The primary action, tinted rather than plain glass — colour on the
-    /// background is how the system marks the action someone most likely wants.
+    /// The primary action, and the one coloured control in the sheet. A filled
+    /// capsule rather than glass, so it reads as the action against the bar.
     private var createControl: some View {
         Button {
             Task { await create() }
@@ -396,21 +412,16 @@ struct SpeakToCreateSheet: View {
                     .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.control)
-            .contentShape(Rectangle())
-            .modifier(ChromeGlass(id: "speak-dock-create",
-                                  namespace: glassNamespace,
-                                  kind: .capsule,
-                                  accent: palettes.style,
-                                  union: dockUnion))
+            .background(Theme.accentFill(palettes.style), in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .disabled(draft == nil || isWorking || didCreate)
-        .opacity(draft == nil ? 0.5 : 1)
+        .opacity(draft == nil ? 0.45 : 1)
         .accessibilityIdentifier("speak-to-create-confirm")
     }
 
-    /// One identifier for both shapes. That is what tells iOS they are a single
-    /// surface rather than two.
+    /// One identifier for the bar. Nothing else in the sheet claims glass.
     private var dockUnion: String { "speak-dock" }
 
     /// Ask the model what the sentence means, once, because the person pressed
@@ -455,12 +466,23 @@ struct SpeakToCreateSheet: View {
 
     // MARK: - Lifecycle
 
-    /// Opening the sheet focuses the field and leaves the microphone closed.
-    /// Auto-starting would put a permission prompt in front of someone who
-    /// opened the sheet to type, and the button would then be a stop button
-    /// nobody asked for.
-    private func startListening() {
-        fieldFocused = true
+    /// Opening the sheet leaves the microphone closed and the keyboard down.
+    ///
+    /// It used to focus the field on appear. Against a half-height sheet that is
+    /// self-defeating: the keyboard took two thirds of what was left, so the
+    /// waveform, the field and the dock were all crushed into a strip. The mic is
+    /// the primary action here, so the sheet opens ready to listen and the
+    /// keyboard arrives when someone actually taps the text.
+    private func startListening() {}
+
+    /// Give the sheet its full height once there is a sentence to work on.
+    ///
+    /// Called when dictation finishes and when the field is focused. A half sheet
+    /// is right for listening and wrong for deciding what a sentence became, so
+    /// the sheet grows the moment that changes.
+    private func expandForReview() {
+        guard detent != .large else { return }
+        detent = .large
     }
 
     private func stopEverything() {

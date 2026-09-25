@@ -145,24 +145,49 @@ final class VoiceCreateSheetTests: XCTestCase {
             XCTAssertFalse(body.contains("glassEffect"),
                            "\(name) is content, and content must not carry glass")
         }
-        // And the glass that IS there sits on the two floating controls.
-        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock-mic\""))
-        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock-create\""))
+        // And the glass that IS there sits on one bar, once.
+        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock\""),
+                      "the dock's glass belongs on the bar")
+        XCTAssertEqual(sheet.components(separatedBy: "ChromeGlass(id:").count - 1, 1,
+                       "the sheet carries exactly one glass surface")
     }
 
-    /// Two glass shapes in one container sharing a union is what makes iOS draw
-    /// one surface instead of two panes of blur side by side.
-    func testTheDockIsOneSurfaceNotTwo() throws {
+    /// ONE glass bar, not two shapes hoping to merge.
+    ///
+    /// The first attempt put a glass circle and a glass capsule in an HStack and
+    /// asked a `glassEffectUnion` to merge them. On the device that produced two
+    /// distant circles floating over the wallpaper with no dock around them: a
+    /// union joins shapes that are already touching, and these had a gap between
+    /// them. One bar is also the right reading of the material — the glass is on
+    /// the bar, and nothing inside it is glass.
+    func testTheDockIsOneGlassBar() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
-        XCTAssertTrue(sheet.contains("GlassEffectContainer"),
-                      "the dock's glass needs a shared container to merge in")
-        XCTAssertTrue(sheet.contains("union: dockUnion"),
-                      "both shapes must join the same union")
-        XCTAssertTrue(sheet.contains("private var dockUnion: String { \"speak-dock\" }"),
-                      "the union has to be a single named identity")
-        // One identifier each, so the two cannot be confused.
-        XCTAssertTrue(sheet.contains("\"speak-dock-mic\""))
-        XCTAssertTrue(sheet.contains("\"speak-dock-create\""))
+        XCTAssertTrue(sheet.contains("kind: .bar"),
+                      "the dock is a single bar; two pills do not read as a dock")
+        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock\""),
+                      "and the bar is the one thing carrying the glass")
+        // No glass on the controls inside the bar, or it is glass on glass.
+        let mic = try XCTUnwrap(sheet.range(of: "private var micControl"))
+        let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
+        XCTAssertFalse(sheet[mic.upperBound..<create.lowerBound].contains("ChromeGlass"),
+                       "the microphone sits ON the glass, not in another layer of it")
+        XCTAssertFalse(sheet[create.upperBound...].prefix(700).contains("ChromeGlass"),
+                       "the create action sits ON the glass, not in another layer of it")
+    }
+
+    /// The controls need real surfaces of their own. The screenshot showed a
+    /// bare glyph and a washed-out blob, which is what you get when a control
+    /// relies on the bar behind it for its own contrast.
+    func testBothDockControlsHaveTheirOwnVisibleSurface() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        let mic = try XCTUnwrap(sheet.range(of: "private var micControl"))
+        let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
+        let end = try XCTUnwrap(sheet.range(of: "private var dockUnion"))
+
+        XCTAssertTrue(sheet[mic.upperBound..<create.lowerBound].contains("in: Circle()"),
+                      "the microphone needs its own filled circle")
+        XCTAssertTrue(sheet[create.upperBound..<end.lowerBound].contains("in: Capsule()"),
+                      "the create action needs its own filled capsule")
     }
 
     /// The dock has to float, not sit in the scroll. A `safeAreaInset` is what
@@ -201,19 +226,24 @@ final class VoiceCreateSheetTests: XCTestCase {
                        "the content panel should no longer host a control")
     }
 
-    /// Glass on both sides of the same dock is a hierarchy problem, so the
-    /// microphone stays neutral and only the primary action is tinted.
-    func testOnlyThePrimaryActionIsTinted() throws {
+    /// The bar is glass, so nothing on it may also be glass, and only the primary
+    /// action is coloured. The microphone is the one exception and it earns it: its
+    /// fill is accent only while it is actually listening, so the colour reports
+    /// state instead of decorating.
+    func testOnlyThePrimaryActionIsColouredAtRest() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
         let mic = try XCTUnwrap(sheet.range(of: "private var micControl"))
-        let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
-        let micBody = String(sheet[mic.upperBound..<create.lowerBound])
+        let micBody = sheet[mic.upperBound...].prefix(700)
 
-        XCTAssertFalse(micBody.contains("accent: palettes.style"),
-                       "the microphone stays neutral glass; one tinted control is enough")
-        let createBody = String(sheet[create.upperBound...].prefix(900))
-        XCTAssertTrue(createBody.contains("accent: palettes.style"),
-                      "the primary action is the one that gets the colour")
+        XCTAssertTrue(micBody.contains("dictation.state.isListening"),
+                      "the microphone's colour has to depend on whether it is listening")
+        XCTAssertTrue(micBody.contains("Color(.tertiarySystemFill)"),
+                      "and it sits neutral when idle, not accent all the time")
+
+        let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
+        XCTAssertTrue(sheet[create.upperBound...].prefix(700)
+            .contains("Theme.accentFill(palettes.style)"),
+                      "the primary action is the one that is always coloured")
     }
 
     /// The glass component was private to ContentView, so the sheet could not
@@ -228,6 +258,75 @@ final class VoiceCreateSheetTests: XCTestCase {
                        "the copy in ContentView is gone")
         XCTAssertTrue(content.contains("ChromeGlass("),
                       "and the hub still uses the shared one")
+    }
+
+    /// Half a page to begin with, the full page once there is a sentence to look
+    /// at. A half sheet is right for listening and wrong for deciding what a
+    /// sentence became.
+    func testTheSheetOpensAtHalfAndGrowsWhenThereIsSomethingToReview() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("@State private var detent: PresentationDetent = .fraction(0.5)"),
+                      "the sheet must open at half a page, not full")
+        XCTAssertTrue(sheet.contains("presentationDetents([.fraction(0.5), .large], selection: $detent)"),
+                      "both heights have to be offered, with the selection bound")
+        XCTAssertTrue(sheet.contains("presentationDragIndicator(.visible)"),
+                      "and it must be draggable by hand as well as automatic")
+        XCTAssertTrue(sheet.contains("expandForReview()"),
+                      "something has to move it to the full page")
+    }
+
+    /// Growth is tied to dictation finishing with a sentence, and to the field
+    /// being focused — the two moments there is a decision to make.
+    func testGrowingIsTiedToDictationFinishingAndToEditing() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains(".onChange(of: dictation.state)"),
+                      "finishing dictation is what earns the full page")
+        XCTAssertTrue(sheet.contains("case .listening = old"),
+                      "and only leaving the listening state counts, not every change")
+        XCTAssertTrue(sheet.contains(".onChange(of: fieldFocused)"),
+                      "tapping the text to edit also needs the room")
+    }
+
+    /// The sheet used to focus the field on appear. With a half-height sheet the
+    /// keyboard took two thirds of what was left and crushed the waveform, the
+    /// field and the dock into a strip.
+    func testTheSheetDoesNotOpenWithTheKeyboardCoveringIt() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        let start = try XCTUnwrap(sheet.range(of: "private func startListening()"))
+        let body = sheet[start.upperBound...].prefix(200)
+        XCTAssertFalse(body.contains("fieldFocused = true"),
+                       "opening must not raise the keyboard over a half-height sheet")
+        // The field is still there for whoever wants it.
+        XCTAssertTrue(sheet.contains("@FocusState private var fieldFocused"))
+    }
+
+    /// At half height the page behind stays usable, which is the point of a half
+    /// sheet: you can see what you are adding to.
+    func testHalfTheSheetLeavesThePageBehindUsable() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))"),
+                      "a half sheet that blocks the page behind it is just a tall sheet")
+    }
+
+    /// The main-page entry point is on the same glass as the rest of the floating
+    /// chrome, and says what it is. It was a microphone, which read as "record a
+    /// voice note" and clashed with the sheet's own mic and the keyboard's.
+    func testTheMainPageEntryPointIsGlassAndNoLongerAMicrophone() throws {
+        let content = try source("Haiity/Views/ContentView.swift")
+        let button = try XCTUnwrap(content.range(of: "private var speakButton"))
+        let body = content[button.upperBound...].prefix(1400)
+
+        XCTAssertTrue(body.contains("ChromeGlass("),
+                      "the main-page button belongs on the shared glass, like the other chrome")
+        XCTAssertTrue(body.contains("kind: .circle"))
+        XCTAssertTrue(body.contains("systemName: \"sparkles\""),
+                      "a sparkle says what this is; a microphone said 'record something'")
+        XCTAssertFalse(body.contains("systemName: \"mic.fill\""),
+                       "the mic moved into the sheet, where it belongs")
+        // Still the quieter of the floating controls: no drop shadow competing
+        // with the toolbar's create action.
+        XCTAssertFalse(body.contains(".shadow("),
+                       "one prominent action per view; this one stays secondary")
     }
 
     private func sourceURL(_ path: String) -> URL {

@@ -17,7 +17,11 @@ import SwiftUI
 /// Formen ineinander morphen können statt zu blenden); darunter die
 /// Material-Attrappe, die es dort schon immer war.
 struct ChromeGlass: ViewModifier {
-    enum Kind { case capsule, circle }
+    /// `bar` is the one that had to be added: a dock that holds two controls is
+    /// a single rounded surface, not two pills that hope to merge. Asking iOS to
+    /// union two shapes that sit a gap apart does not produce a dock — it
+    /// produces two distant circles floating over the wallpaper.
+    enum Kind { case capsule, circle, bar }
 
     let id: String
     let namespace: Namespace.ID
@@ -67,6 +71,11 @@ struct ChromeGlass: ViewModifier {
             content
                 .background(accent.map(Theme.accentFill)
                             ?? Color(.secondarySystemGroupedBackground), in: Circle())
+        case .bar:
+            content
+                .background(Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: CornerRadius.hero,
+                                                 style: .continuous))
         }
     }
 
@@ -90,6 +99,18 @@ struct ChromeGlass: ViewModifier {
             content.glassEffect(style, in: .circle)
                 .glassEffectID(id, in: namespace)
                 .glassEffectUnion(id: union, namespace: namespace)
+        case .bar:
+            // A bar carries a visible edge. A pill reads as a pill because of its
+            // silhouette; a full-width bar sitting on a bright wallpaper needs the
+            // hairline to say where it stops, or it dissolves into the picture.
+            content.glassEffect(style,
+                                in: RoundedRectangle(cornerRadius: CornerRadius.hero,
+                                                     style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+                )
+                .glassEffectID(id, in: namespace)
         }
     }
 
@@ -127,6 +148,18 @@ struct ChromeGlass: ViewModifier {
                             ?? Color(.secondarySystemGroupedBackground), in: Circle())
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                 .matchedGeometryEffect(id: id, in: namespace)
+        case .bar:
+            // Below iOS 26 there is no morph to preserve, so no matchedGeometry
+            // and no shadow — a full-width bar with a drop shadow reads as a
+            // separate slab sitting on top of the sheet.
+            content
+                .background(.ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: CornerRadius.hero,
+                                                 style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.hero, style: .continuous)
+                        .strokeBorder(.quaternary, lineWidth: 0.5)
+                )
         }
     }
 }
