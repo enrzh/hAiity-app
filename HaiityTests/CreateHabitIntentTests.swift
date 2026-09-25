@@ -199,6 +199,43 @@ final class CreateHabitIntentTests: XCTestCase {
         XCTAssertEqual(CreateItemWriter.validatedEmoji(""), "")
     }
 
+    /// Most emoji are several scalars joined into one thing a person recognises:
+    /// a flag is two regional indicators, a skin tone is a base plus a modifier,
+    /// a family is three people and two joiners. Counting scalars threw away
+    /// every one of them, so a model that answered 🇩🇪 for "Germany" got nothing
+    /// and the habit was saved with no symbol at all.
+    @available(iOS 26.0, *)
+    func testAnEmojiMadeOfSeveralScalarsIsStillOneEmoji() {
+        for emoji in ["🇩🇪", "🇬🇧", "👍🏽", "👨‍👩‍👧", "🏃‍♀️", "👩🏽‍💻"] {
+            XCTAssertGreaterThan(emoji.unicodeScalars.count, 1,
+                                 "\(emoji) is the shape this test is about")
+            XCTAssertEqual(CreateItemWriter.validatedEmoji(emoji), emoji,
+                           "\(emoji) is one emoji and must survive")
+        }
+    }
+
+    /// One character is not automatically an emoji. A model that answers "a" has
+    /// not chosen a symbol, and ASCII digits are emoji-capable in Unicode even
+    /// though nobody means them here.
+    @available(iOS 26.0, *)
+    func testOneCharacterIsNotEnoughToBeAnEmoji() {
+        for notAnEmoji in ["a", "1", "#", "?", "…", "-"] {
+            XCTAssertEqual(CreateItemWriter.validatedEmoji(notAnEmoji), "",
+                           "\"\(notAnEmoji)\" is one character but not an emoji")
+        }
+    }
+
+    /// A name that came back wrapped, doubled-spaced or bulleted is still one
+    /// name, and the row should not show the mess it arrived in.
+    @available(iOS 26.0, *)
+    func testWhitespaceAndStrayMarksAreCleanedOutOfAName() {
+        XCTAssertEqual(CreateItemWriter.validatedName("Wasser  trinken"), "Wasser trinken")
+        XCTAssertEqual(CreateItemWriter.validatedName("Wasser\ntrinken"), "Wasser trinken")
+        XCTAssertEqual(CreateItemWriter.validatedName("- Wasser trinken -"), "Wasser trinken")
+        XCTAssertEqual(CreateItemWriter.validatedName("• Wasser trinken"), "Wasser trinken")
+        XCTAssertEqual(CreateItemWriter.validatedName("„Wasser trinken“"), "Wasser trinken")
+    }
+
     // MARK: - The draft
 
     func testTheDraftProducesTheStoredHabitShape() {
@@ -434,6 +471,17 @@ final class CreateHabitIntentTests: XCTestCase {
         // the mapping repairing it.
         XCTAssertTrue(writer.contains("never be in the past"),
                       "the prompt must forbid a past date, not just say which year to use")
+        // Filler is what the name cleanup most often leaves behind, and the
+        // examples are the only place the model is told what "strip filler" means.
+        for filler in ["ich muss endlich wieder mehr lesen", "remember to call mum",
+                       "could you please take out the recycling"] {
+            XCTAssertTrue(writer.contains(filler),
+                          "the prompt lost its filler example: \(filler)")
+        }
+        // A one-off you tick off is not a reminder, and conflating the two sends
+        // a habit the person meant to track to the untracked list.
+        XCTAssertTrue(writer.contains("TICK OFF"),
+                      "the prompt has to separate a one-off habit from a nudge")
     }
 
     /// The preview used to append a hard-coded "täglich", so it showed a daily
@@ -460,6 +508,38 @@ final class CreateHabitIntentTests: XCTestCase {
                       "a reading must be checked against the text it came from")
         XCTAssertTrue(sheet.contains("readDraft == nil || readFrom != text"),
                       "a changed sentence has to read as needing a fresh reading")
+    }
+
+    /// The sentence has to be captured BEFORE the await and recorded afterwards,
+    /// or a sentence edited while the model works gets stamped with the new text
+    /// — marked fresh, and saved. Reading the field again on the way back is
+    /// exactly that mistake.
+    func testAReadingIsRecordedAgainstTheSentenceItActuallyRead() throws {
+        let sheet = try String(contentsOf: scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift"),
+                               encoding: .utf8)
+        let read = try XCTUnwrap(sheet.range(of: "private func read()"))
+        let body = sheet[read.upperBound...].prefix(1000)
+
+        XCTAssertTrue(body.contains("let requested = text"),
+                      "the sentence must be captured before the model is asked")
+        XCTAssertTrue(body.contains("readFrom = requested"),
+                      "and recorded as what was read, not as what the field says now")
+        XCTAssertFalse(body.contains("readFrom = text"),
+                       "recording the live field can mark an edited sentence as read")
+    }
+
+    /// The card said "Daraus wird" before anything had been worked out, which
+    /// promised a name and a repeat that did not exist yet.
+    func testThePreviewSaysWhenItHasNotReadYet() throws {
+        let sheet = try String(contentsOf: scheduleSourceURL("Haiity/Views/SpeakToCreateSheet.swift"),
+                               encoding: .utf8)
+        let preview = try XCTUnwrap(sheet.range(of: "private func draftPreview"))
+        let body = sheet[preview.upperBound...].prefix(700)
+
+        XCTAssertTrue(body.contains("Satz, noch nicht gelesen"),
+                      "an unread sentence must not be presented as a finished result")
+        XCTAssertTrue(body.contains("needsReading"),
+                      "and the header has to know whether it has been read")
     }
 
     /// Printing a repeat before the model has run is a guess dressed up as a

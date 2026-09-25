@@ -237,7 +237,12 @@ struct SpeakToCreateSheet: View {
     @ViewBuilder
     private func draftPreview(_ draft: CreateItemDraft) -> some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            Text(String(localized: "Daraus wird"))
+            // Before a reading, this card is showing the sentence with the clock
+            // time lifted out — not a finished name. Calling it "Daraus wird"
+            // would promise a name and a repeat that nobody has worked out yet.
+            Text(needsReading && OnDeviceModel.isAvailable
+                 ? String(localized: "Satz, noch nicht gelesen")
+                 : String(localized: "Daraus wird"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             HStack(spacing: Theme.Metrics.gap + 4) {
@@ -347,14 +352,17 @@ struct SpeakToCreateSheet: View {
     /// Ask the model what the sentence means, once, because the person pressed
     /// the button.
     private func read() async {
-        let sentence = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sentence.isEmpty, !isReading else { return }
+        // Captured before the await, and recorded afterwards against this exact
+        // string. Reading the field again on the way back would stamp a reading
+        // of the OLD sentence with the NEW text, mark it fresh, and save a draft
+        // for words the person has already changed.
+        let requested = text
+        guard !requested.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !isReading else { return }
         isReading = true
         defer { isReading = false }
-        readDraft = await CreateItemDraft.read(from: sentence)
-        // Recorded after the await, so a sentence edited while the model was
-        // working is not quietly claimed to have been read.
-        readFrom = text
+        readDraft = await CreateItemDraft.read(from: requested)
+        readFrom = requested
     }
 
     private func create() async {
@@ -365,7 +373,8 @@ struct SpeakToCreateSheet: View {
         // A reading the person already asked for is reused rather than paid for a
         // second time. Only an unread sentence is read now, which is also what
         // keeps this from being a hidden second model call.
-        let final = needsReading ? await CreateItemDraft.read(from: text) : draft
+        let sentence = text
+        let final = needsReading ? await CreateItemDraft.read(from: sentence) : draft
 
         switch await CreateItemSaver.save(final, into: store) {
         case .saved:

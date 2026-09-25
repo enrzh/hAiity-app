@@ -41457,6 +41457,16 @@
         }
       }
     },
+    "Satz, noch nicht gelesen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sentence, not read yet"
+          }
+        }
+      }
+    },
     "Sauber durchgezogen": {
       "localizations": {
         "ar": {

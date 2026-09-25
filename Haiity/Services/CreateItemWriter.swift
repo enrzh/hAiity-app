@@ -63,9 +63,11 @@ enum CreateItemWriter {
     Fields:
     - `name` is the thing itself, in that language, as a short noun phrase. Strip everything else: \
     times, schedule words, "at work", "don't forget to", please words, filler.
-    - `emoji` is ONE emoji that fits the thing, or an empty string if none is obvious. Never more than one.
-    - `isReminder` is true only when the sentence clearly means a single occurrence ("remind me at 3", \
-    "once at noon"). A repeated or open-ended thing is a habit and stays false.
+    - `emoji` is ONE emoji that fits the thing, or an empty string if none is obvious. Never more than one. \
+    A flag, a skin tone or a family counts as one.
+    - `isReminder` is true only when the sentence asks to be NAGGED — "remind me", "don't let me forget", \
+    "erinner mich". A reminder only notifies and is not tracked. A one-off you mean to TICK OFF is not a \
+    reminder: it stays a habit with frequency "once".
     - `frequency` is exactly one of "once", "daily", "weekly", "monthly", "yearly". Say "daily" when the \
     sentence says nothing about repeating — that is the honest reading, not a missing answer.
     - `interval` is how many periods pass between repeats: 2 for "every 2 weeks", 1 otherwise.
@@ -92,10 +94,16 @@ enum CreateItemWriter {
     month 0, startDay ""
     - "3 mal pro Woche joggen" -> name "Joggen", frequency "weekly", weekdays [], timesPerPeriod 3
     - "alle zwei Wochen Zahnarzt" -> name "Zahnarzt", frequency "weekly", interval 2, weekdays []
-    - "einmal am 14. März" -> name "Zahnarzt", isReminder true, frequency "once", startDay that date
+    - "einmal am 14. März" -> name "Zahnarzt", isReminder false, frequency "once", startDay that date
     - "jeden Monat am 15. Miete zahlen" -> name "Miete zahlen", frequency "monthly", dayOfMonth 15
     - "jedes Jahr im Dezember Geschenke kaufen" -> name "Geschenke kaufen", frequency "yearly", month 12
     - "Wasser trinken" -> name "Wasser trinken", frequency "daily", every other schedule field 0 or ""
+
+    Filler goes too, and it is the part models get wrong most often:
+    - "ich muss endlich wieder mehr lesen" -> name "Mehr lesen", frequency "daily"
+    - "remember to call mum on fridays" -> name "Call mum", frequency "weekly", weekdays [6]
+    - "don't let me forget the bins tomorrow" -> name "Bins", isReminder true, frequency "once"
+    - "could you please take out the recycling tonight" -> name "Recycling", isReminder true
 
     Do not return a sentence as the name.
     """
@@ -138,7 +146,12 @@ enum CreateItemWriter {
         // Includes the German opening quote U+201E alongside the closing U+201C:
         // a model quoting a name in German produces „Wasser" and trimming only
         // the closing half leaves a stray mark on the row.
-        name = name.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”„'«».,;: "))
+        name = name.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”„'«».,;:! \t-–—•"))
+        // A name that came back wrapped across lines, or with the gap a quoted
+        // answer leaves behind, is one name. Collapsing runs of whitespace keeps
+        // "Wasser  trinken" from becoming a habit called that.
+        name = name.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.unicodeScalars.count <= maxNameScalars else { return nil }
         // A "name" that is still mostly the original sentence means the model
         // echoed rather than extracted.
@@ -147,9 +160,21 @@ enum CreateItemWriter {
     }
 
     /// One emoji, or nothing. Two or more means the model listed options.
+    ///
+    /// Counted in `Character`s, not scalars, because that is what one emoji is.
+    /// A flag (🇩🇪), a skin tone (👍🏽), a family (👨‍👩‍👧) and a gendered verb (🏃‍♀️)
+    /// are each a single emoji a person would recognise, and each is several
+    /// scalars — counting scalars threw away every one of them and left only the
+    /// plainest single-codepoint symbols.
     static func validatedEmoji(_ raw: String) -> String {
-        let scalars = raw.unicodeScalars.filter { !CharacterSet.whitespaces.contains($0) }
-        guard scalars.count == 1 else { return "" }
-        return String(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        let candidate = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard candidate.count == 1 else { return "" }
+        // One character is not enough on its own: a model that answers "a" has
+        // not chosen an emoji. ASCII digits and letters are emoji-capable in
+        // Unicode, so they are excluded by requiring a non-ASCII emoji scalar.
+        guard candidate.unicodeScalars.contains(where: {
+            $0.properties.isEmoji && !$0.isASCII
+        }) else { return "" }
+        return candidate
     }
 }
