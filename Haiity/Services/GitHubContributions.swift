@@ -16,13 +16,76 @@ enum GitHubContributionsError: Error, Equatable, Sendable {
     case nonHTTPResponse
 }
 
+/// The one place the app talks to GitHub.
+///
+/// `URLSession.shared` has `waitsForConnectivity` switched OFF, which means a
+/// request issued while the connection is still coming up fails *immediately*
+/// rather than waiting for it. On a phone that has just unlocked, or on a
+/// connection that is merely marginal, that is the whole story behind "the GitHub
+/// page times out straight away" — nothing is timing out, the request never got
+/// to try. The shared session's 60-second request timeout is also tight for a
+/// GraphQL query over a phone connection.
 struct URLSessionGitHubTransport: GitHubHTTPTransport {
+
+    /// One session for both the contributions query and the device flow, so a
+    /// blip during sign-in is treated the same way as one during a refresh.
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        // The fix. Wait for the network instead of failing the instant it is not
+        // there yet.
+        configuration.waitsForConnectivity = true
+        // Once connected, one request should not take a minute. The resource
+        // timeout is the longer budget, and it also bounds how long the session
+        // will sit waiting for connectivity to turn up.
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 90
+        // An authenticated request should not be served from a cache. The
+        // Authorization header travels with it, so the response is left on the
+        // wire and nowhere else.
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
+    }()
+
+    /// Injectable so the retry can be tested against a stubbed protocol rather
+    /// than only asserted about in the source.
+    private let session: URLSession
+
+    init(session: URLSession = URLSessionGitHubTransport.session) {
+        self.session = session
+    }
+
+    /// Only the failures worth trying again. A cancelled task, and anything the
+    /// server actually answered, are answers rather than blips.
+    private static let transient: Set<URLError.Code> = [
+        .timedOut, .networkConnectionLost, .notConnectedToInternet,
+        .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+        .internationalRoamingOff, .dataNotAllowed,
+    ]
+
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let response = response as? HTTPURLResponse else {
-            throw GitHubContributionsError.nonHTTPResponse
+        var lastError: Error?
+        // One retry. A phone drops a connection routinely — a tunnel, a lift, the
+        // handover between cells — and a refresh that gives up on the first one
+        // is indistinguishable from a broken integration.
+        for attempt in 0...1 {
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let response = response as? HTTPURLResponse else {
+                    throw GitHubContributionsError.nonHTTPResponse
+                }
+                return (data, response)
+            } catch {
+                lastError = error
+                guard attempt == 0,
+                      let urlError = error as? URLError,
+                      Self.transient.contains(urlError.code) else { throw error }
+                // A short beat, so the retry does not arrive while the network is
+                // still down and spends the second attempt on the same moment.
+                try? await Task.sleep(for: .milliseconds(600))
+            }
         }
-        return (data, response)
+        throw lastError ?? GitHubContributionsError.malformedPayload
     }
 }
 

@@ -22,7 +22,138 @@ actor RecordingGitHubTransport: GitHubHTTPTransport {
     }
 }
 
+/// Fails the first N requests with a URLError, then succeeds. A phone dropping
+/// its connection and getting it back is the normal case, not an edge one.
+final class FlakyURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var failures = 0
+    nonisolated(unsafe) static var code: URLError.Code = .networkConnectionLost
+    nonisolated(unsafe) static var attempts = 0
+    /// Fail every attempt, to model something the retry must NOT paper over.
+    nonisolated(unsafe) static var alwaysFails = false
+
+    static func reset(failures: Int,
+                      code: URLError.Code = .networkConnectionLost,
+                      alwaysFails: Bool = false) {
+        Self.failures = failures
+        Self.code = code
+        Self.attempts = 0
+        Self.alwaysFails = alwaysFails
+    }
+
+    static func session() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FlakyURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        FlakyURLProtocol.attempts += 1
+        if FlakyURLProtocol.alwaysFails || FlakyURLProtocol.attempts <= FlakyURLProtocol.failures {
+            client?.urlProtocol(self, didFailWithError: URLError(FlakyURLProtocol.code))
+            return
+        }
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                       httpVersion: "HTTP/1.1", headerFields: [:])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("{}".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
 final class GitHubContributionsTests: XCTestCase {
+
+    // MARK: - Not timing out
+
+    /// The actual complaint. `URLSession.shared` has `waitsForConnectivity` off,
+    /// so a request made while the connection is still coming up fails instantly
+    /// rather than waiting — which reads as "times out straight away" and is not a
+    /// timeout at all.
+    func testTheSessionWaitsForConnectivity() {
+        let configuration = URLSessionGitHubTransport.session.configuration
+        XCTAssertTrue(configuration.waitsForConnectivity,
+                      "without this a request fails the instant the network is not ready")
+        XCTAssertFalse(URLSession.shared.configuration.waitsForConnectivity,
+                       "this is the default being escaped, so it had better stay true")
+        // A phone connection is not a datacentre one, and a minute per request is
+        // a long time to hold someone's refresh for.
+        XCTAssertLessThanOrEqual(configuration.timeoutIntervalForRequest, 30)
+    }
+
+    /// The request carries an Authorization header, so it must not be answerable
+    /// from a cache on disk.
+    func testAnAuthenticatedRequestIsNotServedFromACache() {
+        XCTAssertNil(URLSessionGitHubTransport.session.configuration.urlCache,
+                     "a token-bearing request has no business in a URL cache")
+    }
+
+    /// One dropped connection should not end a refresh.
+    func testATransientDropIsRetriedAndSucceeds() async throws {
+        FlakyURLProtocol.reset(failures: 1, code: .networkConnectionLost)
+        let transport = URLSessionGitHubTransport(session: FlakyURLProtocol.session())
+        let request = URLRequest(url: try XCTUnwrap(URL(string: "https://api.github.com/graphql")))
+
+        let (data, response) = try await transport.send(request)
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "{}")
+        XCTAssertEqual(FlakyURLProtocol.attempts, 2,
+                       "one blip should cost one retry and then succeed")
+    }
+
+    /// A connection that stays down gives up rather than looping.
+    func testAPermanentDropFailsAfterOneRetry() async throws {
+        FlakyURLProtocol.reset(failures: 5, code: .notConnectedToInternet, alwaysFails: true)
+        let transport = URLSessionGitHubTransport(session: FlakyURLProtocol.session())
+        let request = URLRequest(url: try XCTUnwrap(URL(string: "https://api.github.com/graphql")))
+
+        do {
+            _ = try await transport.send(request)
+            XCTFail("a network that never arrives should not succeed")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .notConnectedToInternet)
+        } catch {
+            XCTFail("expected a URLError, got \(error)")
+        }
+        XCTAssertEqual(FlakyURLProtocol.attempts, 2, "one retry, not a queue of them")
+    }
+
+    /// Only genuine blips are retried. An answer from the server, or a malformed
+    /// request, is an answer — trying again only makes the wait longer.
+    func testAnAnswerIsNotRetried() async throws {
+        FlakyURLProtocol.reset(failures: 0, code: .badURL, alwaysFails: true)
+        let transport = URLSessionGitHubTransport(session: FlakyURLProtocol.session())
+        let request = URLRequest(url: try XCTUnwrap(URL(string: "https://api.github.com/graphql")))
+
+        do {
+            _ = try await transport.send(request)
+            XCTFail("a bad URL should not succeed")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .badURL)
+        } catch {
+            XCTFail("expected a URLError, got \(error)")
+        }
+        XCTAssertEqual(FlakyURLProtocol.attempts, 1, "a non-blip is not worth a second try")
+    }
+
+    /// Every failure used to collapse into one sentence, so a phone with no signal
+    /// reported that GitHub was down.
+    @MainActor
+    func testConnectivityFailuresSayWhatTheyAre() {
+        let noNetwork = GitHubContributionStore.message(for: URLError(.notConnectedToInternet))
+        let unreachable = GitHubContributionStore.message(for: URLError(.cannotFindHost))
+        let slow = GitHubContributionStore.message(for: URLError(.timedOut))
+        let generic = GitHubContributionStore.message(for: URLError(.badServerResponse))
+
+        XCTAssertEqual(noNetwork, "Keine Internetverbindung.")
+        XCTAssertEqual(unreachable, "GitHub ist gerade nicht erreichbar.")
+        XCTAssertEqual(slow, "GitHub hat zu lange gebraucht. Später noch einmal versuchen.")
+        XCTAssertNotEqual(noNetwork, unreachable)
+        XCTAssertNotEqual(unreachable, slow)
+        XCTAssertNotEqual(slow, generic)
+    }
     private let now = ISO8601DateFormatter().date(from: "2026-08-16T12:34:56Z")!
 
     func testModelsKeepStableIdentityAndProfileURL() throws {

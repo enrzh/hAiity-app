@@ -460,6 +460,24 @@ final class GitHubContributionStore {
         if error as? GitHubContributionsError == .unauthorized {
             return String(localized: "Die Verbindung zu GitHub ist fehlgeschlagen.")
         }
+        // A dropped connection used to fall through to the catch-all below and
+        // read as "GitHub is down", which is both untrue and unactionable. Having
+        // no network is the commonest failure on a phone and the one the person can
+        // actually do something about, so it gets said out loud.
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
+                return String(localized: "Keine Internetverbindung.")
+            case .cannotFindHost, .dnsLookupFailed, .cannotConnectToHost:
+                return String(localized: "GitHub ist gerade nicht erreichbar.")
+            case .timedOut:
+                return String(localized: "GitHub hat zu lange gebraucht. Später noch einmal versuchen.")
+            case .cancelled:
+                return String(localized: "Abgebrochen.")
+            default:
+                break
+            }
+        }
         return String(localized: "Die Verbindung zu GitHub ist fehlgeschlagen.")
     }
 

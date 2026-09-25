@@ -8067,6 +8067,16 @@
         }
       }
     },
+    "Abgebrochen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled."
+          }
+        }
+      }
+    },
     "Abhaken": {
       "localizations": {
         "ar": {
@@ -32947,6 +32957,16 @@
         }
       }
     },
+    "Keine Internetverbindung.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No internet connection."
+          }
+        }
+      }
+    },
     "Keine Tage ausgewählt": {
       "localizations": {
         "ar": {
@@ -55745,6 +55765,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 GitHub 主页"
+          }
+        }
+      }
+    },
+    "GitHub hat zu lange gebraucht. Später noch einmal versuchen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub took too long. Try again later."
+          }
+        }
+      }
+    },
+    "GitHub ist gerade nicht erreichbar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub is not reachable right now."
           }
         }
       }
