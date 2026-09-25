@@ -73,10 +73,11 @@ struct SpeakToCreateSheet: View {
                     if let draft {
                         draftPreview(draft)
                     }
-                    createButton
                 }
                 .padding(.horizontal, Theme.Metrics.gutter)
-                .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+                // Room for the dock to float over the last card without ever
+                // covering it, and the home-indicator inset beneath that.
+                .padding(.bottom, dockClearance)
             }
             .scrollIndicators(.hidden)
             .softScrollEdges()
@@ -89,6 +90,7 @@ struct SpeakToCreateSheet: View {
                         .accessibilityIdentifier("speak-to-create-close")
                 }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) { dock }
         }
         .onAppear { startListening() }
         .onDisappear { stopEverything() }
@@ -115,31 +117,16 @@ struct SpeakToCreateSheet: View {
 
     // MARK: - Waveform
 
+    /// Pure content now: the shape of what was heard, and what is going on.
+    ///
+    /// The microphone used to sit in here, inside a content card. It moved to the
+    /// floating dock, which is the only layer the material is allowed on and the
+    /// only place a control belongs when it has to be reachable one-handed. What
+    /// is left is the part that is genuinely content, so this panel is an ordinary
+    /// opaque surface.
     private var waveformPanel: some View {
         VStack(spacing: Theme.Metrics.gap + 6) {
             VoiceWaveform(levels: levels, tint: accent, isActive: dictation.state.isListening)
-
-            // The sheet has to carry its own control, not just hope the tap that
-            // opened it started everything: the microphone can be refused, the
-            // model can be unavailable, and a person needs to stop and start
-            // again. The status line promises this button, so it has to exist.
-            Button {
-                toggleListening()
-            } label: {
-                Image(systemName: dictation.state.isListening ? "stop.fill" : "mic.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
-                    .background(listeningTint, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!canToggleListening)
-            .opacity(canToggleListening ? 1 : 0.4)
-            .accessibilityLabel(dictation.state.isListening
-                                ? String(localized: "Aufnahme beenden")
-                                : String(localized: "Aufnahme starten"))
-            .accessibilityIdentifier("speak-to-create-toggle")
-            .padding(.top, 2)
 
             Text(statusLine)
                 .font(.footnote)
@@ -173,10 +160,6 @@ struct SpeakToCreateSheet: View {
         case .failed(let reason):
             return reason
         }
-    }
-
-    private var listeningTint: Color {
-        dictation.state.isListening ? accent : accent.opacity(0.55)
     }
 
     /// Nothing to toggle while the recogniser is unavailable or refused — the
@@ -329,25 +312,106 @@ struct SpeakToCreateSheet: View {
         return parts.joined(separator: " · ")
     }
 
-    // MARK: - Create
+    // MARK: - The floating dock
 
-    private var createButton: some View {
+    @Namespace private var glassNamespace
+
+    /// How much room the dock needs underneath the scrolling content.
+    private var dockClearance: CGFloat {
+        ChromeLayout.nativeTabBarClearance + Theme.Metrics.control + Theme.Metrics.gap * 2
+    }
+
+    /// The sheet's one piece of glass.
+    ///
+    /// Liquid Glass belongs to the floating functional layer, never to content —
+    /// so the waveform panel, the text field and the draft stay ordinary opaque
+    /// surfaces, and the glass is spent on the two controls that actually float
+    /// above the scroll. Both live in one `GlassEffectContainer` and share a
+    /// `glassEffectUnion`, so iOS draws them as ONE shape that morphs rather than
+    /// as two panes of blur sitting next to each other. Glass stacked on glass is
+    /// the exact thing the material exists to avoid.
+    private var dock: some View {
+        Group {
+            if #available(iOS 26, *) {
+                GlassEffectContainer(spacing: Theme.Metrics.gap) { dockRow }
+            } else {
+                dockRow
+            }
+        }
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .padding(.bottom, Theme.Metrics.gap)
+        // A whisper of a background so the glass has something to sample. Fully
+        // clear, because a real fill here would turn the dock into a second card.
+        .background(Color(.systemBackground).opacity(0.001))
+    }
+
+    private var dockRow: some View {
+        HStack(spacing: Theme.Metrics.gap) {
+            micControl
+            createControl
+        }
+    }
+
+    /// The microphone, out of the waveform panel and down into the dock.
+    ///
+    /// It was a button living inside a content card, which is the one place the
+    /// material must not go. Here it is a control that floats over the content,
+    /// within thumb reach of the primary action beside it. Neutral glass while
+    /// idle, so the one coloured control in the sheet stays the one people mean.
+    private var micControl: some View {
+        Button {
+            toggleListening()
+        } label: {
+            Image(systemName: dictation.state.isListening ? "stop.fill" : "mic.fill")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(dictation.state.isListening ? Color.white : accent)
+                .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
+                .contentShape(Circle())
+                .modifier(ChromeGlass(id: "speak-dock-mic",
+                                      namespace: glassNamespace,
+                                      kind: .circle,
+                                      union: dockUnion))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canToggleListening)
+        .opacity(canToggleListening ? 1 : 0.4)
+        .accessibilityLabel(dictation.state.isListening
+                            ? String(localized: "Aufnahme beenden")
+                            : String(localized: "Aufnahme starten"))
+        .accessibilityIdentifier("speak-to-create-toggle")
+    }
+
+    /// The primary action, tinted rather than plain glass — colour on the
+    /// background is how the system marks the action someone most likely wants.
+    private var createControl: some View {
         Button {
             Task { await create() }
         } label: {
             HStack(spacing: Theme.Metrics.gap) {
-                if isWorking { ProgressView() }
+                if isWorking { ProgressView().tint(.white) }
                 Text(didCreate
                      ? String(localized: "Angelegt")
                      : String(localized: "Anlegen"))
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
             }
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.control)
+            .contentShape(Rectangle())
+            .modifier(ChromeGlass(id: "speak-dock-create",
+                                  namespace: glassNamespace,
+                                  kind: .capsule,
+                                  accent: palettes.style,
+                                  union: dockUnion))
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.plain)
         .disabled(draft == nil || isWorking || didCreate)
+        .opacity(draft == nil ? 0.5 : 1)
         .accessibilityIdentifier("speak-to-create-confirm")
     }
+
+    /// One identifier for both shapes. That is what tells iOS they are a single
+    /// surface rather than two.
+    private var dockUnion: String { "speak-dock" }
 
     /// Ask the model what the sentence means, once, because the person pressed
     /// the button.

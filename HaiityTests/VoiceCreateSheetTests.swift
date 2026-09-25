@@ -118,6 +118,118 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "the node the tap is installed on must be the one later removed")
     }
 
+    // MARK: - The floating dock
+
+    /// Liquid Glass belongs to the floating functional layer and nowhere else.
+    /// The rule is easy to state and easy to break by accident, so it is pinned
+    /// here rather than trusted: glass on a card, a panel or a text field is a
+    /// defect, and the material exists to frame content, not to replace it.
+    func testGlassStaysOnTheFloatingControlsAndOffTheContent() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        let content = ["waveformPanel", "transcriptField", "draftPreview"]
+        for name in content {
+            // Some of these are computed properties and one is a function, so the
+            // declaration is matched either way rather than assuming a shape.
+            let declaration = try XCTUnwrap(
+                sheet.range(of: "private var \(name)")
+                    ?? sheet.range(of: "private func \(name)"),
+                "no declaration found for \(name)")
+            let rest = sheet[declaration.upperBound...]
+            let end = rest.range(of: "\n    // MARK:")?.lowerBound
+                ?? rest.range(of: "\n    private var")?.lowerBound
+                ?? rest.range(of: "\n    private func")?.lowerBound
+                ?? rest.endIndex
+            let body = String(rest[rest.startIndex..<end])
+            XCTAssertFalse(body.contains("ChromeGlass"),
+                           "\(name) is content, and content must not carry glass")
+            XCTAssertFalse(body.contains("glassEffect"),
+                           "\(name) is content, and content must not carry glass")
+        }
+        // And the glass that IS there sits on the two floating controls.
+        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock-mic\""))
+        XCTAssertTrue(sheet.contains("ChromeGlass(id: \"speak-dock-create\""))
+    }
+
+    /// Two glass shapes in one container sharing a union is what makes iOS draw
+    /// one surface instead of two panes of blur side by side.
+    func testTheDockIsOneSurfaceNotTwo() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("GlassEffectContainer"),
+                      "the dock's glass needs a shared container to merge in")
+        XCTAssertTrue(sheet.contains("union: dockUnion"),
+                      "both shapes must join the same union")
+        XCTAssertTrue(sheet.contains("private var dockUnion: String { \"speak-dock\" }"),
+                      "the union has to be a single named identity")
+        // One identifier each, so the two cannot be confused.
+        XCTAssertTrue(sheet.contains("\"speak-dock-mic\""))
+        XCTAssertTrue(sheet.contains("\"speak-dock-create\""))
+    }
+
+    /// The dock has to float, not sit in the scroll. A `safeAreaInset` is what
+    /// keeps the content above it and the glass above the content.
+    func testTheDockFloatsRatherThanScrollingWithTheContent() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains(".safeAreaInset(edge: .bottom, spacing: 0) { dock }"),
+                      "the dock belongs in a safe-area inset, above the scroll")
+        XCTAssertTrue(sheet.contains("dockClearance"),
+                      "and the content needs room so the dock never covers the last card")
+        // The create action is no longer part of the scrolling stack.
+        let scroll = sheet.range(of: "ScrollView {")
+        let stack = sheet.range(of: "VStack(spacing: Theme.Metrics.settingsSectionGap) {")
+        XCTAssertTrue(scroll != nil && stack != nil)
+        if let stack {
+            let after = sheet[stack.upperBound...].prefix(400)
+            XCTAssertFalse(after.contains("createControl"),
+                           "the primary action must not scroll away with the content")
+        }
+    }
+
+    /// Moving the microphone out of the card must not lose it. The status line
+    /// promises this control, and it is the only way to stop a recording.
+    func testTheMicrophoneIsStillReachableAndStillLabelled() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("accessibilityIdentifier(\"speak-to-create-toggle\")"))
+        XCTAssertTrue(sheet.contains("Aufnahme starten"))
+        XCTAssertTrue(sheet.contains("Aufnahme beenden"))
+        XCTAssertTrue(sheet.contains("func toggleListening()"))
+        // The panel no longer holds a button, so it cannot answer a tap meant
+        // for the dock.
+        let panel = try XCTUnwrap(sheet.range(of: "private var waveformPanel"))
+        let rest = sheet[panel.upperBound...]
+        let end = rest.range(of: "\n    // MARK:")?.lowerBound ?? rest.endIndex
+        XCTAssertFalse(String(rest[rest.startIndex..<end]).contains("Button {"),
+                       "the content panel should no longer host a control")
+    }
+
+    /// Glass on both sides of the same dock is a hierarchy problem, so the
+    /// microphone stays neutral and only the primary action is tinted.
+    func testOnlyThePrimaryActionIsTinted() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        let mic = try XCTUnwrap(sheet.range(of: "private var micControl"))
+        let create = try XCTUnwrap(sheet.range(of: "private var createControl"))
+        let micBody = String(sheet[mic.upperBound..<create.lowerBound])
+
+        XCTAssertFalse(micBody.contains("accent: palettes.style"),
+                       "the microphone stays neutral glass; one tinted control is enough")
+        let createBody = String(sheet[create.upperBound...].prefix(900))
+        XCTAssertTrue(createBody.contains("accent: palettes.style"),
+                      "the primary action is the one that gets the colour")
+    }
+
+    /// The glass component was private to ContentView, so the sheet could not
+    /// reach the same material logic and a second copy would have drifted.
+    func testTheSheetAndTheHubShareOneGlassComponent() throws {
+        let glass = try source("Haiity/Views/ChromeGlass.swift")
+        XCTAssertTrue(glass.contains("struct ChromeGlass"))
+        XCTAssertFalse(glass.contains("private struct ChromeGlass"),
+                       "shared, so both surfaces get the same material decisions")
+        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertFalse(content.contains("private struct ChromeGlass"),
+                       "the copy in ContentView is gone")
+        XCTAssertTrue(content.contains("ChromeGlass("),
+                      "and the hub still uses the shared one")
+    }
+
     private func sourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

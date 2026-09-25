@@ -43,6 +43,7 @@
 		26C2F38661C301CF2A4596C2 /* HabitListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2815EB17C56D464F4A012C7 /* HabitListFilter.swift */; };
 		270617B5E3EB62DA2F781588 /* SwipeRevealTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580A7D08D3B754107EAE9576 /* SwipeRevealTests.swift */; };
 		28872A68CABAE185AA512BD9 /* CustomPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE669662A8771EF4BD17046A /* CustomPaletteTests.swift */; };
+		2A8BDB810E9EC8517C472731 /* ChromeGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEDD8EEB1616CA2848C1741 /* ChromeGlass.swift */; };
 		2AAA49C8330DD24D92875BB8 /* CreateItemWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF455DC0FE9C2297450AAA02 /* CreateItemWriter.swift */; };
 		2C32F1F3834C248B13183742 /* AppUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F586DECA4C0563952891685A /* AppUIComponents.swift */; };
 		2D00D9DF3B9DD320777364A0 /* HabitStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40EAD00EB9A2D941541FAF9 /* HabitStore.swift */; };
@@ -171,6 +172,7 @@
 		BA7C6B159A682F3CBC535A52 /* AutoResolveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373B86DCE12350EB54E3EC41 /* AutoResolveTests.swift */; };
 		BB71B3D9BB0E552B72A08B2C /* AccessoryWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19A6E456F0D7E4772A545F8 /* AccessoryWidgetViews.swift */; };
 		BCC2B42C5972789807C807A7 /* GitHubDeviceFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89EF580C614DFA83CAEDDFC /* GitHubDeviceFlow.swift */; };
+		BD90A63207BE631741469001 /* SpeakToCreateDockUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6600DC9BA7FD85897BB67C7A /* SpeakToCreateDockUITests.swift */; };
 		BDEB1CD5AE645835032859C6 /* ContributionGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F7C445D6053ABA1A4B56A /* ContributionGridTests.swift */; };
 		C0F71DC05118C02236A68E36 /* ReminderItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D06513C852AB97864CE03 /* ReminderItemTests.swift */; };
 		C34203431C62176A53DF1D2B /* GitHubSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C836108CF2C4CD9FBEFDF473 /* GitHubSettingsView.swift */; };
@@ -339,12 +341,14 @@
 		5427538662B90637E98ECF0F /* ThemeAndPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeAndPaletteTests.swift; sourceTree = "<group>"; };
 		580A7D08D3B754107EAE9576 /* SwipeRevealTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeRevealTests.swift; sourceTree = "<group>"; };
 		5A63BF92DC3014009DC9E6B6 /* SetupFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFlowTests.swift; sourceTree = "<group>"; };
+		5BEDD8EEB1616CA2848C1741 /* ChromeGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeGlass.swift; sourceTree = "<group>"; };
 		5D24ABE3F4518A03A9CCB16C /* Motivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motivation.swift; sourceTree = "<group>"; };
 		5D6708EB619E372480F159D1 /* ReminderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRow.swift; sourceTree = "<group>"; };
 		5DCDBA686A83230B45E9FA48 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		6192FBE8DCF942879A6B4653 /* GitHubContributionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubContributionStore.swift; sourceTree = "<group>"; };
 		64121A2DC3096376A5167146 /* Celebration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Celebration.swift; sourceTree = "<group>"; };
 		6586364C60F1028AE3BF5BAF /* FeedbackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSheet.swift; sourceTree = "<group>"; };
+		6600DC9BA7FD85897BB67C7A /* SpeakToCreateDockUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakToCreateDockUITests.swift; sourceTree = "<group>"; };
 		6ABC33B9A8E91371DCC9B2DC /* SummaryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryText.swift; sourceTree = "<group>"; };
 		6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotivationWriter.swift; sourceTree = "<group>"; };
 		6BCC1EF6ABCE2FB395DA8965 /* GitHubWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubWidgetTests.swift; sourceTree = "<group>"; };
@@ -568,6 +572,7 @@
 				F586DECA4C0563952891685A /* AppUIComponents.swift */,
 				4E97A47C25BDC89BDCF1EF81 /* ArchiveView.swift */,
 				47D14A0D6D6BFF84C80FADF4 /* BackfillCard.swift */,
+				5BEDD8EEB1616CA2848C1741 /* ChromeGlass.swift */,
 				A382147EB9048CD992272A70 /* ContentView.swift */,
 				95C894131D8370B7FED1E01E /* ContributionGrid.swift */,
 				C6035D59579BAE3FD2DFC0C4 /* CustomPaletteSheet.swift */,
@@ -605,6 +610,7 @@
 		9A3978585636D5EC704B3BAA /* HaiityUITests */ = {
 			isa = PBXGroup;
 			children = (
+				6600DC9BA7FD85897BB67C7A /* SpeakToCreateDockUITests.swift */,
 				9095AA437F97F79369CC1282 /* StatsContextMenuUITests.swift */,
 				E23BF893F92228077A11DDDD /* TodayProgressUITests.swift */,
 			);
@@ -1079,6 +1085,7 @@
 				E8FF23C1267F8CDFA94FD813 /* CalendarSync.swift in Sources */,
 				A329B78B1388F2586B2C2A0E /* Celebration.swift in Sources */,
 				8181E141B1420C391F4FD2D6 /* CheckOffHabitIntent.swift in Sources */,
+				2A8BDB810E9EC8517C472731 /* ChromeGlass.swift in Sources */,
 				7559A1963F4573B45892FA35 /* ChromeLayout.swift in Sources */,
 				52C18B88CCDA2065659DC760 /* CloudSync.swift in Sources */,
 				1C6AD80A3E519329DC4F2407 /* ContentView.swift in Sources */,
@@ -1187,6 +1194,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BD90A63207BE631741469001 /* SpeakToCreateDockUITests.swift in Sources */,
 				C91259412A264D3F232FD12C /* StatsContextMenuUITests.swift in Sources */,
 				36B7D86169B58FD34BDBCCD3 /* TodayProgressUITests.swift in Sources */,
 			);

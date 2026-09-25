@@ -1334,23 +1334,30 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let content = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Views/ContentView.swift"))
-        let start = try XCTUnwrap(content.range(of: "private struct ChromeGlass"))
-        let end = try XCTUnwrap(content.range(of: "private struct MoreZoomSource",
-                                              range: start.upperBound..<content.endIndex))
-        let chrome = content[start.lowerBound..<end.lowerBound]
+        // The component moved out of ContentView so the speak-to-create sheet
+        // could reach the same material decisions instead of growing a second
+        // copy that drifts the first time a preference changes. The contract
+        // being checked did not move with it.
+        let chrome = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/ChromeGlass.swift"))
+        let start = try XCTUnwrap(chrome.range(of: "struct ChromeGlass"))
+        let body = chrome[start.upperBound...]
 
-        XCTAssertTrue(chrome.contains("case .solid:"),
+        XCTAssertTrue(body.contains("case .solid:"),
                       "the bottom chrome must have an opaque material path")
-        XCTAssertTrue(chrome.contains("case .milky:"),
+        XCTAssertTrue(body.contains("case .milky:"),
                       "the bottom chrome must have a milky material path")
-        XCTAssertTrue(chrome.contains("case .liquid:"),
+        XCTAssertTrue(body.contains("case .liquid:"),
                       "the bottom chrome must have a Liquid Glass path")
-        XCTAssertTrue(chrome.contains("case .adaptive:"),
+        XCTAssertTrue(body.contains("case .adaptive:"),
                       "the bottom chrome must have an adaptive material path")
-        XCTAssertTrue(chrome.contains("@Environment(\\.appearancePreferences)"),
+        XCTAssertTrue(body.contains("@Environment(\\.appearancePreferences)"),
                       "the bottom chrome must read the shared appearance setting")
+        // Performance mode has to win over the material preference, or someone
+        // who asked for less work gets a blur they did not choose.
+        XCTAssertTrue(body.contains("appearancePreferences.performanceMode"))
+        // And it is shared rather than a private copy of the original.
+        XCTAssertFalse(body.contains("private struct ChromeGlass"))
     }
 
     func testBackgroundModesAndGradientColorsRoundTrip() throws {
