@@ -204,6 +204,15 @@ struct HabitData: Codable {
     /// and per-device event/reminder mappings deliberately remain local.
     var cloudPreferences: CloudPreferences?
 
+    /// IDs of habits that were deleted on some device, mapped to when.
+    ///
+    /// The merge is a union by design — a check-in arriving from a device that
+    /// still has the data must not be lost — and a union cannot carry a
+    /// deletion. Without this, deleting a habit on one device and syncing from
+    /// another that still has it brings it back. The map is a timestamp so old
+    /// tombstones can be dropped, which is what keeps the set bounded.
+    var deletedHabits: [UUID: TimeInterval]
+
     /// Die neuen Felder sind bewusst KEIN Versionssprung: sie sind rein
     /// additiv und tolerant dekodiert, ein v2-Build von gestern liest die
     /// Datei unverändert weiter (ein Sprung auf 3 würde ihn aussperren).
@@ -229,15 +238,18 @@ struct HabitData: Codable {
          viewPreferences: ViewPreferences = ViewPreferences(),
          cloudPreferences: CloudPreferences? = nil,
          sessionHistory: [HabitSessionRecord] = [],
+         deletedHabits: [UUID: TimeInterval] = [:],
          motivationMinutes: Int? = nil,
          motivationDelivery: MotivationDelivery = .notification,
          motivationSource: Motivation.Source = .builtIn) {
         self.version = version
         self.updatedAt = updatedAt
         self.appearanceUpdatedAt = appearanceUpdatedAt
+        self.deletedHabits = deletedHabits
         self.defaultTimeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(defaultTimeZoneIdentifier)
         self.summaryMinutes = summaryMinutes
         self.weeklySummaryMinutes = weeklySummaryMinutes
+        self.deletedHabits = deletedHabits
         self.motivationMinutes = motivationMinutes
         self.motivationDelivery = motivationDelivery
         self.motivationSource = motivationSource
@@ -277,6 +289,7 @@ extension HabitData {
         // überliest die beiden Schlüssel, also braucht es dafür keinen
         // Versionssprung (der ihn aussperren würde).
         case weeklySummaryMinutes, weeklySummaryWeekday, viewPreferences, sessionHistory
+        case deletedHabits
         case cloudPreferences
         // Auch die Motivationsnachricht ist rein ADDITIV — ein Build ohne
         // sie überliest den Schlüssel, kein Versionssprung nötig.
@@ -321,6 +334,9 @@ extension HabitData {
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
         habits = try c.decodeIfPresent([Habit].self, forKey: .habits) ?? []
         sessionHistory = (try? c.decodeIfPresent([HabitSessionRecord].self, forKey: .sessionHistory)) ?? []
+        // Additive and tolerant, like every field since v2: a payload from
+        // before tombstones existed simply has none, and that is not an error.
+        deletedHabits = (try? c.decodeIfPresent([UUID: TimeInterval].self, forKey: .deletedHabits)) ?? [:]
         // Fehlt / unbekannt -> Standard. Eine Datei aus einer neueren
         // Version mit "palette":"neon" verliert nur die Farbe, nicht die
         // Check-ins.
@@ -374,6 +390,7 @@ extension HabitData {
         }
         try c.encode(habits, forKey: .habits)
         if !sessionHistory.isEmpty { try c.encode(sessionHistory, forKey: .sessionHistory) }
+        if !deletedHabits.isEmpty { try c.encode(deletedHabits, forKey: .deletedHabits) }
         // Standards bleiben implizit — eine unveränderte Installation
         // schreibt exakt dieselbe Datei wie vor dem Theming.
         if appearance != .default { try c.encode(appearance.rawValue, forKey: .appearance) }
@@ -526,12 +543,66 @@ final class HabitStore {
     var onCalendarSyncNeeded: ((CalendarSyncScope) -> Void)?
     /// mtime der Datei beim letzten eigenen Lesen/Schreiben — erkennt
     /// externe Schreiber (Widget-Intent im Extension-Prozess).
-    @ObservationIgnored private var loadedMtime: Date?
+    @ObservationIgnored private var loadedSignature: (modified: Date?, size: Int)?
+
+    /// Set when the file on disk exists but will not decode. The store still
+    /// starts empty so the app is usable, but the failure is recorded rather than
+    /// swallowed, and the unreadable file is preserved before it can be
+    /// overwritten.
+    @ObservationIgnored private(set) var readFailed = false
+
+    /// Tombstones older than the retention window go, which is what keeps the
+    /// set bounded rather than a list of every habit ever deleted.
+    static func pruneTombstones(in data: inout HabitData,
+                                now: TimeInterval = Date().timeIntervalSince1970) {
+        guard !data.deletedHabits.isEmpty else { return }
+        let cutoff = now - sessionHistoryRetention
+        data.deletedHabits = data.deletedHabits.filter { $0.value >= cutoff }
+    }
+
+    /// Keeps session records inside a retention window.
+    ///
+    /// These used to be appended on every merge with nothing ever removing them,
+    /// so the array grew for the life of the install. It is written to data.json,
+    /// mirrored to iCloud and loaded on every launch, so the cost is paid each
+    /// time rather than once. A year is far longer than any streak or statistic
+    /// looks back, and it keeps a long history for anyone who wants it.
+    static let sessionHistoryRetention: TimeInterval = 366 * 24 * 60 * 60
+
+    static func trimSessionHistory(in data: inout HabitData,
+                                   now: Date = .now,
+                                   calendar: Calendar = .current) {
+        let cutoff = now.addingTimeInterval(-sessionHistoryRetention)
+        data.sessionHistory.removeAll { record in
+            guard let day = DayKey.date(from: record.day, calendar: calendar) else {
+                return false   // unreadable, not old — never drop on a guess
+            }
+            return day < cutoff
+        }
+        // Keep the newest first, which is how the session list reads.
+        data.sessionHistory.sort { $0.startedAt > $1.startedAt }
+    }
+
+    /// A count of how many times records have been trimmed. Written to the log
+    /// rather than shown, so a silent retention policy is at least observable.
+    @ObservationIgnored private(set) var trimmings = 0
+
+    /// Why the last write did not land, if it did not. Surfaced to the UI so a
+    /// failed save is a message instead of a change that quietly vanishes.
+    /// Observable, because the point is that the interface reacts to it.
+    private(set) var lastWriteError: String?
 
     init(url: URL = SharedStorage.dataURL(), loadFromDisk: Bool = true) {
         self.url = url
-        self.data = loadFromDisk ? (Self.read(url) ?? .empty) : .empty
-        self.loadedMtime = loadFromDisk ? Self.mtime(url) : nil
+        if loadFromDisk {
+            let outcome = Self.readResult(url)
+            self.data = outcome.payload ?? .empty
+            self.readFailed = outcome.corrupted
+            if outcome.corrupted { Self.preserveCorruptPayload(url) }
+        } else {
+            self.data = .empty
+        }
+        self.loadedSignature = loadFromDisk ? Self.signature(url) : nil
     }
 
     /// ALLE Habits, auch archivierte (Export, Sync, Archiv-Ansicht).
@@ -703,9 +774,34 @@ final class HabitStore {
         persist(notify: false)
     }
 
+    /// Reads the payload. "Nothing there yet" and "there but unreadable" are NOT
+    /// the same, and only the second is dangerous: treating an undecodable file
+    /// as an empty store means the next write overwrites it, so a half-written or
+    /// foreign payload costs everything that was in it.
+    ///
+    /// `read` keeps its optional shape for the callers that only want the data;
+    /// anything deciding whether to overwrite a file uses `readResult`.
     static func read(_ url: URL) -> HabitData? {
         guard let raw = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(HabitData.self, from: raw)
+    }
+
+    static func readResult(_ url: URL) -> (payload: HabitData?, corrupted: Bool) {
+        guard let raw = try? Data(contentsOf: url), !raw.isEmpty else {
+            return (nil, false)
+        }
+        guard let payload = try? JSONDecoder().decode(HabitData.self, from: raw) else {
+            return (nil, true)
+        }
+        return (payload, false)
+    }
+
+    /// Keeps the last trace of a payload that will not decode, so the next write
+    /// cannot be the thing that destroys it. Diagnostics rather than deletion.
+    static func preserveCorruptPayload(_ url: URL) {
+        let backup = url.deletingLastPathComponent()
+            .appendingPathComponent("haiity.corrupt.json")
+        try? FileManager.default.copyItem(at: url, to: backup)
     }
 
     /// Loads the initial payload away from the first SwiftUI render. The
@@ -713,19 +809,45 @@ final class HabitStore {
     /// cover a mounted content tree without blocking the main thread.
     @MainActor
     func loadFromDisk() async {
-        guard loadedMtime == nil else { return }
+        guard loadedSignature == nil else { return }
         let url = self.url
         let snapshot = await Task.detached(priority: .userInitiated) {
-            (Self.read(url), Self.mtime(url))
+            (Self.readResult(url).payload, Self.signature(url))
         }.value
-        guard !Task.isCancelled, loadedMtime == nil else { return }
-        loadedMtime = snapshot.1
+        guard !Task.isCancelled, loadedSignature == nil else { return }
+        loadedSignature = snapshot.1
         guard let fresh = snapshot.0 else { return }
         data = fresh
+        // A payload written before the retention window existed can already be
+        // over it, so trim on the way in rather than only when merging.
+        Self.trimSessionHistory(in: &data)
+        // Tombstones too: habits deleted elsewhere must not be present just
+        // because this payload predates them.
+        //
+        // The set is copied first on purpose. Reading `data.deletedHabits`
+        // inside a `removeAll` that is mutating `data.habits` is a Swift
+        // exclusivity conflict and aborts the process on launch — which is
+        // exactly how this was found.
+        let tombstones = data.deletedHabits
+        data.habits.removeAll { tombstones[$0.id] != nil }
+        Self.pruneTombstones(in: &data)
     }
 
     private static func mtime(_ url: URL) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+
+    /// mtime PLUS size, as the thing that decides "did this file change".
+    ///
+    /// mtime alone is a heuristic with a hole in it: on a filesystem with coarse
+    /// timestamp granularity an external writer can land within the same tick as
+    /// the last read, and a change that did happen is then missed. Size is cheap
+    /// and closes the common case of a rewrite to different content.
+    private static func signature(_ url: URL) -> (modified: Date?, size: Int)? {
+        guard let values = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return (values[.modificationDate] as? Date, (values[.size] as? Int) ?? 0)
     }
 
     /// Liest die Datei neu ein, wenn sie sich EXTERN geändert hat (der
@@ -738,16 +860,28 @@ final class HabitStore {
     /// Check-in ankommen, ohne eine danach gewählte Darstellung zurückzuholen.
     /// Unveränderte mtime -> No-op (kein Decode, kein onChange).
     func reloadFromDisk() {
-        let m = Self.mtime(url)
-        guard m != loadedMtime, let fresh = Self.read(url) else { return }
-        loadedMtime = m
+        guard let current = Self.signature(url) else { return }
+        // Tuples are not Equatable in Swift, so the two parts are compared by hand.
+        if let known = loadedSignature,
+           known.modified == current.modified, known.size == current.size {
+            return
+        }
+        guard let fresh = Self.read(url) else { return }
+        loadedSignature = current
         merge(remote: fresh)
     }
 
+    /// Writes the payload, and says whether it landed.
+    ///
+    /// It used to swallow both the encode and the write. The in-memory state is
+    /// already mutated by the time this runs, so a swallowed failure meant the
+    /// person saw their change succeed and it was simply not there next launch —
+    /// the same shape of silent loss as an unreadable file being overwritten.
+    @discardableResult
     func persist(notify: Bool = true,
                  changeKind: HabitStoreChange = .general,
                  touchTimestamp: Bool = true,
-                 calendarSync: CalendarSyncScope? = nil) {
+                 calendarSync: CalendarSyncScope? = nil) -> Bool {
         data.appearancePreferences = data.appearancePreferences.normalizedForStorage()
         data.version = HabitData.currentVersion
         if touchTimestamp {
@@ -760,10 +894,15 @@ final class HabitStore {
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let raw = try? enc.encode(data) {
-            try? raw.write(to: url, options: .atomic)
+        do {
+            let raw = try enc.encode(data)
+            try raw.write(to: url, options: .atomic)
+        } catch {
+            lastWriteError = error.localizedDescription
+            return false
         }
-        loadedMtime = Self.mtime(url)
+        lastWriteError = nil
+        loadedSignature = Self.signature(url)
         #if canImport(WidgetKit)
         reloadWidgetsAfterPersist()
         #endif
@@ -774,6 +913,7 @@ final class HabitStore {
                 onCalendarSyncNeeded?(calendarSync)
             }
         }
+        return true
     }
 
     #if canImport(WidgetKit)
@@ -819,6 +959,9 @@ final class HabitStore {
     func remove(_ id: UUID) {
         data.habits.removeAll { $0.id == id }
         data.sessionHistory.removeAll { $0.habitID == id }
+        // A deletion is the one thing the union merge cannot carry, so it is
+        // recorded as a tombstone for the other devices to apply.
+        data.deletedHabits[id] = Date().timeIntervalSince1970
         persist(calendarSync: .items([id]))
     }
 
@@ -1276,7 +1419,14 @@ final class HabitStore {
     /// Eine Antwort kann durch den Merge also NIE zu „unbeantwortet" werden
     /// und nie von Ja auf Nein kippen.
     func merge(remote: HabitData) {
-        var byId = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
+        // Grouped by hand rather than with `Dictionary(uniqueKeysWithValues:)`,
+        // which crashes outright on a duplicate. Duplicates should not exist, but
+        // if one ever arrived from a malformed payload or a bad merge the answer
+        // is to keep one entry, not to take the app down.
+        var byId: [UUID: Habit] = [:]
+        for habit in data.habits where byId[habit.id] == nil {
+            byId[habit.id] = habit
+        }
         let remoteNewer = remote.updatedAt > data.updatedAt
         // Appearance is edited independently from habits and check-ins. New
         // payloads carry their own timestamp; two legacy payloads retain the
@@ -1345,8 +1495,18 @@ final class HabitStore {
         let localIds = Set(data.habits.map(\.id))
         merged.append(contentsOf: remote.habits.filter { !localIds.contains($0.id) }.compactMap { byId[$0.id] })
         data.habits = merged
+        // Deletions are the one thing a union cannot carry, so they travel as
+        // tombstones and are applied afterwards — from BOTH sides. A habit
+        // deleted here and still present on an older device comes back unless
+        // its own tombstone is applied to whatever that device sends.
+        let tombstones = data.deletedHabits
+            .merging(remote.deletedHabits, uniquingKeysWith: max)
+        data.habits.removeAll { tombstones[$0.id] != nil }
+        data.deletedHabits = tombstones
+        Self.pruneTombstones(in: &data)
         let localRecordIDs = Set(data.sessionHistory.map(\.id))
         data.sessionHistory += remote.sessionHistory.filter { !localRecordIDs.contains($0.id) }
+        Self.trimSessionHistory(in: &data)
         if remoteNewer {
             data.summaryMinutes = remote.summaryMinutes
             data.weeklySummaryMinutes = remote.weeklySummaryMinutes

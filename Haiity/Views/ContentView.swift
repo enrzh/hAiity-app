@@ -908,9 +908,27 @@ struct ContentView: View {
             filterToast
             undoToast
             syncBadge
+            saveErrorBadge
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.bottom, Theme.Metrics.gap)
+    }
+
+    /// A save that did not land, so the person knows their change is not kept
+    /// rather than discovering it next launch.
+    @ViewBuilder
+    private var saveErrorBadge: some View {
+        if let message = store.lastWriteError {
+            Text(message)
+                .font(.footnote)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .appToastSurface()
+                .foregroundStyle(.red)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .accessibilityIdentifier("save-error-status")
+        }
     }
 
     /// A filter is a mode, not a one-shot action. Keep the same glass toast
