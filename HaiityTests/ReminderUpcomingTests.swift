@@ -133,6 +133,30 @@ final class ReminderUpcomingTests: XCTestCase {
         XCTAssertEqual(plans.first?.quickAction, .checkbox)
     }
 
+    /// Früh abgehakt heißt: der Wecker für den HEUTIGEN Tag darf nicht mehr
+    /// klingeln. Ohne diese Regel ist „geschafft“ am Morgen eine Erinnerung am
+    /// Abend für etwas, das längst erledigt ist — der einzige Weg, auf dem ein
+    /// erledigter Tag im Tagesverlauf doch noch einmal als offen auftaucht.
+    func testCheckingOffEarlyCancelsTodaysOwnReminder() {
+        var habit = Habit(name: "Lesen", emoji: "📚", timeMinutes: 18 * 60,
+                          recurrence: .daily)
+        let today = DayKey.key(for: now, calendar: calendar)
+        let todaysReminder = Reminders.habitReminderIdentifier(habitID: habit.id,
+                                                               day: today)
+
+        // Vor dem Abhaken steht der Wecker — sonst würde der Test auch dann
+        // grün sein, wenn nie einer gestellt würde.
+        let before = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+        XCTAssertTrue(before.contains { $0.identifier == todaysReminder },
+                      "Der Wecker für heute muss vor dem Abhaken stehen")
+
+        // Abgehakt um 09:00, Wecker auf 18:00: derselbe Wecker ist weg.
+        habit.log[today] = 1
+        let after = Reminders.habitPlans(habits: [habit], now: now, calendar: calendar)
+        XCTAssertFalse(after.contains { $0.identifier == todaysReminder },
+                       "Ein früh abgehakter Tag darf abends nicht erneut erinnert werden")
+    }
+
     func testNotificationIdentifierCarriesTheExactHabitAndDay() {
         let id = UUID()
         let identifier = Reminders.habitReminderIdentifier(habitID: id, day: "2026-08-17")
