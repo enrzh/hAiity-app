@@ -972,6 +972,10 @@ final class HabitStore {
     // MARK: – Mutationen
 
     func add(_ habit: Habit, after sourceID: UUID? = nil) {
+        var habit = habit
+        // Ein neu angelegter Habit startet mit Stempel, damit er ab der ersten
+        // Sekunde nicht über den Wurzel-Zeitstempel konkurriert.
+        if habit.updatedAt == nil { habit.updatedAt = Date().timeIntervalSince1970 }
         if let sourceID,
            let index = data.habits.firstIndex(where: { $0.id == sourceID }) {
             data.habits.insert(habit, at: index + 1)
@@ -983,6 +987,10 @@ final class HabitStore {
 
     func update(_ habit: Habit) {
         guard let i = data.habits.firstIndex(where: { $0.id == habit.id }) else { return }
+        var habit = habit
+        // `update` ist der Sammelweg für die Scalar-Felder, also der eine Ort,
+        // an dem der Stempel garantiert weiterläuft.
+        habit.updatedAt = Date().timeIntervalSince1970
         data.habits[i] = habit
         persist(calendarSync: .items([habit.id]))
     }
@@ -1071,6 +1079,8 @@ final class HabitStore {
         data.habits[i].missedDays.removeAll { $0 == day }
         if !data.habits[i].repeatsWhileIncomplete {
             data.habits[i].reminderCursor = completed ? nextCursor : day
+            // `reminderCursor` is a merged scalar, so moving it needs the stamp.
+            stamp(i)
         }
         if completed { autoArchiveIfNeeded(at: i, day: day) }
         persist()
@@ -1086,6 +1096,9 @@ final class HabitStore {
         guard GoalEngine.dayCounts(habit: habit, day: day, calendar: calendar),
               habit.recurrence.isFinalOccurrence(on: day, calendar: calendar) else { return }
         data.habits[index].archivedAt = day
+        // Automatisches Archivieren ist eine Scalar-Änderung und muss den
+        // Stempel mitnehmen, sonst erreicht sie die andere Seite nicht.
+        stamp(index)
     }
 
     /// Converts stale open reminder occurrences into explicit negative days.
@@ -1194,6 +1207,7 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
               data.habits[i].archivedAt == nil else { return }
         data.habits[i].archivedAt = day
+        stamp(i)
         persist(calendarSync: .items([id]))
     }
 
@@ -1201,7 +1215,20 @@ final class HabitStore {
         guard let i = data.habits.firstIndex(where: { $0.id == id }),
               data.habits[i].archivedAt != nil else { return }
         data.habits[i].archivedAt = nil
+        stamp(i)
         persist(calendarSync: .items([id]))
+    }
+
+    /// Setzt den habit-eigenen Änderungsstempel.
+    ///
+    /// Nur für Eingriffe, die ein zusammengeführtes Scalar-Feld ändern. Ein
+    /// reiner Log- oder Minuten-Eintrag fasst den Stempel NICHT an: Log und
+    /// Minuten sind Vereinigungen und gewinnen ohnehin. Würde ein Abhaken den
+    /// Stempel mitziehen, entschiede ein reines Abhaken wieder über Namens- und
+    /// Terminänderungen einer anderen Seite — genau der Fehler, den der Stempel
+    /// gerade behebt.
+    private func stamp(_ index: Int) {
+        data.habits[index].updatedAt = Date().timeIntervalSince1970
     }
 
     /// Verschiebt Habits per Drag — die Offsets beziehen sich auf
@@ -1417,6 +1444,7 @@ final class HabitStore {
         if data.palette == .custom(id) { data.palette = .default }
         for i in data.habits.indices where data.habits[i].palette == .custom(id) {
             data.habits[i].palette = nil
+            stamp(i)
         }
         persist(changeKind: .appearance)
     }
@@ -1528,6 +1556,26 @@ final class HabitStore {
     ///
     /// Eine Antwort kann durch den Merge also NIE zu „unbeantwortet" werden
     /// und nie von Ja auf Nein kippen.
+    /// Welche Seite die Skalarfelder EINES Habits vorgibt.
+    ///
+    /// Ein Habit mit eigenem Stempel wird nach diesem Stempel entschieden. Ein
+    /// Habit ohne Stempel stammt aus einem Payload, der ihn nicht kannte, und
+    /// das einzige verfügbare Indiz ist der Wurzel-Zeitstempel — die alte,
+    /// konservative Regel, damit ein Upgrad nicht aufhört zu synchronisieren.
+    ///
+    /// Wichtig ist die Absicht dahinter: zwei Änderungen an VERSCHIEDENEN
+    /// Habits sind kein Konflikt. Vor dieser Entscheidung hing die ganze
+    /// Feldzusammenführung an einem einzigen Wurzel-Zeitstempel, wodurch ein
+    /// Rename hier den Rename eines anderen Habits dort überschrieb, nur weil
+    /// auf dem einen Gerät zur selben Zeit irgendetwas anderes gespeichert
+    /// worden war. Der Verlust war still.
+    private static func remoteFieldsWin(localStamp: TimeInterval?,
+                                        remoteStamp: TimeInterval?,
+                                        remoteRootIsNewer: Bool) -> Bool {
+        guard let localStamp, let remoteStamp else { return remoteRootIsNewer }
+        return remoteStamp > localStamp
+    }
+
     private static func mergeHabits(_ remote: HabitData,
                                    newer: Bool,
                                    into data: inout HabitData) {
@@ -1552,7 +1600,9 @@ final class HabitStore {
                     if merged >= 1 { lh.minutes[k] = merged }
                 }
                 lh.missedDays = Array(Set(lh.missedDays).union(rh.missedDays)).sorted()
-                if newer {
+                if Self.remoteFieldsWin(localStamp: lh.updatedAt,
+                                        remoteStamp: rh.updatedAt,
+                                        remoteRootIsNewer: newer) {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.itemType = rh.itemType
@@ -1570,6 +1620,10 @@ final class HabitStore {
                     lh.palette = rh.palette
                     lh.swipeActions = rh.swipeActions
                     lh.kind = rh.kind
+                    // Der Stempel wandert mit den Feldern. Ohne das wäre der
+                    // Merge kein Fixpunkt: die losing Seite behielte ihren
+                    // Stempel und zöge beim nächsten Versuch wieder vor.
+                    lh.updatedAt = rh.updatedAt ?? lh.updatedAt
                 }
                 // Die Art zum Schluss noch einmal am VEREINIGTEN Log
                 // nachziehen: bringt die Gegenseite die erste Antwort mit

@@ -73,6 +73,18 @@ struct Habit: Codable, Identifiable, Equatable {
     var emoji: String
     var itemType: HabitItemType
     var createdAt: String
+    /// Wann zuletzt an diesem HABIT selbst etwas geändert wurde — Name, Symbol,
+    /// Termin, Wiederholung, Art, Archivierung, Palette. Ohne diesen Stempel
+    /// entschied ein einziger Wurzel-Zeitstempel über die Felder ALLER Habits
+    /// zugleich: ein Rename auf dem einen Gerät Überschrieb dann den Rename
+    /// eines ganz anderen Habits auf dem anderen, weil dort zur selben Zeit
+    /// irgendetwas anderes gespeichert wurde. Zwei Änderungen, die einander
+    /// nicht widersprechen, durften sich nicht gegenseitig aufheben.
+    ///
+    /// Optional, weil ein alter Payload keinen hat. Fehlt der Wert, gilt
+    /// weiterhin der Wurzel-Zeitstempel — das ist die alte, conservative
+    /// Regel, damit ein Upgrad nicht aufhört zu synchronisieren.
+    var updatedAt: TimeInterval?
     /// Uhrzeit einer eigenen, konkreten Erinnerung in Minuten seit
     /// Mitternacht. Das bestehende Feld bleibt unverändert codiert, damit
     /// ältere Dateien und Geräte den Wert weiterhin verlustfrei tragen.
@@ -227,6 +239,9 @@ extension Habit {
         // Der Marker der Habit-Art. Rein additiv und NUR für „Ja/Nein" da —
         // siehe `kind` und die lange Begründung an `Answer`.
         case kind
+        // Der habit-eigene Änderungsstempel. Rein additiv: ein alter Build
+        // überliest ihn, und ein alter Payload bringt keinen mit.
+        case updatedAt
     }
 
     /// Die WIRKSAME Art aus dem, was auf der Platte steht.
@@ -255,6 +270,7 @@ extension Habit {
         emoji = try c.decodeIfPresent(String.self, forKey: .emoji) ?? ""
         itemType = (try? c.decode(HabitItemType.self, forKey: .itemType)) ?? .habit
         createdAt = try c.decode(String.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(TimeInterval.self, forKey: .updatedAt)
         // Weiter tolerant gelesen, obwohl nichts mehr damit geplant wird —
         // eine Datei mit `reminderMinutes` muss vollständig durchlaufen
         // (siehe die Anmerkung am Feld).
@@ -317,6 +333,9 @@ extension Habit {
         try c.encode(emoji, forKey: .emoji)
         if itemType != .habit { try c.encode(itemType, forKey: .itemType) }
         try c.encode(createdAt, forKey: .createdAt)
+        // Rein additiv: nur schreiben, wenn er gesetzt ist, damit eine Datei
+        // ohne Stempel auch serialisiert so aussieht wie vorher.
+        try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
         try c.encode(notificationMode, forKey: .notificationMode)
