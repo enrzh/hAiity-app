@@ -112,6 +112,7 @@ struct ContributionChart: View, Equatable {
     var highlightedCells: Set<ContributionHighlightCell>? = nil
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     static func == (a: Self, b: Self) -> Bool {
         a.snapshot == b.snapshot && a.cell == b.cell && a.gap == b.gap
@@ -127,10 +128,21 @@ struct ContributionChart: View, Equatable {
             if showsMonthLabels {
                 monthRow
             }
+            tiles.padding(.vertical, showsSurface ? 4 : 0)
+        }
+        // The cells encode a day in their OPACITY, so they need a backdrop they
+        // can be resolved against. Over a glass card that backdrop is whatever
+        // is behind the phone: on a plain simulator wallpaper every empty day
+        // reads as one flat grey, and the graph is honest. Over a photo the
+        // wallpaper becomes a third input to the encoding — the same empty day
+        // renders pale on a light area and dark on a dark one, and an empty day
+        // can look filled. `loadingGraph` already paints a rounded plane in
+        // exactly this spot; the loaded state now completes it instead of
+        // swapping it for a hole, so there is no jump when data arrives.
+        .background {
             if showsSurface {
-                tiles.padding(.vertical, 4)
-            } else {
-                tiles
+                RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
+                    .fill(Theme.surfaceFill(preferences: appearancePreferences))
             }
         }
         .environment(\.layoutDirection, .leftToRight)
