@@ -160,6 +160,29 @@ final class AppNavigationTests: XCTestCase {
                        "the scrollable GitHub graph must not measure its own unbounded content")
     }
 
+    /// A tab that has been visited is not thrown away again.
+    ///
+    /// Building only the selected tab is deliberate — three pages of cards and
+    /// grids are too much for the first frame. But `if nativeTab == tab` also
+    /// DESTROYS the tabs you are not looking at, and with them their @State.
+    /// That is what made the Statistik page flash on every visit: the stats
+    /// snapshot starts nil again, the loading placeholder goes up, and the real
+    /// page pops in over it.
+    func testAVisitedTabKeepsItsContentInTheTree() throws {
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+
+        XCTAssertTrue(content.contains("if nativeTab == tab || builtTabs.contains(tab)"),
+                      "a tab that has been opened must stay built, or its @State is lost on every visit")
+        XCTAssertFalse(content.contains("if nativeTab == tab { content() }"),
+                       "the selected-only guard is what destroys a visited tab's state")
+        // The startup win this guard was added for has to survive: only the
+        // starting tab is built before anyone has tapped anything.
+        XCTAssertTrue(content.contains("@State private var builtTabs: Set<AppTab> = [.habits]"),
+                      "launch must still build just the starting tab")
+        XCTAssertTrue(content.contains("builtTabs.insert(tab)"),
+                      "opening a tab has to latch it as built")
+    }
+
     func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 

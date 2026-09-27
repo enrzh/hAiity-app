@@ -88,6 +88,15 @@ struct ContentView: View {
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
     /// öffnet das Suchfeld.
     @State private var nativeTab: AppTab = .habits
+    /// Tabs whose content has been built at least once. Building only the
+    /// selected tab is a startup win — three pages of grids and cards are far
+    /// too much to construct during the first frame — but DESTROYING the
+    /// unselected ones throws away their @State, and that is what made the
+    /// Statistik page flash on every visit: the snapshot starts nil again, the
+    /// placeholder goes up, and the real page pops in over it. Once a tab has
+    /// been paid for, keeping it in the tree costs nothing and removes the
+    /// rebuild, so returning to it is instant.
+    @State private var builtTabs: Set<AppTab> = [.habits]
     @State private var proStatus = ProStatus.shared
     /// The scene's first active callback can arrive before the async boot
     /// task has installed its local state and maintenance pipeline.
@@ -523,6 +532,7 @@ struct ContentView: View {
             }
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd)")
+                builtTabs.insert(tab)
                 guard old == .search, tab != .search else { return }
                 searchFieldFocused = false
                 if #unavailable(iOS 26) { searching = false }
@@ -735,7 +745,7 @@ struct ContentView: View {
         _ tab: AppTab,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        if nativeTab == tab { content() }
+        if nativeTab == tab || builtTabs.contains(tab) { content() }
     }
 
     /// The native tab host can add an opaque backdrop around a NavigationStack.
