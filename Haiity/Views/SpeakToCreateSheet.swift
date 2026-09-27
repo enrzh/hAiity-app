@@ -303,7 +303,14 @@ struct SpeakToCreateSheet: View {
         .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
-        .accessibilityElement(children: .combine)
+        // `.contain`, not `.combine`. The card holds the "Satz lesen" button,
+        // and combining folded that button into the card's own accessibility
+        // element — so the one control that spends the model and the heat was
+        // not a control any more. Assistive technology could not reach it or
+        // activate it, and a synthetic tap resolved to the wrong frame and
+        // landed on the microphone instead. `.contain` still groups the card as
+        // one place while leaving the button itself reachable.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("speak-to-create-draft")
     }
 

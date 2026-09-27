@@ -26,6 +26,21 @@ final class SpeakToCreateDockUITests: XCTestCase {
         return field
     }
 
+    /// Writes the screenshot to a path that only exists on this machine AND
+    /// attaches it, so the same capture can be read from a real device or CI.
+    private func capture(_ name: String) {
+        let image = XCUIScreen.main.screenshot().image
+        let shots = ProcessInfo.processInfo.environment["HAIITY_SHOT_DIR"]
+            ?? "/private/var/folders/gp/c79f6sdj4h1d1t7rrpq24k8m0000gn/T/opencode/shots"
+        try? FileManager.default.createDirectory(atPath: shots,
+                                                 withIntermediateDirectories: true)
+        try? image.pngData()?.write(to: URL(fileURLWithPath: "\(shots)/\(name).png"))
+        let attachment = XCTAttachment(image: image)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     /// Both controls have to be on screen at once, and hittable. The dock moved
     /// them out of the scrolling content, so a layout that put the dock off-screen
     /// or under the home indicator would still pass a source test.
@@ -97,23 +112,6 @@ final class SpeakToCreateDockUITests: XCTestCase {
     /// reads as glass; only a picture can, and the previous round of this work
     /// shipped a dock that every assertion passed and that looked broken.
     func testCaptureTheSheetForReview() throws {
-        let shots = ProcessInfo.processInfo.environment["HAIITY_SHOT_DIR"]
-            ?? "/private/var/folders/gp/c79f6sdj4h1d1t7rrpq24k8m0000gn/T/opencode/shots"
-        try? FileManager.default.createDirectory(atPath: shots,
-                                                 withIntermediateDirectories: true)
-        func capture(_ name: String) {
-            let image = XCUIScreen.main.screenshot().image
-            try? image.pngData()?.write(to: URL(fileURLWithPath: "\(shots)/\(name).png"))
-            // The path above only exists on the machine that ran the tests. An
-            // attachment travels with the result bundle instead, so the same
-            // three states can be reviewed from a real device — where that path
-            // is not writable — and from CI.
-            let attachment = XCTAttachment(image: image)
-            attachment.name = name
-            attachment.lifetime = .keepAlways
-            add(attachment)
-        }
-
         // The main page, so the entry point can be judged against its neighbours.
         let opener = app.buttons["speak-to-create"]
         XCTAssertTrue(opener.waitForExistence(timeout: 20))
