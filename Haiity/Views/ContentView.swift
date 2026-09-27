@@ -415,13 +415,20 @@ struct ContentView: View {
                 await Task.yield()
                 StartupMetrics.event("localDataReady")
                 becameActiveAt = .now
-                #if DEBUG
+                #if DEBUG && targetEnvironment(simulator)
                 // Keep deterministic simulator routes independent of startup
                 // sync, which can legitimately wait on iCloud.
                 handleLaunchScreenArgument()
                 // Seed interaction fixtures before boot as well. Boot may
                 // wait on iCloud, while UI tests need their row in the first
                 // rendered list.
+                //
+                // SIMULATOR ONLY, deliberately. These hooks write into the real
+                // App Group store: a "UI test reminder" appears in the person's
+                // list and the stats card preferences are overwritten. Debug
+                // alone was not enough — a Debug build on a real phone is still
+                // the person's own data, and the comment above already said
+                // "simulator routes". DesignFixture makes the same guard.
                 handleLaunchTestData()
                 #endif
                 await boot()
@@ -429,7 +436,7 @@ struct ContentView: View {
                 // A background transition that happened while the process was
                 // still booting is not a resume of the mounted app.
                 hasEnteredBackground = false
-                #if DEBUG
+                #if DEBUG && targetEnvironment(simulator)
                 // Seeded interaction fixtures must be written after the
                 // initial iCloud merge, otherwise a startup reload can race
                 // the test fixture and hide the item being exercised.
@@ -2734,6 +2741,9 @@ struct ContentView: View {
         }
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// Testdaten-Hooks. Schreibt in den echten App-Group-Store, deshalb
+    /// simulator-only — siehe die Begründung am Aufruf.
     private func handleLaunchTestData() {
         let args = ProcessInfo.processInfo.arguments
         let reminderInteractionID = UUID(uuidString: "00000000-0000-0000-0000-000000000108")!
@@ -2766,6 +2776,7 @@ struct ContentView: View {
             store.remove(reminderInteractionID)
         }
     }
+    #endif
 
     /// Nur Debug: rendert JEDE Widget-Oberfläche in ihren echten Maßen in den
     /// App-Group-Container. WidgetKit lässt sich nicht fernsteuern — weder
