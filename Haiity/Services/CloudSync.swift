@@ -62,6 +62,9 @@ enum CloudSyncError: LocalizedError, Equatable {
     /// Datenversion oder beschädigt). Wird GEMELDET statt überschrieben —
     /// dieselbe Regel wie beim Lesen von data.json.
     case unreadableRemote
+    /// Das Gleiche auf dieser Seite: data.json existiert, will aber nicht
+    /// dekodieren. Wird gemeldet statt still als leerer Stand zu synchronisieren.
+    case unreadableLocal
     /// Nach `limit` Versuchen war der Server immer noch neuer.
     case conflictUnresolved(Int)
     case failed(String)
@@ -74,6 +77,8 @@ enum CloudSyncError: LocalizedError, Equatable {
             return String(localized: "iCloud gerade nicht erreichbar (\(m)) — wird später nachgeholt.")
         case .unreadableRemote:
             return String(localized: "Die Daten in iCloud stammen aus einer neueren Version und werden nicht überschrieben.")
+        case .unreadableLocal:
+            return String(localized: "Die Datei auf diesem Gerät lies sich nicht einlesen. Eine Kopie liegt als haiity.corrupt.json.")
         case .conflictUnresolved(let n):
             return String(localized: "iCloud-Konflikt nach \(n) Versuchen nicht aufgelöst.")
         case .failed(let m):

@@ -17337,6 +17337,16 @@
         }
       }
     },
+    "Die Datei auf diesem Gerät lies sich nicht einlesen. Eine Kopie liegt als haiity.corrupt.json.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file on this device could not be read. A copy is kept as haiity.corrupt.json."
+          }
+        }
+      }
+    },
     "Die Datei lies sich nicht einlesen. Eine Kopie liegt als haiity.corrupt.json.": {
       "localizations": {
         "en": {

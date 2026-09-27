@@ -3289,7 +3289,14 @@ struct ContentView: View {
             // startup-only local preference write must not make remote habit
             // metadata look older than this device.
             store.setViewPreferences(viewPreferences.preferences)
-            guard let payload = store.exportJSON() else { return }
+            guard let payload = store.exportJSON() else {
+                // A sync that produces nothing is not a success. Saying nothing
+                // here meant the person tapped sync, saw nothing happen, and
+                // learned nothing — the same shape of silent failure as the
+                // unreadable file, one layer up.
+                cloudStatus.noteFailure(CloudSyncError.unreadableLocal)
+                return
+            }
             try await cloud.push(payload) { remote in
                 // EIN Merge in dieser App — der aus dem Store.
                 if let remote {
