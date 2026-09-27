@@ -73,6 +73,12 @@ struct CloudPreferences: Codable, Equatable {
     var nativeReminderSync: Bool
     var notificationDND: NotificationDNDState
     var shakeToReportEnabled: Bool
+    /// Wann diese Einstellung zuletzt gesetzt wurde.
+    ///
+    /// Gleiche Lücke wie bei `githubShowsUsername`: ohne Stempel entscheidet der
+    /// Wurzel-`updatedAt` über sie, und ein Check-in auf einem anderen Gerät
+    /// überschreibt sie mit einem älteren Wert.
+    var updatedAt: TimeInterval?
 
     private enum CodingKeys: String, CodingKey {
         case calendarSyncHabits
@@ -81,6 +87,7 @@ struct CloudPreferences: Codable, Equatable {
         case notificationPromptsSuppressed
         case notificationDND
         case shakeToReportEnabled
+        case updatedAt
     }
 
     /// Compatibility view for older callers and older iCloud payloads. New
@@ -119,6 +126,7 @@ struct CloudPreferences: Codable, Equatable {
         }
         shakeToReportEnabled = try container.decodeIfPresent(Bool.self,
                                                              forKey: .shakeToReportEnabled) ?? true
+        updatedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .updatedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -132,6 +140,7 @@ struct CloudPreferences: Codable, Equatable {
         try container.encode(notificationPromptsSuppressed,
                              forKey: .notificationPromptsSuppressed)
         try container.encode(shakeToReportEnabled, forKey: .shakeToReportEnabled)
+        if let updatedAt { try container.encode(updatedAt, forKey: .updatedAt) }
     }
 }
 
@@ -197,6 +206,14 @@ struct HabitData: Codable {
     /// bedeutet eine Datei aus einer Version, die diese Einstellung noch
     /// lokal im App-Group-Defaults hielt.
     var githubShowsUsername: Bool?
+    /// Wann diese Einstellung zuletzt gesetzt wurde.
+    ///
+    /// Ohne diesen Stempel entscheidet der Wurzel-`updatedAt` über sie, und das
+    /// ist die falsche Frage: ein Check-in auf einem anderen Gerät macht dessen
+    /// Wurzel-Zeitstempel neuer, ohne dass sich diese Einstellung geändert hat —
+    /// und überschreibt sie dann mit einem älteren Wert. Dieselbe Lücke, die
+    /// `appearanceUpdatedAt` für die Darstellung schließt.
+    var githubShowsUsernameUpdatedAt: TimeInterval?
     /// Ansichts-Einstellungen (Statistik-Karten und kompakte Darstellung).
     /// Sie reisen als Teil desselben privaten iCloud-Payloads mit.
     var viewPreferences: ViewPreferences
@@ -233,6 +250,7 @@ struct HabitData: Codable {
          matchAppIcon: Bool = true,
          manualAppIconName: String? = nil,
          githubShowsUsername: Bool? = nil,
+         githubShowsUsernameUpdatedAt: TimeInterval? = nil,
          weeklySummaryMinutes: Int? = nil,
          weeklySummaryWeekday: Int = HabitData.defaultSummaryWeekday,
          viewPreferences: ViewPreferences = ViewPreferences(),
@@ -264,6 +282,7 @@ struct HabitData: Codable {
         self.matchAppIcon = matchAppIcon
         self.manualAppIconName = manualAppIconName
         self.githubShowsUsername = githubShowsUsername
+        self.githubShowsUsernameUpdatedAt = githubShowsUsernameUpdatedAt
         self.viewPreferences = viewPreferences
         self.cloudPreferences = cloudPreferences
     }
@@ -284,6 +303,7 @@ extension HabitData {
              palette, matchAppIcon
         case manualAppIconName
         case githubShowsUsername
+        case githubShowsUsernameUpdatedAt
         case customPalettes
         // Die Wochenzusammenfassung ist rein ADDITIV: ein Build ohne sie
         // überliest die beiden Schlüssel, also braucht es dafür keinen
@@ -354,6 +374,8 @@ extension HabitData {
         matchAppIcon = try c.decodeIfPresent(Bool.self, forKey: .matchAppIcon) ?? true
         manualAppIconName = try c.decodeIfPresent(String.self, forKey: .manualAppIconName)
         githubShowsUsername = try c.decodeIfPresent(Bool.self, forKey: .githubShowsUsername)
+        githubShowsUsernameUpdatedAt = try c.decodeIfPresent(TimeInterval.self,
+                                                              forKey: .githubShowsUsernameUpdatedAt)
         if let savedPreferences = try c.decodeIfPresent(ViewPreferences.self, forKey: .viewPreferences) {
             viewPreferences = savedPreferences
         } else {
@@ -402,6 +424,9 @@ extension HabitData {
         if !matchAppIcon { try c.encode(false, forKey: .matchAppIcon) }
         try c.encodeIfPresent(manualAppIconName, forKey: .manualAppIconName)
         if let githubShowsUsername { try c.encode(githubShowsUsername, forKey: .githubShowsUsername) }
+        if let githubShowsUsernameUpdatedAt {
+            try c.encode(githubShowsUsernameUpdatedAt, forKey: .githubShowsUsernameUpdatedAt)
+        }
         if viewPreferences != ViewPreferences() { try c.encode(viewPreferences, forKey: .viewPreferences) }
         try c.encodeIfPresent(cloudPreferences, forKey: .cloudPreferences)
     }
@@ -736,6 +761,9 @@ final class HabitStore {
         get { data.githubShowsUsername ?? GitHubPreferences.showsUsername }
         set {
             data.githubShowsUsername = newValue
+            // The stamp travels with the value, so the merge can tell a real
+            // change from a side effect of some other device's timestamp.
+            data.githubShowsUsernameUpdatedAt = Date().timeIntervalSince1970
             GitHubPreferences.setShowsUsername(newValue, in: GitHubPreferences.defaults)
             persist()
         }
@@ -762,6 +790,9 @@ final class HabitStore {
         var next = data.cloudPreferences ?? fallback
         body(&next)
         guard next != data.cloudPreferences else { return }
+        // The stamp is set on a real change, not on every persist, so the merge
+        // can tell a preference edit from a check-in on another device.
+        next.updatedAt = Date().timeIntervalSince1970
         data.cloudPreferences = next
         persist()
     }
@@ -1428,6 +1459,7 @@ final class HabitStore {
         Self.mergeHabits(remote, newer: remoteNewer, into: &data)
         Self.mergeSessionHistory(remote, into: &data)
         Self.mergeSummary(remote, newer: remoteNewer, into: &data)
+        Self.mergeGitHubShowsUsername(remote, newer: remoteNewer, into: &data)
         Self.mergeAppearance(remote, newer: remoteAppearanceNewer, into: &data)
         Self.mergeCloudPreferences(remote, newer: remoteNewer, into: &data)
         Self.mergeViewPreferences(remote, into: &data)
@@ -1576,6 +1608,10 @@ final class HabitStore {
     }
 
     /// Zusammenfassung und Motivation: schlicht die neuere Seite.
+    ///
+    /// `githubShowsUsername` wird hier mit ausgenomen, weil es einen eigenen
+    /// Stempel hat — es gehört nicht zur Zusammenfassung, und der Wurzel-Zeitstempel
+    /// ist die falsche Instanz dafür.
     private static func mergeSummary(_ remote: HabitData,
                                      newer: Bool,
                                      into data: inout HabitData) {
@@ -1588,11 +1624,36 @@ final class HabitStore {
         data.motivationSource = remote.motivationSource
         data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
         data.updatedAt = remote.updatedAt
-        if let remoteShowsUsername = remote.githubShowsUsername {
-            data.githubShowsUsername = remoteShowsUsername
-            GitHubPreferences.setShowsUsername(remoteShowsUsername,
-                                                in: GitHubPreferences.defaults)
+    }
+
+    /// Der GitHub-Namen-Schalter mit seinem eigenen Stempel.
+    ///
+    /// Er lag bislang in `mergeSummary` und wurde damit vom Wurzel-`updatedAt`
+    /// entschieden — ein Check-in auf einem anderen Gerät macht dessen Wurzel
+    /// neuer, ohne dass sich dieser Schalter geändert hat, und zieht ihn dann mit
+    /// einem älteren Wert wieder auf. Der Stempel ist additiv: ein Payload ohne
+    /// ihn fällt auf den Wurzel-Zeitstempel zurück, also auf das alte Verhalten.
+    private static func mergeGitHubShowsUsername(_ remote: HabitData,
+                                                 newer: Bool,
+                                                 into data: inout HabitData) {
+        guard let remoteValue = remote.githubShowsUsername else { return }
+        // A stamp means the value was set by a build that knows about stamps; no
+        // stamp means it predates them. When exactly one side is stamped, the
+        // stamped side is the more recent by construction — a pre-feature value
+        // is older than any post-feature one, whatever the root timestamp says.
+        // With neither stamped there is nothing to go on but the root timestamp,
+        // which is the behaviour before this field existed.
+        let remoteWins: Bool
+        switch (remote.githubShowsUsernameUpdatedAt, data.githubShowsUsernameUpdatedAt) {
+        case let (.some(remoteStamp), .some(localStamp)): remoteWins = remoteStamp >= localStamp
+        case (.some, .none):                             remoteWins = true
+        case (.none, .some):                             remoteWins = false
+        case (.none, .none):                             remoteWins = newer
         }
+        guard remoteWins else { return }
+        data.githubShowsUsername = remoteValue
+        data.githubShowsUsernameUpdatedAt = remote.githubShowsUsernameUpdatedAt
+        GitHubPreferences.setShowsUsername(remoteValue, in: GitHubPreferences.defaults)
     }
 
     /// Darstellung: das neuere Gerät gibt das Aussehen vor. Anders als
@@ -1626,13 +1687,24 @@ final class HabitStore {
         data.appearanceUpdatedAt = remote.appearanceUpdatedAt
     }
 
-    /// Cloud-Einstellungen: nur mit, wenn die Gegenseite insgesamt neuer ist.
+    /// Cloud-Einstellungen: eigener Stempel, sonst der Wurzel-Zeitstempel.
+    ///
+    /// Sie sind Absicht, nicht Zähler, und ein Check-in auf einem anderen Gerät
+    /// soll sie nicht mit einem älteren Wert überschreiben.
     private static func mergeCloudPreferences(_ remote: HabitData,
                                               newer: Bool,
                                               into data: inout HabitData) {
-        if newer, let remoteCloudPreferences = remote.cloudPreferences {
-            data.cloudPreferences = remoteCloudPreferences
+        guard let remoteValue = remote.cloudPreferences else { return }
+        // Same rule as the GitHub switch: a stamped value is post-feature, an
+        // unstamped one pre-feature, so a stamp on exactly one side settles it.
+        let remoteWins: Bool
+        switch (remoteValue.updatedAt, data.cloudPreferences?.updatedAt) {
+        case let (.some(remoteStamp), .some(localStamp)): remoteWins = remoteStamp >= localStamp
+        case (.some, .none):                             remoteWins = true
+        case (.none, .some):                             remoteWins = false
+        case (.none, .none):                             remoteWins = newer
         }
+        if remoteWins { data.cloudPreferences = remoteValue }
     }
 
     /// Ansicht: eigener Zeitstempel, unabhängig vom Wurzel-Zeitstempel.

@@ -202,11 +202,92 @@ final class HabitStoreIntegrityTests: XCTestCase {
                        "the habit loop should not live in the orchestrator")
     }
 
+    /// Reads a value back out of the store's own JSON, so a test can check what
+    /// was persisted rather than only what the in-memory state claims.
+    private static func stamp(of store: HabitStore, key: String) throws -> TimeInterval? {
+        let data = try XCTUnwrap(store.exportJSON())
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return object[key] as? TimeInterval
+    }
+
     private func sourceURL(_ path: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent(path)
+    }
+
+    /// A habit check-in on one device must not overwrite the GitHub name switch on
+    /// another. The switch used to be decided by the root `updatedAt`, which a
+    /// check-in makes newer on the other device without the switch changing.
+    func testACheckInElsewhereDoesNotClobberTheGitHubNameSwitch() throws {
+        let url = tempURL("data.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let store = HabitStore(url: url, loadFromDisk: false)
+        store.githubShowsUsername = false
+        let localStamp = try XCTUnwrap(Self.stamp(of: store, key: "githubShowsUsernameUpdatedAt"))
+
+        // Another device, later, that has the switch still on and no opinion of
+        // its own: it only checked a habit in.
+        var remote = try Self.payload(habits: [])
+        remote.githubShowsUsername = true
+        remote.githubShowsUsernameUpdatedAt = nil          // predates the stamp
+        remote.updatedAt = Date().timeIntervalSince1970    // but its root is newer
+
+        store.merge(remote: remote)
+        XCTAssertFalse(store.githubShowsUsername,
+                       "a check-in must not flip the switch on a device that set it")
+        // And the surviving switch keeps its own stamp.
+        XCTAssertEqual(try XCTUnwrap(Self.stamp(of: store, key: "githubShowsUsernameUpdatedAt")),
+                       localStamp)
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+    }
+
+    /// A real change to the switch on the other device does win, because it carries
+    /// a newer stamp.
+    func testANewerGitHubNameSwitchWins() throws {
+        let url = tempURL("data.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let store = HabitStore(url: url, loadFromDisk: false)
+        store.githubShowsUsername = false
+
+        var remote = try Self.payload(habits: [])
+        remote.githubShowsUsername = true
+        remote.githubShowsUsernameUpdatedAt = Date().timeIntervalSince1970
+
+        store.merge(remote: remote)
+        XCTAssertTrue(store.githubShowsUsername)
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+    }
+
+    /// The same for cloud preferences: they are intent, not a counter, so a
+    /// check-in elsewhere must not overwrite them with an older value.
+    func testACheckInElsewhereDoesNotClobberCloudPreferences() throws {
+        let url = tempURL("data.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let store = HabitStore(url: url, loadFromDisk: false)
+        store.updateCloudPreferences(fallback: CloudPreferences(calendarSyncHabits: true,
+                                                                calendarSyncReminders: true,
+                                                                nativeReminderSync: true,
+                                                                shakeToReportEnabled: true)) {
+            $0.calendarSyncHabits = false
+        }
+
+        var remote = try Self.payload(habits: [])
+        remote.cloudPreferences = CloudPreferences(calendarSyncHabits: true,
+                                                   calendarSyncReminders: true,
+                                                   nativeReminderSync: true,
+                                                   shakeToReportEnabled: true)
+        remote.cloudPreferences?.updatedAt = nil             // predates the stamp
+        remote.updatedAt = Date().timeIntervalSince1970
+
+        store.merge(remote: remote)
+        XCTAssertFalse(store.cloudPreferences?.calendarSyncHabits ?? true,
+                       "a check-in must not reset a cloud preference")
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
     }
 
     // MARK: - Helpers
