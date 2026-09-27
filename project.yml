@@ -99,7 +99,7 @@ targets:
         # — dafür gibt es einen Test.
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Blue AppIcon-Violet AppIcon-Amber AppIcon-Rose AppIcon-Gray AppIcon-H000 AppIcon-H030 AppIcon-H060 AppIcon-H090 AppIcon-H120 AppIcon-H150 AppIcon-H180 AppIcon-H210 AppIcon-H240 AppIcon-H270 AppIcon-H300 AppIcon-H330"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
-        CURRENT_PROJECT_VERSION: 242
+        CURRENT_PROJECT_VERSION: 250
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_ENTITLEMENTS: Haiity/Haiity.entitlements
         CODE_SIGN_STYLE: Automatic
@@ -226,7 +226,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.aiity.haiity.widget
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"
-        CURRENT_PROJECT_VERSION: 242
+        CURRENT_PROJECT_VERSION: 250
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_ENTITLEMENTS: HaiityWidget/HaiityWidget.entitlements
         CODE_SIGN_STYLE: Automatic
