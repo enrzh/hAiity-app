@@ -17337,6 +17337,16 @@
         }
       }
     },
+    "Die Datei lies sich nicht einlesen. Eine Kopie liegt als haiity.corrupt.json.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file could not be read. A copy is kept as haiity.corrupt.json."
+          }
+        }
+      }
+    },
     "Die Daten in iCloud stammen aus einer neueren Version und werden nicht überschrieben.": {
       "localizations": {
         "ar": {

@@ -916,9 +916,23 @@ struct ContentView: View {
 
     /// A save that did not land, so the person knows their change is not kept
     /// rather than discovering it next launch.
+    ///
+    /// A file that would not decode is the more serious of the two: the list
+    /// comes up empty and, without this, reads as "everything was deleted". It
+    /// says so instead, and points at the copy that was kept.
     @ViewBuilder
     private var saveErrorBadge: some View {
-        if let message = store.lastWriteError {
+        if store.readFailed {
+            Text(String(localized: "Die Datei lies sich nicht einlesen. Eine Kopie liegt als haiity.corrupt.json."))
+                .font(.footnote)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .appToastSurface()
+                .foregroundStyle(.red)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .accessibilityIdentifier("save-error-status")
+        } else if let message = store.lastWriteError {
             Text(message)
                 .font(.footnote)
                 .padding(.horizontal, 10)
