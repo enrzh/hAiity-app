@@ -102,8 +102,16 @@ final class SpeakToCreateDockUITests: XCTestCase {
         try? FileManager.default.createDirectory(atPath: shots,
                                                  withIntermediateDirectories: true)
         func capture(_ name: String) {
-            let data = XCUIScreen.main.screenshot().image.pngData()
-            try? data?.write(to: URL(fileURLWithPath: "\(shots)/\(name).png"))
+            let image = XCUIScreen.main.screenshot().image
+            try? image.pngData()?.write(to: URL(fileURLWithPath: "\(shots)/\(name).png"))
+            // The path above only exists on the machine that ran the tests. An
+            // attachment travels with the result bundle instead, so the same
+            // three states can be reviewed from a real device — where that path
+            // is not writable — and from CI.
+            let attachment = XCTAttachment(image: image)
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
         }
 
         // The main page, so the entry point can be judged against its neighbours.
