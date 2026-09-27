@@ -128,4 +128,66 @@ final class HabitStoreConvergenceTests: XCTestCase {
         XCTAssertEqual(afterFirst, a.exportJSON(),
                        "a second merge of the same payload must be a no-op")
     }
+
+    // MARK: - A wrong clock is not evidence of a newer edit
+
+    /// A device whose clock runs a day fast must not win every merge.
+    ///
+    /// Both timestamps are just `Date()` on whichever device wrote them, so a
+    /// wrong clock is indistinguishable from "newer" — and the side with the
+    /// broken clock then discards the other side's work until it catches up.
+    /// A stamp that far in the future is not evidence of anything, so it is not
+    /// allowed to decide.
+    func testAStampInTheFutureIsNotTreatedAsNewer() {
+        let now = Date().timeIntervalSince1970
+        // Real timezone drift has to keep working, so the tolerance is not zero.
+        XCTAssertEqual(HabitStore.reliableStamp(now - 3600, now: now), now - 3600,
+                       "a stamp in the past is perfectly good evidence")
+        XCTAssertEqual(HabitStore.reliableStamp(now + 5 * 3600, now: now), now + 5 * 3600,
+                       "five hours of drift is still a working clock")
+        // Past the tolerance it stops being evidence.
+        XCTAssertNil(HabitStore.reliableStamp(now + 86_400, now: now),
+                     "a day ahead is a wrong clock, not a newer edit")
+        XCTAssertNil(HabitStore.reliableStamp(now + 365 * 86_400, now: now),
+                     "a year ahead must not win anything")
+        XCTAssertNil(HabitStore.reliableStamp(nil, now: now))
+    }
+
+    /// The same rule, end to end: a remote payload stamped a day into the future
+    /// must not overwrite local work.
+    func testARemoteStampedInTheFutureDoesNotOverwriteLocalWork() {
+        let a = makeStore()
+        a.add(Habit(name: "Lesen"))
+        var remote = try! JSONDecoder().decode(HabitData.self, from: a.exportJSON()!)
+        remote.updatedAt = Date().timeIntervalSince1970 + 86_400
+        remote.habits[0].name = "Übernommen von einer falschen Uhr"
+
+        a.merge(remote: remote)
+        XCTAssertEqual(a.habits.first?.name, "Lesen",
+                       "a payload dated in the future is not proof that it is newer")
+    }
+
+    /// A deletion must not come back just because the device that made it has a
+    /// slow clock. Pruning is measured against the reader's clock, so a
+    /// future-dated tombstone has to survive it.
+    func testAFutureDatedTombstoneIsNeverPruned() {
+        let now = Date().timeIntervalSince1970
+        var data = HabitData(version: HabitData.currentVersion, updatedAt: now,
+                            summaryMinutes: nil, habits: [])
+        let id = UUID()
+        // A tombstone from a clock a year behind: older than the retention
+        // window as seen by a correct clock, yet still carrying a deletion.
+        data.deletedHabits[id] = now - 10 * 365 * 86_400
+
+        HabitStore.pruneTombstones(in: &data, now: now)
+        XCTAssertNil(data.deletedHabits[id],
+                     "a tombstone genuinely older than the window is dropped")
+
+        // And one from a clock a year ahead is definitely kept, however long the
+        // reader's own clock says.
+        data.deletedHabits[id] = now + 365 * 86_400
+        HabitStore.pruneTombstones(in: &data, now: now)
+        XCTAssertNotNil(data.deletedHabits[id],
+                        "a future-dated tombstone must survive, or the habit comes back")
+    }
 }

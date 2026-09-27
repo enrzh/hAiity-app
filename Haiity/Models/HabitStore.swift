@@ -582,7 +582,11 @@ final class HabitStore {
                                 now: TimeInterval = Date().timeIntervalSince1970) {
         guard !data.deletedHabits.isEmpty else { return }
         let cutoff = now - sessionHistoryRetention
-        data.deletedHabits = data.deletedHabits.filter { $0.value >= cutoff }
+        // Ein Stempel IN DER ZUKUNFT wird nie verworfen. Er kommt von einer
+        // nachgehenden Uhr; nach `sessionHistoryRetention` gerechnet wäre eine
+        // Löschung auf einem Gerät mit korrekter Uhr wieder da, genau dann wenn
+        // sie eigentlich hätte greifen müssen.
+        data.deletedHabits = data.deletedHabits.filter { $0.value >= cutoff || $0.value > now }
     }
 
     /// Keeps session records inside a retention window.
@@ -1482,7 +1486,10 @@ final class HabitStore {
         // gereicht. Kein Schritt muss selbst herleiten, welche Seite neuer ist —
         // genau das hat diese Funktion auf 150 Zeilen wachsen lassen: Jede Sektion
         // hat die Frage für sich beantwortet, jedes Mal anders.
-        let remoteNewer = remote.updatedAt > data.updatedAt
+        // Ein unplausibel weit vorausliegender Stempel entscheidet nichts; siehe
+        // `reliableStamp`.
+        let remoteNewer = Self.reliableStamp(remote.updatedAt)
+            .map { $0 > data.updatedAt } ?? false
         let remoteAppearanceNewer = Self.appearanceIsNewer(remote, than: data)
         Self.mergeHabits(remote, newer: remoteNewer, into: &data)
         Self.mergeSessionHistory(remote, into: &data)
@@ -1573,7 +1580,31 @@ final class HabitStore {
                                         remoteStamp: TimeInterval?,
                                         remoteRootIsNewer: Bool) -> Bool {
         guard let localStamp, let remoteStamp else { return remoteRootIsNewer }
-        return remoteStamp > localStamp
+        let now = Date().timeIntervalSince1970
+        // Eine kaputte Uhr auf der Gegenseite ist kein Beleg für eine neuere
+        // Änderung. Lieber die konservative Seite behalten als zuzusehen, wie
+        // alle benachbarten Änderungen verschwinden.
+        guard let remote = reliableStamp(remoteStamp, now: now) else { return false }
+        return remote > (reliableStamp(localStamp, now: now) ?? localStamp)
+    }
+
+    /// Wie weit ein Zeitstempel in der Zukunft liegen darf, um noch als Beleg
+    /// für eine neuere Änderung zu gelten.
+    ///
+    /// Sechs Stunden fangen echte Reise-Zeitzonen und automatische
+    /// Zeitumstellungen auf. Alles darüber ist mit hoher Wahrscheinlichkeit eine
+    /// kaputte Uhr — und eine kaputte Uhr, die als „neuer" gilt, nimmt einem
+    /// Gerät die Arbeit anderer Geräte weg, bis sie wieder stimmt.
+    static let maxFutureStampSkew: TimeInterval = 6 * 3600
+
+    /// Der Zeitstempel, wenn er belastbar ist; `nil`, wenn nicht.
+    ///
+    /// `nil` heißt ausdrücklich „weiß es nicht" — nicht „alt". Die Aufrufer
+    /// entscheiden dann conservativ, statt eine kaputte Uhr zu überzeugen.
+    static func reliableStamp(_ value: TimeInterval?,
+                              now: TimeInterval = Date().timeIntervalSince1970) -> TimeInterval? {
+        guard let value, value <= now + maxFutureStampSkew else { return nil }
+        return value
     }
 
     private static func mergeHabits(_ remote: HabitData,
