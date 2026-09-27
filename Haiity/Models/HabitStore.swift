@@ -1419,6 +1419,86 @@ final class HabitStore {
     /// Eine Antwort kann durch den Merge also NIE zu „unbeantwortet" werden
     /// und nie von Ja auf Nein kippen.
     func merge(remote: HabitData) {
+        // Beide Entscheidungen werden EINMAL hier oben getroffen und nach unten
+        // gereicht. Kein Schritt muss selbst herleiten, welche Seite neuer ist —
+        // genau das hat diese Funktion auf 150 Zeilen wachsen lassen: Jede Sektion
+        // hat die Frage für sich beantwortet, jedes Mal anders.
+        let remoteNewer = remote.updatedAt > data.updatedAt
+        let remoteAppearanceNewer = Self.appearanceIsNewer(remote, than: data)
+        Self.mergeHabits(remote, newer: remoteNewer, into: &data)
+        Self.mergeSessionHistory(remote, into: &data)
+        Self.mergeSummary(remote, newer: remoteNewer, into: &data)
+        Self.mergeAppearance(remote, newer: remoteAppearanceNewer, into: &data)
+        Self.mergeCloudPreferences(remote, newer: remoteNewer, into: &data)
+        Self.mergeViewPreferences(remote, into: &data)
+        Self.mergeCustomPalettes(remote, newer: remoteAppearanceNewer, into: &data)
+        let mergeChangeKind: HabitStoreChange = remoteAppearanceNewer && !remoteNewer ? .appearance : .general
+        persist(changeKind: mergeChangeKind, touchTimestamp: false,
+                calendarSync: mergeChangeKind == .general ? .allMapped : nil)
+    }
+
+    // MARK: - Merge, je Entität
+
+    /// Jede Entität in einem eigenen Schritt.
+    ///
+    /// Der ganze Körper war ein einziger 150-Zeiler, der für Habits, Sessions,
+    /// Zusammenfassung, Darstellung, Cloud-Einstellungen, Ansicht und Paletten
+    /// nacheinander entschied — und dabei für jede Sektion neu ausrechnete,
+    /// welche Seite aktueller ist. Getrennt ist jede Entität prüfbar, und die
+    /// zwei Zeitstempel, über die alles entscheidet, stehen an genau einer Stelle.
+
+    /// Welche Seite die Darstellung vorgibt.
+    ///
+    /// `appearanceUpdatedAt` reist MIT, weil Darstellung unabhängig von Habits
+    /// und Check-ins editiert wird. Ein Alt-Payload ohne diesen Stempel kann
+    /// nicht beweisen, dass sein neuerer Wurzel-Zeitstempel von einer
+    /// Darstellungsänderung stammt — deshalb wird dort auf die alte
+    /// Wurzel-Zeitstempel-Regel zurückgefallen, damit Upgrades nicht aufhören,
+    /// zu synchronisieren.
+    private static func appearanceIsNewer(_ remote: HabitData,
+                                          than local: HabitData) -> Bool {
+        if let localAppearanceUpdatedAt = local.appearanceUpdatedAt {
+            if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt {
+                return remoteAppearanceUpdatedAt > localAppearanceUpdatedAt
+            } else {
+                // An old build cannot prove that its newer root timestamp
+                // came from an appearance edit.
+                return false
+            }
+        } else if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt,
+                  remoteAppearanceUpdatedAt > 0 {
+            return true
+        } else {
+            return remote.updatedAt > local.updatedAt
+        }
+    }
+
+    /// Habits: Logs als Union mit MAX pro Tag, Metadaten nach `newer`,
+    /// dann Löschungen als Tombstones.
+    ///
+    /// **Was MAX mit den Ja/Nein-Codes macht** — die Reihenfolge im Band ist
+    /// genau deshalb so gewählt (`yes` = 902 000 > `no` = 901 000 >
+    /// `maxCount` = 900 000):
+    ///
+    ///  * Antwort gegen nichts -> die Antwort. Eine Antwort kann also nie
+    ///    verschwinden, so wenig wie ein Check-in verschwinden kann.
+    ///  * Ja gegen Nein -> Ja. Dieselbe Regel wie überall in diesem Merge:
+    ///    das Positivere gewinnt, nie das Löschende. Sie ist damit
+    ///    ASYMMETRISCH — eine Korrektur von Ja auf Nein kann ein Gerät, das
+    ///    noch das alte Ja trägt, wieder aufziehen. Das ist keine neue
+    ///    Eigenheit dieser Habit-Art, sondern dieselbe, die ein von 5 auf 3
+    ///    korrigierter Zähler seit jeher hat; ein Zurücknehmen über Geräte
+    ///    hinweg gibt es in diesem Merge nicht.
+    ///  * Antwort gegen Zähler -> die Antwort (das Band liegt über jedem
+    ///    Zähler, `increment` deckelt bei `maxCount`). Genau das braucht der
+    ///    Rückweg von einem ausgelieferten Build: dessen „1" verliert gegen
+    ///    das „Nein", das dieser Build geschrieben hat.
+    ///
+    /// Eine Antwort kann durch den Merge also NIE zu „unbeantwortet" werden
+    /// und nie von Ja auf Nein kippen.
+    private static func mergeHabits(_ remote: HabitData,
+                                   newer: Bool,
+                                   into data: inout HabitData) {
         // Grouped by hand rather than with `Dictionary(uniqueKeysWithValues:)`,
         // which crashes outright on a duplicate. Duplicates should not exist, but
         // if one ever arrived from a malformed payload or a bad merge the answer
@@ -1426,25 +1506,6 @@ final class HabitStore {
         var byId: [UUID: Habit] = [:]
         for habit in data.habits where byId[habit.id] == nil {
             byId[habit.id] = habit
-        }
-        let remoteNewer = remote.updatedAt > data.updatedAt
-        // Appearance is edited independently from habits and check-ins. New
-        // payloads carry their own timestamp; two legacy payloads retain the
-        // old root-timestamp rule so upgrades do not silently stop syncing.
-        let remoteAppearanceNewer: Bool
-        if let localAppearanceUpdatedAt = data.appearanceUpdatedAt {
-            if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt {
-                remoteAppearanceNewer = remoteAppearanceUpdatedAt > localAppearanceUpdatedAt
-            } else {
-                // An old build cannot prove that its newer root timestamp
-                // came from an appearance edit.
-                remoteAppearanceNewer = false
-            }
-        } else if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt,
-                  remoteAppearanceUpdatedAt > 0 {
-            remoteAppearanceNewer = true
-        } else {
-            remoteAppearanceNewer = remoteNewer
         }
         for rh in remote.habits {
             if var lh = byId[rh.id] {
@@ -1459,7 +1520,7 @@ final class HabitStore {
                     if merged >= 1 { lh.minutes[k] = merged }
                 }
                 lh.missedDays = Array(Set(lh.missedDays).union(rh.missedDays)).sorted()
-                if remoteNewer {
+                if newer {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.itemType = rh.itemType
@@ -1503,74 +1564,108 @@ final class HabitStore {
             .merging(remote.deletedHabits, uniquingKeysWith: max)
         data.habits.removeAll { tombstones[$0.id] != nil }
         data.deletedHabits = tombstones
-        Self.pruneTombstones(in: &data)
+        pruneTombstones(in: &data)
+    }
+
+    /// Sessions: Union ohne Duplikate, dann auf das Beibehaltungs-Fenster kürzen.
+    private static func mergeSessionHistory(_ remote: HabitData,
+                                            into data: inout HabitData) {
         let localRecordIDs = Set(data.sessionHistory.map(\.id))
         data.sessionHistory += remote.sessionHistory.filter { !localRecordIDs.contains($0.id) }
-        Self.trimSessionHistory(in: &data)
-        if remoteNewer {
-            data.summaryMinutes = remote.summaryMinutes
-            data.weeklySummaryMinutes = remote.weeklySummaryMinutes
-            data.weeklySummaryWeekday = remote.weeklySummaryWeekday
-            data.motivationMinutes = remote.motivationMinutes
-            data.motivationDelivery = remote.motivationDelivery
-            data.motivationSource = remote.motivationSource
-            data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
-            data.updatedAt = remote.updatedAt
-            if let remoteShowsUsername = remote.githubShowsUsername {
-                data.githubShowsUsername = remoteShowsUsername
-                GitHubPreferences.setShowsUsername(remoteShowsUsername,
-                                                    in: GitHubPreferences.defaults)
-            }
+        trimSessionHistory(in: &data)
+    }
+
+    /// Zusammenfassung und Motivation: schlicht die neuere Seite.
+    private static func mergeSummary(_ remote: HabitData,
+                                     newer: Bool,
+                                     into data: inout HabitData) {
+        guard newer else { return }
+        data.summaryMinutes = remote.summaryMinutes
+        data.weeklySummaryMinutes = remote.weeklySummaryMinutes
+        data.weeklySummaryWeekday = remote.weeklySummaryWeekday
+        data.motivationMinutes = remote.motivationMinutes
+        data.motivationDelivery = remote.motivationDelivery
+        data.motivationSource = remote.motivationSource
+        data.defaultTimeZoneIdentifier = remote.defaultTimeZoneIdentifier
+        data.updatedAt = remote.updatedAt
+        if let remoteShowsUsername = remote.githubShowsUsername {
+            data.githubShowsUsername = remoteShowsUsername
+            GitHubPreferences.setShowsUsername(remoteShowsUsername,
+                                                in: GitHubPreferences.defaults)
         }
-        // Darstellung reist mit: das neuere Gerät gibt das Aussehen vor.
-        // Anders als summaryMinutes gibt es hier kein "nil = nicht gesetzt",
-        // der Standard IST ein gültiger Wert.
-        if remoteAppearanceNewer {
-            data.appearance = remote.appearance
-            let localPreferences = data.appearancePreferences
-            let remotePreferences = remote.appearancePreferences.normalizedForStorage()
-            var nextPreferences = remotePreferences
-            let localMarker = localPreferences.backgroundResetAt ?? 0
-            let remoteMarker = remotePreferences.backgroundResetAt ?? 0
-            if localMarker > remoteMarker {
-                // Preserve the local background whenever the incoming image
-                // predates a local reset, including a color-mode payload that
-                // still carries old image bytes.
-                nextPreferences.backgroundMode = localPreferences.backgroundMode
-                nextPreferences.backgroundColorHex = localPreferences.backgroundColorHex
-                nextPreferences.gradientStartHex = localPreferences.gradientStartHex
-                nextPreferences.gradientEndHex = localPreferences.gradientEndHex
-                nextPreferences.backgroundImageData = localPreferences.backgroundImageData
-                nextPreferences.backgroundResetAt = localPreferences.backgroundResetAt
-            }
-            data.appearancePreferences = nextPreferences.normalizedForStorage()
-            data.palette = remote.palette
-            data.matchAppIcon = remote.matchAppIcon
-            data.manualAppIconName = remote.manualAppIconName
-            data.appearanceUpdatedAt = remote.appearanceUpdatedAt
+    }
+
+    /// Darstellung: das neuere Gerät gibt das Aussehen vor. Anders als
+    /// summaryMinutes gibt es hier kein "nil = nicht gesetzt" — der Standard IST
+    /// ein gültiger Wert.
+    private static func mergeAppearance(_ remote: HabitData,
+                                         newer: Bool,
+                                         into data: inout HabitData) {
+        guard newer else { return }
+        data.appearance = remote.appearance
+        let localPreferences = data.appearancePreferences
+        let remotePreferences = remote.appearancePreferences.normalizedForStorage()
+        var nextPreferences = remotePreferences
+        let localMarker = localPreferences.backgroundResetAt ?? 0
+        let remoteMarker = remotePreferences.backgroundResetAt ?? 0
+        if localMarker > remoteMarker {
+            // Preserve the local background whenever the incoming image
+            // predates a local reset, including a color-mode payload that
+            // still carries old image bytes.
+            nextPreferences.backgroundMode = localPreferences.backgroundMode
+            nextPreferences.backgroundColorHex = localPreferences.backgroundColorHex
+            nextPreferences.gradientStartHex = localPreferences.gradientStartHex
+            nextPreferences.gradientEndHex = localPreferences.gradientEndHex
+            nextPreferences.backgroundImageData = localPreferences.backgroundImageData
+            nextPreferences.backgroundResetAt = localPreferences.backgroundResetAt
         }
-        if remoteNewer, let remoteCloudPreferences = remote.cloudPreferences {
+        data.appearancePreferences = nextPreferences.normalizedForStorage()
+        data.palette = remote.palette
+        data.matchAppIcon = remote.matchAppIcon
+        data.manualAppIconName = remote.manualAppIconName
+        data.appearanceUpdatedAt = remote.appearanceUpdatedAt
+    }
+
+    /// Cloud-Einstellungen: nur mit, wenn die Gegenseite insgesamt neuer ist.
+    private static func mergeCloudPreferences(_ remote: HabitData,
+                                              newer: Bool,
+                                              into data: inout HabitData) {
+        if newer, let remoteCloudPreferences = remote.cloudPreferences {
             data.cloudPreferences = remoteCloudPreferences
         }
+    }
+
+    /// Ansicht: eigener Zeitstempel, unabhängig vom Wurzel-Zeitstempel.
+    private static func mergeViewPreferences(_ remote: HabitData,
+                                             into data: inout HabitData) {
         if remote.viewPreferences.updatedAt > data.viewPreferences.updatedAt {
             data.viewPreferences = remote.viewPreferences
         }
-        // Eigene Paletten sind additive Daten wie Habits, nicht wie eine
-        // Einstellung: VEREINIGT nach Kennung, damit eine auf dem anderen
-        // Gerät angelegte Farbe nicht verschwindet. Nur bei gleicher Kennung
-        // entscheidet der neuere Stand über Name und Farbe.
-        var paletteById = Dictionary(uniqueKeysWithValues: data.customPalettes.map { ($0.id, $0) })
+    }
+
+    /// Eigene Paletten sind additive Daten wie Habits, nicht wie eine
+    /// Einstellung: VEREINIGT nach Kennung, damit eine auf dem anderen
+    /// Gerät angelegte Farbe nicht verschwindet. Nur bei gleicher Kennung
+    /// entscheidet der neuere Stand über Name und Farbe.
+    ///
+    /// Wie bei den Habits gruppiert von Hand statt mit
+    /// `Dictionary(uniqueKeysWithValues:)`, das bei einem Duplikat abstürzt.
+    private static func mergeCustomPalettes(_ remote: HabitData,
+                                            newer: Bool,
+                                            into data: inout HabitData) {
+        var paletteById: [UUID: CustomPalette] = [:]
+        for palette in data.customPalettes where paletteById[palette.id] == nil {
+            paletteById[palette.id] = palette
+        }
         for rp in remote.customPalettes {
-            if paletteById[rp.id] == nil || remoteAppearanceNewer { paletteById[rp.id] = rp }
+            if paletteById[rp.id] == nil || newer { paletteById[rp.id] = rp }
         }
         var mergedPalettes = data.customPalettes.compactMap { paletteById[$0.id] }
         let localPaletteIds = Set(data.customPalettes.map(\.id))
         mergedPalettes.append(contentsOf: remote.customPalettes.filter { !localPaletteIds.contains($0.id) })
         data.customPalettes = mergedPalettes
-        let mergeChangeKind: HabitStoreChange = remoteAppearanceNewer && !remoteNewer ? .appearance : .general
-        persist(changeKind: mergeChangeKind, touchTimestamp: false,
-                calendarSync: mergeChangeKind == .general ? .allMapped : nil)
     }
+
 
     // MARK: – Export / Import
 

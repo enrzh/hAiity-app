@@ -180,6 +180,35 @@ final class HabitStoreIntegrityTests: XCTestCase {
         try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
     }
 
+    /// The merge used to be one 150-line function that answered "which side is
+    /// newer" separately for each section. Split per entity, with the two
+    /// decisions made once and handed down — and this pins that, because a
+    /// function like that tends to grow back together.
+    func testTheMergeIsSplitPerEntity() throws {
+        let source = try String(contentsOf: sourceURL("Haiity/Models/HabitStore.swift"),
+                                encoding: .utf8)
+        for step in ["mergeHabits", "mergeSessionHistory", "mergeSummary",
+                     "mergeAppearance", "mergeCloudPreferences",
+                     "mergeViewPreferences", "mergeCustomPalettes"] {
+            XCTAssertTrue(source.contains("static func \(step)("),
+                          "\(step) should be its own step")
+        }
+        // And the decisions are made in one place, not per section.
+        let merge = try XCTUnwrap(source.range(of: "func merge(remote: HabitData) {"))
+        let body = source[merge.upperBound...].prefix(700)
+        XCTAssertTrue(body.contains("appearanceIsNewer"),
+                      "the appearance decision should be a named step")
+        XCTAssertFalse(body.contains("for rh in remote.habits"),
+                       "the habit loop should not live in the orchestrator")
+    }
+
+    private func sourceURL(_ path: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path)
+    }
+
     // MARK: - Helpers
 
     /// Writes a payload to disk so a store can read it back, which is the only
