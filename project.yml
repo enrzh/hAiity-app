@@ -4,6 +4,26 @@ options:
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
+packages:
+  # Apple's own LLM layer for MLX, and the tensor runtime under it.
+  #
+  # mlx-swift alone cannot run a language model: it ships tensors and generic
+  # layers but no per-architecture definitions, no tokenizer, no chat template and
+  # no weight loader. mlx-swift-lm supplies those, and pulls swift-transformers
+  # (tokenizer), Jinja (chat templates) and GzipSwift (Hugging Face stores weights
+  # gzipped) in turn.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    exactVersion: 3.31.4
+  # Pinned one patch back on purpose. mlx-swift 0.31.5 introduced a CudaBuild
+  # package plugin that fails Xcode's plug-in validation, and the only ways past it
+  # are -skipPackagePluginValidation — which weakens validation for the whole
+  # project, release pipeline included — or an older tag. The plugin is declared
+  # but applied to no target, so 0.31.4 is the same code without the obstacle.
+  # Verified: the graph resolves, links and compiles for iOS with no workaround.
+  mlx-swift:
+    url: https://github.com/ml-explore/mlx-swift
+    exactVersion: 0.31.4
 settings:
   base:
     # Deutsche Quellstrings -> Katalog-Extraktion beim Build (aiity-Muster).
@@ -33,6 +53,16 @@ targets:
       - path: HaiityWidget/AccessoryWidgetViews.swift
     dependencies:
       - target: HaiityWidget
+      # The local sentence model. mlx-swift-lm is Apple's own LLM layer on top of
+      # mlx-swift and brings the tokenizer (swift-transformers), the chat
+      # templates (Jinja) and the gzipped-safetensors reader (GzipSwift) that
+      # mlx-swift alone does not ship.
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: mlx-swift
+        product: MLX
     info:
       path: Haiity/Info.plist
       properties:

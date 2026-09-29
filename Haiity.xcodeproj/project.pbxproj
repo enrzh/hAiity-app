@@ -125,6 +125,7 @@
 		7B3B0B82AF1D02F15B0275C3 /* MotivationActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F93964B24CD221D0C65B2AC /* MotivationActivityManager.swift */; };
 		7EC98172D1F62DCDE5FEC49B /* WidgetLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7613678A8DDAD7F9206A2E95 /* WidgetLogic.swift */; };
 		7FE10F14B8BF02BB7C387257 /* GitHubContributionGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5809FEBA5369E7F8304CEB4 /* GitHubContributionGraph.swift */; };
+		8030F5F1AA37DB3DB9A98E14 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = FF6189DA06D6A2691721E35E /* MLX */; };
 		80CA564AD486167D0A4708CB /* Celebration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64121A2DC3096376A5167146 /* Celebration.swift */; };
 		8132B234D64D6797379154DD /* HaiityWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7B51986FFBB3F44767F8C60B /* HaiityWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8181E141B1420C391F4FD2D6 /* CheckOffHabitIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41AF8209AFA27063E09D315 /* CheckOffHabitIntent.swift */; };
@@ -140,6 +141,7 @@
 		8AC8E502D5A0C4D2C9DF5D08 /* StatsMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B661EB4583C226E5312831 /* StatsMath.swift */; };
 		8E3CE6DB1414DA5B37D6D401 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 40BC9E9E6D29FB3282CF42EB /* PrivacyInfo.xcprivacy */; };
 		8E440193FF6B0C1278FA1680 /* HabitLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9F25730D51483CC87FFD4A /* HabitLogicTests.swift */; };
+		907E34138F95853F82C9EDED /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 56D7E6EC1B6F1209AA21A540 /* MLXLLM */; };
 		90ABFD7A050F8FDF8B48A03F /* RecurrenceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0DF24C97CA5C731BB2F36 /* RecurrenceEngineTests.swift */; };
 		9151E0A9BA5C1E229DD311B1 /* DeveloperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85335910F40A7E9151C5DEDB /* DeveloperView.swift */; };
 		915B5774C6D3AC625A2BF852 /* GitHubWidgetGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E8F9EA269928A4BC625E45 /* GitHubWidgetGraph.swift */; };
@@ -227,6 +229,7 @@
 		EBC5EE4DAF43D6A416D04BAD /* MotivationWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */; };
 		EBDAADC6384498BBA77D60EC /* HaiityWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5E817D76755A8AE1539FAA /* HaiityWidgetView.swift */; };
 		EC758620EABDA73650B1BCF4 /* BackfillCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D14A0D6D6BFF84C80FADF4 /* BackfillCard.swift */; };
+		EE034A4C60EC81D1196AE96C /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 19DAAC5852841981AFB4A203 /* MLXLMCommon */; };
 		EED334CB3BBF7E426D84396F /* StatsReadingFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42BA6270B4ED4B0974FC2BC1 /* StatsReadingFacts.swift */; };
 		EF337366A4BB8903F53632DC /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E97A47C25BDC89BDCF1EF81 /* ArchiveView.swift */; };
 		F0C9607B5D64A6B823D72B96 /* StatsReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9B96658A43BB1F678BEC38 /* StatsReadingTests.swift */; };
@@ -491,6 +494,19 @@
 		FDC0554623AFC3D617D80104 /* RecurrenceDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceDraft.swift; sourceTree = "<group>"; };
 		FE5E817D76755A8AE1539FAA /* HaiityWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaiityWidgetView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BBE66F689BD6F8D31E987B75 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				907E34138F95853F82C9EDED /* MLXLLM in Frameworks */,
+				EE034A4C60EC81D1196AE96C /* MLXLMCommon in Frameworks */,
+				8030F5F1AA37DB3DB9A98E14 /* MLX in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		39B5E8DE0678C8404C0D002D = {
@@ -837,6 +853,7 @@
 			buildPhases = (
 				53CB77DBBC482C2FB98B7F79 /* Sources */,
 				7173F3235A430C1ADE1A6204 /* Resources */,
+				BBE66F689BD6F8D31E987B75 /* Frameworks */,
 				E74F7E4D3CC92BA792999E68 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -846,6 +863,9 @@
 			);
 			name = Haiity;
 			packageProductDependencies = (
+				56D7E6EC1B6F1209AA21A540 /* MLXLLM */,
+				19DAAC5852841981AFB4A203 /* MLXLMCommon */,
+				FF6189DA06D6A2691721E35E /* MLX */,
 			);
 			productName = Haiity;
 			productReference = FC736A6ADA6660677272C2EB /* Haiity.app */;
@@ -904,6 +924,10 @@
 			);
 			mainGroup = 39B5E8DE0678C8404C0D002D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				65042AA1A10C0019CFA14D7E /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				0C0B0E8435D8E8F8B9EE33C7 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5D8AE2467B9A9905DB85FF8C /* Products */;
 			projectDirPath = "";
@@ -1589,6 +1613,43 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0C0B0E8435D8E8F8B9EE33C7 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = exactVersion;
+				version = 3.31.4;
+			};
+		};
+		65042AA1A10C0019CFA14D7E /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = exactVersion;
+				version = 0.31.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		19DAAC5852841981AFB4A203 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C0B0E8435D8E8F8B9EE33C7 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		56D7E6EC1B6F1209AA21A540 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C0B0E8435D8E8F8B9EE33C7 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		FF6189DA06D6A2691721E35E /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 65042AA1A10C0019CFA14D7E /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A15E2FCF49357C1B3B27DD72 /* Project object */;
 }
