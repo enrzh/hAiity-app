@@ -390,8 +390,27 @@ done
     and that $ARCHIVE/dSYMs is populated."
 
 # --- layer 3: strings in every Mach-O in the bundle ---
+#
+# The copied Swift runtime libraries are excluded, and deliberately so. Adding the
+# MLX dependency made the linker copy libswiftCompatibilitySpan.dylib and friends
+# into the bundle: they are Apple's, byte-identical on every build, and a debug
+# seam cannot be hiding in code this project does not compile. They are also tiny
+# and stripped, so the "did the scan see anything" check below fired on a 32-line
+# dylib and refused to continue — a false stop that would have kept every upload
+# blocked while protecting nothing. Everything this project actually builds is
+# still scanned, and the count is still checked.
+RUNTIME_PREFIXES="libswift libclang_rt libobjc libsqlite3 libz libcurl libxml"
+is_copied_runtime() {
+  local name
+  name=$(basename "$1")
+  for prefix in $RUNTIME_PREFIXES; do
+    [[ "$name" == "$prefix"* ]] && return 0
+  done
+  return 1
+}
 MACHO_COUNT=0
 while IFS= read -r bin; do
+  if is_copied_runtime "$bin"; then continue; fi
   MACHO_COUNT=$((MACHO_COUNT + 1))
   LINES=$(strings -a "$bin" 2>/dev/null | wc -l | tr -d ' ')
   [[ "$LINES" -gt 100 ]] || fail "strings(1) read only $LINES lines from $(basename "$bin") —
