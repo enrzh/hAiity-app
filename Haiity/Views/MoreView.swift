@@ -791,6 +791,17 @@ struct MoreView: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("widget-reset-toggle")
+            Toggle(isOn: Binding(
+                get: { statsCards.dictateCreateEnabled },
+                set: { statsCards.dictateCreateEnabled = $0 })) {
+                AppSettingsRow(title: String(localized: "Aus einem Satz anlegen"),
+                               detail: String(localized: "Den Knopf auf der Hauptseite zeigen"),
+                               symbol: "sparkles") {
+                    EmptyView()
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("dictate-create-toggle")
         }
     }
 

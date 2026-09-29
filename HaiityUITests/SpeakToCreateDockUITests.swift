@@ -44,22 +44,21 @@ final class SpeakToCreateDockUITests: XCTestCase {
     /// Both controls have to be on screen at once, and hittable. The dock moved
     /// them out of the scrolling content, so a layout that put the dock off-screen
     /// or under the home indicator would still pass a source test.
-    func testTheDockShowsBothControlsAndTheyAreHittable() {
+    func testTheDockShowsItsControlAndItIsHittable() {
         openSheet()
 
-        let mic = app.buttons["speak-to-create-toggle"]
+        // There is one control in the dock now. The microphone went away with
+        // the in-app recogniser, and this is where that is pinned: a button
+        // coming back would need a permission prompt that no longer exists.
+        XCTAssertFalse(app.buttons["speak-to-create-toggle"].exists,
+                       "there is no microphone control in the sheet any more")
+
         let create = app.buttons["speak-to-create-confirm"]
-        XCTAssertTrue(mic.waitForExistence(timeout: 5), "the microphone must be reachable")
         XCTAssertTrue(create.waitForExistence(timeout: 5), "the create action must be reachable")
-
-        XCTAssertTrue(mic.isHittable, "the microphone must not be covered by the dock or the inset")
         XCTAssertTrue(create.isHittable, "the create action must not be covered")
-
-        // Apple's floor is 44 by 44 pt; the mic is a 52 pt circle and the create
-        // control is at least as tall, so neither may be smaller than that.
-        XCTAssertGreaterThanOrEqual(mic.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(mic.frame.height, 44)
+        // Apple's floor is 44 by 44 pt.
         XCTAssertGreaterThanOrEqual(create.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(create.frame.width, 44)
     }
 
     /// The create action starts disabled because there is nothing to create, and
@@ -100,10 +99,10 @@ final class SpeakToCreateDockUITests: XCTestCase {
         }
 
         // The dock stays put while the content moves.
-        let mic = app.buttons["speak-to-create-toggle"]
-        let before = mic.frame.minY
+        let create = app.buttons["speak-to-create-confirm"]
+        let before = create.frame.minY
         app.swipeUp()
-        XCTAssertEqual(mic.frame.minY, before, accuracy: 1,
+        XCTAssertEqual(create.frame.minY, before, accuracy: 1,
                        "the dock must not scroll away with the content")
     }
 

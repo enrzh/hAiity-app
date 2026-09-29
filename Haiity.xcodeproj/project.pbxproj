@@ -178,7 +178,6 @@
 		BDEB1CD5AE645835032859C6 /* ContributionGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F7C445D6053ABA1A4B56A /* ContributionGridTests.swift */; };
 		C0F71DC05118C02236A68E36 /* ReminderItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D06513C852AB97864CE03 /* ReminderItemTests.swift */; };
 		C34203431C62176A53DF1D2B /* GitHubSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C836108CF2C4CD9FBEFDF473 /* GitHubSettingsView.swift */; };
-		C465E281EFC453AE9A81AE6D /* SpeechDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F225CC621F8320AD61D72F41 /* SpeechDictation.swift */; };
 		C8251BF96896DA13D8E186F4 /* PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB0DA3005334E3EF7256760 /* PerformanceTests.swift */; };
 		C87C5539733460FCE6A4C883 /* HabitTimeZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3899E978F911B0CF69FA88A8 /* HabitTimeZone.swift */; };
 		C8A7F9406EBB67B210BA41D0 /* MotivationWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */; };
@@ -473,7 +472,6 @@
 		EDF2EE0D5460F5D5B06A58C5 /* YesNoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YesNoTests.swift; sourceTree = "<group>"; };
 		EF455DC0FE9C2297450AAA02 /* CreateItemWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateItemWriter.swift; sourceTree = "<group>"; };
 		F016B327457EA8A81E8B9563 /* MotivationLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotivationLiveActivity.swift; sourceTree = "<group>"; };
-		F225CC621F8320AD61D72F41 /* SpeechDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictation.swift; sourceTree = "<group>"; };
 		F40EAD00EB9A2D941541FAF9 /* HabitStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStore.swift; sourceTree = "<group>"; };
 		F586DECA4C0563952891685A /* AppUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIComponents.swift; sourceTree = "<group>"; };
 		F6F5ED5749F37D382556C39B /* HabitSortingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitSortingScreen.swift; sourceTree = "<group>"; };
@@ -515,7 +513,6 @@
 				C9C9475096CE96883F24B65E /* NotificationPresenter.swift */,
 				32AA2D8B217041642946DB00 /* Reminders.swift */,
 				845AFA2BB735078119DCF8AE /* ReminderSync.swift */,
-				F225CC621F8320AD61D72F41 /* SpeechDictation.swift */,
 				A8D391AD017EC32038980521 /* StatsReadingWriter.swift */,
 				3FE683A092E3C7026D0F6BE6 /* SyncWatermark.swift */,
 			);
@@ -1177,7 +1174,6 @@
 				E2CA83EDB6EDFCA4BC03F224 /* ShareCardView.swift in Sources */,
 				30D8AB756783A4563746BDAC /* SiriQueryIntents.swift in Sources */,
 				A6D5F944B78579270FF1A99B /* SpeakToCreateSheet.swift in Sources */,
-				C465E281EFC453AE9A81AE6D /* SpeechDictation.swift in Sources */,
 				5A22B768A7198517FA384A93 /* StartupSplash.swift in Sources */,
 				48F8E0F6E0B79C3939326A26 /* StartupSplashView.swift in Sources */,
 				A93A5E07779BDCC1AD70E003 /* StatsCardPrefs.swift in Sources */,

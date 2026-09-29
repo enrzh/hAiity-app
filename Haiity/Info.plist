@@ -63,12 +63,8 @@
 	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits. Deine übrigen Kalender und Termine bleiben unberührt.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>hAiity hört nur zu, während du den Satz aufnimmst, aus dem ein neues Habit entstehen soll. Die Aufnahme startet nur, wenn du den Knopf drückst, und endet, sobald du ihn erneut drückst.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>hAiity synchronisiert deine eigenen Erinnerungen mit der Apple Erinnerungen-App.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>hAiity schreibt deinen aufgenommenen Satz in Text um, damit daraus ein Habit oder eine Erinnerung wird. Die Aufnahme endet, sobald du den Knopf erneut drückst.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

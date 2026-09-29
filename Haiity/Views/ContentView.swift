@@ -289,7 +289,9 @@ struct ContentView: View {
             // übliche Art, wie so etwas auseinanderläuft. Er sitzt in derselben
             // Trailing-Spalte wie der schwebende Suchknopf, direkt DARÜBER — als
             // untergeordneter Begleiter, nicht als zweite Hauptaktion.
-            .overlay(alignment: .bottomTrailing) { speakButton }
+            .overlay(alignment: .bottomTrailing) {
+                if viewPreferences.dictateCreateEnabled { speakButton }
+            }
             .sheet(isPresented: $showSpeakToCreate) {
                 SpeakToCreateSheet(store: store)
                     .themed(store, palettes: effectivePalettes)
@@ -576,7 +578,8 @@ struct ContentView: View {
     /// the sheet and from the keyboard's own dictation key, so the three never get
     /// confused for each other.
     private var speakButton: some View {
-        if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback {
+        if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback,
+           viewPreferences.dictateCreateEnabled {
             Button {
                 showSpeakToCreate = true
                 Theme.Haptics.select()

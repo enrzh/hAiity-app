@@ -1,11 +1,16 @@
 import SwiftUI
 
-/// Say a sentence, see it land in a field, turn it into a habit.
+/// Type a sentence, see it parsed, turn it into a habit.
 ///
-/// **The field is real and the keyboard is up.** The transcript is not decoration
-/// shown next to a form — it is written into an actual `TextField`, so it can be
-/// corrected with the keyboard before anything is created. Speaking is the fast
-/// path, not the only path.
+/// **The field is real and the keyboard is up.** The sentence is written into an
+/// actual `TextField`, so it can be corrected before anything is created.
+///
+/// **There is no microphone in here.** Dictation is the keyboard's job: the
+/// system key under the caret does the same thing, in the user's own language,
+/// under the system's own consent prompt — and it costs the app neither a
+/// microphone nor a speech-recognition permission. Carrying our own recogniser
+/// meant a second permission, a second privacy promise, and a worse transcript
+/// than the one already sitting under the caret.
 ///
 /// **The draft is shown before it is created.** The sentence "morgens um 7:30
 /// Wasser trinken" becomes a name, a time and a kind, and all three are visible
@@ -19,7 +24,6 @@ struct SpeakToCreateSheet: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
 
-    @State private var dictation = SpeechDictation()
     @State private var text = ""
     @State private var isWorking = false
     @State private var didCreate = false
@@ -34,10 +38,6 @@ struct SpeakToCreateSheet: View {
     /// sentence is in and the draft has to be looked at.
     @State private var detent: PresentationDetent = .fraction(0.5)
     @FocusState private var fieldFocused: Bool
-    /// The waveform's trail. Sampled here rather than in the recogniser so it
-    /// stops the instant the sheet goes away.
-    @State private var levels: [Double] = []
-    @State private var sampler: Task<Void, Never>?
 
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
@@ -72,7 +72,7 @@ struct SpeakToCreateSheet: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: Theme.Metrics.settingsSectionGap) {
-                    waveformPanel
+                    promptPanel
                     transcriptField
                     // The draft only exists at the full height.
                     //
@@ -127,118 +127,54 @@ struct SpeakToCreateSheet: View {
             .onChange(of: text) { _, _ in scrollDraftIntoView(proxy) }
             }
         }
-        .onAppear { startListening() }
+        .onAppear { fieldFocused = true }
         .onDisappear { stopEverything() }
-        // Dictation finished with something in the field: grow the sheet, because
-        // the next decision — name, symbol, repeat — cannot be made in half a page.
-        .onChange(of: dictation.state) { old, new in
-            guard case .listening = old, !dictation.state.isListening else { return }
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                expandForReview()
-            }
-            _ = new
-        }
         // Tapping the text is a request to edit, which also needs the room.
         .onChange(of: fieldFocused) { _, focused in
             if focused { expandForReview() }
         }
-        .onChange(of: dictation.transcript) { _, spoken in
-            // The recogniser owns the text while it is running. Without this the
-            // recognised words landed in `SpeechDictation.transcript` and never
-            // reached the field, so the sheet looked like it was hearing nothing
-            // at all. A partial result replaces what is there, so a correction
-            // shows up as it is made rather than only at the end.
-            guard dictation.state.isListening, !spoken.isEmpty else { return }
-            text = spoken
+    }
+
+    // MARK: - Prompt
+
+    /// What to put where the waveform used to be.
+    ///
+    /// The panel used to draw what the microphone was hearing. There is no
+    /// microphone now, so the space earns its keep by saying the one thing a
+    /// person arriving here does not know: dictation is still available, one key
+    /// away, on the keyboard under the caret.
+    private var promptPanel: some View {
+        VStack(spacing: Theme.Metrics.gap + 6) {
+            Image(systemName: "text.badge.plus")
+                .font(.title2)
+                .foregroundStyle(accent)
+                .accessibilityHidden(true)
+            Text(statusLine)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("speak-to-create-prompt")
         }
-        .task {
-            // A repeating sample while the sheet is up. Cancelled on disappear,
-            // so the recogniser never outlives the UI that draws it.
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(90))
-                guard dictation.state.isListening else { continue }
-                levels.append(dictation.level)
-                if levels.count > 5 { levels.removeFirst(levels.count - 5) }
-            }
-        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Metrics.gap + 8)
+        .padding(.horizontal, Theme.Metrics.cardPadding)
+        .appSurface()
     }
 
     // MARK: - Waveform
 
     /// Pure content now: the shape of what was heard, and what is going on.
     ///
-    /// The microphone used to sit in here, inside a content card. It moved to the
-    /// floating dock, which is the only layer the material is allowed on and the
-    /// only place a control belongs when it has to be reachable one-handed. What
-    /// is left is the part that is genuinely content, so this panel is an ordinary
-    /// opaque surface.
-    private var waveformPanel: some View {
-        VStack(spacing: Theme.Metrics.gap + 6) {
-            VoiceWaveform(levels: levels, tint: accent, isActive: dictation.state.isListening)
-
-            Text(statusLine)
-                .font(.footnote)
-                .foregroundStyle(statusIsProblem ? .orange : .secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Theme.Metrics.settingsSectionGap)
-        .appSurface()
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("speak-to-create-waveform")
-    }
-
+    /// What is going on, in one line.
+    ///
+    /// There is no listening state any more, so this is the sentence being typed
+    /// or not. It names the keyboard's dictation key, because that is the part
+    /// someone arriving from the old in-app microphone will miss.
     private var statusLine: String {
-        switch dictation.state {
-        case .idle where !text.isEmpty:
-            return String(localized: "Fertig. Du kannst den Text unten noch ändern.")
-        case .idle:
-            return String(localized: "Tippe auf den Knopf und sprich.")
-        case .requestingPermission:
-            return String(localized: "Warten auf Erlaubnis …")
-        case .denied:
-            return String(localized: "Ohne Mikrofon geht es nicht. Du kannst den Text unten auch tippen.")
-        case .unavailable(let reason):
-            return reason
-        case .listening:
-            return text.isEmpty
-                ? String(localized: "Ich höre zu …")
-                : String(localized: "Ich höre zu … tippe zum Stoppen.")
-        case .failed(let reason):
-            return reason
+        if text.isEmpty {
+            return String(localized: "Tippe deinen Satz ein. Mit der Diktier-Taste der Tastatur geht es auch mit Sprache.")
         }
-    }
-
-    /// Nothing to toggle while the recogniser is unavailable or refused — the
-    /// field below still works, so the button is visibly out of play rather than
-    /// silently doing nothing.
-    private var canToggleListening: Bool {
-        switch dictation.state {
-        case .denied, .unavailable, .failed: return false
-        case .idle, .requestingPermission, .listening: return true
-        }
-    }
-
-    private func toggleListening() {
-        if dictation.state.isListening {
-            stopEverything()
-        } else {
-            // Starting over replaces the sentence. Anything typed by hand stays
-            // until the person asks to record again, at which point their
-            // intention is unambiguous.
-            text = ""
-            dictation.reset()
-            levels = []
-            Task { await dictation.start() }
-        }
-    }
-
-    private var statusIsProblem: Bool {
-        switch dictation.state {
-        case .denied, .failed, .unavailable: return true
-        default: return false
-        }
+        return String(localized: "Fertig. Du kannst den Text unten noch ändern.")
     }
 
     // MARK: - Transcript
@@ -388,7 +324,6 @@ struct SpeakToCreateSheet: View {
     /// exists to avoid, so nothing inside here is glass.
     private var dock: some View {
         HStack(spacing: Theme.Metrics.gap) {
-            micControl
             createControl
         }
         .padding(Theme.Metrics.gap)
@@ -399,33 +334,6 @@ struct SpeakToCreateSheet: View {
                               union: dockUnion))
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.bottom, Theme.Metrics.gap)
-    }
-
-    /// The microphone. A solid circle inside the glass, accent only while it is
-    /// actually listening — so the colour means something rather than decorating.
-    private var micControl: some View {
-        Button {
-            toggleListening()
-        } label: {
-            Image(systemName: dictation.state.isListening ? "stop.fill" : "mic.fill")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(dictation.state.isListening ? Color.white : accent)
-                .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
-                .background(
-                    dictation.state.isListening
-                        ? AnyShapeStyle(Theme.accentFill(palettes.style))
-                        : AnyShapeStyle(Color(.tertiarySystemFill)),
-                    in: Circle()
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canToggleListening)
-        .opacity(canToggleListening ? 1 : 0.4)
-        .accessibilityLabel(dictation.state.isListening
-                            ? String(localized: "Aufnahme beenden")
-                            : String(localized: "Aufnahme starten"))
-        .accessibilityIdentifier("speak-to-create-toggle")
     }
 
     /// The primary action, and the one coloured control in the sheet. A filled
@@ -504,15 +412,6 @@ struct SpeakToCreateSheet: View {
 
     // MARK: - Lifecycle
 
-    /// Opening the sheet leaves the microphone closed and the keyboard down.
-    ///
-    /// It used to focus the field on appear. Against a half-height sheet that is
-    /// self-defeating: the keyboard took two thirds of what was left, so the
-    /// waveform, the field and the dock were all crushed into a strip. The mic is
-    /// the primary action here, so the sheet opens ready to listen and the
-    /// keyboard arrives when someone actually taps the text.
-    private func startListening() {}
-
     /// The dock floats, so content passes under it by design — what must not
     /// happen is the draft coming to rest half-sliced by it.
     ///
@@ -538,16 +437,10 @@ struct SpeakToCreateSheet: View {
         detent = .large
     }
 
-    private func stopEverything() {
-        sampler?.cancel()
-        sampler = nil
-        // The final result can arrive after listening has ended, so take the
-        // transcript first; `stop()` clears the listening state and the
-        // live-sync above would then refuse it.
-        if !dictation.transcript.isEmpty { text = dictation.transcript }
-        dictation.stop()
-        levels = []
-    }
+    /// Nothing is listening any more, so there is nothing to stop. The name
+    /// stays because `close()` still calls it, and a sheet that is going away
+    /// has no asynchronous work left to cancel.
+    private func stopEverything() {}
 
     private func close() {
         stopEverything()

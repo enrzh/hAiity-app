@@ -152,6 +152,13 @@ struct ViewPreferences: Codable, Equatable {
     var notificationActionsEnabled: Bool
     /// Up to three actions shown on a scheduled habit notification.
     var notificationActions: NotificationActionPreferences
+    /// Whether the "create from a sentence" button is offered on the main page.
+    ///
+    /// It is a creation shortcut, not a habit, so somebody who only ever
+    /// handwrites their list has no use for it and no way to take the screen
+    /// space back. Stored positively: on by default, so an older payload
+    /// without the key keeps the button.
+    var dictateCreateEnabled: Bool
 
     /// Compatibility view for callers and older tests that still address the
     /// first notification slot as a singular action.
@@ -168,7 +175,8 @@ struct ViewPreferences: Codable, Equatable {
          swipeActions: SwipeActionsPreferences = SwipeActionsPreferences(),
          notificationActionsEnabled: Bool = true,
          notificationActions: NotificationActionPreferences = NotificationActionPreferences(),
-         notificationAction: SwipeActionChoice? = nil) {
+         notificationAction: SwipeActionChoice? = nil,
+         dictateCreateEnabled: Bool = true) {
         self.updatedAt = updatedAt
         self.statsCards = statsCards
         self.compactMode = compactMode
@@ -177,6 +185,7 @@ struct ViewPreferences: Codable, Equatable {
         self.swipeActions = swipeActions
         self.notificationActionsEnabled = notificationActionsEnabled
         self.notificationActions = notificationActions
+        self.dictateCreateEnabled = dictateCreateEnabled
         if let notificationAction {
             self.notificationActions[0] = notificationAction
         }
@@ -184,7 +193,7 @@ struct ViewPreferences: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case updatedAt, statsCards, compactMode, widgetResetEnabled, autoArchiveCompletedItems, swipeActions, notificationActionsEnabled,
-             notificationActions, notificationAction
+             notificationActions, notificationAction, dictateCreateEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -202,6 +211,7 @@ struct ViewPreferences: Codable, Equatable {
         notificationActionsEnabled = try c.decodeIfPresent(Bool.self,
                                                            forKey: .notificationActionsEnabled)
             ?? true
+        dictateCreateEnabled = try c.decodeIfPresent(Bool.self, forKey: .dictateCreateEnabled) ?? true
         if let saved = try c.decodeIfPresent(NotificationActionPreferences.self,
                                              forKey: .notificationActions) {
             notificationActions = saved
@@ -217,6 +227,7 @@ struct ViewPreferences: Codable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(dictateCreateEnabled, forKey: .dictateCreateEnabled)
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encode(statsCards, forKey: .statsCards)
         try c.encode(compactMode, forKey: .compactMode)
@@ -303,6 +314,11 @@ final class ViewPreferencesStore {
         set { update { $0.widgetResetEnabled = newValue } }
     }
 
+    var dictateCreateEnabled: Bool {
+        get { preferences.dictateCreateEnabled }
+        set { update { $0.dictateCreateEnabled = newValue } }
+    }
+
     func update(_ body: (inout ViewPreferences) -> Void) {
         var next = preferences
         body(&next)
@@ -310,6 +326,7 @@ final class ViewPreferencesStore {
                 || next.compactMode != preferences.compactMode
                 || next.widgetResetEnabled != preferences.widgetResetEnabled
                 || next.autoArchiveCompletedItems != preferences.autoArchiveCompletedItems
+                || next.dictateCreateEnabled != preferences.dictateCreateEnabled
                 || next.swipeActions != preferences.swipeActions
                 || next.notificationActionsEnabled != preferences.notificationActionsEnabled
                 || next.notificationActions != preferences.notificationActions

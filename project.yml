@@ -79,8 +79,6 @@ targets:
         # Prompt steht Apples eigener Satz, und ihm zu widersprechen waere eine
         # falsche Zusage. Die App sendet selbst nichts weiter; ob und wie Apple
         # die Erkennung verarbeitet, steht in Apples Dialog.
-        NSMicrophoneUsageDescription: "hAiity hört nur zu, während du den Satz aufnimmst, aus dem ein neues Habit entstehen soll. Die Aufnahme startet nur, wenn du den Knopf drückst, und endet, sobald du ihn erneut drückst."
-        NSSpeechRecognitionUsageDescription: "hAiity schreibt deinen aufgenommenen Satz in Text um, damit daraus ein Habit oder eine Erinnerung wird. Die Aufnahme endet, sobald du den Knopf erneut drückst."
         # Live-Aktivitäten (Habit-Sessions) — muss in App UND Extension stehen.
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
