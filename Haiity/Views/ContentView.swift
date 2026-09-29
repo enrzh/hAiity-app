@@ -2658,7 +2658,7 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
-        case .localModel: nil
+        case .localModel: .localModel
         }
     }
 
@@ -2670,6 +2670,7 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
+        case .localModel: .localModel
         }
     }
 

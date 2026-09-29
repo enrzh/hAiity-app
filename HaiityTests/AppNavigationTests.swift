@@ -183,6 +183,55 @@ final class AppNavigationTests: XCTestCase {
                       "opening a tab has to latch it as built")
     }
 
+    /// A row that opens a page which the navigation maps do not know about is a
+    /// row that does nothing at all.
+    ///
+    /// The model page was routed through `presentedMorePage`, which returned nil
+    /// for it because `AppMoreDestination` had no case — so the row was tappable,
+    /// looked right, and opened nothing. Silent, and invisible to a build.
+    func testEveryHubRowCanActuallyBeOpened() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
+        let navigation = try String(contentsOf: sourceURL("Haiity/Models/AppNavigation.swift"))
+
+        // The destination enum has to carry it. The declaration lists the cases
+        // without a `case` prefix, so the member is looked up by name.
+        for route in ["localModel"] {
+            let destination = try XCTUnwrap(navigation.range(of: "enum AppMoreDestination"))
+            let members = navigation[destination.upperBound...].prefix(200)
+            XCTAssertTrue(members.contains(route),
+                          "\(route) is missing from AppMoreDestination, so it cannot be presented")
+
+            // The presentation map must PRESENT it. A nil here is a row that looks
+            // tappable and opens nothing.
+            let present = try XCTUnwrap(content.range(of: "func presentedMorePage(for route: MoreRoute)"))
+            XCTAssertTrue(content[present.upperBound...].prefix(400).contains("case .\(route): .\(route)"),
+                          "\(route) must be presented, not mapped to nil — a nil there is a dead row")
+
+            // And it must map back to its own route, or the sheet's own state is
+            // attributed to whichever page it borrowed.
+            let reverse = try XCTUnwrap(content.range(of: "func moreRoute(for destination: AppMoreDestination)"))
+            XCTAssertTrue(content[reverse.upperBound...].prefix(400).contains("case .\(route): .\(route)"),
+                          "\(route) must map back to its own route")
+        }
+    }
+
+    /// The model page carries the same surface as the other More pages. A page
+    /// with no panel is bare text on the wallpaper, which reads as a screen that
+    /// was never finished rather than as a deliberate one.
+    func testTheModelPageCarriesTheSamePanelAsTheOtherMorePages() throws {
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let page = try XCTUnwrap(more.range(of: "private var localModelSettings"))
+        let rest = more[page.upperBound...]
+        let end = rest.range(of: "\n    private var ")?.lowerBound ?? rest.endIndex
+        let body = String(rest[rest.startIndex..<end])
+
+        XCTAssertTrue(body.contains(".morePanel()"),
+                      "the model page needs the same panel as Darstellung and Verhalten & Teilen")
+        XCTAssertTrue(body.contains("ScrollView"))
+        XCTAssertTrue(body.contains(".settingsChrome()"))
+    }
+
     func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 

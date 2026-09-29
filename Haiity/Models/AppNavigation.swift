@@ -26,7 +26,7 @@ extension AppTabLayerState {
 }
 
 enum AppMoreDestination: Equatable {
-    case archive, about, developer, appearance, habitBehavior, github
+    case archive, about, developer, appearance, habitBehavior, github, localModel
 }
 
 struct AppRouteEffect: Equatable {

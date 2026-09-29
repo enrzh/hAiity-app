@@ -667,25 +667,22 @@ struct MoreView: View {
     /// it is which model the app thinks with, and the weights for it are the only
     /// thing in the app that can take a gigabyte.
     private var localModelSettings: some View {
+        // Same container as Darstellung: the catalogue sits in one panel, so the
+        // page reads like the other More pages rather than as bare text on the
+        // wallpaper. The heading is dropped because the navigation bar already
+        // names the page.
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Metrics.settingsSectionGap) {
-                localModelSection
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.vertical, Theme.Metrics.cardPadding)
-            .padding(.bottom, 24)
+            localModelSection
+                .padding(Theme.Metrics.cardPadding)
+                .morePanel()
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
         .settingsChrome()
-        .navigationTitle(String(localized: "Modell auf dem Gerät"))
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var localModelSection: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            moreSubsectionLabel(String(localized: "Modell auf dem Gerät"))
-
             ForEach(LocalModelCatalogue.all) { model in
                 localModelRow(model)
             }
