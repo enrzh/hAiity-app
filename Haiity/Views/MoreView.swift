@@ -643,11 +643,15 @@ struct MoreView: View {
                 // progress and a delete button each is too much to add to a page
                 // that is already this long, and a model is a once-per-device
                 // setup task rather than an everyday toggle.
-                Button { onOpen(.localModel) } label: {
-                    moreHubRow(title: String(localized: "Modell auf dem Gerät"),
-                               detail: String(localized: "Welches Modell deinen Satz liest"),
-                               symbol: "cpu",
-                               identifier: "open-local-model") {}
+                // `moreHubRow` is itself a Button, so it is called with the action
+                // rather than wrapped in one. Wrapping it produced a Button inside
+                // a Button: the inner one wins, the outer `onOpen` never fires, and
+                // the row looks perfectly tappable while doing nothing.
+                moreHubRow(title: String(localized: "Modell auf dem Gerät"),
+                           detail: String(localized: "Welches Modell deinen Satz liest"),
+                           symbol: "cpu",
+                           identifier: "open-local-model") {
+                    onOpen(.localModel)
                 }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
@@ -679,11 +683,18 @@ struct MoreView: View {
         .scrollIndicators(.hidden)
         .softScrollEdges()
         .settingsChrome()
+        // Without this the last line of the footnote sits flush against the
+        // bottom edge and is cut in half, which reads as a layout fault rather
+        // than as a scroll that could continue.
+        .safeAreaPadding(.bottom, 24)
     }
 
     private var localModelSection: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            ForEach(LocalModelCatalogue.all) { model in
+            ForEach(Array(LocalModelCatalogue.all.enumerated()), id: \.element.id) { index, model in
+                if index > 0 {
+                    Divider().padding(.vertical, 2)
+                }
                 localModelRow(model)
             }
 
@@ -737,7 +748,6 @@ struct MoreView: View {
 
             localModelControl(model, state: state, isSelected: isSelected)
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture {
             // Choosing a model you do not have yet is allowed: it says what you
