@@ -694,7 +694,13 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(content.contains("case .developer:"), "die Route führt nirgendwohin")
         XCTAssertTrue(content.contains("DeveloperView(store: store, cloudStatus: cloudStatus)"),
                       "die Route zeigt auf keine Seite")
-        XCTAssertTrue(content.contains("case .about, .developer, .appearance, .habitBehavior, .github: nil"),
+        // Every page that must not be reachable by `haiity://` has to be named in
+        // the one switch that decides that, rather than falling through a default.
+        // Read the actual case list so adding a page cannot quietly drop out of it.
+        let whitelist = try XCTUnwrap(content.range(
+            of: "case .about, .developer, .appearance, .habitBehavior, .github"))
+        XCTAssertTrue(content[whitelist.upperBound...].prefix(60)
+            .contains(".localModel: nil"),
                       "die Seite darf kein Deep-Link-Ziel bedienen")
         XCTAssertFalse(content.contains("\"developer\""),
                        "ein Deep-Link auf den Entwicklerbereich hebelt die versteckte Tür aus")

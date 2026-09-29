@@ -142,4 +142,15 @@ struct LocalModelRegistry: Equatable, Sendable {
     mutating func markRemoved(_ modelID: String) {
         states[modelID] = nil
     }
+
+    /// Re-reads the disk and rebuilds readiness from it. The single place where
+    /// "what is on disk" may change, so a model cannot become ready by anything
+    /// other than its files actually being there — and a model whose directory
+    /// has gone loses its readiness here rather than staying ready forever.
+    mutating func rebuildInventory(_ inventory: LocalModelInventory) {
+        self.inventory = inventory
+        for modelID in states.keys where !inventory.isPresent(modelID) {
+            states[modelID] = nil
+        }
+    }
 }

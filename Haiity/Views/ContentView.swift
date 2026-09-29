@@ -1047,6 +1047,15 @@ struct ContentView: View {
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .habitBehavior)
+            // Its own branch and its own screen, not a shared one: a child page
+            // that inherits its parent's screen identity reuses the parent's view
+            // state, so the model page would arrive already scrolled and already
+            // holding the previous page's selection.
+            case .localModel:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
+                         routeToken: routeToken, screen: .localModel)
             // Check ownership at the destination too, not only at the row that
             // opens it. A stale local flag must never build this page.
             case .developer:
@@ -2634,7 +2643,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github: nil
+        case .about, .developer, .appearance, .habitBehavior, .github, .localModel: nil
         }
     }
 
@@ -2649,6 +2658,7 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
+        case .localModel: nil
         }
     }
 

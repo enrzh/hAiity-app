@@ -148,6 +148,7 @@
 		986C91F779AC2FFE33373C14 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BFF664A73CA120340BBAED74 /* AppShortcuts.xcstrings */; };
 		9C4EAFF361060E0C243E0CDB /* Interaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0508CC4542F3FE1CD77A1CC /* Interaction.swift */; };
 		9C545FC8CD4CC4B53DCD3A3F /* WidgetGridViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC349139295FBE0436110A2 /* WidgetGridViews.swift */; };
+		9D804F9D1AEBF5784FF0771C /* LocalModelServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2857CE6AC44321FC1D4EC9 /* LocalModelServiceTests.swift */; };
 		A1C0597AFAB3EC77B0CCD366 /* GitHubWidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26112D2FD413769DB750B02 /* GitHubWidgetSupport.swift */; };
 		A2D6BEC0CCC1B13F4511D560 /* ModalPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD608B9BEC1F08F8D68FCB46 /* ModalPresentation.swift */; };
 		A2F75CDDC0A939D4CC7D5D20 /* HabitSessionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8131AA29ECEDC8244184A68 /* HabitSessionIntents.swift */; };
@@ -168,6 +169,7 @@
 		ADB88E8BABFDCCECE38815DD /* ProEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C6613C5834DF9889CF3AD7 /* ProEntitlement.swift */; };
 		B08E6B19C5DBE41C6B81BF55 /* HabitSortingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F5ED5749F37D382556C39B /* HabitSortingScreen.swift */; };
 		B16B4C3755FC4C6A61FDDE15 /* SiriIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14F2579B3CB56539C9201629 /* SiriIntentTests.swift */; };
+		B23852ECE106B4E4EB691451 /* LocalModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2E084B4DDD6126BFA183AD /* LocalModelService.swift */; };
 		B5A4A8920F07080FFC3EEA61 /* CloudSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03C07C85DEC3D41AB96E72C3 /* CloudSyncTests.swift */; };
 		B62804A872A2F940128D4AF1 /* HueTileGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E161CB22E3D4D2C128DFEFD5 /* HueTileGrid.swift */; };
 		B7AD8246F4DC1AC4FCA91B94 /* MotivationActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40035C1974DEABD743FFE6FC /* MotivationActivityIntents.swift */; };
@@ -408,6 +410,7 @@
 		A382147EB9048CD992272A70 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A8D391AD017EC32038980521 /* StatsReadingWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsReadingWriter.swift; sourceTree = "<group>"; };
 		A965D62A77EE176C1649E3C4 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		AA2E084B4DDD6126BFA183AD /* LocalModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelService.swift; sourceTree = "<group>"; };
 		AA5869BE2318EBEAF3C60747 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		ABE58C653CC45AF716DE52CF /* ReminderSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSyncTests.swift; sourceTree = "<group>"; };
 		ACA9680F2470ED6F7236E6C7 /* ProGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProGateTests.swift; sourceTree = "<group>"; };
@@ -483,6 +486,7 @@
 		F6F5ED5749F37D382556C39B /* HabitSortingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitSortingScreen.swift; sourceTree = "<group>"; };
 		F75BC07C243B30F6C8A1872C /* HabitActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitActivityAttributes.swift; sourceTree = "<group>"; };
 		F8131AA29ECEDC8244184A68 /* HabitSessionIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitSessionIntents.swift; sourceTree = "<group>"; };
+		FC2857CE6AC44321FC1D4EC9 /* LocalModelServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelServiceTests.swift; sourceTree = "<group>"; };
 		FC736A6ADA6660677272C2EB /* Haiity.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Haiity.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FDC0554623AFC3D617D80104 /* RecurrenceDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceDraft.swift; sourceTree = "<group>"; };
 		FE5E817D76755A8AE1539FAA /* HaiityWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaiityWidgetView.swift; sourceTree = "<group>"; };
@@ -513,6 +517,7 @@
 				E89EF580C614DFA83CAEDDFC /* GitHubDeviceFlow.swift */,
 				A1B03C6DBD15431623B09D44 /* HabitSessionManager.swift */,
 				C160E3A96600C7D7EB9E560E /* HomeShortcuts.swift */,
+				AA2E084B4DDD6126BFA183AD /* LocalModelService.swift */,
 				1F93964B24CD221D0C65B2AC /* MotivationActivityManager.swift */,
 				6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */,
 				115BB50391DED917E650CE2B /* NativeSyncInstallation.swift */,
@@ -682,6 +687,7 @@
 				C2000F0DE6B84D0DDCF040E1 /* IconStudioTests.swift */,
 				E2C81335261BEE2F346FD43F /* InteractionTests.swift */,
 				CBC346B3E15739E17E43FBAC /* LocalModelCatalogueTests.swift */,
+				FC2857CE6AC44321FC1D4EC9 /* LocalModelServiceTests.swift */,
 				0B02C888188BDDE665F357E9 /* MotivationActivityTests.swift */,
 				0ABA994F035924F76EB36196 /* MotivationTests.swift */,
 				D1ABEA52B8B8D56AD6458B1F /* NotificationActionTests.swift */,
@@ -1050,6 +1056,7 @@
 				4D74C8299AAF541B649EA142 /* IconStudioTests.swift in Sources */,
 				818DD0F3A7FBAFB9E8F4F127 /* InteractionTests.swift in Sources */,
 				F90F8BBAE446A5C01202A716 /* LocalModelCatalogueTests.swift in Sources */,
+				9D804F9D1AEBF5784FF0771C /* LocalModelServiceTests.swift in Sources */,
 				FDC0DE8D721AC80D9D493B66 /* MotivationActivityTests.swift in Sources */,
 				D41087CDB0C6BD77A036A1D9 /* MotivationTests.swift in Sources */,
 				5A4F18AE8B6C0F23C4285951 /* NotificationActionTests.swift in Sources */,
@@ -1150,6 +1157,7 @@
 				9C4EAFF361060E0C243E0CDB /* Interaction.swift in Sources */,
 				83F7D70F31EA5599D405FBAA /* LargeWidgetIntent.swift in Sources */,
 				54F042E33A8B9DFE2C0E17F2 /* LocalModelCatalogue.swift in Sources */,
+				B23852ECE106B4E4EB691451 /* LocalModelService.swift in Sources */,
 				5081BDDC2308379F9A497A67 /* LocalModelStore.swift in Sources */,
 				76C20D821211F11B525D4A7B /* MaterialPreviewPicker.swift in Sources */,
 				A2D6BEC0CCC1B13F4511D560 /* ModalPresentation.swift in Sources */,

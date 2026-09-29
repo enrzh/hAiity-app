@@ -16,7 +16,7 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, github
+    case archive, about, developer, appearance, habitBehavior, github, localModel
 
     var id: Self { self }
 }
@@ -126,13 +126,14 @@ private struct BackgroundCropSheet: View {
 }
 
 enum MoreScreen: Hashable {
-    case main, appearance, habitBehavior
+    case main, appearance, habitBehavior, localModel
 
     var title: String {
         switch self {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
         case .habitBehavior: String(localized: "Verhalten & Teilen")
+        case .localModel: String(localized: "Modell auf dem Gerät")
         }
     }
 }
@@ -218,6 +219,9 @@ struct MoreView: View {
     @State private var nativeSyncCleanupMessage: String?
     @State private var showNativeSyncDeleteConfirmation = false
     @State private var proStatus = ProStatus.shared
+    /// The local sentence model and its downloads. One instance for the app, so
+    /// the picker, the sheet and the reader all see the same progress.
+    @State private var modelService = LocalModelService()
     @State private var rootTitleProgress: CGFloat = 0
     @State private var showingPersonalSettings = false
     @State private var showingNotificationSettings = false
@@ -258,6 +262,7 @@ struct MoreView: View {
             case .main: mainSettings
             case .appearance: appearanceSettings
             case .habitBehavior: habitBehaviorSettings
+            case .localModel: localModelSettings
             }
         }
         // A presented More screen must not reuse the previous screen's view tree.
@@ -634,6 +639,16 @@ struct MoreView: View {
                 notificationActionsSection
                 defaultTimeZoneGroup
                 calendarSection
+                // A hub row rather than the catalogue inline: five models with
+                // progress and a delete button each is too much to add to a page
+                // that is already this long, and a model is a once-per-device
+                // setup task rather than an everyday toggle.
+                Button { onOpen(.localModel) } label: {
+                    moreHubRow(title: String(localized: "Modell auf dem Gerät"),
+                               detail: String(localized: "Welches Modell deinen Satz liest"),
+                               symbol: "cpu",
+                               identifier: "open-local-model") {}
+                }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.nativeTabBarClearance)
@@ -645,6 +660,160 @@ struct MoreView: View {
 
     /// Sync status is useful while editing integration behavior, but does not
     /// belong on the More hub where it becomes permanent ambient noise.
+    /// The local sentence model: which one, whether it is on the phone, and how
+    /// much room it takes.
+    ///
+    /// This is here and not in Darstellung because it is not how the app looks —
+    /// it is which model the app thinks with, and the weights for it are the only
+    /// thing in the app that can take a gigabyte.
+    private var localModelSettings: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Metrics.settingsSectionGap) {
+                localModelSection
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.vertical, Theme.Metrics.cardPadding)
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .settingsChrome()
+        .navigationTitle(String(localized: "Modell auf dem Gerät"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var localModelSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            moreSubsectionLabel(String(localized: "Modell auf dem Gerät"))
+
+            ForEach(LocalModelCatalogue.all) { model in
+                localModelRow(model)
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "internaldrive")
+                    .font(.footnote)
+                Text(String(localized: "Modelle bleiben auf diesem Gerät und werden nicht über iCloud übertragen."))
+                    .font(.footnote)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.top, 2)
+            .accessibilityIdentifier("local-model-footnote")
+        }
+    }
+
+    private func localModelRow(_ model: LocalModelDescriptor) -> some View {
+        let state = modelService.registry.state(for: model.id)
+        let isSelected = modelService.selectedModelID == model.id
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(model.displayName)
+                            .font(.subheadline.weight(.semibold))
+                        if model.isFreeTierEligible {
+                            Text(String(localized: "kostenlos"))
+                                .font(.caption2.weight(.medium))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color(.tertiarySystemFill), in: Capsule())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(model.formattedSize)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(accentColor)
+                        .accessibilityLabel(String(localized: "Ausgewählt"))
+                }
+            }
+            Text(model.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            localModelControl(model, state: state, isSelected: isSelected)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Choosing a model you do not have yet is allowed: it says what you
+            // want, and the button below fetches it. Refusing the tap because the
+            // weights are absent would make the choice unreadable.
+            modelService.selectedModelID = model.id
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("local-model-\(model.id)")
+    }
+
+    @ViewBuilder
+    private func localModelControl(_ model: LocalModelDescriptor,
+                                   state: LocalModelState,
+                                   isSelected: Bool) -> some View {
+        switch state {
+        case .notDownloaded:
+            Button {
+                Task { await modelService.download(model) }
+            } label: {
+                Text(modelService.canFit(model)
+                     ? String(localized: "Laden")
+                     : String(localized: "Zu wenig Speicher"))
+            }
+            .buttonStyle(.bordered)
+            .disabled(!modelService.canFit(model))
+            .accessibilityIdentifier("local-model-download-\(model.id)")
+
+        case .downloading(let received, _):
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView(value: state.fraction ?? 0)
+                    .progressViewStyle(.linear)
+                HStack {
+                    Text(ByteCountFormatter.string(fromByteCount: received, countStyle: .file))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(String(localized: "Abbrechen")) { modelService.cancel(model) }
+                        .font(.caption)
+                }
+            }
+            .accessibilityIdentifier("local-model-progress-\(model.id)")
+
+        case .ready:
+            HStack(spacing: Theme.Metrics.gap) {
+                Label(String(localized: "Auf diesem Gerät"), systemImage: "checkmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(role: .destructive) {
+                    modelService.delete(model)
+                } label: {
+                    Text(String(localized: "Entfernen"))
+                }
+                .font(.caption)
+                .accessibilityIdentifier("local-model-delete-\(model.id)")
+            }
+
+        case .failed(let reason):
+            HStack(spacing: Theme.Metrics.gap) {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Spacer()
+                Button(String(localized: "Erneut")) {
+                    Task { await modelService.download(model) }
+                }
+                .font(.caption)
+            }
+            .accessibilityIdentifier("local-model-failed-\(model.id)")
+        }
+    }
+
     private var cloudSyncSection: some View {
         AppSettingsGroup(title: String(localized: "Synchronisierung")) {
             HStack(alignment: .top, spacing: 12) {
