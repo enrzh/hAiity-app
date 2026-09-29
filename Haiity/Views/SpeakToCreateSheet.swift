@@ -38,6 +38,11 @@ struct SpeakToCreateSheet: View {
     /// sentence is in and the draft has to be looked at.
     @State private var detent: PresentationDetent = .fraction(0.5)
     @FocusState private var fieldFocused: Bool
+    /// The model on this device, and the reader that runs it. Optional: a person
+    /// who has not downloaded anything still gets Apple's model where it exists
+    /// and the deterministic reading everywhere else.
+    @State private var modelService = LocalModelService()
+    @State private var localReader = LocalModelSentenceReader(service: LocalModelService())
 
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
@@ -63,9 +68,17 @@ struct SpeakToCreateSheet: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Reading is possible when EITHER model can answer.
+    ///
+    /// Gating on Apple's Foundation Models alone hid the button on every device
+    /// below iOS 26 and in the simulator, which made a downloaded model look
+    /// like it did nothing. The two are alternatives, not a preference order.
     private var canRead: Bool {
-        OnDeviceModel.isAvailable && hasSentence && !isReading && !isWorking
+        (OnDeviceModel.isAvailable || hasDownloadedModel) && hasSentence && !isReading && !isWorking
     }
+
+    /// Whether a model is on the phone, refreshed when the sheet opens.
+    @State private var hasDownloadedModel = false
 
     var body: some View {
         NavigationStack {
@@ -127,8 +140,21 @@ struct SpeakToCreateSheet: View {
             .onChange(of: text) { _, _ in scrollDraftIntoView(proxy) }
             }
         }
-        .onAppear { fieldFocused = true }
-        .onDisappear { stopEverything() }
+        .onAppear {
+            fieldFocused = true
+            // The page may have downloaded a model since this sheet's service was
+            // built, so the disk is the authority.
+            modelService.refresh()
+            hasDownloadedModel = LocalModelCatalogue.all.contains {
+                modelService.registry.state(for: $0.id).isReady
+            }
+        }
+        .onDisappear {
+            stopEverything()
+            // A model holds hundreds of megabytes of weight cache. Keeping it
+            // between sheets makes the rest of the app feel heavier than it is.
+            localReader.release()
+        }
         // Tapping the text is a request to edit, which also needs the room.
         .onChange(of: fieldFocused) { _, focused in
             if focused { expandForReview() }
@@ -382,6 +408,20 @@ struct SpeakToCreateSheet: View {
               !isReading else { return }
         isReading = true
         defer { isReading = false }
+        if hasDownloadedModel {
+            // The chosen model is on this device, so it is the one that answers.
+            switch await localReader.read(requested) {
+            case .draft(let parsed):
+                readDraft = parsed
+                readFrom = requested
+                return
+            case .unreadable, .failed:
+                // Fall through to Apple's model and then to the deterministic
+                // reading, rather than leaving the person with nothing. A model
+                // that cannot answer must not be the end of the road.
+                readDraft = nil
+            }
+        }
         readDraft = await CreateItemDraft.read(from: requested)
         readFrom = requested
     }

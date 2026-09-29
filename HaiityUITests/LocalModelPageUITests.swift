@@ -85,12 +85,20 @@ final class LocalModelPageUITests: XCTestCase {
         }
         capture("model-04-scrolled")
 
-        // The download control has to be on screen and enabled: with 290 MB
-        // expected there is enough room.
+        // Each model offers exactly one action: a download while it is absent, a
+        // remove once it is on the phone. Which one depends on whether this
+        // simulator has run the download before, and asserting a particular one
+        // makes the test depend on leftover state.
         let download = app.buttons["local-model-download-qwen25-0.5b"].firstMatch
-        XCTAssertTrue(download.waitForExistence(timeout: 5), "the smallest model offers a download")
-        XCTAssertTrue(download.isEnabled,
-                      "a fresh install has room for the smallest model")
+        let remove = app.buttons["local-model-delete-qwen25-0.5b"].firstMatch
+        let downloading = app.descendants(matching: .any)["local-model-progress-qwen25-0.5b"].firstMatch
+        let offered = download.waitForExistence(timeout: 8) || remove.exists
+        XCTAssertTrue(offered || downloading.exists,
+                      "a model must always offer an action: download it, remove it, or show progress")
+        if download.exists {
+            XCTAssertTrue(download.isEnabled,
+                          "a fresh install has room for the smallest model")
+        }
         capture("model-03-download")
     }
 

@@ -69,27 +69,29 @@ final class LocalModelEndToEndUITests: XCTestCase {
         XCTAssertTrue(scrollTo(row), "the model row must be reachable")
         row.tap()
 
+        // The download button is only offered when the model is NOT on the phone,
+        // so a simulator that already has it shows "Entfernen" instead. That is
+        // persistence working, and this test has to cope with both states.
         let download = app.buttons["local-model-download-qwen25-0.5b"].firstMatch
-        XCTAssertTrue(download.waitForExistence(timeout: 15), "the smallest model offers a download")
-        XCTAssertTrue(scrollTo(download), "the download control must be reachable")
-        download.tap()
-        capture("e2e-01-downloading")
-
-        // Progress first — otherwise a download that never starts looks identical
-        // to one that finished instantly.
-        let progress = app.descendants(matching: .any)["local-model-progress-qwen25-0.5b"].firstMatch
+        let ready = app.descendants(matching: .any)["local-model-delete-qwen25-0.5b"].firstMatch
         let failed = app.descendants(matching: .any)["local-model-failed-qwen25-0.5b"].firstMatch
-        let sawProgress = progress.waitForExistence(timeout: 30)
-        XCTAssertTrue(sawProgress, "tapping Laden must start a download, not silently do nothing")
-        capture("e2e-02-progress")
+
+        if download.waitForExistence(timeout: 5), scrollTo(download) {
+            download.tap()
+            capture("e2e-01-downloading")
+
+            // Progress first — otherwise a download that never starts looks
+            // identical to one that finished instantly.
+            let progress = app.descendants(matching: .any)["local-model-progress-qwen25-0.5b"].firstMatch
+            XCTAssertTrue(progress.waitForExistence(timeout: 30),
+                          "tapping Laden must start a download, not silently do nothing")
+            capture("e2e-02-progress")
+        }
 
         // Then the model on the phone. 290 MB over a real network.
-        let ready = app.descendants(matching: .any)["local-model-delete-qwen25-0.5b"].firstMatch
         let deadline = Date().addingTimeInterval(15 * 60)
         while Date() < deadline {
-            if ready.exists {
-                break
-            }
+            if ready.exists { break }
             if failed.exists {
                 XCTFail("the download reported a failure instead of finishing")
                 capture("e2e-03-failed")
@@ -101,5 +103,45 @@ final class LocalModelEndToEndUITests: XCTestCase {
                       "the model should be on the phone; a progress bar that ends without files "
                       + "arriving is the failure this layer exists to prevent")
         capture("e2e-03-ready")
+
+        // And now the part nothing has ever done: ask the model to read a
+        // sentence and see what comes back.
+        //
+        // The model is on the phone but Apple's Foundation Models is not available
+        // in a simulator, so this also proves the sheet routes to the local model
+        // rather than to Apple's — the button is only offered when one of them
+        // can answer, and here only the local one can.
+        // The model page is a presented sheet over the whole app, so switching
+        // tabs would not reach the button underneath it. Relaunch straight onto
+        // Habits instead: the weights are on the disk already, and the sheet does
+        // not care which tab opened it.
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = ["-screen", "habits", "-pro", "on"]
+        app.launch()
+
+        let opener = app.buttons["speak-to-create"].firstMatch
+        XCTAssertTrue(opener.waitForExistence(timeout: 15),
+                      "the create-from-a-sentence entry point must be on the habits screen")
+        opener.tap()
+
+        let field = app.textFields["speak-to-create-text"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "the sheet should open")
+        field.tap()
+        field.typeText("jeden Montag morgens um 7 Wasser trinken")
+
+        let read = app.buttons["speak-to-create-read"].firstMatch
+        XCTAssertTrue(read.waitForExistence(timeout: 15),
+                      "a downloaded model must make the read button available where Apple's is absent")
+        XCTAssertTrue(read.isEnabled, "and it must be enabled once there is a sentence")
+        read.tap()
+        capture("e2e-04-reading")
+
+        // A first load of a 0.5B is seconds, not milliseconds.
+        let draft = app.descendants(matching: .any)["speak-to-create-draft"].firstMatch
+        let finished = NSPredicate(format: "exists == true")
+        expectation(for: finished, evaluatedWith: draft)
+        waitForExpectations(timeout: 300)
+        capture("e2e-05-draft")
     }
 }

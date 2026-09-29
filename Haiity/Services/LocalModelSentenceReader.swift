@@ -1,4 +1,5 @@
 import Foundation
+import Metal
 import MLXLLM
 import MLXLMCommon
 import Tokenizers
@@ -50,6 +51,21 @@ final class LocalModelSentenceReader {
         loadedPath = nil
     }
 
+    /// Whether MLX can be asked to run at all.
+    ///
+    /// This is not a capability check in the usual sense. MLX creates its Metal
+    /// device lazily and, if it cannot, calls `abort()` from C++ — a hard process
+    /// kill that no Swift `try`/`catch` can intercept. The first end-to-end run
+    /// proved it: tapping "Satz lesen" on a machine with no usable GPU took the
+    /// app down instead of falling back to the deterministic reading.
+    ///
+    /// So the precondition is checked here, before MLX is called at all. Where
+    /// Metal is unavailable the answer is the deterministic reading, which is
+    /// always available and always works.
+    static var canRunMLX: Bool {
+        MTLCreateSystemDefaultDevice() != nil
+    }
+
     func read(_ sentence: String) async -> Outcome {
         let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .unreadable }
@@ -57,6 +73,9 @@ final class LocalModelSentenceReader {
         let model = service.usableModel
         let directory = service.directory(for: model)
 
+        guard Self.canRunMLX else {
+            return .failed(String(localized: "Auf diesem Gerät ist keine GPU für das Modell verfügbar."))
+        }
         do {
             let loaded = try await load(of: model, at: directory)
             let parameters = GenerateParameters(

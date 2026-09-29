@@ -73,13 +73,40 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "with the identifier the UI tests drive it by")
     }
 
+    /// A model on the device answers even where Apple's does not exist, so the
+    /// button must not be gated on Foundation Models alone — that hid it on every
+    /// iPhone below iOS 26 and made a 290 MB download look like it did nothing.
+    func testTheReadButtonIsOfferedWhenEitherModelCanAnswer() throws {
+        let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("OnDeviceModel.isAvailable || hasDownloadedModel"),
+                      "a downloaded model must make reading possible where Apple's is absent")
+        XCTAssertFalse(sheet.contains("OnDeviceModel.isAvailable && hasSentence"),
+                       "gating on Apple's model alone hides the button on most devices")
+
+        // And a model that cannot answer must fall through to the deterministic
+        // reading rather than leaving the person with nothing.
+        let read = try XCTUnwrap(sheet.range(of: "private func read() async"))
+        let body = sheet[read.upperBound...].prefix(2200)
+        XCTAssertTrue(body.contains("localReader.read"),
+                      "the chosen model on the phone is the one that should answer")
+        XCTAssertTrue(body.contains("case .draft"),
+                      "an unusable answer must fall through, not end the road")
+        XCTAssertTrue(body.contains("CreateItemDraft.read(from: requested)"),
+                      "and Apple's model, then the deterministic reading, are the fallbacks")
+    }
+
     /// Typing is the action now, so the sheet opens ready to type. This inverts
     /// the old rule, which held the keyboard down while a waveform had the half
     /// height to itself — there is no waveform to protect, and not raising the
     /// keyboard means one extra tap before anything can be said.
     func testTheSheetOpensReadyToType() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
-        XCTAssertTrue(sheet.contains(".onAppear { fieldFocused = true }"),
+        // Asserted on the onAppear BODY, not on the whole call: that block also
+        // looks for a model on disk, and pinning the one-line form broke the
+        // moment it grew a second line — which is the wrong thing for a test
+        // about intent to be sensitive to.
+        let appear = try XCTUnwrap(sheet.range(of: ".onAppear {"))
+        XCTAssertTrue(sheet[appear.upperBound...].prefix(400).contains("fieldFocused = true"),
                       "the only way in now is the keyboard, so it should be up")
         XCTAssertTrue(sheet.contains("@FocusState private var fieldFocused"))
     }
