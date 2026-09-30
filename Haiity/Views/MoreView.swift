@@ -721,21 +721,39 @@ struct MoreView: View {
             symbol: Self.symbol(for: model),
             trailing: {
                 HStack(spacing: 10) {
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(accentColor)
-                            .accessibilityLabel(String(localized: "Ausgewählt"))
-                    }
+                    selectionControl(model, isSelected: isSelected)
                     modelControl(model, state: state)
                 }
             })
-            // Choosing a model you do not have yet is allowed: it says what you
-            // want, and the control beside it fetches it. Refusing the tap because
-            // the weights are absent would make the choice unreadable.
-            .contentShape(Rectangle())
-            .onTapGesture { modelService.selectedModelID = model.id }
             .accessibilityIdentifier("local-model-\(model.id)")
+    }
+
+    /// The choice, as an explicit control rather than "tap anywhere on the row".
+    ///
+    /// With the row itself as the target, a scroll that grazed a row put a
+    /// checkmark on that model: the whole row was the selection, so anything that
+    /// landed on it counted. A control that is only pressed when pressed cannot
+    /// do that, and it is also how a radio list is expected to behave.
+    @ViewBuilder
+    private func selectionControl(_ model: LocalModelDescriptor,
+                                  isSelected: Bool) -> some View {
+        if isSelected {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(accentColor)
+                .accessibilityLabel(String(localized: "Ausgewählt"))
+        } else {
+            Button {
+                modelService.selectedModelID = model.id
+            } label: {
+                Image(systemName: "circle")
+                    .font(.title3)
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "\(model.displayName) auswählen"))
+            .accessibilityIdentifier("local-model-select-\(model.id)")
+        }
     }
 
     /// One glyph per kind, so the list can be scanned rather than read.
