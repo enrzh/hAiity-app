@@ -3760,6 +3760,12 @@ private struct CreateCircle: View {
         // `CreateCircle` is already `@available(iOS 27, *)`, so the glass style
         // is always in scope here. The `else` branch that used to carry a
         // `#available` guard was unreachable and only produced a warning.
+        // Still a direct glassEffect, and the audit says it should go through
+        // ChromeGlass like every other floating control. It cannot yet: this is a
+        // separate private struct with no access to glassNamespace, the effective
+        // palette or the union helper, so unifying it means threading all three
+        // in — a change to the app's most prominent control that wants eyes on it
+        // rather than a late blind edit. Written down instead of rushed.
         if appearancePreferences.performanceMode {
             styledButton
         } else {

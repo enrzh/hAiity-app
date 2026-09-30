@@ -568,7 +568,12 @@ struct StatsView: View {
                         .foregroundStyle(accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        // A plain tonal fill, not a material. This is CONTENT —
+                        // a badge inside a card — and the app's own rule is that
+                        // content never carries glass: over a card that already has
+                        // a surface, a material here samples a second layer and
+                        // the badge turns into a grey smudge.
+                        .background(Color(.tertiarySystemFill), in: Capsule())
                 }
             }
             .padding(.top, 2)

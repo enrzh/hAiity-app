@@ -639,19 +639,19 @@ struct MoreView: View {
                 notificationActionsSection
                 defaultTimeZoneGroup
                 calendarSection
-                // A hub row rather than the catalogue inline: five models with
-                // progress and a delete button each is too much to add to a page
-                // that is already this long, and a model is a once-per-device
-                // setup task rather than an everyday toggle.
-                // `moreHubRow` is itself a Button, so it is called with the action
-                // rather than wrapped in one. Wrapping it produced a Button inside
-                // a Button: the inner one wins, the outer `onOpen` never fires, and
-                // the row looks perfectly tappable while doing nothing.
-                moreHubRow(title: String(localized: "Modell auf dem Gerät"),
-                           detail: String(localized: "Welches Modell deinen Satz liest"),
-                           symbol: "cpu",
-                           identifier: "open-local-model") {
-                    onOpen(.localModel)
+                // In a group, like every other control on this page. A bare
+                // moreHubRow has no panel around it, so the row sat straight on
+                // the wallpaper while everything above and below it was in glass.
+                // The same mistake as a hand-rolled panel one level further down,
+                // and the reason for the audit that followed.
+                AppSettingsGroup(title: String(localized: "Auf dem Gerät"),
+                                 footer: String(localized: "Welches Modell deinen Satz liest. Die Gewichte bleiben auf diesem Gerät und werden nicht über iCloud übertragen.")) {
+                    moreHubRow(title: String(localized: "Modell auf dem Gerät"),
+                               detail: modelService.selectedModel.displayName,
+                               symbol: "cpu",
+                               identifier: "open-local-model") {
+                        onOpen(.localModel)
+                    }
                 }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
