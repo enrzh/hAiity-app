@@ -139,6 +139,23 @@ final class LocalModelCatalogueTests: XCTestCase {
                      "an unknown id must resolve to nothing rather than to the first entry")
     }
 
+    /// The weights are re-downloadable and a gigabyte of them in someone's iCloud
+    /// quota is not acceptable, so the page has to say so. Asserted on the source
+    /// because it lives in the group's footer, which carries no identifier.
+    func testThePageSaysModelsStayOnTheDevice() throws {
+        let more = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/MoreView.swift"), encoding: .utf8)
+        XCTAssertTrue(more.contains("nicht über iCloud übertragen"),
+                      "the page must tell the person the weights are not synced")
+        XCTAssertTrue(more.contains("local-model-group"),
+                      "and the catalogue must be a titled settings group, like every other page")
+        XCTAssertTrue(more.contains("AppSettingsGroup("),
+                      "and it must be built from the shared component, not a hand-rolled panel")
+        XCTAssertTrue(more.contains("AppSettingsRow("),
+                      "with the shared row, so it follows the appearance setting like the rest")
+    }
+
     // MARK: - The state machine
 
     /// An inventory with one model on disk, which is the precondition for a

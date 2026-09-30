@@ -689,80 +689,66 @@ struct MoreView: View {
         .safeAreaPadding(.bottom, 24)
     }
 
+    /// The catalogue, built from the same components as every other settings
+    /// page.
+    ///
+    /// This was hand-laid-out the first time: a bare panel with hand-built rows
+    /// and rules between them. It used the same surface, so the material was
+    /// right, but it did not look like a settings page — no group label, no row
+    /// indentation, none of the shared row treatment. Everything here goes
+    /// through AppSettingsGroup and AppSettingsRow for that reason, so the page
+    /// changes with the appearance setting the way every other page does.
     private var localModelSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+        AppSettingsGroup(
+            title: String(localized: "Welches Modell deinen Satz liest"),
+            footer: String(localized: "Modelle bleiben auf diesem Gerät und werden nicht über iCloud übertragen. Beim ersten Lesen braucht das Modell ein paar Sekunden, bis es geladen ist.")) {
             ForEach(Array(LocalModelCatalogue.all.enumerated()), id: \.element.id) { index, model in
-                if index > 0 {
-                    Divider().padding(.vertical, 2)
-                }
+                if index > 0 { Divider() }
                 localModelRow(model)
             }
-
-            HStack(spacing: 6) {
-                Image(systemName: "internaldrive")
-                    .font(.footnote)
-                Text(String(localized: "Modelle bleiben auf diesem Gerät und werden nicht über iCloud übertragen."))
-                    .font(.footnote)
-            }
-            .foregroundStyle(.secondary)
-            .padding(.top, 2)
-            .accessibilityIdentifier("local-model-footnote")
         }
+        .accessibilityIdentifier("local-model-group")
     }
 
     private func localModelRow(_ model: LocalModelDescriptor) -> some View {
         let state = modelService.registry.state(for: model.id)
         let isSelected = modelService.selectedModelID == model.id
 
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(model.displayName)
-                            .font(.subheadline.weight(.semibold))
-                        if model.isFreeTierEligible {
-                            Text(String(localized: "kostenlos"))
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color(.tertiarySystemFill), in: Capsule())
-                                .foregroundStyle(.secondary)
-                        }
+        return AppSettingsRow(
+            title: model.displayName,
+            // Size first: it is the fact that decides, the summary is the reason.
+            detail: "\(model.formattedSize) · \(model.summary)",
+            symbol: Self.symbol(for: model),
+            trailing: {
+                HStack(spacing: 10) {
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(accentColor)
+                            .accessibilityLabel(String(localized: "Ausgewählt"))
                     }
-                    Text(model.formattedSize)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    modelControl(model, state: state)
                 }
-                Spacer(minLength: 0)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(accentColor)
-                        .accessibilityLabel(String(localized: "Ausgewählt"))
-                }
-            }
-            Text(model.summary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            localModelControl(model, state: state, isSelected: isSelected)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+            })
             // Choosing a model you do not have yet is allowed: it says what you
-            // want, and the button below fetches it. Refusing the tap because the
-            // weights are absent would make the choice unreadable.
-            modelService.selectedModelID = model.id
+            // want, and the control beside it fetches it. Refusing the tap because
+            // the weights are absent would make the choice unreadable.
+            .contentShape(Rectangle())
+            .onTapGesture { modelService.selectedModelID = model.id }
+            .accessibilityIdentifier("local-model-\(model.id)")
+    }
+
+    /// One glyph per kind, so the list can be scanned rather than read.
+    private static func symbol(for model: LocalModelDescriptor) -> String {
+        switch model.scope {
+        case .processing: return "bolt.fill"
+        case .language: return "textformat"
+        case .multilingual: return "globe"
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("local-model-\(model.id)")
     }
 
     @ViewBuilder
-    private func localModelControl(_ model: LocalModelDescriptor,
-                                   state: LocalModelState,
-                                   isSelected: Bool) -> some View {
+    private func modelControl(_ model: LocalModelDescriptor, state: LocalModelState) -> some View {
         switch state {
         case .notDownloaded:
             Button {
@@ -773,49 +759,45 @@ struct MoreView: View {
                      : String(localized: "Zu wenig Speicher"))
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(!modelService.canFit(model))
             .accessibilityIdentifier("local-model-download-\(model.id)")
 
         case .downloading(let received, _):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 3) {
                 ProgressView(value: state.fraction ?? 0)
                     .progressViewStyle(.linear)
-                HStack {
+                    .frame(width: 84)
+                HStack(spacing: 8) {
                     Text(ByteCountFormatter.string(fromByteCount: received, countStyle: .file))
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Spacer()
                     Button(String(localized: "Abbrechen")) { modelService.cancel(model) }
-                        .font(.caption)
+                        .font(.caption2)
                 }
             }
             .accessibilityIdentifier("local-model-progress-\(model.id)")
 
         case .ready:
-            HStack(spacing: Theme.Metrics.gap) {
-                Label(String(localized: "Auf diesem Gerät"), systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(role: .destructive) {
-                    modelService.delete(model)
-                } label: {
-                    Text(String(localized: "Entfernen"))
-                }
-                .font(.caption)
-                .accessibilityIdentifier("local-model-delete-\(model.id)")
+            Button(role: .destructive) {
+                modelService.delete(model)
+            } label: {
+                Text(String(localized: "Entfernen"))
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("local-model-delete-\(model.id)")
 
         case .failed(let reason):
-            HStack(spacing: Theme.Metrics.gap) {
+            VStack(alignment: .trailing, spacing: 3) {
                 Text(reason)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.orange)
-                Spacer()
+                    .fixedSize(horizontal: false, vertical: true)
                 Button(String(localized: "Erneut")) {
                     Task { await modelService.download(model) }
                 }
-                .font(.caption)
+                .font(.caption2)
             }
             .accessibilityIdentifier("local-model-failed-\(model.id)")
         }

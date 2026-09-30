@@ -1,0 +1,5 @@
+Query chain:
+ →Find: Target Application 'com.aiity.haiity'
+  ↪︎Find: Descendants matching type Any
+    ↪︎Find: Elements matching predicate '"local-model-qwen25-0.5b" IN identifiers'
+      ↪︎Find: First Match
