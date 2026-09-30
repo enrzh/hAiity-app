@@ -127,6 +127,10 @@ struct ContentView: View {
     @State private var feedbackClosedAt = Date.distantPast
     /// Mehr-Unterziele aus Deep-Links auf dem Fallback vor iOS 26.
     @State private var moreSheet: MoreRoute?
+    /// Depth of the More sheet's own stack. Bound so the page knows whether it is
+    /// the root — a pushed secondary page has a back button, and the sheet's close
+    /// button must not follow it down.
+    @State private var moreSheetPath: [MoreRoute] = []
     /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
     @State private var morePageRoute: MoreRoute?
     /// Bleibt bis zum gemeinsamen sheet-onDismiss wahr. Damit startet eine
@@ -361,10 +365,15 @@ struct ContentView: View {
             // Bereich. Mehr-Zeilen präsentieren über `morePageRoute`.
             .sheet(item: $moreSheet,
                    onDismiss: deliverPendingMoreDismissalRoute) { route in
-                NavigationStack {
+                NavigationStack(path: $moreSheetPath) {
                     moreSheetRoot(fallback: route)
                         .navigationDestination(for: MoreRoute.self, destination: moreDestination)
+                        // Only at the root. A secondary page reached by a push is
+                        // not a sheet of its own: it has the back button, and the
+                        // xmark beside it offered to throw away the page the user
+                        // had come from as well.
                         .toolbar {
+                            if moreSheetPath.isEmpty {
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button {
                                     dismissMoreSheet()
@@ -377,6 +386,7 @@ struct ContentView: View {
                                 }
                                 .accessibilityLabel(String(localized: "Fertig"))
                                     .accessibilityIdentifier("close-more-sheet")
+                            }
                             }
                         }
                 }
@@ -2557,6 +2567,10 @@ struct ContentView: View {
         moreRoutePresentationTask = nil
         moreSheet = nil
         morePageRoute = nil
+        // The stack is rebuilt for each presentation, but the binding survives the
+        // sheet's own teardown, so a page closed from two levels deep would
+        // otherwise reopen at that depth.
+        moreSheetPath.removeAll()
     }
 
     private func deliverPendingMoreDismissalRoute() {
@@ -2643,7 +2657,9 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github, .localModel: nil
+        case .about, .developer, .appearance, .habitBehavior, .github: nil
+        // A push inside Verhalten & Teilen's stack: no sheet, no deep link.
+        case .localModel: nil
         }
     }
 
@@ -2658,7 +2674,8 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
-        case .localModel: .localModel
+        // A push inside Verhalten & Teilen's stack, not a sheet of its own.
+        case .localModel: nil
         }
     }
 
@@ -2670,7 +2687,8 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
-        case .localModel: .localModel
+        // Pushed inside Verhalten & Teilen's own stack, so it is never presented
+        // as a sheet of its own and needs no destination here.
         }
     }
 

@@ -189,31 +189,43 @@ final class AppNavigationTests: XCTestCase {
     /// The model page was routed through `presentedMorePage`, which returned nil
     /// for it because `AppMoreDestination` had no case — so the row was tappable,
     /// looked right, and opened nothing. Silent, and invisible to a build.
+    /// A hub row has to open something.
+    ///
+    /// **Presenting is only one way to open.** The model row is a push onto
+    /// Verhalten & Teilen's own stack — a second sheet over the page it came
+    /// from brought its own grabber, its own close button and a dismiss that
+    /// threw away the page underneath, for something that is simply the next
+    /// screen. So the contract this guards is now the opposite of what it used
+    /// to be, and it says so: `localModel` must be ABSENT from
+    /// `AppMoreDestination` and nil in both presentation maps. Asserting the
+    /// other way would pin the sheet that was deliberately removed.
     func testEveryHubRowCanActuallyBeOpened() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let navigation = try String(contentsOf: sourceURL("Haiity/Models/AppNavigation.swift"))
 
-        // The destination enum has to carry it. The declaration lists the cases
-        // without a `case` prefix, so the member is looked up by name.
-        for route in ["localModel"] {
-            let destination = try XCTUnwrap(navigation.range(of: "enum AppMoreDestination"))
-            let members = navigation[destination.upperBound...].prefix(200)
-            XCTAssertTrue(members.contains(route),
-                          "\(route) is missing from AppMoreDestination, so it cannot be presented")
+        // The route exists, or the link carries nothing.
+        XCTAssertTrue(more.contains(
+            "case archive, about, developer, appearance, habitBehavior, github, localModel"),
+            "the model page needs a route to be pushed with")
 
-            // The presentation map must PRESENT it. A nil here is a row that looks
-            // tappable and opens nothing.
-            let present = try XCTUnwrap(content.range(of: "func presentedMorePage(for route: MoreRoute)"))
-            XCTAssertTrue(content[present.upperBound...].prefix(400).contains("case .\(route): .\(route)"),
-                          "\(route) must be presented, not mapped to nil — a nil there is a dead row")
+        // The row pushes, and a push resolves through the stack's own
+        // navigationDestination rather than through a destination enum. The two
+        // are mutually exclusive: a route in `AppMoreDestination` would also be
+        // presented as a sheet over the page that led to it.
+        XCTAssertTrue(more.contains("NavigationLink(value: MoreRoute.localModel)"),
+                      "the model row must push onto Verhalten & Teilen's stack")
+        let destination = try XCTUnwrap(navigation.range(of: "enum AppMoreDestination"))
+        XCTAssertFalse(navigation[destination.upperBound...].prefix(200).contains("localModel"),
+                       "a pushed page must not be a sheet destination as well")
+        XCTAssertTrue(more.contains("case .localModel:"),
+                      "the push must have a destination, or the row opens nothing")
 
-            // And it must map back to its own route, or the sheet's own state is
-            // attributed to whichever page it borrowed.
-            let reverse = try XCTUnwrap(content.range(of: "func moreRoute(for destination: AppMoreDestination)"))
-            XCTAssertTrue(content[reverse.upperBound...].prefix(400).contains("case .\(route): .\(route)"),
-                          "\(route) must map back to its own route")
-        }
+        // Nil here is the contract rather than a dead row: this is the page
+        // opening by push instead.
+        let present = try XCTUnwrap(content.range(of: "func presentedMorePage(for route: MoreRoute)"))
+        XCTAssertTrue(content[present.upperBound...].prefix(400).contains("case .localModel: nil"),
+                      "the model page must never be presented as a sheet of its own")
     }
 
     /// The model page carries the same surface as the other More pages. A page

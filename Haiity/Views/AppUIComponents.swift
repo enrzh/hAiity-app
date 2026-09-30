@@ -101,15 +101,22 @@ struct AppSettingsGroup<Content: View>: View {
     /// inside it actually does. Lives here so a page does not hand-roll a
     /// caption in a different size and indent from every other one.
     var footer: String?
+    /// Optional accessibility identifier for the group itself, so a test can
+    /// address the panel a row sits in rather than only the row. That
+    /// distinction is the whole point: a row renders identically with and without
+    /// a panel around it, and only the frame says which one it got.
+    var identifier: String?
     private let content: Content
 
     init(title: String,
          symbol: String? = nil,
          footer: String? = nil,
+         identifier: String? = nil,
          @ViewBuilder content: () -> Content) {
         self.title = title
         self.symbol = symbol
         self.footer = footer
+        self.identifier = identifier
         self.content = content()
     }
 

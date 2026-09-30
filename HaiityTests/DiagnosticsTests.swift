@@ -696,10 +696,16 @@ final class DiagnosticsTests: XCTestCase {
                       "die Route zeigt auf keine Seite")
         // Every page that must not be reachable by `haiity://` has to be named in
         // the one switch that decides that, rather than falling through a default.
-        // Read the actual case list so adding a page cannot quietly drop out of it.
+        // The switch is located by name rather than by matching the case list at
+        // a fixed offset: the model page now sits in its own branch of that
+        // switch, behind two lines of comment, and a test that fails because
+        // somebody annotated the code is a test nobody trusts.
         let whitelist = try XCTUnwrap(content.range(
-            of: "case .about, .developer, .appearance, .habitBehavior, .github"))
-        XCTAssertTrue(content[whitelist.upperBound...].prefix(60)
+            of: "func appMoreDestination(for route: MoreRoute)"))
+        XCTAssertTrue(content[whitelist.upperBound...].prefix(400)
+            .contains("case .about, .developer, .appearance, .habitBehavior, .github"),
+                      "die Whitelist muss jede Seite namentlich aufführen")
+        XCTAssertTrue(content[whitelist.upperBound...].prefix(500)
             .contains(".localModel: nil"),
                       "die Seite darf kein Deep-Link-Ziel bedienen")
         XCTAssertFalse(content.contains("\"developer\""),
