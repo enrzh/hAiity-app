@@ -503,26 +503,58 @@ struct CreateItemDraft: Equatable, Sendable {
                      useModel: Bool = true) async -> CreateItemDraft {
         let stripped = stripTime(from: text)
         guard useModel, OnDeviceModel.isAvailable else {
-            return CreateItemDraft(name: stripped.name, emoji: "", minutes: stripped.minutes)
+            // Reading a clock and nothing else is the honest degraded path, but
+            // "tomorrow at 10" is still a one-off reminder dated tomorrow, and
+            // that needs no model at all: the sentence named the day itself.
+            return pinned(CreateItemDraft(name: stripped.name, emoji: "",
+                                          minutes: stripped.minutes),
+                          sentence: text)
         }
         var parsed: CreateItemDraft?
         if #available(iOS 26.0, *) {
             parsed = try? await CreateItemWriter.draft(from: text, language: language)
         }
         guard let parsed else {
-            return CreateItemDraft(name: stripped.name, emoji: "", minutes: stripped.minutes)
+            return pinned(CreateItemDraft(name: stripped.name, emoji: "",
+                                          minutes: stripped.minutes),
+                          sentence: text)
         }
         // The deterministic time wins over the model's: a clock time in the
         // sentence is a fact, and the model is the part that can be wrong. The
         // name gets the same treatment — a time that survived into it is taken
         // back out rather than saved, because "Wasser trinken um 7" is not a
         // name, and the time is already a field of its own.
-        return CreateItemDraft(name: CreateItemDraft.cleanedName(
-                                    parsed.name.isEmpty ? stripped.name : parsed.name),
-                               emoji: parsed.emoji,
-                               minutes: stripped.minutes ?? parsed.minutes,
-                               isReminder: parsed.isReminder,
-                               schedule: parsed.schedule)
+        return pinned(CreateItemDraft(name: CreateItemDraft.cleanedName(
+                                          parsed.name.isEmpty ? stripped.name : parsed.name),
+                                      emoji: parsed.emoji,
+                                      minutes: stripped.minutes ?? parsed.minutes,
+                                      isReminder: parsed.isReminder,
+                                      schedule: parsed.schedule),
+                      sentence: text)
+    }
+
+    /// The sentence's own decision about itself, applied on the way out of every
+    /// branch above.
+    ///
+    /// **Why it has to be here and not only in the prompt.** `DraftExtraction`
+    /// already did this for the downloaded model, and the comment there claimed
+    /// the rule lives "below the model" — but this function is the OTHER model,
+    /// the Shortcut and the no-model fallback, and it never applied it. "I want
+    /// to go to Doc tomorrow at 10 am" was therefore read as a daily habit:
+    /// correct in the prompt, enforced on one path of three. One choke point
+    /// rather than a rule per path is what stops that recurring.
+    ///
+    /// `isReminder` is recomputed from the resulting schedule rather than passed
+    /// through, so the two cannot disagree: a once-only thing filed under
+    /// habits is tracked forever and counts against the free allowance.
+    private static func pinned(_ draft: CreateItemDraft, sentence: String) -> CreateItemDraft {
+        var schedule = draft.schedule
+        DraftExtraction.pinOneOff(&schedule, sentence: sentence)
+        return CreateItemDraft(name: draft.name, emoji: draft.emoji,
+                               minutes: draft.minutes,
+                               isReminder: CreateItemDraft.isReminder(draft.isReminder,
+                                                                      schedule: schedule),
+                               schedule: schedule)
     }
 
     func makeHabit() -> Habit {

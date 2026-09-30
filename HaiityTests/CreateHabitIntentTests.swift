@@ -488,6 +488,36 @@ final class CreateHabitIntentTests: XCTestCase {
         XCTAssertEqual(draft.makeHabit().recurrence, .daily)
     }
 
+    /// The SAME sentence through the other two paths: Apple's writer and the
+    /// no-model fallback behind it.
+    ///
+    /// This is where the bug lived. The one-off rule existed, its comment said
+    /// it lived "below the model", and it was only ever applied in
+    /// `DraftExtraction` — one path of three — so a sentence read here went
+    /// straight through as the daily habit the model happened to guess.
+    func testASentenceThatNamesADayIsAOneOffOnEveryPath() async {
+        let draft = await CreateItemDraft.read(from: "I want to go to Doc tomorrow at 10 am",
+                                               useModel: false)
+        XCTAssertEqual(draft.schedule.frequency, .once)
+        XCTAssertTrue(draft.isReminder, "a one-off is a reminder whatever read it")
+        XCTAssertEqual(draft.minutes, 10 * 60)
+        // Without a day it would be dated today, and a reminder dated yesterday
+        // fires nowhere at all.
+        XCTAssertNotNil(draft.schedule.startDay)
+        XCTAssertEqual(draft.kind, .reminder,
+                       "the draft goes under reminders, not into the tracked list")
+    }
+
+    /// The direction of the fix is deliberate: only sentences that really do
+    /// name one day are moved, and a sentence naming a cadence is left exactly
+    /// where the model put it.
+    func testACadenceSentenceStillCreatesAHabitOnEveryPath() async {
+        let draft = await CreateItemDraft.read(from: "jeden Montag um 9 einkaufen",
+                                               useModel: false)
+        XCTAssertFalse(draft.isReminder)
+        XCTAssertNotEqual(draft.schedule.frequency, .once)
+    }
+
     // MARK: - The schedule contract, in the source
 
     /// The prompt used to tell the model to strip "every morning" and gave it

@@ -209,6 +209,28 @@ final class DraftExtractionTests: XCTestCase {
         XCTAssertEqual(outcome.draft.schedule.frequency, .once)
     }
 
+    /// The sentence the bug was reported with, read end to end through the
+    /// downloaded model's parser — with the model answering `daily`, which is
+    /// exactly what a small model does with a sentence that never says the word
+    /// "once". The sentence names a day, so the sentence has to win.
+    func testTomorrowAtTenIsAOneOffWhateverTheModelAnswers() throws {
+        let raw = #"{"name":"Doc","emoji":"🩺","minutes":600,"isReminder":false,"schedule":"daily"}"#
+        let sentence = "I want to go to Doc tomorrow at 10 am"
+        let outcome = try XCTUnwrap(DraftExtraction.parse(raw, sentence: sentence))
+        XCTAssertEqual(outcome.draft.schedule.frequency, .once,
+                       "a day named as a shift from today cannot come round again")
+        XCTAssertTrue(outcome.draft.isReminder, "a one-off is a reminder, not a habit")
+        XCTAssertEqual(outcome.draft.minutes, 10 * 60)
+        // The day came with it, so the reminder lands on tomorrow rather than
+        // on whatever day the sentence happened to be read. `.current`, because
+        // that is the calendar production reads with.
+        let calendar = Calendar.current
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1,
+                                                   to: Date()))
+        XCTAssertEqual(outcome.draft.schedule.startDay, DayKey.key(for: tomorrow,
+                                                                   calendar: calendar))
+    }
+
     /// The deterministic guard that makes the above possible. Narrow on purpose: a
     /// bare "einmal" with nothing contradicting it is a one-off, and "einmal" next
     /// to a repetition word is not.
@@ -223,11 +245,74 @@ final class DraftExtractionTests: XCTestCase {
         XCTAssertFalse(DraftExtraction.readsAsOneOff("jeden Montag einmal schwimmen"))
     }
 
-    /// "morgen" alone is not a decision to do something once — "morgen jeden
-    /// Montag" repeats. The guard must not fire on it.
-    func testTomorrowAloneIsNotAOneOff() {
-        XCTAssertFalse(DraftExtraction.readsAsOneOff("morgen Wasser trinken"))
+    /// The days a sentence can name, and the one German homograph that makes
+    /// this hard.
+    ///
+    /// This test used to assert that a bare "morgen" is NOT a one-off, on the
+    /// grounds that "morgen jeden Montag" repeats. That case was never the
+    /// problem — the repetition guard underneath handles it, and left the guard
+    /// out of a sentence that names one specific day meant "tomorrow at 10 am"
+    /// was filed as a DAILY habit. A day that shifts from today does not come
+    /// round again, so the sentence has said it happens once.
+    func testASentenceThatNamesOneDayIsAOneOff() {
+        XCTAssertTrue(DraftExtraction.readsAsOneOff("morgen Wasser trinken"))
+        XCTAssertTrue(DraftExtraction.readsAsOneOff(
+            "I want to go to Doc tomorrow at 10 am"))
+        XCTAssertTrue(DraftExtraction.readsAsOneOff("heute Brot holen"))
+        XCTAssertTrue(DraftExtraction.readsAsOneOff("den Flug übermorgen buchen"))
+        XCTAssertTrue(DraftExtraction.readsAsOneOff("next Tuesday call the dentist"))
+        XCTAssertTrue(DraftExtraction.readsAsOneOff("nächsten Dienstag zum Zahnarzt"))
+    }
+
+    /// "Morgen" is also MORNING in German, and only the neighbouring word says
+    /// which. Reading it as a substring would have to be wrong about one of
+    /// these two: they contain the identical character sequence.
+    func testMorningIsNotTomorrow() {
         XCTAssertFalse(DraftExtraction.readsAsOneOff("jeden Morgen lesen"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("am Morgen joggen"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("morgens um 7 Wasser trinken"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("vormittags arbeiten"))
+    }
+
+    /// A cadence, not a date. These contain no one-off marker at all and must
+    /// stay on the model's reading rather than being promoted.
+    func testACadenceIsNotAOneOff() {
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("jeden Montag lesen"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("weekly flossing"))
+        // "next" alone names a span, not a day: "die nächsten Wochen" and
+        // "next week" are stretches of future, and only the pair with a
+        // weekday settles on one date.
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("in den nächsten Wochen trainieren"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("next week start running"))
+    }
+
+    /// The day that came with it, or nil when the sentence named no day this
+    /// can work out. Nothing is invented: a weekday or a calendar date is the
+    /// models' job, and a guess here would be a reminder on the wrong date.
+    func testTheNamedDayIsResolved() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        var now = DateComponents()
+        now.year = 2026; now.month = 9; now.day = 30
+        let today = try XCTUnwrap(calendar.date(from: now))
+
+        XCTAssertEqual(DraftExtraction.namedDayKey("tomorrow at 10 am",
+                                                   calendar: calendar, now: today),
+                       "2026-10-01")
+        XCTAssertEqual(DraftExtraction.namedDayKey("morgen zum Zahnarzt",
+                                                   calendar: calendar, now: today),
+                       "2026-10-01")
+        XCTAssertEqual(DraftExtraction.namedDayKey("heute Brot holen",
+                                                   calendar: calendar, now: today),
+                       "2026-09-30")
+        XCTAssertEqual(DraftExtraction.namedDayKey("übermorgen fliegen",
+                                                   calendar: calendar, now: today),
+                       "2026-10-02")
+        // "jeden Morgen" is a time of day, so it names no day — and neither
+        // does a sentence that only says "montags".
+        XCTAssertNil(DraftExtraction.namedDayKey("jeden Morgen lesen",
+                                                 calendar: calendar, now: today))
+        XCTAssertNil(DraftExtraction.namedDayKey("montags laufen",
+                                                 calendar: calendar, now: today))
     }
 
     // MARK: - The prompt
@@ -237,7 +322,7 @@ final class DraftExtractionTests: XCTestCase {
     /// stops coping with something, the prompt is asking for the impossible.
     func testThePromptAsksForExactlyWhatTheParserReads() {
         let prompt = DraftExtraction.systemPrompt
-        for field in ["name", "emoji", "minutes", "isReminder", "schedule", "weekdays"] {
+        for field in ["name", "emoji", "minutes", "isReminder", "schedule", "weekdays", "startDay"] {
             XCTAssertTrue(prompt.contains("\"\(field)\""),
                           "the prompt asks for \(field) but the field name should be quoted")
         }
