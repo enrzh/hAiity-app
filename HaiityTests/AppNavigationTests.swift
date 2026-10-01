@@ -231,17 +231,45 @@ final class AppNavigationTests: XCTestCase {
     /// The model page carries the same surface as the other More pages. A page
     /// with no panel is bare text on the wallpaper, which reads as a screen that
     /// was never finished rather than as a deliberate one.
+    ///
+    /// **What it asserts now used to be the defect.** The old version required
+    /// the page to call `.morePanel()` itself, so when `localModelSection`
+    /// became an `AppSettingsGroup` — whose own job is to apply that panel — the
+    /// page still qualified for this test by painting a SECOND one around it: a
+    /// panel inside a panel, the group's label and footer trapped between the
+    /// two, and no gutter to the screen edge.
+    ///
+    /// So the page composes the group and must not paint its own surface.
     func testTheModelPageCarriesTheSamePanelAsTheOtherMorePages() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let page = try XCTUnwrap(more.range(of: "private var localModelSettings"))
-        let rest = more[page.upperBound...]
-        let end = rest.range(of: "\n    private var ")?.lowerBound ?? rest.endIndex
-        let body = String(rest[rest.startIndex..<end])
 
-        XCTAssertTrue(body.contains(".morePanel()"),
-                      "the model page needs the same panel as Darstellung and Verhalten & Teilen")
-        XCTAssertTrue(body.contains("ScrollView"))
-        XCTAssertTrue(body.contains(".settingsChrome()"))
+        // Two slices, because two declarations are involved and each has its own
+        // claim. Slicing only the page body (what this did first) meant
+        // `AppSettingsGroup` was matched from the prose comment that introduces
+        // the next declaration — an assertion that passed on documentation
+        // instead of on the component being documented.
+        let page = try XCTUnwrap(more.range(of: "private var localModelSettings"))
+        let section = try XCTUnwrap(more.range(of: "private var localModelSection"))
+        XCTAssertLessThan(page.upperBound, section.lowerBound)
+
+        let pageBody = more[page.upperBound..<section.lowerBound]
+        XCTAssertTrue(pageBody.contains("localModelSection"),
+                      "the page must render its catalogue")
+        XCTAssertFalse(pageBody.contains(".morePanel()"),
+                       "the group brings its own panel; a second one nests inside it")
+        XCTAssertTrue(pageBody.contains("Theme.Metrics.gutter"),
+                      "the model page sits on the same gutter as every sibling page")
+        XCTAssertTrue(pageBody.contains("ScrollView"))
+        XCTAssertTrue(pageBody.contains(".settingsChrome()"))
+
+        // And the catalogue itself is built from the shared group, which is what
+        // carries the surface the page must show.
+        let search = section.lowerBound..<more.endIndex
+        let sectionEnd = more.range(of: "\n    private func ", range: search)?.lowerBound
+            ?? more.endIndex
+        let sectionBody = more[section.lowerBound..<sectionEnd]
+        XCTAssertTrue(sectionBody.contains("AppSettingsGroup"),
+                      "the model page needs the same group surface as Darstellung and Verhalten & Teilen")
     }
 
     func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {

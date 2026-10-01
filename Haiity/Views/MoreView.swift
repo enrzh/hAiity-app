@@ -679,14 +679,21 @@ struct MoreView: View {
     /// it is which model the app thinks with, and the weights for it are the only
     /// thing in the app that can take a gigabyte.
     private var localModelSettings: some View {
-        // Same container as Darstellung: the catalogue sits in one panel, so the
-        // page reads like the other More pages rather than as bare text on the
-        // wallpaper. The heading is dropped because the navigation bar already
-        // names the page.
+        // Same shell as every other settings page: the group IS the surface.
+        //
+        // This used to add padding and a second panel around
+        // `localModelSection` as well — but `localModelSection` is an
+        // `AppSettingsGroup`, which paints its own. That gave the page a panel
+        // inside a panel, pulled the group's label and footer INTO the outer one
+        // where the component puts them outside, and dropped the gutter that
+        // every sibling page uses.
+        // The heading is still dropped, because the navigation bar names the page.
         ScrollView {
-            localModelSection
-                .padding(Theme.Metrics.cardPadding)
-                .morePanel()
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                localModelSection
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
