@@ -115,7 +115,7 @@ struct HabitCard: View, Equatable {
     /// deutlich flacher — der Kopf soll beim Scrollen nicht als leerer Kasten
     /// über dem Raster stehen bleiben. Als Frame-Höhe (nicht als
     /// Zeilen-Inset) gesetzt, damit der Wert im Übergang INTERPOLIERT.
-    private var headerHeight: CGFloat { max(44, collapsed ? 32 : Theme.Metrics.hit) }
+    private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
 
     /// Abstand Kopf -> eigenes Raster. Klein und absichtlich: der Kopf
     /// gehört zur Fläche DARUNTER.
