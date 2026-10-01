@@ -213,7 +213,7 @@ enum Backfill {
             // ausgelieferter Build hinterlässt (siehe `Habit.isAffirmed`).
             return value >= 1 ? .done : .empty
         case .quantity:
-            return .quantity(value: max(0, value), target: habit.recurrence.target ?? 1)
+            return .quantity(value: max(0, value), target: habit.recurrence.effectiveTarget)
         case .checkbox:
             return value >= 1 ? .done : .empty
         }
@@ -413,7 +413,7 @@ enum Backfill {
         case .yesNo:
             return [.affirm, .decline, .clear]
         case .quantity:
-            return [.quantity(target: amount ?? habit.recurrence.target ?? 1), .clear]
+            return [.quantity(target: amount ?? habit.recurrence.effectiveTarget), .clear]
         case .checkbox:
             return [.done, .clear]
         }

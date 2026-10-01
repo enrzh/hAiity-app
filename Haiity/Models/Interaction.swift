@@ -74,7 +74,7 @@ struct CheckInUndo: Equatable, Identifiable {
                 base = String(localized: "\(habit.name) unbeantwortet")
             }
         case .quantity:
-            let target = habit.recurrence.target ?? 1
+            let target = habit.recurrence.effectiveTarget
             base = value >= target
                 ? String(localized: "\(habit.name) erledigt")
                 : String(localized: "\(habit.name): \(value)/\(target)")

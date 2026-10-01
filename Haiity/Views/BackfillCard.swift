@@ -90,7 +90,7 @@ struct BackfillCard: View {
         .onAppear {
             let initial = DayKey.date(from: day, calendar: calendar) ?? range.upperBound
             visibleMonth = min(max(initial, range.lowerBound), range.upperBound)
-            amount = max(1, habit.recurrence.target ?? 1)
+            amount = max(1, habit.recurrence.effectiveTarget)
         }
     }
 

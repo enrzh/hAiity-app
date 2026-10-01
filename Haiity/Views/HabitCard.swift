@@ -700,7 +700,7 @@ struct HabitCard: View, Equatable {
     private var collapsedActionLabel: String {
         switch habit.kind {
         case .quantity:
-            return String(localized: "Heute: \(habit.log[today] ?? 0) von \(habit.recurrence.target ?? 1)")
+            return String(localized: "Heute: \(habit.log[today] ?? 0) von \(habit.recurrence.effectiveTarget)")
         case .yesNo:
             if declinedToday { return String(localized: "Heute: Nein") }
             return doneToday ? String(localized: "Heute: Ja") : String(localized: "Heute beantworten")
@@ -775,7 +775,7 @@ struct HabitCard: View, Equatable {
     private var todayButton: some View {
         switch habit.kind {
         case .quantity:
-            let target = habit.recurrence.target ?? 1
+            let target = habit.recurrence.effectiveTarget
             let value = habit.log[today] ?? 0
             Button {
                 Theme.Haptics.check()

@@ -40,7 +40,7 @@ enum GoalEngine {
         // Regel noch ein altes `target` steht, bleibt ein Ja/Nein-Habit.
         switch habit.kind {
         case .yesNo:    return value != Habit.Answer.no
-        case .quantity: return value >= (habit.recurrence.target ?? 1)
+        case .quantity: return value >= (habit.recurrence.effectiveTarget)
         case .checkbox: return true
         }
     }

@@ -117,6 +117,20 @@ struct Recurrence: Equatable {
     /// Mengen-Habits: ein Tag zählt ab diesem Log-Wert. nil = Checkbox.
     private(set) var target: Int?
 
+    /// Die Zahl, die als „geschafft" zählt: das konfigurierte Ziel, oder 1,
+    /// wenn keines hinterlegt ist.
+    ///
+    /// Diese Regel stand an acht Stellen als `recurrence.target ?? 1` — in
+    /// GoalEngine, Interaction, Backfill (zweimal), HabitStore, HabitCard
+    /// (zweimal) und BackfillCard. Zerlegt in zwei Begriffe, mit Absicht:
+    /// `target` ist die Rohangabe (nil heißt „kein Ziel hinterlegt") und
+    /// bleibt es, wer die rohe Konfiguration braucht. `effectiveTarget` ist
+    /// die Antwort auf „wie viel braucht's", und die wird nicht mehr an
+    /// jedem Aufrufer neu zusammengesucht.
+    ///
+    /// `init` zieht alles <= 0 auf nil, das hier ist also nie 0.
+    var effectiveTarget: Int { target ?? 1 }
+
     static let maxInterval = 99
     static let maxOccurrences = 999
 

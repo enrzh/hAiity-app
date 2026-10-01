@@ -1147,7 +1147,7 @@ final class HabitStore {
                 switch choice {
                 case .done:
                     let value = habit.kind == .quantity
-                        ? (habit.recurrence.target ?? 1) : 1
+                        ? (habit.recurrence.effectiveTarget) : 1
                     data.habits[index].log[day] = value
                     data.habits[index].missedDays.removeAll { $0 == day }
                     autoArchiveIfNeeded(at: index, day: day)
