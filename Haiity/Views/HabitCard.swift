@@ -803,7 +803,7 @@ struct HabitCard: View, Equatable {
                     .foregroundStyle(doneToday
                         ? AnyShapeStyle(Theme.accentText(habitStyle))
                         : AnyShapeStyle(HierarchicalShapeStyle.tertiary))
-                    .frame(width: 44, height: 44)
+                    .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

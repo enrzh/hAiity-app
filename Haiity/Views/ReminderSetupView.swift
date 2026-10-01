@@ -223,10 +223,7 @@ struct ReminderSetupView: View {
     }
 
     private func card(@ViewBuilder content: () -> some View) -> some View {
-        content()
-            .padding(Theme.Metrics.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface()
+        content().appCard()
     }
 
     private var deniedHint: some View {

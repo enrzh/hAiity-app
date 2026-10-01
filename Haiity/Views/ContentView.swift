@@ -2415,7 +2415,7 @@ struct ContentView: View {
                 Text(actionTitle)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

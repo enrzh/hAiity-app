@@ -115,7 +115,7 @@ struct BackfillCard: View {
                         .font(.headline)
                     Image(systemName: "chevron.down").font(.caption2)
                 }
-                .frame(minHeight: 44)
+                .frame(minHeight: Theme.Metrics.hit)
             }
             .accessibilityIdentifier("history-jump-date")
             Spacer(minLength: 0)
@@ -294,7 +294,7 @@ struct BackfillCard: View {
         Button {
             moveVisibleMonth(by: offset)
         } label: {
-            Image(systemName: symbol).frame(width: 44, height: 44)
+            Image(systemName: symbol).frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
         }
         .disabled(adjacentMonth(offset) == nil)
         .accessibilityLabel(offset < 0 ? String(localized: "Vorheriger Monat") : String(localized: "Nächster Monat"))
@@ -315,7 +315,7 @@ struct BackfillCard: View {
             } label: {
                 Text(selecting ? String(localized: "Abbrechen") : String(localized: "Auswählen"))
                     .font(.subheadline)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: Theme.Metrics.hit)
                     .contentTransition(.identity)
             }
             .accessibilityIdentifier("history-selection-mode")
@@ -326,7 +326,7 @@ struct BackfillCard: View {
                     Text(selected == Set(visibleDays) && !selected.isEmpty
                          ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"))
                         .font(.subheadline)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Theme.Metrics.hit)
                         .contentTransition(.identity)
                 }
                 .disabled(visibleDays.isEmpty)
@@ -337,7 +337,7 @@ struct BackfillCard: View {
                 } label: {
                     Image(systemName: selected == Set(missingDays) && !missingDays.isEmpty
                           ? "checkmark.circle.fill" : "circle.dashed")
-                        .frame(width: 44, height: 44)
+                        .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                 }
                 .disabled(missingDays.isEmpty)
                 .help(String(localized: "Fehlende Tage auswählen"))
@@ -346,7 +346,7 @@ struct BackfillCard: View {
             }
             Spacer()
             Toggle(isOn: $missingOnly) {
-                Text(String(localized: "Ohne Eintrag")).frame(minHeight: 44)
+                Text(String(localized: "Ohne Eintrag")).frame(minHeight: Theme.Metrics.hit)
             }
                 .toggleStyle(.button)
                 .font(.subheadline)

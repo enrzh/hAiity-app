@@ -220,9 +220,7 @@ struct SpeakToCreateSheet: View {
                 .font(.body)
                 .accessibilityIdentifier("speak-to-create-text")
         }
-        .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
+        .appCard()
     }
 
     // MARK: - Draft
@@ -262,9 +260,7 @@ struct SpeakToCreateSheet: View {
             }
             if OnDeviceModel.isAvailable { readRow }
         }
-        .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
+        .appCard()
         // `.contain`, not `.combine`. The card holds the "Satz lesen" button,
         // and combining folded that button into the card's own accessibility
         // element — so the one control that spends the model and the heat was

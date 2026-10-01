@@ -1261,6 +1261,18 @@ extension View {
         modifier(AppSurfaceModifier(cornerRadius: cornerRadius))
     }
 
+    /// A card: the surface with its padding and leading alignment already on.
+    ///
+    /// The same three modifiers were written out in four places — two of them
+    /// as private `card { … }` helpers that were line-for-line identical across
+    /// two files. A change to card padding therefore meant finding four sites,
+    /// and the fourth was one that had inlined them instead.
+    func appCard() -> some View {
+        padding(Theme.Metrics.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appSurface()
+    }
+
     /// One surface treatment for every settings list and form. Keeping the
     /// list chrome here makes Solid, Milchglas, and Liquid Glass change the
     /// whole settings experience together.

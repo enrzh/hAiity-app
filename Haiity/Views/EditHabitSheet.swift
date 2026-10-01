@@ -241,7 +241,7 @@ struct EditHabitSheet: View {
                             Image(systemName: showingCreationAdvanced ? "chevron.down" : "chevron.right")
                                 .accessibilityHidden(true)
                         }
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Theme.Metrics.hit)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
