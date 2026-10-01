@@ -122,7 +122,10 @@ final class CalendarSyncSelectionTests: XCTestCase {
     func testCalendarKitEnsureCalendarLivesOnTheEventKitActor() throws {
         let source = try calendarSyncTestSource("Haiity/Services/CalendarEventKit.swift")
         XCTAssertTrue(source.contains("func ensureCalendar(isReminder:"))
-        XCTAssertTrue(source.contains("ownedEvents()"))
+        // The `ownedEvents()` assertion that used to sit here passed because it
+        // matched the definition of a function nothing called. It is gone, and
+        // with it an assertion that could only ever have been true by accident.
+        XCTAssertTrue(source.contains("func removeLegacyOwnedItems() -> Bool"))
         XCTAssertTrue(source.contains("actor CalendarEventKit"))
     }
 

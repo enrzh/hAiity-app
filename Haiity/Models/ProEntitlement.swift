@@ -65,7 +65,7 @@ final class ProStatus {
 @MainActor
 enum Pro {
     static let productID = "com.aiity.haiity.pro"
-    static let unlockedKey = "proUnlocked"
+    static let unlockedKey = HabitVisibility.proUnlockedKey
 
     /// Fehler, die eine Oberfläche unterscheiden muss. Bewusst ohne Text:
     /// die Sätze gehören auf die Kaufseite, nicht in die Datenschicht.

@@ -155,10 +155,13 @@ enum CreateItemWriter {
         // "Wasser  trinken" from becoming a habit called that.
         name = name.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        // One bound, and only one: a Character is never shorter than a scalar,
+        // so a name inside `maxNameScalars` can never exceed a larger character
+        // count either. A second check was here and could not be reached — which
+        // meant it also advertised an echo-detector the function did not have.
+        // An echoed sentence is caught by this guard, since a sentence that is
+        // mostly the original has more than 60 scalars.
         guard !name.isEmpty, name.unicodeScalars.count <= maxNameScalars else { return nil }
-        // A "name" that is still mostly the original sentence means the model
-        // echoed rather than extracted.
-        if name.count > 80 { return nil }
         return name
     }
 

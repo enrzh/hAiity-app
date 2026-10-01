@@ -510,8 +510,8 @@ enum HabitVisibility {
         defaults: UserDefaults? = nil
     ) -> Bool {
         let defaults = defaults ?? (UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
-        if isOwnerDevice(storedAppleUserID: defaults.string(forKey: "personalAppleUserID"),
-                         storedAppleEmail: defaults.string(forKey: "personalAppleEmail")) {
+        if isOwnerDevice(storedAppleUserID: defaults.string(forKey: PersonalName.appleUserIDKey),
+                         storedAppleEmail: defaults.string(forKey: PersonalName.appleEmailKey)) {
             return true
         }
         guard defaults.bool(forKey: proUnlockedKey) else { return false }
@@ -817,8 +817,7 @@ final class HabitStore {
     /// `read` keeps its optional shape for the callers that only want the data;
     /// anything deciding whether to overwrite a file uses `readResult`.
     static func read(_ url: URL) -> HabitData? {
-        guard let raw = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(HabitData.self, from: raw)
+        readResult(url).payload
     }
 
     static func readResult(_ url: URL) -> (payload: HabitData?, corrupted: Bool) {
@@ -866,10 +865,6 @@ final class HabitStore {
         let tombstones = data.deletedHabits
         data.habits.removeAll { tombstones[$0.id] != nil }
         Self.pruneTombstones(in: &data)
-    }
-
-    private static func mtime(_ url: URL) -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     /// mtime PLUS size, as the thing that decides "did this file change".

@@ -61,8 +61,7 @@ enum MotivationActivityPolicy {
     }
 
     static func nextMidnight(after date: Date, calendar: Calendar) -> Date {
-        let start = calendar.startOfDay(for: date)
-        return calendar.date(byAdding: .day, value: 1, to: start) ?? date
+        DayKey.nextMidnight(after: date, calendar: calendar)
     }
 }
 

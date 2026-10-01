@@ -119,11 +119,12 @@ enum DeveloperAccess {
     /// herein, hier wird nur verglichen.
     ///
     static func isOwnerDevice(storedAppleUserID: String?, storedAppleEmail: String?) -> Bool {
-        let userID = storedAppleUserID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if userID == ownerAppleUserID { return true }
-        let email = storedAppleEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return email == ownerAppleEmail.lowercased()
+        // Forwarded, not copied. This was a second line-for-line copy of
+        // `HabitVisibility.isOwnerDevice`, with two independent call chains
+        // behind each: two implementations of an ownership gate is one of them
+        // being changed without the other.
+        HabitVisibility.isOwnerDevice(storedAppleUserID: storedAppleUserID,
+                                      storedAppleEmail: storedAppleEmail)
     }
 }
 

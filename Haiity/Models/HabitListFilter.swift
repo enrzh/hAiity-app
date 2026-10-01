@@ -71,14 +71,18 @@ struct HabitListFilter: Equatable {
         let scheduledToday = habit.recurrence.isScheduled(on: today, calendar: calendar)
         let overdue = isOverdueReminder(habit, now: now, calendar: calendar)
         if todayOnly && !scheduledToday && !overdue { return false }
+        // The canonical answer to "is this done?", from the engine the rest of
+        // the app asks — not a private second opinion. This used to be a copy,
+        // and two implementations of a completion test are one of them changing.
+        let done = GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
 
         switch status {
         case .all:
             return true
         case .done:
-            return scheduledToday && !overdue && completed(habit, day: today)
+            return scheduledToday && !overdue && done
         case .notDone:
-            return overdue || (scheduledToday && !completed(habit, day: today))
+            return overdue || (scheduledToday && !done)
         }
     }
 
@@ -91,15 +95,4 @@ struct HabitListFilter: Equatable {
                                               calendar: calendar).overdueCount > 0
     }
 
-    private func completed(_ habit: Habit, day: String) -> Bool {
-        let value = habit.log[day] ?? 0
-        switch habit.kind {
-        case .checkbox:
-            return value >= 1
-        case .quantity:
-            return value >= (habit.recurrence.target ?? 1)
-        case .yesNo:
-            return habit.isAffirmed(day)
-        }
-    }
 }

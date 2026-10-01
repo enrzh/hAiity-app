@@ -23,7 +23,7 @@
 	<array>
 		<dict>
 			<!--
-			  HabitStore.mtime() liest die modificationDate von data.json im
+			  HabitStore.signature() liest die modificationDate von data.json im
 			  App-Group-Container, um nach einem Widget-Schreibvorgang neu zu
 			  laden. Nur der eigene Container, kein fremder Pfad.
 			-->

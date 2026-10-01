@@ -350,14 +350,6 @@ actor CalendarEventKit {
         return events.sorted { eventSortKey($0) < eventSortKey($1) }
     }
 
-    private func ownedEvents() -> [EKEvent] {
-        allEvents().filter { event in
-            guard let notes = event.notes,
-                  let owner = SyncWatermark.ownership(in: notes) else { return false }
-            return owner.kind == .habitCalendar || owner.kind == .reminderCalendar
-        }
-    }
-
     private func removeLegacyOwnedItems() -> Bool {
         var removedSeries = Set<String>()
         var succeeded = true

@@ -228,13 +228,26 @@ final class FeedbackTests: XCTestCase {
     /// Regel: getrimmt, keine gespeicherte Kennung heißt `false`, verglichen
     /// wird mit `==`.
     func testTheOwnerRuleComparesExactlyAndTreatsWhitespaceAsNothing() throws {
-        let diagnostics = try source("Haiity/Models/Diagnostics.swift")
-        let start = try XCTUnwrap(diagnostics.range(of: "static func isOwnerDevice"))
-        let end = try XCTUnwrap(diagnostics.range(of: "/// Alles, was der Entwicklerbereich"))
-        let rule = diagnostics[start.lowerBound..<end.lowerBound]
+        // The rule lives in ONE place now, and this test says so.
+        //
+        // It used to be sliced out of Diagnostics — where it was a
+        // line-for-line copy of the same function in HabitStore. Two
+        // implementations meant this assertion could only ever check one of
+        // them, and a change to the other would have passed every test in the
+        // suite while the two ownership gates disagreed.
+        let store = try source("Haiity/Models/HabitStore.swift")
+        let start = try XCTUnwrap(store.range(of: "static func isOwnerDevice"))
+        let end = try XCTUnwrap(store.range(of: "enum HabitStoreChange"))
+        let rule = store[start.lowerBound..<end.lowerBound]
         XCTAssertTrue(rule.contains("storedAppleEmail"))
         XCTAssertTrue(rule.contains("ownerAppleEmail"))
         XCTAssertTrue(rule.contains("lowercased()"), "E-Mail-Adressen sind nicht groß/klein-sensitiv")
+
+        // And the other call chain forwards instead of comparing on its own, so
+        // a second copy cannot quietly come back.
+        let diagnostics = try source("Haiity/Models/Diagnostics.swift")
+        XCTAssertTrue(diagnostics.contains("HabitVisibility.isOwnerDevice(storedAppleUserID:"),
+                      "der Besitzertest darf an genau einer Stelle vergleichen")
     }
 
     /// Die Kennung wohnt neben dem Vornamen, kommt aus demselben Vorgang —

@@ -598,8 +598,7 @@ enum WidgetLogic {
     /// Nächster Refresh: Mitternacht — der „heute"-Rahmen wandert, und ein
     /// „Frei bis Mo" ist am Montag falsch.
     static func nextMidnight(after date: Date = .now, calendar: Calendar = .current) -> Date {
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
-        return calendar.startOfDay(for: tomorrow)
+        DayKey.nextMidnight(after: date, calendar: calendar)
     }
 }
 

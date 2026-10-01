@@ -529,6 +529,20 @@ enum DayKey {
         key(for: Date(), calendar: calendar)
     }
 
+    /// Nächster Mitternacht, in ganzen Kalendertagen gerechnet und damit
+    /// DST-sicher.
+    ///
+    /// **Eine Stelle für die Regel, weil sie an zwei Orten auseinanderlief.** Die
+    /// Widget-Fassung ergänzte zur Not `+24 Stunden`, und genau das verbietet
+    /// der Kommentar oben: an einem Tag mit 23 oder 25 Stunden ist die nächste
+    /// Mitternacht dann nicht, wo der Kalender sagt. Fällt das Addieren aus,
+    /// bleibt der Eingangswert — lieber der Augenblick selbst als ein um einen
+    /// Tag verfehlter Refresh.
+    static func nextMidnight(after date: Date, calendar: Calendar = .current) -> Date {
+        let start = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: 1, to: start) ?? start
+    }
+
     /// STRIKT: nur exakt `JJJJ-MM-TT` aus ASCII-Ziffern, und nur, wenn der
     /// Kalender daraus genau denselben Schlüssel zurückrechnet. Ohne den
     /// Rückweg würde `Calendar.date(from:)` Unmögliches stillschweigend
