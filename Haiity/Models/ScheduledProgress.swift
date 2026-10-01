@@ -17,10 +17,19 @@ enum ScheduledProgress {
     static func today(habits: [Habit], defaultTimeZoneIdentifier: String?,
                       now: Date = .now, calendar: Calendar = .current) -> Today {
         var result = Today()
+        // A timezone has one day for this calculation; resolve it once even
+        // when many habits inherit the same zone. Nothing survives this call.
+        var days: [String?: (Calendar, String)] = [:]
         for habit in habits where habit.archivedAt == nil && habit.isTrackedHabit {
-            let itemCalendar = HabitTimeZone.calendar(for: habit,
-                defaultIdentifier: defaultTimeZoneIdentifier, base: calendar)
-            let day = DayKey.key(for: now, calendar: itemCalendar)
+            let zone = habit.timeZoneIdentifier ?? defaultTimeZoneIdentifier
+            let (itemCalendar, day): (Calendar, String)
+            if let cached = days[zone] {
+                (itemCalendar, day) = cached
+            } else {
+                itemCalendar = HabitTimeZone.calendar(identifier: zone, base: calendar)
+                day = DayKey.key(for: now, calendar: itemCalendar)
+                days[zone] = (itemCalendar, day)
+            }
             guard GoalEngine.isScheduled(habit: habit, day: day, calendar: itemCalendar) else { continue }
             if habit.recurrence.isFlexible {
                 result.flexible += 1

@@ -52,9 +52,7 @@ private struct AppearanceStylePreview: View {
 
     var body: some View {
         ZStack {
-            previewBackground
-            Color(.systemBackground)
-                .opacity(colorScheme == .dark ? 0.16 : 0.07)
+            AppearanceBackground(preferences: previewPreferences)
 
             HStack(spacing: Theme.Metrics.gap) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -90,28 +88,6 @@ private struct AppearanceStylePreview: View {
         .accessibilityLabel(String(localized: "Vorschau des ausgewählten Erscheinungsbilds"))
     }
 
-    @ViewBuilder
-    private var previewBackground: some View {
-        switch preferences.backgroundMode {
-        case .color:
-            preferences.backgroundColorHex.map(Theme.color)
-                ?? Color(.systemGroupedBackground)
-        case .gradient:
-            LinearGradient(
-                colors: [
-                    preferences.gradientStartHex.map(Theme.color)
-                        ?? Color(.systemGroupedBackground),
-                    preferences.gradientEndHex.map(Theme.color)
-                        ?? Color(.secondarySystemGroupedBackground)
-                ],
-                startPoint: .top,
-                endPoint: .bottom)
-        case .image:
-            AppearanceCachedImage(data: preferences.imagePayload) {
-                Color(.systemGroupedBackground)
-            }
-        }
-    }
 }
 
 private struct MaterialOptionCard: View {

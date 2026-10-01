@@ -863,8 +863,11 @@ final class AppearanceSettingTests: XCTestCase {
                                            range: start.upperBound..<more.endIndex))
         let appearance = more[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(appearance.contains("ScrollView"),
-                      "appearance controls must live in a native scroll container")
+        XCTAssertTrue(appearance.contains("SettingsPage"),
+                      "appearance controls must share the native settings scroll shell")
+        let shell = try String(contentsOf: root.appendingPathComponent("Haiity/Views/AppUIComponents.swift"),
+                               encoding: .utf8)
+        XCTAssertTrue(shell.contains("ScrollView {"))
         XCTAssertFalse(appearance.contains("List {"),
                        "iOS 27 List presentation currently drops taps for this editor")
     }
@@ -1111,10 +1114,29 @@ final class AppearanceSettingTests: XCTestCase {
                        "the settings editor must use the prepared image cache")
         XCTAssertFalse(picker.contains("preferences.backgroundImage"),
                        "material previews must not decode image data in body")
-        XCTAssertTrue(more.contains("AppearanceCachedImage"),
-                      "the appearance editor needs an asynchronous cached image view")
-        XCTAssertTrue(picker.contains("AppearanceCachedImage"),
-                      "material previews need the same asynchronous cached image view")
+        XCTAssertTrue(more.contains("AppearanceBackground(preferences: currentAppearance)"),
+                      "the editor must share the app's cached crop and readability treatment")
+        XCTAssertTrue(picker.contains("AppearanceBackground(preferences: previewPreferences)"),
+                      "material previews must show the same background as the app")
+    }
+
+    func testPhotoTintKeepsPrimaryTextReadableAtBothPixelExtremes() {
+        for dark in [false, true] {
+            let opacity = Theme.backgroundImageScrimOpacity(dark: dark, highContrast: false)
+            let channel = UInt32(((dark ? 1 - opacity : opacity) * 255).rounded())
+            let background = channel * 0x010101
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(dark ? 0xFFFFFF : 0x000000, background), 4.5)
+            XCTAssertGreaterThan(Theme.backgroundImageScrimOpacity(dark: dark, highContrast: true), opacity)
+        }
+    }
+
+    func testAccessibilityChoosesOpaqueSurfacesForEveryAppearanceMode() {
+        for material in AppearanceMaterial.allCases {
+            let preferences = AppearancePreferences(material: material)
+            XCTAssertEqual(Theme.effectiveMaterial(preferences), material)
+            XCTAssertEqual(Theme.effectiveMaterial(preferences, reduceTransparency: true), .solid)
+            XCTAssertEqual(Theme.effectiveMaterial(preferences, increasedContrast: true), .solid)
+        }
     }
 
     func testSettingsSurfaceKeepsListRowBackgroundNonInteractive() throws {

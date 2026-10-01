@@ -586,8 +586,7 @@ struct MoreView: View {
     }
 
     private var appearanceSettings: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        SettingsPage {
                 appearanceSection
                     .padding(Theme.Metrics.cardPadding)
                     .morePanel()
@@ -606,14 +605,8 @@ struct MoreView: View {
                 }
                 .padding(Theme.Metrics.cardPadding)
                 .morePanel()
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.vertical, Theme.Metrics.cardPadding)
-            .padding(.bottom, 24)
         }
-        .scrollIndicators(.hidden)
-        .softScrollEdges()
-        .settingsChrome()
+        .safeAreaPadding(.top, Theme.Metrics.cardPadding)
     }
 
     private var habitBehaviorSettings: some View {
@@ -2089,26 +2082,7 @@ struct MoreView: View {
     @ViewBuilder
     private var backgroundPreview: some View {
         ZStack(alignment: .bottomLeading) {
-            switch store.appearancePreferences.backgroundMode {
-            case .color:
-                Theme.color(store.appearancePreferences.backgroundColorHex
-                            ?? fallbackBackgroundColorHex)
-            case .gradient:
-                LinearGradient(
-                    colors: [
-                        Theme.color(store.appearancePreferences.gradientStartHex
-                                    ?? fallbackGradientStartHex),
-                        Theme.color(store.appearancePreferences.gradientEndHex
-                                    ?? fallbackGradientEndHex)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom)
-            case .image:
-                AppearanceCachedImage(data: currentAppearance.imagePayload) {
-                    Color(.systemGroupedBackground)
-                }
-            }
-            Color(.systemBackground).opacity(colorScheme == .dark ? 0.18 : 0.08)
+            AppearanceBackground(preferences: currentAppearance)
             HStack(spacing: 6) {
                 Text(verbatim: "hAiity")
                     .font(.headline.weight(.bold))

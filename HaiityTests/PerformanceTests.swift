@@ -82,7 +82,7 @@ final class PerformanceTests: XCTestCase {
                                         defaultTimeZoneIdentifier: nil,
                                         now: now, calendar: self.calendar)
         }
-        XCTAssertLessThan(perCall, 50, "a body-evaluated pass should not cost milliseconds")
+        XCTAssertLessThan(perCall, 10, "progress calculation must leave room within a 16.7 ms frame; this is not a scroll benchmark")
     }
 
     /// The same pass when every habit inherits the device zone, which is the
@@ -96,7 +96,7 @@ final class PerformanceTests: XCTestCase {
                                         defaultTimeZoneIdentifier: nil,
                                         now: now, calendar: self.calendar)
         }
-        XCTAssertLessThan(perCall, 50)
+        XCTAssertLessThan(perCall, 10)
     }
 
     /// Isolates the timezone lookup, because it is the suspected cost: an

@@ -98,16 +98,13 @@ final class ReminderItemTests: XCTestCase {
                       "the reminder row must render the card-height reveal surface")
     }
 
-    func testRevealedReminderActionRunsBeforeTheRevealLayerCloses() throws {
+    func testReminderDelegatesActionTimingToTheSharedRevealSession() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
         let start = try XCTUnwrap(row.range(of: "private func revealActionTapped"))
         let end = try XCTUnwrap(row.range(of: "private func revealEnded",
                                           range: start.upperBound..<row.endIndex))
         let button = row[start.lowerBound..<end.lowerBound]
-        let actionCall = try XCTUnwrap(button.range(of: "action.handler()"))
-        let snapCall = try XCTUnwrap(button.range(of: "snapReveal(to: 0)"))
-        XCTAssertLessThan(snapCall.lowerBound, actionCall.lowerBound,
-                          "the action layer must start settling before the store mutation")
+        XCTAssertTrue(button.contains("reveal.perform(action, reduceMotion: reduceMotion)"))
     }
 
     func testRevealGestureIsOwnedByEachSwiftUISurface() throws {
@@ -171,15 +168,16 @@ final class ReminderItemTests: XCTestCase {
 
     func testReminderActionsDoNotWaitBeforeMutating() throws {
         let row = try source("Haiity/Views/ReminderRow.swift")
+        let bridge = try source("Haiity/Views/SwipeRevealPan.swift")
 
         XCTAssertFalse(row.contains("milliseconds(100)"),
                        "revealed actions should not wait before performing")
         XCTAssertFalse(row.contains("milliseconds(400)"),
                        "the old fixed interaction lock should not remain")
-        XCTAssertTrue(row.contains("revealActionLock = true"),
+        XCTAssertTrue(bridge.contains("actionLock = true"),
                       "a reveal action must keep the row inert for the current touch")
-        XCTAssertTrue(row.contains("completionCriteria: .removed"),
-                      "the reveal must close before the store mutation removes the row")
+        XCTAssertTrue(row.contains("reveal.perform(action, reduceMotion: reduceMotion)"),
+                      "reminder and search must share tested action timing")
         XCTAssertFalse(row.contains("await Task.yield()"),
                        "closing is the animation completion, not a guessed delay")
     }
@@ -240,7 +238,7 @@ final class ReminderItemTests: XCTestCase {
         for source in [reminder, habit] {
             XCTAssertTrue(source.contains("SwipeRevealActions("),
                           "both row types should use the shared action renderer")
-            XCTAssertTrue(source.contains("SwipeRevealMotion.settleAnimation("),
+            XCTAssertTrue(source.contains("reveal.snap(to:"),
                           "both row types should use the shared settle profile")
         }
         XCTAssertTrue(bridge.contains(".opacity(progress)"),

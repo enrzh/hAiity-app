@@ -81,4 +81,25 @@ final class ScheduledProgressTests: XCTestCase {
         XCTAssertEqual(ScheduledProgress.today(habits: [], defaultTimeZoneIdentifier: nil,
             now: now, calendar: calendar).fraction, 0)
     }
+
+    func testReusedTimezoneDaysStayCorrectAcrossMidnightAndCalls() {
+        let midnight = calendar.date(from: DateComponents(year: 2026, month: 9, day: 8, hour: 0, minute: 30))!
+        var monday = Habit(name: "Monday", recurrence: .weekdays([2]))
+        monday.timeZoneIdentifier = "America/Los_Angeles"
+        monday.log["2026-09-07"] = 1
+        var inherited = monday
+        inherited.id = UUID()
+        inherited.timeZoneIdentifier = nil
+        var device = Habit(name: "Tuesday", recurrence: .weekdays([3]))
+        device.timeZoneIdentifier = "device"
+        device.log["2026-09-08"] = 1
+        let habits = [monday, inherited, device]
+        let progress = ScheduledProgress.today(habits: habits,
+            defaultTimeZoneIdentifier: "America/Los_Angeles", now: midnight, calendar: calendar)
+        XCTAssertEqual(progress.completed, 3)
+        XCTAssertEqual(progress.scheduled, 3)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: midnight)!
+        XCTAssertEqual(ScheduledProgress.today(habits: habits,
+            defaultTimeZoneIdentifier: "America/Los_Angeles", now: tomorrow, calendar: calendar).completed, 0)
+    }
 }

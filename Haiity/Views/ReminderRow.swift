@@ -29,6 +29,7 @@ struct ReminderRow: View, Equatable {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.palettes) private var palettes
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.habitInlineSortingActive) private var habitInlineSortingActive
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
@@ -111,15 +112,7 @@ struct ReminderRow: View, Equatable {
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        guard !revealActionLock else { return }
-        revealActionLock = true
-        // Finish closing before a completion can remove this row from the list.
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
-            snapReveal(to: 0)
-        } completion: {
-            action.handler()
-            revealActionLock = false
-        }
+        reveal.perform(action, reduceMotion: reduceMotion)
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
@@ -152,21 +145,7 @@ struct ReminderRow: View, Equatable {
     }
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
-        guard abs(target - reveal.offset) > 0.5 else { return }
-        if let animation = SwipeRevealMotion.settleAnimation(
-            reduceMotion: reduceMotion,
-            velocity: velocity,
-            distance: target - reveal.offset) {
-            withAnimation(animation) {
-                reveal.offset = target
-            }
-        } else {
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                reveal.offset = target
-            }
-        }
+        reveal.snap(to: target, velocity: velocity, reduceMotion: reduceMotion)
     }
 
     // MARK: - Long-press preview
@@ -261,7 +240,10 @@ struct ReminderRow: View, Equatable {
     }
 
     private var rowLayout: some View {
-        HStack(spacing: Theme.Metrics.gap) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Metrics.gap))
+            : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
+        return layout {
             HStack(spacing: Theme.Metrics.gap) {
                 if habit.emoji.isEmpty {
                     Image(systemName: "bell.fill")
@@ -276,11 +258,13 @@ struct ReminderRow: View, Equatable {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(habit.name)
                         .font(.body.weight(.semibold))
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -306,23 +290,38 @@ struct ReminderRow: View, Equatable {
                     .allowsHitTesting(!habitInlineSortingActive)
             }
 
-            Button(action: toggleFromCheckmark) {
-                Image(systemName: state.isChecked(now: now, calendar: calendar)
-                      ? "checkmark.circle.fill" : "circle")
+            HStack(spacing: 0) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Bearbeiten"))
+                .accessibilityIdentifier("reminder-edit-\(habit.id.uuidString)")
+
+                Button(action: toggleFromCheckmark) {
+                    Image(systemName: state.isChecked(now: now, calendar: calendar)
+                          ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
-                    .frame(width: 44, height: 44)
+                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(state.isChecked(now: now, calendar: calendar)
+                                 ? Color.green : Color.secondary)
+                .accessibilityLabel(String(localized: "Erledigt"))
+                .accessibilityValue(state.isChecked(now: now, calendar: calendar)
+                                    ? String(localized: "Erledigt")
+                                    : String(localized: "Offen"))
+                .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
+                // Named actions supplement the pan for VoiceOver.
+                .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(state.isChecked(now: now, calendar: calendar)
-                             ? Color.green : Color.secondary)
-            .accessibilityLabel(String(localized: "Erledigt"))
-            .accessibilityValue(state.isChecked(now: now, calendar: calendar)
-                                ? String(localized: "Erledigt")
-                                : String(localized: "Offen"))
-            .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
-            // VoiceOver cannot perform the row pan. Named actions live on the
-            // checkmark so the revealed buttons stay independently hittable.
-            .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
+                   alignment: .trailing)
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 10)
@@ -376,13 +375,13 @@ private struct ReminderSlidingSurface<Content: View>: View {
             SwipeRevealActions(actions: leadingSwipe,
                                alignment: .leading,
                                exposedWidth: max(revealOffset, 0),
-                               height: ReminderRow.rowHeight,
+                               height: nil,
                                onAction: onAction)
                 .allowsHitTesting(revealOffset > 0)
             SwipeRevealActions(actions: trailingSwipe,
                                alignment: .trailing,
                                exposedWidth: max(-revealOffset, 0),
-                               height: ReminderRow.rowHeight,
+                               height: nil,
                                onAction: onAction)
                 .allowsHitTesting(revealOffset < 0)
         }
@@ -537,14 +536,7 @@ struct SearchResultRow: View, Equatable {
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        guard !reveal.actionLock else { return }
-        reveal.actionLock = true
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
-            snapReveal(to: 0)
-        } completion: {
-            action.handler()
-            reveal.actionLock = false
-        }
+        reveal.perform(action, reduceMotion: reduceMotion)
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {

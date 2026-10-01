@@ -74,6 +74,21 @@ final class SwipeRevealSession {
             }
         }
     }
+    /// Check-ins update immediately; navigation and removal wait for closing.
+    func perform(_ action: RevealAction, reduceMotion: Bool) {
+        guard !actionLock else { return }
+        actionLock = true
+        let immediate = EffectiveSwipeAction(operation: action.operation).allowsFullSwipe
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .logicallyComplete) {
+            offset = 0
+            if immediate { action.handler() }
+        } completion: {
+            if !immediate { action.handler() }
+            // Without an animated view, completion can run synchronously.
+            // Keep this touch locked until the next main loop iteration.
+            DispatchQueue.main.async { self.actionLock = false }
+        }
+    }
 }
 
 struct SwipeRevealPan: UIViewRepresentable {

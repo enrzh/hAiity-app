@@ -886,12 +886,9 @@ enum Theme {
         return min(0.30, max(0.10, 0.10 + abs(luminance - target) * 0.34))
     }
 
-    static func adaptiveBackgroundScrimOpacity(preferences: AppearancePreferences,
-                                               dark: Bool) -> CGFloat {
-        let luminance = relativeLuminance(adaptiveReferenceHex(preferences: preferences,
-                                                                dark: dark))
-        let target = dark ? 0.18 : 0.82
-        return min(0.52, max(0.22, 0.22 + abs(luminance - target) * 0.45))
+    /// Protect primary text even at the brightest/darkest photo pixel.
+    static func backgroundImageScrimOpacity(dark: Bool, highContrast: Bool) -> Double {
+        highContrast ? (dark ? 0.82 : 0.92) : (dark ? 0.56 : 0.50)
     }
 
     /// A quiet rim keeps translucent surfaces legible without adding a card
@@ -924,8 +921,10 @@ enum Theme {
 
     /// One tint source for every app surface. Performance mode deliberately
     /// uses the solid path so no material or glass effect is constructed.
-    static func effectiveMaterial(_ preferences: AppearancePreferences) -> AppearanceMaterial {
-        preferences.performanceMode ? .solid : preferences.material
+    static func effectiveMaterial(_ preferences: AppearancePreferences,
+                                  reduceTransparency: Bool = false,
+                                  increasedContrast: Bool = false) -> AppearanceMaterial {
+        preferences.performanceMode || reduceTransparency || increasedContrast ? .solid : preferences.material
     }
 
     static func surfaceTint(preferences: AppearancePreferences, dark: Bool) -> Color {
@@ -1149,34 +1148,41 @@ struct RootPageTitle: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var titleHeight: CGFloat = 76
+    @State private var collapsed = false
 
     var body: some View {
-        GeometryReader { proxy in
-            let offset = proxy.frame(in: .named(Self.coordinateSpace)).minY
-            let progress = min(max(-offset / 52, 0), 1)
-            VStack(alignment: .leading, spacing: subtitle == nil ? 0 : 3) {
-                Text(title)
-                    .font(compact
-                          ? .title2.weight(.bold)
-                          : .largeTitle.weight(.bold))
+        VStack(alignment: .leading, spacing: subtitle == nil ? 0 : 3) {
+            Text(title)
+                .font(compact
+                      ? .title2.weight(.bold)
+                      : .largeTitle.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+            if let subtitle, !compact {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let subtitle, !compact {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.08,
-                         anchor: .leading)
-            .offset(y: reduceMotion ? 0 : -progress * 7)
-            .opacity(1 - progress)
-            .accessibilityHidden(progress >= 0.5)
-            .preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
         }
-        .frame(height: compact ? 44 : titleHeight)
+        .frame(maxWidth: .infinity, minHeight: compact ? 44 : titleHeight, alignment: .leading)
+        .padding(.horizontal, Theme.Metrics.gutter)
+        .background {
+            GeometryReader { proxy in
+                let progress = min(max(-proxy.frame(in: .named(Self.coordinateSpace)).minY / 52, 0), 1)
+                Color.clear.preference(key: RootPageTitleProgressKey.self, value: Optional(progress))
+            }
+        }
+        .visualEffect { [reduceMotion, coordinateSpace = Self.coordinateSpace] content, proxy in
+            let progress = min(max(-proxy.frame(in: .named(coordinateSpace)).minY / 52, 0), 1)
+            return content
+                .scaleEffect(reduceMotion ? 1 : 1 - progress * 0.08, anchor: .leading)
+                .offset(y: reduceMotion ? 0 : -progress * 7)
+                .opacity(Double(1 - progress))
+        }
+        .onGeometryChange(for: Bool.self, of: {
+            $0.frame(in: .named(Self.coordinateSpace)).minY <= -26
+        }) { collapsed = $0 }
+        .accessibilityHidden(collapsed)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -1411,6 +1417,8 @@ extension EnvironmentValues {
 struct AppearanceBackground: View {
     let preferences: AppearancePreferences
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var preparedImage: UIImage?
 
     init(preferences: AppearancePreferences) {
@@ -1453,10 +1461,9 @@ struct AppearanceBackground: View {
                     endPoint: .bottom)
             case .image:
                 if let image = preparedImage {
-                    let scrim = Theme.effectiveMaterial(preferences) == .adaptive
-                        ? Theme.adaptiveBackgroundScrimOpacity(preferences: preferences,
-                                                              dark: colorScheme == .dark)
-                        : 0.28
+                    let scrim = Theme.backgroundImageScrimOpacity(
+                        dark: colorScheme == .dark,
+                        highContrast: contrast == .increased || reduceTransparency)
                     GeometryReader { proxy in
                         let placement = BackgroundImagePlacement.make(
                             imageSize: image.size,
@@ -1509,6 +1516,11 @@ private struct AppSurfaceModifier: ViewModifier {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    private var material: AppearanceMaterial {
+        Theme.effectiveMaterial(preferences, reduceTransparency: reduceTransparency,
+                                increasedContrast: contrast == .increased)
+    }
+
     /// Same rule as grouped settings rows: Solid is a filled plane. A hairline
     /// around every habit and stats card looks like a leftover glass edge.
     private var usesSolidCardPlane: Bool {
@@ -1520,7 +1532,6 @@ private struct AppSurfaceModifier: ViewModifier {
     private var needsOutline: Bool {
         if usesSolidCardPlane { return false }
         if #available(iOS 26, *) {
-            let material = Theme.effectiveMaterial(preferences)
             if material == .liquid || material == .adaptive { return false }
         }
         return true
@@ -1528,7 +1539,7 @@ private struct AppSurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         Group {
-                switch Theme.effectiveMaterial(preferences) {
+                switch material {
                 case .solid:
                     content.background(Theme.surfaceFill(preferences: preferences), in: shape)
                 case .milky:
@@ -1612,7 +1623,8 @@ struct SettingsRowSurface: View {
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var material: AppearanceMaterial {
-        reduceTransparency || contrast == .increased ? .solid : Theme.effectiveMaterial(preferences)
+        Theme.effectiveMaterial(preferences, reduceTransparency: reduceTransparency,
+                                increasedContrast: contrast == .increased)
     }
 
     private var needsOutline: Bool {

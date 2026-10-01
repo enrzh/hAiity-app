@@ -43,11 +43,9 @@ enum ChromeLayout {
     static let trailingControlInset: CGFloat = 52
     static let trailingControlDiameter: CGFloat = 62
 
-    /// How far the trailing control's own edges sit from the bottom edge.
+    /// How far the trailing control's own top edge sits from the bottom edge.
     static let trailingControlTop: CGFloat = trailingControlInset
         + trailingControlDiameter / 2
-    static let trailingControlBottom: CGFloat = trailingControlInset
-        - trailingControlDiameter / 2
 
     /// Gap between the speak button and the control it stacks above.
     ///
@@ -299,9 +297,9 @@ enum MorePanel {
     }
 
     /// Unterer Innenabstand des Tafel-INHALTS, wenn der Inhalt dauerhaft in
-    /// seiner VOLLEN Höhe steht (siehe MorePanelSurface: die Liste wird
-    /// einmal für die ganze Seite gelayoutet und nur noch FREIGELEGT — sie
-    /// rechnet damit während eines Zuges kein einziges Mal neu).
+    /// seiner VOLLEN Höhe steht (die Liste wird einmal für die ganze Seite
+    /// gelayoutet und nur noch FREIGELEGT — sie rechnet damit während eines
+    /// Zuges kein einziges Mal neu).
     ///
     /// Zwei Anteile, beide am ZIEL-Zustand gerechnet, nie am laufenden Zug:
     ///  * der Teil der vollen Höhe, der im kleinen Zustand hinter der

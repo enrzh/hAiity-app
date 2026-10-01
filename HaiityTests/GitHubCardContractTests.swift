@@ -304,10 +304,12 @@ final class GitHubCardContractTests: XCTestCase {
                       "GitHub graphs should use the same renderer as habits")
         XCTAssertTrue(github.contains("GridCalendar.snapshot(levelsByDay:"),
                       "GitHub data should be converted into the shared grid snapshot")
-        XCTAssertTrue(github.contains("struct ContributionChartLegend: View"),
-                      "habit and GitHub charts should share one intensity legend")
-        XCTAssertFalse(card.contains("ContributionChartLegend("),
-                       "the compact in-app card should keep chart chrome minimal")
+        // Two assertions used to sit here about `ContributionChartLegend`: one
+        // that the GitHub file declares it, one that the compact card does not
+        // call it. Neither could ever fail usefully — nothing instantiated the
+        // type — and the pair contradicted each other's stated purpose. The type
+        // is deleted; what matters above is that both surfaces go through the
+        // one renderer.
     }
 
     func testGraphsCenterFittingContentAndScrollOnlyWhenItOverflows() throws {

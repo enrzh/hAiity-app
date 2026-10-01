@@ -174,6 +174,8 @@ struct ContentView: View {
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
     @State private var undo = UndoToastState()
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Offene Nacharbeiten-Karte; nil = keine. Sie hält NUR die Kennung des
     /// Habits, nicht das Habit selbst: nach jedem Schreibvorgang muss die
     /// Karte den frischen Stand aus dem Store zeigen, nicht eine Kopie von
@@ -571,22 +573,22 @@ struct ContentView: View {
 
     // MARK: – Sprachknopf
 
-    /// The standing "say it instead of typing it" control.
+    /// The standing "say it instead of typing it" control — the on-device
+    /// writing entry point, on the same glass as the rest of the floating
+    /// chrome.
     ///
     /// Sized to the same 52 pt circle as the app's other floating controls and
     /// offset by the same tab-bar clearance, so it sits in the band's bottom
     /// row rather than on top of the tab bar. Hidden while a sheet or the
     /// create page is up: a floating control over a modal is a tap target with
     /// nothing behind it.
-    @ViewBuilder
-    /// The on-device writing entry point, on the same glass as the rest of the
-    /// floating chrome.
     ///
     /// It was a microphone, which said "record a voice note" and understated what
     /// this actually is: a sentence that becomes a habit, worked out on the
-    /// device. A sparkle says that, and it is distinct from the microphone inside
-    /// the sheet and from the keyboard's own dictation key, so the three never get
-    /// confused for each other.
+    /// device. A sparkle says that, and it is distinct from the keyboard's own
+    /// dictation key — dictation produces words, this produces a habit — so the
+    /// two are never confused for each other.
+    @ViewBuilder
     private var speakButton: some View {
         if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback,
            viewPreferences.dictateCreateEnabled {
@@ -595,7 +597,7 @@ struct ContentView: View {
                 Theme.Haptics.select()
             } label: {
                 Image(systemName: "sparkles")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Theme.accentText(effectivePaletteStyle))
                     .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
                     .modifier(ChromeGlass(id: "speak-button",
@@ -848,6 +850,11 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting {
+                NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
+            }
+        }
         .scrollContentBackground(.hidden)
         .contentMargins(.top, Theme.Metrics.rootTitleInset, for: .scrollContent)
         .softScrollEdges()
@@ -1375,8 +1382,7 @@ struct ContentView: View {
         ScrollViewReader { proxy in
             List {
                 Section {
-                    RootPageTitle(title: String(localized: "Habits"),
-                                  subtitle: String(localized: "Dein Rhythmus in einem Blick"))
+                    RootPageTitle(title: String(localized: "Habits"))
                         .id("habit-list-title")
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -1460,6 +1466,11 @@ struct ContentView: View {
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
             progressNow = now
+        }
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting {
+                NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
+            }
         }
         .onChange(of: habitSortingActive) { _, active in
             guard active else {
@@ -2379,7 +2390,8 @@ struct ContentView: View {
             actionToast(label: {
                 Text(toast.message)
                     .font(.footnote)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }, actionTitle: String(localized: "Rückgängig"),
                          actionIdentifier: "undo-action") {
                     performUndo()
@@ -2389,11 +2401,14 @@ struct ContentView: View {
                         : AnyTransition.move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("undo-toast")
-            .task(id: toast.id) {
+            .task(id: "\(toast.id)|\(voiceOverEnabled)|\(dynamicTypeSize.isAccessibilitySize)") {
+                guard let timeout = UndoToastState.lifetime(
+                    voiceOver: voiceOverEnabled,
+                    largeText: dynamicTypeSize.isAccessibilitySize) else { return }
                 #if DEBUG
-                let lifetime = ProcessInfo.processInfo.arguments.contains("-show-toast") ? 30 : 4
+                let lifetime = ProcessInfo.processInfo.arguments.contains("-show-toast") ? 30 : timeout
                 #else
-                let lifetime = 4
+                let lifetime = timeout
                 #endif
                 try? await Task.sleep(for: .seconds(lifetime))
                 guard !Task.isCancelled else { return }
@@ -2408,9 +2423,12 @@ struct ContentView: View {
         actionIdentifier: String,
         action: @escaping () -> Void
     ) -> some View {
-        HStack(spacing: Theme.Metrics.gap) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Metrics.gap))
+            : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
+        return layout {
             label()
-            Divider().frame(height: 16)
+            if !dynamicTypeSize.isAccessibilitySize { Divider().frame(height: 16) }
             Button(action: action) {
                 Text(actionTitle)
                     .font(.footnote.weight(.semibold))

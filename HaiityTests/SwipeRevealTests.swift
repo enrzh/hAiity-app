@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Haiity
 
 /// Die reine Aufzieh-Mechanik (`SwipeReveal`) — Klemmen, Gummiband und
@@ -7,6 +8,38 @@ import XCTest
 /// Raster-Arbitrage) steht in `SwipeRevealPan`; hier steht, WAS sie
 /// entscheidet.
 final class SwipeRevealTests: XCTestCase {
+    @MainActor
+    func testCheckInActionsApplyWithoutWaitingForSettleAnimation() {
+        for operation: SwipeOperation in [.done, .reset, .increment, .yes, .no] {
+            let session = SwipeRevealSession()
+            session.offset = 100
+            var count = 0
+            let action = RevealAction(operation: operation, title: "Test", symbol: "checkmark", tint: .green) {
+                count += 1
+            }
+            session.perform(action, reduceMotion: false)
+            XCTAssertEqual(count, 1, "\(operation) must apply during the tap callback")
+            XCTAssertEqual(session.offset, 0)
+            session.perform(action, reduceMotion: false)
+            XCTAssertEqual(count, 1, "the settle lock must prevent duplicate delivery")
+        }
+    }
+
+    @MainActor
+    func testInterruptedGestureClosesWithoutDeliveringAnAction() {
+        let session = SwipeRevealSession()
+        session.width = 350
+        session.begin()
+        session.applyTranslation(-100, leadingCount: 1, trailingCount: 1)
+        XCTAssertLessThan(session.offset, 0)
+        session.snap(to: 0, reduceMotion: true)
+        XCTAssertEqual(session.offset, 0)
+        XCTAssertFalse(session.actionLock)
+        session.begin()
+        session.applyTranslation(40, leadingCount: 1, trailingCount: 1)
+        XCTAssertEqual(session.offset, 40, "a fresh swipe must start from the closed position")
+    }
+
 
     // MARK: – Maße
 

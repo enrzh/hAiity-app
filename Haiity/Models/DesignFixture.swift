@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Opt-in UI-test data lives in a separate simulator-only store. It must
 /// never replace a user's App Group data or run cloud/native integrations.
@@ -7,7 +8,7 @@ enum DesignFixture {
         #if DEBUG && targetEnvironment(simulator)
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-design-fixture"), index + 1 < args.count,
-              ["empty", "realistic", "crowded"].contains(args[index + 1]) else { return nil }
+              ["empty", "realistic", "crowded", "mixed"].contains(args[index + 1]) else { return nil }
         return args[index + 1]
         #else
         return nil
@@ -22,6 +23,22 @@ enum DesignFixture {
         if let index = args.firstIndex(of: "-design-appearance"), index + 1 < args.count,
            let appearance = AppearanceSetting(rawValue: args[index + 1]) {
             store.appearance = appearance
+        }
+        if let index = args.firstIndex(of: "-design-material"), index + 1 < args.count,
+           let material = AppearanceMaterial(rawValue: args[index + 1]) {
+            store.appearancePreferences.material = material
+        }
+        if args.contains("-design-photo") {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 400)).image { context in
+                for index in 0..<8 {
+                    (index.isMultiple(of: 2) ? UIColor.white : UIColor.black).setFill()
+                    context.fill(CGRect(x: 0, y: index * 50, width: 200, height: 50))
+                }
+            }
+            var preferences = store.appearancePreferences
+            preferences.backgroundMode = .image
+            preferences.backgroundImageData = image.jpegData(compressionQuality: 0.8)
+            store.appearancePreferences = preferences
         }
         let names = ["Read for twenty minutes", "Drink water", "Take a walk", "No late coffee",
                      "Stretch after work", "Practice Spanish", "Write a journal", "Call family",
@@ -44,6 +61,14 @@ enum DesignFixture {
             if index == 0 { habit.log[today] = nil }
             if index == 1 { habit.log[today] = 1 }
             store.add(habit)
+        }
+        if scenario == "mixed" {
+            var reminder = Habit(name: "Call the dentist to confirm the appointment and discuss the treatment plan",
+                                 itemType: .reminder)
+            reminder.id = UUID(uuidString: "00000000-0000-0000-0000-000000000799")!
+            reminder.notificationMode = .off
+            reminder.calendarSyncEnabled = false
+            store.add(reminder)
         }
         return store
     }

@@ -143,14 +143,12 @@ final class MotivationTests: XCTestCase {
         let stats = try source("Haiity/Views/StatsView.swift")
         XCTAssertTrue(stats.contains("stats-reading-action"))
         XCTAssertTrue(stats.contains("StatsReadingDaily.write"))
-        let lines = stats.split(separator: "\n", omittingEmptySubsequences: false)
-        let callLines = lines.filter { $0.contains("generateStatsReading(reroll:")
-            && !$0.contains("private func") }
-        XCTAssertFalse(callLines.isEmpty, "the generator must be called from the block")
-        for line in callLines {
-            XCTAssertTrue(line.contains("Task { await"),
-                          "every generation must come from a deliberate tap, not a load: \(line)")
-        }
+        let load = try XCTUnwrap(stats.range(of: ".task(id: statsRefreshKey)"))
+        let toolbar = try XCTUnwrap(stats.range(of: ".toolbar", range: load.upperBound..<stats.endIndex))
+        let lifecycle = stats[load.lowerBound..<toolbar.lowerBound]
+        XCTAssertFalse(lifecycle.contains("requestStatsReading("),
+                       "page loading must never request generation")
+        XCTAssertFalse(lifecycle.contains("StatsReadingDaily.write"))
 
         // And the settings screen's tap is the only writer there too.
         let more = try source("Haiity/Views/MoreView.swift")

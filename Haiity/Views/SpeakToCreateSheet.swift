@@ -68,13 +68,17 @@ struct SpeakToCreateSheet: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var hasUsableReader: Bool {
+        OnDeviceModel.isAvailable || hasDownloadedModel
+    }
+
     /// Reading is possible when EITHER model can answer.
     ///
     /// Gating on Apple's Foundation Models alone hid the button on every device
     /// below iOS 26 and in the simulator, which made a downloaded model look
     /// like it did nothing. The two are alternatives, not a preference order.
     private var canRead: Bool {
-        (OnDeviceModel.isAvailable || hasDownloadedModel) && hasSentence && !isReading && !isWorking
+        hasUsableReader && hasSentence && !isReading && !isWorking
     }
 
     /// Whether a model is on the phone, refreshed when the sheet opens.
@@ -150,7 +154,6 @@ struct SpeakToCreateSheet: View {
             }
         }
         .onDisappear {
-            stopEverything()
             // A model holds hundreds of megabytes of weight cache. Keeping it
             // between sheets makes the rest of the app feel heavier than it is.
             localReader.release()
@@ -231,7 +234,7 @@ struct SpeakToCreateSheet: View {
             // Before a reading, this card is showing the sentence with the clock
             // time lifted out — not a finished name. Calling it "Daraus wird"
             // would promise a name and a repeat that nobody has worked out yet.
-            Text(needsReading && OnDeviceModel.isAvailable
+            Text(needsReading && hasUsableReader
                  ? String(localized: "Satz, noch nicht gelesen")
                  : String(localized: "Daraus wird"))
                 .font(.subheadline.weight(.semibold))
@@ -258,7 +261,7 @@ struct SpeakToCreateSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            if OnDeviceModel.isAvailable { readRow }
+            if hasUsableReader { readRow }
         }
         .appCard()
         // `.contain`, not `.combine`. The card holds the "Satz lesen" button,
@@ -317,7 +320,7 @@ struct SpeakToCreateSheet: View {
         // here would be a guess dressed up as a result: the create button reads
         // the sentence, and that is where the repeat comes from, so the preview
         // would promise daily and the list would show Mondays.
-        if needsReading, OnDeviceModel.isAvailable {
+        if needsReading, hasUsableReader {
             parts.append(String(localized: "Wiederholung noch offen"))
         } else {
             parts.append(RecurrenceText.pattern(draft.schedule.recurrence))
@@ -436,13 +439,12 @@ struct SpeakToCreateSheet: View {
         switch await CreateItemSaver.save(final, into: store) {
         case .saved:
             didCreate = true
-            stopEverything()
             try? await Task.sleep(for: .milliseconds(600))
             dismiss()
         case .emptyName:
-            stopEverything()
+            break
         case .limitReached:
-            stopEverything()
+            break
         }
     }
 
@@ -473,13 +475,7 @@ struct SpeakToCreateSheet: View {
         detent = .large
     }
 
-    /// Nothing is listening any more, so there is nothing to stop. The name
-    /// stays because `close()` still calls it, and a sheet that is going away
-    /// has no asynchronous work left to cancel.
-    private func stopEverything() {}
-
     private func close() {
-        stopEverything()
         dismiss()
     }
 }

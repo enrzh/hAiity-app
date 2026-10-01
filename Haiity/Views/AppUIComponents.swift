@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Shared icon treatment for settings and utility rows. The caller keeps
-/// ownership of the meaning and action; this view only aligns the visual slot.
 /// The shell every settings page sits in: one scroll view, the shared gutter,
 /// the tab-bar clearance, and the chrome that makes a page read as settings.
 ///
@@ -58,6 +56,8 @@ struct SettingsPage<Content: View>: View {
     }
 }
 
+/// Shared icon treatment for settings and utility rows. The caller keeps
+/// ownership of the meaning and action; this view only aligns the visual slot.
 struct AppIconBadge: View {
     let symbol: String
     var tint: Color?
@@ -210,9 +210,11 @@ struct AppSettingsGroup<Content: View>: View {
 
 /// Appearance-aware surface used by compact feedback above the tab bar.
 struct AppToastSurface: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     func body(content: Content) -> some View {
         content
-            .appSurface(cornerRadius: 999)
+            .appSurface(cornerRadius: dynamicTypeSize.isAccessibilitySize ? Theme.Metrics.cardRadius : 999)
             .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
     }
 }

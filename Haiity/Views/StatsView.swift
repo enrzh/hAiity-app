@@ -37,10 +37,13 @@ struct StatsView: View {
     /// What the reading block is doing. It is always rendered — the block is the
     /// affordance, so it cannot disappear when there is nothing to show yet.
     @State private var statsReadingPhase: StatsReadingPhase = .idle
+    @State private var renderedRefreshKey: String?
+    @State private var statsReadingTask: Task<Void, Never>?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
@@ -62,10 +65,11 @@ struct StatsView: View {
     }
 
     private var statsRefreshKey: String {
-        "\(store.data.updatedAt)|\(unlocked)|\(DayKey.today())|\(Calendar.current.firstWeekday)"
+        "\(store.data.updatedAt)|\(unlocked)|\(DayKey.today())|\(Calendar.current.firstWeekday)|\(Calendar.current.timeZone.identifier)|\(Locale.current.identifier)"
     }
 
     private func loadStatsSnapshot() async {
+        let refreshKey = statsRefreshKey
         let habits = visibleActiveTrackedHabits
         let today = DayKey.today()
         let calendar = Calendar.current
@@ -73,8 +77,10 @@ struct StatsView: View {
         defer { StartupMetrics.end("statsCalculation", id: statsSignpost) }
         guard let snapshot = await ContributionSnapshotScheduler.perform({
             StatsEngine.snapshot(habits: habits, today: today, calendar: calendar)
-        }) else { return }
+        }), !Task.isCancelled, refreshKey == statsRefreshKey else { return }
         renderedSnapshot = snapshot
+        renderedRefreshKey = refreshKey
+        restoreStatsReadingIfAny()
     }
 
     var body: some View {
@@ -95,9 +101,10 @@ struct StatsView: View {
             statsAdjustmentSheet
         }
         .onChange(of: routeToken) { _, _ in paywall = nil }
+        .onChange(of: statsRefreshKey) { _, _ in cancelStatsReading() }
+        .onDisappear { cancelStatsReading() }
         .task(id: statsRefreshKey) {
             await loadStatsSnapshot()
-            restoreStatsReadingIfAny()
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -346,12 +353,7 @@ struct StatsView: View {
     private var statsReadingCard: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
             HStack(spacing: Theme.Metrics.gap) {
-                Image(systemName: "text.quote")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
-                    .background(accent.opacity(0.11), in: Circle())
-                    .accessibilityHidden(true)
+                AppIconBadge(symbol: "text.quote")
                 Text(String(localized: "Dein Muster"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -381,14 +383,19 @@ struct StatsView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     statsReadingButton(title: String(localized: "Erneut versuchen")) {
-                        Task { await generateStatsReading(reroll: true) }
+                        requestStatsReading(reroll: true)
                     }
                 }
             }
         }
         .padding(Theme.Metrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
+        .background {
+            if appearancePreferences.backgroundMode != .color || appearancePreferences.backgroundColorHex != nil {
+                SettingsRowSurface()
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius))
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("stats-reading")
     }
@@ -400,7 +407,7 @@ struct StatsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             statsReadingButton(title: String(localized: "Kurz zusammenfassen")) {
-                Task { await generateStatsReading(reroll: false) }
+                requestStatsReading(reroll: false)
             }
         }
     }
@@ -414,7 +421,7 @@ struct StatsView: View {
             // A re-roll is a second deliberate request for the same heat the
             // first one cost, so it is offered but never automatic.
             statsReadingButton(title: String(localized: "Anderer Satz")) {
-                Task { await generateStatsReading(reroll: true) }
+                requestStatsReading(reroll: true)
             }
         }
     }
@@ -427,7 +434,7 @@ struct StatsView: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
-        .disabled(statsReadingPhase == .working)
+        .disabled(statsReadingPhase == .working || renderedRefreshKey != statsRefreshKey)
         .accessibilityIdentifier("stats-reading-action")
     }
 
@@ -458,20 +465,30 @@ struct StatsView: View {
         }
     }
 
-    /// Run the model because the reader asked. Also the only place the
-    /// availability check happens for this feature, so the block can show an
-    /// explanation instead of a control that quietly does nothing.
-    /// Show today's reading if one was already written. Free, and it keeps the
-    /// block from looking unfinished when the person comes back to the page.
     private func restoreStatsReadingIfAny() {
-        if let cached = StatsReadingDaily.cachedReading(for: DayKey.today(),
-                                                        in: SharedStorage.defaults) {
-            statsReadingPhase = .shown(cached)
-        }
+        guard let snapshot = renderedSnapshot else { return }
+        let facts = StatsReadingFacts(snapshot: snapshot)
+        let language = Locale.current.language.languageCode?.identifier ?? "en"
+        statsReadingPhase = StatsReadingDaily.cachedReading(
+            for: DayKey.today(), facts: facts, language: language,
+            in: SharedStorage.defaults).map(StatsReadingPhase.shown) ?? .idle
+    }
+
+    private func cancelStatsReading() {
+        statsReadingTask?.cancel()
+        statsReadingTask = nil
+        statsReadingPhase = .idle
+    }
+
+    private func requestStatsReading(reroll: Bool) {
+        guard statsReadingPhase != .working, renderedRefreshKey == statsRefreshKey else { return }
+        statsReadingPhase = .working
+        statsReadingTask = Task { await generateStatsReading(reroll: reroll) }
     }
 
     private func generateStatsReading(reroll: Bool) async {
-        guard let snapshot = renderedSnapshot else { return }
+        guard let snapshot = renderedSnapshot, renderedRefreshKey == statsRefreshKey else { return }
+        let refreshKey = statsRefreshKey
         let reason = OnDeviceModel.availability
         guard reason == .available else {
             statsReadingPhase = .unavailable(reason)
@@ -482,18 +499,17 @@ struct StatsView: View {
             statsReadingPhase = .failed
             return
         }
-        statsReadingPhase = .working
-
         let dayKey = DayKey.today()
         let defaults = SharedStorage.defaults
         let language = Locale.current.language.languageCode?.identifier ?? "en"
         let text = await StatsReadingDaily.write(
             for: dayKey, facts: facts, language: language, defaults: defaults,
-            reroll: reroll, write: StatsReadingDaily.onDeviceWriter)
+            reroll: reroll,
+            isCurrent: { refreshKey == statsRefreshKey && renderedRefreshKey == refreshKey },
+            write: StatsReadingDaily.onDeviceWriter)
 
-        await MainActor.run {
-            statsReadingPhase = text.map(StatsReadingPhase.shown) ?? .failed
-        }
+        guard !Task.isCancelled, refreshKey == statsRefreshKey else { return }
+        statsReadingPhase = text.map(StatsReadingPhase.shown) ?? .failed
     }
 
     private func statsTodaySentence(_ snapshot: StatsEngine.Snapshot) -> String {

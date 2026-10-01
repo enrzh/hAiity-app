@@ -286,7 +286,7 @@ final class AppNavigationTests: XCTestCase {
         let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
 
-        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\"),"),
+        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\")"),
                       "the habits root list needs the shared leading title")
         XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\")"),
                       "the stats root list needs the shared leading title")
@@ -447,8 +447,11 @@ final class AppNavigationTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("var performanceMode: Bool"))
         XCTAssertTrue(theme.contains("performanceMode"))
-        XCTAssertTrue(theme.contains("preferences.performanceMode ? .solid : preferences.material"),
-                      "performance mode must bypass expensive glass rendering through the shared material resolver")
+        for material in AppearanceMaterial.allCases {
+            let preferences = AppearancePreferences(material: material, performanceMode: true)
+            XCTAssertEqual(Theme.effectiveMaterial(preferences), .solid,
+                           "performance mode must bypass expensive glass for \(material)")
+        }
         XCTAssertTrue(more.contains("performance-mode-toggle"))
     }
 

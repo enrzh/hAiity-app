@@ -211,14 +211,7 @@ struct HabitCard: View, Equatable {
     }
 
     private func revealActionTapped(_ action: RevealAction) {
-        guard !reveal.actionLock else { return }
-        reveal.actionLock = true
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22), completionCriteria: .removed) {
-            reveal.offset = 0
-        } completion: {
-            action.handler()
-            reveal.actionLock = false
-        }
+        reveal.perform(action, reduceMotion: reduceMotion)
     }
 
     private func revealEnded(_ translation: CGFloat, velocity: CGFloat) {
@@ -254,21 +247,7 @@ struct HabitCard: View, Equatable {
     }
 
     private func snapReveal(to target: CGFloat, velocity: CGFloat = 0) {
-        guard abs(target - reveal.offset) > 0.5 else { return }
-        if let animation = SwipeRevealMotion.settleAnimation(
-            reduceMotion: reduceMotion,
-            velocity: velocity,
-            distance: target - reveal.offset) {
-            withAnimation(animation) {
-                reveal.offset = target
-            }
-        } else {
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                reveal.offset = target
-            }
-        }
+        reveal.snap(to: target, velocity: velocity, reduceMotion: reduceMotion)
     }
 
     // MARK: – Raster in der Fläche
@@ -284,10 +263,11 @@ struct HabitCard: View, Equatable {
     ///
     /// A tap opens history; horizontal drags continue to scroll the graph.
     private var grid: some View {
-        // `.equatable()` ist Tempo, nicht Kosmetik (dasselbe Muster wie die
-        // Mehr-Liste in `MorePanelSurface`): ohne den Vergleich baut jede
-        // Auswertung dieser Karte die 371 Zellen neu, auch wenn sich nur das
-        // Chrom bewegt hat. Store-Änderungen kommen an — sie ändern `habit`.
+        // `.equatable()` ist Tempo, nicht Kosmetik: ohne den Vergleich baut jede
+        // Auswertung dieser Karte bis zu 371 Zellen neu (168–371, je nach
+        // Rasterhöhe, `minimumWeeks: 24` … `maximumWeeks: 53`), auch wenn sich
+        // nur das Chrom bewegt hat. Store-Änderungen kommen an — sie ändern
+        // `habit`.
             ContributionGrid(habit: habit,
                              weeks: gridWeeks,
                              showsMonthLabels: showsMonthLabels,

@@ -78,8 +78,13 @@ final class VoiceCreateSheetTests: XCTestCase {
     /// iPhone below iOS 26 and made a 290 MB download look like it did nothing.
     func testTheReadButtonIsOfferedWhenEitherModelCanAnswer() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
+        XCTAssertTrue(sheet.contains("private var hasUsableReader"))
         XCTAssertTrue(sheet.contains("OnDeviceModel.isAvailable || hasDownloadedModel"),
                       "a downloaded model must make reading possible where Apple's is absent")
+        XCTAssertTrue(sheet.contains("if hasUsableReader { readRow }"),
+                      "the visible read control must use the same capability rule")
+        XCTAssertTrue(sheet.contains("hasUsableReader && hasSentence"),
+                      "reading must stay disabled until the sentence is nonempty")
         XCTAssertFalse(sheet.contains("OnDeviceModel.isAvailable && hasSentence"),
                        "gating on Apple's model alone hides the button on most devices")
 

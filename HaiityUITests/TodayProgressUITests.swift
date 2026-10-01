@@ -8,11 +8,14 @@ final class TodayProgressUITests: XCTestCase {
     }
 
     private func launch(_ fixture: String = "realistic", largeText: Bool = false,
-                        appearance: String = "light", screen: String = "habits") -> XCUIApplication {
+                        appearance: String = "light", screen: String = "habits",
+                        material: String? = nil, photo: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-design-fixture", fixture, "-screen", screen, "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB",
                                "-design-appearance", appearance]
+        if let material { app.launchArguments += ["-design-material", material] }
+        if photo { app.launchArguments += ["-design-photo"] }
         if largeText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
@@ -25,6 +28,126 @@ final class TodayProgressUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func selectTab(_ title: String, in app: XCUIApplication) {
+        let tab = app.tabBars.buttons[title].firstMatch
+        if !tab.exists {
+            let collapsed = app.tabBars.buttons.matching(NSPredicate(format: "value == 'Collapsed'")).firstMatch
+            if collapsed.exists { collapsed.tap() }
+        }
+        XCTAssertTrue(tab.waitForExistence(timeout: 3))
+        tab.tap()
+    }
+
+    func testColdLaunchResponsivenessWithCrowdedData() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-design-fixture", "crowded", "-screen", "habits", "-pro", "on"]
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true)], options: options) {
+            app.launch()
+            XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+            app.terminate()
+        }
+    }
+
+    func testRepeatedNavigationAndScrollingStayInteractive() {
+        let app = launch("crowded")
+        XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+        for _ in 0..<3 {
+            selectTab("Stats", in: app)
+            let week = app.descendants(matching: .any)["stats-week-card"].firstMatch
+            XCTAssertTrue(week.waitForExistence(timeout: 5))
+            app.swipeUp()
+            XCTAssertTrue(app.descendants(matching: .any)["stats-row"].firstMatch.waitForExistence(timeout: 5))
+            selectTab("Habits", in: app)
+            app.swipeUp()
+            app.swipeDown()
+            XCTAssertTrue(app.buttons["habit-filter"].firstMatch.isHittable)
+        }
+    }
+
+    func testPhotoBackgroundKeepsReminderAndSettingsControlsReadable() {
+        for appearance in ["light", "dark"] {
+            let app = launch("mixed", appearance: appearance, material: "milky", photo: true)
+            let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
+            XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+            for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
+            XCTAssertTrue(edit.isHittable)
+            capture("photo-reminder-\(appearance)")
+            selectTab("More", in: app)
+            let settings = app.buttons["open-appearance"].firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["appearance-picker"].firstMatch
+                .waitForExistence(timeout: 5))
+            capture("photo-settings-\(appearance)")
+            app.terminate()
+        }
+    }
+
+    func testReminderEditButtonPreservesCompletionAtBothTextSizes() {
+        let reminderID = "00000000-0000-0000-0000-000000000799"
+        for largeText in [false, true] {
+            let app = launch("mixed", largeText: largeText, appearance: "dark")
+            let edit = app.buttons["reminder-edit-\(reminderID)"]
+            XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+            for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
+            XCTAssertTrue(edit.isHittable)
+            XCTAssertGreaterThanOrEqual(edit.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(edit.frame.height, 44)
+            let check = app.buttons["reminder-check-\(reminderID)"]
+            let before = check.value as? String
+            capture(largeText ? "reminder-large-text" : "reminder-edit-control")
+            edit.tap()
+            XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+            XCTAssertTrue((app.textFields["habit-name"].value as? String)?.hasPrefix("Call the dentist") == true)
+            app.buttons["Cancel"].firstMatch.tap()
+            XCTAssertTrue(check.waitForExistence(timeout: 5))
+            XCTAssertEqual(check.value as? String, before, "editing must not complete the reminder")
+            app.terminate()
+        }
+    }
+
+    func testAccessibilityUndoStaysAvailableAndRestoresTheCheckIn() {
+        let app = launch(largeText: true, appearance: "dark")
+        let check = app.buttons["check-today"].firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15))
+        let title = app.staticTexts["Habits"].firstMatch
+        let summary = app.descendants(matching: .any)["today-progress"].firstMatch
+        XCTAssertLessThanOrEqual(title.frame.maxY, summary.frame.minY,
+                                 "the large root title must not overlap the next section")
+        for _ in 0..<5 where !check.isHittable { app.swipeUp() }
+        let before = check.label
+        check.tap()
+        let undo = app.buttons["undo-action"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 3))
+        // Longer than the ordinary expiry. This is a timed UX contract.
+        RunLoop.current.run(until: Date().addingTimeInterval(7))
+        XCTAssertTrue(undo.isHittable)
+        capture("accessible-undo")
+        undo.tap()
+        XCTAssertEqual(check.label, before)
+    }
+
+    func testScrollingClosesReminderSwipeAndLeavesItsEditButtonUsable() {
+        let app = launch("mixed")
+        let reminderID = "00000000-0000-0000-0000-000000000799"
+        let edit = app.buttons["reminder-edit-\(reminderID)"]
+        XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+        for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
+        XCTAssertTrue(edit.isHittable)
+        let row = app.descendants(matching: .any)["reminder-row-\(reminderID)"].firstMatch
+        let start = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        let end = row.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0)
+        XCTAssertTrue(row.buttons["reveal-action-done"].waitForExistence(timeout: 3))
+        app.swipeDown()
+        for _ in 0..<5 where !edit.isHittable { app.swipeUp() }
+        XCTAssertTrue(edit.isHittable, "vertical scrolling must close the reveal layer")
+        edit.tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
     }
 
     func testRedesignRootAndSecondaryPagesInBothAppearances() {

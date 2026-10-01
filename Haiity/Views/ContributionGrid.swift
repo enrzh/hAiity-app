@@ -124,13 +124,24 @@ struct ContributionGrid: View, Equatable {
                                  gap: m.gap,
                                  width: contentWidth)
                 }
+            } else if interactive {
+                // A fixed-width placeholder needs the same viewport as the
+                // loaded graph. Otherwise fitted cells can grow the row and
+                // oscillate its measured width before the snapshot arrives.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
+                }
+                .defaultScrollAnchor(.trailing)
+                .padding(.horizontal, 4)
             } else {
                 loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
             }
         }
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-            guard width > 0, width != viewportWidth else { return }
+            // Fractional layout noise must not feed fitted tile sizing back
+            // into another layout pass, particularly on narrow screens.
+            guard width > 0, abs(width - viewportWidth) > 0.5 else { return }
             viewportWidth = width
         }
         .task(id: request) {

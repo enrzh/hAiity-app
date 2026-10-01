@@ -109,6 +109,11 @@ struct CheckInUndo: Equatable, Identifiable {
 ///    läuft womöglich noch; er darf den neueren nicht wegblenden. Deshalb
 ///    trägt `expire` die Nummer, zu der er gehört.
 struct UndoToastState {
+    /// Assistive reading and large text must not race a short expiry timer.
+    static func lifetime(voiceOver: Bool, largeText: Bool) -> TimeInterval? {
+        voiceOver || largeText ? nil : 6
+    }
+
     private(set) var current: CheckInUndo?
     private var generation = 0
 

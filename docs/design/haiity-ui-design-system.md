@@ -130,6 +130,8 @@ Text rules:
 - Never shrink text to preserve a one-line row at AX5.
 - Keep icon-only controls labeled for VoiceOver.
 - Avoid using a caption as the only indication of an important state.
+- Root titles have a minimum height and expand with wrapped text; decorative
+  floating-control symbols stay within their existing hit region.
 
 ## Shared component contracts
 
@@ -185,6 +187,8 @@ Required behavior:
 - keeps month labels outside the tile field when shown;
 - keeps tile fill treatment free of decorative per-tile borders;
 - preserves each caller's data, title, username, and context actions.
+- A loading graph uses the same bounded viewport as its loaded content. Its
+  intrinsic tile width must never drive the width used to fit those tiles.
 
 ### `AppToast`
 
@@ -196,6 +200,10 @@ Required behavior:
 - stays compact enough not to cover the content it describes;
 - announces meaningful changes to VoiceOver;
 - respects Reduce Motion and does not require timed dismissal to be understood.
+- Ordinary Undo expires after six seconds; VoiceOver and accessibility text
+  sizes keep it available until an action or navigation replaces it. Wrapped
+  accessibility toasts use the card radius so their text is not clipped by a
+  capsule.
 
 ## Page recipes
 

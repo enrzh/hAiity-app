@@ -138,6 +138,12 @@ final class UndoExactnessTests: XCTestCase {
 
 /// Der Zustandsautomat des Toasts — ohne SwiftUI prüfbar.
 final class UndoToastStateTests: XCTestCase {
+    func testAssistiveReadingHasNoExpiryDeadline() {
+        XCTAssertNil(UndoToastState.lifetime(voiceOver: true, largeText: false))
+        XCTAssertNil(UndoToastState.lifetime(voiceOver: false, largeText: true))
+        XCTAssertEqual(UndoToastState.lifetime(voiceOver: false, largeText: false), 6)
+    }
+
     func testStartsEmpty() {
         let state = UndoToastState()
         XCTAssertNil(state.current)

@@ -217,7 +217,6 @@
 		DF2B1B10586C112319138E94 /* GitHubContributionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE78D3F50802D61583AF6FE4 /* GitHubContributionModels.swift */; };
 		DFEEE843071CDF08B3D6FA47 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A965D62A77EE176C1649E3C4 /* Localizable.xcstrings */; };
 		E0DD811FA348D51D0B0E7772 /* VoiceCreateSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C57AC69A9D17FFADF89CBF /* VoiceCreateSheetTests.swift */; };
-		E0E3E97B0C71C6A9A3B18E2E /* VoiceWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */; };
 		E2CA83EDB6EDFCA4BC03F224 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F9D55773D83EB0F91C64E /* ShareCardView.swift */; };
 		E326A92DB11D9802A45C7A18 /* RecurrenceText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F15FE0042D351865BF907B3 /* RecurrenceText.swift */; };
 		E3902454417B275FE5A8BF4F /* OnDeviceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9320D1BBAE280F927079882D /* OnDeviceModel.swift */; };
@@ -312,7 +311,6 @@
 		14F2579B3CB56539C9201629 /* SiriIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntentTests.swift; sourceTree = "<group>"; };
 		16A494D858754FEF9344A9CB /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		17504878E3315A0FC287499E /* HabitTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTimeTests.swift; sourceTree = "<group>"; };
-		1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveform.swift; sourceTree = "<group>"; };
 		1ADD4B462108A54E97CAC743 /* GitHubCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCredentials.swift; sourceTree = "<group>"; };
 		1B20632DF097CB569849CA67 /* GesturePerfTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GesturePerfTests.swift; sourceTree = "<group>"; };
 		1DFDC9742F618CE927094067 /* GitHubPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubPreferencesTests.swift; sourceTree = "<group>"; };
@@ -644,7 +642,6 @@
 				2E5DABD63C9237AA5A281CF5 /* StatsView.swift */,
 				200E5EF258DF9AC750B77645 /* SwipeRevealPan.swift */,
 				4C07A90E12C1CAC5ACB4EB1A /* TodayProgressView.swift */,
-				1A98158E7EDF2E9361C1A111 /* VoiceWaveform.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1254,7 +1251,6 @@
 				9499A41ED752CCD7D28CAA6C /* SyncWatermark.swift in Sources */,
 				CCB7B1C9107C136413559C85 /* Theme.swift in Sources */,
 				1628FA2E2EF4E5029FEFDBA6 /* TodayProgressView.swift in Sources */,
-				E0E3E97B0C71C6A9A3B18E2E /* VoiceWaveform.swift in Sources */,
 				9C545FC8CD4CC4B53DCD3A3F /* WidgetGridViews.swift in Sources */,
 				7EC98172D1F62DCDE5FEC49B /* WidgetLogic.swift in Sources */,
 			);

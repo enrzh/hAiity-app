@@ -77,7 +77,7 @@ struct LocalModelDescriptor: Identifiable, Equatable, Hashable, Sendable {
 enum LanguageCatalog {
 
     /// Kept in step with `Localizable.xcstrings`; the test that matters is
-    /// `testEveryLanguageInTheAppIsOfferedByTheMultilingualModel`.
+    /// `testTheMultilingualModelCoversEveryLanguageTheAppShips`.
     static let supported = ["de", "en", "ru", "zh", "vi", "tr", "es", "fr", "it", "ja", "ko", "pt"]
 
     static func displayName(for code: String) -> String {
