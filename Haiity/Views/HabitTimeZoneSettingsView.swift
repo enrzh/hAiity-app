@@ -82,7 +82,10 @@ struct HabitTimeZoneList: View {
         .settingsChrome()
     }
 
-    /// Inset to the text edge, matching the hub's grouped rows.
+    /// `gap` — not the hub's `rowTitleInset`, and not this list's text edge
+    /// either. `zoneRow` puts its label at 24 + gap behind an icon, while the
+    /// globe row has no icon at all, so the list has no single edge to line up
+    /// with; naming one would fit most rows and quietly misalign the rest.
     private var zoneDivider: some View {
         Divider().padding(.leading, Theme.Metrics.gap)
     }

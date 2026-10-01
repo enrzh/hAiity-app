@@ -2,6 +2,62 @@ import SwiftUI
 
 /// Shared icon treatment for settings and utility rows. The caller keeps
 /// ownership of the meaning and action; this view only aligns the visual slot.
+/// The shell every settings page sits in: one scroll view, the shared gutter,
+/// the tab-bar clearance, and the chrome that makes a page read as settings.
+///
+/// It was written out eight times. All eight copies agreed on every value — which
+/// is precisely the argument for moving them, because agreement between copies is
+/// enforced by nobody: a page that quietly lost `.settingsChrome()` or the gutter
+/// would look perfectly fine on its own and only be wrong when held next to a
+/// sibling. One definition makes that class of drift impossible rather than
+/// unlikely.
+///
+/// Deliberately narrow. The pages that do NOT use it — the More hub, the
+/// appearance page with its per-section panels, the about page with its extra top
+/// inset — differ on purpose, and a component wide enough to absorb them would
+/// carry a knob per caller and stop being a rule.
+struct SettingsPage<Content: View>: View {
+    /// Root pages name themselves in the header; pushed subpages already carry a
+    /// title in the navigation bar.
+    var title: String?
+
+    @ViewBuilder var content: Content
+
+    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        headed
+    }
+
+    /// The two modifiers are independent, so the order between them is not a
+    /// rendering question — but the copies disagreed about it anyway (five put
+    /// chrome first, one put the header first), which is exactly the sort of
+    /// thing an agreed shell should stop recording differently in each file.
+    @ViewBuilder private var headed: some View {
+        if let title {
+            scroll.appPageHeader(title)
+        } else {
+            scroll
+        }
+    }
+
+    private var scroll: some View {
+        ScrollView {
+            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                content
+            }
+            .padding(.horizontal, Theme.Metrics.gutter)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+        }
+        .scrollIndicators(.hidden)
+        .softScrollEdges()
+        .settingsChrome()
+    }
+}
+
 struct AppIconBadge: View {
     let symbol: String
     var tint: Color?

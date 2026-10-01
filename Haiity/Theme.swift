@@ -1065,6 +1065,18 @@ enum Theme {
         /// auf einer Linie sitzen; die Punktgrößen darin sind optisch
         /// abgeglichen (siehe ContentView.glyph).
         static let glyph: CGFloat = 32
+        /// Wo die Zeile beginnt, die ein Chrom-Symbol trägt: Symbolbreite plus
+        /// den Abstand, den `AppSettingsRow` zwischen Symbol und Text setzt.
+        ///
+        /// **Warum das eine Konstante ist:** dieselbe Zahl stand als `48`, als
+        /// `44`, als `glyph + gap + 4` und als bloßes `8` — in fünf Dateien,
+        /// ohne dass eine Stelle wusste, dass die anderen dieselbe Regel
+        /// meinten. 48 war um vier zu weit hinaus, 8 landete vor dem Symbol.
+        /// Wer einen Trenner setzt, meint ohnehin meistens genau das hier und
+        /// braucht es nicht selbst aus drei Zahlen zusammenzurechnen.
+        ///
+        /// Nur für Zeilen MIT Symbol: eine Zeile ohne beginnt bei 0.
+        static let rowTitleInset: CGFloat = glyph + gap + 4
     }
 }
 

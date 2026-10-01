@@ -29,8 +29,9 @@ struct CustomPaletteSheet: View {
             // Same continuous surface as every other More sub-page, not a stock
             // `Form`: iOS 27 drops taps on grouped list rows, and this sheet is
             // all tap targets.
-            ScrollView {
-                VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            SettingsPage(title: existing == nil
+                           ? String(localized: "Eigene Farbe")
+                           : String(localized: "Farbe bearbeiten")) {
                     AppSettingsGroup(title: String(localized: "Grundfarbe")) {
                         HueTileGrid(selected: base) { color = Theme.color($0) }
                             .padding(.vertical, 4)
@@ -56,16 +57,7 @@ struct CustomPaletteSheet: View {
                         TextField(String(localized: "Name (z. B. Petrol)"), text: $name)
                             .accessibilityIdentifier("custom-palette-name")
                     }
-                }
-                .padding(.horizontal, Theme.Metrics.gutter)
-                .padding(.bottom, ChromeLayout.nativeTabBarClearance)
             }
-            .scrollIndicators(.hidden)
-            .softScrollEdges()
-            .settingsChrome()
-            .appPageHeader(existing == nil
-                           ? String(localized: "Eigene Farbe")
-                           : String(localized: "Farbe bearbeiten"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Abbrechen")) { dismiss() }
@@ -87,7 +79,11 @@ struct CustomPaletteSheet: View {
         }
     }
 
-    /// Inset to the text edge, matching the other settings groups.
+    /// `gap`, and deliberately not the text edge — because there isn't one
+    /// here. This single view sits between two different rows: the preview's
+    /// label starts at 0, the eyedropper's sits behind its own icon. Any inset
+    /// that met one would miss the other, so this keeps the small consistent
+    /// value and says so instead of claiming a rule it does not implement.
     private var groupDivider: some View {
         Divider().padding(.leading, Theme.Metrics.gap)
     }

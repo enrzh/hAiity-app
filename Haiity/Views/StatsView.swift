@@ -779,7 +779,7 @@ struct StatsView: View {
                         }
                     }
                     if index < visibleActiveTrackedHabits.count - 1 {
-                        Divider().padding(.leading, 44)
+                        Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     }
                 }
             }

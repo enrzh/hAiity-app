@@ -973,7 +973,8 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertFalse(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
                        "More groups should stay on the continuous page plane")
         XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("AppSettingsGroup"))
-        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("settingsChrome()"))
+        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("SettingsPage"),
+                      "the behaviour page gets its chrome from the shared shell")
     }
 
     func testTaskOneSharedSettingsSurfaceContractIsScopedToItsImplementations() throws {
@@ -1061,8 +1062,8 @@ final class AppearanceSettingTests: XCTestCase {
             let source = try String(contentsOf: root.appendingPathComponent(file))
             XCTAssertTrue(source.contains("AppSettingsGroup"),
                           "(file) should use the shared settings group surface")
-            XCTAssertTrue(source.contains("settingsChrome()"),
-                          "(file) should keep the shared non-List chrome")
+            XCTAssertTrue(source.contains("settingsChrome()") || source.contains("SettingsPage"),
+                          "(file) should keep the shared non-List chrome, in place or via SettingsPage")
             XCTAssertFalse(source.contains("List {"),
                            "(file) must not return to a List, which drops taps on iOS 27")
         }
@@ -1084,7 +1085,12 @@ final class AppearanceSettingTests: XCTestCase {
                        "timezone rows must not bypass the selected appearance")
         XCTAssertTrue(timezone.contains("AppSettingsGroup"),
                       "timezone groups must use the same material-backed group surface as More")
-        XCTAssertTrue(more.contains(".appPageHeader(String(localized: \"Konto\"))"),
+        // The header is now asked for rather than applied: `SettingsPage` owns
+        // `appPageHeader`, so a page keeping "the shared secondary-page header"
+        // means passing its title to the shell. Asserting the old literal would
+        // have demanded a page paint its own header — the duplication this
+        // whole change exists to remove.
+        XCTAssertTrue(more.contains("SettingsPage(title: String(localized: \"Konto\"))"),
                       "Account must keep the shared secondary-page header")
         XCTAssertTrue(more.contains("private var personalSection: some View")
                       && more.contains("AppSettingsGroup"),

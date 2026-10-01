@@ -257,10 +257,8 @@ final class AppNavigationTests: XCTestCase {
                       "the page must render its catalogue")
         XCTAssertFalse(pageBody.contains(".morePanel()"),
                        "the group brings its own panel; a second one nests inside it")
-        XCTAssertTrue(pageBody.contains("Theme.Metrics.gutter"),
-                      "the model page sits on the same gutter as every sibling page")
-        XCTAssertTrue(pageBody.contains("ScrollView"))
-        XCTAssertTrue(pageBody.contains(".settingsChrome()"))
+        XCTAssertTrue(pageBody.contains("SettingsPage"),
+                      "the model page sits in the shell every sibling page sits in")
 
         // And the catalogue itself is built from the shared group, which is what
         // carries the surface the page must show.

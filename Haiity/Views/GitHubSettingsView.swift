@@ -16,18 +16,10 @@ struct GitHubSettingsView: View {
     var body: some View {
         // Not a `List`: iOS 27 drops taps on grouped list rows. The hub already
         // uses the continuous group surface, and this page now matches it.
-        ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        SettingsPage(title: "GitHub") {
                 connectionGroup
                 displayGroup
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .scrollIndicators(.hidden)
-        .softScrollEdges()
-        .appPageHeader("GitHub")
-        .settingsChrome()
         .onAppear {
             // No copying here. The code used to be put on the pasteboard the
             // moment this page appeared, which overwrote whatever the person was
@@ -59,7 +51,7 @@ struct GitHubSettingsView: View {
                 connectionStatusRow
                 contributionPreview
                 Divider()
-                    .padding(.leading, 44)
+                    .padding(.leading, Theme.Metrics.rowTitleInset)
                     .padding(.vertical, 4)
                 connectionControls
             }
@@ -95,7 +87,7 @@ struct GitHubSettingsView: View {
                 .accessibilityIdentifier("github-username-toggle")
 
                 Divider()
-                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap + 4)
+                    .padding(.leading, Theme.Metrics.rowTitleInset)
 
                 Toggle(isOn: $showsMonthLabels) {
                     AppSettingsRow(title: String(localized: "GitHub-Monate anzeigen"),

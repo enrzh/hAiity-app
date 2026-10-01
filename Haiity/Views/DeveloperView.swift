@@ -76,8 +76,7 @@ struct DeveloperView: View {
     var body: some View {
         // Not a `List`: iOS 27 drops taps on grouped list rows, and this page
         // is a column of tappable diagnostics and actions.
-        ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        SettingsPage(title: String(localized: "Entwickler")) {
                 appSection
                 dataSection
                 cloudSection
@@ -87,14 +86,7 @@ struct DeveloperView: View {
                 dataTransferSection
                 actionSection
                 ownerSection
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .scrollIndicators(.hidden)
-        .softScrollEdges()
-        .settingsChrome()
-        .appPageHeader(String(localized: "Entwickler"))
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in

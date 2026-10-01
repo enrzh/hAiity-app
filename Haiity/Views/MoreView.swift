@@ -290,15 +290,9 @@ struct MoreView: View {
         .sheet(isPresented: $showingPersonalSettings) {
             NavigationStack {
                 // Not a `List`: iOS 27 drops taps on grouped list rows.
-                ScrollView {
+                SettingsPage(title: String(localized: "Konto")) {
                     personalSection
-                        .padding(.horizontal, Theme.Metrics.gutter)
-                        .padding(.bottom, ChromeLayout.nativeTabBarClearance)
                 }
-                .scrollIndicators(.hidden)
-                .softScrollEdges()
-                .settingsChrome()
-                .appPageHeader(String(localized: "Konto"))
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button(String(localized: "Fertig")) { showingPersonalSettings = false }
@@ -312,15 +306,9 @@ struct MoreView: View {
         .sheet(isPresented: $showingNotificationSettings) {
             NavigationStack {
                 // Not a `List`: iOS 27 drops taps on grouped list rows.
-                ScrollView {
+                SettingsPage(title: String(localized: "Mitteilungen")) {
                     notificationSettingsSection
-                        .padding(.horizontal, Theme.Metrics.gutter)
-                        .padding(.bottom, ChromeLayout.nativeTabBarClearance)
                 }
-                .scrollIndicators(.hidden)
-                .softScrollEdges()
-                .settingsChrome()
-                .appPageHeader(String(localized: "Mitteilungen"))
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button(String(localized: "Fertig")) { showingNotificationSettings = false }
@@ -449,14 +437,14 @@ struct MoreView: View {
                             title: String(localized: "Darstellung"),
                             symbol: "paintpalette",
                             identifier: "open-appearance")
-                    Divider().padding(.leading, 48)
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Mitteilungen"),
                                detail: String(localized: "Zusammenfassungen und Ruhezeiten"),
                                symbol: "bell",
                                identifier: "open-notifications") {
                         showingNotificationSettings = true
                     }
-                    Divider().padding(.leading, 48)
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     pageRow(MoreRoute.habitBehavior,
                             title: String(localized: "Verhalten & Teilen"),
                             symbol: "hand.draw",
@@ -466,14 +454,14 @@ struct MoreView: View {
 
                 AppSettingsGroup(title: String(localized: "Konto & Verbindungen")) {
                     moreGitHubRow
-                    Divider().padding(.leading, 48)
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Konto"),
                                detail: String(localized: "Alias und Apple-Anmeldung"),
                                symbol: "person.crop.circle",
                                identifier: "open-account") {
                         showingPersonalSettings = true
                     }
-                    Divider().padding(.leading, 48)
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Setup wiederholen"),
                                detail: String(localized: "Mitteilungen und Kalender konfigurieren"),
                                symbol: "arrow.clockwise",
@@ -487,7 +475,7 @@ struct MoreView: View {
                             title: String(localized: "Archiv"),
                             symbol: "archivebox",
                             identifier: "open-archive")
-                    Divider().padding(.leading, 48)
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     pageRow(.about,
                             title: String(localized: "Über & Datenschutz"),
                             symbol: "lock.shield",
@@ -631,8 +619,7 @@ struct MoreView: View {
     private var habitBehaviorSettings: some View {
         // Not a `List`: iOS 27 drops taps on grouped list rows, and this page is
         // nothing but tappable settings controls.
-        ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        SettingsPage {
                 cloudSyncSection
                 autoArchiveSection
                 swipeActionsSection
@@ -653,7 +640,14 @@ struct MoreView: View {
                     // is what the developer row does.
                     NavigationLink(value: MoreRoute.localModel) {
                         AppSettingsRow(title: String(localized: "Modell auf dem Gerät"),
-                                       detail: modelService.selectedModel.displayName,
+                                       // `usableModel`, not `selectedModel` — the footer directly
+                                       // above asks "welches Modell liest", and this row answered with
+                                       // the CHOICE rather than with the answer. A model that has been
+                                       // picked but not downloaded cannot load, so the line claimed a
+                                       // reader the device does not have. The detail page still shows
+                                       // which one is chosen and which are on disk; this row says what
+                                       // happens.
+                                       detail: modelService.usableModel.displayName,
                                        symbol: "cpu",
                                        showsChevron: true) {
                             EmptyView()
@@ -661,13 +655,7 @@ struct MoreView: View {
                     }
                     .accessibilityIdentifier("open-local-model")
                 }
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .scrollIndicators(.hidden)
-        .softScrollEdges()
-        .settingsChrome()
     }
 
     /// Sync status is useful while editing integration behavior, but does not
@@ -688,16 +676,9 @@ struct MoreView: View {
         // where the component puts them outside, and dropped the gutter that
         // every sibling page uses.
         // The heading is still dropped, because the navigation bar names the page.
-        ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        SettingsPage {
                 localModelSection
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
-        .scrollIndicators(.hidden)
-        .softScrollEdges()
-        .settingsChrome()
         // Without this the last line of the footnote sits flush against the
         // bottom edge and is cut in half, which reads as a layout fault rather
         // than as a scroll that could continue.
@@ -1456,8 +1437,7 @@ struct MoreView: View {
         NavigationStack {
             // Not a `List`: iOS 27 drops taps on grouped list rows, and every
             // row here is a tap target.
-            ScrollView {
-                VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            SettingsPage(title: String(localized: "Kalenderziel")) {
                     AppSettingsGroup(title: String(localized: "Auswahl")) {
                         calendarOptionRow(title: String(localized: "Automatisch"),
                                           subtitle: nil,
@@ -1487,14 +1467,7 @@ struct MoreView: View {
                             }
                         }
                     }
-                }
-                .padding(.horizontal, Theme.Metrics.gutter)
-                .padding(.bottom, ChromeLayout.nativeTabBarClearance)
             }
-            .scrollIndicators(.hidden)
-            .softScrollEdges()
-            .settingsChrome()
-            .appPageHeader(String(localized: "Kalenderziel"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Abbrechen")) {
