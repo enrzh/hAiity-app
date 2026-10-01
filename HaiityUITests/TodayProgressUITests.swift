@@ -218,10 +218,12 @@ final class TodayProgressUITests: XCTestCase {
         let app = launch()
         let history = app.descendants(matching: .any)["habit-history"].firstMatch
         XCTAssertTrue(history.waitForExistence(timeout: 15), "the Habits page has no history row")
-        XCTAssertTrue(history.isHittable)
+        XCTAssertTrue(history.isHittable, "the history row exists but cannot be tapped")
         history.tap()
-        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["history-month-preview"].exists)
+        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5),
+                      "the history sheet did not open")
+        XCTAssertTrue(app.descendants(matching: .any)["history-month-preview"].exists,
+                      "the sheet opened without a month preview")
         app.buttons["history-previous-month"].tap()
         app.buttons["history-selection-mode"].tap()
         app.buttons["history-select-all"].tap()
@@ -229,11 +231,20 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertGreaterThan(rows.count, 0)
         let status = app.staticTexts["backfill-status"]
         let originalStatus = status.label
-        XCTAssertTrue(originalStatus.contains("31"))
+        // The count has to be read off the page, not out of the calendar.
+        //
+        // It used to be `contains("31")` — correct only in a month where the
+        // previous calendar month has 31 days, so this test passed or failed
+        // depending on the date it was run on, and needed no code change at all
+        // to start failing. What the assertion is actually about is that
+        // "select all" selected every day on screen and the status says so.
+        let selectedCount = Int(originalStatus.prefix(while: { $0.isNumber })) ?? -1
+        XCTAssertEqual(selectedCount, rows.count,
+                       "\"\(originalStatus)\" does not account for the \(rows.count) rows on screen")
         let before = rows.firstMatch.label
         app.buttons["backfill-action-clear"].tap()
         XCTAssertNotEqual(status.label, originalStatus)
-        XCTAssertTrue(app.buttons["history-undo"].isEnabled)
+        XCTAssertTrue(app.buttons["history-undo"].isEnabled, "undo never became available")
         app.buttons["history-undo"].tap()
         XCTAssertEqual(rows.firstMatch.label, before)
         XCTAssertEqual(status.label, originalStatus)
@@ -242,7 +253,7 @@ final class TodayProgressUITests: XCTestCase {
         rows.element(boundBy: 1).tap()
         capture("history-entry-editor")
         app.buttons["backfill-close"].tap()
-        XCTAssertTrue(history.waitForExistence(timeout: 5))
+        XCTAssertTrue(history.waitForExistence(timeout: 5), "the history row vanished after closing")
     }
 
     func testHistoryQuantityUpdateUndoAndMissingFilter() {
