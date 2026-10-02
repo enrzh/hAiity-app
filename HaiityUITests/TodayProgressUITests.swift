@@ -222,35 +222,62 @@ final class TodayProgressUITests: XCTestCase {
         for appearance in ["light", "dark"] {
             let app = launch("crowded", appearance: appearance, screen: "more", account: "connected")
             let account = app.buttons["open-account"]
-            XCTAssertTrue(account.waitForExistence(timeout: 15))
-            for _ in 0..<5 where !account.isHittable { app.swipeUp() }
-            XCTAssertTrue(app.buttons["apple-signout-more"].isHittable)
+            XCTAssertTrue(account.waitForExistence(timeout: 20))
+            for _ in 0..<8 where !account.isHittable { app.swipeUp() }
+            let hubSignOut = app.buttons["apple-signout-more"]
+            XCTAssertTrue(hubSignOut.waitForExistence(timeout: 10))
+            for _ in 0..<5 where !hubSignOut.isHittable { app.swipeUp() }
+            XCTAssertTrue(hubSignOut.isHittable)
             capture("apple-account-more-\(appearance)")
             account.tap()
             let alias = app.textFields["personal-alias"]
-            XCTAssertTrue(alias.waitForExistence(timeout: 5))
+            XCTAssertTrue(alias.waitForExistence(timeout: 15))
             XCTAssertEqual(alias.value as? String, "Alex")
-            XCTAssertTrue(app.staticTexts["Hello, Alex"].exists)
+            // Cloud workers may keep the development-region UI language; match
+            // the greeting by content rather than a single localized string.
+            assertGreeting(in: app, contains: "Alex")
             XCTAssertFalse(app.buttons["copy-unrecognized-apple-user-id"].exists)
             XCTAssertFalse(app.staticTexts["fixture-apple-account"].exists)
             let preview = app.descendants(matching: .any)["account-motivation-preview"].firstMatch
+            XCTAssertTrue(preview.waitForExistence(timeout: 10))
             XCTAssertTrue(preview.label.contains("Alex"))
             capture("apple-account-connected-\(appearance)")
             alias.tap()
             alias.typeText(" Taylor")
-            XCTAssertTrue(app.staticTexts["Hello, Alex Taylor"].exists)
+            assertGreeting(in: app, contains: "Alex Taylor", timeout: 10)
             XCTAssertTrue(preview.label.contains("Alex Taylor"), "the preview must use the edited alias immediately")
-            app.buttons["Done"].firstMatch.tap()
-            XCTAssertTrue(app.buttons["apple-signout-more"].waitForExistence(timeout: 5))
+            dismissAccountKeyboard(in: app)
+            XCTAssertTrue(app.buttons["apple-signout-more"].waitForExistence(timeout: 15))
             app.buttons["apple-signout-more"].tap()
-            XCTAssertTrue(app.buttons["apple-signin-more"].waitForExistence(timeout: 5),
+            XCTAssertTrue(app.buttons["apple-signin-more"].waitForExistence(timeout: 15),
                           "logout on the hub must expose native sign-in without opening the account page")
             account.tap()
-            XCTAssertTrue(alias.waitForExistence(timeout: 5))
+            XCTAssertTrue(alias.waitForExistence(timeout: 15))
             XCTAssertEqual(alias.value as? String, "Alex Taylor", "sign-out must keep the local alias")
-            XCTAssertTrue(app.staticTexts["Hello, Alex Taylor"].exists)
+            assertGreeting(in: app, contains: "Alex Taylor")
             app.terminate()
         }
+    }
+
+    private func assertGreeting(in app: XCUIApplication, contains name: String, timeout: TimeInterval = 10) {
+        let greeting = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@ AND (label BEGINSWITH %@ OR label BEGINSWITH %@)",
+                        name, "Hello,", "Hallo,")
+        ).firstMatch
+        XCTAssertTrue(greeting.waitForExistence(timeout: timeout),
+                      "expected a Hello/Hallo greeting containing \(name)")
+    }
+
+    private func dismissAccountKeyboard(in app: XCUIApplication) {
+        let done = app.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Done", "Fertig")
+        ).firstMatch
+        if done.waitForExistence(timeout: 3) {
+            done.tap()
+            return
+        }
+        // Keyboard accessory may be absent on Cloud; dismiss by ending editing.
+        app.swipeDown()
     }
 
     func testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance() {
