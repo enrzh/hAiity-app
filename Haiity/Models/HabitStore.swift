@@ -1669,6 +1669,7 @@ final class HabitStore {
                     lh.itemType = rh.itemType
                     lh.reminderMinutes = rh.reminderMinutes
                     lh.timeMinutes = rh.timeMinutes
+                    lh.notificationTimes = rh.notificationTimes
                     lh.notificationMode = rh.notificationMode
                     lh.calendarSyncEnabled = rh.calendarSyncEnabled
                     lh.timeZoneIdentifier = rh.timeZoneIdentifier

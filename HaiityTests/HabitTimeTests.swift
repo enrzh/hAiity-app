@@ -157,7 +157,8 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains("Button(String(localized: \"Nicht jetzt\"), role: .cancel) { dismiss() }"))
         XCTAssertTrue(source.contains(".interactiveDismissDisabled(isSaving || savedWhileAwaitingPermission)"))
         XCTAssertTrue(source.contains(".disabled(isSaving || savedWhileAwaitingPermission)"))
-        XCTAssertTrue(source.contains("guard draft.hasTime, notificationMode != .off"))
+        XCTAssertTrue(source.contains("guard (draft.hasTime || notificationTimes != nil), notificationMode != .off"))
+        XCTAssertTrue(source.contains("!habit.effectiveNotificationTimes.isEmpty"))
         XCTAssertTrue(source.contains("if existing == nil { store.add(habit) } else { store.update(habit) }"))
     }
 

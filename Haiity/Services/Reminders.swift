@@ -357,6 +357,10 @@ enum Reminders {
         "\(habitReminderPrefix)\(habitID.uuidString)-\(day)"
     }
 
+    static func habitReminderIdentifier(habitID: UUID, day: String, minutes: Int) -> String {
+        "\(habitReminderIdentifier(habitID: habitID, day: day))-t\(minutes)"
+    }
+
     static func sessionMilestoneIdentifier(_ session: HabitSession) -> String {
         "\(sessionMilestonePrefix)\(session.id.uuidString)"
     }
@@ -601,59 +605,60 @@ enum Reminders {
                            defaultTimeZoneIdentifier: String? = nil,
                            now: Date = Date(),
                            calendar: Calendar = .current) -> [ReminderPlan] {
-        var plans: [ReminderPlan] = []
+        var candidates: [(plan: ReminderPlan, fire: Date)] = []
         let notified = habits.filter {
             $0.archivedAt == nil
                 && $0.notificationsEnabled
+                && !$0.effectiveNotificationTimes.isEmpty
         }
         let budget = habitRequestBudget(reservingMotivation: reservingMotivation)
-        let window = reminderWindow(timedHabitCount: notified.count,
+        let timeCount = notified.reduce(0) { $0 + $1.effectiveNotificationTimes.count }
+        let window = reminderWindow(timedHabitCount: timeCount,
                                     reservingMotivation: reservingMotivation)
-        // Das Fenster allein reicht als Deckel NICHT: es kann nicht unter
-        // einen Tag fallen, also ergäben 50 Habits mit Uhrzeit 50 Anfragen —
-        // mehr, als den Habits zusteht. Ab hier zählt zusätzlich die
-        // GESAMTZAHL. Abgeschnitten wird am Ende der Liste; ohne diese Zeile
-        // schnitte iOS selbst ab, nur stumm und ohne zu sagen, wo.
-        outer: for habit in notified {
-            guard plans.count < budget else { break outer }
+        for habit in notified {
             let habitCalendar = HabitTimeZone.calendar(for: habit,
                                                        defaultIdentifier: defaultTimeZoneIdentifier,
                                                        base: calendar)
             let today = DayKey.key(for: now, calendar: habitCalendar)
-            let minutes = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes)
-                ?? Habit.defaultNotificationMinutes
+            let times = habit.effectiveNotificationTimes
             if habit.isReminder, !habit.repeatsWhileIncomplete {
                 let state = ReminderOccurrenceEngine.state(for: habit, now: now,
                                                            calendar: habitCalendar)
-                guard let occurrence = state.actionable, occurrence.dueDate > now,
-                      let plan = habitPlan(habit: habit, day: occurrence.day,
-                                           minutes: minutes,
-                                           notificationActions: notificationActions,
-                                           calendar: habitCalendar)
-                else { continue }
-                plans.append(plan)
+                guard let occurrence = state.actionable else { continue }
+                for minutes in times {
+                    if let plan = habitPlan(habit: habit, day: occurrence.day, minutes: minutes,
+                                            notificationActions: notificationActions, calendar: habitCalendar),
+                       let fire = habitCalendar.date(from: plan.dateMatching), fire > now {
+                        candidates.append((plan, fire))
+                    }
+                }
                 continue
             }
             var day = today
             for offset in 0..<window {
-                guard plans.count < budget else { break outer }
                 if offset > 0 {
                     guard let next = DayKey.shifted(day, by: 1, calendar: habitCalendar) else { break }
                     day = next
                 }
                 guard reminderWorthy(habit: habit, day: day, today: today, calendar: habitCalendar),
-                      !habit.isDone(day), !habit.isAnswered(day)
+                      !GoalEngine.dayCounts(habit: habit, day: day, calendar: habitCalendar),
+                      !habit.isAnswered(day)
                 else { continue }
-                guard let plan = habitPlan(habit: habit, day: day,
-                                           minutes: minutes,
-                                           notificationActions: notificationActions,
-                                           calendar: habitCalendar),
-                      let fire = habitCalendar.date(from: plan.dateMatching), fire > now
-                else { continue }
-                plans.append(plan)
+                for minutes in times {
+                    if let plan = habitPlan(habit: habit, day: day, minutes: minutes,
+                                            notificationActions: notificationActions, calendar: habitCalendar),
+                       let fire = habitCalendar.date(from: plan.dateMatching), fire > now {
+                        candidates.append((plan, fire))
+                    }
+                }
             }
         }
-        return plans
+        // Earliest alerts across all items get the finite system slots, so one
+        // item with several times cannot consume the budget with distant days.
+        return candidates.enumerated().sorted {
+            $0.element.fire == $1.element.fire
+                ? $0.offset < $1.offset : $0.element.fire < $1.element.fire
+        }.prefix(budget).map { $0.element.plan }
     }
 
     /// Compatibility overload for callers from the one-action build.
@@ -680,7 +685,10 @@ enum Reminders {
         components.minute = minutes % 60
         components.timeZone = calendar.timeZone
         let label = habit.emoji.isEmpty ? habit.name : "\(habit.emoji) \(habit.name)"
-        return ReminderPlan(identifier: habitReminderIdentifier(habitID: habit.id, day: day),
+        let identifier = habit.notificationTimes == nil
+            ? habitReminderIdentifier(habitID: habit.id, day: day)
+            : habitReminderIdentifier(habitID: habit.id, day: day, minutes: minutes)
+        return ReminderPlan(identifier: identifier,
                             title: label,
                             body: String(localized: "Zeit für \(habit.name)"),
                             dateMatching: components,
@@ -697,9 +705,13 @@ enum Reminders {
         guard identifier.hasPrefix(habitReminderPrefix) else { return nil }
         let payload = String(identifier.dropFirst(habitReminderPrefix.count))
         let parts = payload.split(separator: "-")
-        guard parts.count == 8 else { return nil }
+        guard parts.count == 8 || parts.count == 9 else { return nil }
+        if parts.count == 9 {
+            guard parts[8].first == "t", let minutes = Int(parts[8].dropFirst()),
+                  Habit.sanitizedMinutes(minutes) != nil else { return nil }
+        }
         let uuidText = parts.prefix(5).joined(separator: "-")
-        let day = parts.suffix(3).joined(separator: "-")
+        let day = parts[5...7].joined(separator: "-")
         guard let habitID = UUID(uuidString: uuidText), DayKey.isValid(day) else { return nil }
         return NotificationHabitTarget(habitID: habitID, day: day)
     }
@@ -945,7 +957,7 @@ enum Reminders {
             return store.lastWriteError == nil
         }
 
-        guard !habit.isDone(target.day) else { return false }
+        guard !GoalEngine.dayCounts(habit: habit, day: target.day, calendar: habitCalendar) else { return false }
         switch habit.kind {
         case .quantity:
             store.increment(habit.id, day: target.day)

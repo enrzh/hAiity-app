@@ -92,6 +92,13 @@ struct Habit: Codable, Identifiable, Equatable {
     /// Gemeinsame Termin- und Erinnerungszeit in Minuten seit Mitternacht;
     /// nil = ohne Uhrzeit und ohne habit-spezifische Erinnerung.
     var timeMinutes: Int?
+    /// nil follows the scheduled time (or the existing 09:00 fallback).
+    /// An explicit list stores independent same-day notification times; [] is silent.
+    var notificationTimes: [Int]?
+    var effectiveNotificationTimes: [Int] {
+        Self.normalizedNotificationTimes(notificationTimes
+            ?? [Self.sanitizedMinutes(timeMinutes ?? reminderMinutes) ?? Self.defaultNotificationMinutes])
+    }
     /// Ob dieses Element eine eigene lokale Mitteilung planen darf. Kalender-
     /// und Apple-Erinnerungen-Sync bleiben davon unberührt.
     var notificationMode: HabitNotificationMode
@@ -179,7 +186,8 @@ struct Habit: Codable, Identifiable, Equatable {
          kind: HabitKind = .checkbox,
          durationMinutes: Int? = nil,
          notificationsEnabled: Bool = true,
-         notificationMode: HabitNotificationMode? = nil) {
+         notificationMode: HabitNotificationMode? = nil,
+         notificationTimes: [Int]? = nil) {
         self.id = UUID()
         self.name = name
         self.emoji = emoji
@@ -187,6 +195,7 @@ struct Habit: Codable, Identifiable, Equatable {
         self.createdAt = DayKey.today()
         self.reminderMinutes = reminderMinutes
         self.timeMinutes = Habit.sanitizedMinutes(timeMinutes)
+        self.notificationTimes = notificationTimes.map(Self.normalizedNotificationTimes)
         self.notificationMode = notificationMode ?? (notificationsEnabled ? .standard : .off)
         self.calendarSyncEnabled = true
         self.timeZoneIdentifier = nil
@@ -221,6 +230,10 @@ extension Habit {
         value.flatMap { (0..<24 * 60).contains($0) ? $0 : nil }
     }
 
+    static func normalizedNotificationTimes(_ values: [Int]) -> [Int] {
+        Array(Set(values.filter { (0..<24 * 60).contains($0) })).sorted()
+    }
+
     /// Geplante Session-Dauer: mindestens 1 Minute, höchstens ein Tag.
     /// Dieselbe Idee wie `sanitizedMinutes` — ein importiertes „0" oder
     /// „100000" wird zu „ohne Dauer" statt zu einer absurden Vorgabe.
@@ -230,7 +243,7 @@ extension Habit {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, emoji, itemType, createdAt, reminderMinutes, timeMinutes,
-             notificationMode, notificationsEnabled,
+             notificationMode, notificationsEnabled, notificationTimes,
              calendarSyncEnabled, timeZoneIdentifier, repeatsWhileIncomplete, reminderCursor,
              log, missedDays, autoResolveChoice, archivedAt, goal, palette, swipeActions
         // Session-Dauer (geplant) und tatsächliche Minuten je Tag. Rein
@@ -278,6 +291,12 @@ extension Habit {
         // Fehlt der Schlüssel (jede Datei vor der Habit-Uhrzeit) oder steht
         // dort Unsinn: keine Uhrzeit statt eines Fehlers.
         timeMinutes = Habit.sanitizedMinutes(try c.decodeIfPresent(Int.self, forKey: .timeMinutes))
+        if c.contains(.notificationTimes), !(try c.decodeNil(forKey: .notificationTimes)) {
+            notificationTimes = Self.normalizedNotificationTimes(
+                (try? c.decode([Int].self, forKey: .notificationTimes)) ?? [])
+        } else {
+            notificationTimes = nil
+        }
         if let mode = try c.decodeIfPresent(HabitNotificationMode.self, forKey: .notificationMode) {
             notificationMode = mode
         } else {
@@ -338,6 +357,7 @@ extension Habit {
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(reminderMinutes, forKey: .reminderMinutes)
         try c.encodeIfPresent(timeMinutes, forKey: .timeMinutes)
+        try c.encodeIfPresent(notificationTimes.map(Self.normalizedNotificationTimes), forKey: .notificationTimes)
         try c.encode(notificationMode, forKey: .notificationMode)
         try c.encode(notificationMode != .off, forKey: .notificationsEnabled)
         if !calendarSyncEnabled { try c.encode(false, forKey: .calendarSyncEnabled) }

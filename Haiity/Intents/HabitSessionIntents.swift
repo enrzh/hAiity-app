@@ -29,6 +29,8 @@ struct FinishHabitSessionIntent: LiveActivityIntent {
             let store = HabitStore(url: SharedStorage.dataURL())
             HabitSessionCompletion.finish(store: store, session: session)
             try store.requireSuccessfulWrite()
+            await Reminders.reconcileAfterExternalCheckIn(store: store, habitID: session.habitID,
+                                                          defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier)
             HabitSessionStorage.clear()
             HabitSessionMilestoneControl.cancel(session)
         }

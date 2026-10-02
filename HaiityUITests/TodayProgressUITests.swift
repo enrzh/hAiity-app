@@ -551,6 +551,58 @@ final class TodayProgressUITests: XCTestCase {
         capture("creation-advanced")
     }
 
+    func testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes() {
+        for reminder in [false, true] {
+            let app = launch("mixed", appearance: reminder ? "dark" : "light")
+            func openEditor() {
+                if reminder {
+                    let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
+                    XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+                    for _ in 0..<10 where !edit.isHittable { app.swipeUp(velocity: .slow) }
+                    XCTAssertTrue(edit.isHittable)
+                    edit.tap()
+                } else {
+                    let graph = app.descendants(matching: .any)["habit-history"].firstMatch
+                    XCTAssertTrue(graph.waitForExistence(timeout: 15))
+                    graph.press(forDuration: 1)
+                    let edit = app.buttons["Edit"].firstMatch
+                    XCTAssertTrue(edit.waitForExistence(timeout: 5))
+                    edit.tap()
+                }
+                XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+            }
+            func showNotifications() {
+                let add = app.buttons["add-notification-time"]
+                for _ in 0..<12 where !add.isHittable { app.swipeUp(velocity: .slow) }
+                XCTAssertTrue(add.isHittable)
+            }
+            openEditor()
+            showNotifications()
+            app.buttons["add-notification-time"].tap()
+            app.buttons["add-notification-time"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["notification-time-2"].firstMatch.exists)
+            app.buttons["remove-notification-time-0"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["notification-time-1"].firstMatch.exists)
+            XCTAssertFalse(app.descendants(matching: .any)["notification-time-2"].firstMatch.exists)
+            capture(reminder ? "reminder-multiple-notifications" : "habit-multiple-notifications")
+            // Fixtures start with notifications off; save the configured times
+            // without requesting or changing system notification permission.
+            app.buttons["save-habit"].tap()
+            openEditor()
+            showNotifications()
+            XCTAssertTrue(app.descendants(matching: .any)["notification-time-1"].firstMatch.exists)
+            app.buttons["remove-notification-time-1"].tap()
+            app.buttons["remove-notification-time-0"].tap()
+            XCTAssertTrue(app.staticTexts["No notifications scheduled"].exists)
+            app.buttons["save-habit"].tap()
+            openEditor()
+            showNotifications()
+            XCTAssertFalse(app.descendants(matching: .any)["notification-time-0"].firstMatch.exists)
+            app.buttons["Cancel"].firstMatch.tap()
+            app.terminate()
+        }
+    }
+
     func testCrowdedListLargeTextKeepsPrimaryActionReachable() throws {
         let app = launch("crowded", largeText: true)
         let summary = app.descendants(matching: .any)["today-progress"].firstMatch

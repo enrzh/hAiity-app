@@ -378,6 +378,22 @@ repository. The on-device model restores variety without breaking it.
 A reminder is a statement that something is still outstanding. When it is not,
 it is noise, and the person who finished early is the one paying for it.
 
+Each habit or reminder can keep several same-day notification times in its own
+editor. Native time pickers and explicit add/remove actions work during creation
+and editing. Notification times stay separate from the scheduled time used for
+sorting and native Calendar/Reminders due dates. Existing items inherit their
+original notification time until the list is customized; removing every time
+keeps the item silent, including after reload or sync. Turning notifications off
+retains the configured times for later use.
+
+Every selected time follows the same recurrence, timezone and interruption
+level. Request IDs identify the item, occurrence day and time so the alerts do
+not replace each other. Completion or a yes/no answer cancels all remaining
+alerts for that day; a quantity habit stays outstanding until its target is met.
+The finite iOS request budget prioritizes the earliest alerts across items, and
+more notification times shorten the advance planning window. No new background
+scheduler or repeating nag loop is introduced.
+
 - **Per-habit reminders** are planned only for a day that is neither done nor
   answered. `habitPlans` skips it, and the pending request for that habit is
   removed and rebuilt on every check-in. Answering "no" counts as handled —

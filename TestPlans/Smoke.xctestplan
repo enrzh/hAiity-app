@@ -9,7 +9,8 @@
       "TodayProgressUITests/testReminderEditButtonPreservesCompletionAtBothTextSizes()",
       "TodayProgressUITests/testMigratedSettingsPagesKeepTheirRowsHittable()",
       "TodayProgressUITests/testAppleAccountPageHasLivePersonalizationAndIndependentHubActions()",
-      "TodayProgressUITests/testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance()"
+      "TodayProgressUITests/testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance()",
+      "TodayProgressUITests/testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes()"
     ]
   }],
   "version": 1

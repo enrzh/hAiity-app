@@ -3,8 +3,8 @@ import SwiftUI
 /// Anlegen/Bearbeiten. ANLEGEN kommt als eigene SEITE (fullScreenCover, aus
 /// dem Toolbar-Plus gezoomt — siehe ContentView), BEARBEITEN
 /// bleibt das Half-Sheet an der Karte. Es fragt NICHTS mehr nach
-/// Die Uhrzeit im Zeitraum steuert zugleich die konkrete Habit-Erinnerung;
-/// Tages- und Wochenzusammenfassungen bleiben zusätzliche globale Hinweise.
+/// Notification times can follow the scheduled time or be customized separately.
+/// Daily and weekly summaries remain additional global notifications.
 ///
 /// Das Herz ist der Regel-Editor: Häufigkeit × Intervall, dazu die feine
 /// Regel (Wochentage, monatliche Feineinstellung), das Startdatum und die
@@ -47,6 +47,7 @@ struct EditHabitSheet: View {
     @State private var itemType: HabitItemType = .habit
     @State private var calendarSyncEnabled = true
     @State private var notificationMode: HabitNotificationMode = .standard
+    @State private var notificationTimes: [Int]?
     @State private var repeatsWhileIncomplete = true
     @State private var autoResolveChoice: HabitAutoResolveChoice?
     /// Nil inherits the global default; `device` is an explicit per-item
@@ -230,6 +231,7 @@ struct EditHabitSheet: View {
                     creationPreview
                 }
                 recurrenceSection.settingsListRow()
+                notificationSection.settingsListRow()
                 if isCreating {
                     if itemType == .habit { kindSection.settingsListRow() }
                     Button {
@@ -289,6 +291,8 @@ struct EditHabitSheet: View {
             }
             .disabled(isSaving || savedWhileAwaitingPermission)
             .settingsSurface()
+            .environment(\.calendar, calendar)
+            .environment(\.timeZone, calendar.timeZone)
             .scrollDismissesKeyboard(.interactively)
             .appPageHeader(existing == nil ? creationTitle : String(localized: "Bearbeiten"))
             .toolbar {
@@ -614,17 +618,6 @@ struct EditHabitSheet: View {
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
             }
-            Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
-                Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
-                Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
-                Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("habit-notification-mode")
-            Text(String(localized: "Die Uhrzeit legt den Eintrag fest; die Benachrichtigung erinnert dich dann daran."))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             if !isCreating {
                 Button {
                     showTimeZonePicker = true
@@ -684,6 +677,80 @@ struct EditHabitSheet: View {
                 Text(String(localized: "Ohne Startdatum gilt die Regel rückwirkend."))
             }
         }
+    }
+
+    private var notificationTimeValues: [Int] {
+        notificationTimes ?? [draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes]
+    }
+
+    private var notificationSection: some View {
+        Section {
+            Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
+                Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
+                Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
+                Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("habit-notification-mode")
+
+            if notificationTimeValues.isEmpty {
+                Text(String(localized: "Keine Mitteilungen geplant"))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(notificationTimeValues.indices, id: \.self) { index in
+                HStack(spacing: Theme.Metrics.gap) {
+                    DatePicker(String(localized: "Mitteilung \(index + 1)"),
+                               selection: notificationTimeBinding(index),
+                               displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.compact)
+                        .accessibilityIdentifier("notification-time-\(index)")
+                    Button(role: .destructive) {
+                        var times = notificationTimeValues
+                        guard times.indices.contains(index) else { return }
+                        times.remove(at: index)
+                        notificationTimes = times
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(String(localized: "Mitteilung \(index + 1) entfernen"))
+                    .accessibilityIdentifier("remove-notification-time-\(index)")
+                }
+            }
+            Button {
+                let times = notificationTimeValues
+                let start = times.last.map { ($0 + 60) % (24 * 60) }
+                    ?? draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes
+                guard let next = (0..<24 * 60).lazy.map({ (start + $0) % (24 * 60) })
+                    .first(where: { !times.contains($0) }) else { return }
+                notificationTimes = times + [next]
+            } label: {
+                Label(String(localized: "Mitteilung hinzufügen"), systemImage: "plus.circle")
+            }
+            .buttonStyle(.borderless)
+            .disabled(notificationTimeValues.count >= 24 * 60)
+            .accessibilityIdentifier("add-notification-time")
+        } header: {
+            Text(String(localized: "Mitteilungen"))
+        } footer: {
+            Text(String(localized: "Diese Zeiten gelten an den geplanten Tagen. Sie ändern den Termin nicht. Bei Aus werden keine Mitteilungen gesendet. Mehr Zeiten verkürzen den Vorausplanungszeitraum."))
+        }
+    }
+
+    private func notificationTimeBinding(_ index: Int) -> Binding<Date> {
+        Binding(get: {
+            let values = notificationTimeValues
+            let minutes = values.indices.contains(index) ? values[index] : Habit.defaultNotificationMinutes
+            // A fixed winter date keeps time-only controls away from DST gaps.
+            return calendar.date(from: DateComponents(year: 2001, month: 1, day: 15,
+                                                       hour: minutes / 60, minute: minutes % 60)) ?? .now
+        }, set: { date in
+            var values = notificationTimeValues
+            guard values.indices.contains(index) else { return }
+            values[index] = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+            notificationTimes = values
+        })
     }
 
     /// Die eingestellte Regel als ein Satz — das Erste in der Sektion, damit
@@ -1034,6 +1101,7 @@ struct EditHabitSheet: View {
         itemType = habit.itemType
         calendarSyncEnabled = habit.calendarSyncEnabled
         notificationMode = habit.notificationMode
+        notificationTimes = habit.notificationTimes
         timeZoneIdentifier = habit.timeZoneIdentifier
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         autoResolveChoice = habit.autoResolveChoice
@@ -1082,6 +1150,7 @@ struct EditHabitSheet: View {
         habit.itemType = itemType
         habit.calendarSyncEnabled = unlocked && calendarSyncEnabled
         habit.notificationMode = notificationMode
+        habit.notificationTimes = notificationTimes.map(Habit.normalizedNotificationTimes)
         habit.timeZoneIdentifier = HabitTimeZone.sanitizedIdentifier(timeZoneIdentifier)
         habit.repeatsWhileIncomplete = itemType == .reminder ? repeatsWhileIncomplete : true
         habit.autoResolveChoice = validAutoResolveChoice
@@ -1091,8 +1160,7 @@ struct EditHabitSheet: View {
         let notificationTime = draft.timeMinutes(calendar: calendar)
         habit.timeMinutes = notificationTime
         habit.durationMinutes = hasDuration ? Habit.sanitizedDuration(durationMinutes) : nil
-        // Keep the legacy key mirrored so older synced builds retain the
-        // notification while every current UI exposes only one time.
+        // The legacy key retains the scheduled time for older synced builds.
         habit.reminderMinutes = notificationTime
         habit.recurrence = recurrence
         habit.palette = unlocked || habitPalette?.customID == nil ? habitPalette : nil
@@ -1110,7 +1178,8 @@ struct EditHabitSheet: View {
             return
         }
         Theme.Haptics.success()
-        guard draft.hasTime, notificationMode != .off else {
+        guard (draft.hasTime || notificationTimes != nil), notificationMode != .off,
+              !habit.effectiveNotificationTimes.isEmpty else {
             dismiss()
             return
         }

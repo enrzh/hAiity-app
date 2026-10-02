@@ -1,6 +1,106 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Mitteilung %lld": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Notification %lld"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إشعار %lld"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বিজ্ঞপ্তি %lld"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Notificación %lld"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Notification %lld"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सूचना %lld"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Notifikasi %lld"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Notifica %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "通知 %lld"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "알림 %lld"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Notificação %lld"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Уведомление %lld"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bildirim %lld"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اطلاع %lld"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Thông báo %lld"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "通知 %lld"}}
+      }
+    },
+    "Mitteilung %lld entfernen": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remove notification %lld"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إزالة الإشعار %lld"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বিজ্ঞপ্তি %lld সরান"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Eliminar notificación %lld"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Supprimer la notification %lld"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सूचना %lld हटाएँ"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Hapus notifikasi %lld"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Rimuovi notifica %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "通知 %lld を削除"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "알림 %lld 삭제"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Remover notificação %lld"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Удалить уведомление %lld"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "%lld numaralı bildirimi kaldır"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اطلاع %lld ہٹائیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Xóa thông báo %lld"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "移除通知 %lld"}}
+      }
+    },
+    "Mitteilung hinzufügen": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Add notification"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إضافة إشعار"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বিজ্ঞপ্তি যোগ করুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Añadir notificación"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ajouter une notification"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सूचना जोड़ें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tambah notifikasi"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Aggiungi notifica"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "通知を追加"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "알림 추가"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Adicionar notificação"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Добавить уведомление"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bildirim ekle"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اطلاع شامل کریں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Thêm thông báo"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加通知"}}
+      }
+    },
+    "Keine Mitteilungen geplant": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "No notifications scheduled"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "لا توجد إشعارات مجدولة"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "কোনো বিজ্ঞপ্তি নির্ধারিত নেই"}},
+        "es": {"stringUnit": {"state": "translated", "value": "No hay notificaciones programadas"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Aucune notification programmée"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "कोई सूचना निर्धारित नहीं है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tidak ada notifikasi terjadwal"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Nessuna notifica programmata"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "通知は設定されていません"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "예약된 알림 없음"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Sem notificações agendadas"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Нет запланированных уведомлений"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Planlanmış bildirim yok"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "کوئی اطلاع مقرر نہیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Chưa lên lịch thông báo"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未安排通知"}}
+      }
+    },
+    "Diese Zeiten gelten an den geplanten Tagen. Sie ändern den Termin nicht. Bei Aus werden keine Mitteilungen gesendet. Mehr Zeiten verkürzen den Vorausplanungszeitraum.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "These times apply on scheduled days without changing the due time. Off silences all notifications. More times shorten the advance scheduling window."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تُطبق هذه الأوقات في الأيام المحددة دون تغيير موعد المهمة. إيقاف الإشعارات يمنع إرسالها. زيادة الأوقات تقلل مدة الجدولة المسبقة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই সময়গুলো নির্ধারিত দিনে প্রযোজ্য, কাজের সময় বদলায় না। বন্ধ থাকলে বিজ্ঞপ্তি পাঠানো হবে না। বেশি সময় যোগ করলে আগাম নির্ধারণের সময়সীমা কমে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Estas horas se aplican en los días programados sin cambiar la hora de la tarea. Desactivar silencia todas las notificaciones. Más horas reducen el período de programación anticipada."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ces heures s'appliquent aux jours prévus sans modifier l'échéance. Désactivé coupe les notifications. Ajouter des heures réduit la période de programmation à l'avance."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "ये समय निर्धारित दिनों पर लागू होते हैं, कार्य का समय नहीं बदलते। बंद होने पर कोई सूचना नहीं भेजी जाएगी। अधिक समय जोड़ने से अग्रिम शेड्यूल की अवधि घटती है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Waktu ini berlaku pada hari terjadwal tanpa mengubah waktu tugas. Nonaktif membisukan semua notifikasi. Lebih banyak waktu memperpendek jadwal ke depan."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Questi orari valgono nei giorni previsti senza cambiare la scadenza. Disattivato silenzia tutte le notifiche. Più orari riducono il periodo di programmazione anticipata."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "予定日にこれらの時刻で通知します。予定の時刻は変更しません。「オフ」では通知しません。通知時刻を増やすと、先の通知を予約できる期間が短くなります。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이 시간은 예정된 날짜에 적용되며 일정 시간은 바뀌지 않습니다. 끄면 모든 알림이 중지됩니다. 시간을 늘리면 미리 예약하는 기간이 짧아집니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Estes horários aplicam-se nos dias previstos sem alterar a hora da tarefa. Desativado silencia todas as notificações. Mais horários reduzem o período de agendamento antecipado."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Эти часы действуют в запланированные дни и не меняют срок задачи. При выключении уведомления не отправляются. Чем больше часов, тем короче период предварительного планирования."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu saatler planlanan günlerde uygulanır; görevin saatini değiştirmez. Kapalıyken bildirim gönderilmez. Daha fazla saat, ileriye dönük planlama süresini kısaltır."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "یہ اوقات مقررہ دنوں پر لاگو ہوتے ہیں، کام کا وقت نہیں بدلتے۔ بند ہونے پر اطلاعات نہیں بھیجی جاتیں۔ زیادہ اوقات پیشگی شیڈول کی مدت کم کرتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Các giờ này áp dụng vào ngày đã lên lịch và không thay đổi hạn của công việc. Tắt sẽ ngừng mọi thông báo. Thêm nhiều giờ sẽ rút ngắn khoảng thời gian lên lịch trước."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "这些时间在计划日期生效，不改变任务时间。关闭时不会发送通知。增加通知时间会缩短提前安排的天数。"}}
+      }
+    },
     "Anmelden": {
       "localizations": {
         "en": {"stringUnit": {"state": "translated", "value": "Sign In"}},
