@@ -1394,7 +1394,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 270;
+				CURRENT_PROJECT_VERSION = 271;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;
@@ -1415,7 +1415,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 270;
+				CURRENT_PROJECT_VERSION = 271;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1457,7 +1457,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HaiityWidget/HaiityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 270;
+				CURRENT_PROJECT_VERSION = 271;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				INFOPLIST_FILE = HaiityWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1580,7 +1580,7 @@
 				CODE_SIGN_ENTITLEMENTS = Haiity/Haiity.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 270;
+				CURRENT_PROJECT_VERSION = 271;
 				DEVELOPMENT_TEAM = H8FW6W6K2D;
 				GITHUB_CLIENT_ID = Ov23liK8SQEaJBHtzNjJ;
 				INFOPLIST_FILE = Haiity/Info.plist;
