@@ -119,6 +119,37 @@ final class HabitSessionTests: XCTestCase {
 
     // MARK: – Fertig: derselbe Trichter wie jeder Check-in
 
+    func testFailedSessionCheckInCannotBeMaskedBySavingItsMinutes() throws {
+        let habit = Habit(name: "Read")
+        store.add(habit)
+        let external = HabitStore(url: url)
+        external.setValue(habit.id, day: "2026-08-08", value: 1)
+        let session = HabitSession(habitID: habit.id, day: "2026-08-09",
+                                   startedAt: date(0), plannedMinutes: 30)
+        XCTAssertEqual(HabitSessionCompletion.finish(store: store, session: session, now: date(600)), 0)
+        XCTAssertThrowsError(try store.requireSuccessfulWrite())
+        let durable = HabitStore(url: url)
+        XCTAssertTrue(durable.sessionHistory.isEmpty)
+        XCTAssertNil(durable.value(habit.id, day: session.day))
+        XCTAssertNil(durable.habits[0].minutes[session.day])
+        HabitSessionCompletion.finish(store: store, session: session, now: date(600))
+        XCTAssertNil(store.lastWriteError)
+        XCTAssertEqual(HabitStore(url: url).habits[0].minutes[session.day], 10)
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-08-08"), 1)
+    }
+
+    func testRetryOfDurableSessionRecordRepairsMinutesWithoutAnotherCheckIn() {
+        let habit = Habit(name: "Water", recurrence: .init(frequency: .daily, target: 4), kind: .quantity)
+        store.add(habit)
+        let session = HabitSession(habitID: habit.id, day: "2026-08-09", startedAt: date(0), plannedMinutes: 30)
+        store.addSessionRecord(HabitSessionRecord(id: session.id, habitID: habit.id, day: session.day,
+                                                  startedAt: date(0), finishedAt: date(600), plannedMinutes: 30))
+        store.setValue(habit.id, day: session.day, value: 1)
+        HabitSessionCompletion.finish(store: store, session: session, now: date(1800))
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: session.day), 1)
+        XCTAssertEqual(HabitStore(url: url).habits[0].minutes[session.day], 10)
+    }
+
     func testFinishMarksDayAndRecordsMinutes() {
         let habit = Habit(name: "Lesen", durationMinutes: 30)
         store.add(habit)

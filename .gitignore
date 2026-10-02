@@ -4,10 +4,13 @@ xcuserdata/
 .DS_Store
 graphify-out/
 .worktrees/
+.ci-tools/
 .superpowers/brainstorm/.last-token
 .superpowers/brainstorm/**/server-info
 
-# The project file is generated, but Package.resolved must be tracked: it is what
+# project.yml is canonical; the already tracked project.pbxproj is a generated
+# review snapshot. This ignore rule excludes local project/user artifacts.
+# Package.resolved must also be tracked: it is what
 # pins the MLX and swift-transformers versions, and a build machine that cannot
 # run the resolver (Xcode Cloud) fails with "a resolved file is required". The
 # whole project directory is ignored, so this one file has to be pulled back in.

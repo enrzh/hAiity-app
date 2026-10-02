@@ -2,8 +2,8 @@
 #
 # One command from a clean tree to a build sitting in App Store Connect.
 #
-#   tools/release.sh            # build, verify, archive, export  (no upload)
-#   tools/release.sh --upload   # …and send it to App Store Connect
+#   tools/release.sh            # archive, export, install + smoke-test on phone
+#   RELEASE_EVIDENCE=... tools/release.sh --upload  # verified clean commit only
 #
 # Every check in here exists because it already went wrong once — in hAiity or
 # in its sibling app. In particular the SDK check: an archive built with
@@ -21,7 +21,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-OUT="${OUT:-/tmp/haiity-release}"
+OUT="${OUT:-$(mktemp -d /tmp/haiity-release.XXXXXX)}"
 PROJECT="Haiity.xcodeproj"
 SCHEME="Haiity"
 APP_NAME="Haiity"
@@ -69,12 +69,17 @@ fi
 [[ -z "$OS_BUILD" ]] || echo "    macOS build $OS_BUILD"
 
 # --- 2. project -------------------------------------------------------------
-# The .xcodeproj is gitignored: project.yml is the only source of truth, and a
-# file missing from it is never compiled. Always regenerate before building.
+# project.yml is authoritative; the tracked project is a generated snapshot.
+# Always regenerate before building.
 say "Regenerating the project"
-command -v xcodegen >/dev/null || fail "xcodegen not installed (brew install xcodegen)"
-xcodegen generate >"$OUT/xcodegen.log" 2>&1 || { cat "$OUT/xcodegen.log"; fail "xcodegen failed"; }
+bash tools/generate-project.sh >"$OUT/xcodegen.log" 2>&1 || { cat "$OUT/xcodegen.log"; fail "project generation failed"; }
 ok "$PROJECT regenerated"
+
+if [[ "$UPLOAD" == yes ]]; then
+  [[ -z "$(git status --porcelain)" ]] || fail "commit the reviewed source before upload; a clean tree is required"
+  [[ -n "${RELEASE_EVIDENCE:-}" && -f "$RELEASE_EVIDENCE" ]] || fail "run tools/verify.sh and set RELEASE_EVIDENCE to its evidence.json"
+  ruby tools/verification.rb check "$RELEASE_EVIDENCE" || fail "release evidence is stale or incomplete"
+fi
 
 # --- 2b. preflight ----------------------------------------------------------
 # A fresh Xcode has no iOS platform, which makes every destination ineligible
@@ -92,50 +97,11 @@ ok "ios platform"
 # Check the COUNT, not the exit code: a test file absent from project.yml does
 # not compile, and xcodebuild still exits 0.
 say "Build gates"
-# v13-Nav-Umbau (Mehr → Menü oben rechts, native TabView): KEIN Test entfiel —
-# die reinen ChromeLayout/MorePanel-Rechnungen samt Tests bleiben; nur
-# View-Code (MorePanelSurface) wurde gelöscht (Boden damals 748).
-# v13-Nacharbeiten: der Malen-Modus wurde auf Nutzerwunsch ENTFERNT — mit ihm
-# ehrlich seine 9 Tests (BackfillBrushTests: Pinsel, paintText, Mode). Keine
-# überlebende Zusicherung wurde abgeschwächt. Boden: 748 − 9 = 739.
-# v23: die Reminder-Einrichtung bringt zwei Zustandsregeln hinzu.
-# Navigation/Karten-Umbau: 12 neue Navigations-, Layout- und Interaktionstests.
-# Final-Review-Fix: 8 Navigations-/Lifecycle-Vertraege hinzugekommen.
-# Create-Cover-Nachpruefung: 5 Request-/Praesentationsvertraege hinzugekommen.
-# Boden: 797 + tappbare Vorschau + feste Wischaktionen = 799.
-# Build 46 plus combined Habits/Erinnerungen coverage = 1012.
-# More hierarchy, notification opt-out, calendar gate, search and reminder UI = 1020.
-# Stable owner ID, login/restore state and visual toast hooks = 1029.
-# Per-item calendar opt-out coverage: +5 = 1034.
-# Vibrant Home Screen widget policy: +2 = 1036.
-# GitHub contribution card: +43 = 1079.
-# Notification action slots and live category registration: +8 = 1099.
-# Home Screen quick actions (candidates, menu build, type resolution): +9 = 1108.
-# Main-actor completion contract for the notification delegate: +1 = 1109.
 # The complete test target is compiled by the device test invocation below, but
 # only the physical-safe subset is executed on the phone. The complete unit
-# test gate must run separately on a host/CI destination.
-# These 15 selectors expand to 19 test methods (the first selector covers the
-# five mechanics tests). Keep the floor aligned with the actual invocation so
-# the release gate does not require a test that is not selected.
-PHYSICAL_MIN_TESTS=19
-PHYSICAL_TESTS=(
-  -only-testing:HaiityTests/SwipeRevealMechanicsTests
-  -only-testing:HaiityTests/ReminderItemTests/testPresentationPolicyUsesCompactRowsOnlyForReminders
-  -only-testing:HaiityTests/ProGateTests/testFreeHabitLimitIsThree
-  -only-testing:HaiityTests/ProGateTests/testMayAddHabitMatrixWhenLocked
-  -only-testing:HaiityTests/ProGateTests/testCurrentEntitlementPolicyRejectsExpiredRevokedAndNonPurchasedTransactions
-  -only-testing:HaiityTests/ProGateTests/testSharedEntitlementSnapshotExpiresWithoutTheAppProcess
-  -only-testing:HaiityTests/NotificationActionTests/testConfiguredSlotsResolveToThreeUniqueActionsPerHabitKind
-  -only-testing:HaiityTests/NotificationActionTests/testNoneSlotsAreNotRegisteredAndResponseIdentifiersAreDistinct
-  -only-testing:HaiityTests/NotificationActionTests/testNotificationSlotChoicesExcludeActionsAlreadyAssignedElsewhere
-  -only-testing:HaiityTests/NotificationActionTests/testAssigningAnActionClearsItsPreviousSlot
-  -only-testing:HaiityTests/NotificationActionTests/testCategoryDefinitionsContainTheConfiguredActionsForEachHabitKind
-  -only-testing:HaiityTests/NotificationActionTests/testSchedulePlansReportsEveryFailedAddAndContinues
-  -only-testing:HaiityTests/NotificationActionTests/testLegacyResponseIdentifierStillResolvesFromItsOldCategory
-  -only-testing:HaiityTests/NotificationActionTests/testAppOpeningActionIsNotDeliveredSynchronously
-  -only-testing:HaiityTests/StatsCardPrefsTests/testNewerRemotePreferencesReplaceLocalPreferences
-)
+# and UI smoke gates run via tools/verify.sh on the release commit.
+# Keep this floor aligned with native enumeration of the Device test plan.
+PHYSICAL_MIN_TESTS=20
 # Physical iPhone Air verification is required after export; never fall back to
 # a simulator. Override with DEVICE_ID=<physical iPhone UDID>.
 DEVICE_ID="${DEVICE_ID:-00008150-000120AC0287801C}"
@@ -162,7 +128,7 @@ rm -rf "$ARCHIVE"
 xcodebuild archive -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-  -skipPackagePluginValidation -skipMacroValidation -allowProvisioningUpdates \
+  -allowProvisioningUpdates \
   >"$OUT/archive.log" 2>&1 || { tail -40 "$OUT/archive.log"; fail "archive failed (full log: $OUT/archive.log)"; }
 
 APP="$ARCHIVE/Products/Applications/$APP_NAME.app"
@@ -439,7 +405,12 @@ done
 
 # --- 6. export --------------------------------------------------------------
 say "Exporting shipping IPA for App Store Connect"
-DEST=export; [[ "$UPLOAD" == yes ]] && DEST=upload
+DEST=export
+if [[ "$UPLOAD" == yes ]]; then
+  ruby tools/verification.rb check "$RELEASE_EVIDENCE" || fail "source or verification changed during archiving"
+  cp "$RELEASE_EVIDENCE" "$OUT/verification.json"
+  DEST=upload
+fi
 cat >"$OUT/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -560,8 +531,8 @@ PLIST
   TEST_LOG="$OUT/tests.log"
   xcodebuild test -project "$PROJECT" -scheme "$SCHEME" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
-    -destination "id=$DEVICE_ID" -testLanguage de -testRegion DE "${PHYSICAL_TESTS[@]}" \
-    -skipPackagePluginValidation -skipMacroValidation -allowProvisioningUpdates \
+    -destination "id=$DEVICE_ID" -testPlan Device \
+    -allowProvisioningUpdates \
     CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES DEVELOPMENT_TEAM="$TEAM_ID" \
     >"$TEST_LOG" 2>&1 || { tail -40 "$TEST_LOG"; fail "physical-safe tests failed or the phone became unavailable (full log: $TEST_LOG)"; }
   COUNT=$(grep -oE 'Executed [0-9]+ tests?' "$TEST_LOG" | tail -1 | grep -oE '[0-9]+' || echo 0)

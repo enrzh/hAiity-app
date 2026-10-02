@@ -569,6 +569,7 @@ final class HabitStore {
     /// mtime der Datei beim letzten eigenen Lesen/Schreiben — erkennt
     /// externe Schreiber (Widget-Intent im Extension-Prozess).
     @ObservationIgnored private var loadedSignature: (modified: Date?, size: Int)?
+    @ObservationIgnored private var persistedPayload: Data?
 
     /// Set when the file on disk exists but will not decode. The store still
     /// starts empty so the app is usable, but the failure is recorded rather than
@@ -627,6 +628,7 @@ final class HabitStore {
             let outcome = Self.readResult(url)
             self.data = outcome.payload ?? .empty
             self.readFailed = outcome.corrupted
+            self.persistedPayload = outcome.raw
             if outcome.corrupted { Self.preserveCorruptPayload(url) }
         } else {
             self.data = .empty
@@ -820,14 +822,15 @@ final class HabitStore {
         readResult(url).payload
     }
 
-    static func readResult(_ url: URL) -> (payload: HabitData?, corrupted: Bool) {
-        guard let raw = try? Data(contentsOf: url), !raw.isEmpty else {
-            return (nil, false)
+    static func readResult(_ url: URL) -> (payload: HabitData?, corrupted: Bool, raw: Data?) {
+        guard let raw = try? Data(contentsOf: url) else {
+            return (nil, false, nil)
         }
+        guard !raw.isEmpty else { return (nil, false, raw) }
         guard let payload = try? JSONDecoder().decode(HabitData.self, from: raw) else {
-            return (nil, true)
+            return (nil, true, raw)
         }
-        return (payload, false)
+        return (payload, false, raw)
     }
 
     /// Keeps the last trace of a payload that will not decode, so the next write
@@ -846,11 +849,14 @@ final class HabitStore {
         guard loadedSignature == nil else { return }
         let url = self.url
         let snapshot = await Task.detached(priority: .userInitiated) {
-            (Self.readResult(url).payload, Self.signature(url))
+            (Self.readResult(url), Self.signature(url))
         }.value
         guard !Task.isCancelled, loadedSignature == nil else { return }
         loadedSignature = snapshot.1
-        guard let fresh = snapshot.0 else { return }
+        persistedPayload = snapshot.0.raw
+        readFailed = snapshot.0.corrupted
+        if readFailed { Self.preserveCorruptPayload(url) }
+        guard let fresh = snapshot.0.payload else { return }
         data = fresh
         // A payload written before the retention window existed can already be
         // over it, so trim on the way in rather than only when merging.
@@ -896,7 +902,9 @@ final class HabitStore {
            known.modified == current.modified, known.size == current.size {
             return
         }
-        guard let fresh = Self.read(url) else { return }
+        let outcome = Self.readResult(url)
+        guard let fresh = outcome.payload else { return }
+        persistedPayload = outcome.raw
         loadedSignature = current
         merge(remote: fresh)
     }
@@ -924,10 +932,31 @@ final class HabitStore {
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        do {
-            let raw = try enc.encode(data)
-            try raw.write(to: url, options: .atomic)
-        } catch {
+        var coordinationError: NSError?
+        var writeError: Error?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing,
+                                       error: &coordinationError) { destination in
+            do {
+                let current = Self.readResult(destination)
+                guard current.raw == persistedPayload else {
+                    // A stale app/widget snapshot cannot replace a newer save.
+                    // Restore the durable state so an explicit retry starts fresh.
+                    if let fresh = current.payload {
+                        data = fresh
+                        persistedPayload = current.raw
+                        loadedSignature = Self.signature(destination)
+                    }
+                    throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey:
+                        String(localized: "Die Daten wurden inzwischen geändert. Bitte erneut sichern.")])
+                }
+                let raw = try enc.encode(data)
+                try raw.write(to: destination, options: .atomic)
+                persistedPayload = raw
+            } catch {
+                writeError = error
+            }
+        }
+        if let error = coordinationError ?? (writeError as NSError?) {
             lastWriteError = error.localizedDescription
             return false
         }
@@ -944,6 +973,12 @@ final class HabitStore {
             }
         }
         return true
+    }
+
+    func requireSuccessfulWrite() throws {
+        if let lastWriteError {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: lastWriteError])
+        }
     }
 
     #if canImport(WidgetKit)

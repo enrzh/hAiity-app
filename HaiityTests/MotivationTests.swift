@@ -238,10 +238,12 @@ final class MotivationTests: XCTestCase {
     }
 
     func testNewerRemoteMotivationSourceWins() {
-        let store = HabitStore(loadFromDisk: false)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("motivation-merge-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url, loadFromDisk: false)
         store.motivationSource = .builtIn
         let remote = HabitData(version: HabitData.currentVersion,
-                               updatedAt: 2,
+                               updatedAt: store.data.updatedAt + 1,
                                summaryMinutes: nil,
                                habits: [],
                                motivationSource: .onDevice)
@@ -253,10 +255,12 @@ final class MotivationTests: XCTestCase {
 
     func testNewerRemoteHabitMergePreservesAllNotificationModes() {
         for mode in HabitNotificationMode.allCases {
-            var localHabit = Habit(name: "Local", notificationMode: .off)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("notification-merge-\(UUID()).json")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let localHabit = Habit(name: "Local", notificationMode: .off)
             var remoteHabit = localHabit
             remoteHabit.notificationMode = mode
-            let store = HabitStore(loadFromDisk: false)
+            let store = HabitStore(url: url, loadFromDisk: false)
             store.add(localHabit)
             let remote = HabitData(version: HabitData.currentVersion,
                                    updatedAt: store.data.updatedAt + 1,

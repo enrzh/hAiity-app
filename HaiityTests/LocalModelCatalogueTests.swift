@@ -98,22 +98,35 @@ final class LocalModelCatalogueTests: XCTestCase {
         }
     }
 
-    /// "All languages" is a claim about the app, so it has to be checked against
-    /// the app rather than against a list written next to it.
-    func testTheMultilingualModelCoversEveryLanguageTheAppShips() {
-        let shipped = Set(LocalModelCatalogue.all.flatMap(\.languageCodes))
-        for language in LanguageCatalog.supported {
-            XCTAssertTrue(shipped.contains(language),
-                          "no catalogue entry offers \(language)")
+    func testUILanguagesMatchTheBuiltAppAndStringCatalog() throws {
+        func normalized(_ code: String) -> String {
+            Locale(identifier: code).language.languageCode?.identifier ?? code
         }
-        // And a model that claims every language must not quietly be the small
-        // one: a processing model is not a multilingual model.
+        let shipped = Set(Bundle.main.localizations.filter { $0 != "Base" }.map(normalized))
+        XCTAssertEqual(Set(LanguageCatalog.supported), shipped)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = root.appendingPathComponent("Haiity/Localizable.xcstrings")
+        let url = FileManager.default.fileExists(atPath: source.path) ? source
+            : try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Localizable", withExtension: "txt"))
+        let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: [String: Any]])
+        for key in ["Habits", "Statistik", "Mehr", "Suchen", "Sichern", "Abbrechen"] {
+            let localized = try XCTUnwrap(strings[key]?["localizations"] as? [String: [String: Any]])
+            XCTAssertEqual(Set(localized.keys.map(normalized)).union(["de"]), shipped, key)
+            for (language, item) in localized {
+                let unit = try XCTUnwrap(item["stringUnit"] as? [String: String])
+                XCTAssertFalse(unit["value", default: ""].isEmpty, "\(key)/\(language)")
+            }
+        }
+    }
+
+    func testMultilingualModelsDeclareALanguageSubsetWithoutClaimingAllUILocales() {
         let multilingual = LocalModelCatalogue.all.filter { $0.scope == .multilingual }
-        XCTAssertFalse(multilingual.isEmpty, "nothing covers every language")
+        XCTAssertFalse(multilingual.isEmpty)
         for model in multilingual {
-            XCTAssertGreaterThan(model.byteCount, 500_000_000,
-                                 "\(model.id) claims every language at \(model.formattedSize), "
-                                 + "which is too small to be honest about it")
+            XCTAssertGreaterThan(model.languageCodes.count, 1)
+            XCTAssertTrue(Set(model.languageCodes).isSubset(of: Set(LanguageCatalog.supported)))
+            XCTAssertFalse(model.languageCodes.contains("ar"), "undeclared support must not be inferred from UI translations")
         }
     }
 

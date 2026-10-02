@@ -27,6 +27,7 @@ struct SpeakToCreateSheet: View {
     @State private var text = ""
     @State private var isWorking = false
     @State private var didCreate = false
+    @State private var saveError: String?
     /// The model's reading of the sentence, and the exact text it was made
     /// from. Kept apart because a reading belongs to one sentence: edit a word
     /// and it is stale, and saving a stale reading means saving something the
@@ -157,6 +158,12 @@ struct SpeakToCreateSheet: View {
             // A model holds hundreds of megabytes of weight cache. Keeping it
             // between sheets makes the rest of the app feel heavier than it is.
             localReader.release()
+        }
+        .alert(String(localized: "Fehler"), isPresented: Binding(
+            get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button(String(localized: "OK"), role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
         }
         // Tapping the text is a request to edit, which also needs the room.
         .onChange(of: fieldFocused) { _, focused in
@@ -445,6 +452,8 @@ struct SpeakToCreateSheet: View {
             break
         case .limitReached:
             break
+        case .failed(let message):
+            saveError = message
         }
     }
 

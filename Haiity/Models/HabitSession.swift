@@ -141,7 +141,10 @@ enum HabitSessionCompletion {
     @discardableResult
     static func finish(store: HabitStore, session: HabitSession, now: Date = Date()) -> Int {
         if let record = store.sessionHistory.first(where: { $0.id == session.id }) {
-            return HabitSessionMath.elapsedMinutes(startedAt: record.startedAt, endedAt: record.finishedAt)
+            let minutes = HabitSessionMath.elapsedMinutes(startedAt: record.startedAt, endedAt: record.finishedAt)
+            // A retry may follow a save of the record but not the legacy total.
+            store.recordSessionMinutes(record.habitID, day: record.day, minutes: minutes)
+            return minutes
         }
         let minutes = HabitSessionMath.elapsedMinutes(startedAt: session.startedAt, endedAt: now)
         store.addSessionRecord(HabitSessionRecord(id: session.id, habitID: session.habitID,
@@ -149,6 +152,7 @@ enum HabitSessionCompletion {
                                                   finishedAt: now, plannedMinutes: session.plannedMinutes),
                                persist: false)
         CheckOffLogic.apply(to: store, habitId: session.habitID, day: session.day)
+        guard store.lastWriteError == nil else { return 0 }
         store.recordSessionMinutes(session.habitID, day: session.day, minutes: minutes)
         return minutes
     }

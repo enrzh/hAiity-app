@@ -1,0 +1,25 @@
+{
+  "configurations": [{"id": "9E5E3B88-42C9-4BEB-A6BA-ABF5BED841E1", "name": "Device", "options": {"language": "de", "region": "DE"}}],
+  "defaultOptions": {},
+  "testTargets": [{
+    "target": {"containerPath": "container:Haiity.xcodeproj", "identifier": "9A30FF18475712FE78B4BE29", "name": "HaiityTests"},
+    "selectedTests": [
+      "SwipeRevealMechanicsTests",
+      "ReminderItemTests/testPresentationPolicyUsesCompactRowsOnlyForReminders()",
+      "ProGateTests/testFreeHabitLimitIsThree()",
+      "ProGateTests/testMayAddHabitMatrixWhenLocked()",
+      "ProGateTests/testCurrentEntitlementPolicyRejectsExpiredRevokedAndNonPurchasedTransactions()",
+      "ProGateTests/testSharedEntitlementSnapshotExpiresWithoutTheAppProcess()",
+      "NotificationActionTests/testConfiguredSlotsResolveToThreeUniqueActionsPerHabitKind()",
+      "NotificationActionTests/testNoneSlotsAreNotRegisteredAndResponseIdentifiersAreDistinct()",
+      "NotificationActionTests/testNotificationSlotChoicesExcludeActionsAlreadyAssignedElsewhere()",
+      "NotificationActionTests/testAssigningAnActionClearsItsPreviousSlot()",
+      "NotificationActionTests/testCategoryDefinitionsContainTheConfiguredActionsForEachHabitKind()",
+      "NotificationActionTests/testSchedulePlansReportsEveryFailedAddAndContinues()",
+      "NotificationActionTests/testLegacyResponseIdentifierStillResolvesFromItsOldCategory()",
+      "NotificationActionTests/testAppOpeningActionIsNotDeliveredSynchronously()",
+      "StatsCardPrefsTests/testNewerRemotePreferencesReplaceLocalPreferences()"
+    ]
+  }],
+  "version": 1
+}

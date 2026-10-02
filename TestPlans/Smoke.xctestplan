@@ -1,0 +1,16 @@
+{
+  "configurations": [{"id": "615851DD-9561-4C09-8295-2EC3FE9CC1F5", "name": "Smoke", "options": {}}],
+  "defaultOptions": {},
+  "testTargets": [{
+    "target": {"containerPath": "container:Haiity.xcodeproj", "identifier": "291C191FDF9F851022C84A1C", "name": "HaiityUITests"},
+    "selectedTests": [
+      "TodayProgressUITests/testSearchTabShowsATappableSearchField()",
+      "TodayProgressUITests/testContributionChartLightAndDarkScreenshots()",
+      "TodayProgressUITests/testReminderEditButtonPreservesCompletionAtBothTextSizes()",
+      "TodayProgressUITests/testMigratedSettingsPagesKeepTheirRowsHittable()",
+      "TodayProgressUITests/testAppleAccountPageHasLivePersonalizationAndIndependentHubActions()",
+      "TodayProgressUITests/testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance()"
+    ]
+  }],
+  "version": 1
+}

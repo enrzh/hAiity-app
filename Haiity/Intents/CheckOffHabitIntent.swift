@@ -93,6 +93,7 @@ struct CheckOffHabitIntent: AppIntent {
         CheckOffLogic.apply(to: store, habitId: habit.id, day: day)
         // Der App-Prozess bekommt von diesem Check-in nichts mit — die
         // heutige Erinnerung und die Tagesmeldung hier selbst nachziehen.
+        try store.requireSuccessfulWrite()
         await Reminders.reconcileAfterExternalCheckIn(
             store: store,
             habitID: habit.id,
@@ -141,6 +142,7 @@ struct ResetHabitIntent: AppIntent {
                                           defaultIdentifier: store.defaultTimeZoneIdentifier)
             store.clear(storedHabit.id, day: day)
         }
+        try store.requireSuccessfulWrite()
         await Reminders.reconcileAfterExternalCheckIn(
             store: store,
             habitID: storedHabit.id,
@@ -165,7 +167,7 @@ struct AnswerYesHabitIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await AnswerHabitIntentSupport.setAnswer(habit.id, yes: true)
+        try await AnswerHabitIntentSupport.setAnswer(habit.id, yes: true)
         return .result()
     }
 }
@@ -184,13 +186,13 @@ struct AnswerNoHabitIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await AnswerHabitIntentSupport.setAnswer(habit.id, yes: false)
+        try await AnswerHabitIntentSupport.setAnswer(habit.id, yes: false)
         return .result()
     }
 }
 
 private enum AnswerHabitIntentSupport {
-    static func setAnswer(_ id: UUID, yes: Bool) async {
+    static func setAnswer(_ id: UUID, yes: Bool) async throws {
         let store = HabitStore(url: SharedStorage.dataURL())
         guard let storedHabit = HabitVisibility.visibleActiveHabits(
             store.habits,
@@ -199,6 +201,7 @@ private enum AnswerHabitIntentSupport {
         let day = HabitTimeZone.today(for: storedHabit,
                                       defaultIdentifier: store.defaultTimeZoneIdentifier)
         AnswerHabitLogic.apply(to: store, habitId: id, yes: yes, day: day)
+        try store.requireSuccessfulWrite()
         await Reminders.reconcileAfterExternalCheckIn(
             store: store,
             habitID: id,
@@ -223,7 +226,7 @@ enum AnswerHabitLogic {
         let answer = yes ? Habit.Answer.yes : Habit.Answer.no
         guard habit.log[day] != answer else { return false }
         store.setValue(habitId, day: day, value: answer)
-        return true
+        return store.lastWriteError == nil
     }
 }
 
@@ -241,7 +244,7 @@ enum ResetHabitLogic {
         } else {
             store.clear(habitId, day: day)
         }
-        return true
+        return store.lastWriteError == nil
     }
 }
 
@@ -274,22 +277,22 @@ enum CheckOffLogic {
                                         day: occurrence.day,
                                         completed: true,
                                         nextCursor: nextCursor)
-            return true
+            return store.lastWriteError == nil
         }
         switch habit.kind {
         case .quantity:
             store.increment(habitId, day: day)
-            return true
+            return store.lastWriteError == nil
         case .yesNo:
             guard !habit.isAffirmed(day) else { return false }
             // NICHT `answer`: das würde ein bestehendes Ja umschalten und
             // damit doch wieder ent-haken.
             store.setValue(habitId, day: day, value: Habit.Answer.yes)
-            return true
+            return store.lastWriteError == nil
         case .checkbox:
             guard !habit.isDone(day) else { return false }
             store.toggle(habitId, day: day)
-            return true
+            return store.lastWriteError == nil
         }
     }
 }

@@ -11,6 +11,92 @@ import XCTest
 /// a sync, and session history was never trimmed.
 @MainActor
 final class HabitStoreIntegrityTests: XCTestCase {
+    func testDeferredLoadCannotOverwriteAnExistingFileBeforeHydration() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("deferred-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let existing = Habit(name: "Existing"), added = Habit(name: "New")
+        HabitStore(url: url).add(existing)
+        let deferred = HabitStore(url: url, loadFromDisk: false)
+        XCTAssertTrue(deferred.habits.isEmpty)
+        deferred.add(added)
+        XCTAssertNotNil(deferred.lastWriteError)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), [existing.id])
+        await deferred.loadFromDisk()
+        deferred.add(added)
+        XCTAssertNil(deferred.lastWriteError)
+        XCTAssertEqual(Set(HabitStore(url: url).habits.map(\.id)), [existing.id, added.id])
+    }
+
+    func testStaleWriterCannotEraseAnotherHabitAndCanRetryFromFreshState() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("writers-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = Habit(name: "First"), second = Habit(name: "Second")
+        let app = HabitStore(url: url)
+        app.add(first)
+        app.add(second)
+        let widget = HabitStore(url: url)
+        app.setValue(first.id, day: "2026-10-01", value: 1)
+        widget.setValue(second.id, day: "2026-10-01", value: 1)
+        XCTAssertNotNil(widget.lastWriteError)
+        XCTAssertThrowsError(try widget.requireSuccessfulWrite())
+        XCTAssertEqual(HabitStore(url: url).value(first.id, day: "2026-10-01"), 1)
+        XCTAssertNil(HabitStore(url: url).value(second.id, day: "2026-10-01"))
+        widget.setValue(second.id, day: "2026-10-01", value: 1)
+        XCTAssertNil(widget.lastWriteError)
+        let durable = HabitStore(url: url)
+        XCTAssertEqual(durable.value(first.id, day: "2026-10-01"), 1)
+        XCTAssertEqual(durable.value(second.id, day: "2026-10-01"), 1)
+    }
+
+    func testRejectedNotificationAndWidgetActionsDoNotReportSuccess() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("actions-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let habit = Habit(name: "Read")
+        let app = HabitStore(url: url)
+        app.add(habit)
+        let notification = HabitStore(url: url), widget = HabitStore(url: url)
+        app.setValue(habit.id, day: "2026-09-30", value: 1)
+        XCTAssertFalse(Reminders.applyQuickAction(.checkbox, to: habit,
+                                                  target: .init(habitID: habit.id, day: "2026-10-01"),
+                                                  store: notification))
+        XCTAssertFalse(CheckOffLogic.apply(to: widget, habitId: habit.id, day: "2026-10-01"))
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-09-30"), 1)
+        XCTAssertNil(HabitStore(url: url).value(habit.id, day: "2026-10-01"))
+    }
+
+    func testOverlappingWritersSerializeAndDoNotLoseQuantityUpdates() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("parallel-writers-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let habit = Habit(name: "Water", recurrence: Recurrence(target: 4), kind: .quantity)
+        HabitStore(url: url).add(habit)
+        let writers = [HabitStore(url: url), HabitStore(url: url)]
+        DispatchQueue.concurrentPerform(iterations: 2) { index in
+            writers[index].increment(habit.id, day: "2026-10-01")
+        }
+        XCTAssertEqual(writers.filter { $0.lastWriteError == nil }.count, 1)
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-10-01"), 1)
+        let rejected = try XCTUnwrap(writers.first { $0.lastWriteError != nil })
+        rejected.increment(habit.id, day: "2026-10-01")
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-10-01"), 2)
+    }
+
+    func testStaleUndoDoesNotOverwriteAnExternalCheckIn() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("stale-undo-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let habit = Habit(name: "Read")
+        let app = HabitStore(url: url)
+        app.add(habit)
+        app.setValue(habit.id, day: "2026-10-01", value: 1)
+        let widget = HabitStore(url: url)
+        widget.setValue(habit.id, day: "2026-09-30", value: 1)
+        app.clear(habit.id, day: "2026-10-01")
+        XCTAssertNotNil(app.lastWriteError)
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-09-30"), 1)
+        app.clear(habit.id, day: "2026-10-01")
+        XCTAssertNil(HabitStore(url: url).value(habit.id, day: "2026-10-01"))
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: "2026-09-30"), 1)
+    }
+
 
     private func tempURL(_ name: String) -> URL {
         FileManager.default.temporaryDirectory

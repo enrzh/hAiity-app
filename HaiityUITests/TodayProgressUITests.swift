@@ -9,13 +9,15 @@ final class TodayProgressUITests: XCTestCase {
 
     private func launch(_ fixture: String = "realistic", largeText: Bool = false,
                         appearance: String = "light", screen: String = "habits",
-                        material: String? = nil, photo: Bool = false) -> XCUIApplication {
+                        material: String? = nil, photo: Bool = false,
+                        account: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-design-fixture", fixture, "-screen", screen, "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB",
                                "-design-appearance", appearance]
         if let material { app.launchArguments += ["-design-material", material] }
         if photo { app.launchArguments += ["-design-photo"] }
+        if let account { app.launchArguments += ["-design-account", account] }
         if largeText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
@@ -195,6 +197,7 @@ final class TodayProgressUITests: XCTestCase {
         let pages: [(row: String, target: String, name: String)] = [
             ("open-notifications", "dnd-toggle", "migrated-notifications"),
             ("open-account", "personal-alias", "migrated-account"),
+            ("connect-github", "github-username-toggle", "github-login-action"),
             ("open-github-settings", "github-username-toggle", "migrated-github"),
             ("open-github-settings", "github-month-labels-toggle", "migrated-github-months")
         ]
@@ -213,6 +216,65 @@ final class TodayProgressUITests: XCTestCase {
             capture(page.name)
             app.terminate()
         }
+    }
+
+    func testAppleAccountPageHasLivePersonalizationAndIndependentHubActions() {
+        for appearance in ["light", "dark"] {
+            let app = launch("crowded", appearance: appearance, screen: "more", account: "connected")
+            let account = app.buttons["open-account"]
+            XCTAssertTrue(account.waitForExistence(timeout: 15))
+            for _ in 0..<5 where !account.isHittable { app.swipeUp() }
+            XCTAssertTrue(app.buttons["apple-signout-more"].isHittable)
+            capture("apple-account-more-\(appearance)")
+            account.tap()
+            let alias = app.textFields["personal-alias"]
+            XCTAssertTrue(alias.waitForExistence(timeout: 5))
+            XCTAssertEqual(alias.value as? String, "Alex")
+            XCTAssertTrue(app.staticTexts["Hello, Alex"].exists)
+            XCTAssertFalse(app.buttons["copy-unrecognized-apple-user-id"].exists)
+            XCTAssertFalse(app.staticTexts["fixture-apple-account"].exists)
+            let preview = app.descendants(matching: .any)["account-motivation-preview"].firstMatch
+            XCTAssertTrue(preview.label.contains("Alex"))
+            capture("apple-account-connected-\(appearance)")
+            alias.tap()
+            alias.typeText(" Taylor")
+            XCTAssertTrue(app.staticTexts["Hello, Alex Taylor"].exists)
+            XCTAssertTrue(preview.label.contains("Alex Taylor"), "the preview must use the edited alias immediately")
+            app.buttons["Done"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["apple-signout-more"].waitForExistence(timeout: 5))
+            app.buttons["apple-signout-more"].tap()
+            XCTAssertTrue(app.buttons["apple-signin-more"].waitForExistence(timeout: 5),
+                          "logout on the hub must expose native sign-in without opening the account page")
+            account.tap()
+            XCTAssertTrue(alias.waitForExistence(timeout: 5))
+            XCTAssertEqual(alias.value as? String, "Alex Taylor", "sign-out must keep the local alias")
+            XCTAssertTrue(app.staticTexts["Hello, Alex Taylor"].exists)
+            app.terminate()
+        }
+    }
+
+    func testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance() {
+        let app = launch("crowded", largeText: true, appearance: "dark", screen: "more", material: "solid")
+        let account = app.buttons["open-account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 15))
+        for _ in 0..<8 where !account.isHittable { app.swipeUp() }
+        let signIn = app.buttons["apple-signin-more"]
+        for _ in 0..<3 where !signIn.isHittable { app.swipeUp() }
+        XCTAssertTrue(signIn.isHittable)
+        XCTAssertGreaterThanOrEqual(signIn.frame.width, 140)
+        XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
+        capture("apple-account-more-large-text")
+        account.tap()
+        let alias = app.textFields["personal-alias"]
+        XCTAssertTrue(alias.waitForExistence(timeout: 5))
+        for _ in 0..<5 where !alias.isHittable { app.swipeUp() }
+        XCTAssertTrue(alias.isHittable)
+        capture("apple-account-large-text")
+        let pageSignIn = app.buttons["apple-signin"]
+        for _ in 0..<8 where !pageSignIn.isHittable { app.swipeUp() }
+        XCTAssertTrue(pageSignIn.isHittable)
+        XCTAssertGreaterThanOrEqual(pageSignIn.frame.height, 44)
+        capture("apple-account-signin-large-text")
     }
 
     /// Behavior & sharing is the densest settings page in the app: five groups

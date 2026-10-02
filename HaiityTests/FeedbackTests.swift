@@ -46,7 +46,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertEqual(ShakeToReport.enabledKey, "shakeToReport")
 
         let sheet = try source("Haiity/Views/FeedbackSheet.swift")
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/AboutView.swift")
         XCTAssertTrue(sheet.contains("ShakeToReport.isEnabled = false"),
                       "das Blatt kann sich nicht abschalten")
         XCTAssertTrue(more.contains("ShakeToReport.isEnabled = enabled"),
@@ -94,7 +94,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertEqual(seen, [false, true], "die Mitteilung kam vor dem Schreiben")
 
         // Und der zweite Ort hört wirklich zu.
-        let more = try? source("Haiity/Views/MoreView.swift")
+        let more = try? source("Haiity/Views/AboutView.swift")
         XCTAssertEqual(more?.contains(
             "NotificationCenter.default.publisher(for: ShakeToReport.didChange)"), true,
                        "der Spiegel in Mehr frischt nur beim Erscheinen auf")
@@ -355,7 +355,7 @@ final class FeedbackTests: XCTestCase {
     func testAppleLoginStateOffersLogoutAndRefreshesStoreEntitlements() throws {
         let more = try source("Haiity/Views/MoreView.swift")
 
-        XCTAssertTrue(more.contains("if let storedAppleUserID"))
+        XCTAssertTrue(more.contains("if storedAppleUserID != nil"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"apple-signout\")"))
         XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
     }
@@ -367,7 +367,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(content.contains("Text(toast.message)\n                    .font(.footnote)"))
         XCTAssertTrue(content.contains("Text(syncStatus)\n                .font(.footnote)"))
         XCTAssertTrue(content.contains(".appToastSurface()"))
-        XCTAssertTrue(components.contains(".appSurface(cornerRadius: 999)"))
+        XCTAssertTrue(components.contains(".appSurface(cornerRadius: dynamicTypeSize.isAccessibilitySize ? Theme.Metrics.cardRadius : 999)"))
     }
 
     func testNativeToastsUseTheTabViewSafeAreaAndSharedAppearanceSurface() throws {
@@ -384,7 +384,7 @@ final class FeedbackTests: XCTestCase {
 
         let components = try source("Haiity/Views/AppUIComponents.swift")
         XCTAssertTrue(components.contains("struct AppToastSurface: ViewModifier"))
-        XCTAssertTrue(components.contains(".appSurface(cornerRadius: 999)"),
+        XCTAssertTrue(components.contains(".appSurface(cornerRadius: dynamicTypeSize.isAccessibilitySize ? Theme.Metrics.cardRadius : 999)"),
                       "toasts must follow the selected appearance material")
     }
 
@@ -417,13 +417,14 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(hooks.contains("undo.present("))
     }
 
-    func testUnrecognizedAppleAccountCanCopyItsStableIdentifierFromTheAccountSection() throws {
+    func testAppleIdentifierIsOnlyExposedInTheDeveloperPage() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-
-        XCTAssertTrue(more.contains("storedAppleUserID = PersonalName.appleUserID"))
-        XCTAssertTrue(more.contains("!DeveloperAccess.isOwnerDevice("))
-        XCTAssertTrue(more.contains("UIPasteboard.general.string = storedAppleUserID"))
-        XCTAssertTrue(more.contains("accessibilityIdentifier(\"copy-unrecognized-apple-user-id\")"))
+        let developer = try source("Haiity/Views/DeveloperView.swift")
+        XCTAssertFalse(more.contains("copy-unrecognized-apple-user-id"))
+        XCTAssertFalse(more.contains("Kennung kopieren"))
+        XCTAssertFalse(more.contains("UIPasteboard.general.string = storedAppleUserID"))
+        XCTAssertTrue(developer.contains("copy-apple-user-id"))
+        XCTAssertTrue(developer.contains("UIPasteboard.general.string = appleUserID"))
     }
 
     // MARK: – Quell-Verträge: die Geste
@@ -611,10 +612,9 @@ final class FeedbackTests: XCTestCase {
 
     func testAboutCarriesTheShakeSwitchOutsideNotificationSettings() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("\"shake-to-report-toggle\""))
-        let about = try XCTUnwrap(more.range(of: "struct AboutView"))
-        let shake = try XCTUnwrap(more.range(of: "\"shake-to-report-toggle\""))
-        XCTAssertLessThan(about.lowerBound, shake.lowerBound)
+        let about = try source("Haiity/Views/AboutView.swift")
+        XCTAssertTrue(about.contains("\"shake-to-report-toggle\""))
+        XCTAssertFalse(more.contains("\"shake-to-report-toggle\""))
         XCTAssertFalse(more.contains("private var shakeToReportSection"))
     }
 
@@ -642,7 +642,7 @@ final class FeedbackTests: XCTestCase {
     /// verrät, dass sie eine ist — und der Countdown wäre die Anleitung gleich
     /// dazu.
     func testTheHiddenDoorOnlyCountsOnTheOwnersDevice() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/AboutView.swift")
         let tap = try XCTUnwrap(more.range(of: "private func tapVersion()"))
         let next = try XCTUnwrap(more.range(of: "let step = DeveloperAccess.next(taps: taps)"))
         let guardText = more[tap.upperBound..<next.lowerBound]
@@ -676,7 +676,7 @@ final class FeedbackTests: XCTestCase {
             storedAppleUserID: "001234.abcd", storedAppleEmail: "other@icloud.com"))
 
         // Und beide Wege fragen sie — die Zeile UND die Seite.
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/AboutView.swift")
         XCTAssertTrue(more.contains("if developerAvailable { developerRow }"))
         XCTAssertTrue(more.contains("developerAvailable = DeveloperAccess.isAvailable("),
                       "die Zeile bleibt stehen, wenn die Kennung später nicht mehr passt")
@@ -869,7 +869,7 @@ final class FeedbackTests: XCTestCase {
         // then Archiv & Über. The order inside the hub is the contract.
         let ordered = ["MoreRoute.appearance",
                        "showingNotificationSettings", "MoreRoute.habitBehavior",
-                       "moreGitHubRow", "showingPersonalSettings",
+                       "moreGitHubRow", "moreAppleAccountRow",
                        "showReminderSetup", "pageRow(.archive", "pageRow(.about", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
@@ -899,9 +899,11 @@ final class FeedbackTests: XCTestCase {
 
     func testMovedSettingsHaveOneVisibleHome() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let about = try source("Haiity/Views/AboutView.swift")
         let developer = try source("Haiity/Views/DeveloperView.swift")
         XCTAssertTrue(more.contains("AboutView"))
-        XCTAssertTrue(more.contains("shake-to-report-toggle"))
+        XCTAssertTrue(about.contains("shake-to-report-toggle"))
+        XCTAssertFalse(more.contains("shake-to-report-toggle"))
         XCTAssertFalse(more.contains("private var shakeToReportSection"))
         XCTAssertTrue(developer.contains("export-data"))
         XCTAssertTrue(developer.contains("import-data"))

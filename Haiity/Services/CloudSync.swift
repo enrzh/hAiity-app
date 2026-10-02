@@ -198,7 +198,7 @@ actor CloudSync {
     /// Schreibt die Nutzlast. Bei `serverRecordChanged`: Serverstand nehmen,
     /// `mergeAndRetry` (= `HabitStore.merge`) laufen lassen, das Ergebnis
     /// erneut schreiben — bis zu `retryLimit` Runden.
-    func push(_ payload: Data, mergeAndRetry: @Sendable (HabitData?) async -> Data) async throws {
+    func push(_ payload: Data, mergeAndRetry: @Sendable (HabitData?) async throws -> Data) async throws {
         var body = payload
         for attempt in 1...Self.retryLimit {
             do {
@@ -215,7 +215,7 @@ actor CloudSync {
                 // Merge laufen — sonst überschreibt ein alter Build die Daten
                 // eines neueren. Lieber ehrlich abbrechen.
                 let remote = try Self.decode(server)
-                body = await mergeAndRetry(remote)
+                body = try await mergeAndRetry(remote)
             } catch {
                 throw CloudSyncError.map(error)
             }

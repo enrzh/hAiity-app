@@ -191,8 +191,8 @@ struct MoreView: View {
     @State private var storedAppleUserID: String?
     @State private var storedAppleEmail: String?
     @State private var appleSignInCameBackEmpty = false
-    @State private var appleIdentityCopied = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Startwert = Petrol: bewusst KEINE der 18 Ankerfarben, damit die
     /// Vorschau sofort zeigt, dass frei gewählt und ehrlich gerundet wird.
     @State private var freeIconColor: Color = Theme.color(0x0F766E)
@@ -291,6 +291,7 @@ struct MoreView: View {
             NavigationStack {
                 // Not a `List`: iOS 27 drops taps on grouped list rows.
                 SettingsPage(title: String(localized: "Konto")) {
+                    personalHeader
                     personalSection
                 }
                     .toolbar {
@@ -320,6 +321,7 @@ struct MoreView: View {
             .presentationDetents([.large])
         }
         .onAppear {
+            refreshPersonalIdentity()
             dndNow = .now
             notificationDND = store.cloudPreferences?.notificationDND
                 ?? NotificationPromptPreference.state
@@ -455,12 +457,7 @@ struct MoreView: View {
                 AppSettingsGroup(title: String(localized: "Konto & Verbindungen")) {
                     moreGitHubRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
-                    moreHubRow(title: String(localized: "Konto"),
-                               detail: String(localized: "Alias und Apple-Anmeldung"),
-                               symbol: "person.crop.circle",
-                               identifier: "open-account") {
-                        showingPersonalSettings = true
-                    }
+                    moreAppleAccountRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Setup wiederholen"),
                                detail: String(localized: "Mitteilungen und Kalender konfigurieren"),
@@ -528,28 +525,108 @@ struct MoreView: View {
     }
 
     private var moreGitHubRow: some View {
-        HStack(spacing: 12) {
-            Button { onOpen(.github) } label: {
-                AppSettingsRow(title: String(localized: "GitHub"),
-                               detail: github.snapshot?.username ?? String(localized: "Noch nicht verbunden"),
-                               symbol: "chevron.left.forwardslash.chevron.right",
-                               showsChevron: true) {
-                    EmptyView()
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    moreGitHubLink
+                    moreGitHubAccountAction
+                        .padding(.leading, Theme.Metrics.rowTitleInset)
+                }
+            } else {
+                HStack(spacing: Theme.Metrics.gap + 4) {
+                    moreGitHubLink
+                    moreGitHubAccountAction
                 }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("open-github-settings")
-            if github.snapshot != nil {
-                Button(String(localized: "Abmelden"), role: .destructive) {
-                    github.disconnect()
-                }
+        }
+        .padding(.vertical, Theme.Metrics.gap / 2)
+    }
+
+    private var moreGitHubLink: some View {
+        Button { onOpen(.github) } label: {
+            AppSettingsRow(title: String(localized: "GitHub"),
+                           detail: github.snapshot?.username ?? String(localized: "Noch nicht verbunden"),
+                           symbol: "chevron.left.forwardslash.chevron.right",
+                           showsChevron: true) {
+                EmptyView()
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("open-github-settings")
+    }
+
+    @ViewBuilder
+    private var moreGitHubAccountAction: some View {
+        if github.snapshot != nil {
+            Button(String(localized: "Abmelden"), role: .destructive) {
+                github.disconnect()
+            }
+            .font(.caption.weight(.medium))
+            .buttonStyle(.borderless)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+            .accessibilityIdentifier("disconnect-github")
+        } else {
+            Button(String(localized: "Anmelden")) { onOpen(.github) }
                 .font(.caption.weight(.medium))
                 .buttonStyle(.borderless)
                 .fixedSize(horizontal: true, vertical: false)
-                .accessibilityIdentifier("disconnect-github")
+                .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                .accessibilityIdentifier("connect-github")
+        }
+    }
+
+    private var moreAppleAccountRow: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    moreAppleAccountLink
+                    moreAppleAccountAction
+                        .padding(.leading, Theme.Metrics.rowTitleInset)
+                }
+            } else {
+                HStack(spacing: Theme.Metrics.gap + 4) {
+                    moreAppleAccountLink
+                    moreAppleAccountAction
+                }
             }
         }
-        .frame(minHeight: 52)
+        .padding(.vertical, Theme.Metrics.gap / 2)
+    }
+
+    private var moreAppleAccountLink: some View {
+        Button { showingPersonalSettings = true } label: {
+            AppSettingsRow(title: String(localized: "Konto"),
+                           detail: storedAppleUserID == nil
+                            ? String(localized: "Nicht angemeldet")
+                            : personalDisplayName ?? String(localized: "Apple-ID"),
+                           symbol: "person.crop.circle",
+                           showsChevron: true) {
+                EmptyView()
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("open-account")
+    }
+
+    @ViewBuilder
+    private var moreAppleAccountAction: some View {
+        if storedAppleUserID != nil {
+            Button(String(localized: "Abmelden"), role: .destructive) {
+                signOutFromApple()
+            }
+            .font(.caption.weight(.medium))
+            .buttonStyle(.borderless)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+            .accessibilityIdentifier("apple-signout-more")
+        } else {
+            appleSignInControl
+                .frame(width: 160, height: Theme.Metrics.hit)
+                .accessibilityIdentifier("apple-signin-more")
+        }
     }
 
     private var githubSection: some View {
@@ -1538,9 +1615,52 @@ struct MoreView: View {
     // den Namen nur bei der ERSTEN Anmeldung — schlägt das fehl oder kommt
     // leer zurück, sagt die Zeile das ehrlich, statt still nichts zu tun.
 
+    private var personalDisplayName: String? {
+        PersonalName.resolve(alias: aliasDraft, appleName: storedAppleName)
+    }
+
+    private var personalHeader: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+            HStack {
+                Group {
+                    if let name = personalDisplayName, let initial = name.first {
+                        Text(String(initial).uppercased())
+                    } else {
+                        Image(systemName: "person.fill")
+                    }
+                }
+                .font(.title.weight(.semibold))
+                .foregroundStyle(accentColor)
+                .frame(width: 64, height: 64)
+                .background(accentColor.opacity(0.1), in: Circle())
+                .accessibilityHidden(true)
+                Spacer()
+                Label(String(localized: storedAppleUserID == nil ? "Ohne Anmeldung" : "Mit Apple verbunden"),
+                      systemImage: storedAppleUserID == nil ? "person.crop.circle" : "checkmark.seal")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(personalDisplayName.map { String(format: String(localized: "Hallo, %@"), $0) }
+                 ?? String(localized: "Dein Alltag, persönlich."))
+                .font(.title2.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(String(localized: "Ein Name, der deine Motivationen persönlicher macht."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Theme.Metrics.gutter)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .morePanel()
+        .accessibilityIdentifier("account-header")
+    }
+
     private var personalSection: some View {
-        AppSettingsGroup(title: String(localized: "Anrede")) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            AppSettingsGroup(title: String(localized: "Anrede"),
+                             footer: String(localized: "Dein Alias bleibt auf diesem Gerät. Du brauchst dafür kein Konto.")) {
                 HStack(spacing: Theme.Metrics.gap) {
                     personalLeadingIcon("person.crop.circle")
                     VStack(alignment: .leading, spacing: 2) {
@@ -1554,29 +1674,44 @@ struct MoreView: View {
                             .submitLabel(.done)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("personal-alias")
+                            .frame(minHeight: Theme.Metrics.hit)
                     }
                 }
-                .frame(minHeight: Theme.Metrics.hit)
-                if let storedAppleUserID {
-                    let displayName = PersonalName.resolve(alias: aliasDraft,
+                .padding(.vertical, Theme.Metrics.gap / 2)
+                Divider().padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
+                personalMotivationPreview
+            }
+
+            AppSettingsGroup(title: String(localized: "Apple-ID"),
+                             footer: String(localized: "Die Apple-Anmeldung ist optional. Dein iCloud-Abgleich läuft unabhängig davon.")) {
+            VStack(alignment: .leading, spacing: 0) {
+                if storedAppleUserID != nil {
+                    let displayName = PersonalName.resolve(alias: nil,
                                                             appleName: storedAppleName)
                         ?? String(localized: "Apple-ID")
-                    Divider()
-                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
-                        .padding(.vertical, Theme.Metrics.gap / 2)
-                    HStack(spacing: Theme.Metrics.gap) {
-                        personalLeadingIcon("person.crop.circle.badge.checkmark")
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(String(format: String(localized: "Angemeldet als %@"), displayName))
-                                .font(.subheadline)
-                                .lineLimit(2)
+                    VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                        HStack(spacing: Theme.Metrics.gap) {
+                            personalLeadingIcon("person.crop.circle.badge.checkmark")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(String(format: String(localized: "Angemeldet als %@"), displayName))
+                                    .font(.subheadline.weight(.medium))
+                                if let storedAppleEmail {
+                                    Text(storedAppleEmail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        Spacer(minLength: Theme.Metrics.gap)
                         Button(String(localized: "Abmelden"), role: .destructive) {
                             signOutFromApple()
                         }
-                        .buttonStyle(.borderless)
-                        .fixedSize(horizontal: true, vertical: false)
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .frame(minHeight: Theme.Metrics.hit)
+                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
                         .accessibilityIdentifier("apple-signout")
                     }
                     .frame(minHeight: Theme.Metrics.hit)
@@ -1585,27 +1720,9 @@ struct MoreView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    if !DeveloperAccess.isOwnerDevice(storedAppleUserID: storedAppleUserID,
-                                                      storedAppleEmail: storedAppleEmail) {
-                        Button {
-                            UIPasteboard.general.string = storedAppleUserID
-                            appleIdentityCopied = true
-                            Theme.Haptics.success()
-                        } label: {
-                            Label(String(localized: appleIdentityCopied ? "Kennung kopiert." : "Kennung kopieren"),
-                                  systemImage: appleIdentityCopied ? "checkmark" : "doc.on.doc")
-                        }
-                        .accessibilityIdentifier("copy-unrecognized-apple-user-id")
-                    }
                 } else {
-                    Divider()
-                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
-                        .padding(.vertical, Theme.Metrics.gap / 2)
-                    HStack(spacing: Theme.Metrics.gap) {
-                        personalLeadingIcon("person.crop.circle.badge.checkmark")
-                        appleSignInButton
-                    }
-                        .padding(.vertical, 2)
+                    appleSignInButton
+                        .padding(.vertical, Theme.Metrics.gap)
                     if appleSignInCameBackEmpty {
                         Text(String(localized: "Apple hat keinen Namen geliefert. Nutze einen Alias."))
                             .font(.caption)
@@ -1614,26 +1731,55 @@ struct MoreView: View {
                 }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
+            }
         }
-        .onAppear {
-            aliasDraft = PersonalName.alias ?? ""
-            storedAppleName = PersonalName.appleName
-            storedAppleUserID = PersonalName.appleUserID
-            storedAppleEmail = PersonalName.appleEmail
+        .onAppear { refreshPersonalIdentity() }
+    }
+
+    private var personalMotivationPreview: some View {
+        let message = Celebration.message(name: personalDisplayName, today: DayKey.today())
+        return HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+            personalLeadingIcon("quote.bubble")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(localized: "Vorschau"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(message.title)
+                    .font(.subheadline.weight(.semibold))
+                Text(message.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.vertical, Theme.Metrics.gap + 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("account-motivation-preview")
+    }
+
+    private func refreshPersonalIdentity() {
+        aliasDraft = PersonalName.alias ?? ""
+        storedAppleName = PersonalName.appleName
+        storedAppleUserID = PersonalName.appleUserID
+        storedAppleEmail = PersonalName.appleEmail
     }
 
     private var appleSignInButton: some View {
+        appleSignInControl
+            .frame(maxWidth: .infinity)
+            .frame(height: Theme.Metrics.hit)
+            .accessibilityIdentifier("apple-signin")
+    }
+
+    private var appleSignInControl: some View {
         SignInWithAppleButton(.signIn) { request in
             request.requestedScopes = [.fullName, .email]
         } onCompletion: { result in
             handleAppleSignIn(result)
         }
         .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-        .frame(maxWidth: .infinity)
-        .frame(height: 44)
         .clipShape(RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
-        .accessibilityIdentifier("apple-signin")
     }
 
     private var aliasBinding: Binding<String> {
@@ -1653,7 +1799,6 @@ struct MoreView: View {
         storedAppleUserID = nil
         storedAppleEmail = nil
         appleSignInCameBackEmpty = false
-        appleIdentityCopied = false
     }
 
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
@@ -1697,10 +1842,8 @@ struct MoreView: View {
         let suggestedAlias = AppleSignInIdentity.suggestedAlias(
             resolvedName: resolvedName,
             email: aliasEmail)
-        if let resolvedName {
-            PersonalName.appleName = resolvedName
-            storedAppleName = PersonalName.appleName
-        }
+        PersonalName.appleName = resolvedName
+        storedAppleName = PersonalName.appleName
         if PersonalName.alias == nil, let suggestedAlias {
             PersonalName.alias = suggestedAlias
             aliasDraft = suggestedAlias
@@ -3246,188 +3389,5 @@ struct HabitExport: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { $0.data }
             .suggestedFileName("haiity-export.json")
-    }
-}
-
-/// Kurz und ehrlich: das Kein-Server-Prinzip — und ganz unten die
-/// Versionszeile, hinter der die versteckte Tür zum Entwicklerbereich sitzt.
-struct AboutView: View {
-    let store: HabitStore
-    /// Bereits getätigte Tipps auf die Versionszeile. Bewusst NICHT
-    /// gespeichert: eine halb geöffnete Tür soll den Bildschirm nicht
-    /// überleben (siehe `DeveloperAccess`).
-    @State private var taps = 0
-    /// Refreshed on appearance because Sign in with Apple may establish the
-    /// owner identity while More is already alive below this page.
-    @State private var developerAvailable = false
-    @State private var shakeToReport = ShakeToReport.isEnabled
-    @Environment(\.palettes) private var palettes
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                aboutHero
-                privacyCard
-                reportCard
-                releaseCard
-            }
-            .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.top, 12)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 20)
-        }
-        .scrollIndicators(.hidden)
-        .settingsChrome()
-        .appPageHeader(String(localized: "Über"))
-        .onAppear {
-            shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled
-            developerAvailable = DeveloperAccess.isAvailable(
-                storedAppleUserID: PersonalName.appleUserID,
-                storedAppleEmail: PersonalName.appleEmail)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: ShakeToReport.didChange)) { _ in
-            shakeToReport = ShakeToReport.isEnabled
-        }
-    }
-
-    private var aboutHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Image(systemName: "square.grid.3x3.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 54, height: 54)
-                    .background(Theme.accentFill(palettes.style),
-                                in: RoundedRectangle(cornerRadius: CornerRadius.card, style: .continuous))
-                Spacer(minLength: 0)
-                Image(systemName: "checkmark.seal")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(verbatim: "hAiity")
-                    .font(.largeTitle.weight(.bold))
-                Text(String(localized: "Dein Alltag als Contribution-Graph."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .morePanel()
-        .accessibilityElement(children: .combine)
-    }
-
-    private var privacyCard: some View {
-        aboutCard(title: String(localized: "Datenschutz"), symbol: "lock.shield") {
-            Text(String(localized: "Kein Tracking, kein hAiity-Server. Deine Daten bleiben auf deinen Geräten und in deiner privaten iCloud."))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var reportCard: some View {
-        Toggle(isOn: Binding(
-            get: { shakeToReport },
-            set: { enabled in
-                shakeToReport = enabled
-                ShakeToReport.isEnabled = enabled
-                store.updateCloudPreferences(
-                    fallback: CloudPreferences(
-                        calendarSyncHabits: CalendarSync.syncHabits,
-                        calendarSyncReminders: CalendarSync.syncReminders,
-                        nativeReminderSync: ReminderSync.isEnabled,
-                        shakeToReportEnabled: ShakeToReport.isEnabled,
-                        notificationDND: NotificationPromptPreference.state)) {
-                    $0.shakeToReportEnabled = enabled
-                }
-            })) {
-                Label(String(localized: "Schütteln zum Melden"),
-                      systemImage: "iphone.radiowaves.left.and.right")
-            }
-            .accessibilityIdentifier("shake-to-report-toggle")
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
-            .morePanel()
-    }
-
-    private var releaseCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            versionRow
-            if developerAvailable { developerRow }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
-        .morePanel()
-    }
-
-    private func aboutCard<Content: View>(title: String,
-                                          symbol: String,
-                                          @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: symbol)
-                .font(.headline.weight(.semibold))
-            content()
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .morePanel()
-    }
-
-    /// Die Tür. Sie sieht aus wie eine Fußzeile und ist eine: die Version
-    /// gehört ohnehin in jede Meldung. Erst ab dem vierten Tipp verrät der
-    /// Countdown, dass da etwas ist — vorher wäre sie keine versteckte Tür.
-    private var versionRow: some View {
-        Button {
-            tapVersion()
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: AppBuildInfo.versionLine)
-                if let hint = DeveloperAccess.hint(for: taps) {
-                    Text(hint)
-                }
-            }
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("app-version")
-    }
-
-    private var developerRow: some View {
-        NavigationLink(value: MoreRoute.developer) {
-            Label(String(localized: "Entwickler"), systemImage: "hammer")
-        }
-        .accessibilityIdentifier("open-developer")
-    }
-
-    /// Ein Tipp weiter. Gerechnet wird in `DeveloperAccess`; hier steht nur,
-    /// was die ANSICHT damit tut — den einen Schreibvorgang und den Stups,
-    /// der das Aufgehen der Tür spürbar macht.
-    ///
-    /// **Auf fremden Geräten passiert NICHTS.** Kein Countdown, keine
-    /// Zählung, kein Stups — die Zeile bleibt eine Versionszeile. Eine Tür,
-    /// die sich einen Spalt bewegt, verrät, dass sie eine ist; und der
-    /// Countdown „Noch 3 Tipps …" wäre die Anleitung gleich dazu. Wem die Tür
-    /// gehört, entscheidet `DeveloperAccess.isOwnerDevice`.
-    private func tapVersion() {
-        guard DeveloperAccess.isOwnerDevice(storedAppleUserID: PersonalName.appleUserID,
-                                                  storedAppleEmail: PersonalName.appleEmail) else {
-            return
-        }
-        let step = DeveloperAccess.next(taps: taps)
-        taps = step.taps
-        guard step.unlocked else { return }
-        DeveloperAccess.isUnlocked = true
-        // Ohne Nachfrage: Der Riegel oben hat gerade bestätigt, dass dieses
-        // Gerät dem Besitzer gehört — ein zweiter Aufruf derselben Regel im
-        // selben Atemzug wäre nur eine Wiederholung.
-        developerAvailable = true
-        Theme.Haptics.success()
     }
 }

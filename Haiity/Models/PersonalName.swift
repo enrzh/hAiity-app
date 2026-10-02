@@ -98,7 +98,12 @@ enum PersonalName {
     static let appleEmailKey = "personalAppleEmail"
 
     private static var defaults: UserDefaults {
-        UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("-design-fixture") {
+            return UserDefaults(suiteName: "com.aiity.haiity.design-personal") ?? .standard
+        }
+        #endif
+        return UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
     }
 
     static var alias: String? {

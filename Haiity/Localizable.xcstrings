@@ -1,6 +1,206 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Anmelden": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Sign In"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تسجيل الدخول"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সাইন ইন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Iniciar sesión"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Se connecter"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "साइन इन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Masuk"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Accedi"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "サインイン"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "로그인"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Iniciar sessão"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Войти"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Giriş yap"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "سائن ان"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đăng nhập"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录"}}
+      }
+    },
+    "Ohne Anmeldung": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Not signed in"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "بدون تسجيل دخول"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সাইন ইন করা নেই"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Sin iniciar sesión"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Sans connexion"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "साइन इन नहीं किया है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Belum masuk"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Senza accesso"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "サインインなし"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "로그인 안 됨"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Sem sessão iniciada"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Без входа"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Giriş yapılmadı"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "سائن ان نہیں کیا گیا"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Chưa đăng nhập"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未登录"}}
+      }
+    },
+    "Mit Apple verbunden": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Connected with Apple"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "متصل بحساب Apple"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "Apple-এর সাথে সংযুক্ত"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Conectado con Apple"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Connecté avec Apple"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "Apple से जुड़ा हुआ"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Terhubung dengan Apple"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Collegato con Apple"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "Appleと接続済み"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "Apple로 연결됨"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ligado com a Apple"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Подключено через Apple"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Apple ile bağlı"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "Apple سے منسلک"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã kết nối với Apple"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已通过 Apple 连接"}}
+      }
+    },
+    "Hallo, %@": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Hello, %@"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "مرحبًا، %@"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "হ্যালো, %@"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Hola, %@"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Bonjour, %@"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "नमस्ते, %@"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Halo, %@"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ciao, %@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "こんにちは、%@"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "안녕하세요, %@"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Olá, %@"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Привет, %@"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Merhaba, %@"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "سلام، %@"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Xin chào, %@"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "你好，%@"}}
+      }
+    },
+    "Dein Alltag, persönlich.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Your day, your way."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يومك، على طريقتك."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আপনার দিন, আপনার মতো।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Tu día, a tu manera."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Votre quotidien, à votre façon."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आपका दिन, आपके अंदाज़ में।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Harimu, caramu."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La tua giornata, a modo tuo."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "あなたらしい毎日。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "나만의 하루."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O teu dia, à tua maneira."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Твой день, по-твоему."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Günün, senin tarzın."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آپ کا دن، آپ کے انداز میں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Ngày của bạn, theo cách của bạn."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的日常，你的方式。"}}
+      }
+    },
+    "Ein Name, der deine Motivationen persönlicher macht.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "A name that makes your motivations feel more personal."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اسم يجعل رسائل التحفيز أكثر شخصية."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "একটি নাম যা আপনার অনুপ্রেরণার বার্তাগুলোকে আরও ব্যক্তিগত করে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Un nombre que hace tus mensajes de motivación más personales."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Un nom qui rend vos messages de motivation plus personnels."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "एक नाम जो आपके प्रेरक संदेशों को और व्यक्तिगत बनाता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Nama yang membuat pesan motivasimu lebih personal."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Un nome che rende i tuoi messaggi motivazionali più personali."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "励ましのメッセージを、もっとあなたらしく。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이름으로 동기 부여 메시지를 더 친근하게."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Um nome que torna as tuas mensagens de motivação mais pessoais."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Имя, которое делает мотивационные сообщения более личными."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Motivasyon mesajlarını daha kişisel yapan bir isim."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ایک نام جو آپ کے حوصلہ افزا پیغامات کو زیادہ ذاتی بناتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Một cái tên giúp lời động viên gần gũi hơn."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "让激励消息更贴近你的名字。"}}
+      }
+    },
+    "Dein Alias bleibt auf diesem Gerät. Du brauchst dafür kein Konto.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Your nickname stays on this device. No account needed."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يبقى اسمك المستعار على هذا الجهاز. لا تحتاج إلى حساب."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আপনার ডাকনাম এই ডিভাইসেই থাকে। কোনো অ্যাকাউন্টের প্রয়োজন নেই।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Tu alias se queda en este dispositivo. No necesitas una cuenta."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Votre surnom reste sur cet appareil. Aucun compte nécessaire."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आपका उपनाम इसी डिवाइस पर रहता है। खाते की ज़रूरत नहीं है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Nama panggilanmu tetap di perangkat ini. Tidak perlu akun."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Il tuo soprannome resta su questo dispositivo. Non serve un account."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ニックネームはこのデバイスに保存されます。アカウントは不要です。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "별명은 이 기기에 저장됩니다. 계정이 필요하지 않습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O teu nome fica neste dispositivo. Não precisas de uma conta."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Псевдоним остаётся на этом устройстве. Аккаунт не нужен."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Takma adın bu cihazda kalır. Hesap gerekmez."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آپ کا عرف اسی ڈیوائس پر رہتا ہے۔ اکاؤنٹ کی ضرورت نہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Biệt danh được lưu trên thiết bị này. Không cần tài khoản."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "昵称保存在此设备上，无需账户。"}}
+      }
+    },
+    "Die Apple-Anmeldung ist optional. Dein iCloud-Abgleich läuft unabhängig davon.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Signing in with Apple is optional. iCloud sync works independently."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تسجيل الدخول باستخدام Apple اختياري. مزامنة iCloud تعمل بشكل مستقل."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "Apple দিয়ে সাইন ইন করা ঐচ্ছিক। iCloud সিঙ্ক আলাদাভাবে কাজ করে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Iniciar sesión con Apple es opcional. La sincronización con iCloud es independiente."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La connexion avec Apple est facultative. La synchronisation iCloud fonctionne indépendamment."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "Apple से साइन इन करना वैकल्पिक है। iCloud सिंक इससे स्वतंत्र है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Masuk dengan Apple bersifat opsional. Sinkronisasi iCloud berjalan terpisah."}},
+        "it": {"stringUnit": {"state": "translated", "value": "L'accesso con Apple è facoltativo. La sincronizzazione iCloud funziona indipendentemente."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "Appleでのサインインは任意です。iCloud同期は独立して動作します。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "Apple 로그인은 선택 사항입니다. iCloud 동기화는 별도로 작동합니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Iniciar sessão com a Apple é opcional. A sincronização iCloud funciona de forma independente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Вход через Apple необязателен. Синхронизация iCloud работает независимо."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Apple ile giriş isteğe bağlıdır. iCloud eşzamanlaması bağımsız çalışır."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "Apple سے سائن ان اختیاری ہے۔ iCloud مطابقت پذیری اس سے الگ کام کرتی ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đăng nhập với Apple là tùy chọn. Đồng bộ iCloud hoạt động độc lập."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "通过 Apple 登录是可选的，iCloud 同步独立运行。"}}
+      }
+    },
+    "Mehrsprachiges Modell mit höherem Speicherbedarf.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Multilingual model with higher memory requirements."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "نموذج متعدد اللغات يتطلب ذاكرة أكبر."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বেশি মেমরির প্রয়োজন হয় এমন বহুভাষিক মডেল।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Modelo multilingüe con mayores requisitos de memoria."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Modèle multilingue nécessitant davantage de mémoire."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "अधिक मेमोरी की आवश्यकता वाला बहुभाषी मॉडल।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Model multibahasa dengan kebutuhan memori lebih besar."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Modello multilingue con maggiori requisiti di memoria."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "より多くのメモリを必要とする多言語モデル。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "더 많은 메모리가 필요한 다국어 모델입니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Modelo multilingue com maiores requisitos de memória."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Многоязычная модель с повышенными требованиями к памяти."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Daha fazla bellek gerektiren çok dilli model."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "زیادہ میموری درکار رکھنے والا کثیر لسانی ماڈل۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Mô hình đa ngôn ngữ cần nhiều bộ nhớ hơn."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "需要更多内存的多语言模型。"}}
+      }
+    },
+    "Die Daten wurden inzwischen geändert. Bitte erneut sichern.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The data changed while saving. Please save again."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تغيرت البيانات أثناء الحفظ. يرجى الحفظ مرة أخرى."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সংরক্ষণের সময় তথ্য পরিবর্তিত হয়েছে। আবার সংরক্ষণ করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Los datos cambiaron al guardar. Guarda de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Les données ont changé pendant l'enregistrement. Enregistrez à nouveau."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सहेजते समय डेटा बदल गया। कृपया फिर से सहेजें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Data berubah saat menyimpan. Silakan simpan lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "I dati sono cambiati durante il salvataggio. Salva di nuovo."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "保存中にデータが変更されました。もう一度保存してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "저장 중 데이터가 변경되었습니다. 다시 저장해 주세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Os dados mudaram durante a gravação. Grave novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Данные изменились во время сохранения. Сохраните ещё раз."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Kaydetme sırasında veriler değişti. Lütfen tekrar kaydedin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "محفوظ کرتے وقت ڈیٹا بدل گیا۔ براہ کرم دوبارہ محفوظ کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Dữ liệu đã thay đổi khi lưu. Vui lòng lưu lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "保存时数据已更改。请重新保存。"}}
+      }
+    },
     "Vorheriger Monat": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Previous month" } } }
     },
@@ -27,9 +227,6 @@
     },
     "Weniger": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Less" } } }
-    },
-    "Mehr": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "More" } } }
     },
     "Beitragsintensität: weniger bis mehr": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Contribution intensity: less to more" } } }
@@ -58117,16 +58314,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "30 days: %lld percent, streak %lld days"
-          }
-        }
-      }
-    },
-    "Check-ins der letzten 12 Monate: %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check-ins in the last 12 months: %lld"
           }
         }
       }

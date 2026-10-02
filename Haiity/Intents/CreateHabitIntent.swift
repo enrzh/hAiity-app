@@ -89,6 +89,8 @@ struct CreateHabitIntent: AppIntent {
             return .result(dialog: "Der Name fehlt.")
         case .limitReached:
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.limitMessage))
+        case .failed(let message):
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: message])
         }
     }
 }
@@ -104,6 +106,7 @@ enum CreateItemSaver {
         case saved
         case emptyName
         case limitReached
+        case failed(String)
     }
 
     static let limitMessage =
@@ -135,6 +138,7 @@ enum CreateItemSaver {
         else { return .limitReached }
 
         target.add(draft.makeHabit())
+        if let error = target.lastWriteError { return .failed(error) }
         // The new item needs its notification and the day's summary pulled
         // along, or it would sit silent until some later settings change.
         await Reminders.reschedule(store: target)
@@ -212,6 +216,8 @@ struct CreateItemFromTextIntent: AppIntent {
             return .result(dialog: "Der Satz enthielt keinen Namen.")
         case .limitReached:
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.limitMessage))
+        case .failed(let message):
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: message])
         }
     }
 }

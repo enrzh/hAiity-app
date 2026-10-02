@@ -254,6 +254,23 @@ The hub carries three groups — **Alltag**, **Konto & Verbindungen**, **Archiv 
 Über** — not one heading per taxonomy. Rows, `AppSettingsRow`, and the group
 surface are unchanged by this grouping; only the headings and their order move.
 
+The Apple account entry keeps navigation separate from authentication, like the
+GitHub connection row. Its leading label opens the account page; the trailing
+native Apple control signs in, or the sign-out action disconnects the local
+identity. At accessibility text sizes these targets stack rather than squeezing
+the label. The Apple sign-in button keeps at least Apple's 140-point width and
+the app's 44-point hit height.
+
+Disconnected GitHub rows offer an explicit sign-in action that opens the GitHub
+page. Technical Apple identifiers and their copy action stay exclusively in the
+owner-gated developer page; the normal account page shows only name and email.
+
+The account page uses the selected appearance surface for a personal greeting,
+an editable alias with a live preview of an existing celebration message, and a
+separate Apple identity group. Preview text is explicitly labelled and does not
+send a notification. Sign-in remains optional; the alias survives sign-out and
+iCloud synchronization remains independent of this identity.
+
 iCloud sync status deliberately stays **off** the hub (it is ambient noise at
 rest) and remains on the behavior page. GitHub state is already a hub row.
 Settings ownership stays in the page that owns the setting.

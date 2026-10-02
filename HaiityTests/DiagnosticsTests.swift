@@ -477,7 +477,7 @@ final class DiagnosticsTests: XCTestCase {
     /// wird in `DeveloperAccess`, geschrieben genau einmal, und der Stups beim
     /// Aufgehen macht die Geste bestätigt statt zufällig.
     func testAboutViewCarriesTheHiddenDoor() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/AboutView.swift")
         XCTAssertTrue(more.contains("struct AboutView"))
         XCTAssertTrue(more.contains("\"app-version\""))
         XCTAssertTrue(more.contains("\"open-developer\""))

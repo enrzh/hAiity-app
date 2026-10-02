@@ -78,6 +78,7 @@ struct EditHabitSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
     @State private var showingCreationAdvanced = false
+    @State private var saveError: String?
     @State private var isSaving = false
     @State private var savedWhileAwaitingPermission = false
     private enum IdentityField: Hashable { case name, emoji }
@@ -312,6 +313,12 @@ struct EditHabitSheet: View {
                         .accessibilityIdentifier("save-habit")
                 }
             }
+        }
+        .alert(String(localized: "Fehler"), isPresented: Binding(
+            get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button(String(localized: "OK"), role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
         }
         .sheet(item: $paywall) { context in
             PaywallView(context: context, store: store,
@@ -1068,7 +1075,8 @@ struct EditHabitSheet: View {
         // ohnehin, und eine bewusst leere Wochentagsmenge soll leer bleiben.
         let recurrence = draft.recurrence(calendar: calendar)
 
-        var habit = existing ?? Habit(name: trimmed, emoji: emoji)
+        var habit = existing.flatMap { original in store.habits.first { $0.id == original.id } }
+            ?? existing ?? Habit(name: trimmed, emoji: emoji)
         habit.name = trimmed
         habit.emoji = emoji.trimmingCharacters(in: .whitespaces)
         habit.itemType = itemType
@@ -1097,6 +1105,10 @@ struct EditHabitSheet: View {
                                                               log: habit.log,
                                                               target: recurrence.target) : .checkbox
         if existing == nil { store.add(habit) } else { store.update(habit) }
+        guard store.lastWriteError == nil else {
+            saveError = store.lastWriteError
+            return
+        }
         Theme.Haptics.success()
         guard draft.hasTime, notificationMode != .off else {
             dismiss()

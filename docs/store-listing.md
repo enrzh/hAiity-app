@@ -87,7 +87,7 @@ Frei: drei aktive Habits, alle Habit-Arten, Serien, Widgets, Siri, Mitteilungen,
 hAiity Pro: unbegrenzt viele Habits, eigene Farben, App-Icon per Farbrad, Kalender-Spiegel, volle Statistik.
 Einmal kaufen. Kein Abo, kein Konto, kein Server.
 
-Erfordert iOS 17.
+Erfordert iOS 18.
 ```
 
 Zum Kürzen auf ~2.500, falls gewünscht: zuerst „MITTEILUNGEN“, dann
@@ -192,7 +192,7 @@ Free: three active habits, every habit kind, streaks, widgets, Siri, notificatio
 hAiity Pro: unlimited habits, custom colors, the app icon from a color wheel, the calendar mirror, the full statistics.
 Buy once. No subscription, no account, no server.
 
-Requires iOS 17.
+Requires iOS 18.
 ```
 
 ### Keywords (max. 100, comma separated, no app name)

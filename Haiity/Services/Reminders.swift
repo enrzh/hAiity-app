@@ -904,7 +904,7 @@ enum Reminders {
 
         if action == .archive {
             store.archive(habit.id)
-            return true
+            return store.lastWriteError == nil
         }
 
         if action == .reset {
@@ -915,14 +915,14 @@ enum Reminders {
             } else {
                 store.clear(habit.id, day: target.day)
             }
-            return true
+            return store.lastWriteError == nil
         }
 
         if action == .no {
             guard !habit.isReminder, habit.kind == .yesNo,
                   !habit.isAnswered(target.day) else { return false }
             store.setValue(habit.id, day: target.day, value: Habit.Answer.no)
-            return true
+            return store.lastWriteError == nil
         }
 
         guard NotificationQuickAction.forHabit(habit) == action else { return false }
@@ -942,7 +942,7 @@ enum Reminders {
                                                                   calendar: habitCalendar)
             store.setReminderCompletion(habit.id, day: target.day,
                                         completed: true, nextCursor: cursor)
-            return true
+            return store.lastWriteError == nil
         }
 
         guard !habit.isDone(target.day) else { return false }
@@ -954,7 +954,7 @@ enum Reminders {
         case .checkbox:
             store.toggle(habit.id, day: target.day)
         }
-        return true
+        return store.lastWriteError == nil
     }
 
     /// Nach einem Check-in AUSSERHALB der App (Widget-Knopf, Steuerungs-

@@ -17,9 +17,21 @@ enum DesignFixture {
 
     static func makeStore() -> HabitStore? {
         guard let scenario else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("design-fixture.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("design-fixture-\(UUID()).json")
         let store = HabitStore(url: url, loadFromDisk: false)
         let args = ProcessInfo.processInfo.arguments
+        // Personalization fixtures use a separate defaults suite as well.
+        PersonalName.alias = nil
+        PersonalName.appleName = nil
+        PersonalName.appleUserID = nil
+        PersonalName.appleEmail = nil
+        if let index = args.firstIndex(of: "-design-account"), index + 1 < args.count,
+           args[index + 1] == "connected" {
+            PersonalName.alias = "Alex"
+            PersonalName.appleName = "Alex Morgan"
+            PersonalName.appleUserID = "fixture-apple-account"
+            PersonalName.appleEmail = "alex@privaterelay.appleid.com"
+        }
         if let index = args.firstIndex(of: "-design-appearance"), index + 1 < args.count,
            let appearance = AppearanceSetting(rawValue: args[index + 1]) {
             store.appearance = appearance

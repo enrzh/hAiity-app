@@ -277,6 +277,36 @@ final class CloudSyncTests: XCTestCase {
         XCTAssertEqual(fake.savedPayloads.count, 1, "kein zweiter Schreibvorgang")
     }
 
+    @MainActor
+    func testFailedLocalSaveStopsCloudConflictRetry() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-local-conflict-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let local = Habit(name: "Local"), remote = Habit(name: "Remote")
+        let store = HabitStore(url: url)
+        store.add(local)
+        let payload = try XCTUnwrap(store.exportJSON())
+        HabitStore(url: url).setValue(local.id, day: "2026-10-01", value: 1)
+        let server = HabitData(version: HabitData.currentVersion, updatedAt: store.data.updatedAt + 1,
+                               summaryMinutes: nil, habits: [remote])
+        let fake = FakeCloudStore()
+        fake.saveOutcomes = [.conflict(CloudFixtures.record(carrying: server))]
+        let sync = CloudSync(database: fake)
+        do {
+            try await sync.push(payload) { remote in
+                try await MainActor.run {
+                    store.merge(remote: try XCTUnwrap(remote))
+                    try store.requireSuccessfulWrite()
+                    return try XCTUnwrap(store.exportJSON())
+                }
+            }
+            XCTFail("A rejected local merge must stop the cloud upload")
+        } catch {
+            XCTAssertNotNil(store.lastWriteError)
+        }
+        XCTAssertEqual(fake.savedPayloads.count, 1)
+        XCTAssertEqual(HabitStore(url: url).value(local.id, day: "2026-10-01"), 1)
+    }
+
     func testPushSurfacesTerminalFailure() async {
         let fake = FakeCloudStore()
         fake.saveOutcomes = [.failure(CloudFixtures.ckError(.quotaExceeded))]

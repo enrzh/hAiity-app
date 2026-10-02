@@ -188,6 +188,7 @@
 		BDEB1CD5AE645835032859C6 /* ContributionGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F7C445D6053ABA1A4B56A /* ContributionGridTests.swift */; };
 		C0F71DC05118C02236A68E36 /* ReminderItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D06513C852AB97864CE03 /* ReminderItemTests.swift */; };
 		C34203431C62176A53DF1D2B /* GitHubSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C836108CF2C4CD9FBEFDF473 /* GitHubSettingsView.swift */; };
+		C64F28EC58CDACE933A527B2 /* TabBarPlatterReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D3583F371F42918DE4DE51 /* TabBarPlatterReader.swift */; };
 		C8251BF96896DA13D8E186F4 /* PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB0DA3005334E3EF7256760 /* PerformanceTests.swift */; };
 		C87C5539733460FCE6A4C883 /* HabitTimeZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3899E978F911B0CF69FA88A8 /* HabitTimeZone.swift */; };
 		C8A7F9406EBB67B210BA41D0 /* MotivationWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1B5BD327B4A14190B2FCC3 /* MotivationWriter.swift */; };
@@ -247,6 +248,7 @@
 		F7BC96A8C3992644B26B77BB /* GeneratedMotivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E7C7954EFD1E684D419612 /* GeneratedMotivation.swift */; };
 		F7E65DC2C9C659FEA6B790C8 /* PalettePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EBEB42EE87DB84EEC2028D /* PalettePicker.swift */; };
 		F90F8BBAE446A5C01202A716 /* LocalModelCatalogueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBC346B3E15739E17E43FBAC /* LocalModelCatalogueTests.swift */; };
+		F91F0D999786A295CA595C38 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD11E7F2571A7F1C392A93D2 /* AboutView.swift */; };
 		FA4DF1A9C407FF59884BD228 /* GridCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2D9A9FE202EC9A61703069 /* GridCalendar.swift */; };
 		FB22929AB5D0281898887F75 /* GitHubDeviceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60E7A6EC0D305274CFBDD6F /* GitHubDeviceFlowTests.swift */; };
 		FB5B82243B884D78746BC946 /* StatsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C32D6A28A2D77649BA7EE78 /* StatsEngine.swift */; };
@@ -297,6 +299,7 @@
 
 /* Begin PBXFileReference section */
 		03C07C85DEC3D41AB96E72C3 /* CloudSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncTests.swift; sourceTree = "<group>"; };
+		04D3583F371F42918DE4DE51 /* TabBarPlatterReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarPlatterReader.swift; sourceTree = "<group>"; };
 		09665D11558201749ED55C90 /* ReminderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSetupView.swift; sourceTree = "<group>"; };
 		09BBF792C6CA9BBEA9B59E0F /* SelectHabitIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectHabitIntent.swift; sourceTree = "<group>"; };
 		0A7CAADC296C370566092836 /* SelectGraphIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectGraphIntent.swift; sourceTree = "<group>"; };
@@ -457,6 +460,7 @@
 		CA2E8C619A3B62D692EDFF89 /* BackfillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackfillTests.swift; sourceTree = "<group>"; };
 		CB0DD93902713107BBAF50B8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CBC346B3E15739E17E43FBAC /* LocalModelCatalogueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelCatalogueTests.swift; sourceTree = "<group>"; };
+		CD11E7F2571A7F1C392A93D2 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		CE803039F5F962B512E4DDB7 /* SearchFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFlowTests.swift; sourceTree = "<group>"; };
 		CF187B9A718D2A2A86D4FF6E /* GitHubCardContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCardContractTests.swift; sourceTree = "<group>"; };
 		D035265EF19E57F7DC293947 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
@@ -609,6 +613,7 @@
 		84CB73DACCA7E0348AD8EA69 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				CD11E7F2571A7F1C392A93D2 /* AboutView.swift */,
 				F586DECA4C0563952891685A /* AppUIComponents.swift */,
 				4E97A47C25BDC89BDCF1EF81 /* ArchiveView.swift */,
 				47D14A0D6D6BFF84C80FADF4 /* BackfillCard.swift */,
@@ -641,6 +646,7 @@
 				BEE02797D8586DEBB5BA0314 /* StartupSplashView.swift */,
 				2E5DABD63C9237AA5A281CF5 /* StatsView.swift */,
 				200E5EF258DF9AC750B77645 /* SwipeRevealPan.swift */,
+				04D3583F371F42918DE4DE51 /* TabBarPlatterReader.swift */,
 				4C07A90E12C1CAC5ACB4EB1A /* TodayProgressView.swift */,
 			);
 			path = Views;
@@ -998,7 +1004,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nbundle=\"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nmkdir -p \"$bundle\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarSync.swift\" \"$bundle/CalendarSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarEventKit.swift\" \"$bundle/CalendarEventKit.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/ReminderSync.swift\" \"$bundle/ReminderSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ContentView.swift\" \"$bundle/ContentView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/EditHabitSheet.swift\" \"$bundle/EditHabitSheet.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/HabitCard.swift\" \"$bundle/HabitCard.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/MoreView.swift\" \"$bundle/MoreView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ReminderRow.swift\" \"$bundle/ReminderRow.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/SwipeRevealPan.swift\" \"$bundle/SwipeRevealPan.txt\"\ncp \"$PROJECT_DIR/Haiity/Localizable.xcstrings\" \"$bundle/Localizable.txt\"\n";
+			shellScript = "set -eu\nbundle=\"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nmkdir -p \"$bundle\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarSync.swift\" \"$bundle/CalendarSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/CalendarEventKit.swift\" \"$bundle/CalendarEventKit.txt\"\ncp \"$PROJECT_DIR/Haiity/Services/ReminderSync.swift\" \"$bundle/ReminderSync.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ContentView.swift\" \"$bundle/ContentView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/EditHabitSheet.swift\" \"$bundle/EditHabitSheet.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/HabitCard.swift\" \"$bundle/HabitCard.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/MoreView.swift\" \"$bundle/MoreView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/AboutView.swift\" \"$bundle/AboutView.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/ReminderRow.swift\" \"$bundle/ReminderRow.txt\"\ncp \"$PROJECT_DIR/Haiity/Views/SwipeRevealPan.swift\" \"$bundle/SwipeRevealPan.txt\"\ncp \"$PROJECT_DIR/Haiity/Localizable.xcstrings\" \"$bundle/Localizable.txt\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1137,6 +1143,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F91F0D999786A295CA595C38 /* AboutView.swift in Sources */,
 				650772BB2FD743B2CA6EE47C /* AccessoryWidgetViews.swift in Sources */,
 				720F7E9E79E3F34483930BA2 /* AppIcons.swift in Sources */,
 				879F20ED582D7F51F9767747 /* AppNavigation.swift in Sources */,
@@ -1249,6 +1256,7 @@
 				44DF771BEF88F878FBC81488 /* SwipeReveal.swift in Sources */,
 				08C0756CEAB42449421554F7 /* SwipeRevealPan.swift in Sources */,
 				9499A41ED752CCD7D28CAA6C /* SyncWatermark.swift in Sources */,
+				C64F28EC58CDACE933A527B2 /* TabBarPlatterReader.swift in Sources */,
 				CCB7B1C9107C136413559C85 /* Theme.swift in Sources */,
 				1628FA2E2EF4E5029FEFDBA6 /* TodayProgressView.swift in Sources */,
 				9C545FC8CD4CC4B53DCD3A3F /* WidgetGridViews.swift in Sources */,

@@ -10,7 +10,7 @@ import Foundation
 ///    cheapest, and it is the one this app is actually shaped around.
 ///  * `.language` — a model tuned for one language, for somebody who writes in
 ///    one language and wants the parse to be right in it.
-///  * `.multilingual` — one model for every language the app ships. Larger,
+///  * `.multilingual` — a model for several declared languages. Larger,
 ///    slower, and the only choice that needs no decision.
 enum LocalModelScope: Equatable, Hashable, Sendable {
 
@@ -18,7 +18,7 @@ enum LocalModelScope: Equatable, Hashable, Sendable {
     case processing
     /// Tuned for one language, identified by its code.
     case language(String)
-    /// Handles every language the app offers.
+    /// Offered for the model catalogue's declared language subset.
     case multilingual
 
     var isProcessing: Bool { self == .processing }
@@ -57,9 +57,9 @@ struct LocalModelDescriptor: Identifiable, Equatable, Hashable, Sendable {
     /// The languages this model is offered for, in the app's own order.
     var languageCodes: [String] {
         switch scope {
-        case .processing: LanguageCatalog.supported
+        case .processing: LanguageCatalog.modelLanguages
         case .language(let code): [code]
-        case .multilingual: LanguageCatalog.supported
+        case .multilingual: LanguageCatalog.modelLanguages
         }
     }
 
@@ -72,13 +72,11 @@ struct LocalModelDescriptor: Identifiable, Equatable, Hashable, Sendable {
     }
 }
 
-/// The languages the app itself ships, which is also the list a model has to
-/// cover to claim to speak "all languages".
+/// UI localizations and model language claims are separate contracts.
 enum LanguageCatalog {
 
-    /// Kept in step with `Localizable.xcstrings`; the test that matters is
-    /// `testTheMultilingualModelCoversEveryLanguageTheAppShips`.
-    static let supported = ["de", "en", "ru", "zh", "vi", "tr", "es", "fr", "it", "ja", "ko", "pt"]
+    static let supported = ["de", "en", "es", "fr", "pt", "it", "zh", "ja", "ru", "ar", "hi", "bn", "ur", "id", "tr", "vi", "ko"]
+    static let modelLanguages = ["de", "en", "ru", "zh", "vi", "tr", "es", "fr", "it", "ja", "ko", "pt"]
 
     static func displayName(for code: String) -> String {
         Locale(identifier: Locale(identifier: code).identifier)
@@ -145,7 +143,7 @@ enum LocalModelCatalogue {
         mlxInstruct(
             "gemma2-2b",
             String(localized: "Gemma 2 2B"),
-            String(localized: "Ein Modell für alle Sprachen der App. Groß und gründlich — am ehesten für Pro."),
+            String(localized: "Mehrsprachiges Modell mit höherem Speicherbedarf."),
             scope: .multilingual,
             repository: "mlx-community/gemma-2-2b-it-4bit",
             weightBytes: 1_481_000_000, extraBytes: 11_500_000),

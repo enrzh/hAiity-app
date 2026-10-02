@@ -5,6 +5,17 @@ import XCTest
 /// so the tests are about the two things that can go wrong: a time being
 /// misread, and a name that is not a name.
 final class CreateHabitIntentTests: XCTestCase {
+    @MainActor
+    func testCreationDoesNotReportSuccessWhenTheFileCannotBeWritten() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID())/data.json")
+        let store = HabitStore(url: url, loadFromDisk: false)
+        let result = await CreateItemSaver.save(CreateItemDraft(name: "Reminder", emoji: "", minutes: nil,
+                                                               isReminder: true), into: store)
+        guard case .failed = result else { return XCTFail("an unsaved item must not be confirmed") }
+        XCTAssertNotNil(store.lastWriteError)
+    }
+
 
     /// Anything that happens once is a reminder, not a tracked habit. A habit
     /// that fires a single time is tracked forever and counts against the free

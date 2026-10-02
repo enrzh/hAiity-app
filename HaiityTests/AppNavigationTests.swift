@@ -551,17 +551,18 @@ final class AppNavigationTests: XCTestCase {
                       "the interval stepper must be limited to daily and weekly recurrence")
     }
 
-    func testAppleAccountActionSitsBesideIdentity() throws {
+    func testAppleAccountHubOffersIndependentNavigationAndNativeAuthentication() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let start = try XCTUnwrap(more.range(of: "private var personalSection: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var appleSignInButton",
+        let start = try XCTUnwrap(more.range(of: "private var moreAppleAccountRow: some View"))
+        let end = try XCTUnwrap(more.range(of: "private var githubSection",
                                            range: start.upperBound..<more.endIndex))
-        let section = more[start.lowerBound..<end.lowerBound]
-        let account = try XCTUnwrap(section.range(of: "if let storedAppleUserID"))
-        let accountBlock = section[account.lowerBound...]
-
-        XCTAssertTrue(accountBlock.contains("HStack(spacing: Theme.Metrics.gap)"),
-                      "the account identity and sign-out action should share a row")
+        let row = more[start.lowerBound..<end.lowerBound]
+        XCTAssertTrue(row.contains("dynamicTypeSize.isAccessibilitySize"))
+        XCTAssertTrue(row.contains("showingPersonalSettings = true"))
+        XCTAssertTrue(row.contains("apple-signout-more"))
+        XCTAssertTrue(row.contains("apple-signin-more"))
+        XCTAssertTrue(row.contains("appleSignInControl"))
+        XCTAssertTrue(more.contains("SignInWithAppleButton(.signIn)"))
     }
 
     func testNativePagesUseTheAppearanceBackgroundAtTheirVisibleRoots() throws {
@@ -883,13 +884,13 @@ final class AppNavigationTests: XCTestCase {
     func testMainMorePageExposesGitHubConnectionAndLogout() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let aboutStart = try XCTUnwrap(more.range(of: "struct AboutView: View"))
-        let about = more[aboutStart.lowerBound...]
+        let about = try String(contentsOf: sourceURL("Haiity/Views/AboutView.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("let github: GitHubContributionStore"))
         XCTAssertTrue(more.contains("private var githubSection: some View"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"open-github-settings\")"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"disconnect-github\")"))
+        XCTAssertTrue(more.contains("accessibilityIdentifier(\"connect-github\")"))
         XCTAssertGreaterThanOrEqual(content.components(separatedBy: "github: github").count - 1, 4)
         XCTAssertFalse(about.contains("NavigationLink(value: MoreRoute.github)"))
     }

@@ -28,6 +28,7 @@ struct FinishHabitSessionIntent: LiveActivityIntent {
             // Prozesses ist nicht zwingend der Store der laufenden UI.
             let store = HabitStore(url: SharedStorage.dataURL())
             HabitSessionCompletion.finish(store: store, session: session)
+            try store.requireSuccessfulWrite()
             HabitSessionStorage.clear()
             HabitSessionMilestoneControl.cancel(session)
         }
