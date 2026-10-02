@@ -211,6 +211,9 @@ final class AutoResolveTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("haiity-auto-resolve-\(UUID().uuidString).json")
         let store = HabitStore(url: url)
+        // Match the Berlin calendar used by date helpers so Cloud workers
+        // (non-Berlin device TZ) resolve midnight boundaries the same way.
+        store.defaultTimeZoneIdentifier = "Europe/Berlin"
         store.add(habit)
         return store
     }
