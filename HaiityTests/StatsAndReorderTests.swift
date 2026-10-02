@@ -61,6 +61,19 @@ final class ReorderTests: XCTestCase {
                        ["Nicht heute", "Zweiter", "Auch nicht heute", "Dritter", "Erster"])
     }
 
+    func testStaleOffsetsCannotCorruptTheOrderAfterAnItemIsRemoved() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
+        store.add(a); store.add(b); store.add(c)
+        store.remove(c.id)
+        let before = try Data(contentsOf: url)
+        store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 2), toOffset: 0)
+        store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 3)
+        store.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+        store.move(fromOffsets: IndexSet(integer: 0), toOffset: -1)
+        XCTAssertEqual(store.habits.map(\.id), [a.id, b.id])
+        XCTAssertEqual(try Data(contentsOf: url), before, "a stale move must not write a new snapshot")
+    }
+
     func testArchiveUnarchiveRoundTripKeepsSlot() {
         let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
         store.add(a); store.add(b); store.add(c)

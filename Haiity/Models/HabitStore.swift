@@ -1270,6 +1270,8 @@ final class HabitStore {
     /// ihre Positionen im Gesamtarray.
     func move(fromOffsets source: IndexSet, toOffset destination: Int, persist: Bool = true) {
         var active = activeHabits
+        guard !source.isEmpty, source.allSatisfy(active.indices.contains),
+              (0...active.count).contains(destination) else { return }
         active.move(fromOffsets: source, toOffset: destination)
         var iterator = active.makeIterator()
         data.habits = data.habits.map { $0.archivedAt == nil ? (iterator.next() ?? $0) : $0 }
@@ -1286,6 +1288,8 @@ final class HabitStore {
                      toOffset destination: Int,
                      persist: Bool = true) {
         guard !visibleIDs.isEmpty,
+              !source.isEmpty, source.allSatisfy(visibleIDs.indices.contains),
+              (0...visibleIDs.count).contains(destination),
               Set(visibleIDs).count == visibleIDs.count,
               visibleIDs.allSatisfy({ id in
                   data.habits.contains { $0.id == id && $0.archivedAt == nil }

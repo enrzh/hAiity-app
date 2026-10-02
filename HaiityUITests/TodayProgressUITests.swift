@@ -385,6 +385,57 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(habitList.waitForExistence(timeout: 5))
         XCTAssertTrue(sort.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["habit-filter"].waitForExistence(timeout: 5))
+        sort.tap()
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        sort.tap()
+        XCTAssertTrue(habitList.waitForExistence(timeout: 5), "the sort icon must also toggle sorting off")
+        XCTAssertFalse(done.exists)
+    }
+
+    func testSortingDoesNotCheckOffRowsAndStopsWhenLeavingHabits() {
+        let app = launch("mixed")
+        let sort = app.buttons["reorder-habits"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15))
+        sort.tap()
+        let check = app.buttons["check-today"].firstMatch
+        let before = check.label
+        check.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertEqual(check.label, before, "a sorting tap must not check off the habit")
+        selectTab("More", in: app)
+        XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+        selectTab("Habits", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["habit-list"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["finish-reordering"].exists, "sorting must end before changing tabs")
+    }
+
+    func testSortingCanDragAReminderAboveAHabitAndRestoreEditing() {
+        let app = launch("mixed")
+        let sort = app.buttons["reorder-habits"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15))
+        sort.tap()
+        let reminderID = "00000000-0000-0000-0000-000000000799"
+        let reminder = app.descendants(matching: .any)["reminder-row-\(reminderID)"].firstMatch
+        for _ in 0..<8 where !reminder.exists || reminder.frame.height == 0 || reminder.frame.maxY > app.frame.height - 150 {
+            app.swipeUp(velocity: .slow)
+        }
+        let habitTitle = app.staticTexts["Take a walk"].firstMatch
+        XCTAssertTrue(reminder.exists)
+        XCTAssertTrue(habitTitle.exists)
+        capture("sorting-mixed-before")
+        let start = reminder.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
+        let end = habitTitle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+        start.press(forDuration: 0.4, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.4)
+        let moved = NSPredicate { _, _ in
+            reminder.frame.height > 0 && reminder.frame.minY < habitTitle.frame.minY
+        }
+        expectation(for: moved, evaluatedWith: app)
+        waitForExpectations(timeout: 5)
+        capture("sorting-mixed-after")
+        app.buttons["finish-reordering"].tap()
+        let edit = app.buttons["reminder-edit-\(reminderID)"]
+        XCTAssertTrue(edit.isHittable)
+        edit.tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
     }
 
     /// The Search tab must show a search field that a hand tap actually turns

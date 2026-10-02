@@ -507,7 +507,10 @@ struct ContentView: View {
                     scheduleForegroundMaintenance()
                     Task { await github.resumeOrRefresh(forced: true) }
                 } else {
-                    if phase == .background { hasEnteredBackground = true }
+                    if phase == .background {
+                        hasEnteredBackground = true
+                        setHabitSortingActive(false)
+                    }
                     startupMaintenanceTask?.cancel()
                     postLaunchHydrationTask?.cancel()
                     Task { await maintenance.cancel() }
@@ -516,6 +519,11 @@ struct ContentView: View {
             .onChange(of: proStatus.unlocked) { old, new in
                 applyCloudPreferences()
                 handleProEntitlementChange(old: old, new: new)
+            }
+            .onChange(of: habitsTabSource.map(\.id)) { old, new in
+                if habitSortingActive, Set(old) != Set(new) {
+                    setHabitSortingActive(false)
+                }
             }
             .onChange(of: showAdd) { _, open in
                 trace("showAdd=\(open) tab=\(nativeTab)")
@@ -547,6 +555,7 @@ struct ContentView: View {
             .onChange(of: nativeTab) { old, tab in
                 trace("nativeTab \(old)->\(tab) showAdd=\(showAdd)")
                 builtTabs.insert(tab)
+                if tab != .habits { setHabitSortingActive(false) }
                 guard old == .search, tab != .search else { return }
                 searchFieldFocused = false
                 if #unavailable(iOS 26) { searching = false }
@@ -1247,7 +1256,7 @@ struct ContentView: View {
                                     .combined(with: .opacity))
                         }
                         Button {
-                            setHabitSortingActive(true)
+                            setHabitSortingActive(!habitSortingActive)
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                                 .symbolVariant(habitSortingActive ? .fill : .none)
@@ -1255,7 +1264,7 @@ struct ContentView: View {
                         }
                         .symbolEffect(.bounce, value: habitSortingActive)
                         .allowsHitTesting(sortingDraggedID == nil)
-                        .disabled(!canSortHabits || habitsTabSource.isEmpty)
+                        .disabled(!habitSortingActive && (!canSortHabits || habitsTabSource.isEmpty))
                         .accessibilityLabel(habitSortingActive
                                             ? String(localized: "Sortieren beenden")
                                             : String(localized: "Habits sortieren"))
@@ -1435,6 +1444,8 @@ struct ContentView: View {
                         ForEach(habitsTabSource) { habit in
                             row(for: habit)
                                 .id(rowIdentity(habit))
+                                .disabled(habitSortingActive)
+                                .allowsHitTesting(!habitSortingActive)
                                 .opacity(sortingDraggedID == habit.id ? 0 : 1)
                                 .animation(nil, value: sortingDraggedID)
                                 .deleteDisabled(true)
@@ -1461,7 +1472,7 @@ struct ContentView: View {
                 move: reorderHabit,
                 persist: { store.persist() },
                 onDraggingIDChange: { id in
-                    sortingDraggedID = id
+                    if sortingDraggedID != id { sortingDraggedID = id }
                 })
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
@@ -1475,7 +1486,6 @@ struct ContentView: View {
         .onChange(of: habitSortingActive) { _, active in
             guard active else {
                 sortingDraggedID = nil
-                store.persist()
                 return
             }
             NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
@@ -1576,7 +1586,6 @@ struct ContentView: View {
 
     private func finishHabitSorting() {
         setHabitSortingActive(false)
-        store.persist()
     }
 
     private func setHabitSortingActive(_ active: Bool) {

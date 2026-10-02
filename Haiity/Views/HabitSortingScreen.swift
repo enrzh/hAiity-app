@@ -68,6 +68,7 @@ struct HabitSortingSession: UIViewRepresentable {
         private var recognizer: UILongPressGestureRecognizer?
         private var displayLink: CADisplayLink?
         private var dragging = false
+        private var orderChanged = false
         private var currentIndex: Int?
         private var lift: UIView?
         private var liftGrabOffset: CGPoint = .zero
@@ -147,8 +148,9 @@ struct HabitSortingSession: UIViewRepresentable {
                 lastMoveDelta = 0
                 rowHeights = []
                 setDraggingID(nil)
-                if persistIfDragging { persist() }
+                if persistIfDragging, orderChanged { persist() }
             }
+            orderChanged = false
             if let collection = collectionView {
                 restorePlaceholders(in: collection)
                 unlockListScroll(collection)
@@ -162,8 +164,11 @@ struct HabitSortingSession: UIViewRepresentable {
         }
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard gestureRecognizer === recognizer,
-                  let collection = collectionView else { return false }
+            guard active, !dragging, gestureRecognizer === recognizer,
+                  let collection = collectionView, let window = collection.window,
+                  let touched = window.hitTest(gestureRecognizer.location(in: window), with: nil),
+                  touched === collection || touched.isDescendant(of: collection)
+            else { return false }
             let point = gestureRecognizer.location(in: collection)
             return habitIndex(at: point, in: collection) != nil
         }
@@ -192,6 +197,7 @@ struct HabitSortingSession: UIViewRepresentable {
                 let point = press.location(in: collection)
                 guard let index = habitIndex(at: point, in: collection) else { return }
                 dragging = true
+                orderChanged = false
                 currentIndex = index
                 captureRowMetrics(in: collection)
                 lastMoveAt = nil
@@ -221,6 +227,12 @@ struct HabitSortingSession: UIViewRepresentable {
         private func applyFinger(_ press: UILongPressGestureRecognizer,
                                  in collection: UICollectionView) {
             guard dragging, let from = currentIndex else { return }
+            guard collection.numberOfSections > HabitListLayout.habitSectionIndex,
+                  collection.numberOfItems(inSection: HabitListLayout.habitSectionIndex) == habitIDs.count
+            else {
+                detach(persistIfDragging: true)
+                return
+            }
             refreshVisibleHeights(in: collection)
             let now = ProcessInfo.processInfo.systemUptime
             guard CustomHabitReorderPolicy.canApplyMove(now: now, lastMoveAt: lastMoveAt) else { return }
@@ -238,6 +250,7 @@ struct HabitSortingSession: UIViewRepresentable {
                 lastMoveDelta: lastMoveDelta)
             guard target != from else { return }
             CustomHabitReorderPolicy.applyMove(from: from, to: target, persist: false, move: move)
+            orderChanged = true
             rowHeights = CustomHabitReorderPolicy.movedHeights(rowHeights, from: from, to: target)
             habitIDs = CustomHabitReorderPolicy.movedItems(habitIDs, from: from, to: target)
             currentIndex = target
@@ -248,7 +261,8 @@ struct HabitSortingSession: UIViewRepresentable {
 
         private func finishDrag(in collection: UICollectionView, save: Bool) {
             stopAutoScroll()
-            if save { persist() }
+            if save, orderChanged { persist() }
+            orderChanged = false
             settleLift(in: collection) { [weak self] in
                 guard let self else { return }
                 self.setDraggingID(nil)
@@ -392,6 +406,7 @@ struct HabitSortingSession: UIViewRepresentable {
         }
 
         private func setDraggingID(_ id: UUID?) {
+            guard draggingID != id else { return }
             draggingID = id
             var transaction = Transaction()
             transaction.disablesAnimations = true

@@ -10,7 +10,10 @@
       "TodayProgressUITests/testMigratedSettingsPagesKeepTheirRowsHittable()",
       "TodayProgressUITests/testAppleAccountPageHasLivePersonalizationAndIndependentHubActions()",
       "TodayProgressUITests/testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance()",
-      "TodayProgressUITests/testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes()"
+      "TodayProgressUITests/testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes()",
+      "TodayProgressUITests/testSortingStaysOnTheHabitsPageAndDoneExitsInlineMode()",
+      "TodayProgressUITests/testSortingDoesNotCheckOffRowsAndStopsWhenLeavingHabits()",
+      "TodayProgressUITests/testSortingCanDragAReminderAboveAHabitAndRestoreEditing()"
     ]
   }],
   "version": 1

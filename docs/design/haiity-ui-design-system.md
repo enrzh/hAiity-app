@@ -508,6 +508,11 @@ data semantics.
 
 - Prefer native `Button`, `Picker`, `Toggle`, `TabView`, `NavigationStack`, and
   context-menu behaviors.
+- Inline sorting keeps row actions inactive while long-press dragging remains
+  available. The sort icon and Done both exit the mode. Changing tabs, entering
+  the background or changing the visible item membership ends sorting safely;
+  reordering those same items keeps the drag active. The window-level recognizer
+  only starts on the habit list, and order is saved only after an actual move.
 - Keep swipe gestures direct and cancellable. The action should track the
   finger, settle briefly, and close when vertical scrolling or another row
   takes ownership.
