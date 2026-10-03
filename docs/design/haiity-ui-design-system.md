@@ -441,17 +441,23 @@ between OS releases.
 
 ### Dictation
 
-Apple's system keyboard dictation is already available in every text field in
-the app and needs nothing from the app to work: no entitlement, no
-`NSMicrophoneUsageDescription` (that key is only for recording *inside* the app),
-and no API call. The mic lives on the keyboard, not in the field, which is the
-usual reason people think it is missing.
+The sentence-creation sheet keeps a native editable `TextField` and adds a
+trailing microphone button inside the input card, with a 44 by 44 pt hit target.
+The microphone uses Apple's `Speech`/`AVFoundation` APIs; the keyboard's own
+dictation remains available too. Apps cannot launch the keyboard dictation key
+through a public API, so the inline button performs actual speech recognition.
 
-Adding an in-app microphone button would mean a second dictation stack —
-`Speech`/`AVFoundation`, a permission prompt, its own errors — to duplicate a
-control iOS already provides on every keyboard. The cost is not the code, it is
-two dictation paths that can disagree. So the app does not add one, and the
-creation field is left as a plain `TextField` so dictation keeps working in it.
+Permission requests happen only after tapping the microphone, never when the
+app or sheet opens. Recording has preparing, listening and finishing states;
+the listening button becomes Stop. The text remains available after denial,
+failure or interruption. Focus returns to typing only after recording stops.
+Only on-device recognition is used; an unsupported language/device gets an
+explanation and keeps typing available. Dismissal/backgrounding cancels capture
+and late callbacks. No waveform or per-audio-buffer UI animation is needed.
+
+Partial transcripts replace the current session's text while preserving the
+sentence that was already entered. Speech never creates an entry automatically.
+The same date/time parser handles typing, paste, speech and model output.
 
 ### Creating items from outside the app
 
@@ -467,12 +473,15 @@ saved. The free-habit limit and the notification reschedule are product rules,
 and two copies of them in two intents is how a Shortcut quietly becomes a way
 around the paywall.
 
-The time is read deterministically (`stripTime`) and the model's opinion is
-never allowed to override it. A clock time in a sentence is a fact; the model is
-the part that can be wrong. The no-model path deliberately does very little —
-it takes the time out and leaves the rest as the name — because a hand-rolled
-parser for "every morning" or "on weekdays" would be a second, worse language
-than the one already chosen.
+Explicit dates are parsed before clock times so `15.10.2026` cannot become
+15:10. Numeric dates and supported time forms are facts; neither model may
+override them. Invalid, conflicting and past explicit dates stay editable and
+prevent saving. Locale determines ambiguous separator-based date order;
+space-separated `DD MM YYYY` stays day-first. The preview spells out the month
+and year, the time/all-day state, item type and recurrence before creation.
+Saving writes the displayed draft; an unread model result is shown for review
+instead of being saved unseen. The existing draft and saver own these rules,
+without a separate onboarding, speech-provider or parsing framework.
 
 ### Shared component contracts
 

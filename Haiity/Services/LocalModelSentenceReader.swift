@@ -66,9 +66,12 @@ final class LocalModelSentenceReader {
         MTLCreateSystemDefaultDevice() != nil
     }
 
-    func read(_ sentence: String) async -> Outcome {
+    func read(_ sentence: String, locale: Locale = .current,
+              calendar: Calendar = .current, now: Date = .now) async -> Outcome {
         let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .unreadable }
+        guard !trimmed.isEmpty, !Task.isCancelled else { return .unreadable }
+        let fallback = CreateItemDraft.fallback(from: trimmed, locale: locale, calendar: calendar, now: now)
+        if fallback.validationMessage != nil { return .draft(fallback) }
 
         let model = service.usableModel
         let directory = service.directory(for: model)
@@ -78,6 +81,7 @@ final class LocalModelSentenceReader {
         }
         do {
             let loaded = try await load(of: model, at: directory)
+            guard !Task.isCancelled else { return .unreadable }
             let parameters = GenerateParameters(
                 // A small model needs a hard ceiling: asked for a JSON object it
                 // will happily keep talking, and the extra prose is exactly what
@@ -89,18 +93,24 @@ final class LocalModelSentenceReader {
                 temperature: 0.0)
             let input = try await loaded.prepare(input: UserInput(prompt: .chat([
                 .init(role: .system, content: DraftExtraction.systemPrompt),
-                .init(role: .user, content: DraftExtraction.userPrompt(for: trimmed)),
+                .init(role: .user, content: DraftExtraction.userPrompt(for: trimmed, locale: locale,
+                                                                     calendar: calendar, now: now)),
             ])))
+            guard !Task.isCancelled else { return .unreadable }
             let stream = try await loaded.generate(input: input, parameters: parameters)
             var text = ""
             for await item in stream {
+                guard !Task.isCancelled else { return .unreadable }
                 if case .chunk(let piece) = item { text += piece }
             }
-            guard let outcome = DraftExtraction.parse(text, sentence: trimmed) else {
+            guard !Task.isCancelled,
+                  let outcome = DraftExtraction.parse(text, sentence: trimmed, locale: locale,
+                                                      calendar: calendar, now: now) else {
                 return .unreadable
             }
             return .draft(outcome.draft)
         } catch {
+            guard !Task.isCancelled else { return .unreadable }
             // A model that cannot be loaded must not take the feature down with
             // it: the sheet falls back to the deterministic reading, which needs
             // no model at all.

@@ -87,6 +87,8 @@ struct CreateHabitIntent: AppIntent {
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.confirmation(for: draft)))
         case .emptyName:
             return .result(dialog: "Der Name fehlt.")
+        case .invalidInput(let message):
+            return .result(dialog: IntentDialog(stringLiteral: message))
         case .limitReached:
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.limitMessage))
         case .failed(let message):
@@ -105,15 +107,17 @@ enum CreateItemSaver {
     enum Outcome: Equatable {
         case saved
         case emptyName
+        case invalidInput(String)
         case limitReached
         case failed(String)
     }
 
-    static let limitMessage =
-        "Das kostenlose Limit an Habits ist erreicht. In hAiity freischalten oder eine Erinnerung anlegen."
+    static let limitMessage = String(localized:
+        "Das kostenlose Limit an Habits ist erreicht. In hAiity freischalten oder eine Erinnerung anlegen.")
 
     @MainActor
     static func save(_ draft: CreateItemDraft, into store: HabitStore? = nil) async -> Outcome {
+        if let message = draft.validationMessage { return .invalidInput(message) }
         let trimmed = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .emptyName }
 
@@ -208,12 +212,16 @@ struct CreateItemFromTextIntent: AppIntent {
             return .result(dialog: "Der Satz fehlt.")
         }
 
-        let draft = await CreateItemDraft.read(from: raw)
-        switch await CreateItemSaver.save(draft) {
+        let store = HabitStore(url: SharedStorage.dataURL())
+        let calendar = HabitTimeZone.calendar(identifier: store.defaultTimeZoneIdentifier)
+        let draft = await CreateItemDraft.read(from: raw, calendar: calendar, now: .now)
+        switch await CreateItemSaver.save(draft, into: store) {
         case .saved:
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.confirmation(for: draft)))
         case .emptyName:
             return .result(dialog: "Der Satz enthielt keinen Namen.")
+        case .invalidInput(let message):
+            return .result(dialog: IntentDialog(stringLiteral: message))
         case .limitReached:
             return .result(dialog: IntentDialog(stringLiteral: CreateItemSaver.limitMessage))
         case .failed(let message):
@@ -272,8 +280,8 @@ struct CreateItemSchedule: Equatable, Sendable {
         self.timesPerPeriod = max(0, timesPerPeriod)
         self.dayOfMonth = (1...31).contains(dayOfMonth) ? dayOfMonth : 0
         self.month = (1...12).contains(month) ? month : 0
-        // A key that is not a real day is worse than no key at all: `Recurrence`
-        // drops it silently, so the one-off would quietly move to another day.
+        // Keep structurally valid model keys until applying can validate them
+        // with the input timezone and convert from Gregorian to storage keys.
         let trimmed = startDay.trimmingCharacters(in: .whitespacesAndNewlines)
         self.startDay = DayKey.components(trimmed) != nil ? trimmed : nil
     }
@@ -282,14 +290,9 @@ struct CreateItemSchedule: Equatable, Sendable {
     var recurrence: Recurrence {
         switch frequency {
         case .once:
-            // "Once" with no date can only mean from today, and a one-off whose
-            // day has already gone would create a habit that can never fire —
-            // it would not appear on any day at all, which is the worst possible
-            // outcome for something the person just asked to be created. Both
-            // move to a day that can still happen.
-            return Recurrence(frequency: .once, start: Self.upcoming(startDay ?? DayKey.today()))
+            return Recurrence(frequency: .once, start: startDay ?? DayKey.today())
         case .daily:
-            return Recurrence(frequency: .daily)
+            return Recurrence(frequency: .daily, interval: interval, start: startDay)
         case .weekly:
             // A flexible target is how the engine fills in unspecified days
             // (`isActivePeriod` plus `isFlexible`), and it is the only thing that
@@ -301,14 +304,14 @@ struct CreateItemSchedule: Equatable, Sendable {
                 return Recurrence(frequency: .weekly,
                                   interval: interval,
                                   weekdays: weekdays,
-                                  timesPerPeriod: timesPerPeriod)
+                                  start: startDay, timesPerPeriod: timesPerPeriod)
             }
             if !weekdays.isEmpty {
                 return Recurrence(frequency: .weekly,
                                   interval: interval,
-                                  weekdays: weekdays)
+                                  weekdays: weekdays, start: startDay)
             }
-            return Recurrence(frequency: .weekly, interval: interval, timesPerPeriod: 1)
+            return Recurrence(frequency: .weekly, interval: interval, start: startDay, timesPerPeriod: 1)
         case .monthly:
             return Recurrence(frequency: .monthly,
                               interval: interval,
@@ -332,18 +335,17 @@ struct CreateItemSchedule: Equatable, Sendable {
     /// never appears again, created by a button whose whole promise is that the
     /// thing now exists. The preview shows the moved date before anything is
     /// saved, so the correction is visible rather than silent.
-    static func upcoming(_ day: String, calendar: Calendar = .current) -> String {
-        let today = DayKey.today(calendar: calendar)
+    static func upcoming(_ day: String, calendar: Calendar = .current, now: Date = .now) -> String {
+        let today = DayKey.key(for: now, calendar: calendar)
         // Validate before comparing: a string that is not a date at all sorts
         // unpredictably against one, and must never be handed on as a day.
-        guard let parts = DayKey.components(day) else { return today }
+        guard let parts = DayKey.components(day), DayKey.isValid(day, calendar: calendar) else { return today }
         guard day < today else { return day }
 
         // Count forward from the CURRENT year, not from the year the model
         // supplied. A supplied year far in the past is the very thing being
         // repaired, and starting there would walk decades forward to no effect:
         // 1999-07-04 said today means 2027-07-04, not "give up and use today".
-        let now = DayKey.date(from: today, calendar: calendar) ?? Date()
         let year = calendar.component(.year, from: now)
         for candidate in [year, year + 1] {
             guard let key = clampedKey(year: candidate, month: parts.month,
@@ -391,6 +393,7 @@ struct CreateItemDraft: Equatable, Sendable {
     /// unremarkable sentence means and what the no-model path can honestly
     /// promise — the deterministic parser reads a clock time and nothing else.
     var schedule: CreateItemSchedule = .daily
+    var validationMessage: String? = nil
 
     var kind: CreateItemKind { isReminder ? .reminder : .habit }
 
@@ -412,155 +415,88 @@ struct CreateItemDraft: Equatable, Sendable {
 
     // MARK: - Reading a sentence
 
-    /// Remove clock times from free text without inventing anything.
-    ///
-    /// This is the no-model path, so it deliberately does far less than the
-    /// model: it finds times and takes them out, and leaves everything else
-    /// alone. "Every morning" survives as part of the name, which is honest — a
-    /// wrong schedule silently applied would be worse than a name the person
-    /// edits.
-    ///
-    /// A bare hour is only a time when a word introduces it. `7 Uhr`, `7:30` and
-    /// `at 7` are times; `7 Tage` and `backlog at 5 items` are not, and reading
-    /// those as midnight would set the wrong notification on a habit about
-    /// something that has nothing to do with the clock.
+    /// Compatibility helper; all sentence paths use the same date-first facts.
     static func stripTime(from text: String) -> (name: String, minutes: Int?) {
-        // Four forms, because people write all four: `7:30`, `7.30 Uhr`, a bare
-        // `7 Uhr` / `7 PM`, and a bare hour introduced by a word — `um 7`, `at 7`,
-        // `gegen 7`. The introducing word is part of the match so that `um 7:30`
-        // does not leave a stray "um" at the front of the name.
-        //
-        // The last form is the one that can misfire, because English puts "at" in
-        // front of quantities as well as clock times: "3 sets at 10 reps" is not
-        // a reminder at ten o'clock. A short list of unit words after the number
-        // is what keeps that apart, and it only has to cover the words a habit
-        // sentence realistically contains.
-        let units = "(?!\\s*(?:reps?|kg|ml|km|cm|min|minuten|sek|sec|std|mal|x)\\b)"
-        let lead = "(?:\\b(?:um|at|around|gegen|ca\\.|circa)\\s+)?"
-        let pattern = "(?<![\\d:])" + lead + "([01]?\\d|2[0-3])[:.]([0-5]\\d)\\s*(?:Uhr|AM|PM)?"
-            + "|" + lead + "\\b([01]?\\d|2[0-3])\\s*(?:Uhr|AM|PM)\\b"
-            + "|\\b(?:um|at|around|gegen|ca\\.|circa)\\s+([01]?\\d|2[0-3])\\b"
-            + units + "\\s*(?:Uhr|AM|PM|o'?clock)?"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return (text, nil)
-        }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        let matches = regex.matches(in: text, range: range)
-        guard let first = matches.first, let whole = Range(first.range, in: text) else {
-            return (text, nil)
-        }
-
-        var hours = 0
-        var minutes = 0
-        if let hourRange = Range(first.range(at: 1), in: text),
-           let hour = Int(text[hourRange]) {
-            hours = hour
-            if let minuteRange = Range(first.range(at: 2), in: text),
-               let minute = Int(text[minuteRange]) {
-                minutes = minute
-            }
-        } else if let hourRange = Range(first.range(at: 3), in: text),
-                  let hour = Int(text[hourRange]) {
-            hours = hour
-        } else if let hourRange = Range(first.range(at: 4), in: text),
-                  let hour = Int(text[hourRange]) {
-            hours = hour
-        }
-        if matched(text, whole).lowercased().contains("pm"), hours < 12 { hours += 12 }
-
-        // Every occurrence goes, not just the first. "7:30 Wasser und 18 Uhr Yoga"
-        // is one sentence with two times in it, and leaving the second behind
-        // puts it in the name where it reads as part of the thing. Working
-        // backwards keeps the ranges from the untouched text valid as the string
-        // shrinks. The first one is the time; there is only one time on a habit.
-        var name = text
-        for match in matches.reversed() {
-            guard let r = Range(match.range, in: text) else { continue }
-            name = name.replacingCharacters(in: r, with: " ")
-        }
-        name = name
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (name.isEmpty ? text : name, hours * 60 + minutes)
+        let facts = CreateSentenceFacts(text)
+        return (facts.name.isEmpty ? text : facts.name, facts.minutes)
     }
 
-    /// A name with no clock time left in it, whatever produced it.
-    ///
-    /// The prompt asks the model for a name with no time in it and it mostly
-    /// complies. When it does not, the time is something we can find without the
-    /// model, so it is taken back out deterministically instead of being left
-    /// sitting in a list row.
     static func cleanedName(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let withoutTime = stripTime(from: trimmed).name
-        // A name that was nothing but a time is not a name; the caller falls back
-        // to the whole sentence rather than saving an empty row.
-        return withoutTime.isEmpty ? trimmed : withoutTime
+        let name = CreateSentenceFacts(trimmed).name
+        return name.isEmpty ? trimmed : name
     }
 
-    private static func matched(_ text: String, _ range: Range<String.Index>) -> String {
-        String(text[range])
+    static func fallback(from text: String, locale: Locale = .current,
+                         calendar: Calendar = .current, now: Date = .now) -> CreateItemDraft {
+        applying(CreateSentenceFacts(text, locale: locale, calendar: calendar, now: now),
+                 to: CreateItemDraft(name: text, emoji: "", minutes: nil),
+                 sentence: text, locale: locale, calendar: calendar, now: now, useFactName: true)
     }
 
-    /// The sentence → draft decision. `useModel` is passed in rather than read
-    /// here so the caller — and the test — decides whether heat is spent.
+    /// Explicit input is authoritative on every path, including model failures.
+    static func applying(_ facts: CreateSentenceFacts, to proposed: CreateItemDraft,
+                         sentence: String, locale: Locale = .current, calendar: Calendar, now: Date,
+                         useFactName: Bool = false) -> CreateItemDraft {
+        var draft = proposed
+        draft.name = useFactName || facts.validationMessage != nil
+            ? facts.name : CreateSentenceFacts(proposed.name, locale: locale, calendar: calendar, now: now).name
+        if draft.name.isEmpty { draft.name = facts.name }
+        draft.minutes = facts.minutes
+        draft.validationMessage = facts.validationMessage
+        if draft.name.isEmpty, draft.validationMessage == nil {
+            draft.validationMessage = String(localized: "Der Name fehlt.")
+        }
+        let repeats = DraftExtraction.readsAsRepeating(sentence)
+        if repeats, draft.schedule.frequency == .once {
+            draft.schedule.frequency = .daily
+        }
+        if !repeats, facts.hasDate || DraftExtraction.readsAsOneOff(sentence) {
+            draft.schedule.frequency = .once
+        }
+        if facts.hasDate {
+            draft.schedule.startDay = facts.startDay
+        } else if let day = draft.schedule.startDay {
+            var gregorian = Calendar(identifier: .gregorian)
+            gregorian.timeZone = calendar.timeZone
+            if DayKey.isValid(day, calendar: gregorian) {
+                let repaired = draft.schedule.frequency == .once
+                    ? CreateItemSchedule.upcoming(day, calendar: gregorian, now: now) : day
+                if let date = DayKey.date(from: repaired, calendar: gregorian) {
+                    draft.schedule.startDay = DayKey.key(for: date, calendar: calendar)
+                }
+            } else {
+                draft.validationMessage = draft.validationMessage
+                    ?? String(localized: "Das Datum ist ungültig. Bitte korrigieren.")
+            }
+        } else if draft.schedule.frequency == .once {
+            draft.schedule.startDay = DayKey.key(for: now, calendar: calendar)
+        }
+        if let day = draft.schedule.startDay, !DayKey.isValid(day, calendar: calendar) {
+            draft.validationMessage = draft.validationMessage
+                ?? String(localized: "Das Datum ist ungültig. Bitte korrigieren.")
+        }
+        draft.isReminder = isReminder(draft.isReminder, schedule: draft.schedule)
+        return draft
+    }
+
     static func read(from text: String,
                      language: String = Locale.current.language.languageCode?.identifier ?? "en",
-                     useModel: Bool = true) async -> CreateItemDraft {
-        let stripped = stripTime(from: text)
-        guard useModel, OnDeviceModel.isAvailable else {
-            // Reading a clock and nothing else is the honest degraded path, but
-            // "tomorrow at 10" is still a one-off reminder dated tomorrow, and
-            // that needs no model at all: the sentence named the day itself.
-            return pinned(CreateItemDraft(name: stripped.name, emoji: "",
-                                          minutes: stripped.minutes),
-                          sentence: text)
+                     useModel: Bool = true, locale: Locale = .current,
+                     calendar: Calendar = .current, now: Date = .now) async -> CreateItemDraft {
+        let facts = CreateSentenceFacts(text, locale: locale, calendar: calendar, now: now)
+        let fallback = applying(facts, to: CreateItemDraft(name: text, emoji: "", minutes: nil),
+                                sentence: text, locale: locale, calendar: calendar, now: now, useFactName: true)
+        guard !Task.isCancelled, facts.validationMessage == nil, useModel, OnDeviceModel.isAvailable else {
+            return fallback
         }
-        var parsed: CreateItemDraft?
-        if #available(iOS 26.0, *) {
-            parsed = try? await CreateItemWriter.draft(from: text, language: language)
+        if #available(iOS 26.0, *),
+           let parsed = try? await CreateItemWriter.draft(from: text, language: language,
+                                                         locale: locale, calendar: calendar, now: now) {
+            guard !Task.isCancelled else { return fallback }
+            return parsed
         }
-        guard let parsed else {
-            return pinned(CreateItemDraft(name: stripped.name, emoji: "",
-                                          minutes: stripped.minutes),
-                          sentence: text)
-        }
-        // The deterministic time wins over the model's: a clock time in the
-        // sentence is a fact, and the model is the part that can be wrong. The
-        // name gets the same treatment — a time that survived into it is taken
-        // back out rather than saved, because "Wasser trinken um 7" is not a
-        // name, and the time is already a field of its own.
-        return pinned(CreateItemDraft(name: CreateItemDraft.cleanedName(
-                                          parsed.name.isEmpty ? stripped.name : parsed.name),
-                                      emoji: parsed.emoji,
-                                      minutes: stripped.minutes ?? parsed.minutes,
-                                      isReminder: parsed.isReminder,
-                                      schedule: parsed.schedule),
-                      sentence: text)
-    }
-
-    /// The sentence's own decision about itself, applied on the way out of every
-    /// branch above.
-    ///
-    /// **Why it has to be here and not only in the prompt.** `DraftExtraction`
-    /// already did this for the downloaded model, and the comment there claimed
-    /// the rule lives "below the model" — but this function is the OTHER model,
-    /// the Shortcut and the no-model fallback, and it never applied it. "I want
-    /// to go to Doc tomorrow at 10 am" was therefore read as a daily habit:
-    /// correct in the prompt, enforced on one path of three. One choke point
-    /// rather than a rule per path is what stops that recurring.
-    ///
-    /// `isReminder` is recomputed from the resulting schedule rather than passed
-    /// through, so the two cannot disagree: a once-only thing filed under
-    /// habits is tracked forever and counts against the free allowance.
-    private static func pinned(_ draft: CreateItemDraft, sentence: String) -> CreateItemDraft {
-        var schedule = draft.schedule
-        DraftExtraction.pinOneOff(&schedule, sentence: sentence)
-        return CreateItemDraft(name: draft.name, emoji: draft.emoji,
-                               minutes: draft.minutes,
-                               isReminder: CreateItemDraft.isReminder(draft.isReminder,
-                                                                      schedule: schedule),
-                               schedule: schedule)
+        return fallback
     }
 
     func makeHabit() -> Habit {

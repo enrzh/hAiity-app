@@ -63,8 +63,12 @@
 	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits. Deine übrigen Kalender und Termine bleiben unberührt.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>hAiity nutzt das Mikrofon nur nach deinem Tippen auf Diktieren, um deinen Satz für ein Habit oder eine Erinnerung aufzunehmen.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>hAiity synchronisiert deine eigenen Erinnerungen mit der Apple Erinnerungen-App.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>hAiity wandelt deinen diktierten Satz in bearbeitbaren Text für ein Habit oder eine Erinnerung um.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

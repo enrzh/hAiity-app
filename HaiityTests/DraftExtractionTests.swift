@@ -13,6 +13,86 @@ import XCTest
 /// invent. A missing field falls back to the deterministic parser; a name that
 /// cannot be read makes the whole reading fail rather than becoming a blank card.
 final class DraftExtractionTests: XCTestCase {
+    private var calendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return value
+    }
+    private var now: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 12))!
+    }
+
+    func testImpossibleModelStartDatesRequireCorrectionBeforeAnyRepair() throws {
+        for frequency in ["once", "daily", "weekly"] {
+            for day in ["2027-02-30", "2026-02-30", "2027-13-01"] {
+                let raw = "{\"name\":\"Zahnarzt\",\"schedule\":\"\(frequency)\",\"startDay\":\"\(day)\"}"
+                let outcome = try XCTUnwrap(DraftExtraction.parse(raw, sentence: "Zahnarzt im Februar",
+                    locale: Locale(identifier: "de_DE"), calendar: calendar, now: now))
+                XCTAssertEqual(outcome.draft.validationMessage,
+                               String(localized: "Das Datum ist ungültig. Bitte korrigieren."), day)
+                XCTAssertFalse(outcome.isConfident, day)
+                XCTAssertEqual(outcome.draft.schedule.startDay, day, "do not invent a replacement date")
+            }
+        }
+        let invalidModel = #"{"name":"Zahnarzt","schedule":"once","startDay":"2027-02-30"}"#
+        let explicit = try XCTUnwrap(DraftExtraction.parse(invalidModel, sentence: "Zahnarzt 15.10.2026",
+            locale: Locale(identifier: "de_DE"), calendar: calendar, now: now)).draft
+        XCTAssertNil(explicit.validationMessage, "valid explicit input wins over the model")
+        XCTAssertEqual(explicit.schedule.startDay, "2026-10-15")
+
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = calendar.timeZone
+        let validModel = #"{"name":"Zahnarzt","schedule":"once","startDay":"2030-02-28"}"#
+        let converted = try XCTUnwrap(DraftExtraction.parse(validModel, sentence: "Zahnarzt im Februar",
+            calendar: buddhist, now: now)).draft
+        XCTAssertNil(converted.validationMessage)
+        XCTAssertEqual(converted.schedule.startDay, "2573-02-28", "model ISO dates are Gregorian")
+    }
+
+    func testExplicitDatesAndClocksWinOverControlledModelConflicts() throws {
+        let raw = #"{"name":"Zahnarzt 10 Uhr","minutes":540,"schedule":"daily","startDay":"2030-01-01","isReminder":false}"#
+        for sentence in ["Zahnarzt 15 10 2026 10 uhr", "Zahnarzt 15.10.2026 10 Uhr",
+                         "Zahnarzt 15/10/2026 um 10", "Zahnarzt 15-10-2026 10 Uhr"] {
+            let result = try XCTUnwrap(DraftExtraction.parse(raw, sentence: sentence,
+                locale: Locale(identifier: "de_DE"), calendar: calendar, now: now)).draft
+            XCTAssertNil(result.validationMessage, sentence)
+            XCTAssertEqual(result.name, "Zahnarzt", sentence)
+            XCTAssertEqual(result.minutes, 600, sentence)
+            XCTAssertEqual(result.schedule.startDay, "2026-10-15", sentence)
+            XCTAssertEqual(result.makeHabit().recurrence.start, "2026-10-15", sentence)
+            XCTAssertEqual(result.makeHabit().itemType, .reminder, sentence)
+        }
+    }
+
+    func testModelCannotInventTimeOrRepairInvalidExplicitInput() throws {
+        let raw = #"{"name":"Lesen","minutes":540,"schedule":"daily","startDay":"2030-01-01"}"#
+        for sentence in ["Lesen", "10 Minuten lesen", "3 sets at 10 reps", "Zahnarzt 15 10 2026"] {
+            let result = try XCTUnwrap(DraftExtraction.parse(raw, sentence: sentence,
+                locale: Locale(identifier: "de_DE"), calendar: calendar, now: now)).draft
+            XCTAssertNil(result.minutes, sentence)
+        }
+        for sentence in ["Lesen 25:00", "Lesen 10:99", "Zahnarzt 31.02.2027",
+                         "Zahnarzt 15 09 2026", "Lesen 10 Uhr 11 Uhr"] {
+            let result = try XCTUnwrap(DraftExtraction.parse(raw, sentence: sentence,
+                locale: Locale(identifier: "de_DE"), calendar: calendar, now: now))
+            XCTAssertNotNil(result.draft.validationMessage, sentence)
+            XCTAssertFalse(result.isConfident, sentence)
+        }
+    }
+
+    func testModelRepeatKeepsExplicitStartAndCapturedRelativeDay() throws {
+        let raw = #"{"name":"Lesen","minutes":540,"schedule":"weekly","weekdays":[2],"startDay":"2030-01-01"}"#
+        let repeated = try XCTUnwrap(DraftExtraction.parse(raw,
+            sentence: "Jeden Montag ab 15 10 2026 um 10 lesen",
+            locale: Locale(identifier: "de_DE"), calendar: calendar, now: now)).draft
+        XCTAssertEqual(repeated.schedule.frequency, .weekly)
+        XCTAssertEqual(repeated.makeHabit().recurrence.start, "2026-10-15")
+        XCTAssertEqual(repeated.minutes, 600)
+        let tomorrow = try XCTUnwrap(DraftExtraction.parse(raw, sentence: "morgen um 10 lesen",
+            calendar: calendar, now: now)).draft
+        XCTAssertEqual(tomorrow.schedule.startDay, "2026-10-04")
+        XCTAssertEqual(tomorrow.schedule.frequency, .once)
+    }
 
     private let sentence = "jeden Montag und Donnerstag morgens um 7 Wasser trinken"
 
@@ -237,7 +317,7 @@ final class DraftExtractionTests: XCTestCase {
     func testAOnceOnlySentenceIsRecognised() {
         XCTAssertTrue(DraftExtraction.readsAsOneOff("einmal morgen Zahnarzt"))
         XCTAssertTrue(DraftExtraction.readsAsOneOff("einmal ins Theater gehen"))
-        XCTAssertTrue(DraftExtraction.readsAsOneOff("once a month call the dentist"))
+        XCTAssertFalse(DraftExtraction.readsAsOneOff("once a month call the dentist"))
     }
 
     func testASentenceThatAlsoRepeatsIsNotAOneOff() {

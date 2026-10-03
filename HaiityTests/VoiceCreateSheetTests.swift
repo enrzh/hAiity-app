@@ -1,76 +1,38 @@
 import XCTest
 @testable import Haiity
 
-/// The sheet, and the microphone that is no longer in it.
-///
-/// **Why the microphone is gone.** It was ours, which meant a microphone
-/// permission and a speech-recognition permission, a second privacy promise in
-/// App Store review, and a recogniser that was worse than the one already on the
-/// keyboard. Dictation is the keyboard's job and it does it in the user's own
-/// language under the system's own consent. The permission assertions below are
-/// the load-bearing ones: they are what a future contributor would have to
-/// deliberately undo to bring recording back.
-///
-/// What is left here is structure: one glass bar, content that carries no glass,
-/// and the draft that waits for the full page.
+/// Packaging/privacy and existing surface contracts. Speech lifecycle behavior
+/// lives in SpeechDictationTests; visible interactions live in the UI suite.
 final class VoiceCreateSheetTests: XCTestCase {
 
     private func source(_ path: String) throws -> String {
         try String(contentsOf: sourceURL(path), encoding: .utf8)
     }
 
-    // MARK: - No microphone, and nothing that needs permission
+    // MARK: - Contextual dictation
 
-    /// The recogniser is gone, not merely hidden.
-    ///
-    /// Keeping the service around "in case" would be the interesting failure: it
-    /// compiles, nothing calls it, and the next person to add a button has a
-    /// working recogniser sitting one line away.
-    func testTheRecogniserServiceIsGone() throws {
-        let service = sourceURL("Haiity/Services/SpeechDictation.swift")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: service.path),
-                       "the recogniser service must be deleted, not left unused")
+    func testDictationNeverStartsWhenTheSheetOpens() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
-        // Symbols, not the English word: the sheet is allowed to *mention*
-        // dictation in a comment, because the keyboard's key is the replacement
-        // and people have to be told about it.
-        for gone in ["SpeechDictation", "dictation.state", "dictation.transcript",
-                     "SFSpeechRecognizer", "micControl", "VoiceWaveform",
-                     "toggleListening"] {
-            XCTAssertFalse(sheet.contains(gone),
-                           "the sheet must not carry \(gone) any more")
+        let appear = try XCTUnwrap(sheet.range(of: ".onAppear {"))
+        let disappear = try XCTUnwrap(sheet.range(of: ".onDisappear {"))
+        XCTAssertFalse(sheet[appear.upperBound..<disappear.lowerBound].contains("dictation.start"))
+        XCTAssertFalse(sheet.contains("VoiceWaveform"))
+    }
+
+    func testDictationPurposeStringsAreDeclaredInTheGeneratedAppAndSpec() throws {
+        for path in ["Haiity/Info.plist", "project.yml"] {
+            let text = try source(path)
+            XCTAssertTrue(text.contains("NSMicrophoneUsageDescription"), path)
+            XCTAssertTrue(text.contains("NSSpeechRecognitionUsageDescription"), path)
         }
     }
 
-    /// No permission prompt, because nothing is recorded.
-    ///
-    /// This is the assertion that matters most in the whole file. A usage
-    /// description that survives its feature is worse than one that was never
-    /// written: the app keeps asking for the microphone in a sheet where the
-    /// only way to speak is the keyboard.
-    func testNeitherTheMicrophoneNorSpeechRecognitionIsDeclared() throws {
-        let plist = try source("Haiity/Info.plist")
-        XCTAssertFalse(plist.contains("NSMicrophoneUsageDescription"),
-                       "nothing records audio, so the microphone prompt must be gone")
-        XCTAssertFalse(plist.contains("NSSpeechRecognitionUsageDescription"),
-                       "nothing transcribes, so the speech prompt must be gone")
-    }
-
-    /// The panel that used to draw the waveform now has to earn its space by
-    /// pointing at the dictation key that replaced it. Someone arriving from the
-    /// old in-app microphone will look for a button; this is where they are told
-    /// there is one on the keyboard.
-    func testThePromptPointsAtTheKeyboardsDictationKey() throws {
+    func testTheInputKeepsNativeEditingAlongsideInlineDictation() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
-        XCTAssertTrue(sheet.contains("Diktier-Taste"),
-                      "the prompt must name the keyboard's dictation key, or speech looks gone")
-        XCTAssertTrue(sheet.contains("private var promptPanel"),
-                      "and it needs somewhere to live")
-        // A placeholder is not a substitute: the sentence still goes in a field.
-        XCTAssertTrue(sheet.contains("text: $text"),
-                      "the sentence must stay a real, editable field")
-        XCTAssertTrue(sheet.contains("speak-to-create-text"),
-                      "with the identifier the UI tests drive it by")
+        XCTAssertTrue(sheet.contains("TextField("))
+        XCTAssertTrue(sheet.contains("text: $text"))
+        XCTAssertTrue(sheet.contains("speak-to-create-text"))
+        XCTAssertTrue(sheet.contains("speak-to-create-dictation"))
     }
 
     /// A model on the device answers even where Apple's does not exist, so the
@@ -96,7 +58,7 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "the chosen model on the phone is the one that should answer")
         XCTAssertTrue(body.contains("case .draft"),
                       "an unusable answer must fall through, not end the road")
-        XCTAssertTrue(body.contains("CreateItemDraft.read(from: requested)"),
+        XCTAssertTrue(body.contains("CreateItemDraft.read(from: requested,"),
                       "and Apple's model, then the deterministic reading, are the fallbacks")
     }
 

@@ -1,0 +1,48 @@
+{
+  "sourceLanguage": "de",
+  "strings": {
+    "NSMicrophoneUsageDescription": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "hAiity nutzt das Mikrofon nur nach deinem Tippen auf Diktieren, um deinen Satz für ein Habit oder eine Erinnerung aufzunehmen."}},
+        "en": {"stringUnit": {"state": "translated", "value": "hAiity uses the microphone only after you tap Dictate to record your sentence for a habit or reminder."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يستخدم hAiity الميكروفون فقط بعد الضغط على إملاء لتسجيل جملتك الخاصة بعادة أو تذكير."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "hAiity শুধুমাত্র আপনি বলুন-এ ট্যাপ করার পর কোনো অভ্যাস বা রিমাইন্ডারের জন্য আপনার বাক্য রেকর্ড করতে মাইক্রোফোন ব্যবহার করে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "hAiity usa el micrófono solo después de que toques Dictar para grabar tu frase para un hábito o un recordatorio."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "hAiity utilise le microphone uniquement après que vous touchez Dicter pour enregistrer votre phrase pour une habitude ou un rappel."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "hAiity आपके बोलकर लिखें पर टैप करने के बाद ही किसी आदत या रिमाइंडर के लिए आपका वाक्य रिकॉर्ड करने हेतु माइक्रोफ़ोन का उपयोग करता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "hAiity hanya menggunakan mikrofon setelah Anda mengetuk Dikte untuk merekam kalimat Anda untuk kebiasaan atau pengingat."}},
+        "it": {"stringUnit": {"state": "translated", "value": "hAiity usa il microfono solo dopo che tocchi Detta per registrare la tua frase per un’abitudine o un promemoria."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "hAiityは、音声入力をタップした後にのみマイクを使用し、習慣やリマインダー用の文章を録音します。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "hAiity는 받아쓰기를 탭한 후에만 마이크를 사용하여 습관이나 미리 알림을 위한 문장을 녹음합니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O hAiity usa o microfone apenas depois de tocar em Ditar para gravar a sua frase para um hábito ou lembrete."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "hAiity использует микрофон только после нажатия «Диктовать», чтобы записать ваше предложение для привычки или напоминания."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "hAiity, bir alışkanlık veya hatırlatıcı için cümlenizi kaydetmek üzere mikrofonu yalnızca Dikte et’e dokunduktan sonra kullanır."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "hAiity صرف بول کر لکھیں پر ٹیپ کرنے کے بعد کسی عادت یا یاد دہانی کے لیے آپ کا جملہ ریکارڈ کرنے کو مائیکروفون استعمال کرتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "hAiity chỉ dùng micrô sau khi bạn chạm Đọc chính tả để ghi âm câu của bạn cho một thói quen hoặc lời nhắc."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "hAiity 仅在你点按听写后使用麦克风，录制用于习惯或提醒事项的句子。"}}
+      }
+    },
+    "NSSpeechRecognitionUsageDescription": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "hAiity wandelt deinen diktierten Satz in bearbeitbaren Text für ein Habit oder eine Erinnerung um."}},
+        "en": {"stringUnit": {"state": "translated", "value": "hAiity converts your dictated sentence into editable text for a habit or reminder."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يحوّل hAiity جملتك المملاة إلى نص قابل للتعديل لعادة أو تذكير."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "hAiity আপনার বলা বাক্যকে কোনো অভ্যাস বা রিমাইন্ডারের জন্য সম্পাদনাযোগ্য টেক্সটে রূপান্তর করে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "hAiity convierte tu frase dictada en texto editable para un hábito o un recordatorio."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "hAiity transforme votre phrase dictée en texte modifiable pour une habitude ou un rappel."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "hAiity आपके बोले हुए वाक्य को किसी आदत या रिमाइंडर के लिए संपादन योग्य टेक्स्ट में बदलता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "hAiity mengubah kalimat yang Anda diktekan menjadi teks yang dapat diedit untuk kebiasaan atau pengingat."}},
+        "it": {"stringUnit": {"state": "translated", "value": "hAiity converte la tua frase dettata in testo modificabile per un’abitudine o un promemoria."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "hAiityは、音声入力した文章を習慣やリマインダー用の編集可能なテキストに変換します。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "hAiity는 받아쓴 문장을 습관이나 미리 알림을 위한 편집 가능한 텍스트로 변환합니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O hAiity converte a sua frase ditada em texto editável para um hábito ou lembrete."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "hAiity преобразует продиктованное предложение в редактируемый текст для привычки или напоминания."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "hAiity, dikte ettiğiniz cümleyi bir alışkanlık veya hatırlatıcı için düzenlenebilir metne dönüştürür."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "hAiity آپ کے بولے ہوئے جملے کو کسی عادت یا یاد دہانی کے لیے قابلِ ترمیم متن میں تبدیل کرتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "hAiity chuyển câu bạn đọc thành văn bản có thể chỉnh sửa cho một thói quen hoặc lời nhắc."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "hAiity 将你口述的句子转换为用于习惯或提醒事项的可编辑文本。"}}
+      }
+    }
+  },
+  "version": "1.0"
+}

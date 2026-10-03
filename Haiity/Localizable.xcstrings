@@ -1,6 +1,666 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Das kostenlose Limit an Habits ist erreicht. In hAiity freischalten oder eine Erinnerung anlegen.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The free habit limit has been reached. Unlock more habits in hAiity or create a reminder."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تم بلوغ الحد المجاني للعادات. افتح المزيد من العادات في hAiity أو أنشئ تذكيرًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বিনামূল্যে অভ্যাসের সীমা পূর্ণ হয়েছে। hAiity-তে আরও অভ্যাস আনলক করুন বা একটি রিমাইন্ডার তৈরি করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se ha alcanzado el límite gratuito de hábitos. Desbloquea más hábitos en hAiity o crea un recordatorio."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La limite gratuite d’habitudes est atteinte. Débloquez davantage d’habitudes dans hAiity ou créez un rappel."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "मुफ़्त आदतों की सीमा पूरी हो गई है। hAiity में और आदतें अनलॉक करें या एक रिमाइंडर बनाएँ।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Batas kebiasaan gratis telah tercapai. Buka lebih banyak kebiasaan di hAiity atau buat pengingat."}},
+        "it": {"stringUnit": {"state": "translated", "value": "È stato raggiunto il limite gratuito di abitudini. Sblocca più abitudini in hAiity o crea un promemoria."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "無料で作成できる習慣の上限に達しました。hAiityで追加の習慣をアンロックするか、リマインダーを作成してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "무료 습관 한도에 도달했습니다. hAiity에서 더 많은 습관을 잠금 해제하거나 미리 알림을 만드세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O limite gratuito de hábitos foi atingido. Desbloqueie mais hábitos no hAiity ou crie um lembrete."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Достигнут бесплатный лимит привычек. Разблокируйте больше привычек в hAiity или создайте напоминание."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Ücretsiz alışkanlık sınırına ulaşıldı. hAiity’de daha fazla alışkanlığın kilidini açın veya bir hatırlatıcı oluşturun."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "مفت عادتوں کی حد پوری ہو گئی ہے۔ hAiity میں مزید عادتیں ان لاک کریں یا ایک یاد دہانی بنائیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã đạt giới hạn thói quen miễn phí. Mở khóa thêm thói quen trong hAiity hoặc tạo lời nhắc."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已达到免费习惯数量上限。在 hAiity 中解锁更多习惯，或创建提醒事项。"}}
+      }
+    },
+    "Das Datum ist ungültig. Bitte korrigieren.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The date is invalid. Please correct it."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التاريخ غير صالح. يُرجى تصحيحه."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তারিখটি অবৈধ। অনুগ্রহ করে সংশোধন করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "La fecha no es válida. Corrígela."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La date n’est pas valide. Veuillez la corriger."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तारीख अमान्य है। कृपया इसे ठीक करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tanggal tidak valid. Silakan perbaiki."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La data non è valida. Correggila."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "日付が無効です。修正してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "날짜가 유효하지 않습니다. 수정해 주세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A data é inválida. Corrija-a."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дата недействительна. Исправьте её."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tarih geçersiz. Lütfen düzeltin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تاریخ درست نہیں ہے۔ براہِ کرم اسے درست کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Ngày không hợp lệ. Vui lòng sửa lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "日期无效。请更正。"}}
+      }
+    },
+    "Das Datum ist unvollständig. Bitte ergänzen.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The date is incomplete. Please complete it."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التاريخ غير مكتمل. يُرجى إكماله."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তারিখটি অসম্পূর্ণ। অনুগ্রহ করে সম্পূর্ণ করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "La fecha está incompleta. Complétala."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La date est incomplète. Veuillez la compléter."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तारीख अधूरी है। कृपया इसे पूरा करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tanggal belum lengkap. Silakan lengkapi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La data è incompleta. Completala."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "日付が不完全です。補完してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "날짜가 불완전합니다. 나머지를 입력해 주세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A data está incompleta. Complete-a."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дата указана не полностью. Дополните её."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tarih eksik. Lütfen tamamlayın."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تاریخ نامکمل ہے۔ براہِ کرم اسے مکمل کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Ngày chưa đầy đủ. Vui lòng bổ sung."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "日期不完整。请补全。"}}
+      }
+    },
+    "Es wurden mehrere unterschiedliche Daten genannt.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Several different dates were mentioned."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "ذُكرت عدة تواريخ مختلفة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "একাধিক ভিন্ন তারিখ উল্লেখ করা হয়েছে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se han indicado varias fechas diferentes."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Plusieurs dates différentes ont été mentionnées."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "कई अलग-अलग तारीखें बताई गई हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Beberapa tanggal berbeda disebutkan."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Sono state indicate più date diverse."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "複数の異なる日付が指定されています。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "서로 다른 날짜가 여러 개 언급되었습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Foram indicadas várias datas diferentes."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Указано несколько разных дат."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Birden fazla farklı tarih belirtildi."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "کئی مختلف تاریخیں بتائی گئی ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã đề cập đến nhiều ngày khác nhau."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "提到了多个不同的日期。"}}
+      }
+    },
+    "Das Datum liegt in der Vergangenheit. Bitte korrigieren.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The date is in the past. Please correct it."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التاريخ في الماضي. يُرجى تصحيحه."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তারিখটি অতীতের। অনুগ্রহ করে সংশোধন করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "La fecha está en el pasado. Corrígela."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La date est dans le passé. Veuillez la corriger."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तारीख बीत चुकी है। कृपया इसे ठीक करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tanggal sudah berlalu. Silakan perbaiki."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La data è nel passato. Correggila."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "日付が過去になっています。修正してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "과거 날짜입니다. 수정해 주세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A data já passou. Corrija-a."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дата находится в прошлом. Исправьте её."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tarih geçmişte. Lütfen düzeltin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تاریخ ماضی کی ہے۔ براہِ کرم اسے درست کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Ngày đã qua. Vui lòng sửa lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "日期已过去。请更正。"}}
+      }
+    },
+    "Die Uhrzeit ist ungültig. Bitte korrigieren.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The time is invalid. Please correct it."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الوقت غير صالح. يُرجى تصحيحه."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সময়টি অবৈধ। অনুগ্রহ করে সংশোধন করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "La hora no es válida. Corrígela."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "L’heure n’est pas valide. Veuillez la corriger."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "समय अमान्य है। कृपया इसे ठीक करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Waktu tidak valid. Silakan perbaiki."}},
+        "it": {"stringUnit": {"state": "translated", "value": "L’ora non è valida. Correggila."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "時刻が無効です。修正してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "시간이 유효하지 않습니다. 수정해 주세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A hora é inválida. Corrija-a."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Время недействительно. Исправьте его."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Saat geçersiz. Lütfen düzeltin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "وقت درست نہیں ہے۔ براہِ کرم اسے درست کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Giờ không hợp lệ. Vui lòng sửa lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "时间无效。请更正。"}}
+      }
+    },
+    "Es wurden mehrere unterschiedliche Uhrzeiten genannt.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Several different times were mentioned."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "ذُكرت عدة أوقات مختلفة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "একাধিক ভিন্ন সময় উল্লেখ করা হয়েছে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se han indicado varias horas diferentes."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Plusieurs heures différentes ont été mentionnées."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "कई अलग-अलग समय बताए गए हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Beberapa waktu berbeda disebutkan."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Sono stati indicati più orari diversi."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "複数の異なる時刻が指定されています。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "서로 다른 시간이 여러 개 언급되었습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Foram indicadas várias horas diferentes."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Указано несколько разных значений времени."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Birden fazla farklı saat belirtildi."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "کئی مختلف اوقات بتائے گئے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã đề cập đến nhiều giờ khác nhau."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "提到了多个不同的时间。"}}
+      }
+    },
+    "Diktieren auf diesem Gerät ist für diese Sprache nicht verfügbar. Du kannst weiter tippen.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictation on this device is unavailable for this language. You can keep typing."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الإملاء على هذا الجهاز غير متاح لهذه اللغة. يمكنك متابعة الكتابة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই ডিভাইসে এই ভাষায় শ্রুতলিখন উপলব্ধ নয়। আপনি টাইপ করা চালিয়ে যেতে পারেন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "El dictado en este dispositivo no está disponible para este idioma. Puedes seguir escribiendo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La dictée sur cet appareil n’est pas disponible pour cette langue. Vous pouvez continuer à saisir du texte."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इस डिवाइस पर इस भाषा में बोलकर लिखना उपलब्ध नहीं है। आप टाइप करना जारी रख सकते हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dikte di perangkat ini tidak tersedia untuk bahasa ini. Anda dapat terus mengetik."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La dettatura su questo dispositivo non è disponibile per questa lingua. Puoi continuare a digitare."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "このデバイスでは、この言語の音声入力を利用できません。入力は続けられます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이 기기에서는 이 언어로 받아쓰기를 사용할 수 없습니다. 계속 입력할 수 있습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O ditado neste dispositivo não está disponível para este idioma. Pode continuar a escrever."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "На этом устройстве диктовка недоступна для этого языка. Можно продолжить ввод с клавиатуры."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu cihazda bu dil için dikte kullanılamıyor. Yazmaya devam edebilirsiniz."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس ڈیوائس پر اس زبان میں بول کر لکھنا دستیاب نہیں ہے۔ آپ ٹائپ کرنا جاری رکھ سکتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Không có tính năng đọc chính tả cho ngôn ngữ này trên thiết bị này. Bạn có thể tiếp tục gõ."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "此设备不支持该语言的听写。你可以继续键入。"}}
+      }
+    },
+    "Diktieren konnte nicht abgeschlossen werden. Bitte versuche es erneut.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictation couldn’t be completed. Please try again."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تعذر إكمال الإملاء. يُرجى المحاولة مجددًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন সম্পূর্ণ করা যায়নি। আবার চেষ্টা করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "No se pudo completar el dictado. Inténtalo de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La dictée n’a pas pu être terminée. Veuillez réessayer."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखना पूरा नहीं हो सका। कृपया फिर से कोशिश करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dikte tidak dapat diselesaikan. Silakan coba lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Impossibile completare la dettatura. Riprova."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力を完了できませんでした。もう一度お試しください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기를 완료하지 못했습니다. 다시 시도하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Não foi possível concluir o ditado. Tente novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Не удалось завершить диктовку. Попробуйте ещё раз."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte tamamlanamadı. Lütfen tekrar deneyin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنا مکمل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Không thể hoàn tất đọc chính tả. Vui lòng thử lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法完成听写。请重试。"}}
+      }
+    },
+    "Das Mikrofon ist nicht verfügbar. Du kannst weiter tippen.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The microphone is unavailable. You can keep typing."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الميكروفون غير متاح. يمكنك متابعة الكتابة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "মাইক্রোফোন উপলব্ধ নয়। আপনি টাইপ করা চালিয়ে যেতে পারেন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "El micrófono no está disponible. Puedes seguir escribiendo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Le microphone n’est pas disponible. Vous pouvez continuer à saisir du texte."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "माइक्रोफ़ोन उपलब्ध नहीं है। आप टाइप करना जारी रख सकते हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Mikrofon tidak tersedia. Anda dapat terus mengetik."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Il microfono non è disponibile. Puoi continuare a digitare."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マイクを利用できません。入力は続けられます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "마이크를 사용할 수 없습니다. 계속 입력할 수 있습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O microfone não está disponível. Pode continuar a escrever."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Микрофон недоступен. Можно продолжить ввод с клавиатуры."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Mikrofon kullanılamıyor. Yazmaya devam edebilirsiniz."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "مائیکروفون دستیاب نہیں ہے۔ آپ ٹائپ کرنا جاری رکھ سکتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Micrô không khả dụng. Bạn có thể tiếp tục gõ."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "麦克风不可用。你可以继续键入。"}}
+      }
+    },
+    "Diktieren konnte nicht gestartet werden. Bitte versuche es erneut.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictation couldn’t be started. Please try again."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تعذر بدء الإملاء. يُرجى المحاولة مجددًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন শুরু করা যায়নি। আবার চেষ্টা করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "No se pudo iniciar el dictado. Inténtalo de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La dictée n’a pas pu démarrer. Veuillez réessayer."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखना शुरू नहीं हो सका। कृपया फिर से कोशिश करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dikte tidak dapat dimulai. Silakan coba lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Impossibile avviare la dettatura. Riprova."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力を開始できませんでした。もう一度お試しください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기를 시작하지 못했습니다. 다시 시도하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Não foi possível iniciar o ditado. Tente novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Не удалось начать диктовку. Попробуйте ещё раз."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte başlatılamadı. Lütfen tekrar deneyin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنا شروع نہیں ہو سکا۔ دوبارہ کوشش کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Không thể bắt đầu đọc chính tả. Vui lòng thử lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法开始听写。请重试。"}}
+      }
+    },
+    "Die Audioaufnahme wurde unterbrochen. Bitte versuche es erneut.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Audio recording was interrupted. Please try again."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "توقف التسجيل الصوتي. يُرجى المحاولة مجددًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "অডিও রেকর্ডিং বাধাগ্রস্ত হয়েছে। আবার চেষ্টা করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se interrumpió la grabación de audio. Inténtalo de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "L’enregistrement audio a été interrompu. Veuillez réessayer."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "ऑडियो रिकॉर्डिंग बाधित हो गई। कृपया फिर से कोशिश करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Perekaman audio terputus. Silakan coba lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La registrazione audio è stata interrotta. Riprova."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声録音が中断されました。もう一度お試しください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "오디오 녹음이 중단되었습니다. 다시 시도하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A gravação de áudio foi interrompida. Tente novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Запись звука была прервана. Попробуйте ещё раз."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Ses kaydı kesintiye uğradı. Lütfen tekrar deneyin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آڈیو ریکارڈنگ میں خلل پڑا۔ دوبارہ کوشش کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Quá trình ghi âm bị gián đoạn. Vui lòng thử lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "录音已中断。请重试。"}}
+      }
+    },
+    "Die Mikrofonverbindung wurde getrennt. Bitte versuche es erneut.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The microphone was disconnected. Please try again."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "انقطع اتصال الميكروفون. يُرجى المحاولة مجددًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "মাইক্রোফোনের সংযোগ বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se desconectó el micrófono. Inténtalo de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Le microphone a été déconnecté. Veuillez réessayer."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "माइक्रोफ़ोन का कनेक्शन टूट गया। कृपया फिर से कोशिश करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Koneksi mikrofon terputus. Silakan coba lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Il microfono è stato scollegato. Riprova."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マイクの接続が切れました。もう一度お試しください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "마이크 연결이 끊어졌습니다. 다시 시도하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O microfone foi desligado. Tente novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Микрофон был отключён. Попробуйте ещё раз."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Mikrofon bağlantısı kesildi. Lütfen tekrar deneyin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "مائیکروفون کا کنکشن منقطع ہو گیا۔ دوبارہ کوشش کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Micrô đã bị ngắt kết nối. Vui lòng thử lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "麦克风连接已断开。请重试。"}}
+      }
+    },
+    "Aus einem Satz anlegen": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Create from a sentence"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إنشاء من جملة"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "একটি বাক্য থেকে তৈরি করুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Crear a partir de una frase"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Créer à partir d’une phrase"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "एक वाक्य से बनाएँ"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Buat dari sebuah kalimat"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Crea da una frase"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "文章から作成"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "문장으로 만들기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Criar a partir de uma frase"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Создать из предложения"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bir cümleden oluştur"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ایک جملے سے بنائیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tạo từ một câu"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "通过一句话创建"}}
+      }
+    },
+    "Fehler": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Error"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "خطأ"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ত্রুটি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Error"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Erreur"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "त्रुटि"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Kesalahan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Errore"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "エラー"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "오류"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Erro"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Ошибка"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Hata"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "خرابی"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lỗi"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "错误"}}
+      }
+    },
+    "OK": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "موافق"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ঠিক আছে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Aceptar"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "ठीक है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "it": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "확인"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "ОК"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tamam"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ٹھیک ہے"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "好"}}
+      }
+    },
+    "Diktat wird vorbereitet...": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Preparing dictation..."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "جارٍ إعداد الإملاء..."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন প্রস্তুত হচ্ছে..."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Preparando el dictado..."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Préparation de la dictée..."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखने की तैयारी हो रही है..."}},
+        "id": {"stringUnit": {"state": "translated", "value": "Menyiapkan dikte..."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Preparazione della dettatura..."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力を準備中..."}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기 준비 중..."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A preparar o ditado..."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Подготовка диктовки..."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte hazırlanıyor..."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنے کی تیاری ہو رہی ہے..."}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đang chuẩn bị đọc chính tả..."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在准备听写..."}}
+      }
+    },
+    "Diktiert... Tippe auf Stopp, wenn du fertig bist.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictating... Tap Stop when you’re finished."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "جارٍ الإملاء... اضغط على إيقاف عند الانتهاء."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন চলছে... শেষ হলে থামান-এ ট্যাপ করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Dictando... Toca Detener cuando termines."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Dictée en cours... Touchez Arrêter quand vous avez terminé."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखा जा रहा है... पूरा होने पर रोकें पर टैप करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Mendikte... Ketuk Berhenti setelah selesai."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Dettatura in corso... Tocca Interrompi quando hai finito."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力中... 終わったら停止をタップしてください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기 중... 완료되면 중지를 탭하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A ditar... Toque em Parar quando terminar."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Идёт диктовка... Нажмите «Стоп», когда закончите."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte ediliyor... Bitirdiğinizde Durdur’a dokunun."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھا جا رہا ہے... مکمل ہونے پر روکیں پر ٹیپ کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đang đọc chính tả... Chạm Dừng khi bạn hoàn tất."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在听写... 完成后点按停止。"}}
+      }
+    },
+    "Diktat wird abgeschlossen...": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Finishing dictation..."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "جارٍ إنهاء الإملاء..."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন শেষ হচ্ছে..."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Finalizando el dictado..."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Finalisation de la dictée..."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखना पूरा हो रहा है..."}},
+        "id": {"stringUnit": {"state": "translated", "value": "Menyelesaikan dikte..."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Completamento della dettatura..."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力を完了中..."}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기 완료 중..."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A concluir o ditado..."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Завершение диктовки..."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte tamamlanıyor..."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنا مکمل ہو رہا ہے..."}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đang hoàn tất đọc chính tả..."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在完成听写..."}}
+      }
+    },
+    "Diktieren ist nicht erlaubt. Du kannst weiter tippen oder den Zugriff in den iOS-Einstellungen erlauben.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictation isn’t allowed. You can keep typing or allow access in iOS Settings."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الإملاء غير مسموح. يمكنك متابعة الكتابة أو السماح بالوصول في إعدادات iOS."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখনের অনুমতি নেই। আপনি টাইপ করতে পারেন বা iOS সেটিংসে অ্যাক্সেসের অনুমতি দিতে পারেন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "El dictado no está permitido. Puedes seguir escribiendo o permitir el acceso en los ajustes de iOS."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La dictée n’est pas autorisée. Vous pouvez continuer à saisir du texte ou autoriser l’accès dans les réglages iOS."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखने की अनुमति नहीं है। आप टाइप करना जारी रख सकते हैं या iOS सेटिंग्स में पहुँच की अनुमति दे सकते हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dikte tidak diizinkan. Anda dapat terus mengetik atau mengizinkan akses di Pengaturan iOS."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La dettatura non è consentita. Puoi continuare a digitare o consentire l’accesso nelle impostazioni di iOS."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力が許可されていません。入力を続けるか、iOSの設定でアクセスを許可できます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기가 허용되지 않았습니다. 계속 입력하거나 iOS 설정에서 접근을 허용할 수 있습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O ditado não é permitido. Pode continuar a escrever ou permitir o acesso nas definições do iOS."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Диктовка не разрешена. Можно продолжить ввод с клавиатуры или разрешить доступ в настройках iOS."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikteye izin verilmedi. Yazmaya devam edebilir veya iOS Ayarları’nda erişime izin verebilirsiniz."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنے کی اجازت نہیں ہے۔ آپ ٹائپ کرنا جاری رکھ سکتے ہیں یا iOS کی ترتیبات میں رسائی کی اجازت دے سکتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đọc chính tả chưa được cho phép. Bạn có thể tiếp tục gõ hoặc cho phép truy cập trong Cài đặt iOS."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未允许听写。你可以继续键入，或在 iOS 设置中允许访问。"}}
+      }
+    },
+    "Tippe deinen Satz ein oder nutze das Mikrofon im Textfeld.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Type your sentence or use the microphone in the text field."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اكتب جملتك أو استخدم الميكروفون في حقل النص."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আপনার বাক্য টাইপ করুন বা টেক্সট ক্ষেত্রের মাইক্রোফোন ব্যবহার করুন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Escribe tu frase o usa el micrófono del campo de texto."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Saisissez votre phrase ou utilisez le microphone du champ de texte."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "अपना वाक्य टाइप करें या टेक्स्ट फ़ील्ड में माइक्रोफ़ोन का उपयोग करें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Ketik kalimat Anda atau gunakan mikrofon di kolom teks."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Digita la tua frase o usa il microfono nel campo di testo."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "文章を入力するか、テキスト欄のマイクを使ってください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "문장을 입력하거나 텍스트 필드의 마이크를 사용하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Escreva a sua frase ou use o microfone no campo de texto."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Введите предложение или используйте микрофон в текстовом поле."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Cümlenizi yazın veya metin alanındaki mikrofonu kullanın."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اپنا جملہ ٹائپ کریں یا متن کے خانے میں مائیکروفون استعمال کریں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Gõ câu của bạn hoặc dùng micrô trong ô văn bản."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "输入你的句子，或使用文本框中的麦克风。"}}
+      }
+    },
+    "Prüfe Datum und Uhrzeit. Du kannst den Satz noch ändern.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Check the date and time. You can still edit the sentence."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تحقق من التاريخ والوقت. لا يزال بإمكانك تعديل الجملة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তারিখ ও সময় পরীক্ষা করুন। আপনি এখনও বাক্যটি বদলাতে পারেন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Revisa la fecha y la hora. Aún puedes cambiar la frase."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Vérifiez la date et l’heure. Vous pouvez encore modifier la phrase."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तारीख और समय जाँचें। आप अभी भी वाक्य बदल सकते हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Periksa tanggal dan waktu. Anda masih dapat mengubah kalimatnya."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Controlla data e ora. Puoi ancora modificare la frase."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "日付と時刻を確認してください。文章はまだ変更できます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "날짜와 시간을 확인하세요. 문장을 아직 수정할 수 있습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Verifique a data e a hora. Ainda pode alterar a frase."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Проверьте дату и время. Предложение ещё можно изменить."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tarih ve saati kontrol edin. Cümleyi hâlâ değiştirebilirsiniz."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تاریخ اور وقت دیکھ لیں۔ آپ ابھی بھی جملہ تبدیل کر سکتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Kiểm tra ngày và giờ. Bạn vẫn có thể sửa câu."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "检查日期和时间。你仍可修改句子。"}}
+      }
+    },
+    "Dein Satz": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Your sentence"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "جملتك"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আপনার বাক্য"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Tu frase"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Votre phrase"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आपका वाक्य"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Kalimat Anda"}},
+        "it": {"stringUnit": {"state": "translated", "value": "La tua frase"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "あなたの文章"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "내 문장"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A sua frase"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Ваше предложение"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Cümleniz"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آپ کا جملہ"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Câu của bạn"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的句子"}}
+      }
+    },
+    "Was möchtest du tracken?": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "What would you like to track?"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "ما الذي تريد تتبعه؟"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আপনি কী ট্র্যাক করতে চান?"}},
+        "es": {"stringUnit": {"state": "translated", "value": "¿Qué quieres registrar?"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Que souhaitez-vous suivre ?"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आप क्या ट्रैक करना चाहते हैं?"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Apa yang ingin Anda lacak?"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Cosa vuoi monitorare?"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "何を記録したいですか？"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "무엇을 기록하고 싶으세요?"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "O que gostaria de acompanhar?"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Что вы хотите отслеживать?"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Neyi takip etmek istersiniz?"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آپ کیا ٹریک کرنا چاہتے ہیں؟"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Bạn muốn theo dõi điều gì?"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "你想记录什么？"}}
+      }
+    },
+    "Diktat beenden": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Stop dictation"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إيقاف الإملاء"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শ্রুতলিখন থামান"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Detener el dictado"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Arrêter la dictée"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखना रोकें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Hentikan dikte"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Interrompi dettatura"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力を停止"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기 중지"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Parar ditado"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Остановить диктовку"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikteyi durdur"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھنا روکیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Dừng đọc chính tả"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "停止听写"}}
+      }
+    },
+    "Diktieren": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Dictate"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إملاء"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বলুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Dictar"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Dicter"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बोलकर लिखें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dikte"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Detta"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "音声入力"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "받아쓰기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ditar"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Диктовать"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Dikte et"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بول کر لکھیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đọc chính tả"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "听写"}}
+      }
+    },
+    "Daraus wird": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "This will become"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "سيصبح"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এটি হবে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Se creará"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Cela deviendra"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इससे बनेगा"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Ini akan menjadi"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Diventerà"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "作成される内容"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "생성될 항목"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Isto será"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Будет создано"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Oluşturulacak"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس سے بنے گا"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Sẽ tạo thành"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "将创建"}}
+      }
+    },
+    "um %02d:%02d": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "at %02d:%02d"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الساعة %02d:%02d"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "%02d:%02d-এ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "a las %02d:%02d"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "à %02d:%02d"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "%02d:%02d बजे"}},
+        "id": {"stringUnit": {"state": "translated", "value": "pukul %02d:%02d"}},
+        "it": {"stringUnit": {"state": "translated", "value": "alle %02d:%02d"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%02d:%02dに"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "%02d:%02d에"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "às %02d:%02d"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "в %02d:%02d"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "saat %02d:%02d"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "%02d:%02d بجے"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "lúc %02d:%02d"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在 %02d:%02d"}}
+      }
+    },
+    "Ganztägig": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "All day"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "طوال اليوم"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সারাদিন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Todo el día"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Toute la journée"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पूरे दिन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Sepanjang hari"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Tutto il giorno"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "終日"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "하루 종일"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Todo o dia"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Весь день"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tüm gün"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "پورا دن"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cả ngày"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全天"}}
+      }
+    },
+    "Ab %@": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "From %@"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "بدءًا من %@"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "%@ থেকে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Desde %@"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "À partir du %@"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "%@ से"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Mulai %@"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Dal %@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@から"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "%@부터"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A partir de %@"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "С %@"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "%@ itibarıyla"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "%@ سے"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Từ %@"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "从 %@ 开始"}}
+      }
+    },
+    "Angelegt": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Created"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تم الإنشاء"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তৈরি হয়েছে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Creado"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Créé"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बनाया गया"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dibuat"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Creato"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "作成済み"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "생성됨"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Criado"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Создано"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Oluşturuldu"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بن گیا"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã tạo"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已创建"}}
+      }
+    },
+    "Anlegen": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Create"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إنشاء"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তৈরি করুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Crear"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Créer"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बनाएँ"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Buat"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Crea"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "作成"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "만들기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Criar"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Создать"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Oluştur"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "بنائیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tạo"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "创建"}}
+      }
+    },
+    "Der Name fehlt.": {
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "The name is missing."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الاسم مفقود."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "নাম দেওয়া হয়নি।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Falta el nombre."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Le nom est manquant."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "नाम नहीं दिया गया है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Nama belum diisi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Manca il nome."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "名前がありません。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이름이 없습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Falta o nome."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Не указано название."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Ad eksik."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "نام درج نہیں ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Chưa có tên."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "缺少名称。"}}
+      }
+    },
     "Mitteilung %lld": {
       "localizations": {
         "en": {"stringUnit": {"state": "translated", "value": "Notification %lld"}},
@@ -507,7 +1167,22 @@
             "state": "translated",
             "value": "Reads the name, symbol and repeat from the sentence. It warms the device, so it only runs when you want it to."
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "يستخرج الاسم والرمز والتكرار من الجملة. يسخن الجهاز أثناء ذلك، لذا يعمل فقط عندما ترغب."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বাক্য থেকে নাম, প্রতীক ও পুনরাবৃত্তি পড়ে নেয়। এতে ডিভাইস গরম হয়, তাই শুধু আপনার ইচ্ছাতেই চলে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Lee el nombre, el símbolo y la repetición de la frase. El dispositivo se calienta al hacerlo, así que solo se ejecuta cuando tú quieres."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Lit le nom, le symbole et la répétition dans la phrase. Cela chauffe l’appareil, donc uniquement si vous le souhaitez."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "वाक्य से नाम, चिह्न और दोहराव पढ़ता है। इससे डिवाइस गर्म होता है, इसलिए यह केवल आपके चाहने पर चलता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Membaca nama, simbol, dan pengulangan dari kalimat. Perangkat menjadi lebih hangat, jadi hanya berjalan saat Anda menginginkannya."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Legge nome, simbolo e ripetizione dalla frase. Il dispositivo si scalda, quindi viene eseguito solo se lo desideri."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "文章から名前、アイコン、繰り返しを読み取ります。デバイスが温かくなるため、希望するときだけ実行します。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "문장에서 이름, 기호, 반복을 읽어 냅니다. 기기가 따뜻해지므로 원할 때만 실행합니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Lê o nome, o símbolo e a repetição a partir da frase. O dispositivo aquece, por isso só é executado quando quiser."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Определяет название, символ и повторение из предложения. Устройство при этом нагревается, поэтому выполняется только по вашему желанию."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Cümleden ad, simge ve tekrarı okur. Cihaz bu sırada ısınır, bu yüzden yalnızca istediğinizde çalışır."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "جملے سے نام، علامت اور تکرار پڑھتا ہے۔ اس سے ڈیوائس گرم ہوتی ہے، اس لیے صرف آپ کی خواہش پر چلتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đọc tên, biểu tượng và lịch lặp lại từ câu. Thiết bị sẽ ấm hơn, nên chỉ chạy khi bạn muốn."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "从句子中读取名称、图标和重复安排。此过程会使设备变热，因此仅在你希望时运行。"}}
       }
     },
     "Liquid Glass": {
@@ -707,7 +1382,22 @@
             "state": "translated",
             "value": "Repeat not decided yet"
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "التكرار لم يُحدد بعد"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "পুনরাবৃত্তি এখনও নির্ধারিত নয়"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Repetición aún sin decidir"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Répétition pas encore définie"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "दोहराव अभी तय नहीं है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pengulangan belum ditentukan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ripetizione non ancora definita"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "繰り返しは未設定"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "반복이 아직 정해지지 않음"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Repetição ainda por definir"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Повторение ещё не определено"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tekrar henüz belirlenmedi"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تکرار ابھی طے نہیں ہوئی"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Chưa xác định lịch lặp lại"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重复安排尚未确定"}}
       }
     },
     "Wird geladen": {
@@ -25777,7 +26467,22 @@
             "state": "translated",
             "value": "Read. Change the sentence and you can read it again."
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "تمت القراءة. عدّل الجملة ويمكنك قراءتها مجددًا."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "পড়া হয়েছে। বাক্যটি বদলালে আবার পড়তে পারবেন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Leído. Cambia la frase y podrás leerla de nuevo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Lu. Modifiez la phrase et vous pourrez la relire."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पढ़ लिया गया। वाक्य बदलें और आप इसे फिर से पढ़ सकते हैं।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Sudah dibaca. Ubah kalimat dan Anda dapat membacanya lagi."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Letto. Modifica la frase e potrai leggerla di nuovo."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "読み取り済み。文章を変更すると、再び読み取れます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "읽었습니다. 문장을 수정하면 다시 읽을 수 있습니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Lido. Altere a frase e poderá lê-la novamente."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Прочитано. Измените предложение, чтобы прочитать его заново."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Okundu. Cümleyi değiştirerek yeniden okuyabilirsiniz."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "پڑھ لیا گیا۔ جملہ تبدیل کریں تو اسے دوبارہ پڑھ سکتے ہیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã đọc. Sửa câu để có thể đọc lại."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已读取。修改句子后即可重新读取。"}}
       }
     },
     "Genau wie letzte Woche": {
@@ -38911,7 +39616,22 @@
             "state": "translated",
             "value": "Read again"
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "قراءة مجددًا"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আবার পড়ুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Leer de nuevo"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Relire"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "फिर से पढ़ें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Baca ulang"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Leggi di nuovo"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "再読み取り"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "다시 읽기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ler novamente"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Прочитать заново"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Yeniden oku"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "دوبارہ پڑھیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đọc lại"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新读取"}}
       }
     },
     "Neue Erinnerung": {
@@ -41851,7 +42571,22 @@
             "state": "translated",
             "value": "Sentence, not read yet"
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "الجملة، لم تُقرأ بعد"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বাক্য, এখনও পড়া হয়নি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Frase, aún sin leer"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Phrase, pas encore lue"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "वाक्य, अभी पढ़ा नहीं गया"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Kalimat, belum dibaca"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Frase, non ancora letta"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "文章、未読み取り"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "문장, 아직 읽지 않음"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Frase, ainda não lida"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Предложение ещё не прочитано"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Cümle, henüz okunmadı"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "جملہ، ابھی پڑھا نہیں گیا"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Câu, chưa được đọc"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "句子，尚未读取"}}
       }
     },
     "Sauber durchgezogen": {
@@ -58165,7 +58900,22 @@
             "state": "translated",
             "value": "Read the sentence"
           }
-        }
+        },
+        "ar": {"stringUnit": {"state": "translated", "value": "قراءة الجملة"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বাক্যটি পড়ুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Leer la frase"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Lire la phrase"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "वाक्य पढ़ें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Baca kalimat"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Leggi la frase"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "文章を読み取る"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "문장 읽기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ler a frase"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Прочитать предложение"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Cümleyi oku"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "جملہ پڑھیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đọc câu"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "读取句子"}}
       }
     },
     "Satz schreiben": {

@@ -113,11 +113,8 @@ targets:
         # (Aktualisieren/Entfernen eigener Termine) ein Lesen voraussetzt.
         NSCalendarsFullAccessUsageDescription: "hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits. Deine übrigen Kalender und Termine bleiben unberührt."
         NSRemindersFullAccessUsageDescription: "hAiity synchronisiert deine eigenen Erinnerungen mit der Apple Erinnerungen-App."
-        # Sprachknopf: nur der Satz, aus dem ein neues Habit entsteht. Der Text
-        # sagt bewusst NICHTS darueber, wohin die Audiodaten gehen — ueber dem
-        # Prompt steht Apples eigener Satz, und ihm zu widersprechen waere eine
-        # falsche Zusage. Die App sendet selbst nichts weiter; ob und wie Apple
-        # die Erkennung verarbeitet, steht in Apples Dialog.
+        NSMicrophoneUsageDescription: "hAiity nutzt das Mikrofon nur nach deinem Tippen auf Diktieren, um deinen Satz für ein Habit oder eine Erinnerung aufzunehmen."
+        NSSpeechRecognitionUsageDescription: "hAiity wandelt deinen diktierten Satz in bearbeitbaren Text für ein Habit oder eine Erinnerung um."
         # Live-Aktivitäten (Habit-Sessions) — muss in App UND Extension stehen.
         NSSupportsLiveActivities: true
         CFBundleURLTypes:

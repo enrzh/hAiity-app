@@ -12,7 +12,8 @@ final class SpeakToCreateDockUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-screen", "habits", "-pro"]
+        app.launchArguments = ["-design-fixture", "realistic", "-screen", "habits", "-pro", "on",
+                               "-AppleLanguages", "(de)", "-AppleLocale", "de_DE"]
         app.launch()
     }
 
@@ -47,11 +48,11 @@ final class SpeakToCreateDockUITests: XCTestCase {
     func testTheDockShowsItsControlAndItIsHittable() {
         openSheet()
 
-        // There is one control in the dock now. The microphone went away with
-        // the in-app recogniser, and this is where that is pinned: a button
-        // coming back would need a permission prompt that no longer exists.
-        XCTAssertFalse(app.buttons["speak-to-create-toggle"].exists,
-                       "there is no microphone control in the sheet any more")
+        let mic = app.buttons["speak-to-create-dictation"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 5))
+        XCTAssertTrue(mic.isHittable)
+        XCTAssertGreaterThanOrEqual(mic.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(mic.frame.height, 44)
 
         let create = app.buttons["speak-to-create-confirm"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), "the create action must be reachable")
@@ -77,6 +78,152 @@ final class SpeakToCreateDockUITests: XCTestCase {
         XCTAssertTrue(draft.waitForExistence(timeout: 5),
                       "a sentence should produce a draft")
         XCTAssertTrue(create.isEnabled, "a real sentence should enable the create action")
+    }
+
+    func testNumericDateAndTimeArePreviewedAndInvalidInputCannotBeSaved() {
+        let field = openSheet()
+        field.tap()
+        let sentence = "Zahnarzt 15.10.2099 10 uhr"
+        field.typeText(sentence)
+        let schedule = app.staticTexts["speak-to-create-schedule"]
+        XCTAssertTrue(schedule.waitForExistence(timeout: 5))
+        XCTAssertTrue(schedule.label.contains("2099"), schedule.label)
+        XCTAssertTrue(schedule.label.contains("10:00"), schedule.label)
+        XCTAssertFalse(schedule.label.contains("15:10"), schedule.label)
+        let create = app.buttons["speak-to-create-confirm"]
+        XCTAssertTrue(create.isEnabled)
+        XCTAssertFalse(app.alerts.element.exists, "typing must never request permissions")
+
+        field.tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: sentence.count)
+                       + "Zahnarzt 31.02.2099 10 uhr")
+        XCTAssertTrue(app.staticTexts["speak-to-create-validation"].waitForExistence(timeout: 5))
+        XCTAssertFalse(create.isEnabled)
+        capture("text-create-invalid-date")
+    }
+
+    func testISODatePreviewAndInlineMicrophoneInEnglishAndArabicPhotoAppearances() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for (language, locale, appearance, photo) in [
+            ("en-US", "en_US", "light", false),
+            ("ar-EG", "ar_EG", "dark", true)
+        ] {
+            app.terminate()
+            app.launchArguments = ["-design-fixture", "realistic", "-screen", "habits", "-pro", "on",
+                "-AppleLanguages", "(\(language))", "-AppleLocale", locale,
+                "-design-appearance", appearance,
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            if photo { app.launchArguments += ["-design-photo"] }
+            app.launch()
+            let field = openSheet()
+            let mic = app.buttons["speak-to-create-dictation"]
+            XCTAssertTrue(mic.waitForExistence(timeout: 5))
+            XCTAssertTrue(mic.isHittable, language)
+            XCTAssertGreaterThanOrEqual(mic.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(mic.frame.height, 44)
+            XCTAssertLessThan(mic.frame.minY, field.frame.maxY, "the microphone must be inline")
+            XCTAssertGreaterThan(mic.frame.maxY, field.frame.minY, "the microphone must be inline")
+            if language == "ar-EG" {
+                XCTAssertLessThanOrEqual(mic.frame.maxX, field.frame.minX,
+                                         "RTL must place the microphone to the left of the field")
+            } else {
+                XCTAssertGreaterThanOrEqual(mic.frame.minX, field.frame.maxX)
+            }
+            XCTAssertFalse(app.alerts.element.exists)
+            XCTAssertFalse(springboard.alerts.element.exists, "opening must not request permissions")
+            capture("text-create-\(language)-\(appearance)-inline-mic")
+
+            field.tap()
+            field.typeText("Dentist 2099-10-15 10 Uhr")
+            let schedule = app.staticTexts["speak-to-create-schedule"]
+            XCTAssertTrue(schedule.waitForExistence(timeout: 5))
+            XCTAssertNotNil(schedule.label.range(of: "(?<![0-9])10:00(?![0-9])",
+                                                 options: .regularExpression), schedule.label)
+            if language == "en-US" {
+                XCTAssertTrue(schedule.label.contains("October 15, 2099"), schedule.label)
+            }
+            let create = app.buttons["speak-to-create-confirm"]
+            XCTAssertTrue(create.waitForExistence(timeout: 5))
+            if !schedule.isHittable || schedule.frame.maxY > create.frame.minY {
+                app.scrollViews.firstMatch.swipeUp()
+            }
+            XCTAssertTrue(schedule.isHittable, "the preview must be visible with the keyboard open")
+            XCTAssertGreaterThan(schedule.frame.height, 0)
+            XCTAssertGreaterThanOrEqual(schedule.frame.minY,
+                                       app.buttons["speak-to-create-close"].frame.maxY)
+            XCTAssertLessThanOrEqual(schedule.frame.maxY, create.frame.minY,
+                                     "the preview must remain above the floating dock")
+            XCTAssertFalse(app.alerts.element.exists)
+            XCTAssertFalse(springboard.alerts.element.exists, "typing must not request permissions")
+            capture("text-create-\(language)-\(appearance)-iso-preview")
+        }
+    }
+
+    func testSpaceSeparatedDatePreviewAndSavingAgree() {
+        let field = openSheet()
+        field.tap()
+        field.typeText("Zahnarzt 15 10 2099 10 uhr")
+        let schedule = app.staticTexts["speak-to-create-schedule"]
+        XCTAssertTrue(schedule.waitForExistence(timeout: 5))
+        XCTAssertTrue(schedule.label.contains("2099"), schedule.label)
+        XCTAssertTrue(schedule.label.contains("10:00"), schedule.label)
+        capture("text-create-date-preview")
+        app.buttons["speak-to-create-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Zahnarzt"].waitForExistence(timeout: 10))
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: field)
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
+    }
+
+    func testDeniedDictationKeepsTypedTextAndEditingAvailable() {
+        app.terminate()
+        app.launchEnvironment["HAIITY_TEST_DICTATION"] = "denied"
+        app.launchArguments += ["-design-appearance", "dark", "-design-material", "solid",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let field = openSheet()
+        field.tap()
+        field.typeText("Wasser trinken")
+        let mic = app.buttons["speak-to-create-dictation"]
+        if !mic.isHittable { app.swipeDown() }
+        XCTAssertTrue(mic.isHittable)
+        mic.tap()
+        let status = app.staticTexts["speak-to-create-prompt"]
+        let denied = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "nicht erlaubt"), object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [denied], timeout: 5), .completed)
+        XCTAssertEqual(field.value as? String, "Wasser trinken")
+        XCTAssertFalse(app.alerts.element.exists)
+        capture("text-create-dark-large-denied")
+        field.tap()
+        field.typeText(" um 10 Uhr")
+        XCTAssertTrue((field.value as? String)?.contains("10 Uhr") == true)
+    }
+
+    func testDictationPreservesPrefixAndFinalizesBeforeCreation() {
+        app.terminate()
+        app.launchEnvironment["HAIITY_TEST_DICTATION"] = "transcript"
+        app.launch()
+        let field = openSheet()
+        field.tap()
+        field.typeText("Bitte")
+        let mic = app.buttons["speak-to-create-dictation"]
+        mic.tap()
+        let partial = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", "Bitte Zahnarzt"), object: field)
+        XCTAssertEqual(XCTWaiter.wait(for: [partial], timeout: 5), .completed)
+        XCTAssertFalse(app.buttons["speak-to-create-confirm"].isEnabled)
+        mic.tap()
+        let final = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", "10 Uhr"), object: field)
+        XCTAssertEqual(XCTWaiter.wait(for: [final], timeout: 5), .completed)
+        XCTAssertTrue((field.value as? String)?.hasPrefix("Bitte Zahnarzt") == true)
+        XCTAssertTrue(app.buttons["speak-to-create-confirm"].isEnabled)
+        XCTAssertTrue(field.exists, "dictation must never create an entry automatically")
+        capture("text-create-final-dictation")
+        field.tap()
+        field.typeText(" bitte")
+        XCTAssertTrue((field.value as? String)?.contains(" bitte") == true)
+        XCTAssertTrue((field.value as? String)?.contains("10 Uhr") == true)
     }
 
     /// The dock is a functional layer over content, so the content still scrolls

@@ -4,6 +4,11 @@
   "testTargets": [{
     "target": {"containerPath": "container:Haiity.xcodeproj", "identifier": "291C191FDF9F851022C84A1C", "name": "HaiityUITests"},
     "selectedTests": [
+      "SpeakToCreateDockUITests/testNumericDateAndTimeArePreviewedAndInvalidInputCannotBeSaved()",
+      "SpeakToCreateDockUITests/testISODatePreviewAndInlineMicrophoneInEnglishAndArabicPhotoAppearances()",
+      "SpeakToCreateDockUITests/testSpaceSeparatedDatePreviewAndSavingAgree()",
+      "SpeakToCreateDockUITests/testDeniedDictationKeepsTypedTextAndEditingAvailable()",
+      "SpeakToCreateDockUITests/testDictationPreservesPrefixAndFinalizesBeforeCreation()",
       "TodayProgressUITests/testSearchTabShowsATappableSearchField()",
       "TodayProgressUITests/testContributionChartLightAndDarkScreenshots()",
       "TodayProgressUITests/testReminderEditButtonPreservesCompletionAtBothTextSizes()",

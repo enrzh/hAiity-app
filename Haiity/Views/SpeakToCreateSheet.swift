@@ -1,33 +1,27 @@
 import SwiftUI
 
-/// Type a sentence, see it parsed, turn it into a habit.
-///
-/// **The field is real and the keyboard is up.** The sentence is written into an
-/// actual `TextField`, so it can be corrected before anything is created.
-///
-/// **There is no microphone in here.** Dictation is the keyboard's job: the
-/// system key under the caret does the same thing, in the user's own language,
-/// under the system's own consent prompt — and it costs the app neither a
-/// microphone nor a speech-recognition permission. Carrying our own recogniser
-/// meant a second permission, a second privacy promise, and a worse transcript
-/// than the one already sitting under the caret.
-///
-/// **The draft is shown before it is created.** The sentence "morgens um 7:30
-/// Wasser trinken" becomes a name, a time and a kind, and all three are visible
-/// first. A habit is a standing commitment, so the person sees what they are
-/// agreeing to rather than discovering it in a list afterwards.
+/// Type or dictate a sentence, review its schedule, then save the displayed draft.
 struct SpeakToCreateSheet: View {
 
     let store: HabitStore
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.locale) private var locale
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var text = ""
     @State private var isWorking = false
     @State private var didCreate = false
     @State private var saveError: String?
+    @State private var dictation = SpeechDictation.makeForCreationInput()
+    @State private var dictationPrefix = ""
+    @State private var dictationTask: Task<Void, Never>?
+    @State private var resumeEditingAfterDictation = false
+    @State private var referenceNow = Date()
+    @State private var isVisible = false
+    @State private var workTask: Task<Void, Never>?
     /// The model's reading of the sentence, and the exact text it was made
     /// from. Kept apart because a reading belongs to one sentence: edit a word
     /// and it is stale, and saving a stale reading means saving something the
@@ -45,25 +39,29 @@ struct SpeakToCreateSheet: View {
     @State private var modelService = LocalModelService()
     @State private var localReader = LocalModelSentenceReader(service: LocalModelService())
 
-    private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
+    private var calendar: Calendar {
+        var value = HabitTimeZone.calendar(identifier: store.defaultTimeZoneIdentifier)
+        value.locale = locale
+        return value
+    }
 
     /// What pressing "Anlegen" would create right now.
     ///
-    /// A reading is used only while it still matches the text. Otherwise this is
-    /// the deterministic half alone: the name, and a time if the sentence had
-    /// one. The model is never run from here — it costs heat, so it runs when
-    /// the person asks for it, and not on every keystroke.
+    /// Models run only after a tap; explicit dates/times are available immediately.
     private var draft: CreateItemDraft? {
         if let readDraft, readFrom == text { return readDraft }
-        let stripped = CreateItemDraft.stripTime(from: text)
-        guard !stripped.name.isEmpty else { return nil }
-        return CreateItemDraft(name: stripped.name, emoji: "", minutes: stripped.minutes)
+        guard hasSentence else { return nil }
+        return CreateItemDraft.fallback(from: text, locale: locale,
+                                        calendar: calendar, now: referenceNow)
     }
 
     /// Whether what is on screen came from this exact sentence, or is only the
     /// part that can be known without asking.
     private var needsReading: Bool { readDraft == nil || readFrom != text }
+    private var requiresReading: Bool {
+        needsReading && hasUsableReader && draft?.schedule.frequency != .once
+    }
 
     private var hasSentence: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -80,6 +78,7 @@ struct SpeakToCreateSheet: View {
     /// like it did nothing. The two are alternatives, not a preference order.
     private var canRead: Bool {
         hasUsableReader && hasSentence && !isReading && !isWorking
+            && !dictation.state.isActive && draft?.validationMessage == nil
     }
 
     /// Whether a model is on the phone, refreshed when the sheet opens.
@@ -90,17 +89,9 @@ struct SpeakToCreateSheet: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: Theme.Metrics.settingsSectionGap) {
-                    promptPanel
+                    if !hasSentence { promptPanel }
                     transcriptField
-                    // The draft only exists at the full height.
-                    //
-                    // It used to appear at half too, which is where the trouble
-                    // started: the sheet is for LISTENING at half, the draft card
-                    // does not fit, and arriving there scrolled the content up
-                    // under a transparent navigation bar — so the sentence being
-                    // spoken showed through "Abbrechen" and the title while
-                    // someone was still talking. Half is the waveform and the
-                    // sentence; the full page is where the reading gets reviewed.
+                    // A draft needs the full detent to remain clear of the dock.
                     if let draft, detent == .large {
                         draftPreview(draft)
                     }
@@ -142,10 +133,11 @@ struct SpeakToCreateSheet: View {
             // the listening surface out of view and up under the bar.
             .onChange(of: detent) { _, _ in scrollDraftIntoView(proxy) }
             .onChange(of: draft != nil) { _, _ in scrollDraftIntoView(proxy) }
-            .onChange(of: text) { _, _ in scrollDraftIntoView(proxy) }
             }
         }
         .onAppear {
+            isVisible = true
+            referenceNow = Date()
             fieldFocused = true
             // The page may have downloaded a model since this sheet's service was
             // built, so the disk is the authority.
@@ -155,6 +147,10 @@ struct SpeakToCreateSheet: View {
             }
         }
         .onDisappear {
+            isVisible = false
+            workTask?.cancel()
+            dictationTask?.cancel()
+            dictation.cancel()
             // A model holds hundreds of megabytes of weight cache. Keeping it
             // between sheets makes the rest of the app feel heavier than it is.
             localReader.release()
@@ -167,18 +163,54 @@ struct SpeakToCreateSheet: View {
         }
         // Tapping the text is a request to edit, which also needs the room.
         .onChange(of: fieldFocused) { _, focused in
-            if focused { expandForReview() }
+            if focused {
+                dictationTask?.cancel()
+                if dictation.state == .listening {
+                    resumeEditingAfterDictation = true
+                    fieldFocused = false
+                    dictation.stop()
+                } else if dictation.state == .finalizing {
+                    resumeEditingAfterDictation = true
+                    fieldFocused = false
+                } else {
+                    dictation.cancel()
+                }
+                expandForReview()
+            }
         }
+        .onChange(of: dictation.transcript) { _, transcript in
+            guard isVisible, !fieldFocused else { return }
+            text = SpeechDictation.mergedTranscript(prefix: dictationPrefix, transcript: transcript)
+        }
+        .onChange(of: dictation.state) { old, new in
+            guard isVisible, old.isActive, !new.isActive else { return }
+            text = SpeechDictation.mergedTranscript(prefix: dictationPrefix, transcript: dictation.transcript)
+            if resumeEditingAfterDictation {
+                resumeEditingAfterDictation = false
+                fieldFocused = true
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                workTask?.cancel()
+                dictationTask?.cancel()
+                resumeEditingAfterDictation = false
+                dictation.cancel()
+            }
+        }
+        .onChange(of: store.defaultTimeZoneIdentifier) { _, _ in
+            readDraft = nil
+            workTask?.cancel()
+        }
+        .onChange(of: locale) { _, _ in
+            readDraft = nil
+            workTask?.cancel()
+        }
+        .interactiveDismissDisabled(isWorking)
     }
 
     // MARK: - Prompt
 
-    /// What to put where the waveform used to be.
-    ///
-    /// The panel used to draw what the microphone was hearing. There is no
-    /// microphone now, so the space earns its keep by saying the one thing a
-    /// person arriving here does not know: dictation is still available, one key
-    /// away, on the keyboard under the caret.
     private var promptPanel: some View {
         VStack(spacing: Theme.Metrics.gap + 6) {
             Image(systemName: "text.badge.plus")
@@ -197,20 +229,25 @@ struct SpeakToCreateSheet: View {
         .appSurface()
     }
 
-    // MARK: - Waveform
+    // MARK: - Input status
 
-    /// Pure content now: the shape of what was heard, and what is going on.
-    ///
-    /// What is going on, in one line.
-    ///
-    /// There is no listening state any more, so this is the sentence being typed
-    /// or not. It names the keyboard's dictation key, because that is the part
-    /// someone arriving from the old in-app microphone will miss.
     private var statusLine: String {
-        if text.isEmpty {
-            return String(localized: "Tippe deinen Satz ein. Mit der Diktier-Taste der Tastatur geht es auch mit Sprache.")
+        switch dictation.state {
+        case .requestingPermission:
+            return String(localized: "Diktat wird vorbereitet...")
+        case .listening:
+            return String(localized: "Diktiert... Tippe auf Stopp, wenn du fertig bist.")
+        case .finalizing:
+            return String(localized: "Diktat wird abgeschlossen...")
+        case .denied:
+            return String(localized: "Diktieren ist nicht erlaubt. Du kannst weiter tippen oder den Zugriff in den iOS-Einstellungen erlauben.")
+        case .unavailable(let message), .failed(let message):
+            return message
+        case .idle:
+            return text.isEmpty
+                ? String(localized: "Tippe deinen Satz ein oder nutze das Mikrofon im Textfeld.")
+                : String(localized: "Prüfe Datum und Uhrzeit. Du kannst den Satz noch ändern.")
         }
-        return String(localized: "Fertig. Du kannst den Text unten noch ändern.")
     }
 
     // MARK: - Transcript
@@ -220,17 +257,58 @@ struct SpeakToCreateSheet: View {
             Text(String(localized: "Dein Satz"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-            // A real field, focused, with the native keyboard up: the transcript
-            // can be corrected by hand and the mic on that keyboard still works
-            // for anyone who would rather use the system's dictation.
-            TextField(String(localized: "Was möchtest du tracken?"), text: $text, axis: .vertical)
-                .lineLimit(3...6)
-                .focused($fieldFocused)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .accessibilityIdentifier("speak-to-create-text")
+            HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+                TextField(String(localized: "Was möchtest du tracken?"), text: $text, axis: .vertical)
+                    .lineLimit(1...6)
+                    .focused($fieldFocused)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .disabled(isWorking || dictation.state == .requestingPermission
+                              || dictation.state == .finalizing)
+                    .accessibilityIdentifier("speak-to-create-text")
+                dictationControl
+            }
+            if hasSentence, dictation.state != .idle {
+                Text(statusLine)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("speak-to-create-prompt")
+            }
+            if let message = draft?.validationMessage {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("speak-to-create-validation")
+            }
         }
         .appCard()
+    }
+
+    private var dictationControl: some View {
+        Button {
+            toggleDictation()
+        } label: {
+            Group {
+                if dictation.state == .requestingPermission || dictation.state == .finalizing {
+                    ProgressView()
+                } else {
+                    Image(systemName: dictation.state == .listening ? "stop.fill" : "mic")
+                        .font(.body)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(Color(.tertiarySystemFill), in: Circle())
+            .contentShape(Circle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(isReading || isWorking || dictation.state == .finalizing)
+        .accessibilityLabel(dictation.state.isActive
+                            ? String(localized: "Diktat beenden")
+                            : String(localized: "Diktieren"))
+        .accessibilityValue(statusLine)
+        .accessibilityIdentifier("speak-to-create-dictation")
     }
 
     // MARK: - Draft
@@ -241,7 +319,7 @@ struct SpeakToCreateSheet: View {
             // Before a reading, this card is showing the sentence with the clock
             // time lifted out — not a finished name. Calling it "Daraus wird"
             // would promise a name and a repeat that nobody has worked out yet.
-            Text(needsReading && hasUsableReader
+            Text(requiresReading
                  ? String(localized: "Satz, noch nicht gelesen")
                  : String(localized: "Daraus wird"))
                 .font(.subheadline.weight(.semibold))
@@ -265,6 +343,8 @@ struct SpeakToCreateSheet: View {
                     Text(draftSubtitle(draft))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("speak-to-create-schedule")
                 }
                 Spacer(minLength: 0)
             }
@@ -291,7 +371,7 @@ struct SpeakToCreateSheet: View {
     private var readRow: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
             Button {
-                Task { await read() }
+                workTask = Task { await read() }
             } label: {
                 HStack(spacing: Theme.Metrics.gap) {
                     if isReading { ProgressView() }
@@ -306,12 +386,14 @@ struct SpeakToCreateSheet: View {
             .disabled(!canRead)
             .accessibilityIdentifier("speak-to-create-read")
 
-            Text(needsReading
-                 ? String(localized: "Liest Name, Symbol und Wiederholung aus dem Satz. Das Gerät wird dabei wärmer, also nur wenn du es möchtest.")
-                 : String(localized: "Gelesen. Ändere den Satz, und du kannst ihn neu lesen."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if requiresReading || !needsReading {
+                Text(needsReading
+                     ? String(localized: "Liest Name, Symbol und Wiederholung aus dem Satz. Das Gerät wird dabei wärmer, also nur wenn du es möchtest.")
+                     : String(localized: "Gelesen. Ändere den Satz, und du kannst ihn neu lesen."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -322,15 +404,20 @@ struct SpeakToCreateSheet: View {
         if let minutes = draft.minutes {
             parts.append(String(format: String(localized: "um %02d:%02d"),
                                 minutes / 60, minutes % 60))
-        }
-        // The repeat only once it has actually been read. Printing "Jeden Tag"
-        // here would be a guess dressed up as a result: the create button reads
-        // the sentence, and that is where the repeat comes from, so the preview
-        // would promise daily and the list would show Mondays.
-        if needsReading, hasUsableReader {
-            parts.append(String(localized: "Wiederholung noch offen"))
         } else {
-            parts.append(RecurrenceText.pattern(draft.schedule.recurrence))
+            parts.append(String(localized: "Ganztägig"))
+        }
+        if let key = draft.schedule.startDay, let date = DayKey.date(from: key, calendar: calendar) {
+            let formatted = date.formatted(Date.FormatStyle(date: .long, time: .omitted,
+                                                            locale: locale, calendar: calendar,
+                                                            timeZone: calendar.timeZone))
+            parts.append(draft.schedule.frequency == .once
+                         ? formatted : String(format: String(localized: "Ab %@"), formatted))
+        }
+        if requiresReading {
+            parts.append(String(localized: "Wiederholung noch offen"))
+        } else if draft.schedule.frequency != .once {
+            parts.append(RecurrenceText.pattern(draft.schedule.recurrence, calendar: calendar))
         }
         return parts.joined(separator: " · ")
     }
@@ -341,7 +428,7 @@ struct SpeakToCreateSheet: View {
 
     /// How much room the dock needs underneath the scrolling content.
     private var dockClearance: CGFloat {
-        ChromeLayout.nativeTabBarClearance + Theme.Metrics.control + Theme.Metrics.gap * 2
+        Theme.Metrics.cardPadding
     }
 
     /// The sheet's one piece of glass: a single bar, not two floating pills.
@@ -375,15 +462,16 @@ struct SpeakToCreateSheet: View {
     /// button at half opacity looks like a rendering mistake; a grey one looks
     /// like what it is.
     private var createControl: some View {
-        let ready = draft != nil && !isWorking && !didCreate
+        let ready = draft != nil && draft?.validationMessage == nil
+            && !isWorking && !isReading && !didCreate && !dictation.state.isActive
         return Button {
-            Task { await create() }
+            workTask = Task { await create() }
         } label: {
             HStack(spacing: Theme.Metrics.gap) {
                 if isWorking { ProgressView().tint(.white) }
                 Text(didCreate
                      ? String(localized: "Angelegt")
-                     : String(localized: "Anlegen"))
+                     : requiresReading ? String(localized: "Satz lesen") : String(localized: "Anlegen"))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(ready ? Color.white : Color.secondary)
             }
@@ -411,48 +499,67 @@ struct SpeakToCreateSheet: View {
         // for words the person has already changed.
         let requested = text
         guard !requested.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !isReading else { return }
+              canRead, isVisible else { return }
         isReading = true
         defer { isReading = false }
+        let requestedCalendar = calendar
+        let requestedLocale = locale
+        let requestedNow = referenceNow
+        var result: CreateItemDraft?
         if hasDownloadedModel {
             // The chosen model is on this device, so it is the one that answers.
-            switch await localReader.read(requested) {
+            switch await localReader.read(requested, locale: requestedLocale,
+                                          calendar: requestedCalendar, now: requestedNow) {
             case .draft(let parsed):
-                readDraft = parsed
-                readFrom = requested
-                return
+                result = parsed
             case .unreadable, .failed:
                 // Fall through to Apple's model and then to the deterministic
                 // reading, rather than leaving the person with nothing. A model
                 // that cannot answer must not be the end of the road.
-                readDraft = nil
+                break
             }
         }
-        readDraft = await CreateItemDraft.read(from: requested)
+        if result == nil, !Task.isCancelled, isVisible, text == requested {
+            result = await CreateItemDraft.read(from: requested,
+                language: requestedLocale.language.languageCode?.identifier ?? "en",
+                locale: requestedLocale, calendar: requestedCalendar, now: requestedNow)
+        }
+        guard !Task.isCancelled, isVisible, text == requested,
+              calendar == requestedCalendar, locale == requestedLocale else { return }
+        readDraft = result
         readFrom = requested
+        expandForReview()
     }
 
     private func create() async {
-        guard let draft, !didCreate else { return }
+        guard let draft, draft.validationMessage == nil, !didCreate,
+              !isWorking, !isReading, !dictation.state.isActive, isVisible else { return }
+        if requiresReading {
+            await read()
+            return
+        }
+        // A sheet left open across midnight needs a fresh visible interpretation.
+        if !calendar.isDate(referenceNow, inSameDayAs: .now) {
+            referenceNow = Date()
+            readDraft = nil
+            return
+        }
         isWorking = true
         defer { isWorking = false }
-
-        // A reading the person already asked for is reused rather than paid for a
-        // second time. Only an unread sentence is read now, which is also what
-        // keeps this from being a hidden second model call.
-        let sentence = text
-        let final = needsReading ? await CreateItemDraft.read(from: sentence) : draft
-
-        switch await CreateItemSaver.save(final, into: store) {
+        fieldFocused = false
+        dictation.cancel()
+        switch await CreateItemSaver.save(draft, into: store) {
         case .saved:
             didCreate = true
             try? await Task.sleep(for: .milliseconds(600))
             dismiss()
         case .emptyName:
-            break
+            saveError = String(localized: "Der Name fehlt.")
         case .limitReached:
-            break
+            saveError = CreateItemSaver.limitMessage
         case .failed(let message):
+            saveError = message
+        case .invalidInput(let message):
             saveError = message
         }
     }
@@ -469,7 +576,7 @@ struct SpeakToCreateSheet: View {
     /// before a word has been typed — so nothing moved at all.
     private func scrollDraftIntoView(_ proxy: ScrollViewProxy) {
         guard detent == .large, draft != nil else { return }
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
             proxy.scrollTo("speak-content", anchor: .bottom)
         }
     }
@@ -485,6 +592,30 @@ struct SpeakToCreateSheet: View {
     }
 
     private func close() {
+        isVisible = false
+        dictationTask?.cancel()
+        dictation.cancel()
+        workTask?.cancel()
         dismiss()
+    }
+
+    private func toggleDictation() {
+        guard !isWorking, !isReading else { return }
+        if dictation.state == .listening {
+            dictation.stop()
+        } else if dictation.state.isActive {
+            dictation.cancel()
+        } else {
+            fieldFocused = false
+            expandForReview()
+            dictationPrefix = text
+            dictation.reset()
+            resumeEditingAfterDictation = false
+            dictationTask = Task {
+                guard !Task.isCancelled, isVisible, !fieldFocused,
+                      scenePhase != .background else { return }
+                await dictation.start(localeIdentifier: locale.identifier)
+            }
+        }
     }
 }
