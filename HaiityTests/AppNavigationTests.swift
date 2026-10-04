@@ -634,6 +634,27 @@ final class AppNavigationTests: XCTestCase {
                        .apply)
     }
 
+    func testEveryDeepLinkDismissesTheEditorBeforeApplying() {
+        for destination in [AppDestination.habits, .more, .stats, .archive, .search, .create] {
+            var work = RouteWork()
+            let route = work.begin(destination.effect)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(editor: .requested)), .dismissEditor)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(editor: .presented)), .dismissEditor)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(editor: .dismissing)), .waitForEditorDismissal)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
+        }
+    }
+
+    func testOnlyLatestDeepLinkContinuesAfterEditorDismissal() {
+        var work = RouteWork()
+        let stats = work.begin(AppDestination.stats.effect)
+        XCTAssertEqual(work.nextStep(for: stats, presentation: .init(editor: .presented)), .dismissEditor)
+        let create = work.begin(AppDestination.create.effect)
+        XCTAssertNil(work.nextStep(for: stats, presentation: .init()))
+        XCTAssertEqual(work.nextStep(for: create, presentation: .init(editor: .dismissing)), .waitForEditorDismissal)
+        XCTAssertEqual(work.nextStep(for: create, presentation: .init()), .apply)
+    }
+
     func testRapidCreateToSearchCancelsBeforeContentPresentation() {
         var work = RouteWork()
         let cover = CreateCoverPresentation()
@@ -876,7 +897,7 @@ final class AppNavigationTests: XCTestCase {
     func testContentViewExposesExplicitSortingMode() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         XCTAssertTrue(source.contains("habitSortingActive"))
-        XCTAssertTrue(source.contains("HabitSortingSession("))
+        XCTAssertTrue(source.contains("HabitSortingRow("))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"reorder-habits\")"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }

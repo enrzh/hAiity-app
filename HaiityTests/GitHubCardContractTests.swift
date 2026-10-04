@@ -122,8 +122,11 @@ final class GitHubCardContractTests: XCTestCase {
 
         let cardUse = try XCTUnwrap(habitList.range(of: "GitHubContributionCard"))
         let foreach = try XCTUnwrap(habitList.range(of: "ForEach(habitsTabSource)"))
-        XCTAssertLessThan(cardUse.lowerBound, foreach.lowerBound)
-        let afterCard = habitList[cardUse.upperBound..<foreach.lowerBound]
+        XCTAssertGreaterThan(cardUse.lowerBound, foreach.lowerBound,
+                             "daily entries must precede optional GitHub activity")
+        let cardEnd = try XCTUnwrap(habitList.range(of: ".accessibilityIdentifier(\"habit-list\")",
+                                                   range: cardUse.upperBound..<habitList.endIndex))
+        let afterCard = habitList[cardUse.upperBound..<cardEnd.lowerBound]
         XCTAssertFalse(afterCard.contains(".onMove"))
         XCTAssertFalse(afterCard.contains("swipeActions"))
         XCTAssertFalse(afterCard.contains("row(for:"))

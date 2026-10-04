@@ -385,6 +385,12 @@ enum GridCalendar {
         return cache[key]
     }
 
+    static func displaySnapshot(habit: Habit, today: String,
+                                calendar: Calendar = .current) -> Snapshot {
+        let weeks = weeksForDisplay(habit: habit, today: today, calendar: calendar)
+        return snapshot(habit: habit, weeks: weeks, today: today, calendar: calendar)
+    }
+
     static func cachedSnapshot(levelsByDay: [String: Int],
                                weeks: Int,
                                today: String,

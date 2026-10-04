@@ -1,14 +1,73 @@
 # hAiity UI Design System
 
 Status: implemented contract - shared settings and graph foundations verified
-Date: 2026-09-21
+Date: 2026-10-04
 Scope: shared UI language for the existing iOS app
+
+## App-wide design styles (2026-10-04)
+
+Darstellung offers four optional layouts through `AppDesignStyle` in `Theme.swift`.
+They use the same screens, data, actions and native navigation. Original is the
+default for old installations and unknown future preference values.
+
+| Style | Character | Card radius / padding | Section gap | Settings row minimum |
+| --- | --- | --- | --- | --- |
+| Original | Familiar grouped surfaces and system headings | 16 / 12 pt | 24 pt | 52 pt |
+| Quiet | Flat default canvas, restrained icons, lighter headings | 8 / 10 pt | 24 pt | 52 pt |
+| Focus | Smaller headings and closer content spacing | 12 / 8 pt | 16 pt | 44 pt |
+| Studio | System serif headings and roomier framing | 24 / 18 pt | 32 pt | 60 pt |
+
+Use style roles for heading fonts, card spacing/radius and settings rhythm.
+Keep capsule/pixel shapes, graph dates/tile geometry, numeric statistics fonts,
+control semantics and safe areas independent of the style. Context-menu masks
+must match the active card radius. Dynamic Type can grow every row; Focus never
+shrinks interactive targets below 44 pt. Decorative picker previews are hidden
+from VoiceOver; the option buttons expose their names, hints and selected trait.
+
+Quiet removes default solid content backing only on an uncustomized color canvas.
+Photos, gradients, custom colors, materials, Reduce Transparency and Increased
+Contrast keep the existing legibility treatment. Design selection changes only
+`designStyle`, preserving all existing appearance choices and habit data.
+The additive preference travels through existing storage/export/merge paths.
+
+The native Customize disclosure contains existing material, background, palette,
+icon, performance and compact controls. System/light/dark remains directly
+available. Shared headers and settings components apply the styles to root and
+secondary pages; sheets keep their existing navigation and permission behavior.
 
 This document is the visual and interaction contract for the UI unification
 plan. It describes how existing parts should look and behave when they are
 refactored. It does not add product features.
 
 ## Product character
+
+### Widgets
+
+Widgets use one native canvas with clear identity, current state, contribution
+history and independent actions. WidgetKit owns content margins and the native
+clear/tinted container. Avoid nested card surfaces and decorative tile borders.
+Keep all five contribution intensities distinct; negative answers remain distinct
+from empty days in color and monochrome rendering.
+
+WidgetComponents owns shared identity, status, actions and today's progress.
+Home Screen action targets are 44 pt, even when their visible symbol is smaller.
+Reset is separate from the main footer in narrow panels. Titles allow two lines;
+accessibility labels retain the full name and status. The Focus composition uses
+equal readable rows at accessibility sizes. Geometry comes from available family
+space, not a stack of fixed large-widget heights.
+
+The saved app design style travels with the existing timeline entry and affects
+type/spacing/tint within widget constraints. Habit-specific dates/calendars travel
+through graph and status rendering. Reminders use occurrence state, dates and
+times; they never receive an invented streak or contribution history.
+
+Pure graph widgets keep one seven-row chronological band. Text follows RTL;
+graphs stay left-to-right. Lock-screen content uses native monochrome-safe ink.
+Live Activities keep system timers/progress and explicit Finish/Cancel/Dismiss
+intents; personal names, messages and timers carry privacy markings.
+
+Keep existing gallery kinds, selection intents, Pro filtering, reset preferences
+and app-opening routes. A navigation link must not contain intent buttons.
 
 hAiity is a repeated daily-use tool, not a dashboard or a marketing surface.
 Its visual identity is **quiet rhythm, visible progress**:
@@ -219,6 +278,17 @@ Bottom clearance for tab bar
 Habits keeps the graph-led item layout. Search keeps its dedicated tab and
 visible native search field. More remains a settings hub rather than a dashboard.
 
+Habits reads in task order: title, Today/All progress, the filtered habit/reminder
+rows in their saved order, then optional GitHub activity. A connected GitHub
+account without local entries still offers first-habit creation. Loading optional
+activity must not displace the first actionable row. Sorting retains its owned
+native table and its existing visible-order persistence contract.
+
+Habit-card streak and date-window calculations use the existing background
+snapshot queue and graph cache. The header consumes that snapshot rather than
+walking history during each body update. Cancelled or outdated requests cannot
+publish their results; the graph remains the shared contribution component.
+
 #### Statistics
 
 ```text
@@ -236,8 +306,13 @@ Rules:
   `StatsView.statsDayLevel`. The seven-day strip is not a bar chart, and it does
   not get its own color language. The exact percentage stays visible above the
   square and in the block's accessibility value.
-- Keep one block per accessibility element, with the chart's own numbers in the
-  value rather than spread over decorative children.
+- Keep each numeric summary in one accessibility element, with the chart's own
+  numbers in its value rather than spread over decorative children. Optional
+  Details disclosures remain separate, accessible controls with 44-point labels;
+  an outer `.ignore` must never hide them.
+- Weekly comparisons use percentage points and neutral higher/lower wording.
+  Denominator and flexible-period explanations live behind native Details
+  disclosures; they do not fill the default page with instructional paragraphs.
 - The metric tiles remain a **customization** for users who ask for them. The
   default selection is Rhythmus + Check-ins; a customized all-five selection
   still shows the grid, so UI tests and existing preferences keep working.
@@ -270,6 +345,14 @@ an editable alias with a live preview of an existing celebration message, and a
 separate Apple identity group. Preview text is explicitly labelled and does not
 send a notification. Sign-in remains optional; the alias survives sign-out and
 iCloud synchronization remains independent of this identity.
+
+The hub identifies optional Apple personalization explicitly. Signing out changes
+that identity and its owner exemption, not a cached StoreKit purchase. Account
+actions preserve independent targets and do not imply that iCloud was signed out.
+The setup row names notification/calendar configuration instead of "repeat setup".
+Import & Export is a normal More destination, sharing the same transfer controls
+and store boundary as diagnostics. Import success appears only after a durable
+merge, and the free-tier allowance is checked before writing.
 
 iCloud sync status deliberately stays **off** the hub (it is ambient noise at
 rest) and remains on the behavior page. GitHub state is already a hub row.
@@ -323,6 +406,34 @@ the badge (`Theme.Metrics.glyph + Theme.Metrics.gap + 4`) so it survives a
 metric change. Sub-*controls* like pickers may span the full panel instead;
 descriptive text may not, because `AppSettingsRow` already lines its own
 `detail:` up with its title.
+
+### Habit and reminder creation/editing
+
+The initial form shows identity, effective schedule, essential date/time choices,
+habit kind/quantity when relevant, and notification mode. Detailed recurrence
+(interval, selected days and ending) uses a native disclosure. Emoji, palette,
+duration, timezone, integration/automatic-resolution behavior, and per-item swipe
+overrides share one Additional Settings disclosure in both creation and editing.
+
+Collapsed disclosures summarize active values; collapsing is presentation only
+and never resets saved settings. Disabled notifications hide time editors and
+explain that their values are retained. Enabling them exposes add/remove controls.
+The preview distinguishes appointment clocks from notification clocks.
+
+Large-text pickers use native menus, alert-time controls stack, weekday/date
+targets keep 44-point minimums, and labels wrap. Save, permission, conversion,
+and failure handling retain their existing owners and contracts. A basic habit
+can be saved without expanding advanced settings or granting a permission.
+At accessibility text sizes the start date is a wrapping full-row button opening
+native wheels in a focused sheet. Wheels stay out of the scrolling form so a
+scroll cannot accidentally change the date. Ordinary text retains the compact picker.
+Editor sheets open large so their controls are usable without first expanding
+a cramped detent. Native switch tests activate the actual thumb in RTL; a
+label row's empty center is not assumed to be the switch's activation point.
+
+An explicit deep link closes an open editor and discards its unsaved draft.
+The destination waits for the existing dismissal lifecycle; latest-route tokens
+prevent a stale callback from opening an old destination or competing sheet.
 
 ### On-device generation
 
@@ -517,11 +628,27 @@ data semantics.
 
 - Prefer native `Button`, `Picker`, `Toggle`, `TabView`, `NavigationStack`, and
   context-menu behaviors.
-- Inline sorting keeps row actions inactive while long-press dragging remains
-  available. The sort icon and Done both exit the mode. Changing tabs, entering
-  the background or changing the visible item membership ends sorting safely;
-  reordering those same items keeps the drag active. The window-level recognizer
-  only starts on the habit list, and order is saved only after an actual move.
+- Inline sorting replaces full cards with compact name/type rows and native
+  UITableView reorder handles. Graphs, check-off, editing and swipe actions stay on the
+  normal page. Title and Heute/Alle scope remain in the navigation header, outside
+  the reorder area, so a top-edge drop can reach the first item.
+- An owned UITableViewController with UIHostingConfiguration rows owns lift,
+  neighbor animation and edge scrolling. Public SwiftUI List failed the 40-item
+  long-drag regression, activating the plan's native UIKit fallback. There
+  is no window recognizer, estimated row-height stack, display link or move
+  cooldown. The sort icon and Done both exit the mode; Done restores the normal
+  cards near the last moved item where possible.
+- Sorting cells use an opaque semantic secondarySystemGroupedBackground surface
+  under their names, type captions and native handles, preserving contrast over
+  photo backgrounds in light and dark appearances.
+- Drop callbacks validate the displayed ordered IDs and sorting session before
+  saving through the shared store. A no-op does not write; a failed save restores
+  durable order and surfaces an error. Changing tabs, entering the background,
+  changing visible membership or receiving an external order change ends sorting.
+  Completed drops remain saved; an unfinished native gesture is not committed.
+- Sorting offers localized Move Up/Move Down accessibility actions through the
+  same guarded move callback. Mode/symbol transitions honor Reduce Motion; native
+  movement owns its accessibility behavior.
 - Keep swipe gestures direct and cancellable. The action should track the
   finger, settle briefly, and close when vertical scrolling or another row
   takes ownership.

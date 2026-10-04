@@ -1,39 +1,16 @@
 import SwiftUI
 
-/// Anlegen/Bearbeiten. ANLEGEN kommt als eigene SEITE (fullScreenCover, aus
-/// dem Toolbar-Plus gezoomt — siehe ContentView), BEARBEITEN
-/// bleibt das Half-Sheet an der Karte. Es fragt NICHTS mehr nach
+/// Creation and editing share essential fields and explicit disclosure of
+/// schedule details and additional settings. Collapsing only changes visibility;
+/// RecurrenceDraft retains existing rules, including legacy flexible goals.
 /// Notification times can follow the scheduled time or be customized separately.
 /// Daily and weekly summaries remain additional global notifications.
-///
-/// Das Herz ist der Regel-Editor: Häufigkeit × Intervall, dazu die feine
-/// Regel (Wochentage, monatliche Feineinstellung), das Startdatum und die
-/// Uhrzeit — alles unter EINER Überschrift „Zeitraum". Damit das nicht zu
-/// einem Formular wird, das man raten muss, steht ganz oben in der Sektion
-/// EIN Satz, der die eingestellte Regel vorliest — „Jeden 2. Montag und
-/// Donnerstag um 07:30", „Am letzten Freitag im Monat". Der Satz kommt aus
-/// `RecurrenceText` und ist als reine Funktion getestet.
-///
-/// **Was das Formular NICHT mehr zeigt** (und warum die Werte trotzdem
-/// stehen bleiben):
-///
-///  * **Feste Termine / Anzahl.** Die Regel benennt jetzt immer die TAGE.
-///    Das flexible Ziel („3× pro Woche", `Recurrence.timesPerPeriod`) bleibt
-///    im Modell und in der Rechnung — migrierte Alt-Ziele und alles, was in
-///    einer ausgelieferten Version angelegt wurde, verhält sich unverändert.
-///    Es lässt sich nur nicht mehr NEU einstellen.
-///  * **Das Ende** (nie / am Datum / nach Terminen, `Recurrence.End`).
-///    Es gehört zur Regel und wird deshalb direkt unter dem Startdatum
-///    eingestellt.
-///
-/// Der Zustand liegt in `RecurrenceDraft`, nicht in einem Dutzend
-/// `@State`-Variablen: der Weg Regel -> Formular -> Regel ist damit prüfbar,
-/// ohne den Simulator zu starten — und genau darüber überleben die beiden
-/// nicht mehr angezeigten Felder eine Runde durch den Editor.
 struct EditHabitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.appearancePreferences) private var appearancePreferences
     let store: HabitStore
     var existing: Habit?
     /// Als SEITE präsentiert (Anlegen, fullScreenCover): das Schließen ist
@@ -54,6 +31,7 @@ struct EditHabitSheet: View {
     /// choice that remains stable when the global setting changes.
     @State private var timeZoneIdentifier: String?
     @State private var showTimeZonePicker = false
+    @State private var showStartDatePicker = false
     @State private var paywall: PaywallContext?
     @State private var pendingCalendarEnable = false
     @State private var proStatus = ProStatus.shared
@@ -79,6 +57,7 @@ struct EditHabitSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
     @State private var showingCreationAdvanced = false
+    @State private var showingScheduleDetails = false
     @State private var saveError: String?
     @State private var isSaving = false
     @State private var savedWhileAwaitingPermission = false
@@ -86,6 +65,7 @@ struct EditHabitSheet: View {
     @FocusState private var focusedIdentity: IdentityField?
 
     private var isCreating: Bool { existing == nil }
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     private var creationTitle: String {
         itemType == .habit
@@ -97,12 +77,6 @@ struct EditHabitSheet: View {
         itemType == .habit
             ? String(localized: "Name (z. B. 20 Minuten lesen)")
             : String(localized: "Name (z. B. Tabletten nehmen)")
-    }
-
-    private var previewStyle: PaletteStyle {
-        PaletteStyle.resolve(habit: nil,
-                             global: habitPalette ?? palettes.global,
-                             customs: palettes.customs)
     }
 
     private struct MultipleDateEdit: Identifiable {
@@ -145,6 +119,7 @@ struct EditHabitSheet: View {
             set: { newFrequency in
                 draft.hasStart = true
                 draft.selectFrequency(newFrequency, calendar: calendar)
+                showingScheduleDetails = newFrequency != .daily
             }
         )
     }
@@ -208,40 +183,44 @@ struct EditHabitSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(String(localized: "Art"), selection: $itemType) {
-                        Text(String(localized: "Habit")).tag(HabitItemType.habit)
-                        Text(String(localized: "Erinnerung")).tag(HabitItemType.reminder)
+                    if dynamicTypeSize.isAccessibilitySize {
+                        itemTypePicker.pickerStyle(.menu)
+                    } else {
+                        itemTypePicker.pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("item-type-picker")
 
                     TextField(creationNamePrompt, text: $name)
                         .focused($focusedIdentity, equals: .name)
                         .submitLabel(.done)
                         .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-name")
-                    TextField(String(localized: "Emoji (optional)"), text: $emoji)
-                        .focused($focusedIdentity, equals: .emoji)
-                        .submitLabel(.done)
-                        .onSubmit { focusedIdentity = nil }
-                        .accessibilityIdentifier("habit-emoji")
                 }
                 .settingsListRow()
                 if isCreating {
                     creationPreview
                 }
                 recurrenceSection.settingsListRow()
+                if itemType == .habit { kindSection.settingsListRow() }
                 notificationSection.settingsListRow()
-                if isCreating {
-                    if itemType == .habit { kindSection.settingsListRow() }
+                Section {
                     Button {
                         showingCreationAdvanced.toggle()
                     } label: {
                         HStack {
-                            Label(String(localized: "Weitere Einstellungen"),
-                                  systemImage: "slider.horizontal.3")
+                            VStack(alignment: .leading, spacing: designStyle.rowGap) {
+                                Label(String(localized: "Weitere Einstellungen"),
+                                      systemImage: "slider.horizontal.3")
+                                    .font(designStyle.rowTitleFont)
+                                Text(additionalSettingsSummary.isEmpty
+                                     ? String(localized: "Emoji, Farbe, Dauer und Verhalten")
+                                     : additionalSettingsSummary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             Spacer()
                             Image(systemName: showingCreationAdvanced ? "chevron.down" : "chevron.right")
+                                .flipsForRightToLeftLayoutDirection(true)
                                 .accessibilityHidden(true)
                         }
                         .frame(minHeight: Theme.Metrics.hit)
@@ -251,19 +230,23 @@ struct EditHabitSheet: View {
                     .accessibilityIdentifier("creation-advanced")
                     .accessibilityValue(showingCreationAdvanced
                         ? String(localized: "Ausgeklappt") : String(localized: "Eingeklappt"))
-                    .settingsListRow()
-                    if showingCreationAdvanced {
-                        durationSection.settingsListRow()
-                        colorSection.settingsListRow()
-                        creationAdvancedNotificationSection.settingsListRow()
+                }
+                .settingsListRow()
+                if showingCreationAdvanced {
+                    Section {
+                        TextField(String(localized: "Emoji (optional)"), text: $emoji)
+                            .focused($focusedIdentity, equals: .emoji)
+                            .submitLabel(.done)
+                            .onSubmit { focusedIdentity = nil }
+                            .accessibilityIdentifier("habit-emoji")
                     }
-                } else {
+                    .settingsListRow()
                     durationSection.settingsListRow()
-                    if itemType == .habit { kindSection.settingsListRow() }
                     colorSection.settingsListRow()
+                    creationAdvancedNotificationSection.settingsListRow()
+                    if existing != nil { swipeActionsSection.settingsListRow() }
                 }
                 if let habit = existing {
-                    swipeActionsSection.settingsListRow()
                     Section {
                         if habit.isTrackedHabit {
                             ShareLink(item: HabitShareImage(habit: habit, dark: scheme == .dark, palette: palettes.style(for: habit)),
@@ -273,6 +256,10 @@ struct EditHabitSheet: View {
                         }
                         Button {
                             store.archive(habit.id)
+                            guard store.lastWriteError == nil else {
+                                saveError = store.lastWriteError
+                                return
+                            }
                             dismiss()
                         } label: {
                             Label(String(localized: "Archivieren"), systemImage: "archivebox")
@@ -341,6 +328,28 @@ struct EditHabitSheet: View {
                                inheritedLabel: String(localized: "Standard"))
                 .themed(store, palettes: palettes)
         }
+        .sheet(isPresented: $showStartDatePicker) {
+            NavigationStack {
+                DatePicker(String(localized: "Datum"), selection: dateBinding,
+                           displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .padding()
+                    .environment(\.calendar, calendar)
+                    .environment(\.timeZone, calendar.timeZone)
+                    .navigationTitle(String(localized: "Datum"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(String(localized: "Fertig")) { showStartDatePicker = false }
+                                .accessibilityIdentifier("start-date-done")
+                        }
+                    }
+            }
+            .themed(store, palettes: palettes)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .sheet(item: $editingMultipleDate) { edit in
             MultipleDatePickerSheet(
                 initialDate: edit.initialDate,
@@ -373,6 +382,10 @@ struct EditHabitSheet: View {
                             presenting: existing) { habit in
             Button(String(localized: "Löschen"), role: .destructive) {
                 store.remove(habit.id)
+                guard store.lastWriteError == nil else {
+                    saveError = store.lastWriteError
+                    return
+                }
                 dismiss()
             }
             Button(String(localized: "Abbrechen"), role: .cancel) {}
@@ -421,67 +434,84 @@ struct EditHabitSheet: View {
         .interactiveDismissDisabled(isSaving || savedWhileAwaitingPermission)
     }
 
+    private var itemTypePicker: some View {
+        Picker(String(localized: "Art"), selection: $itemType) {
+            Text(String(localized: "Habit")).tag(HabitItemType.habit)
+            Text(String(localized: "Erinnerung")).tag(HabitItemType.reminder)
+        }
+        .accessibilityIdentifier("item-type-picker")
+    }
+
+    private var additionalSettingsSummary: String {
+        var values: [String] = []
+        if !emoji.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            values.append(String(localized: "Emoji: \(emoji)"))
+        }
+        if let habitPalette, let paletteName = palettes.displayName(habitPalette) {
+            values.append(String(localized: "Farbe: \(paletteName)"))
+        }
+        if hasDuration {
+            let duration = HabitSessionMath.durationText(minutes: durationMinutes)
+            values.append(String(localized: "Dauer: \(duration)"))
+        }
+        if timeZoneIdentifier != nil {
+            let zone = HabitTimeZone.selectionLabel(
+                for: timeZoneIdentifier, defaultIdentifier: store.defaultTimeZoneIdentifier)
+            values.append(String(localized: "Zeitzone: \(zone)"))
+        }
+        let calendarIntegrationEnabled = itemType == .habit
+            ? store.cloudPreferences?.calendarSyncHabits ?? CalendarSync.syncHabits
+            : store.cloudPreferences?.calendarSyncReminders ?? CalendarSync.syncReminders
+        if unlocked && calendarSyncEnabled && calendarIntegrationEnabled {
+            values.append(String(localized: "Im Kalender"))
+        }
+        if itemType == .reminder && draft.frequency != .once && !repeatsWhileIncomplete {
+            values.append(String(localized: "Neue Termine warten auf Abschluss"))
+        }
+        if let choice = validAutoResolveChoice {
+            values.append(String(localized: "Automatisch abschließen: \(choice.displayName)"))
+        }
+        if let swipeActions {
+            let leading = normalized(swipeActions.leading).displayName
+            let trailing = normalized(swipeActions.trailing).displayName
+            values.append(String(localized: "Wischaktionen: \(leading), \(trailing)"))
+        }
+        return values.joined(separator: " · ")
+    }
+
     private var creationPreview: some View {
         Section {
-            HStack(alignment: .top, spacing: 14) {
-                previewIcon
+            VStack(alignment: .leading, spacing: designStyle.rowGap) {
+                Text(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? creationTitle
+                     : name)
+                    .font(designStyle.rowTitleFont)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                         ? creationTitle
-                         : name)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                Text(draft.summary(calendar: calendar))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Label(itemType == .habit ? kind.displayName : String(localized: "Erinnerung"),
-                          systemImage: itemType == .habit ? "checkmark.circle" : "bell")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    Text(draft.summary(calendar: calendar))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if itemType == .habit {
-                        HStack(spacing: 4) {
-                            ForEach(0..<5, id: \.self) { level in
-                                RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
-                                    .fill(Theme.level(level,
-                                                      dark: scheme == .dark,
-                                                      palette: previewStyle))
-                                    .frame(width: 18, height: 18)
-                            }
-                        }
-                        .accessibilityHidden(true)
-                    }
-                }
-                Spacer(minLength: 0)
+                Text(Self.notificationPreview(mode: notificationMode,
+                                              times: notificationTimeValues,
+                                              calendar: calendar))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, designStyle.rowGap)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
+            .accessibilityValue(Self.notificationPreview(mode: notificationMode,
+                                                         times: notificationTimeValues,
+                                                         calendar: calendar))
             .accessibilityIdentifier("creation-preview")
         } header: {
             Text(String(localized: "Vorschau"))
+                .font(designStyle.sectionTitleFont)
         }
-    }
-
-    private var previewIcon: some View {
-        Group {
-            if let firstEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines).first {
-                Text(String(firstEmoji))
-                    .font(.title2)
-            } else {
-                Image(systemName: itemType == .habit ? "checkmark" : "bell.fill")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: 48, height: 48)
-        .background(Theme.accentFill(previewStyle), in: Circle())
-        .accessibilityHidden(true)
     }
 
     private var creationAdvancedNotificationSection: some View {
@@ -489,15 +519,16 @@ struct EditHabitSheet: View {
             Button {
                 showTimeZonePicker = true
             } label: {
-                HStack {
+                VStack(alignment: .leading, spacing: designStyle.rowGap) {
                     Label(String(localized: "Zeitzone"), systemImage: "globe")
-                    Spacer(minLength: Theme.Metrics.gap)
+                        .font(designStyle.rowTitleFont)
                     Text(HabitTimeZone.selectionLabel(
                         for: timeZoneIdentifier,
                         defaultIdentifier: store.defaultTimeZoneIdentifier))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("habit-timezone")
@@ -540,13 +571,27 @@ struct EditHabitSheet: View {
 
     private var recurrenceSection: some View {
         Section {
-            summaryRow
+            if !isCreating { summaryRow }
 
-            DatePicker(String(localized: "Datum"),
-                       selection: dateBinding,
-                       displayedComponents: .date)
-                .datePickerStyle(.compact)
+            if dynamicTypeSize.isAccessibilitySize {
+                Button { showStartDatePicker = true } label: {
+                    VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                        Text(String(localized: "Datum"))
+                            .foregroundStyle(.primary)
+                        Text(draft.start.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted,
+                            locale: calendar.locale ?? .current, calendar: calendar,
+                            timeZone: calendar.timeZone)))
+                            .foregroundStyle(.tint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("once-date")
+            } else {
+                startDatePicker.datePickerStyle(.compact)
+            }
 
             Toggle(String(localized: "Wiederholen"), isOn: repeatsBinding)
                 .accessibilityIdentifier("repeat-toggle")
@@ -558,57 +603,17 @@ struct EditHabitSheet: View {
                     Text(String(localized: "Monatlich")).tag(Recurrence.Frequency.monthly)
                     Text(String(localized: "Jährlich")).tag(Recurrence.Frequency.yearly)
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .accessibilityIdentifier("cadence-picker")
 
-                if draft.showsIntervalStepper {
-                    Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
-                        Text(intervalLabel)
-                    }
-                    .accessibilityIdentifier("interval-stepper")
+                DisclosureGroup(isExpanded: $showingScheduleDetails) {
+                    recurrenceDetails
+                } label: {
+                    Text(String(localized: "Wiederholung anpassen"))
+                        .frame(minHeight: Theme.Metrics.hit)
                 }
-
-                // Die Wahl „feste Termine oder Anzahl" gibt es nicht mehr: die
-                // Regel benennt die TAGE. Ein Habit, das noch aus der Zeit des
-                // flexiblen Ziels stammt, behält seine Rechnung (siehe oben) und
-                // zeigt hier weiterhin seine Verabredung — nur ohne den Zähler,
-                // den man nicht mehr verstellen kann.
-                if draft.flexible, draft.frequency != .daily {
-                    flexibleControls
-                } else {
-                    switch draft.frequency {
-                    case .once: EmptyView()
-                    case .daily: EmptyView()
-                    case .weekly: weekdayChips(multiSelect: true)
-                    case .monthly: monthlyControls
-                    case .yearly: yearlyControls
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(String(localized: "Ende"))
-                        .accessibilityAddTraits(.isHeader)
-                    Picker(String(localized: "Ende"), selection: $draft.endMode) {
-                        Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
-                        Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
-                        Text(String(localized: "Nach Anzahl")).tag(RecurrenceDraft.EndMode.afterCount)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("end-mode-picker")
-                }
-                switch draft.endMode {
-                case .never:
-                    EmptyView()
-                case .onDate:
-                    DatePicker(String(localized: "Enddatum"), selection: $draft.endDate,
-                               displayedComponents: .date)
-                        .accessibilityIdentifier("end-date")
-                case .afterCount:
-                    Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
-                        Text(String(localized: "Nach \(draft.endCount) Terminen"))
-                    }
-                    .accessibilityIdentifier("end-count")
-                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("recurrence-details")
             }
 
             Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
@@ -617,54 +622,6 @@ struct EditHabitSheet: View {
                 DatePicker(String(localized: "Zeit"), selection: $draft.time,
                            displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("habit-time")
-            }
-            if !isCreating {
-                Button {
-                    showTimeZonePicker = true
-                } label: {
-                    HStack {
-                        Label(String(localized: "Zeitzone"), systemImage: "globe")
-                        Spacer(minLength: Theme.Metrics.gap)
-                        Text(HabitTimeZone.selectionLabel(
-                            for: timeZoneIdentifier,
-                            defaultIdentifier: store.defaultTimeZoneIdentifier))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("habit-timezone")
-                Toggle(isOn: calendarSyncBinding) {
-                    HStack {
-                        Text(String(localized: "Im Kalender"))
-                        if !unlocked {
-                            Spacer(minLength: Theme.Metrics.gap)
-                            Image(systemName: "lock")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(String(localized: "Nur mit hAiity Pro"))
-                        }
-                    }
-                }
-                .accessibilityIdentifier("habit-calendar-toggle")
-                if itemType == .reminder && draft.frequency != .once {
-                    Toggle(String(localized: "Trotz offenem Termin wiederholen"),
-                           isOn: $repeatsWhileIncomplete)
-                        .accessibilityIdentifier("repeats-while-incomplete-toggle")
-                }
-                Toggle(String(localized: "Offene Termine automatisch abschließen"),
-                       isOn: autoResolveEnabledBinding)
-                    .accessibilityIdentifier("auto-resolve-toggle")
-                if autoResolveChoice != nil {
-                    Picker(String(localized: "Beim Ablauf als"),
-                           selection: autoResolveChoiceBinding) {
-                        ForEach(HabitAutoResolveChoice.choices(for: kind, itemType: itemType),
-                                id: \.rawValue) { choice in
-                            Text(choice.displayName).tag(choice)
-                        }
-                    }
-                    .accessibilityIdentifier("auto-resolve-choice")
-                }
             }
         } header: {
             Text(String(localized: "Zeitraum"))
@@ -679,63 +636,158 @@ struct EditHabitSheet: View {
         }
     }
 
+    private var startDatePicker: some View {
+        DatePicker(String(localized: "Datum"), selection: dateBinding,
+                   displayedComponents: .date)
+            .accessibilityIdentifier("once-date")
+    }
+
+    @ViewBuilder
+    private var recurrenceDetails: some View {
+        if draft.showsIntervalStepper {
+            Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
+                Text(intervalLabel)
+            }
+            .accessibilityIdentifier("interval-stepper")
+        }
+
+        if draft.flexible, draft.frequency != .daily {
+            flexibleControls
+        } else {
+            switch draft.frequency {
+            case .once, .daily: EmptyView()
+            case .weekly: weekdayChips(multiSelect: true)
+            case .monthly: monthlyControls
+            case .yearly: yearlyControls
+            }
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "Ende"))
+                .accessibilityAddTraits(.isHeader)
+            Picker(String(localized: "Ende"), selection: $draft.endMode) {
+                Text(String(localized: "Nie")).tag(RecurrenceDraft.EndMode.never)
+                Text(String(localized: "Am Datum")).tag(RecurrenceDraft.EndMode.onDate)
+                Text(String(localized: "Nach Anzahl")).tag(RecurrenceDraft.EndMode.afterCount)
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("end-mode-picker")
+        }
+        switch draft.endMode {
+        case .never:
+            EmptyView()
+        case .onDate:
+            DatePicker(String(localized: "Enddatum"), selection: $draft.endDate,
+                       displayedComponents: .date)
+                .accessibilityIdentifier("end-date")
+        case .afterCount:
+            Stepper(value: $draft.endCount, in: 1...Recurrence.maxOccurrences) {
+                Text(String(localized: "Nach \(draft.endCount) Terminen"))
+            }
+            .accessibilityIdentifier("end-count")
+        }
+    }
+
     private var notificationTimeValues: [Int] {
         notificationTimes ?? [draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes]
     }
 
+    /// Presentation only: an off mode must never turn retained times into alerts.
+    static func notificationPreview(mode: HabitNotificationMode, times: [Int],
+                                    calendar: Calendar) -> String {
+        guard mode != .off, !times.isEmpty else {
+            return String(localized: "Keine Mitteilungen geplant")
+        }
+        let format = Date.FormatStyle(date: .omitted, time: .shortened,
+                                     locale: calendar.locale ?? .current,
+                                     calendar: calendar, timeZone: calendar.timeZone)
+            .hour(.twoDigits(amPM: .abbreviated))
+        let clocks = Habit.normalizedNotificationTimes(times).compactMap { minutes in
+            calendar.date(from: DateComponents(year: 2001, month: 1, day: 15,
+                                               hour: minutes / 60, minute: minutes % 60))?
+                .formatted(format)
+        }
+        guard !clocks.isEmpty else { return String(localized: "Keine Mitteilungen geplant") }
+        let list = clocks.formatted(.list(type: .and).locale(calendar.locale ?? .current))
+        return mode == .timeSensitive
+            ? String(localized: "Zeitkritische Mitteilungen: \(list)")
+            : String(localized: "Mitteilungen: \(list)")
+    }
+
     private var notificationSection: some View {
         Section {
-            Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
-                Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
-                Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
-                Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
+            if dynamicTypeSize.isAccessibilitySize {
+                notificationModePicker.pickerStyle(.menu)
+            } else {
+                notificationModePicker.pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("habit-notification-mode")
-
-            if notificationTimeValues.isEmpty {
-                Text(String(localized: "Keine Mitteilungen geplant"))
-                    .foregroundStyle(.secondary)
+            if notificationMode != .off {
+                notificationTimeControls
             }
-            ForEach(notificationTimeValues.indices, id: \.self) { index in
-                HStack(spacing: Theme.Metrics.gap) {
-                    DatePicker(String(localized: "Mitteilung \(index + 1)"),
-                               selection: notificationTimeBinding(index),
-                               displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.compact)
-                        .accessibilityIdentifier("notification-time-\(index)")
-                    Button(role: .destructive) {
-                        var times = notificationTimeValues
-                        guard times.indices.contains(index) else { return }
-                        times.remove(at: index)
-                        notificationTimes = times
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(String(localized: "Mitteilung \(index + 1) entfernen"))
-                    .accessibilityIdentifier("remove-notification-time-\(index)")
-                }
-            }
-            Button {
-                let times = notificationTimeValues
-                let start = times.last.map { ($0 + 60) % (24 * 60) }
-                    ?? draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes
-                guard let next = (0..<24 * 60).lazy.map({ (start + $0) % (24 * 60) })
-                    .first(where: { !times.contains($0) }) else { return }
-                notificationTimes = times + [next]
-            } label: {
-                Label(String(localized: "Mitteilung hinzufügen"), systemImage: "plus.circle")
-            }
-            .buttonStyle(.borderless)
-            .disabled(notificationTimeValues.count >= 24 * 60)
-            .accessibilityIdentifier("add-notification-time")
         } header: {
             Text(String(localized: "Mitteilungen"))
         } footer: {
-            Text(String(localized: "Diese Zeiten gelten an den geplanten Tagen. Sie ändern den Termin nicht. Bei Aus werden keine Mitteilungen gesendet. Mehr Zeiten verkürzen den Vorausplanungszeitraum."))
+            if notificationMode == .off {
+                Text(String(localized: "Mitteilungen sind aus. Gespeicherte Zeiten bleiben erhalten."))
+            } else {
+                Text(String(localized: "Diese Zeiten gelten an den geplanten Tagen. Sie ändern den Termin nicht. Bei Aus werden keine Mitteilungen gesendet. Mehr Zeiten verkürzen den Vorausplanungszeitraum."))
+            }
         }
+    }
+
+    private var notificationModePicker: some View {
+        Picker(String(localized: "Benachrichtigung"), selection: $notificationMode) {
+            Text(String(localized: "Aus")).tag(HabitNotificationMode.off)
+            Text(String(localized: "Standard")).tag(HabitNotificationMode.standard)
+            Text(String(localized: "Zeitkritisch")).tag(HabitNotificationMode.timeSensitive)
+        }
+        .accessibilityIdentifier("habit-notification-mode")
+    }
+
+    @ViewBuilder
+    private var notificationTimeControls: some View {
+        if notificationTimeValues.isEmpty {
+            Text(String(localized: "Keine Mitteilungen geplant"))
+                .foregroundStyle(.secondary)
+        }
+        ForEach(notificationTimeValues.indices, id: \.self) { index in
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Metrics.gap))
+                : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
+            layout {
+                DatePicker(String(localized: "Mitteilung \(index + 1)"),
+                           selection: notificationTimeBinding(index),
+                           displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.compact)
+                    .accessibilityIdentifier("notification-time-\(index)")
+                Button(role: .destructive) {
+                    var times = notificationTimeValues
+                    guard times.indices.contains(index) else { return }
+                    times.remove(at: index)
+                    notificationTimes = times
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(String(localized: "Mitteilung \(index + 1) entfernen"))
+                .accessibilityIdentifier("remove-notification-time-\(index)")
+            }
+        }
+        Button {
+            let times = notificationTimeValues
+            let start = times.last.map { ($0 + 60) % (24 * 60) }
+                ?? draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes
+            guard let next = (0..<24 * 60).lazy.map({ (start + $0) % (24 * 60) })
+                .first(where: { !times.contains($0) }) else { return }
+            notificationTimes = times + [next]
+        } label: {
+            Label(String(localized: "Mitteilung hinzufügen"), systemImage: "plus.circle")
+                .frame(minHeight: Theme.Metrics.hit)
+        }
+        .buttonStyle(.borderless)
+        .disabled(notificationTimeValues.count >= 24 * 60)
+        .accessibilityIdentifier("add-notification-time")
     }
 
     private func notificationTimeBinding(_ index: Int) -> Binding<Date> {
@@ -844,7 +896,9 @@ struct EditHabitSheet: View {
                                     Image(systemName: "chevron.right")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.tertiary)
+                                        .flipsForRightToLeftLayoutDirection(true)
                                 }
+                                .frame(minHeight: Theme.Metrics.hit)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -856,7 +910,7 @@ struct EditHabitSheet: View {
                             } label: {
                                 Image(systemName: "trash")
                                     .font(.body.weight(.medium))
-                                    .frame(width: 32, height: 32)
+                                    .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(String(localized: "\(multipleDateLabel(value)) löschen"))
@@ -879,6 +933,7 @@ struct EditHabitSheet: View {
                     Label(String(localized: "Datum hinzufügen"), systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
+                .frame(minHeight: Theme.Metrics.hit)
                 .accessibilityIdentifier("multiple-date-add")
             }
         }
@@ -950,13 +1005,11 @@ struct EditHabitSheet: View {
 
     private var kindSection: some View {
         Section {
-            Picker(String(localized: "Art"), selection: $kind) {
-                ForEach(HabitKind.allCases, id: \.self) { kind in
-                    Text(kind.displayName).tag(kind)
-                }
+            if dynamicTypeSize.isAccessibilitySize {
+                kindPicker.pickerStyle(.menu)
+            } else {
+                kindPicker.pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("habit-kind-picker")
 
             if kind == .quantity {
                 Stepper(value: $draft.target, in: 1...99) {
@@ -978,6 +1031,15 @@ struct EditHabitSheet: View {
         }
     }
 
+    private var kindPicker: some View {
+        Picker(String(localized: "Art"), selection: $kind) {
+            ForEach(HabitKind.allCases, id: \.self) { kind in
+                Text(kind.displayName).tag(kind)
+            }
+        }
+        .accessibilityIdentifier("habit-kind-picker")
+    }
+
     // MARK: – Wochentags-Chips
 
     /// Dieselben Chips für beide Bedeutungen: Mehrfachauswahl sind die
@@ -989,7 +1051,9 @@ struct EditHabitSheet: View {
                  ? String(localized: "Wochentage")
                  : String(localized: "Wochentag"))
                 .font(.subheadline)
-            HStack(spacing: 6) {
+            LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize
+                      ? [GridItem(.flexible())]
+                      : [GridItem(.adaptive(minimum: Theme.Metrics.hit))], spacing: 6) {
                 ForEach(orderedWeekdays, id: \.self) { day in
                     let on = draft.weekdays.contains(day)
                     Button {
@@ -999,9 +1063,11 @@ struct EditHabitSheet: View {
                             draft.weekdays = [day]
                         }
                     } label: {
-                        Text(RecurrenceText.shortWeekdayName(day, calendar: calendar))
+                        Text(dynamicTypeSize.isAccessibilitySize
+                             ? RecurrenceText.weekdayName(day, calendar: calendar)
+                             : RecurrenceText.shortWeekdayName(day, calendar: calendar))
                             .font(.caption.weight(.semibold))
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit)
                             .padding(.vertical, 7)
                             .background(on ? Theme.accentFill(palettes.style) : Color(.tertiarySystemFill), in: Capsule())
                             .foregroundStyle(on ? .white : .primary)

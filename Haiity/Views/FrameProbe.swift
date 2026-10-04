@@ -53,9 +53,9 @@ final class FrameProbe: @unchecked Sendable {
         last = now
         frames += 1
         if delta > worst { worst = delta }
-        // Ein Bild bei 60 Hz dauert 16,7 ms; alles über 25 ms ist ein
-        // ausgelassenes Bild und genau das, was man als Ruckeln sieht.
-        if delta > 0.025 { late += 1 }
+        // Use the active display interval, including adaptive refresh rates.
+        let interval = max(link.targetTimestamp - link.timestamp, link.duration)
+        if interval > 0, delta > interval * 1.5 { late += 1 }
         guard now - windowStart >= 1 else { return }
         lock.lock()
         let snapshot = counters.sorted { $0.key < $1.key }

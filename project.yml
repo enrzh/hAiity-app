@@ -52,6 +52,7 @@ targets:
       # ohne Widget-Prozess läuft und die Unit-Tests die Rechnungen sehen.
       # Bundle, Provider und das Steuerungselement bleiben Extension-only.
       - path: HaiityWidget/WidgetLogic.swift
+      - path: HaiityWidget/WidgetComponents.swift
       - path: HaiityWidget/WidgetGridViews.swift
       - path: HaiityWidget/HaiityWidgetView.swift
       - path: HaiityWidget/GraphWidgetView.swift

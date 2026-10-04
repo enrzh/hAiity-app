@@ -30,7 +30,9 @@ struct ReminderRow: View, Equatable {
     @Environment(\.palettes) private var palettes
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.habitInlineSortingActive) private var habitInlineSortingActive
+    @Environment(\.appearancePreferences) private var appearancePreferences
+
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     static func == (lhs: ReminderRow, rhs: ReminderRow) -> Bool {
         lhs.habit == rhs.habit
@@ -49,17 +51,13 @@ struct ReminderRow: View, Equatable {
                                onAction: revealActionTapped,
                                rowContent: { rowContent })
         .background {
-            if habitInlineSortingActive {
-                Color.clear.accessibilityHidden(true)
-            } else {
-                SwipeRevealPan(shouldBegin: revealShouldBegin,
-                               began: { reveal.begin() },
-                               changed: revealChanged,
-                               ended: revealEnded,
-                               cancelled: { snapReveal(to: 0) },
-                               isOpen: { reveal.offset != 0 },
-                               ownerID: habit.id)
-            }
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { reveal.begin() },
+                           changed: revealChanged,
+                           ended: revealEnded,
+                           cancelled: { snapReveal(to: 0) },
+                           isOpen: { reveal.offset != 0 },
+                           ownerID: habit.id)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reminder-row-\(habit.id.uuidString)")
@@ -77,10 +75,10 @@ struct ReminderRow: View, Equatable {
 
     private var rowContent: some View {
         rowLayout
-            .frame(maxWidth: .infinity, minHeight: Self.rowHeight)
+            .frame(maxWidth: .infinity, minHeight: max(Theme.Metrics.hit, designStyle.settingsRowHeight + 12))
             .appSurface()
             .opacity(isContextMenuVisible ? 0 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+            .contentShape(RoundedRectangle(cornerRadius: designStyle.cardRadius,
                                            style: .continuous))
     }
 
@@ -160,20 +158,25 @@ struct ReminderRow: View, Equatable {
     }
 
     private var reminderPreview: some View {
-        HStack(spacing: 14) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
+            : AnyLayout(HStackLayout(spacing: designStyle.cardPadding + 2))
+        return layout {
             reminderIcon(size: 48)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(habit.name)
-                    .font(.title3.weight(.semibold))
-                    .lineLimit(2)
+                    .font(designStyle.sectionTitleFont)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 12)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 12) }
 
             Image(systemName: state.isChecked(now: now, calendar: calendar)
                   ? "checkmark.circle.fill" : "circle")
@@ -182,8 +185,8 @@ struct ReminderRow: View, Equatable {
                                  ? Color.green : Color.secondary)
                 .accessibilityLabel(String(localized: "Erledigt"))
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
+        .padding(.horizontal, designStyle.cardPadding + 8)
+        .padding(.vertical, designStyle.cardPadding + 6)
         .frame(width: previewWidth, alignment: .leading)
         .frame(minHeight: Self.contextPreviewHeight, alignment: .leading)
         .environment(\.palettes, palettes)
@@ -241,10 +244,10 @@ struct ReminderRow: View, Equatable {
 
     private var rowLayout: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Metrics.gap))
-            : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
+            : AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
         return layout {
-            HStack(spacing: Theme.Metrics.gap) {
+            HStack(spacing: designStyle.rowGap * 2) {
                 if habit.emoji.isEmpty {
                     Image(systemName: "bell.fill")
                         .foregroundStyle(.secondary)
@@ -255,9 +258,9 @@ struct ReminderRow: View, Equatable {
                         .frame(width: 28)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: designStyle.rowGap / 2) {
                     Text(habit.name)
-                        .font(.body.weight(.semibold))
+                        .font(designStyle.rowTitleFont)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
@@ -276,7 +279,7 @@ struct ReminderRow: View, Equatable {
             // host becomes the hit-test winner and prevents the native button
             // from receiving ordinary taps.
             .overlay {
-                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                GraphContextMenu(cardRadius: designStyle.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: Self.contextPreviewHeight,
                                  previewAccessibilityIdentifier: "reminder-preview",
@@ -287,7 +290,6 @@ struct ReminderRow: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
                     .frame(maxWidth: previewWidth)
-                    .allowsHitTesting(!habitInlineSortingActive)
             }
 
             HStack(spacing: 0) {
@@ -323,8 +325,8 @@ struct ReminderRow: View, Equatable {
             .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
                    alignment: .trailing)
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
-        .padding(.vertical, 10)
+        .padding(.horizontal, designStyle.cardPadding)
+        .padding(.vertical, designStyle.cardPadding - 2)
     }
 
     private var state: ReminderOccurrenceState {
@@ -395,6 +397,7 @@ private struct ReminderSlidingSurface<Content: View>: View {
 /// contribution graphs — those rows are the measured hitch when the Search
 /// tab stays alive beside Habits.
 struct SearchResultRow: View, Equatable {
+    @Environment(\.appearancePreferences) private var preferences
     let habit: Habit
     let onEdit: () -> Void
     var onToggleReminder: () -> Void = {}
@@ -459,7 +462,7 @@ struct SearchResultRow: View, Equatable {
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(habit.name)
-                            .font(.body.weight(.semibold))
+                            .font(preferences.designStyle.rowTitleFont)
                             .foregroundStyle(.primary)
                             .lineLimit(2)
                         Text(subtitle)
@@ -486,9 +489,9 @@ struct SearchResultRow: View, Equatable {
                 .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
             }
         }
-        .padding(.horizontal, Theme.Metrics.cardPadding)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: ReminderRow.rowHeight)
+        .padding(.horizontal, preferences.designStyle.cardPadding)
+        .padding(.vertical, preferences.designStyle.cardPadding - 2)
+        .frame(maxWidth: .infinity, minHeight: max(Theme.Metrics.hit, preferences.designStyle.settingsRowHeight + 12))
         .appSurface()
     }
 

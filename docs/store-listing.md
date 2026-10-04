@@ -40,7 +40,7 @@ Ein Raster je Habit, ein Quadrat je Tag. Ohne Konto, ohne Server, ohne Tracking.
 
 (165 Zeichen, eine einzige Zeile.)
 
-### Beschreibung (max. 4000, hier 2.895)
+### Beschreibung (max. 4000)
 
 ```
 hAiity füllt Quadrate. Jeder Tag, an dem du dranbleibst, färbt eine Zelle — dein Jahr als Raster, ein eigenes Raster für jedes Habit. Wer den Beitragsgraphen auf GitHub kennt, kennt die Idee.
@@ -59,7 +59,7 @@ DREI ARTEN VON HABIT
 • Ja/Nein — „Kein Zucker?“ Ja ist Erfolg, Nein eine Antwort, unbeantwortet etwas Drittes
 
 WIEDERHOLUNG WIE IM KALENDER
-Täglich, wöchentlich, monatlich, jährlich — mit Intervall, Wochentagen, Monatstag, „dritter Dienstag“, Ende nach Datum oder Anzahl. Oder flexibel: „3x pro Woche, egal wann“.
+Täglich, wöchentlich, monatlich, jährlich — mit Intervall, Wochentagen, Monatstag, „dritter Dienstag“, Ende nach Datum oder Anzahl. Bestehende flexible Ziele wie „3x pro Woche, egal wann“ bleiben nutzbar und bearbeitbar; neu legst du feste Wiederholungen an.
 
 SERIEN UND STATISTIK
 Aktuelle und beste Serie, Tages- und Wochenquote, Check-ins gesamt, Jahres-Puls über alle Habits.
@@ -71,7 +71,7 @@ SIRI UND KURZBEFEHLE
 „hAiity Lesen erledigt“, „Was ist in hAiity noch offen“, „hAiity Serie von Sport“. Abhaken, Nein notieren, Tagesstand und Serie abfragen.
 
 MITTEILUNGEN
-Eine Erinnerung je Habit oder Erinnerung, Tages- und Wochenzusammenfassung. Die tägliche Motivation kommt als Mitteilung oder Live-Aktivität. Um Erlaubnis wird erst gefragt, wenn du eine einschaltest — nie beim Start.
+Mehrere Mitteilungszeiten je Habit oder Erinnerung, zusätzlich Tages- und Wochenzusammenfassung. Terminzeit und Mitteilungszeiten stellst du getrennt ein. Die tägliche Motivation kommt als Mitteilung oder Live-Aktivität. Um Erlaubnis wird erst gefragt, wenn du eine einschaltest — nie beim Start.
 
 KALENDER-SPIEGEL
 hAiity legt einen eigenen Kalender an und pflegt darin die Termine deiner Habits und Erinnerungen. Jedes Element kann den Kalender einzeln ausschalten; deine übrigen Kalender bleiben unberührt. Erinnerungen lassen sich zusätzlich in einer eigenen hAiity-Liste der Apple-Erinnerungen-App synchronisieren — in beide Richtungen.
@@ -145,7 +145,7 @@ One grid per habit, one square per day. No account, no server, no tracking. Your
 
 (154 characters, a single line.)
 
-### Description (max. 4000, 2,833 here)
+### Description (max. 4000)
 
 ```
 hAiity fills squares. Every day you show up colors a cell — your year as a grid, one grid per habit. If you know the contribution graph on GitHub, you know the idea.
@@ -164,7 +164,7 @@ THREE KINDS OF HABIT
 • Yes/No — "No sugar?" Yes is a success, No is an answer, unanswered is a third thing
 
 CALENDAR-GRADE RECURRENCE
-Daily, weekly, monthly, yearly — with an interval, weekdays, day of month, "third Tuesday", ending on a date or after a count. Or flexible: "3x per week, whenever".
+Daily, weekly, monthly, yearly — with an interval, weekdays, day of month, "third Tuesday", ending on a date or after a count. Existing flexible goals such as "3x per week, whenever" remain usable and editable; new entries use fixed recurrence rules.
 
 STREAKS AND STATISTICS
 Current and best streak, daily and weekly rate, total check-ins, a year pulse across all habits.
@@ -176,7 +176,7 @@ SIRI AND SHORTCUTS
 "Check off Reading in hAiity", "What's left in hAiity today", "What's my Running streak in hAiity". Check off, log a No, ask for today's status or a streak.
 
 NOTIFICATIONS
-Each habit or reminder can have its own local notification, alongside the daily and weekly summaries. Daily motivation can be delivered as a notification or Live Activity. Permission is asked only when you turn one on — never at launch.
+Each habit or reminder can have multiple notification times, alongside the daily and weekly summaries. Appointment time and notification times are set separately. Daily motivation can be delivered as a notification or Live Activity. Permission is asked only when you turn one on — never at launch.
 
 CALENDAR MIRROR
 hAiity creates its own calendar and keeps your habit and reminder events in it. Each item can opt out separately. Your other calendars stay untouched. Reminders can also sync two ways through a dedicated hAiity list in Apple's Reminders app.

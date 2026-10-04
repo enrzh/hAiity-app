@@ -140,10 +140,14 @@ enum HabitSessionCompletion {
     /// gutgeschriebenen Minuten.
     @discardableResult
     static func finish(store: HabitStore, session: HabitSession, now: Date = Date()) -> Int {
+        // A failed I/O write can leave the record and check-in only in memory.
+        // Retry that snapshot before trusting the record or skipping check-off.
+        if store.lastWriteError != nil, !store.persist() { return 0 }
         if let record = store.sessionHistory.first(where: { $0.id == session.id }) {
             let minutes = HabitSessionMath.elapsedMinutes(startedAt: record.startedAt, endedAt: record.finishedAt)
             // A retry may follow a save of the record but not the legacy total.
             store.recordSessionMinutes(record.habitID, day: record.day, minutes: minutes)
+            guard store.lastWriteError == nil else { return 0 }
             return minutes
         }
         let minutes = HabitSessionMath.elapsedMinutes(startedAt: session.startedAt, endedAt: now)
@@ -151,9 +155,12 @@ enum HabitSessionCompletion {
                                                   day: session.day, startedAt: session.startedAt,
                                                   finishedAt: now, plannedMinutes: session.plannedMinutes),
                                persist: false)
-        CheckOffLogic.apply(to: store, habitId: session.habitID, day: session.day)
+        let didCheckIn = CheckOffLogic.apply(to: store, habitId: session.habitID, day: session.day)
         guard store.lastWriteError == nil else { return 0 }
+        // An already-completed day may not write at all; the new record must.
+        if !didCheckIn, !store.persist() { return 0 }
         store.recordSessionMinutes(session.habitID, day: session.day, minutes: minutes)
+        guard store.lastWriteError == nil else { return 0 }
         return minutes
     }
 

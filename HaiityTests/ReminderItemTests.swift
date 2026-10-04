@@ -39,7 +39,7 @@ final class ReminderItemTests: XCTestCase {
     func testReminderContextMenuKeepsTheStableRowSurface() throws {
         let source = try source("Haiity/Views/ReminderRow.swift")
         XCTAssertTrue(source.contains("static let rowHeight: CGFloat = 64"))
-        XCTAssertTrue(source.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
+        XCTAssertTrue(source.contains("minHeight: max(Theme.Metrics.hit, designStyle.settingsRowHeight + 12)"))
         XCTAssertTrue(source.contains("static let contextPreviewHeight: CGFloat = 112"))
         XCTAssertTrue(source.contains(".frame(width: previewWidth, alignment: .leading)"),
                       "the enlarged reminder must use the full preview width")
@@ -69,7 +69,7 @@ final class ReminderItemTests: XCTestCase {
         let row = try source("Haiity/Views/ReminderRow.swift")
 
         XCTAssertTrue(row.contains("static let rowHeight: CGFloat = 64"))
-        XCTAssertTrue(row.contains(".frame(maxWidth: .infinity, minHeight: Self.rowHeight)"))
+        XCTAssertTrue(row.contains("minHeight: max(Theme.Metrics.hit, designStyle.settingsRowHeight + 12)"))
         XCTAssertTrue(row.contains("static let contextPreviewHeight: CGFloat = 112"))
         XCTAssertTrue(row.contains("minHeight: Self.contextPreviewHeight"),
                       "the enlarged reminder must have a stable content height")

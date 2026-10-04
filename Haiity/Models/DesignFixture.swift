@@ -8,7 +8,7 @@ enum DesignFixture {
         #if DEBUG && targetEnvironment(simulator)
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-design-fixture"), index + 1 < args.count,
-              ["empty", "realistic", "crowded", "mixed"].contains(args[index + 1]) else { return nil }
+              ["empty", "realistic", "crowded", "mixed", "sorting"].contains(args[index + 1]) else { return nil }
         return args[index + 1]
         #else
         return nil
@@ -17,7 +17,20 @@ enum DesignFixture {
 
     static func makeStore() -> HabitStore? {
         guard let scenario else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("design-fixture-\(UUID()).json")
+        var url = FileManager.default.temporaryDirectory.appendingPathComponent("design-fixture-\(UUID()).json")
+        #if DEBUG && targetEnvironment(simulator)
+        // Accept an ID, never an arbitrary URL into real user/App Group data.
+        if scenario == "sorting",
+           let rawID = ProcessInfo.processInfo.environment["HAIITY_SORTING_FIXTURE_ID"],
+           let id = UUID(uuidString: rawID) {
+            url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("design-fixture-sorting-\(id.uuidString).json")
+            if FileManager.default.fileExists(atPath: url.path) {
+                // Relaunch must exercise the durable store, not reseed its order.
+                return HabitStore(url: url)
+            }
+        }
+        #endif
         let store = HabitStore(url: url, loadFromDisk: false)
         let args = ProcessInfo.processInfo.arguments
         // Personalization fixtures use a separate defaults suite as well.
@@ -39,6 +52,10 @@ enum DesignFixture {
         if let index = args.firstIndex(of: "-design-material"), index + 1 < args.count,
            let material = AppearanceMaterial(rawValue: args[index + 1]) {
             store.appearancePreferences.material = material
+        }
+        if let index = args.firstIndex(of: "-design-style"), index + 1 < args.count,
+           let style = AppDesignStyle(rawValue: args[index + 1]) {
+            store.appearancePreferences.designStyle = style
         }
         if args.contains("-design-photo") {
             let image = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 400)).image { context in
@@ -74,7 +91,7 @@ enum DesignFixture {
             if index == 1 { habit.log[today] = 1 }
             store.add(habit)
         }
-        if scenario == "mixed" {
+        if scenario == "mixed" || scenario == "sorting" {
             var reminder = Habit(name: "Call the dentist to confirm the appointment and discuss the treatment plan",
                                  itemType: .reminder)
             reminder.id = UUID(uuidString: "00000000-0000-0000-0000-000000000799")!
@@ -82,6 +99,27 @@ enum DesignFixture {
             reminder.calendarSyncEnabled = false
             store.add(reminder)
         }
+        if scenario == "sorting" {
+            // The first four rows retain the mixed fixture's IDs, including 799.
+            // Daily recurrence keeps all 40 rows eligible in Today scope.
+            for index in 3..<39 {
+                let name = index.isMultiple(of: 5)
+                    ? "Plan a long walk after work and remember to bring water and a rain jacket \(index)"
+                    : "\(names[index % names.count]) \(index)"
+                var habit = Habit(name: name, itemType: index.isMultiple(of: 3) ? .reminder : .habit,
+                                  notificationMode: .off)
+                habit.id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", 700 + index))!
+                habit.calendarSyncEnabled = false
+                store.add(habit)
+            }
+        }
+        #if DEBUG && targetEnvironment(simulator)
+        if args.contains("-design-write-conflict") {
+            // A second isolated writer makes the next UI save reject its
+            // stale baseline. The user's App Group file is never involved.
+            HabitStore(url: url).summaryMinutes = 12 * 60
+        }
+        #endif
         return store
     }
 }

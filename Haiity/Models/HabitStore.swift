@@ -352,7 +352,8 @@ extension HabitData {
         let weekday = try c.decodeIfPresent(Int.self, forKey: .weeklySummaryWeekday)
             ?? Self.defaultSummaryWeekday
         weeklySummaryWeekday = (1...7).contains(weekday) ? weekday : Self.defaultSummaryWeekday
-        habits = try c.decodeIfPresent([Habit].self, forKey: .habits) ?? []
+        habits = HabitStore.mergedHabits([], with: try c.decodeIfPresent([Habit].self, forKey: .habits) ?? [],
+                                        remoteRootIsNewer: false)
         sessionHistory = (try? c.decodeIfPresent([HabitSessionRecord].self, forKey: .sessionHistory)) ?? []
         // Additive and tolerant, like every field since v2: a payload from
         // before tombstones existed simply has none, and that is not an error.
@@ -990,6 +991,9 @@ final class HabitStore {
     private static var widgetReloadTask: Task<Void, Never>?
 
     private func reloadWidgetsAfterPersist() {
+        #if DEBUG && targetEnvironment(simulator)
+        guard !ProcessInfo.processInfo.arguments.contains("-design-fixture") else { return }
+        #endif
         if Bundle.main.bundlePath.hasSuffix(".appex") {
             WidgetCenter.shared.reloadAllTimelines()
             return
@@ -1283,21 +1287,26 @@ final class HabitStore {
     /// Reorders only the visible active items while leaving filtered-out
     /// active items in their existing slots. The Heute view passes its visible
     /// IDs here because its drag offsets are not offsets into `activeHabits`.
+    /// Returns true only for a changed order and, when requested, a successful save.
+    @discardableResult
     func moveVisible(_ visibleIDs: [UUID],
                      fromOffsets source: IndexSet,
                      toOffset destination: Int,
-                     persist: Bool = true) {
+                     persist: Bool = true) -> Bool {
+        let visibleSet = Set(visibleIDs)
         guard !visibleIDs.isEmpty,
               !source.isEmpty, source.allSatisfy(visibleIDs.indices.contains),
               (0...visibleIDs.count).contains(destination),
-              Set(visibleIDs).count == visibleIDs.count,
-              visibleIDs.allSatisfy({ id in
-                  data.habits.contains { $0.id == id && $0.archivedAt == nil }
-              }) else { return }
+              visibleSet.count == visibleIDs.count,
+              Set(data.habits.map(\.id)).count == data.habits.count,
+              data.habits.filter({ $0.archivedAt == nil && visibleSet.contains($0.id) })
+                  .map(\.id) == visibleIDs else { return false }
 
         var reorderedIDs = visibleIDs
         reorderedIDs.move(fromOffsets: source, toOffset: destination)
-        let visibleSet = Set(visibleIDs)
+        guard reorderedIDs != visibleIDs else { return false }
+        let previousData = data
+        let previousPayload = persistedPayload
         let originalByID = Dictionary(uniqueKeysWithValues: data.habits.map { ($0.id, $0) })
         var iterator = reorderedIDs.makeIterator()
 
@@ -1310,9 +1319,12 @@ final class HabitStore {
             }
             return replacement
         }
-        if persist {
-            self.persist()
+        if persist, !self.persist() {
+            // A stale save already restored newer durable data; keep that state.
+            if persistedPayload == previousPayload { data = previousData }
+            return false
         }
+        return true
     }
 
     /// Offene AKTIVE Habits für heute (für die Abend-Zusammenfassung).
@@ -1644,15 +1656,27 @@ final class HabitStore {
     private static func mergeHabits(_ remote: HabitData,
                                    newer: Bool,
                                    into data: inout HabitData) {
+        data.habits = mergedHabits(data.habits, with: remote.habits, remoteRootIsNewer: newer)
+        // Deletions are the one thing a union cannot carry, so they travel as
+        // tombstones and are applied afterwards -- from BOTH sides.
+        let tombstones = data.deletedHabits
+            .merging(remote.deletedHabits, uniquingKeysWith: max)
+        data.habits.removeAll { tombstones[$0.id] != nil }
+        data.deletedHabits = tombstones
+        pruneTombstones(in: &data)
+    }
+
+    /// Decode and merge use the same history/metadata rules for duplicate IDs.
+    /// First-seen order remains stable, including the local sorting order.
+    fileprivate static func mergedHabits(_ local: [Habit], with remote: [Habit],
+                                        remoteRootIsNewer: Bool) -> [Habit] {
         // Grouped by hand rather than with `Dictionary(uniqueKeysWithValues:)`,
         // which crashes outright on a duplicate. Duplicates should not exist, but
         // if one ever arrived from a malformed payload or a bad merge the answer
         // is to keep one entry, not to take the app down.
         var byId: [UUID: Habit] = [:]
-        for habit in data.habits where byId[habit.id] == nil {
-            byId[habit.id] = habit
-        }
-        for rh in remote.habits {
+        var orderedIDs: [UUID] = []
+        for (index, rh) in (local + remote).enumerated() {
             if var lh = byId[rh.id] {
                 for (k, v) in rh.log {
                     let merged = max(lh.log[k] ?? 0, v)
@@ -1667,7 +1691,7 @@ final class HabitStore {
                 lh.missedDays = Array(Set(lh.missedDays).union(rh.missedDays)).sorted()
                 if Self.remoteFieldsWin(localStamp: lh.updatedAt,
                                         remoteStamp: rh.updatedAt,
-                                        remoteRootIsNewer: newer) {
+                                        remoteRootIsNewer: index >= local.count && remoteRootIsNewer) {
                     lh.name = rh.name
                     lh.emoji = rh.emoji
                     lh.itemType = rh.itemType
@@ -1701,22 +1725,10 @@ final class HabitStore {
                 byId[rh.id] = lh
             } else {
                 byId[rh.id] = rh
+                orderedIDs.append(rh.id)
             }
         }
-        // Reihenfolge: lokale zuerst (bestehende Ordnung), dann neue Remote-Habits
-        var merged = data.habits.compactMap { byId[$0.id] }
-        let localIds = Set(data.habits.map(\.id))
-        merged.append(contentsOf: remote.habits.filter { !localIds.contains($0.id) }.compactMap { byId[$0.id] })
-        data.habits = merged
-        // Deletions are the one thing a union cannot carry, so they travel as
-        // tombstones and are applied afterwards — from BOTH sides. A habit
-        // deleted here and still present on an older device comes back unless
-        // its own tombstone is applied to whatever that device sends.
-        let tombstones = data.deletedHabits
-            .merging(remote.deletedHabits, uniquingKeysWith: max)
-        data.habits.removeAll { tombstones[$0.id] != nil }
-        data.deletedHabits = tombstones
-        pruneTombstones(in: &data)
+        return orderedIDs.compactMap { byId[$0] }
     }
 
     /// Sessions: Union ohne Duplikate, dann auf das Beibehaltungs-Fenster kürzen.
@@ -1870,5 +1882,6 @@ final class HabitStore {
     func importJSON(_ raw: Data) throws {
         let incoming = try JSONDecoder().decode(HabitData.self, from: raw)
         merge(remote: incoming)
+        try requireSuccessfulWrite()
     }
 }

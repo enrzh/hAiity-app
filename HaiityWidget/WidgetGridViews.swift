@@ -1,165 +1,74 @@
 import WidgetKit
 import SwiftUI
-import AppIntents
 
+/// Four equally sized regions on WidgetKit's single canvas. Sparse selections
+/// use readable full-width graph rows, never empty or duplicated tiles.
 struct LargeGridWidgetView: View {
     let entry: HaiityEntry
     @Environment(\.colorScheme) private var scheme
     @Environment(\.widgetRenderingMode) private var mode
+
     var body: some View {
         Group {
             if entry.largeItems.isEmpty {
                 Link(destination: HaiityWidgetLink.habits) { WidgetEmptyState() }
             } else if entry.largeItems.count < 4 {
-                LargeListWidgetView(entry: entry)
+                VStack(alignment: .leading, spacing: min(4, entry.designStyle.rowGap)) {
+                    WidgetProgressHeader(entry: entry, dark: scheme == .dark, mode: mode)
+                    WidgetGraphRows(items: Array(entry.largeItems.prefix(4)), entry: entry,
+                                    dark: scheme == .dark, mode: mode)
+                }
             } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap), GridItem(.flexible(), spacing: WidgetLogic.LargeGeometry.gridColumnGap)], spacing: WidgetLogic.LargeGeometry.gridRowGap) {
-                    ForEach(entry.largeItems.prefix(4)) { habit in
-                        LargeGridItem(habit: habit, entry: entry).frame(height: WidgetLogic.LargeGeometry.gridRowHeight)
+                GeometryReader { geometry in
+                    let gap = min(8, entry.designStyle.rowGap * 2)
+                    let width = max(0, (geometry.size.width - gap) / 2)
+                    let height = max(0, (geometry.size.height - gap) / 2)
+                    let items = Array(entry.largeItems.prefix(4))
+                    if width < 132 {
+                        VStack(alignment: .leading, spacing: min(4, entry.designStyle.rowGap)) {
+                            WidgetProgressHeader(entry: entry, dark: scheme == .dark, mode: mode)
+                            WidgetGraphRows(items: items, entry: entry, dark: scheme == .dark, mode: mode)
+                        }
+                    } else {
+                        VStack(spacing: gap) {
+                            ForEach(0..<2, id: \.self) { row in
+                                HStack(spacing: gap) {
+                                    ForEach(0..<2, id: \.self) { column in
+                                        WidgetGraphPanel(habit: items[row * 2 + column], entry: entry,
+                                                         dark: scheme == .dark, mode: mode,
+                                                         compact: true)
+                                            .frame(width: width, height: height)
+                                    }
+                                }
+                            }
+                        }
+                        .overlay {
+                            HStack(spacing: 0) {
+                                Spacer()
+                                Divider()
+                                Spacer()
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        .overlay {
+                            VStack(spacing: 0) {
+                                Spacer()
+                                Divider()
+                                Spacer()
+                            }
+                            .allowsHitTesting(false)
+                        }
                     }
                 }
             }
         }
-        .padding(entry.largeItems.isEmpty || entry.largeItems.count >= 4 ? WidgetLogic.LargeGeometry.outerPadding : 0)
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-        .containerBackground(for: .widget) { HomeWidgetBackground(palette: entry.palettes.style, dark: scheme == .dark, mode: mode) }
-    }
-}
-
-/// A quiet item surface shared by large widget compositions. WidgetKit already
-/// supplies the outer container, so this is only a low-contrast separation
-/// between sibling items, never a second card inside the widget.
-struct WidgetTileSurfaceModifier: ViewModifier {
-    let palette: PaletteStyle
-    let dark: Bool
-    let mode: WidgetRenderingMode
-    var radius: CGFloat = 12
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        content
-            .background {
-                if mode == .fullColor {
-                    shape.fill(Color.primary.opacity(dark ? 0.08 : 0.035))
-                } else {
-                    shape.fill(Color.white.opacity(0.08))
-                }
-            }
-            .clipShape(shape)
-            .overlay {
-                shape.strokeBorder(Color.primary.opacity(dark ? 0.10 : 0.06), lineWidth: 0.5)
-            }
-    }
-}
-
-extension View {
-    func widgetTileSurface(palette: PaletteStyle,
-                           dark: Bool,
-                           mode: WidgetRenderingMode,
-                           radius: CGFloat = 12) -> some View {
-        modifier(WidgetTileSurfaceModifier(palette: palette,
-                                            dark: dark,
-                                            mode: mode,
-                                            radius: radius))
-    }
-}
-
-private struct LargeGridItem: View {
-    let habit: Habit
-    let entry: HaiityEntry
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.widgetRenderingMode) private var mode
-    var body: some View {
-        let today = entry.today(for: habit)
-        let summary = WidgetLogic.summary(habit: habit, today: today, calendar: entry.calendar(for: habit))
-        let metricText = summary.metricText
-        let palette = entry.palettes.style(for: habit)
-        let identityBand = Link(destination: HaiityWidgetLink.habits) {
-            HStack(spacing: 4) {
-                if !habit.emoji.isEmpty {
-                    Text(verbatim: habit.emoji).fixedSize(horizontal: true, vertical: false)
-                }
-                Text(verbatim: habit.name)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-                if habit.isReminder {
-                    Image(systemName: "bell.fill")
-                } else {
-                    Image(systemName: summary.metricSymbol)
-                }
-            }
-            .lineLimit(1)
-            .padding(.horizontal, 4)
-            .foregroundStyle(summary.status == .done ? Theme.accent(palette) : .secondary)
+        .containerBackground(for: .widget) {
+            HomeWidgetBackground(palette: entry.palettes.style,
+                                 dark: scheme == .dark, mode: mode,
+                                 designStyle: entry.designStyle)
         }
-        let visualBand = Group {
-            if habit.isReminder {
-                Label(metricText, systemImage: "bell.fill")
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                TrailingGrid(habit: habit, maxWeeks: 11, today: today, radius: nil) { level in
-                    HomeWidgetInk.level(level, mode: mode, dark: scheme == .dark, palette: palette)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        let actionBand = HStack(spacing: 0) {
-            Label(metricText, systemImage: summary.metricSymbol)
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            switch summary.kind {
-            case .yesNo:
-                largeActionButton(intent: AnswerYesHabitIntent(habit: habit), symbol: "checkmark", label: String(localized: "Mit Ja beantworten"))
-                largeActionButton(intent: AnswerNoHabitIntent(habit: habit), symbol: "xmark", label: String(localized: "Mit Nein beantworten"))
-            case .quantity:
-                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "plus", label: String(localized: "Menge erhöhen"))
-            case .checkbox, .reminder:
-                largeActionButton(intent: CheckOffHabitIntent(habit: habit), symbol: "checkmark", label: habit.isReminder ? String(localized: "Erinnerung erledigen") : String(localized: "Habit abhaken"))
-            }
-            if entry.showsReset(for: habit) {
-                largeActionButton(intent: ResetHabitIntent(habit: habit), symbol: "arrow.uturn.backward", label: String(localized: "Rückgängig"))
-            }
-        }
-        .buttonStyle(.plain)
-        .font(.caption2.weight(.bold))
-        .foregroundStyle(.secondary)
-        .opacity(0.75)
-
-        VStack(alignment: .leading, spacing: WidgetLogic.LargeGeometry.gridItemSpacing) {
-            identityBand
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: WidgetLogic.LargeGeometry.gridIdentityBandHeight, alignment: .leading)
-            visualBand
-                .frame(maxWidth: .infinity)
-                .frame(height: WidgetLogic.LargeGeometry.gridVisualBandHeight)
-            Divider()
-            actionBand
-                .frame(maxWidth: .infinity)
-                .frame(height: WidgetLogic.LargeGeometry.gridActionBandHeight)
-        }
-        .padding(WidgetLogic.LargeGeometry.gridItemPadding)
-        .widgetTileSurface(palette: palette, dark: scheme == .dark, mode: mode)
     }
-
-    private func largeActionButton<I: AppIntent>(intent: I, symbol: String, label: String) -> some View {
-        Button(intent: intent) {
-            Image(systemName: symbol).frame(width: 44, height: 44)
-        }
-        .contentShape(Rectangle())
-        .accessibilityLabel(label)
-    }
-
 }
 
 /// Gemeinsame Rasterbausteine für ALLE Widgets. Sie zeichnen dieselben Zellen
@@ -200,8 +109,9 @@ struct TrailingGrid: View {
     var maxWeeks: Int = 53
     var today: String = DayKey.today()
     var radius: CGFloat? = 1.5
+    var calendar: Calendar = .current
     /// Wohin das Band fällt, wenn nach der Rechnung ein Rest bleibt.
-    var alignment: Alignment = .topLeading
+    var alignment: Alignment = .center
     let level: (Int) -> Color
 
     var body: some View {
@@ -211,7 +121,7 @@ struct TrailingGrid: View {
                                               maxWeeks: maxWeeks)
             GridBand(snapshot: GridCalendar.snapshot(habit: habit,
                                                      weeks: layout.weeks,
-                                                     today: today),
+                                                     today: today, calendar: calendar),
                      cell: layout.cell, gap: layout.gap,
                      radius: radius ?? layout.radius, level: level)
                 .frame(width: geo.size.width, height: geo.size.height,
@@ -224,19 +134,15 @@ struct TrailingGrid: View {
 
 // MARK: – Farbe vs. Deckkraft
 
-/// Homescreen-Raster dürfen kräftiger als die App-Karte auftreten: auf dem
-/// Foto sind Stufe 1 und 2 gegen den dunklen Widget-Hintergrund kaum sichtbar.
-/// Leer und Nein behalten ihre Bedeutung; nur echte Beiträge rücken in den
-/// leuchtenden Teil der Rampe. Sperrbildschirm-Widgets verwenden weiter
-/// `WidgetInk`.
+/// The Home Screen keeps the app's distinct five-level palette. Tinted and
+/// vibrant appearances use WidgetInk's matching opacity levels instead.
 enum HomeWidgetInk {
     static let lightBackgroundOpacity = 0.025
     static let darkBackgroundOpacity = 0.05
 
     static func mappedLevel(_ level: Int) -> Int {
         if level == Habit.Answer.declinedLevel { return level }
-        guard level > 0 else { return 0 }
-        return min(4, level + 2)
+        return max(0, min(4, level))
     }
 
     static func level(_ level: Int, dark: Bool, palette: PaletteStyle) -> Color {
@@ -256,21 +162,23 @@ enum HomeWidgetInk {
     }
 }
 
-/// Ein sehr leiser Paletten-Ton statt einer neutral schwarzen Fläche. Die
-/// Deckkraft bleibt bewusst unter 20 %, damit Raster und Text den Kontrast
-/// bestimmen und System-Tints weiterhin sauber greifen.
+/// One semantic canvas. Only Studio adds a subtle palette tint; WidgetKit
+/// owns the background treatment in accented and vibrant appearances.
 struct HomeWidgetBackground: View {
     let palette: PaletteStyle
     let dark: Bool
     let mode: WidgetRenderingMode
+    var designStyle: AppDesignStyle = .native
 
     var body: some View {
         if mode == .fullColor {
             ZStack {
                 Color(.systemBackground)
-                Theme.accent(palette)
-                    .opacity(dark ? HomeWidgetInk.darkBackgroundOpacity
-                                  : HomeWidgetInk.lightBackgroundOpacity)
+                if designStyle == .studio {
+                    Theme.accent(palette)
+                        .opacity(dark ? HomeWidgetInk.darkBackgroundOpacity
+                                      : HomeWidgetInk.lightBackgroundOpacity)
+                }
             }
         } else {
             Color.clear

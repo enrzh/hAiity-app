@@ -142,7 +142,8 @@ final class GraphContextMenuRegressionTests: XCTestCase {
         let content = try source("Haiity/Views/ContentView.swift")
 
         XCTAssertTrue(content.contains("habitSortingActive"))
-        XCTAssertTrue(content.contains("HabitSortingSession("))
+        XCTAssertTrue(content.contains("HabitSortingRow("))
+        XCTAssertTrue(content.contains("guard habitSortingActive"))
     }
 
     func testReminderContextMenuUsesTheSharedPreviewBridge() throws {

@@ -52,20 +52,7 @@ struct DeveloperView: View {
     /// jedem Rumpf gefragt: sie ändert sich nur in „Mehr", und diese Seite
     /// wird beim Zurückkommen ohnehin neu aufgebaut.
     @State private var appleUserID: String?
-    @State private var showImporter = false
-    @State private var importMessage: String?
     @State private var copiedSyncHint = false
-
-    private enum ImportError: LocalizedError {
-        case trackedHabitLimit
-
-        var errorDescription: String? {
-            switch self {
-            case .trackedHabitLimit:
-                return String(localized: "Dieser Import würde das kostenlose Limit von drei aktiven Habits überschreiten. Mit hAiity Pro kannst du ihn vollständig zusammenführen.")
-            }
-        }
-    }
 
     /// Was angezeigt und kopiert wird. Vor dem Sammeln der leere Stand —
     /// jede ZAHL daraus wird von `count`/`yesNo`/`shortDate` zu `n/a`.
@@ -89,9 +76,6 @@ struct DeveloperView: View {
         }
         .task { await collect() }
         .onAppear { appleUserID = PersonalName.appleUserID }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
-            handleImport(result)
-        }
     }
 
     // MARK: – (1) App
@@ -261,30 +245,8 @@ struct DeveloperView: View {
     // MARK: – (7) Aktionen
 
     private var dataTransferSection: some View {
-        AppSettingsGroup(title: String(localized: "Import & Export"), symbol: "arrow.up.arrow.down") {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
-            ShareLink(item: HabitExport(data: store.exportJSON() ?? Data()),
-                      preview: SharePreview(String(localized: "hAiity-Export"))) {
-                Label(String(localized: "Exportieren"), systemImage: "square.and.arrow.up")
-            }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("export-data")
-
-            Button {
-                showImporter = true
-            } label: {
-                Label(String(localized: "Importieren"), systemImage: "square.and.arrow.down")
-            }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("import-data")
-
-            if let importMessage {
-                Text(importMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            }
-            .padding(.vertical, Theme.Metrics.gap / 2)
+        DataTransferSection(store: store) {
+            Task { await collect() }
         }
     }
 
@@ -412,30 +374,6 @@ struct DeveloperView: View {
             }
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
-        }
-    }
-
-    private func handleImport(_ result: Result<URL, Error>) {
-        switch result {
-        case .failure(let error):
-            importMessage = error.localizedDescription
-        case .success(let url):
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            do {
-                let raw = try Data(contentsOf: url)
-                let incoming = try JSONDecoder().decode(HabitData.self, from: raw)
-                guard ProGate.mayImport(incoming: incoming,
-                                        into: store.data,
-                                        unlocked: Pro.isUnlocked) else {
-                    throw ImportError.trackedHabitLimit
-                }
-                try store.importJSON(raw)
-                importMessage = String(localized: "Import zusammengeführt.")
-                Task { await collect() }
-            } catch {
-                importMessage = String(localized: "Import fehlgeschlagen: \(error.localizedDescription)")
-            }
         }
     }
 

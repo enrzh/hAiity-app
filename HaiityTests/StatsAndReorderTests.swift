@@ -41,24 +41,210 @@ final class ReorderTests: XCTestCase {
         XCTAssertEqual(store.habits.map(\.name), ["C", "B", "D", "A"])
     }
 
-    func testMoveVisibleReordersHeuteItemsWithoutMovingHiddenActiveItems() {
-        let hiddenBefore = Habit(name: "Nicht heute")
+    func testMoveVisibleFirstAndLastDestinationsPersistAcrossReload() {
+        let habits = (0..<40).map {
+            Habit(name: "Item \($0)", itemType: $0.isMultiple(of: 2) ? .habit : .reminder)
+        }
+        for habit in habits { store.add(habit) }
+        let ids = habits.map(\.id)
+        let lastFirst = [ids.last!] + Array(ids.dropLast())
+
+        XCTAssertTrue(store.moveVisible(ids, fromOffsets: IndexSet(integer: 39), toOffset: 0))
+        XCTAssertEqual(store.habits.map(\.id), lastFirst)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), lastFirst)
+        XCTAssertNil(store.lastWriteError)
+
+        XCTAssertTrue(store.moveVisible(lastFirst, fromOffsets: IndexSet(integer: 0), toOffset: 40))
+        XCTAssertEqual(store.habits.map(\.id), ids)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), ids)
+    }
+
+    func testMoveVisibleReordersHeuteItemsWithoutMovingHiddenActiveOrArchivedSlots() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 12)))
+        let hiddenBefore = Habit(name: "Nicht heute", recurrence: .weekdays([2]))
         let first = Habit(name: "Erster")
-        let hiddenBetween = Habit(name: "Auch nicht heute")
-        let second = Habit(name: "Zweiter")
+        let hiddenBetween = Habit(name: "Auch nicht heute", recurrence: .weekdays([2]))
+        let archived = Habit(name: "Archiviert")
+        let second = Habit(name: "Zweiter", itemType: .reminder)
         let third = Habit(name: "Dritter")
         store.add(hiddenBefore)
         store.add(first)
         store.add(hiddenBetween)
+        store.add(archived)
         store.add(second)
         store.add(third)
+        store.archive(archived.id)
+        let archivedBefore = try XCTUnwrap(store.habits.first { $0.id == archived.id })
+        let filter = HabitListFilter(todayOnly: true)
+        let visibleIDs = store.activeHabits.filter {
+            filter.matches($0, defaultTimeZoneIdentifier: nil, now: now, base: calendar)
+        }.map(\.id)
+        XCTAssertEqual(visibleIDs, [first.id, second.id, third.id])
 
-        store.moveVisible([first.id, second.id, third.id],
-                          fromOffsets: IndexSet(integer: 0),
-                          toOffset: 3)
+        XCTAssertTrue(store.moveVisible(visibleIDs,
+                                        fromOffsets: IndexSet(integer: 0),
+                                        toOffset: 3))
 
         XCTAssertEqual(store.habits.map(\.name),
-                       ["Nicht heute", "Zweiter", "Auch nicht heute", "Dritter", "Erster"])
+                       ["Nicht heute", "Zweiter", "Auch nicht heute", "Archiviert", "Dritter", "Erster"])
+        XCTAssertEqual(store.habits[3].archivedAt, archivedBefore.archivedAt)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), store.habits.map(\.id))
+    }
+
+    func testMoveVisibleRejectsSameMembershipStaleOrderBeforeMutation() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
+        store.add(a); store.add(b); store.add(c)
+        let staleIDs = [a.id, b.id, c.id]
+        XCTAssertTrue(store.moveVisible(staleIDs, fromOffsets: IndexSet(integer: 2), toOffset: 0))
+        let before = try Data(contentsOf: url)
+        let timestamp = store.data.updatedAt
+        var notifications = 0
+        store.onChange = { notifications += 1 }
+
+        XCTAssertFalse(store.moveVisible(staleIDs, fromOffsets: IndexSet(integer: 0), toOffset: 3))
+        XCTAssertFalse(store.moveVisible(staleIDs, fromOffsets: IndexSet(integer: 0), toOffset: 3,
+                                         persist: false))
+        XCTAssertEqual(store.habits.map(\.id), [c.id, a.id, b.id])
+        XCTAssertEqual(store.data.updatedAt, timestamp)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(notifications, 0)
+    }
+
+    func testMoveVisibleNoOpsDoNotWriteOrNotify() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
+        store.add(a); store.add(b); store.add(c)
+        let ids = [a.id, b.id, c.id]
+        // A fixed old mtime makes an accidental rewrite observable without sleeping.
+        let mtime = Date(timeIntervalSince1970: 1_000_000)
+        try FileManager.default.setAttributes([.modificationDate: mtime], ofItemAtPath: url.path)
+        let before = try Data(contentsOf: url)
+        let beforeMtime = try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        let timestamp = store.data.updatedAt
+        var notifications = 0
+        store.onChange = { notifications += 1 }
+
+        for destination in [1, 2] {
+            XCTAssertFalse(store.moveVisible(ids, fromOffsets: IndexSet(integer: 1), toOffset: destination))
+        }
+        XCTAssertFalse(store.moveVisible(ids, fromOffsets: IndexSet([0, 1]), toOffset: 2))
+        XCTAssertFalse(store.moveVisible(ids, fromOffsets: IndexSet(integer: 0), toOffset: 0,
+                                         persist: false))
+        XCTAssertEqual(store.habits.map(\.id), ids)
+        XCTAssertEqual(store.data.updatedAt, timestamp)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                       beforeMtime)
+        XCTAssertEqual(notifications, 0)
+    }
+
+    func testMoveVisibleWithoutPersistenceChangesOnlyMemory() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B")
+        store.add(a); store.add(b)
+        let before = try Data(contentsOf: url)
+        let timestamp = store.data.updatedAt
+        var notifications = 0
+        store.onChange = { notifications += 1 }
+
+        XCTAssertTrue(store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 2,
+                                        persist: false))
+        XCTAssertEqual(store.habits.map(\.id), [b.id, a.id])
+        XCTAssertEqual(store.data.updatedAt, timestamp)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(notifications, 0)
+    }
+
+    func testMoveVisibleStaleSaveRestoresDurableOrderAndReportsFailure() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B"), c = Habit(name: "C")
+        store.add(a); store.add(b); store.add(c)
+        let ids = [a.id, b.id, c.id]
+        let stale = HabitStore(url: url)
+        XCTAssertTrue(store.moveVisible(ids, fromOffsets: IndexSet(integer: 2), toOffset: 0))
+        let durable = try Data(contentsOf: url)
+        var notifications = 0
+        stale.onChange = { notifications += 1 }
+
+        XCTAssertFalse(stale.moveVisible(ids, fromOffsets: IndexSet(integer: 0), toOffset: 3))
+        XCTAssertEqual(stale.habits.map(\.id), [c.id, a.id, b.id])
+        XCTAssertEqual(stale.data.updatedAt, store.data.updatedAt)
+        XCTAssertEqual(stale.lastWriteError,
+                       String(localized: "Die Daten wurden inzwischen geändert. Bitte erneut sichern."))
+        XCTAssertThrowsError(try stale.requireSuccessfulWrite())
+        XCTAssertEqual(try Data(contentsOf: url), durable)
+        XCTAssertEqual(notifications, 0)
+
+        XCTAssertTrue(stale.moveVisible(stale.activeHabits.map(\.id),
+                                        fromOffsets: IndexSet(integer: 0), toOffset: 3))
+        XCTAssertNil(stale.lastWriteError)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), ids)
+        XCTAssertEqual(notifications, 1)
+    }
+
+    func testMoveVisibleFileWriteFailureRestoresLocalOrderAndKeepsErrorAvailable() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("readonly-reorder-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let failingURL = directory.appendingPathComponent("data.json")
+        let failing = HabitStore(url: failingURL)
+        let a = Habit(name: "A"), b = Habit(name: "B")
+        failing.add(a); failing.add(b)
+        XCTAssertNil(failing.lastWriteError)
+        let durable = try Data(contentsOf: failingURL)
+        let timestamp = failing.data.updatedAt
+        var notifications = 0
+        failing.onChange = { notifications += 1 }
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+
+        XCTAssertFalse(failing.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 2))
+        XCTAssertEqual(failing.habits.map(\.id), [a.id, b.id])
+        XCTAssertEqual(failing.data.updatedAt, timestamp)
+        let message = try XCTUnwrap(failing.lastWriteError)
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertNotEqual(message,
+                          String(localized: "Die Daten wurden inzwischen geändert. Bitte erneut sichern."))
+        XCTAssertThrowsError(try failing.requireSuccessfulWrite()) { error in
+            XCTAssertEqual(error.localizedDescription, message)
+        }
+        XCTAssertEqual(try Data(contentsOf: failingURL), durable)
+        XCTAssertEqual(HabitStore(url: failingURL).habits.map(\.id), [a.id, b.id])
+        XCTAssertEqual(notifications, 0)
+
+        let errorBeforeNoOp = failing.lastWriteError
+        XCTAssertFalse(failing.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 1))
+        XCTAssertEqual(failing.lastWriteError, errorBeforeNoOp)
+    }
+
+    func testMoveVisibleRejectsInvalidMembershipAndBoundsWithoutWriting() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B"), archived = Habit(name: "Archived")
+        store.add(a); store.add(b); store.add(archived)
+        store.archive(archived.id)
+        let before = try Data(contentsOf: url)
+        let ids = store.habits.map(\.id)
+        for visibleIDs in [[], [a.id, a.id], [a.id, UUID()], [a.id, archived.id]] {
+            XCTAssertFalse(store.moveVisible(visibleIDs, fromOffsets: IndexSet(integer: 0), toOffset: 2))
+        }
+        XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: [], toOffset: 0))
+        XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: IndexSet([0, 2]), toOffset: 0))
+        for destination in [-1, 3] {
+            XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: destination))
+        }
+        XCTAssertEqual(store.habits.map(\.id), ids)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+
+    func testMoveVisibleRejectsDuplicateStoredIDsWithoutTrapping() throws {
+        let a = Habit(name: "A"), b = Habit(name: "B")
+        store.add(a); store.add(b); store.add(a)
+        let before = try Data(contentsOf: url)
+
+        XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 2))
+        XCTAssertEqual(store.habits.map(\.id), [a.id, b.id, a.id])
+        XCTAssertEqual(try Data(contentsOf: url), before)
     }
 
     func testStaleOffsetsCannotCorruptTheOrderAfterAnItemIsRemoved() throws {
@@ -66,8 +252,9 @@ final class ReorderTests: XCTestCase {
         store.add(a); store.add(b); store.add(c)
         store.remove(c.id)
         let before = try Data(contentsOf: url)
-        store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 2), toOffset: 0)
-        store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 3)
+        XCTAssertFalse(store.moveVisible([a.id, b.id, c.id], fromOffsets: IndexSet(integer: 2), toOffset: 0))
+        XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 2), toOffset: 0))
+        XCTAssertFalse(store.moveVisible([a.id, b.id], fromOffsets: IndexSet(integer: 0), toOffset: 3))
         store.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
         store.move(fromOffsets: IndexSet(integer: 0), toOffset: -1)
         XCTAssertEqual(store.habits.map(\.id), [a.id, b.id])

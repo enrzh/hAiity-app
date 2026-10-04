@@ -21,9 +21,12 @@ struct GitHubContributionCard: View, Equatable {
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
     @State private var isContextMenuVisible = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     private var headerHeight: CGFloat { collapsed ? 32 : Theme.Metrics.hit }
-    private var outerGap: CGFloat { collapsed ? 12 : Theme.Metrics.gutter }
+    private var outerGap: CGFloat { collapsed ? designStyle.cardOuterGap : designStyle.cardOuterGap + 4 }
 
     var body: some View {
         cardSurface
@@ -46,10 +49,10 @@ struct GitHubContributionCard: View, Equatable {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isContextMenuVisible ? 0 : 1)
-        .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+        .contentShape(RoundedRectangle(cornerRadius: designStyle.cardRadius,
                                        style: .continuous))
         .overlay {
-            GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+            GraphContextMenu(cardRadius: designStyle.cardRadius,
                              previewWidth: previewWidth,
                              previewHeight: previewHeight,
                              previewAccessibilityIdentifier: "github-preview",
@@ -67,7 +70,7 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: designStyle.rowGap * 2 + 2) {
             Image(systemName: "chevron.left.forwardslash.chevron.right")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.accentText(palettes.style))
@@ -79,8 +82,9 @@ struct GitHubContributionCard: View, Equatable {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
                 }
             Text(snapshot.username)
-                .font(collapsed ? .subheadline.weight(.semibold) : .headline)
-                .lineLimit(1)
+                .font(collapsed ? designStyle.rowTitleFont : designStyle.sectionTitleFont)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
                 .truncationMode(.tail)
             Spacer(minLength: 0)
         }
@@ -136,7 +140,7 @@ struct GitHubContributionCard: View, Equatable {
                                     palette: palettes.style)
         }
         .padding(.horizontal, Theme.Metrics.gutter)
-        .padding(.vertical, Theme.Metrics.cardPadding)
+        .padding(.vertical, designStyle.cardPadding)
         .frame(width: previewWidth)
         .accessibilityIdentifier("github-preview")
     }

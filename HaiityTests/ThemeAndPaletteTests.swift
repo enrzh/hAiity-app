@@ -616,7 +616,7 @@ final class AppearanceSettingTests: XCTestCase {
         let page = source[pageStart.lowerBound..<pageEnd.lowerBound]
 
         XCTAssertTrue(page.contains("return ScrollView"))
-        XCTAssertTrue(page.contains("VStack(alignment: .leading, spacing: 20)"))
+        XCTAssertTrue(page.contains("VStack(alignment: .leading, spacing: designStyle.sectionGap)"))
         XCTAssertTrue(page.contains("statsTodayCard(snapshot)"))
         XCTAssertTrue(page.contains("statsRhythmCard(snapshot)"))
         XCTAssertTrue(page.contains("statsMetricGrid(snapshot, cards: metricCards)"))
@@ -640,9 +640,9 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("func settingsChrome()"),
                       "settings chrome needs a reusable non-list surface")
-        XCTAssertTrue(theme.contains("listRowSpacing(Theme.Metrics.settingsRowGap)"),
+        XCTAssertTrue(theme.contains("listRowSpacing(preferences.designStyle.rowGap)"),
                       "settings rows need a shared gap instead of a squished glass stack")
-        XCTAssertTrue(theme.contains("listSectionSpacing(Theme.Metrics.settingsSectionGap)"),
+        XCTAssertTrue(theme.contains("listSectionSpacing(preferences.designStyle.sectionGap)"),
                       "settings groups need shared breathing room")
         XCTAssertTrue(setup.contains(".settingsChrome()"),
                       "the reminder setup page must follow the selected material too")
@@ -711,7 +711,7 @@ final class AppearanceSettingTests: XCTestCase {
                       "Solid forms should use a continuous plane without row gaps or separators")
         XCTAssertFalse(surface.contains(".listRowSeparator(.visible"),
                        "normal Solid forms must not restore a border between native rows")
-        XCTAssertTrue(surface.contains(": Theme.Metrics.settingsRowGap)")
+        XCTAssertTrue(surface.contains(": preferences.designStyle.rowGap)")
                       && surface.contains(".listRowSeparator(.hidden)"),
                       "Milky, Liquid, Adaptive, and accessibility fallbacks must keep existing styling")
     }
@@ -746,8 +746,11 @@ final class AppearanceSettingTests: XCTestCase {
 
         XCTAssertTrue(theme.contains("settingsRowMinHeight"),
                       "settings need one shared minimum row height")
-        XCTAssertTrue(theme.contains("environment(\\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)"),
+        XCTAssertTrue(theme.contains("environment(\\.defaultMinListRowHeight, preferences.designStyle.settingsRowHeight)"),
                       "native lists must keep rows readable without fixing their height")
+        for style in AppDesignStyle.allCases {
+            XCTAssertGreaterThanOrEqual(style.settingsRowHeight, Theme.Metrics.hit)
+        }
     }
 
     func testAppearanceAndSetupLabelsHaveEnglishCatalogEntries() throws {
@@ -1093,7 +1096,7 @@ final class AppearanceSettingTests: XCTestCase {
         // means passing its title to the shell. Asserting the old literal would
         // have demanded a page paint its own header — the duplication this
         // whole change exists to remove.
-        XCTAssertTrue(more.contains("SettingsPage(title: String(localized: \"Konto\"))"),
+        XCTAssertTrue(more.contains("SettingsPage(title: String(localized: \"Alias und Apple-Anmeldung\"))"),
                       "Account must keep the shared secondary-page header")
         XCTAssertTrue(more.contains("private var personalSection: some View")
                       && more.contains("AppSettingsGroup"),

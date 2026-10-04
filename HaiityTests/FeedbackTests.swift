@@ -357,7 +357,9 @@ final class FeedbackTests: XCTestCase {
 
         XCTAssertTrue(more.contains("if storedAppleUserID != nil"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"apple-signout\")"))
-        XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"))
+        XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
+        XCTAssertFalse(more.contains("Pro.refresh(mayDowngrade: true)"),
+                       "optional personalization is not an App Store account change")
     }
 
     func testFloatingToastsUseCompactTypeAndSharedAppearanceSurface() throws {
@@ -395,7 +397,7 @@ final class FeedbackTests: XCTestCase {
         let reminderSetup = try source("Haiity/Views/ReminderSetupView.swift")
 
         XCTAssertTrue(components.contains("struct AppSettingsRow<Trailing: View>: View"))
-        XCTAssertTrue(components.contains("Theme.Metrics.settingsRowMinHeight"))
+        XCTAssertTrue(components.contains("minHeight: preferences.designStyle.settingsRowHeight"))
         XCTAssertTrue(more.contains("AppSettingsRow(title: title,"))
         XCTAssertTrue(more.contains("AppSettingsRow(title: String(localized: \"GitHub\"),"))
         XCTAssertTrue(github.contains("AppSettingsRow(title: String(localized: \"GitHub-Namen anzeigen\"),"))
@@ -723,8 +725,8 @@ final class FeedbackTests: XCTestCase {
                         "Beim Anpassen des App-Icons fragt iOS einmal kurz nach."] {
             XCTAssertFalse(more.contains(verbose), verbose)
         }
-        XCTAssertTrue(more.contains("Mitteilungen und Kalender konfigurieren"))
-        XCTAssertTrue(more.contains("App-weite Vorgaben und Teilen"))
+        XCTAssertTrue(more.contains("Mitteilungen & Kalender einrichten"))
+        XCTAssertTrue(more.contains("Zeitzone, Kalender und Apple-Erinnerungen"))
         XCTAssertFalse(more.contains("moreStatusHero"))
         XCTAssertFalse(more.contains("moreOverview"))
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
@@ -835,13 +837,15 @@ final class FeedbackTests: XCTestCase {
                                    ("notificationSection", "private var testNotificationButton: some View"),
                                    ("calendarSection", "private var proSection: some View"),
                                    ("proSection", "private var dataTransferSection: some View"),
-                                   ("dataTransferSection", "private var actionSection: some View"),
                                    ("actionSection", "private var ownerSection: some View"),
-                                   ("ownerSection", "private func handleImport")]
+                                   ("ownerSection", "private func factRow")]
         for (category, next) in developerCategories {
             let body = try categoryBody(developer, category, next)
             XCTAssertTrue(body.contains("AppSettingsGroup(title:"), category)
         }
+        let transfer = try source("Haiity/Views/DataTransferView.swift")
+        XCTAssertTrue(developer.contains("DataTransferSection(store: store)"))
+        XCTAssertTrue(transfer.contains("AppSettingsGroup(title:"))
         XCTAssertFalse(more.contains("moreSettingsSection()"),
                        "the More settings pages must not go back to a List-backed section")
         XCTAssertFalse(developer.contains("moreSettingsSection()"),
@@ -905,8 +909,11 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(about.contains("shake-to-report-toggle"))
         XCTAssertFalse(more.contains("shake-to-report-toggle"))
         XCTAssertFalse(more.contains("private var shakeToReportSection"))
-        XCTAssertTrue(developer.contains("export-data"))
-        XCTAssertTrue(developer.contains("import-data"))
+        let transfer = try source("Haiity/Views/DataTransferView.swift")
+        XCTAssertTrue(developer.contains("DataTransferSection(store: store)"))
+        XCTAssertTrue(more.contains("open-data-transfer"))
+        XCTAssertTrue(transfer.contains("export-data"))
+        XCTAssertTrue(transfer.contains("import-data"))
     }
 
     /// **Der Knopf unter „Senden" wirft nichts unbemerkt weg.** „Beim

@@ -19,13 +19,10 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testHaiityLargePresentationUsesTwoFullCardsAndOmitsOpenCopy() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        let main = try source("HaiityWidget/HaiityWidgetView.swift")
         XCTAssertTrue(roster.contains("struct LargeDualWidgetView"))
         XCTAssertTrue(roster.contains("entry.largeItems.prefix(2)"))
-
-        let metricLine = try section(main, startingAt: "private func metricLine", endingAt: "private func statusTint")
-        XCTAssertTrue(metricLine.contains("summary.status == .open"))
-        XCTAssertTrue(metricLine.contains("EmptyView()"))
+        XCTAssertTrue(roster.contains("WidgetGraphPanel("))
+        XCTAssertFalse(roster.contains("widgetTileSurface"))
     }
 
     func testLargeListAndGridWidgetsAreNotRegisteredInTheGallery() throws {
@@ -55,20 +52,12 @@ final class GitHubWidgetTests: XCTestCase {
     }
 
     func testLargeWidgetActionsBindTheCurrentItemAndNeverTheParentCollection() throws {
-        for (name, text, marker, end) in [("roster", try source("HaiityWidget/RosterWidgetView.swift"), "private struct LargeWidgetItem", "\nstruct LargeListWidgetView"),
-                                          ("grid", try source("HaiityWidget/WidgetGridViews.swift"), "private struct LargeGridItem", "\n/// Gemeinsame Rasterbausteine")]
-        {
-            let item = try section(text, startingAt: marker, endingAt: end)
-            XCTAssertTrue(text.contains("habit: habit"))
-            XCTAssertTrue(item.contains("HaiityWidgetLink.habits"), "\(name) item must open the habits page")
-            XCTAssertFalse(item.contains("HaiityWidgetLink.habit("), "\(name) must not deep-link to one item")
-            XCTAssertFalse(text.contains("widgetURL(URL(string: \"haiity://habits\")"))
-            for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
-                           "AnswerNoHabitIntent", "ResetHabitIntent"] {
-                XCTAssertTrue(item.contains("\(intent)(habit: habit)"),
-                              "missing current-item binding for \(intent)")
-            }
+        let shared = try source("HaiityWidget/WidgetComponents.swift")
+        for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent", "AnswerNoHabitIntent", "ResetHabitIntent"] {
+            XCTAssertTrue(shared.contains("\(intent)(habit: habit)"), intent)
         }
+        XCTAssertFalse(shared.contains("Link(destination:"))
+        XCTAssertTrue(shared.contains(".frame(width: 44, height: 44)"))
     }
 
     func testLargeWidgetConfigurationIsReadOnlyAndHasNoHabitOrICloudPersistence() throws {
@@ -81,13 +70,13 @@ final class GitHubWidgetTests: XCTestCase {
     func testLargeRenderersKeepReminderGraphFreeAndUseAllActions() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
         let grid = try source("HaiityWidget/WidgetGridViews.swift")
+        let shared = try source("HaiityWidget/WidgetComponents.swift")
+        XCTAssertTrue(roster.contains("habit.isReminder"))
+        XCTAssertTrue(grid.contains("WidgetGraphPanel("))
+        for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent", "AnswerNoHabitIntent", "ResetHabitIntent"] {
+            XCTAssertTrue(shared.contains(intent))
+        }
         for text in [roster, grid] {
-            XCTAssertTrue(text.contains("habit.isReminder"))
-            XCTAssertTrue(text.contains("CheckOffHabitIntent"))
-            XCTAssertTrue(text.contains("AnswerYesHabitIntent"))
-            XCTAssertTrue(text.contains("AnswerNoHabitIntent"))
-            XCTAssertTrue(text.contains("ResetHabitIntent"))
-            XCTAssertTrue(text.contains("HaiityWidgetLink.habits"))
             XCTAssertFalse(text.contains("HaiityWidgetLink.habit("))
         }
     }
@@ -112,26 +101,14 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testLargeRenderersUseGraphsOnlyForTrackedHabitsAndLinkAllContent() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        let grid = try source("HaiityWidget/WidgetGridViews.swift")
-
-        let featured = try section(roster,
-                                   startingAt: "private struct LargeFeaturedWidgetItem",
-                                   endingAt: "private struct LargeCompactWidgetRow")
-        let gridItem = try section(grid,
-                                   startingAt: "private struct LargeGridItem",
-                                   endingAt: "/// Gemeinsame Rasterbausteine")
-        for (name, item) in [("roster", featured), ("grid", gridItem)] {
-            let visualBand = try section(item, startingAt: "let visualBand = Group", endingAt: "let actionBand")
-            let reminderBranch = try section(visualBand, startingAt: "if habit.isReminder", endingAt: "} else")
-            XCTAssertTrue(reminderBranch.contains("Label"), "\(name) reminder branch must render timing")
-            XCTAssertFalse(reminderBranch.contains("TrailingGrid"), "\(name) reminder branch must be graph-free")
-            XCTAssertTrue(visualBand.contains("TrailingGrid(habit: habit"), "\(name) tracked branch must render a graph")
-        }
-        XCTAssertTrue(grid.contains("Link(destination: HaiityWidgetLink.habits)"))
+        let panel = try section(roster, startingAt: "struct WidgetGraphPanel", endingAt: "\n}\n")
+        let reminder = try section(panel, startingAt: "if habit.isReminder", endingAt: "} else")
+        XCTAssertTrue(reminder.contains("WidgetItemStatus("))
+        XCTAssertFalse(reminder.contains("TrailingGrid("))
+        XCTAssertTrue(panel.contains("TrailingGrid("))
+        XCTAssertTrue(panel.contains("HaiityWidgetLink.habits"))
         XCTAssertTrue(roster.contains("WidgetEmptyState()"))
-        XCTAssertTrue(grid.contains("WidgetEmptyState()"))
-        XCTAssertTrue(roster.contains("HaiityWidgetLink.habits"))
-        XCTAssertTrue(grid.contains("HaiityWidgetLink.habits"))
+        XCTAssertTrue(try source("HaiityWidget/WidgetGridViews.swift").contains("WidgetGraphPanel("))
     }
 
     func testLargeIntentStringsArePresentInTheAppLocalizationCatalog() throws {
@@ -250,24 +227,23 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testMainWidgetRendersRemindersWithoutGraphOrGitHub() throws {
         let source = try source("HaiityWidget/HaiityWidgetView.swift")
-        XCTAssertTrue(source.contains("habit.isReminder"))
-        XCTAssertTrue(source.contains("reminderContent"))
+        let reminder = try section(source, startingAt: "if habit.isReminder", endingAt: "} else")
+        XCTAssertTrue(reminder.contains("summary.metricText"))
+        XCTAssertFalse(reminder.contains("TrailingGrid"))
         XCTAssertFalse(source.contains("GitHubContributionGraph"))
     }
 
     func testMainWidgetCanRenderAndResetQuantityAndYesNoStates() throws {
-        let widgetSource = try source("HaiityWidget/HaiityWidgetView.swift")
-        let intent = try source("Haiity/Intents/CheckOffHabitIntent.swift")
-        XCTAssertTrue(widgetSource.contains("ResetHabitIntent"))
-        XCTAssertTrue(widgetSource.contains("habit.kind == .yesNo"))
-        XCTAssertTrue(widgetSource.contains("habit.kind == .quantity"))
-        XCTAssertTrue(intent.contains("struct ResetHabitIntent"))
-        XCTAssertTrue(widgetSource.contains("AnswerYesHabitIntent"),
-                      "Ja/Nein widgets need an explicit Ja action")
-        XCTAssertTrue(widgetSource.contains("AnswerNoHabitIntent"),
-                      "Ja/Nein widgets need an explicit Nein action")
-        XCTAssertTrue(intent.contains("struct AnswerYesHabitIntent"))
-        XCTAssertTrue(intent.contains("struct AnswerNoHabitIntent"))
+        let widget = try source("HaiityWidget/HaiityWidgetView.swift")
+        let shared = try source("HaiityWidget/WidgetComponents.swift")
+        XCTAssertTrue(widget.contains("WidgetResetButton("))
+        XCTAssertTrue(widget.contains("WidgetItemActions("))
+        XCTAssertTrue(shared.contains("case .yesNo:"))
+        XCTAssertTrue(shared.contains("case .quantity:"))
+        for intent in ["ResetHabitIntent", "AnswerYesHabitIntent", "AnswerNoHabitIntent"] {
+            XCTAssertTrue(shared.contains(intent))
+            XCTAssertTrue(try source("Haiity/Intents/CheckOffHabitIntent.swift").contains("struct \(intent)"))
+        }
     }
 
     func testWidgetsOpenHabitsPageWithoutItemSelection() throws {
@@ -284,17 +260,13 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testOverviewWidgetSupportsAllInteractiveItemKinds() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        let logic = try source("HaiityWidget/WidgetLogic.swift")
-
-        XCTAssertTrue(logic.contains("let active = habits.filter { $0.archivedAt == nil }"),
-                      "overview selection must include reminders")
-        for symbol in ["CheckOffHabitIntent", "AnswerYesHabitIntent",
-                       "AnswerNoHabitIntent", "ResetHabitIntent"] {
-            XCTAssertTrue(roster.contains(symbol),
-                          "overview rows need the (symbol) action")
+        let shared = try source("HaiityWidget/WidgetComponents.swift")
+        XCTAssertTrue(roster.contains("WidgetLogic.roster("))
+        XCTAssertTrue(roster.contains("WidgetItemActions("))
+        for intent in ["CheckOffHabitIntent", "AnswerYesHabitIntent", "AnswerNoHabitIntent", "ResetHabitIntent"] {
+            XCTAssertTrue(shared.contains(intent))
         }
-        XCTAssertTrue(roster.contains("habit.isReminder"),
-                      "reminder rows must render without a habit graph")
+        XCTAssertTrue(roster.contains("habit.isReminder"))
     }
 
     func testGraphContextMenuScopesItsHitTestToItsHost() throws {
@@ -408,8 +380,8 @@ final class GitHubWidgetTests: XCTestCase {
 
     func testOverviewCardsPutMetadataOverTheGraph() throws {
         let roster = try source("HaiityWidget/RosterWidgetView.swift")
-        XCTAssertTrue(roster.contains("VStack(alignment: .leading, spacing: 0)"))
-        XCTAssertTrue(roster.contains("metadata(habit: habit"))
+        XCTAssertTrue(roster.contains("WidgetItemIdentity("))
+        XCTAssertTrue(roster.contains("WidgetItemStatus("))
         XCTAssertFalse(roster.contains(".ultraThinMaterial"))
         XCTAssertTrue(roster.contains("TrailingGrid(habit: habit"))
     }

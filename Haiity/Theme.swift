@@ -71,6 +71,92 @@ enum AppearanceBackgroundMode: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum AppDesignStyle: String, CaseIterable, Codable, Sendable {
+    case native, quiet, focus, studio
+
+    var displayName: String {
+        switch self {
+        case .native: String(localized: "Original")
+        case .quiet: String(localized: "Ruhig")
+        case .focus: String(localized: "Fokus")
+        case .studio: String(localized: "Studio")
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .native: String(localized: "Das vertraute hAiity-Design mit klaren Gruppen und nativen Bedienelementen.")
+        case .quiet: String(localized: "Weniger Flächen, dezente Symbole und ein ruhiger Lesefluss.")
+        case .focus: String(localized: "Kompakte Inhalte, klare Aktionen und mehr Überblick.")
+        case .studio: String(localized: "Markante Überschriften und großzügige Flächen für deinen Fortschritt.")
+        }
+    }
+
+    var pageTitleFont: Font {
+        switch self {
+        case .native: .largeTitle.weight(.bold)
+        case .quiet: .largeTitle.weight(.medium)
+        case .focus: .title2.weight(.bold)
+        case .studio: .system(.largeTitle, design: .serif, weight: .bold)
+        }
+    }
+
+    var compactTitleFont: Font {
+        self == .studio ? .system(.headline, design: .serif, weight: .semibold) : .headline.weight(.semibold)
+    }
+
+    var sectionTitleFont: Font {
+        switch self {
+        case .native: .headline.weight(.semibold)
+        case .quiet: .headline.weight(.medium)
+        case .focus: .subheadline.weight(.semibold)
+        case .studio: .system(.title3, design: .serif, weight: .semibold)
+        }
+    }
+
+    var rowTitleFont: Font {
+        self == .focus ? .subheadline.weight(.semibold) : .body.weight(.medium)
+    }
+
+    var cardRadius: CGFloat {
+        switch self {
+        case .native: 16
+        case .quiet: 8
+        case .focus: 12
+        case .studio: 24
+        }
+    }
+
+    var cardPadding: CGFloat {
+        switch self {
+        case .native: 12
+        case .quiet: 10
+        case .focus: 8
+        case .studio: 18
+        }
+    }
+
+    var sectionGap: CGFloat {
+        switch self {
+        case .native: 24
+        case .quiet: 24
+        case .focus: 16
+        case .studio: 32
+        }
+    }
+
+    var rowGap: CGFloat { self == .focus ? 2 : self == .studio ? 8 : 4 }
+    var settingsRowHeight: CGFloat { self == .focus ? 44 : self == .studio ? 60 : 52 }
+    var cardOuterGap: CGFloat { self == .focus ? 8 : self == .studio ? 20 : 12 }
+    var graphPadding: CGFloat { self == .studio ? 8 : 4 }
+    var usesQuietSurfaces: Bool { self == .quiet }
+    var pageHeaderHeight: CGFloat { self == .focus ? 56 : self == .studio ? 92 : 76 }
+
+    func radius(for original: CGFloat) -> CGFloat {
+        original == Theme.Metrics.cardRadius ? cardRadius : original
+    }
+}
+
 /// Persisted appearance choices shared by the app and iCloud payload. Image
 /// bytes are intentionally bounded because they travel with the full habit
 /// asset even though CloudKit stores that asset outside the record fields.
@@ -79,6 +165,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
     static let `default` = AppearancePreferences(material: .solid)
 
     var material: AppearanceMaterial
+    var designStyle: AppDesignStyle
     var backgroundMode: AppearanceBackgroundMode
     var backgroundColorHex: UInt32?
     var gradientStartHex: UInt32?
@@ -106,10 +193,12 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
          backgroundImageFocusY: Double = 0.5,
          backgroundImageZoom: Double = 1,
          backgroundResetAt: TimeInterval? = nil,
-         performanceMode: Bool = false) {
+         performanceMode: Bool = false,
+         designStyle: AppDesignStyle = .native) {
         let boundedImage = backgroundImageData.flatMap(Self.usableImageData)
         let requestedMode = backgroundMode ?? (boundedImage == nil ? .color : .image)
         self.material = material
+        self.designStyle = designStyle
         // An explicitly selected Image mode is also valid before a replacement
         // photo is chosen. Keeping that state visible is what makes the native
         // picker recoverable after a deleted or invalid iCloud payload.
@@ -210,7 +299,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         case material, backgroundMode, backgroundColorHex, gradientStartHex,
              gradientEndHex, backgroundImageData, backgroundImageFocusX,
              backgroundImageFocusY, backgroundImageZoom, backgroundResetAt,
-             performanceMode, adaptive
+             performanceMode, adaptive, designStyle
     }
 
     init(from decoder: Decoder) throws {
@@ -234,7 +323,9 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
             backgroundResetAt: try c.decodeIfPresent(TimeInterval.self,
                                                       forKey: .backgroundResetAt),
             performanceMode: try c.decodeIfPresent(Bool.self,
-                                                   forKey: .performanceMode) ?? false)
+                                                   forKey: .performanceMode) ?? false,
+            designStyle: (try c.decodeIfPresent(String.self, forKey: .designStyle))
+                .flatMap(AppDesignStyle.init(rawValue:)) ?? .native)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -257,6 +348,7 @@ struct AppearancePreferences: Codable, Equatable, Sendable {
         try c.encode(backgroundImageZoom, forKey: .backgroundImageZoom)
         try c.encodeIfPresent(backgroundResetAt, forKey: .backgroundResetAt)
         try c.encode(performanceMode, forKey: .performanceMode)
+        try c.encode(designStyle.rawValue, forKey: .designStyle)
     }
 
     var backgroundImage: UIImage? {
@@ -1147,6 +1239,7 @@ struct RootPageTitle: View {
     var compact: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appearancePreferences) private var appearancePreferences
     @ScaledMetric(relativeTo: .largeTitle) private var titleHeight: CGFloat = 76
     @State private var collapsed = false
 
@@ -1155,7 +1248,7 @@ struct RootPageTitle: View {
             Text(title)
                 .font(compact
                       ? .title2.weight(.bold)
-                      : .largeTitle.weight(.bold))
+                      : appearancePreferences.designStyle.pageTitleFont)
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle, !compact {
                 Text(subtitle)
@@ -1164,7 +1257,9 @@ struct RootPageTitle: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: compact ? 44 : titleHeight, alignment: .leading)
+        .frame(maxWidth: .infinity,
+               minHeight: compact ? 44 : titleHeight * appearancePreferences.designStyle.pageHeaderHeight / 76,
+               alignment: .leading)
         .padding(.horizontal, Theme.Metrics.gutter)
         .background {
             GeometryReader { proxy in
@@ -1203,10 +1298,11 @@ struct RootPageCompactTitle: View {
     let progress: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     var body: some View {
         Text(title)
-            .font(.headline.weight(.semibold))
+            .font(appearancePreferences.designStyle.compactTitleFont)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .opacity(progress)
@@ -1491,6 +1587,7 @@ struct AppearanceBackground: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
         .task(id: imageIdentity) {
             guard let imageData else { return }
             if let cached = AppearanceImageCache.cachedImage(for: imageData) {
@@ -1513,7 +1610,7 @@ private struct AppSurfaceModifier: ViewModifier {
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: preferences.designStyle.radius(for: cornerRadius), style: .continuous)
     }
 
     private var material: AppearanceMaterial {
@@ -1530,6 +1627,8 @@ private struct AppSurfaceModifier: ViewModifier {
     }
 
     private var needsOutline: Bool {
+        if preferences.designStyle.usesQuietSurfaces,
+           !reduceTransparency, contrast != .increased { return false }
         if usesSolidCardPlane { return false }
         if #available(iOS 26, *) {
             if material == .liquid || material == .adaptive { return false }
@@ -1539,6 +1638,13 @@ private struct AppSurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         Group {
+            if preferences.designStyle.usesQuietSurfaces,
+               material == .solid,
+               preferences.backgroundMode == .color,
+               preferences.backgroundColorHex == nil,
+               !reduceTransparency, contrast != .increased {
+                content
+            } else {
                 switch material {
                 case .solid:
                     content.background(Theme.surfaceFill(preferences: preferences), in: shape)
@@ -1600,6 +1706,7 @@ private struct AppSurfaceModifier: ViewModifier {
                             }
                     }
                 }
+            }
         }
         .clipShape(shape)
         .overlay {
@@ -1643,7 +1750,7 @@ struct SettingsRowSurface: View {
     }
 
     private var rowShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous)
     }
 
     @ViewBuilder
@@ -1701,7 +1808,13 @@ struct SettingsRowSurface: View {
 
     @ViewBuilder
     var body: some View {
-        if usesGroupedSolidRows {
+        if preferences.designStyle.usesQuietSurfaces,
+           material == .solid,
+           preferences.backgroundMode == .color,
+           preferences.backgroundColorHex == nil,
+           !reduceTransparency, contrast != .increased {
+            Color.clear.allowsHitTesting(false).accessibilityHidden(true)
+        } else if usesGroupedSolidRows {
             rowSurface
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -1747,9 +1860,9 @@ private struct SettingsSurfaceModifier: ViewModifier {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .softScrollEdges()
-            .listRowSpacing(usesGroupedSolidRows ? 0 : Theme.Metrics.settingsRowGap)
-            .listSectionSpacing(Theme.Metrics.settingsSectionGap)
-            .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
+            .listRowSpacing(usesGroupedSolidRows ? 0 : preferences.designStyle.rowGap)
+            .listSectionSpacing(preferences.designStyle.sectionGap)
+            .environment(\.defaultMinListRowHeight, preferences.designStyle.settingsRowHeight)
             .listRowBackground(settingsRowBackground)
             .listRowSeparator(.hidden)
             .settingsChrome()
@@ -1757,16 +1870,18 @@ private struct SettingsSurfaceModifier: ViewModifier {
 }
 
 private struct MoreSettingsSurfaceModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
     func body(content: Content) -> some View {
         content
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowSpacing(Theme.Metrics.settingsRowGap)
+            .listRowSpacing(preferences.designStyle.rowGap)
             .softScrollEdges()
-            .listSectionSpacing(Theme.Metrics.settingsSectionGap)
-            .environment(\.defaultMinListRowHeight, Theme.Metrics.settingsRowMinHeight)
+            .listSectionSpacing(preferences.designStyle.sectionGap)
+            .environment(\.defaultMinListRowHeight, preferences.designStyle.settingsRowHeight)
             .settingsChrome()
     }
 }
@@ -1784,10 +1899,12 @@ private struct MoreSettingsSectionModifier: ViewModifier {
 }
 
 private struct MorePanelModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
     func body(content: Content) -> some View {
         content
             .background { SettingsRowSurface() }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+            .clipShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius,
                                         style: .continuous))
     }
 }

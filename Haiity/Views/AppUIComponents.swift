@@ -15,6 +15,7 @@ import SwiftUI
 /// inset — differ on purpose, and a component wide enough to absorb them would
 /// carry a knob per caller and stop being a rule.
 struct SettingsPage<Content: View>: View {
+    @Environment(\.appearancePreferences) private var preferences
     /// Root pages name themselves in the header; pushed subpages already carry a
     /// title in the navigation bar.
     var title: String?
@@ -44,7 +45,7 @@ struct SettingsPage<Content: View>: View {
 
     private var scroll: some View {
         ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            VStack(spacing: preferences.designStyle.sectionGap) {
                 content
             }
             .padding(.horizontal, Theme.Metrics.gutter)
@@ -63,6 +64,7 @@ struct AppIconBadge: View {
     var tint: Color?
 
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var preferences
 
     init(symbol: String, tint: Color? = nil) {
         self.symbol = symbol
@@ -76,9 +78,9 @@ struct AppIconBadge: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.body.weight(.semibold))
-            .foregroundStyle(resolvedTint)
+            .foregroundStyle(preferences.designStyle.usesQuietSurfaces ? Color.primary : resolvedTint)
             .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
-            .background(resolvedTint.opacity(0.11), in: Circle())
+            .background(resolvedTint.opacity(preferences.designStyle.usesQuietSurfaces ? 0 : 0.11), in: Circle())
             .accessibilityHidden(true)
     }
 }
@@ -86,6 +88,7 @@ struct AppIconBadge: View {
 /// Layout-only settings row. Native controls stay in the trailing slot and
 /// remain independently hit-testable; routing and persistence stay outside.
 struct AppSettingsRow<Trailing: View>: View {
+    @Environment(\.appearancePreferences) private var preferences
     let title: String
     let detail: String?
     let symbol: String?
@@ -112,7 +115,7 @@ struct AppSettingsRow<Trailing: View>: View {
 
             VStack(alignment: .leading, spacing: detail == nil ? 0 : 2) {
                 Text(title)
-                    .font(.body.weight(.medium))
+                    .font(preferences.designStyle.rowTitleFont)
                     .fixedSize(horizontal: false, vertical: true)
                 if let detail {
                     Text(detail)
@@ -134,7 +137,7 @@ struct AppSettingsRow<Trailing: View>: View {
             }
         }
         .frame(maxWidth: .infinity,
-               minHeight: Theme.Metrics.settingsRowMinHeight,
+               minHeight: preferences.designStyle.settingsRowHeight,
                alignment: .leading)
         .contentShape(Rectangle())
     }
@@ -148,6 +151,7 @@ struct AppSettingsRow<Trailing: View>: View {
 /// callers in more than one file, which is the bar the design system sets for a
 /// shared component; before that it was private to MoreView.
 struct AppSettingsGroup<Content: View>: View {
+    @Environment(\.appearancePreferences) private var preferences
     let title: String
     /// Optional leading symbol. The hub's groups are text-only; the diagnostics
     /// page labels its groups with an SF Symbol. One component serves both
@@ -184,24 +188,25 @@ struct AppSettingsGroup<Content: View>: View {
                 Text(title)
             }
         }
-        .font(.subheadline.weight(.semibold))
+        .font(preferences.designStyle == .native ? .subheadline.weight(.semibold)
+              : preferences.designStyle.sectionTitleFont)
         .foregroundStyle(.secondary)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             label
-                .padding(.horizontal, 14)
+                .padding(.horizontal, preferences.designStyle == .native ? 14 : preferences.designStyle.cardPadding)
             VStack(spacing: 0) { content }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
+                .padding(.horizontal, preferences.designStyle == .native ? 14 : preferences.designStyle.cardPadding)
+                .padding(.vertical, preferences.designStyle.rowGap)
                 .morePanel()
             if let footer {
                 Text(footer)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, preferences.designStyle == .native ? 14 : preferences.designStyle.cardPadding)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -54,6 +54,7 @@ struct ContentView: View {
     @State private var maintenance = PushDebouncer(delay: .milliseconds(500))
     @State private var pendingCalendarSync: CalendarSyncScope?
     @State private var editing: Habit?
+    @State private var editorPresentation = CreateCoverPresentation()
     @State private var pendingDelete: Habit?
     @State private var earlyReminderCompletion: PendingReminderCompletion?
     @State private var showAdd = false
@@ -167,9 +168,11 @@ struct ContentView: View {
     /// The search page owns focus. Selecting it shows the field; selecting the
     /// already-visible Search tab again is the explicit keyboard request.
     @FocusState private var searchFieldFocused: Bool
-    /// Inline custom reorder on the habits list — not list `EditMode`.
+    /// Native compact rows share the current visible order while sorting.
     @State private var habitSortingActive = false
-    @State private var sortingDraggedID: UUID?
+    @State private var sortingIDs: [UUID] = []
+    @State private var sortingGeneration = UUID()
+    @State private var lastSortedHabitID: UUID?
     @State private var rootTitleProgress: CGFloat = 0
     /// Der Rückgängig-Toast. Höchstens einer, der Letzte gewinnt — siehe
     /// UndoToastState.
@@ -324,12 +327,16 @@ struct ContentView: View {
                     .environment(\.appearanceBackgroundOwned, false)
                     .onAppear { paywallDidPresent(context) }
             }
-            .sheet(item: $editing) {
-                EditHabitSheet(store: store, existing: $0)
+            .sheet(item: $editing, onDismiss: deliverPendingEditorDismissalRoute) { habit in
+                EditHabitSheet(store: store, existing: habit)
                     .themed(store, palettes: effectivePalettes)
                     .environment(\.appearanceBackgroundOwned, false)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
+                    .onAppear {
+                        guard editing?.id == habit.id else { return }
+                        editorPresentation.didPresent()
+                    }
             }
             .confirmationDialog(
                 String(localized: "Vor Termin erledigen?"),
@@ -520,8 +527,8 @@ struct ContentView: View {
                 applyCloudPreferences()
                 handleProEntitlementChange(old: old, new: new)
             }
-            .onChange(of: habitsTabSource.map(\.id)) { old, new in
-                if habitSortingActive, Set(old) != Set(new) {
+            .onChange(of: habitsTabSource.map(\.id)) { _, new in
+                if habitSortingActive, new != sortingIDs {
                     setHabitSortingActive(false)
                 }
             }
@@ -599,7 +606,7 @@ struct ContentView: View {
     /// two are never confused for each other.
     @ViewBuilder
     private var speakButton: some View {
-        if !showAdd, !showSpeakToCreate, paywall == nil, !showFeedback,
+        if !showAdd, !showSpeakToCreate, !habitSortingActive, paywall == nil, !showFeedback,
            viewPreferences.dictateCreateEnabled {
             Button {
                 showSpeakToCreate = true
@@ -1059,6 +1066,7 @@ struct ContentView: View {
             switch route {
             case .archive: ArchiveView(store: store)
             case .about: AboutView(store: store)
+            case .dataTransfer: DataTransferView(store: store)
             case .github:
                 GitHubSettingsView(store: github,
                                    showsUsername: githubUsernameBinding,
@@ -1215,10 +1223,14 @@ struct ContentView: View {
     }
 
     private var listFilteredHabits: [Habit] {
+        listFilteredHabits(at: progressNow)
+    }
+
+    private func listFilteredHabits(at now: Date) -> [Habit] {
         visibleActiveHabits.filter {
             habitFilter.matches($0,
                                  defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
-                                 now: progressNow)
+                                 now: now)
         }
     }
 
@@ -1239,15 +1251,16 @@ struct ContentView: View {
         } else {
             habitList
                 .navigationBarTitleDisplayMode(.inline)
-                .environment(\.habitInlineSortingActive, habitSortingActive)
                 .legacySearchDrawer(text: $search,
                                     isPresented: $searching,
                                     prompt: String(localized: "Habits und Erinnerungen durchsuchen"))
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        RootPageCompactTitle(title: String(localized: "Habits"),
-                                             progress: rootTitleProgress)
-                            .allowsHitTesting(sortingDraggedID == nil)
+                        RootPageCompactTitle(title: habitSortingActive
+                                             ? String(localized: "Habits") + " · "
+                                                + (habitFilter.todayOnly ? String(localized: "Heute") : String(localized: "Alle"))
+                                             : String(localized: "Habits"),
+                                             progress: habitSortingActive ? 1 : rootTitleProgress)
                     }
                     ToolbarItemGroup(placement: .topBarLeading) {
                         if !habitSortingActive {
@@ -1260,10 +1273,9 @@ struct ContentView: View {
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                                 .symbolVariant(habitSortingActive ? .fill : .none)
-                                .contentTransition(.symbolEffect(.replace))
+                                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                         }
-                        .symbolEffect(.bounce, value: habitSortingActive)
-                        .allowsHitTesting(sortingDraggedID == nil)
+                        .symbolEffect(.bounce, value: reduceMotion ? false : habitSortingActive)
                         .disabled(!habitSortingActive && (!canSortHabits || habitsTabSource.isEmpty))
                         .accessibilityLabel(habitSortingActive
                                             ? String(localized: "Sortieren beenden")
@@ -1283,7 +1295,6 @@ struct ContentView: View {
                     finishHabitSorting()
                 }
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
-                .allowsHitTesting(sortingDraggedID == nil)
                 .accessibilityIdentifier("finish-reordering")
             }
         } else {
@@ -1387,9 +1398,26 @@ struct ContentView: View {
         }
     }
 
+    private var nativeSortingList: some View {
+        NativeHabitSortingList(habits: sortingHabits,
+            move: { [ids = sortingIDs, generation = sortingGeneration] source, destination in
+                reorderHabit(visibleIDs: ids, generation: generation, from: source, to: destination)
+            }, content: { index, habit in
+                HabitSortingRow(habit: habit, position: index + 1, count: sortingIDs.count,
+                    moveUp: index > 0 ? { moveSortedHabit(habit.id, down: false) } : nil,
+                    moveDown: index + 1 < sortingIDs.count
+                        ? { moveSortedHabit(habit.id, down: true) } : nil)
+                    .themed(store, palettes: effectivePalettes)
+            })
+    }
+
     private var habitList: some View {
         ScrollViewReader { proxy in
-            List {
+            Group {
+                if habitSortingActive {
+                    nativeSortingList
+                } else {
+                    List {
                 Section {
                     RootPageTitle(title: String(localized: "Habits"))
                         .id("habit-list-title")
@@ -1409,7 +1437,42 @@ struct ContentView: View {
                                                   bottom: 0, trailing: Theme.Metrics.gutter))
                         .moveDisabled(true)
                         .allowsHitTesting(!habitSortingActive)
-                    if let snapshot = github.snapshot {
+                    if habitsTabSource.isEmpty {
+                        if !habitFilter.isEmpty && committedSearch.isEmpty {
+                            ContentUnavailableView(String(localized: "Keine passenden Einträge"),
+                                systemImage: "checkmark.circle",
+                                description: Text(String(localized: "Ändere die Filter, um weitere Einträge zu sehen.")))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        } else if !committedSearch.isEmpty {
+                            ContentUnavailableView.search(text: search)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        } else {
+                            ContentUnavailableView {
+                                Label(String(localized: "Noch keine Habits"), systemImage: "square.grid.3x3")
+                            } description: {
+                                Text(String(localized: "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst."))
+                            } actions: {
+                                Button(String(localized: "Ersten Habit anlegen"), action: requestCreate)
+                                    .accessibilityIdentifier("add-first-habit")
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        }
+                    }
+                }
+                if !habitsTabSource.isEmpty {
+                    Section {
+                        ForEach(habitsTabSource) { habit in
+                            row(for: habit)
+                                .id(rowIdentity(habit))
+                                .deleteDisabled(true)
+                        }
+                    }
+                }
+                if let snapshot = github.snapshot {
+                    Section {
                         GitHubContributionCard(snapshot: snapshot,
                                                collapsed: collapsed,
                                                showsUsername: store.githubShowsUsername,
@@ -1425,35 +1488,11 @@ struct ContentView: View {
                             .moveDisabled(true)
                             .allowsHitTesting(!habitSortingActive)
                     }
-                    if habitsTabSource.isEmpty {
-                        if !habitFilter.isEmpty && committedSearch.isEmpty {
-                            ContentUnavailableView(String(localized: "Keine passenden Einträge"),
-                                systemImage: "checkmark.circle",
-                                description: Text(String(localized: "Ändere die Filter, um weitere Einträge zu sehen.")))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        } else if github.snapshot == nil || !search.isEmpty {
-                            ContentUnavailableView.search(text: search)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        }
-                    }
                 }
-                if !habitsTabSource.isEmpty {
-                    Section {
-                        ForEach(habitsTabSource) { habit in
-                            row(for: habit)
-                                .id(rowIdentity(habit))
-                                .disabled(habitSortingActive)
-                                .allowsHitTesting(!habitSortingActive)
-                                .opacity(sortingDraggedID == habit.id ? 0 : 1)
-                                .animation(nil, value: sortingDraggedID)
-                                .deleteDisabled(true)
-                        }
                     }
+                    .accessibilityIdentifier("habit-list")
                 }
             }
-            .accessibilityIdentifier(habitSortingActive ? "habit-sorting-active" : "habit-list")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear { scrollToRequestedHabit(using: proxy) }
             .onChange(of: requestedHabitID) { _, _ in
@@ -1463,19 +1502,19 @@ struct ContentView: View {
                 guard !habitSortingActive else { return }
                 scrollToRequestedHabit(using: proxy)
             }
+            .onChange(of: habitSortingActive) { _, active in
+                if !active { scrollToRequestedHabit(using: proxy) }
+            }
         }
         .listStyle(.plain)
-        .background {
-            HabitSortingSession(
-                active: habitSortingActive,
-                habitIDs: habitsTabSource.map(\.id),
-                move: reorderHabit,
-                persist: { store.persist() },
-                onDraggingIDChange: { id in
-                    if sortingDraggedID != id { sortingDraggedID = id }
-                })
-        }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
+            if habitSortingActive {
+                // Keep the sorting surface stable unless its visible scope changes.
+                if listFilteredHabits(at: now).map(\.id) != sortingIDs {
+                    setHabitSortingActive(false)
+                }
+                return
+            }
             progressNow = now
         }
         .onScrollPhaseChange { _, phase in
@@ -1484,10 +1523,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: habitSortingActive) { _, active in
-            guard active else {
-                sortingDraggedID = nil
-                return
-            }
+            guard active else { return }
             NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
         }
         // Das Chrom liegt ÜBER der Liste. Ohne diese Boden-Marge endet der
@@ -1556,10 +1592,10 @@ struct ContentView: View {
                 await Task.yield()
                 guard requestedHabitID == id else { return }
                 if reduceMotion {
-                    proxy.scrollTo(id, anchor: .center)
+                    proxy.scrollTo(id.uuidString, anchor: .center)
                 } else {
                     withAnimation(.easeInOut(duration: 0.28)) {
-                        proxy.scrollTo(id, anchor: .center)
+                        proxy.scrollTo(id.uuidString, anchor: .center)
                     }
                 }
             }
@@ -1590,23 +1626,48 @@ struct ContentView: View {
 
     private func setHabitSortingActive(_ active: Bool) {
         guard habitSortingActive != active else { return }
+        if active {
+            guard canSortHabits, !habitsTabSource.isEmpty else { return }
+            sortingIDs = habitsTabSource.map(\.id)
+            sortingGeneration = UUID()
+            lastSortedHabitID = nil
+        } else {
+            progressNow = Date()
+            if nativeTab == .habits, let id = lastSortedHabitID {
+                requestedHabitID = id
+            }
+            sortingIDs = []
+        }
         withHabitChromeAnimation { habitSortingActive = active }
     }
 
-    private func reorderHabit(from source: IndexSet, to destination: Int, persist: Bool) {
-        let visibleIDs = habitsTabSource.map(\.id)
-        if reduceMotion {
-            store.moveVisible(visibleIDs,
-                              fromOffsets: source,
-                              toOffset: destination,
-                              persist: persist)
-        } else {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                store.moveVisible(visibleIDs,
-                                  fromOffsets: source,
-                                  toOffset: destination,
-                                  persist: persist)
-            }
+    private var sortingHabits: [Habit] {
+        let byID = Dictionary(habitsTabSource.map { ($0.id, $0) },
+                              uniquingKeysWith: { first, _ in first })
+        return sortingIDs.compactMap { byID[$0] }
+    }
+
+    private func moveSortedHabit(_ id: UUID, down: Bool) {
+        guard let index = sortingIDs.firstIndex(of: id) else { return }
+        reorderHabit(visibleIDs: sortingIDs, generation: sortingGeneration, from: IndexSet(integer: index),
+                     to: down ? index + 2 : index - 1)
+    }
+
+    private func reorderHabit(visibleIDs: [UUID], generation: UUID, from source: IndexSet, to destination: Int) {
+        guard habitSortingActive, generation == sortingGeneration, visibleIDs == sortingIDs,
+              visibleIDs == habitsTabSource.map(\.id),
+              let index = source.first, visibleIDs.indices.contains(index) else { return }
+        guard visibleIDs == listFilteredHabits(at: Date()).map(\.id) else {
+            setHabitSortingActive(false)
+            return
+        }
+        let movedID = visibleIDs[index]
+        // The native table calls this after a completed move.
+        if store.moveVisible(visibleIDs, fromOffsets: source, toOffset: destination) {
+            sortingIDs = habitsTabSource.map(\.id)
+            lastSortedHabitID = movedID
+        } else if store.lastWriteError != nil || visibleIDs != habitsTabSource.map(\.id) {
+            setHabitSortingActive(false)
         }
     }
 
@@ -2539,6 +2600,12 @@ struct ContentView: View {
         createCover.didPresent()
     }
 
+    private func deliverPendingEditorDismissalRoute() {
+        guard editing == nil else { return }
+        editorPresentation.didDismiss()
+        advancePendingRoute()
+    }
+
     private func presentMoreSheet(_ route: MoreRoute) {
         if #available(iOS 26, *) {
             moreRoutePresentationTask?.cancel()
@@ -2619,6 +2686,7 @@ struct ContentView: View {
     private func advance(_ route: RouteWork.Item) {
         let presentation = RoutePresentation(
             create: createCover.phase(requested: showAdd),
+            editor: editorPresentation.phase(requested: editing != nil),
             paywall: paywall != nil
                 ? .presented : paywallIsPresented ? .dismissing : .absent,
             more: moreSheet != nil || morePageRoute != nil
@@ -2626,6 +2694,14 @@ struct ContentView: View {
             morePage: presentedMoreDestination)
 
         switch routeWork.nextStep(for: route, presentation: presentation) {
+        case .dismissEditor:
+            // A deep link abandons the unsaved draft; wait for the sheet's
+            // actual dismissal before changing destination or presenting again.
+            let waitsForOnDismiss = editorPresentation.dismissalIsOwed
+            editing = nil
+            if !waitsForOnDismiss { advance(route) }
+        case .waitForEditorDismissal:
+            break
         case .dismissPaywall:
             let waitsForOnDismiss = paywallIsPresented
             paywall = nil
@@ -2684,7 +2760,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github: nil
+        case .about, .developer, .appearance, .habitBehavior, .github, .dataTransfer: nil
         // A push inside Verhalten & Teilen's stack: no sheet, no deep link.
         case .localModel: nil
         }
@@ -2703,6 +2779,7 @@ struct ContentView: View {
         case .github: .github
         // A push inside Verhalten & Teilen's stack, not a sheet of its own.
         case .localModel: nil
+        case .dataTransfer: nil
         }
     }
 

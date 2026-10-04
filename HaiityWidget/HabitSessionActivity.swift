@@ -20,38 +20,36 @@ struct HabitSessionLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        Text(context.attributes.emoji.isEmpty ? "⏱" : context.attributes.emoji)
-                        Text(context.attributes.name)
-                            .font(.headline)
-                            .lineLimit(1)
-                    }
-                    .padding(.leading, 4)
+                    SessionIdentity(context: context)
+                        .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     SessionTimerText(context: context)
-                        .font(.headline.monospacedDigit())
+                        .font(.title3.weight(.semibold).monospacedDigit())
                         .foregroundStyle(SessionAccent.text(context, dark: true))
-                        .frame(maxWidth: 64)
+                        .frame(width: 88, alignment: .trailing)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         SessionProgressBar(context: context)
                         SessionButtons(context: context)
                     }
                     .padding(.top, 4)
                 }
             } compactLeading: {
-                Text(context.attributes.emoji.isEmpty ? "⏱" : context.attributes.emoji)
+                Image(systemName: "timer")
+                    .foregroundStyle(SessionAccent.text(context, dark: true))
             } compactTrailing: {
                 SessionTimerText(context: context)
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(SessionAccent.text(context, dark: true))
-                    .frame(maxWidth: 44)
+                    .frame(width: 44, alignment: .trailing)
             } minimal: {
                 Image(systemName: "timer")
                     .foregroundStyle(SessionAccent.text(context, dark: true))
             }
+            .widgetURL(HaiityWidgetLink.habits)
+            .keylineTint(SessionAccent.fill(context, dark: true))
         }
     }
 
@@ -69,13 +67,36 @@ private struct SessionAccent {
 
 // MARK: – Bausteine
 
-/// Die laufende Uhr. Countdown gegen den Plan, sonst Zähler ab Start.
+private struct SessionIdentity: View {
+    let context: ActivityViewContext<HabitActivityAttributes>
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if !context.attributes.emoji.isEmpty {
+                Text(verbatim: context.attributes.emoji)
+                    .accessibilityHidden(true)
+            }
+            Text(verbatim: context.attributes.name)
+                .font(.headline)
+                .lineLimit(2)
+                .layoutPriority(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .privacySensitive()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(context.attributes.name)
+    }
+}
+
+/// The system keeps counting elapsed time, including beyond the planned end.
 private struct SessionTimerText: View {
     let context: ActivityViewContext<HabitActivityAttributes>
 
     var body: some View {
         Text(context.state.startedAt, style: .timer)
             .multilineTextAlignment(.trailing)
+            .lineLimit(1)
+            .privacySensitive()
     }
 }
 
@@ -94,10 +115,11 @@ private struct SessionProgressBar: View {
                              countsDown: false, label: { EmptyView() },
                              currentValueLabel: { EmptyView() })
                     .progressViewStyle(.linear)
-                        .tint(SessionAccent.fill(context, dark: scheme == .dark))
+                    .tint(SessionAccent.fill(context, dark: scheme == .dark))
                 Text(String(localized: "Geplant: \(HabitSessionMath.durationText(minutes: planned))"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
     }
@@ -114,46 +136,45 @@ private struct SessionButtons: View {
             Button(intent: FinishHabitSessionIntent()) {
                 Label(String(localized: "Fertig"), systemImage: "checkmark")
                     .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
             .tint(SessionAccent.fill(context, dark: scheme == .dark))
+            .accessibilityIdentifier("session-finish")
             Button(intent: CancelHabitSessionIntent()) {
                 Image(systemName: "xmark")
                     .font(.subheadline.weight(.semibold))
-                    .frame(width: 44)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel(String(localized: "Abbrechen"))
+            .accessibilityIdentifier("session-cancel")
         }
+        .controlSize(.mini)
+        .accessibilityElement(children: .contain)
     }
 }
 
-/// Das Banner auf dem Sperrbildschirm: Kopfzeile wie die Habit-Karte
-/// (Emoji, Name, Uhr rechts), darunter Fortschritt und die beiden Knöpfe.
+/// Identity and elapsed time have separate space; progress and actions follow.
 private struct LockScreenSessionView: View {
     let context: ActivityViewContext<HabitActivityAttributes>
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if !context.attributes.emoji.isEmpty {
-                    Text(context.attributes.emoji).font(.title3)
-                }
-                Text(context.attributes.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                SessionIdentity(context: context)
                 SessionTimerText(context: context)
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(SessionAccent.text(context, dark: scheme == .dark))
-                    .frame(maxWidth: 80)
+                    .frame(width: 88, alignment: .trailing)
             }
             SessionProgressBar(context: context)
             SessionButtons(context: context)
         }
         .padding(14)
         .activityBackgroundTint(nil)
+        .widgetURL(HaiityWidgetLink.habits)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("session-activity")
     }

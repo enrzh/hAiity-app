@@ -4,12 +4,21 @@
   "testTargets": [{
     "target": {"containerPath": "container:Haiity.xcodeproj", "identifier": "291C191FDF9F851022C84A1C", "name": "HaiityUITests"},
     "selectedTests": [
+      "DesignStyleUITests/testStyleTapsApplyAcrossRootAndAccountPages()",
+      "DesignStyleUITests/testEveryStyleKeepsPhotoMaterialAndAdvancedControls()",
       "SpeakToCreateDockUITests/testNumericDateAndTimeArePreviewedAndInvalidInputCannotBeSaved()",
       "SpeakToCreateDockUITests/testISODatePreviewAndInlineMicrophoneInEnglishAndArabicPhotoAppearances()",
       "SpeakToCreateDockUITests/testSpaceSeparatedDatePreviewAndSavingAgree()",
       "SpeakToCreateDockUITests/testDeniedDictationKeepsTypedTextAndEditingAvailable()",
       "SpeakToCreateDockUITests/testDictationPreservesPrefixAndFinalizesBeforeCreation()",
       "TodayProgressUITests/testSearchTabShowsATappableSearchField()",
+      "TodayProgressUITests/testFirstHabitCanBeCreatedAndCheckedWithoutSetup()",
+      "TodayProgressUITests/testRejectedCreationSaveKeepsDraftAndAllowsRetry()",
+      "TodayProgressUITests/testDailyEntriesPrecedeGitHubAndGitHubOnlyStateOffersCreation()",
+      "TodayProgressUITests/testDeepLinkDismissesAnUnsavedEditorBeforeOpeningStatsOrCreation()",
+      "TodayProgressUITests/testCreationLivePreviewAndAdvancedControls()",
+      "TodayProgressUITests/testDataTransferIsReachableWithoutDeveloperAccess()",
+      "TodayProgressUITests/testStatisticsDetailsExpandWithoutChangingSummaryValues()",
       "TodayProgressUITests/testContributionChartLightAndDarkScreenshots()",
       "TodayProgressUITests/testReminderEditButtonPreservesCompletionAtBothTextSizes()",
       "TodayProgressUITests/testMigratedSettingsPagesKeepTheirRowsHittable()",
@@ -18,7 +27,9 @@
       "TodayProgressUITests/testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes()",
       "TodayProgressUITests/testSortingStaysOnTheHabitsPageAndDoneExitsInlineMode()",
       "TodayProgressUITests/testSortingDoesNotCheckOffRowsAndStopsWhenLeavingHabits()",
-      "TodayProgressUITests/testSortingCanDragAReminderAboveAHabitAndRestoreEditing()"
+      "TodayProgressUITests/testSortingCanDragAReminderAboveAHabitAndRestoreEditing()",
+      "SortingUITests/testBottomToTopAndBackSurvivesReload()",
+      "SortingUITests/testSortingRowsRemainReadableOverPhotosInLightAndDarkMode()"
     ]
   }],
   "version": 1

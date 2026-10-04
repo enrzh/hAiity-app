@@ -76,6 +76,7 @@ struct PaywallView: View {
     @State private var note: Note?
     @State private var proStatus = ProStatus.shared
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var preferences
 
     /// Beim Öffnen aus den Einstellungen kann der Kauf schon vorliegen —
     /// dann wäre ein Kaufknopf schlicht falsch. Kein gespiegelter Zustand:
@@ -144,7 +145,7 @@ struct PaywallView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(verbatim: "hAiity Pro")
-                .font(.largeTitle.bold())
+                .font(preferences.designStyle.pageTitleFont)
             Text(context.headline)
                 .font(.headline)
                 .foregroundStyle(accent)

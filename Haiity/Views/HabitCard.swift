@@ -77,7 +77,7 @@ struct HabitCard: View, Equatable {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.habitInlineSortingActive) private var habitInlineSortingActive
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
     /// Klammert Pille und verschmolzenen Zustand zusammen, damit das eine ins
     /// andere fliegt statt zu blinken.
     @Namespace private var doneNamespace
@@ -89,6 +89,27 @@ struct HabitCard: View, Equatable {
     /// UIKit lifts the transparent bridge host, while the original SwiftUI
     /// surface would otherwise remain underneath and draw a second halo.
     @State private var isContextMenuVisible = false
+    @State private var renderedSnapshot: (key: GridCalendar.HabitSnapshotKey, value: GridCalendar.Snapshot)?
+
+    private var snapshotRequest: GridCalendar.HabitSnapshotKey {
+        GridCalendar.HabitSnapshotKey(habit: habit, weeks: 53, today: today, calendar: calendar)
+    }
+
+    private var cardSnapshot: GridCalendar.Snapshot? {
+        guard let renderedSnapshot,
+              renderedSnapshot.key.canDisplaySnapshot(for: snapshotRequest) else { return nil }
+        return renderedSnapshot.value
+    }
+
+    private func loadCardSnapshot(for request: GridCalendar.HabitSnapshotKey) async {
+        let habit = habit
+        let signpost = StartupMetrics.begin("habitCardCalculation")
+        defer { StartupMetrics.end("habitCardCalculation", id: signpost) }
+        guard let snapshot = await ContributionSnapshotScheduler.perform({
+            GridCalendar.displaySnapshot(habit: habit, today: request.today, calendar: request.calendar)
+        }), !Task.isCancelled, request == snapshotRequest else { return }
+        renderedSnapshot = (request, snapshot)
+    }
 
     private var today: String { DayKey.today(calendar: calendar) }
     private var doneToday: Bool {
@@ -119,12 +140,12 @@ struct HabitCard: View, Equatable {
 
     /// Abstand Kopf -> eigenes Raster. Klein und absichtlich: der Kopf
     /// gehört zur Fläche DARUNTER.
-    private var innerGap: CGFloat { collapsed ? 4 : Theme.Metrics.gap }
+    private var innerGap: CGFloat { collapsed ? designStyle.rowGap : designStyle.rowGap * 2 }
 
     /// Abstand zur nächsten Karte — immer ein Vielfaches des inneren
     /// Abstands, sonst liest sich der freistehende Kopf als Fußzeile der
     /// vorigen Karte statt als Überschrift der eigenen.
-    private var outerGap: CGFloat { collapsed ? 8 : 12 }
+    private var outerGap: CGFloat { collapsed ? max(4, designStyle.cardOuterGap - 4) : designStyle.cardOuterGap }
 
     var body: some View {
         #if DEBUG
@@ -138,17 +159,13 @@ struct HabitCard: View, Equatable {
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
         // `SwipeReveal.canBegin` (Historie vor Aufziehen, außer am Ende).
         .background {
-            if habitInlineSortingActive {
-                Color.clear.accessibilityHidden(true)
-            } else {
-                SwipeRevealPan(shouldBegin: revealShouldBegin,
-                               began: { reveal.begin() },
-                               changed: revealChanged,
-                               ended: revealEnded,
-                               cancelled: { snapReveal(to: 0) },
-                               isOpen: { reveal.offset != 0 },
-                               ownerID: habit.id)
-            }
+            SwipeRevealPan(shouldBegin: revealShouldBegin,
+                           began: { reveal.begin() },
+                           changed: revealChanged,
+                           ended: revealEnded,
+                           cancelled: { snapReveal(to: 0) },
+                           isOpen: { reveal.offset != 0 },
+                           ownerID: habit.id)
         }
         // Der Zeilenabstand steckt bewusst HIER und nicht in `listRowInsets`:
         // Insets springen beim Umschalten, ein Padding wird animiert.
@@ -162,6 +179,9 @@ struct HabitCard: View, Equatable {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("habit-card")
         .allowsHitTesting(!reveal.actionLock)
+        .task(id: snapshotRequest) {
+            await loadCardSnapshot(for: snapshotRequest)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .swipeRevealDismissAll)) { _ in
             guard reveal.offset != 0 else { return }
             snapReveal(to: 0)
@@ -278,7 +298,7 @@ struct HabitCard: View, Equatable {
             // Die Trefferfläche ist die KARTE, nicht nur das, was in ihr
             // gezeichnet ist: ein langer Druck auf eine leere Ecke des
             // Rasters soll dasselbe tun wie einer auf eine Zelle.
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+            .contentShape(RoundedRectangle(cornerRadius: designStyle.cardRadius,
                                            style: .continuous))
             // Der Halten-Popup ist das SYSTEM-Kontextmenü (dieselbe
             // Mechanik wie das Halten auf einem Link): Anheben der Karte,
@@ -290,7 +310,7 @@ struct HabitCard: View, Equatable {
             // die UIKit-Interaktion selbst, angehängt an die Zelle (siehe
             // GraphContextMenu).
             .overlay {
-                GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+                GraphContextMenu(cardRadius: designStyle.cardRadius,
                                  previewWidth: previewWidth,
                                  previewHeight: Self.contextPreviewHeight,
                                  previewOwnsSurface: true,
@@ -306,7 +326,6 @@ struct HabitCard: View, Equatable {
                                      isContextMenuVisible = visible
                                  })
                     .frame(maxWidth: previewWidth)
-                    .allowsHitTesting(!habitInlineSortingActive)
             }
             .onTapGesture {
                 onBackfill()
@@ -380,13 +399,7 @@ struct HabitCard: View, Equatable {
     }
 
     private var previewWidth: CGFloat { Self.previewMetrics(windowWidth: Self.windowWidth()).width }
-    private var gridWeeks: Int {
-        GridCalendar.weeksForDisplay(habit: habit,
-                                     today: today,
-                                     minimumWeeks: 24,
-                                     maximumWeeks: 53,
-                                     calendar: calendar)
-    }
+    private var gridWeeks: Int { cardSnapshot?.weeks ?? 24 }
     private static let previewGraphGap: CGFloat = 2
 
     private var previewGraphCellSize: CGFloat {
@@ -401,10 +414,13 @@ struct HabitCard: View, Equatable {
                                              weeks: gridWeeks,
                                              today: today,
                                              calendar: calendar)
-        let streak = habit.streak(today: today, calendar: calendar)
+        let streak = snapshot.streak
 
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+        return VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
+                : AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
+            layout {
                 if !habit.emoji.isEmpty {
                     Text(habit.emoji)
                         .font(.title3)
@@ -415,13 +431,14 @@ struct HabitCard: View, Equatable {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(habit.name)
-                        .font(.headline)
-                        .lineLimit(1)
+                        .font(designStyle.sectionTitleFont)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(String(localized: "Verlauf"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 8)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 previewMetric(value: snapshot.filledCount,
                               label: String(localized: "Tage"))
                 if streak > 0 {
@@ -439,7 +456,8 @@ struct HabitCard: View, Equatable {
                              calendar: calendar)
                 .equatable()
         }
-        .padding(14)
+        .padding(.horizontal, min(designStyle.cardPadding + 2, Theme.Metrics.gutter))
+        .padding(.vertical, designStyle.cardPadding + 2)
         .frame(width: previewWidth)
         .appSurface()
         // Die Vorschau ist eine EIGENE Präsentation und erbt die Umgebung
@@ -541,18 +559,18 @@ struct HabitCard: View, Equatable {
     private var header: some View {
         Group {
             if typeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
                     nameRun
-                    HStack(spacing: Theme.Metrics.gap) {
+                    HStack(spacing: designStyle.rowGap * 2) {
                         Spacer(minLength: 0)
                         todayButton
                     }
                 }
                 .padding(.horizontal, 4)
             } else {
-                HStack(spacing: Theme.Metrics.gap) {
+                HStack(spacing: designStyle.rowGap * 2) {
                     nameRun
-                    Spacer(minLength: Theme.Metrics.gap)
+                    Spacer(minLength: designStyle.rowGap * 2)
                     // Zusammengezogen bleibt der Name mit verschmolzenem
                     // Heute-Zustand.
                     if !collapsed { todayButton }
@@ -603,6 +621,7 @@ struct HabitCard: View, Equatable {
         // SwiftUI ein anderer View: der Name würde beim Umschalten
         // übergeblendet (zwei Namen übereinander) statt zu interpolieren.
         .allowsHitTesting(collapsed)
+        .frame(minHeight: collapsed ? Theme.Metrics.hit : 0)
         .accessibilityIdentifier(collapsed ? "check-today" : "habit-name")
         .accessibilityLabel(collapsed ? collapsedActionLabel : habit.name)
         .accessibilityRemoveTraits(collapsed ? [] : .isButton)
@@ -612,14 +631,14 @@ struct HabitCard: View, Equatable {
     private var nameContent: some View {
         Group {
             if typeSize.isAccessibilitySize && !collapsed {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         if !habit.emoji.isEmpty {
                             Text(habit.emoji)
                                 .font(.title3)
                         }
                         Text(habit.name)
-                            .font(.headline)
+                            .font(designStyle.sectionTitleFont)
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -632,7 +651,7 @@ struct HabitCard: View, Equatable {
                             .font(collapsed ? .subheadline : .title3)
                     }
                     Text(habit.name)
-                        .font(collapsed ? .subheadline.weight(.semibold) : .headline)
+                        .font(collapsed ? designStyle.rowTitleFont : designStyle.sectionTitleFont)
                         .lineLimit(typeSize.isAccessibilitySize ? 3 : (collapsed ? 1 : 2))
                     // Der Zustand steht HINTER dem Namen, nicht davor: sonst rückt
                     // ein Häkchen die Namen der abgehakten Karten ein und die Liste
@@ -705,9 +724,9 @@ struct HabitCard: View, Equatable {
     /// (es zählt auch — siehe GoalEngine).
     @ViewBuilder
     private var meta: some View {
-        let streak = habit.streak(today: today, calendar: calendar)
+        let streak = cardSnapshot?.streak ?? 0
         if timeText != nil || streak > 0 || nextDueLabel != nil {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
+            HStack(alignment: .firstTextBaseline, spacing: designStyle.rowGap * 2) {
                 if let time = timeText {
                     metaItem("clock", time,
                              label: String(localized: "Um \(time)"))
@@ -864,6 +883,7 @@ struct HabitCard: View, Equatable {
 /// Isolates the reveal offset from the habit header. The pan still lives on
 /// the full row; only this layer reads `offset` on each drag frame.
 private struct HabitSlidingGrid<Grid: View>: View {
+    @Environment(\.appearancePreferences) private var appearancePreferences
     var reveal: SwipeRevealSession
     let leadingSwipe: [RevealAction]
     let trailingSwipe: [RevealAction]
@@ -884,7 +904,7 @@ private struct HabitSlidingGrid<Grid: View>: View {
                 .overlay {
                     if revealOffset != 0 {
                         Color.clear
-                            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius,
+                            .contentShape(RoundedRectangle(cornerRadius: appearancePreferences.designStyle.cardRadius,
                                                            style: .continuous))
                             .onTapGesture(perform: onClose)
                             .offset(x: revealOffset * mirror)

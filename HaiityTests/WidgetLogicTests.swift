@@ -381,26 +381,23 @@ final class WidgetLogicTests: GridTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
             "HaiityWidget/RosterWidgetView.swift"))
-        let rowStart = try XCTUnwrap(source.range(of: "private func row("))
-        let actionsStart = try XCTUnwrap(source.range(of: "private func actionButtons",
-                                                      range: rowStart.upperBound..<source.endIndex))
-        let row = source[rowStart.lowerBound..<actionsStart.lowerBound]
-        let linkCount = row.components(separatedBy:
-            "Link(destination: HaiityWidgetLink.habits)").count - 1
-
-        XCTAssertEqual(linkCount, 3,
-                       "the graph, title, and metadata may open the habits page, but a link must not cover widget buttons")
+        XCTAssertTrue(source.contains("Link(destination: HaiityWidgetLink.habits)"))
+        XCTAssertTrue(source.contains("WidgetItemActions("))
+        let shared = try String(contentsOf: root.appendingPathComponent("HaiityWidget/WidgetComponents.swift"),
+                                encoding: .utf8)
+        XCTAssertFalse(shared.contains("Link(destination:"), "Intent controls must remain outside navigation links")
+        XCTAssertTrue(shared.contains("Button(intent:"))
     }
 
     func testOverviewUsesTheItemNegativePaletteForNo() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
-            "HaiityWidget/RosterWidgetView.swift"))
+            "HaiityWidget/WidgetComponents.swift"))
 
         XCTAssertTrue(source.contains("palette.negative(dark: dark)"),
                       "No must use the habit palette instead of gray metadata")
-        XCTAssertTrue(source.contains("private func statusTint"))
+        XCTAssertTrue(source.contains("case .declined"))
     }
 
     // MARK: – … und der Satz dazu
@@ -541,7 +538,7 @@ final class WidgetLogicTests: GridTestCase {
         let implementation = suffix[..<end]
         XCTAssertEqual(implementation.components(separatedBy: "HabitStore.read").count - 1, 1)
         XCTAssertTrue(implementation.contains("data: data"))
-        XCTAssertTrue(implementation.contains("calendar: calendar"))
+        XCTAssertTrue(implementation.contains("nextRefresh(for: entry)"))
     }
 
     // MARK: – Rastergeometrie
@@ -680,11 +677,11 @@ final class WidgetLogicTests: GridTestCase {
 
     // MARK: – Homescreen mit kräftigerer Farbe
 
-    func testHomeWidgetLiftsCompletedLevelsWithoutChangingEmptyOrDeclinedCells() {
+    func testHomeWidgetKeepsEveryContributionIntensityDistinct() {
         XCTAssertEqual(HomeWidgetInk.mappedLevel(0), 0)
-        XCTAssertEqual(HomeWidgetInk.mappedLevel(1), 3)
-        XCTAssertEqual(HomeWidgetInk.mappedLevel(2), 4)
-        XCTAssertEqual(HomeWidgetInk.mappedLevel(3), 4)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(1), 1)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(2), 2)
+        XCTAssertEqual(HomeWidgetInk.mappedLevel(3), 3)
         XCTAssertEqual(HomeWidgetInk.mappedLevel(4), 4)
         XCTAssertEqual(HomeWidgetInk.mappedLevel(Habit.Answer.declinedLevel),
                        Habit.Answer.declinedLevel)
@@ -695,6 +692,56 @@ final class WidgetLogicTests: GridTestCase {
                              HomeWidgetInk.lightBackgroundOpacity)
         XCTAssertGreaterThan(HomeWidgetInk.lightBackgroundOpacity, 0)
         XCTAssertLessThanOrEqual(HomeWidgetInk.darkBackgroundOpacity, 0.2)
+    }
+
+    func testTimelineRefreshUsesEarliestItemTimezoneBoundary() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-04T12:00:00Z"))
+        var item = Habit(name: "Tokyo")
+        item.timeZoneIdentifier = "Asia/Tokyo"
+        let entry = HaiityEntry(date: now, habits: [item], defaultTimeZoneIdentifier: "Europe/Berlin")
+        XCTAssertEqual(WidgetLogic.nextRefresh(for: entry),
+                       ISO8601DateFormatter().date(from: "2026-10-04T15:00:00Z"))
+        let empty = HaiityEntry(date: now, habits: [], defaultTimeZoneIdentifier: "Europe/Berlin")
+        XCTAssertEqual(WidgetLogic.nextRefresh(for: empty),
+                       ISO8601DateFormatter().date(from: "2026-10-04T22:00:00Z"))
+    }
+
+    func testCompletedOneTimeReminderStaysDoneOnLaterWidgetSnapshots() throws {
+        var item = named("Appointment", recurrence: Recurrence(frequency: .once, start: "2026-08-08"),
+                         log: ["2026-08-08": 1])
+        item.itemType = .reminder
+        let now = try XCTUnwrap(DayKey.date(from: today, calendar: cal)).addingTimeInterval(12 * 3600)
+        XCTAssertEqual(WidgetLogic.summary(habit: item, today: today, calendar: cal, now: now).status, .done)
+        item.log = [:]
+        XCTAssertEqual(WidgetLogic.summary(habit: item, today: today, calendar: cal, now: now).status, .open)
+    }
+
+    func testWidgetGalleryHistoryIsNotHiddenByDemoCreationDates() {
+        for item in HaiityEntry.demo.habits {
+            XCTAssertLessThan(item.createdAt, DayKey.today())
+            XCTAssertGreaterThan(GridCalendar.snapshot(habit: item, weeks: 53).filledCount, 20)
+        }
+    }
+
+    func testAllDayReminderDoesNotLookOverdueAtNoon() throws {
+        let now = try XCTUnwrap(DayKey.date(from: today, calendar: cal)).addingTimeInterval(12 * 3600)
+        var item = named("Task", recurrence: Recurrence(frequency: .once, start: today))
+        item.itemType = .reminder
+        let summary = WidgetLogic.summary(habit: item, today: today, calendar: cal, now: now)
+        XCTAssertEqual(summary.status, .open)
+        XCTAssertEqual(summary.metricText, String(localized: "Heute"))
+    }
+
+    func testTimedReminderRefreshesAtItsNextDueClock() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-04T12:00:00Z"))
+        var item = Habit(name: "Appointment", itemType: .reminder, timeMinutes: 14 * 60,
+                         recurrence: Recurrence(frequency: .once, start: "2026-10-04"))
+        item.timeZoneIdentifier = "UTC"
+        let entry = HaiityEntry(date: now, habits: [item], defaultTimeZoneIdentifier: "UTC")
+        XCTAssertEqual(WidgetLogic.nextRefresh(for: entry),
+                       ISO8601DateFormatter().date(from: "2026-10-04T14:00:00Z"))
+        XCTAssertTrue(WidgetLogic.summary(habit: item, today: "2026-10-04", calendar: entry.calendar(for: item),
+                                           now: now).metricText.contains("14:00"))
     }
 
     // MARK: – Der Eintrag

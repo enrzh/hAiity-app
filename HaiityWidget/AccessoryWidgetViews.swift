@@ -31,6 +31,7 @@ struct RingAccessoryView: View {
 
     var body: some View {
         content(mode: mode)
+            .widgetURL(HaiityWidgetLink.habits)
     }
 
     func content(mode: WidgetRenderingMode) -> some View {
@@ -44,12 +45,14 @@ struct RingAccessoryView: View {
             Circle()
                 .stroke(track(mode), lineWidth: width)
                 .padding(width / 2 + 1)
-            Circle()
-                .trim(from: 0, to: max(0.02, progress.fraction))
-                .stroke(arc(mode), style: StrokeStyle(lineWidth: width, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .padding(width / 2 + 1)
-                .widgetAccentable()
+            if progress.fraction > 0 {
+                Circle()
+                    .trim(from: 0, to: progress.fraction)
+                    .stroke(arc(mode), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(width / 2 + 1)
+                    .widgetAccentable()
+            }
             label(progress)
                 .foregroundStyle(WidgetInk.foreground(mode))
         }
@@ -69,9 +72,9 @@ struct RingAccessoryView: View {
             Text(verbatim: "\(progress.met)/\(progress.due)")
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .minimumScaleFactor(0.6)
                 .lineLimit(1)
                 .padding(.horizontal, 2)
+                .environment(\.layoutDirection, .leftToRight)
         }
     }
 
@@ -93,9 +96,9 @@ struct RingAccessoryView: View {
     }
 }
 
-// MARK: – Rechteck: Habit, Serie, Mini-Raster
+// MARK: – Rechteck: Identität und Status oder Habit-Historie
 
-/// accessoryRectangular: EIN Habit mit Serie und einem kleinen Raster.
+/// Reminders show their occurrence state; only tracked habits have history.
 struct StreakAccessoryView: View {
     @Environment(\.widgetRenderingMode) private var mode
     @Environment(\.colorScheme) private var scheme
@@ -103,6 +106,7 @@ struct StreakAccessoryView: View {
 
     var body: some View {
         content(mode: mode, dark: scheme == .dark)
+            .widgetURL(HaiityWidgetLink.habits)
     }
 
     /// Modus UND Schema als Argument — siehe `HaiityWidgetView`.
@@ -112,31 +116,47 @@ struct StreakAccessoryView: View {
             let today = entry.today(for: habit)
             let calendar = entry.calendar(for: habit)
             let palette = entry.palettes.style(for: habit)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    if !habit.emoji.isEmpty { Text(verbatim: habit.emoji).font(.caption2) }
-                    Text(verbatim: habit.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .widgetAccentable()
-                    Spacer(minLength: 2)
-                    (Text(Image(systemName: "flame.fill"))
-                        + Text(verbatim: " \(habit.streak(today: today, calendar: calendar))"))
-                        .font(.caption.monospacedDigit())
+            let summary = WidgetLogic.summary(habit: habit, today: today,
+                                              calendar: calendar, now: entry.date)
+            Group {
+                if habit.isReminder {
+                    VStack(alignment: .leading, spacing: 4) {
+                        WidgetItemIdentity(habit: habit, entry: entry, compact: true)
+                            .widgetAccentable()
+                        WidgetItemStatus(summary: summary, palette: palette, dark: dark, mode: mode)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "\(habit.name), \(summary.metricText)"))
+                } else {
+                    let streak = habit.streak(today: today, calendar: calendar)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            WidgetItemIdentity(habit: habit, entry: entry, compact: true)
+                                .widgetAccentable()
+                            Label {
+                                Text(verbatim: String(streak))
+                            } icon: {
+                                Image(systemName: "flame.fill")
+                            }
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .fixedSize(horizontal: true, vertical: false)
+                        }
+                        TrailingGrid(habit: habit, today: today, radius: 1,
+                                     calendar: entry.calendar(for: habit)) { level in
+                            WidgetInk.level(level, mode: mode, dark: dark, palette: palette)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .accessibilityHidden(true)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(localized: "\(habit.name), Serie \(streak) Tage"))
+                    .accessibilityValue(summary.metricText)
                 }
-                TrailingGrid(habit: habit, today: today, radius: 1) { level in
-                    WidgetInk.level(level, mode: mode, dark: dark, palette: palette)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            // Ganze Zeile hell: `.primary` wäre in einem hellen Farbschema
-            // schwarz und damit auf dem Sperrbildschirm durchsichtig.
             .foregroundStyle(WidgetInk.foreground(mode))
             .containerBackground(for: .widget) { Color.clear }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(String(localized: "\(habit.name), Serie \(habit.streak(today: today, calendar: calendar)) Tage"))
+            .privacySensitive()
         } else {
             Text(verbatim: "hAiity")
                 .font(.headline)
@@ -154,7 +174,10 @@ struct InlineAccessoryView: View {
     @Environment(\.widgetRenderingMode) private var mode
     let entry: HaiityEntry
 
-    var body: some View { content(mode: mode) }
+    var body: some View {
+        content(mode: mode)
+            .widgetURL(HaiityWidgetLink.habits)
+    }
 
     /// Die Farbe setzt bei `accessoryInline` das System (es übernimmt den
     /// Stil der Uhr daneben und ignoriert eigene Angaben). Der helle
@@ -166,31 +189,32 @@ struct InlineAccessoryView: View {
         if let habit = entry.habit {
             let today = entry.today(for: habit)
             let calendar = entry.calendar(for: habit)
-            let status = WidgetLogic.status(
-                habit: habit,
-                defaultTimeZoneIdentifier: entry.defaultTimeZoneIdentifier,
-                now: entry.date)
+            let summary = WidgetLogic.summary(habit: habit, today: today,
+                                              calendar: calendar, now: entry.date)
             Label {
                 Text(verbatim: inlineText(habit,
-                                          status: status,
+                                          summary: summary,
                                           today: today,
                                           calendar: calendar))
             } icon: {
-                Image(systemName: symbol(status))
+                Image(systemName: summary.metricSymbol)
             }
             .foregroundStyle(WidgetInk.foreground(mode))
+            .privacySensitive()
         } else {
             Text(verbatim: "hAiity")
         }
     }
 
-    /// Erledigt zeigt die Serie, offen zeigt „heute", frei zeigt den nächsten
-    /// Termin — eine Zeile hat Platz für genau EINE Aussage.
+    /// Reminders keep their occurrence status; a completed habit shows its streak.
     private func inlineText(_ habit: Habit,
-                            status: WidgetStatus,
+                            summary: WidgetItemSummary,
                             today: String,
                             calendar: Calendar) -> String {
-        switch status {
+        if habit.isReminder {
+            return "\(habit.name): \(summary.metricText)"
+        }
+        switch summary.status {
         case .done:
             return String(localized: "\(habit.name): Serie \(habit.streak(today: today, calendar: calendar))")
         case .open:
@@ -204,12 +228,4 @@ struct InlineAccessoryView: View {
         }
     }
 
-    private func symbol(_ status: WidgetStatus) -> String {
-        switch status {
-        case .done: return "checkmark.circle.fill"
-        case .open: return "circle"
-        case .declined: return "xmark.circle.fill"
-        case .free: return "circle.dashed"
-        }
-    }
 }

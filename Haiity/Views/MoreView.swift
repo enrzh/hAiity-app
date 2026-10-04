@@ -16,7 +16,7 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, github, localModel
+    case archive, about, developer, appearance, habitBehavior, github, localModel, dataTransfer
 
     var id: Self { self }
 }
@@ -225,6 +225,7 @@ struct MoreView: View {
     @State private var rootTitleProgress: CGFloat = 0
     @State private var showingPersonalSettings = false
     @State private var showingNotificationSettings = false
+    @State private var showingAppearanceCustomize = false
     @Environment(\.palettes) private var palettes
 
     private var currentAppearance: AppearancePreferences { store.appearancePreferences }
@@ -290,7 +291,7 @@ struct MoreView: View {
         .sheet(isPresented: $showingPersonalSettings) {
             NavigationStack {
                 // Not a `List`: iOS 27 drops taps on grouped list rows.
-                SettingsPage(title: String(localized: "Konto")) {
+                SettingsPage(title: String(localized: "Alias und Apple-Anmeldung")) {
                     personalHeader
                     personalSection
                 }
@@ -426,7 +427,7 @@ struct MoreView: View {
 
     private var mainSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 6) {
+            VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.cardPadding + 2) {
                 RootPageTitle(title: screen.title,
                               subtitle: String(localized: "Deine Einstellungen an einem Ort"))
                     .padding(.horizontal, -Theme.Metrics.gutter)
@@ -451,7 +452,7 @@ struct MoreView: View {
                             title: String(localized: "Verhalten & Teilen"),
                             symbol: "hand.draw",
                             identifier: "open-habit-behavior",
-                            detail: String(localized: "App-weite Vorgaben und Teilen"))
+                            detail: String(localized: "Zeitzone, Kalender und Apple-Erinnerungen"))
                 }
 
                 AppSettingsGroup(title: String(localized: "Konto & Verbindungen")) {
@@ -459,15 +460,21 @@ struct MoreView: View {
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreAppleAccountRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
-                    moreHubRow(title: String(localized: "Setup wiederholen"),
-                               detail: String(localized: "Mitteilungen und Kalender konfigurieren"),
-                               symbol: "arrow.clockwise",
+                    moreHubRow(title: String(localized: "Mitteilungen & Kalender einrichten"),
+                               detail: String(localized: "Kalender und Apple-Erinnerungen verbinden"),
+                               symbol: "bell.badge",
                                identifier: "open-reminder-setup") {
                         showReminderSetup = true
                     }
                 }
 
                 AppSettingsGroup(title: String(localized: "Archiv & Über")) {
+                    pageRow(.dataTransfer,
+                            title: String(localized: "Import & Export"),
+                            symbol: "arrow.up.arrow.down",
+                            identifier: "open-data-transfer",
+                            detail: String(localized: "Daten exportieren und importieren"))
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     pageRow(.archive,
                             title: String(localized: "Archiv"),
                             symbol: "archivebox",
@@ -545,7 +552,7 @@ struct MoreView: View {
     private var moreGitHubLink: some View {
         Button { onOpen(.github) } label: {
             AppSettingsRow(title: String(localized: "GitHub"),
-                           detail: github.snapshot?.username ?? String(localized: "Noch nicht verbunden"),
+                           detail: moreGitHubConnectionDetail,
                            symbol: "chevron.left.forwardslash.chevron.right",
                            showsChevron: true) {
                 EmptyView()
@@ -553,6 +560,22 @@ struct MoreView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("open-github-settings")
+    }
+
+    private var moreGitHubConnectionDetail: String {
+        if github.refreshFeedback == .reauthenticationRequired {
+            return String(localized: "Erneut anmelden")
+        }
+        if github.isRefreshing { return String(localized: "Wird geladen") }
+        switch github.phase {
+        case .connecting: return String(localized: "Anmeldung läuft")
+        case .failed: return String(localized: "Die Verbindung zu GitHub ist fehlgeschlagen.")
+        case .connected:
+            return github.snapshot.map {
+                String(format: String(localized: "Verbunden als %@"), $0.username)
+            } ?? String(localized: "Wird geladen")
+        case .disconnected: return String(localized: "Noch nicht verbunden")
+        }
     }
 
     @ViewBuilder
@@ -597,7 +620,7 @@ struct MoreView: View {
 
     private var moreAppleAccountLink: some View {
         Button { showingPersonalSettings = true } label: {
-            AppSettingsRow(title: String(localized: "Konto"),
+            AppSettingsRow(title: String(localized: "Apple-ID"),
                            detail: storedAppleUserID == nil
                             ? String(localized: "Nicht angemeldet")
                             : personalDisplayName ?? String(localized: "Apple-ID"),
@@ -664,24 +687,37 @@ struct MoreView: View {
 
     private var appearanceSettings: some View {
         SettingsPage {
+                DesignStylePicker(selection: designStyleBinding)
+                    .accessibilityIdentifier("appearance-design-picker")
                 appearanceSection
                     .padding(Theme.Metrics.cardPadding)
                     .morePanel()
-                backgroundControl
-                    .padding(Theme.Metrics.cardPadding)
-                    .morePanel()
-                paletteSection
-                    .padding(Theme.Metrics.cardPadding)
-                    .morePanel()
-                iconAppearanceSection
-                    .padding(Theme.Metrics.cardPadding)
-                    .morePanel()
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                    moreSubsectionLabel(String(localized: "Verhalten"))
-                    compactModeSection
+                DisclosureGroup(isExpanded: $showingAppearanceCustomize) {
+                    VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.sectionGap) {
+                        materialAppearanceSection
+                        morePageRule
+                        backgroundControl
+                        morePageRule
+                        paletteSection
+                        morePageRule
+                        iconAppearanceSection
+                        morePageRule
+                        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                            moreSubsectionLabel(String(localized: "Verhalten"))
+                            compactModeSection
+                        }
+                    }
+                    .padding(.top, Theme.Metrics.gap)
+                } label: {
+                    AppSettingsRow(title: String(localized: "Anpassen"),
+                                   symbol: "slider.horizontal.3") {
+                        EmptyView()
+                    }
                 }
                 .padding(Theme.Metrics.cardPadding)
                 .morePanel()
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("appearance-customize")
         }
         .safeAreaPadding(.top, Theme.Metrics.cardPadding)
     }
@@ -1643,7 +1679,7 @@ struct MoreView: View {
             }
             Text(personalDisplayName.map { String(format: String(localized: "Hallo, %@"), $0) }
                  ?? String(localized: "Dein Alltag, persönlich."))
-                .font(.title2.weight(.bold))
+                .font(store.appearancePreferences.designStyle.compactTitleFont)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(String(localized: "Ein Name, der deine Motivationen persönlicher macht."))
@@ -1658,7 +1694,7 @@ struct MoreView: View {
     }
 
     private var personalSection: some View {
-        VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        VStack(spacing: store.appearancePreferences.designStyle.sectionGap) {
             AppSettingsGroup(title: String(localized: "Anrede"),
                              footer: String(localized: "Dein Alias bleibt auf diesem Gerät. Du brauchst dafür kein Konto.")) {
                 HStack(spacing: Theme.Metrics.gap) {
@@ -1849,10 +1885,9 @@ struct MoreView: View {
             aliasDraft = suggestedAlias
         }
         appleSignInCameBackEmpty = PersonalName.effective == nil
-        // Apple sign-in is an account boundary. Re-read the entitlement with
-        // downgrade permission so a previous account cannot keep paid gates
-        // open after this account is signed in.
-        Task { await Pro.refresh(mayDowngrade: true) }
+        // Personalization does not change the App Store purchase account.
+        // Only StoreKit transactions or an explicit restore may revoke access.
+        Task { await Pro.refresh() }
         Theme.Haptics.success()
     }
 
@@ -1975,11 +2010,11 @@ struct MoreView: View {
                 }
             }
             .accessibilityIdentifier("appearance-picker")
+        }
+    }
 
-            // Vorschau statt Wortliste: jede Oberfläche als Miniaturfläche
-            // in DEM Material, das sie später wirklich hat (siehe
-            // MaterialPreviewPicker). Ein segmentiertes Steuerelement trug
-            // vier Begriffe ohne jeden Anhaltspunkt, wie sie aussehen.
+    private var materialAppearanceSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
             MaterialPreviewPicker(selection: materialBinding)
                 .frame(minHeight: Theme.Metrics.settingsRowMinHeight,
                        alignment: .leading)
@@ -2031,6 +2066,14 @@ struct MoreView: View {
             get: { store.appearancePreferences.material },
             set: { material in
                 updateAppearance { $0.material = material }
+            })
+    }
+
+    private var designStyleBinding: Binding<AppDesignStyle> {
+        Binding(
+            get: { store.appearancePreferences.designStyle },
+            set: { style in
+                updateAppearance { $0.designStyle = style }
             })
     }
 
@@ -2761,7 +2804,7 @@ struct MoreView: View {
     // aktiven Einschalten, nie beim Start.
 
     private var notificationSettingsSection: some View {
-        VStack(spacing: Theme.Metrics.settingsSectionGap) {
+        VStack(spacing: store.appearancePreferences.designStyle.sectionGap) {
             AppSettingsGroup(title: String(localized: "Ruhezeiten")) {
                 notificationOptOutRows
                     .notificationSettingsRow()

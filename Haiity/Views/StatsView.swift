@@ -44,6 +44,8 @@ struct StatsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
     private var dark: Bool { scheme == .dark }
     private var accent: Color { Theme.accentText(palettes.style) }
 
@@ -132,7 +134,7 @@ struct StatsView: View {
                 Spacer(minLength: 72)
                 RampSwatch(style: palettes.style, dark: dark, size: 16)
                 Text(String(localized: "Noch keine Habits"))
-                    .font(.title3.bold())
+                    .font(designStyle.sectionTitleFont)
                 Text(String(localized: "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -142,12 +144,13 @@ struct StatsView: View {
                     openURL(AppDestination.create.url)
                 } label: {
                     Text(String(localized: "Ersten Habit anlegen"))
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 16)
+                        .font(designStyle.rowTitleFont)
+                        .padding(.horizontal, designStyle.cardPadding + 4)
                         .padding(.vertical, 8)
                         .background(Theme.accentFill(palettes.style), in: Capsule())
                         .foregroundStyle(.white)
                 }
+                .frame(minHeight: Theme.Metrics.hit)
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("add-first-habit")
                 Spacer(minLength: 160)
@@ -184,7 +187,7 @@ struct StatsView: View {
     private func statsListContent(_ snapshot: StatsEngine.Snapshot) -> some View {
         let activeCards = viewPreferences.statsCards.active
         return ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: designStyle.sectionGap) {
                 statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
@@ -207,7 +210,7 @@ struct StatsView: View {
                     statsHabitRanking(snapshot)
                 } else {
                     perHabitLockCard
-                        .padding(Theme.Metrics.cardPadding)
+                        .padding(designStyle.cardPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .appSurface()
                 }
@@ -249,7 +252,7 @@ struct StatsView: View {
 
     private var statsLoadingState: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: designStyle.sectionGap) {
                 statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
@@ -301,18 +304,22 @@ struct StatsView: View {
     private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         let total = snapshot.todayTotal
         let done = snapshot.todayDone
-        return VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: Theme.Metrics.cardPadding + 4) {
+        return VStack(alignment: .leading, spacing: designStyle.cardPadding + 6) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
+                : AnyLayout(HStackLayout(spacing: designStyle.cardPadding + 4))
+            layout {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(String(localized: "Heute"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(designStyle.rowTitleFont)
                         .foregroundStyle(.secondary)
                     if total == 0 {
                         Text(String(localized: "Kein Habit fällig"))
-                            .font(.title2.weight(.bold))
+                            .font(designStyle.sectionTitleFont)
                     } else {
                         Text("\(done)/\(total)")
-                            .font(.system(.largeTitle, design: .default, weight: .semibold).monospacedDigit())
+                            .font((designStyle == .studio ? Font.largeTitle.weight(.bold)
+                                   : designStyle.pageTitleFont).monospacedDigit())
                             .contentTransition(.numericText())
                     }
                     Text(statsTodaySentence(snapshot))
@@ -320,17 +327,35 @@ struct StatsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 segmentedRing(done: done, total: total, size: 72, line: 8)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Heute"))
+            .accessibilityValue(statsTodayAccessibilityValue(snapshot))
+            .accessibilityIdentifier("stats-today-summary")
+            DisclosureGroup {
+                Text(statsDailyExplanation)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("stats-today-explanation")
+            } label: {
+                Text(String(localized: "Details"))
+                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .font(.caption)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("stats-today-details")
         }
-        .padding(20)
+        .padding(designStyle.cardPadding + 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Heute"))
-        .accessibilityValue(statsTodayAccessibilityValue(snapshot))
-        .accessibilityIdentifier("stats-today-summary")
+        .accessibilityElement(children: .contain)
+    }
+
+    private var statsDailyExplanation: String {
+        String(localized: "Hier zählen heute geplante Habits; flexible Ziele nach Tagesplan, nicht nach erfüllter Periode. Mengen zählen ab dem Zielwert, Ja/Nein nur mit Ja.")
     }
 
     /// One sentence carries what the removed three-column footer repeated.
@@ -351,11 +376,11 @@ struct StatsView: View {
     /// explained state rather than a missing card.
     @ViewBuilder
     private var statsReadingCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            HStack(spacing: Theme.Metrics.gap) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            HStack(spacing: designStyle.rowGap * 2) {
                 AppIconBadge(symbol: "text.quote")
                 Text(String(localized: "Dein Muster"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(designStyle.rowTitleFont)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
@@ -364,7 +389,7 @@ struct StatsView: View {
             case .idle:
                 statsReadingIdleBody
             case .working:
-                HStack(spacing: Theme.Metrics.gap) {
+                HStack(spacing: designStyle.rowGap * 2) {
                     ProgressView()
                     Text(String(localized: "Denkt nach…"))
                         .font(.callout)
@@ -378,7 +403,7 @@ struct StatsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             case .failed:
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
                     Text(String(localized: "Das hat nicht geklappt."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -388,12 +413,12 @@ struct StatsView: View {
                 }
             }
         }
-        .padding(Theme.Metrics.cardPadding)
+        .padding(designStyle.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if appearancePreferences.backgroundMode != .color || appearancePreferences.backgroundColorHex != nil {
                 SettingsRowSurface()
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardRadius))
+                    .clipShape(RoundedRectangle(cornerRadius: designStyle.cardRadius))
             }
         }
         .accessibilityElement(children: .contain)
@@ -401,7 +426,7 @@ struct StatsView: View {
     }
 
     private var statsReadingIdleBody: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
             Text(statsReadingIdleText)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -414,7 +439,7 @@ struct StatsView: View {
 
     @ViewBuilder
     private func statsReadingShownBody(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
             Text(text)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
@@ -430,6 +455,7 @@ struct StatsView: View {
         Button(action: action) {
             Text(title)
                 .font(.footnote.weight(.semibold))
+                .frame(minHeight: Theme.Metrics.hit)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -535,7 +561,7 @@ struct StatsView: View {
 
     private func statsRhythmCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         statsRhythmContent(snapshot)
-            .padding(Theme.Metrics.cardPadding + 2)
+            .padding(designStyle.cardPadding + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .appSurface()
             .opacity(activeContextMenuID == StatsCard.yearPulse.rawValue ? 0 : 1)
@@ -560,11 +586,11 @@ struct StatsView: View {
     }
 
     private func statsRhythmContent(_ snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: designStyle.cardPadding) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Rhythmus"))
-                        .font(.headline.weight(.semibold))
+                        .font(designStyle.sectionTitleFont)
                     Text(String(localized: "Die letzten fünf Monate"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -606,15 +632,17 @@ struct StatsView: View {
 
     private func statsMetricGrid(_ snapshot: StatsEngine.Snapshot,
                                  cards: [StatsCard]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
-                            GridItem(.flexible(), spacing: 1)],
+        LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize
+                  ? [GridItem(.flexible())]
+                  : [GridItem(.flexible(), spacing: 1),
+                     GridItem(.flexible(), spacing: 1)],
                   spacing: 0) {
             ForEach(cards) { card in
                 statsMetric(card, snapshot: snapshot)
                     .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                    .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+                    .padding(.horizontal, designStyle.cardPadding + 4)
+                    .padding(.vertical, designStyle.cardPadding + 3)
+                    .frame(maxWidth: .infinity, minHeight: designStyle.settingsRowHeight + 40, alignment: .leading)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(statsMetricTitle(card))
                     .accessibilityValue(statsMetricValue(card, snapshot: snapshot))
@@ -634,7 +662,7 @@ struct StatsView: View {
     @ViewBuilder
     private func statsMetric(_ card: StatsCard,
                              snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap + 3) {
             HStack {
                 Image(systemName: statsMetricSymbol(card))
                     .font(.caption.weight(.semibold))
@@ -645,7 +673,8 @@ struct StatsView: View {
                     Spacer(minLength: 0)
             }
             Text(statsMetricValue(card, snapshot: snapshot))
-                .font(.title3.weight(.bold).monospacedDigit())
+                .font((designStyle == .studio ? Font.title3.weight(.semibold)
+                       : designStyle.sectionTitleFont).monospacedDigit())
                 .fixedSize(horizontal: false, vertical: true)
             Text(statsMetricTitle(card))
                 .font(.caption)
@@ -698,18 +727,40 @@ struct StatsView: View {
     }
 
     private func statsWeekCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+        VStack(alignment: .leading, spacing: designStyle.cardPadding) {
+            statsWeekSummary(snapshot)
+            DisclosureGroup {
+                Text(statsWeekExplanation)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("stats-week-explanation")
+            } label: {
+                Text(String(localized: "Details"))
+                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .font(.caption)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("stats-week-details")
+        }
+        .padding(designStyle.cardPadding + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface()
+        .accessibilityElement(children: .contain)
+    }
+
+    private func statsWeekSummary(_ snapshot: StatsEngine.Snapshot) -> some View {
         let days = (-6...0).compactMap { offset in
             DayKey.shifted(snapshot.today, by: offset)
         }
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
+        return VStack(alignment: .leading, spacing: designStyle.cardPadding) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(String(localized: "Letzte 7 Tage"))
-                    .font(.headline.weight(.semibold))
-                Spacer(minLength: 8)
-                Text(momentumSentence(snapshot))
+                    .font(designStyle.sectionTitleFont)
+                Text(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(trendColor(snapshot))
-                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 0) {
                 ForEach(Array(days.enumerated()), id: \.offset) { index, day in
@@ -734,13 +785,14 @@ struct StatsView: View {
                 }
             }
         }
-        .padding(Theme.Metrics.cardPadding + 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Letzte 7 Tage"))
         .accessibilityValue(statsWeekAccessibilityValue(snapshot))
         .accessibilityIdentifier("stats-week-card")
+    }
+
+    private var statsWeekExplanation: String {
+        String(localized: "Die Wochenquote zählt feste Termine bis heute und flexible Wochenziele; Vergleich: volle Vorwoche. Flexible Monats- und Jahresziele zählen nicht. – heißt: nichts fällig.")
     }
 
     private func statsWeekAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
@@ -750,7 +802,7 @@ struct StatsView: View {
             let hasData = snapshot.last7HasData.indices.contains(index) && snapshot.last7HasData[index]
             return hasData ? "\(Int((fraction * 100).rounded())) %" : "-"
         }.joined(separator: ", ")
-        return "\(percents), \(momentumSentence(snapshot))"
+        return "\(percents), \(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))"
     }
 
     /// Maps a day fraction onto the same 0…4 ramp the contribution tiles use.
@@ -771,10 +823,23 @@ struct StatsView: View {
 
     private func statsHabitRanking(_ snapshot: StatsEngine.Snapshot) -> some View {
         let statsByID = Dictionary(uniqueKeysWithValues: snapshot.perHabit.map { ($0.id, $0) })
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: designStyle.rowGap * 2 + 2) {
             Text(String(localized: "Deine Habits"))
-                .font(.headline.weight(.semibold))
+                .font(designStyle.sectionTitleFont)
                 .padding(.horizontal, 2)
+            DisclosureGroup {
+                Text(String(localized: "30-Tage-Quote: erfüllte von geplanten Terminen; bei Ja/Nein zählen auch Antworten an freien Tagen. Flexible Ziele: erfüllte Perioden; die laufende zählt erst, wenn sie erfüllt ist."))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("stats-habit-explanation")
+            } label: {
+                Text(String(localized: "Details"))
+                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .font(.caption)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("stats-habit-details")
             LazyVStack(spacing: 0) {
                 ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
                     if let habitStats = statsByID[habit.id] {
@@ -799,7 +864,7 @@ struct StatsView: View {
                     }
                 }
             }
-            .padding(.horizontal, Theme.Metrics.cardPadding)
+            .padding(.horizontal, designStyle.cardPadding)
             .padding(.vertical, 4)
             .appSurface()
             .accessibilityElement(children: .contain)
@@ -811,15 +876,16 @@ struct StatsView: View {
         let completion = Int((stats.completion30 * 100).rounded())
         let streak = stats.current
         let style = palettes.style(for: habit)
-        return HStack(spacing: 10) {
+        return HStack(spacing: designStyle.rowGap * 2 + 2) {
             Text(habit.emoji.isEmpty ? "-" : habit.emoji)
                 .font(.title3)
                 .frame(width: 32, height: 32)
                 .background(Theme.accent(style).opacity(0.12), in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: designStyle.rowGap / 2 + 1) {
                 Text(habit.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                    .font(designStyle.rowTitleFont)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text(String(localized: "30 Tage: \(completion)%"))
                     Text("·")
@@ -829,11 +895,12 @@ struct StatsView: View {
                 .foregroundStyle(.secondary)
                 MonthBars(counts: stats.monthlyCounts,
                           style: style)
-                    .frame(height: 22)
+                    .padding(.vertical, designStyle.graphPadding)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, designStyle.cardPadding - 2)
+        .frame(minHeight: Theme.Metrics.hit)
         .accessibilityElement(children: .combine)
     }
 
@@ -899,7 +966,7 @@ struct StatsView: View {
         Button {
             paywall = .stats
         } label: {
-            HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+            HStack(alignment: .top, spacing: designStyle.rowGap * 2) {
                 Image(systemName: "lock")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(accent)
@@ -908,7 +975,7 @@ struct StatsView: View {
                                 in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(String(localized: "Je Habit im Detail"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(designStyle.rowTitleFont)
                     Text(String(localized: "Details für jedes Habit."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -1000,7 +1067,7 @@ struct StatsView: View {
                                   preview: @escaping () -> AnyView,
                                   height: CGFloat)
         -> some View {
-        GraphContextMenu(cardRadius: Theme.Metrics.cardRadius,
+        GraphContextMenu(cardRadius: designStyle.cardRadius,
                          previewWidth: statsPreviewWidth,
                          previewHeight: height,
                          // The preview builder owns the one rounded surface;
@@ -1024,7 +1091,7 @@ struct StatsView: View {
     private func statsPreview<Content: View>(_ content: Content,
                                              height: CGFloat) -> AnyView {
         let surfaced = AnyView(content
-                .padding(16)
+                .padding(designStyle.cardPadding + 4)
                 .frame(width: statsPreviewWidth, alignment: .topLeading)
                 .appSurface())
 
@@ -1095,19 +1162,20 @@ struct StatsView: View {
                                         previous: snapshot.previousWeek)
     }
 
-    /// Der Satz aus lokalisierbaren Stücken — „besser", „schlechter" oder
-    /// neutral; ohne Vergleichswoche der schlichte Wochenstand.
-    private func momentumSentence(_ snapshot: StatsEngine.Snapshot) -> String {
-        guard let delta = momentumDelta(snapshot) else {
-            guard snapshot.week.total > 0 else {
-                return String(localized: "Diese Woche ist nichts fällig")
+    static func momentumSentence(current: StatsEngine.DayCompletion,
+                                 previous: StatsEngine.DayCompletion,
+                                 bundle: Bundle = .main,
+                                 locale: Locale = .current) -> String {
+        guard let delta = StatsEngine.momentumDeltaPoints(current: current, previous: previous) else {
+            guard current.total > 0 else {
+                return String(localized: "Diese Woche ist nichts fällig", bundle: bundle, locale: locale)
             }
-            let pct = Int((snapshot.week.fraction * 100).rounded())
-            return String(localized: "Diese Woche: \(pct) % erledigt")
+            let pct = Int((current.fraction * 100).rounded())
+            return String(localized: "Diese Woche: \(pct) % erledigt", bundle: bundle, locale: locale)
         }
-        if delta > 0 { return String(localized: "\(delta) % besser als letzte Woche") }
-        if delta < 0 { return String(localized: "\(-delta) % schlechter als letzte Woche") }
-        return String(localized: "Genau wie letzte Woche")
+        if delta > 0 { return String(localized: "\(delta) Prozentpunkte höher als letzte Woche", bundle: bundle, locale: locale) }
+        if delta < 0 { return String(localized: "\(-delta) Prozentpunkte niedriger als letzte Woche", bundle: bundle, locale: locale) }
+        return String(localized: "Gleiche Quote wie letzte Woche", bundle: bundle, locale: locale)
     }
 
     private func trendColor(_ snapshot: StatsEngine.Snapshot) -> Color {

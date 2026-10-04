@@ -83,7 +83,7 @@ enum Pro {
 
     private static var listener: Task<Void, Never>?
 
-    /// Zählt jede ECHTE Zustandsänderung. `refresh()` läuft über ein `await`
+    /// Zählt jede angenommene Entitlement-Aussage. `refresh()` läuft über ein `await`
     /// und schreibt sein Ergebnis danach zurück — trifft in diesem Fenster
     /// eine Meldung des Lauschers ein (Freigabe, Kauf auf einem anderen
     /// Gerät, Erstattung), ist das Ergebnis von vorhin veraltet und darf sie
@@ -129,16 +129,18 @@ enum Pro {
             CalendarSync.disable()
             ReminderSync.disable()
         }
-        defaults.set(effectiveUnlocked, forKey: unlockedKey)
-        if let effectiveExpirationDate {
-            defaults.set(effectiveExpirationDate.timeIntervalSince1970,
+        // Persist only StoreKit access. Owner identity is a separate, removable
+        // exemption and must never become a cached lifetime purchase.
+        defaults.set(unlocked, forKey: unlockedKey)
+        if let expirationDate {
+            defaults.set(expirationDate.timeIntervalSince1970,
                          forKey: HabitVisibility.proEntitlementExpirationKey)
         } else {
             defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
         }
+        writeGeneration &+= 1
         guard ProStatus.shared.unlocked != effectiveUnlocked
                 || ProStatus.shared.expirationDate != effectiveExpirationDate else { return }
-        writeGeneration &+= 1
         ProStatus.shared.unlocked = effectiveUnlocked
         ProStatus.shared.expirationDate = effectiveExpirationDate
     }
@@ -214,8 +216,8 @@ enum Pro {
                   now: now)
     }
 
-    /// Drop the cached entitlement at an Apple-account boundary before
-    /// StoreKit revalidates the newly signed-in account.
+    /// Recalculate the owner exemption after optional Apple personalization
+    /// changes. This identity is independent of the App Store purchase account.
     static func accountDidChange() {
         #if DEBUG
         if debugOverride != nil {
@@ -224,7 +226,9 @@ enum Pro {
         }
         #endif
         writeGeneration &+= 1
-        cache(false)
+        cache(defaults.bool(forKey: unlockedKey),
+              expirationDate: (defaults.object(forKey: HabitVisibility.proEntitlementExpirationKey)
+                as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) })
     }
 
     /// Das Produkt für die Kaufseite (echter Preis in echter Währung —
@@ -273,7 +277,12 @@ enum Pro {
     /// Nur Debug: `-pro on|off`. Schreibt den Merker in die App-Group-Defaults
     /// (`simctl defaults write` schreibt an ihnen VORBEI) und klemmt ihn fest,
     /// damit ein laufender `refresh()` ihn nicht überschreibt.
-    static func setDebugUnlocked(_ unlocked: Bool) {
+    static func setDebugUnlocked(_ unlocked: Bool?) {
+        guard let unlocked else {
+            debugOverride = nil
+            accountDidChange()
+            return
+        }
         debugOverride = unlocked
         // Invalidate an entitlement refresh that started before the override.
         // The override remains authoritative, but the generation keeps the

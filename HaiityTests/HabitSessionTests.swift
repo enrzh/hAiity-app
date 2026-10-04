@@ -252,6 +252,118 @@ final class HabitSessionTests: XCTestCase {
         XCTAssertEqual(store.habits[0].minutes["2026-08-09"], 15)
     }
 
+    func testFinishPersistsNewRecordWhenCheckInAndMinutesAreUnchanged() throws {
+        for kind in [HabitKind.checkbox, .yesNo] {
+            var habit = Habit(name: "Read", kind: kind)
+            habit.log["2026-08-09"] = kind == .yesNo ? Habit.Answer.yes : 1
+            habit.minutes["2026-08-09"] = 30
+            store.add(habit)
+            let session = HabitSession(habitID: habit.id, day: "2026-08-09",
+                                       startedAt: date(0), plannedMinutes: nil)
+            let before = try Data(contentsOf: url)
+            XCTAssertEqual(HabitSessionCompletion.finish(store: store, session: session, now: date(600)), 10)
+            XCTAssertNoThrow(try store.requireSuccessfulWrite())
+            let durable = HabitStore(url: url)
+            let record = try XCTUnwrap(durable.sessionHistory.first { $0.id == session.id })
+            XCTAssertEqual(record.finishedAt, date(600))
+            XCTAssertEqual(durable.value(habit.id, day: session.day), habit.log[session.day])
+            XCTAssertEqual(durable.habits.first { $0.id == habit.id }?.minutes[session.day], 30)
+            let after = try Data(contentsOf: url)
+            XCTAssertNotEqual(after, before)
+            HabitSessionCompletion.finish(store: durable, session: session, now: date(1200))
+            XCTAssertEqual(try Data(contentsOf: url), after, "retry must not write or double-count")
+            XCTAssertEqual(HabitStore(url: url).sessionHistory.filter { $0.id == session.id }.count, 1)
+        }
+    }
+
+    func testUnchangedSessionValuesStillRejectAStaleRecordSaveAndRetryOnSameStore() throws {
+        var habit = Habit(name: "Read")
+        habit.log["2026-08-09"] = 1
+        habit.minutes["2026-08-09"] = 30
+        store.add(habit)
+        let session = HabitSession(habitID: habit.id, day: "2026-08-09",
+                                   startedAt: date(0), plannedMinutes: nil)
+        HabitStore(url: url).setValue(habit.id, day: "2026-08-08", value: 1)
+        let before = try Data(contentsOf: url)
+        XCTAssertEqual(HabitSessionCompletion.finish(store: store, session: session, now: date(600)), 0)
+        XCTAssertThrowsError(try store.requireSuccessfulWrite())
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertTrue(HabitStore(url: url).sessionHistory.isEmpty)
+
+        XCTAssertEqual(HabitSessionCompletion.finish(store: store, session: session, now: date(600)), 10)
+        XCTAssertNoThrow(try store.requireSuccessfulWrite())
+        let durable = HabitStore(url: url)
+        XCTAssertEqual(durable.sessionHistory.map(\.id), [session.id])
+        XCTAssertEqual(durable.value(habit.id, day: "2026-08-08"), 1)
+        XCTAssertEqual(durable.value(habit.id, day: session.day), 1)
+        XCTAssertEqual(durable.habits[0].minutes[session.day], 30)
+    }
+
+    func testFailedSessionWriteRetriesPendingRecordAndCheckInOnSameStore() throws {
+        for (kind, hasDurableRecord) in [(HabitKind.checkbox, false), (.quantity, false), (.quantity, true)] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("session-retry-\(UUID())")
+            let writableDirectory = directory.appendingPathComponent("writable")
+            let parkedDirectory = directory.appendingPathComponent("parked")
+            try FileManager.default.createDirectory(at: writableDirectory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let file = writableDirectory.appendingPathComponent("data.json")
+            let retryStore = HabitStore(url: file)
+            var habit = Habit(name: "Read", recurrence: kind == .quantity
+                ? .init(frequency: .daily, target: 4) : .daily, kind: kind)
+            if kind == .checkbox || hasDurableRecord { habit.log["2026-08-09"] = 1 }
+            if !hasDurableRecord { habit.minutes["2026-08-09"] = 30 }
+            retryStore.add(habit)
+            let session = HabitSession(habitID: habit.id, day: "2026-08-09",
+                                       startedAt: date(0), plannedMinutes: nil)
+            if hasDurableRecord {
+                retryStore.addSessionRecord(HabitSessionRecord(id: session.id, habitID: habit.id,
+                    day: session.day, startedAt: date(0), finishedAt: date(600), plannedMinutes: nil))
+            }
+            let before = try Data(contentsOf: file)
+
+            // Park the original bytes and block the parent with a regular file.
+            try FileManager.default.moveItem(at: writableDirectory, to: parkedDirectory)
+            try Data("blocked".utf8).write(to: writableDirectory)
+            XCTAssertEqual(HabitSessionCompletion.finish(store: retryStore, session: session, now: date(600)), 0)
+            XCTAssertThrowsError(try retryStore.requireSuccessfulWrite())
+            XCTAssertEqual(retryStore.sessionHistory.map(\.id), [session.id])
+            XCTAssertEqual(try Data(contentsOf: parkedDirectory.appendingPathComponent("data.json")), before)
+            XCTAssertEqual(HabitSessionCompletion.finish(store: retryStore, session: session, now: date(1200)), 0,
+                           "a still-blocked retry must not report completion")
+            XCTAssertThrowsError(try retryStore.requireSuccessfulWrite())
+
+            try FileManager.default.removeItem(at: writableDirectory)
+            try FileManager.default.moveItem(at: parkedDirectory, to: writableDirectory)
+            XCTAssertEqual(HabitSessionCompletion.finish(store: retryStore, session: session, now: date(1800)), 10)
+            XCTAssertNil(retryStore.lastWriteError)
+            XCTAssertNoThrow(try retryStore.requireSuccessfulWrite())
+            let durable = HabitStore(url: file)
+            XCTAssertEqual(durable.sessionHistory.map(\.id), [session.id])
+            XCTAssertEqual(durable.sessionHistory[0].finishedAt, date(600))
+            XCTAssertEqual(durable.value(habit.id, day: session.day), 1)
+            XCTAssertEqual(durable.habits[0].minutes[session.day], hasDurableRecord ? 10 : 30)
+            let after = try Data(contentsOf: file)
+            XCTAssertEqual(HabitSessionCompletion.finish(store: retryStore, session: session, now: date(2400)), 10)
+            XCTAssertEqual(try Data(contentsOf: file), after, "successful retries must remain idempotent")
+        }
+    }
+
+    func testQuantitySessionWithUnchangedMinutesPersistsAndRetriesWithoutAnotherIncrement() throws {
+        var habit = Habit(name: "Water", recurrence: .init(frequency: .daily, target: 4), kind: .quantity)
+        habit.minutes["2026-08-09"] = 10
+        store.add(habit)
+        let session = HabitSession(habitID: habit.id, day: "2026-08-09",
+                                   startedAt: date(0), plannedMinutes: nil)
+        XCTAssertEqual(HabitSessionCompletion.finish(store: store, session: session, now: date(600)), 10)
+        let durable = HabitStore(url: url)
+        XCTAssertEqual(durable.value(habit.id, day: session.day), 1)
+        XCTAssertEqual(durable.sessionHistory.map(\.id), [session.id])
+        let bytes = try Data(contentsOf: url)
+        XCTAssertEqual(HabitSessionCompletion.finish(store: durable, session: session, now: date(1200)), 10)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertEqual(HabitStore(url: url).value(habit.id, day: session.day), 1)
+    }
+
     // MARK: – Merge
 
     func testMergeUnionsMinutesAndCarriesDuration() {

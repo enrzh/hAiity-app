@@ -7,7 +7,7 @@ struct MaterialPreviewPicker: View {
     let selection: Binding<AppearanceMaterial>
 
     @Environment(\.appearancePreferences) private var preferences
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
@@ -17,7 +17,8 @@ struct MaterialPreviewPicker: View {
             Text(String(localized: "Oberfläche"))
                 .font(.subheadline.weight(.semibold))
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
                       spacing: Theme.Metrics.gap) {
                 ForEach(AppearanceMaterial.allCases, id: \.self) { material in
                     MaterialOptionCard(preferences: preferences,
@@ -35,6 +36,7 @@ struct MaterialPreviewPicker: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -43,6 +45,7 @@ private struct AppearanceStylePreview: View {
     let material: AppearanceMaterial
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var previewPreferences: AppearancePreferences {
         var copy = preferences
@@ -51,41 +54,57 @@ private struct AppearanceStylePreview: View {
     }
 
     var body: some View {
-        ZStack {
-            AppearanceBackground(preferences: previewPreferences)
-
-            HStack(spacing: Theme.Metrics.gap) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(String(localized: "Heute"))
-                        .font(.caption.weight(.semibold))
-                    Text(String(localized: "Dein Fortschritt"))
-                        .font(.headline)
-                    Text(String(localized: "12 Tage Serie"))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    previewText
+                    previewRamp
                 }
-                Spacer(minLength: Theme.Metrics.gap)
-                HStack(spacing: 4) {
-                    ForEach(0..<5, id: \.self) { level in
-                        RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
-                            .fill(Theme.level(level,
-                                              dark: colorScheme == .dark))
-                            .frame(width: 16, height: 16)
-                    }
+            } else {
+                HStack(spacing: Theme.Metrics.gap) {
+                    previewText
+                    Spacer(minLength: Theme.Metrics.gap)
+                    previewRamp
                 }
             }
-            .padding(Theme.Metrics.cardPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .environment(\.appearancePreferences, previewPreferences)
         }
-        .frame(height: 112)
-        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous))
+        .padding(preferences.designStyle.cardPadding)
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+        .background {
+            AppearanceBackground(preferences: previewPreferences)
+        }
+        .environment(\.appearancePreferences, previewPreferences)
+        .clipShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous)
+            RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Vorschau des ausgewählten Erscheinungsbilds"))
+    }
+
+    private var previewText: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(String(localized: "Heute"))
+                .font(.caption.weight(.semibold))
+            Text(String(localized: "Dein Fortschritt"))
+                .font(preferences.designStyle.sectionTitleFont)
+            Text(String(localized: "12 Tage Serie"))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var previewRamp: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<5, id: \.self) { level in
+                RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
+                    .fill(Theme.level(level, dark: colorScheme == .dark))
+                    .frame(width: 16, height: 16)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
 }
@@ -123,8 +142,7 @@ private struct MaterialOptionCard: View {
                     Text(material.displayName)
                         .font(.subheadline.weight(isSelected ? .semibold : .regular))
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.caption.weight(.semibold))

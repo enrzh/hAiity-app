@@ -5,6 +5,15 @@ import Foundation
 enum HabitListFilterPreferences {
     static let todayOnlyKey = "habitListFilterTodayOnly"
 
+    static var defaults: UserDefaults {
+        #if DEBUG && targetEnvironment(simulator)
+        if DesignFixture.scenario != nil {
+            return UserDefaults(suiteName: "haiity.design-fixture.filters") ?? .standard
+        }
+        #endif
+        return UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+    }
+
     static func todayOnly(in defaults: UserDefaults) -> Bool {
         defaults.bool(forKey: todayOnlyKey)
     }
@@ -14,7 +23,7 @@ enum HabitListFilterPreferences {
     }
 
     static func persistTodayOnly(_ value: Bool) {
-        setTodayOnly(value, in: UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard)
+        setTodayOnly(value, in: defaults)
     }
 }
 
@@ -42,9 +51,7 @@ struct HabitListFilter: Equatable {
     var itemType: ItemType = .all
 
     static func restored(from defaults: UserDefaults? = nil) -> HabitListFilter {
-        let resolved = defaults
-            ?? UserDefaults(suiteName: SharedStorage.appGroup)
-            ?? .standard
+        let resolved = defaults ?? HabitListFilterPreferences.defaults
         return HabitListFilter(todayOnly: HabitListFilterPreferences.todayOnly(in: resolved))
     }
 

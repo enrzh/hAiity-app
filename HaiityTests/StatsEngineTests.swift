@@ -208,6 +208,43 @@ final class StatsEngineTests: XCTestCase {
             current: .init(done: 1, total: 2), previous: .init(done: 0, total: 0)))
     }
 
+    @MainActor
+    func testMomentumPresentationUsesNeutralPercentagePointsInGermanAndEnglish() throws {
+        let previous = StatsEngine.DayCompletion(done: 6, total: 10)
+        let current = StatsEngine.DayCompletion(done: 7, total: 10)
+        for (language, higher, lower, equal) in [
+            ("de", "10 Prozentpunkte höher als letzte Woche", "10 Prozentpunkte niedriger als letzte Woche", "Gleiche Quote wie letzte Woche"),
+            ("en", "10 percentage points higher than last week", "10 percentage points lower than last week", "Same rate as last week")
+        ] {
+            let locale = Locale(identifier: language)
+            let bundle = try statsLocalizationBundle(language)
+            XCTAssertEqual(StatsView.momentumSentence(current: current, previous: previous, bundle: bundle, locale: locale), higher)
+            XCTAssertEqual(StatsView.momentumSentence(current: previous, previous: current, bundle: bundle, locale: locale), lower)
+            XCTAssertEqual(StatsView.momentumSentence(current: current, previous: current, bundle: bundle, locale: locale), equal)
+        }
+    }
+
+    private func statsLocalizationBundle(_ language: String) throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"),
+                                 "The built app must contain the \(language) localization")
+        return try XCTUnwrap(Bundle(path: path))
+    }
+
+    @MainActor
+    func testMomentumPresentationKeepsRoundingAndMissingDenominators() throws {
+        let locale = Locale(identifier: "de")
+        let bundle = try statsLocalizationBundle("de")
+        XCTAssertEqual(StatsView.momentumSentence(current: .init(done: 2, total: 3),
+                                                  previous: .init(done: 1, total: 3), bundle: bundle, locale: locale),
+                       "33 Prozentpunkte höher als letzte Woche")
+        XCTAssertEqual(StatsView.momentumSentence(current: .init(done: 7, total: 10),
+                                                  previous: .init(done: 0, total: 0), bundle: bundle, locale: locale),
+                       "Diese Woche: 70 % erledigt")
+        XCTAssertEqual(StatsView.momentumSentence(current: .init(done: 0, total: 0),
+                                                  previous: .init(done: 0, total: 5), bundle: bundle, locale: locale),
+                       "Diese Woche ist nichts fällig")
+    }
+
     func testLast7DailyFractionsOrderAndValues() {
         let h = habit(log: [wednesday: 1])   // nur heute erledigt
         let fractions = StatsEngine.last7DailyFractions(habits: [h],

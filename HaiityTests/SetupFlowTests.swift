@@ -152,7 +152,7 @@ final class SetupFlowTests: XCTestCase {
         let setup = try source("Haiity/Views/ReminderSetupView.swift")
         let components = try source("Haiity/Views/AppUIComponents.swift")
 
-        XCTAssertTrue(components.contains("minHeight: Theme.Metrics.settingsRowMinHeight"),
+        XCTAssertTrue(components.contains("minHeight: preferences.designStyle.settingsRowHeight"),
                       "shared settings rows need a readable minimum height")
         XCTAssertTrue(setup.contains("AppSettingsRow(title: title, symbol: symbol)"),
                       "permission rows must use the shared native hit target")

@@ -112,6 +112,7 @@ struct ContributionChart: View, Equatable {
     var highlightedCells: Set<ContributionHighlightCell>? = nil
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.appearancePreferences) private var appearancePreferences
 
     static func == (a: Self, b: Self) -> Bool {
         a.snapshot == b.snapshot && a.cell == b.cell && a.gap == b.gap
@@ -128,7 +129,7 @@ struct ContributionChart: View, Equatable {
                 monthRow
             }
             if showsSurface {
-                tiles.padding(.vertical, 4)
+                tiles.padding(.vertical, appearancePreferences.designStyle.graphPadding)
             } else {
                 tiles
             }
@@ -351,7 +352,7 @@ struct GitHubContributionGraph: View, Equatable {
 
     private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
         let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
-        let surfaceInset = interactive ? 8 : 0
+        let surfaceInset = interactive ? appearancePreferences.designStyle.graphPadding * 2 : 0
         let labelHeight = showsMonthLabels ? 16 : 0
         return RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
             .fill(Color.primary.opacity(0.06))

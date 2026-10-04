@@ -42,17 +42,16 @@ enum WidgetData {
                            selected: items.first?.id,
                            widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true,
                            largeItems: items,
-                           largeLayout: layout)
+                           largeLayout: layout,
+                           designStyle: data?.appearancePreferences.designStyle ?? .native)
     }
 
     static func largeTimeline(selectedIDs: [UUID?], limit: Int,
                               layout: LargeWidgetLayout) -> Timeline<HaiityEntry> {
         let data = HabitStore.read(SharedStorage.dataURL())
-        let calendar = HabitTimeZone.calendar(identifier: data?.defaultTimeZoneIdentifier)
-        return Timeline(entries: [largeEntry(selectedIDs: selectedIDs, limit: limit,
-                                              layout: layout, data: data, date: .now)],
-                 policy: .after(WidgetLogic.nextMidnight(
-                    calendar: calendar)))
+        let entry = largeEntry(selectedIDs: selectedIDs, limit: limit,
+                               layout: layout, data: data, date: .now)
+        return Timeline(entries: [entry], policy: .after(WidgetLogic.nextRefresh(for: entry)))
     }
 
     /// EIN Lesevorgang für Habits UND Paletten — zwei getrennte Lesungen
@@ -64,6 +63,13 @@ enum WidgetData {
                       graphOnly: Bool = false,
                       date: Date = .now) -> HaiityEntry {
         let data = HabitStore.read(SharedStorage.dataURL())
+        return entry(selected: selected, source: source, palette: palette,
+                     graphOnly: graphOnly, date: date, data: data)
+    }
+
+    private static func entry(selected: UUID?, source: GraphWidgetSource,
+                              palette: PaletteRef?, graphOnly: Bool,
+                              date: Date, data: HabitData?) -> HaiityEntry {
         let visible = HabitVisibility.visibleActiveHabits(
             data?.habits ?? [],
             unlocked: HabitVisibility.sharedEntitlementIsUnlocked)
@@ -80,7 +86,8 @@ enum WidgetData {
                            githubSnapshot: source == .github
                                ? GitHubContributionSnapshot.loadShared()
                                : nil,
-                           widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true)
+                           widgetResetEnabled: data?.viewPreferences.widgetResetEnabled ?? true,
+                           designStyle: data?.appearancePreferences.designStyle ?? .native)
     }
 
     /// Eine Timeline mit genau einem Eintrag, gültig bis Mitternacht — der
@@ -89,9 +96,10 @@ enum WidgetData {
                          source: GraphWidgetSource = .habit,
                          palette: PaletteRef? = nil,
                          graphOnly: Bool = false) -> Timeline<HaiityEntry> {
-        Timeline(entries: [entry(selected: selected, source: source, palette: palette,
-                                 graphOnly: graphOnly)],
-                 policy: .after(WidgetLogic.nextMidnight()))
+        let data = HabitStore.read(SharedStorage.dataURL())
+        let entry = entry(selected: selected, source: source, palette: palette,
+                          graphOnly: graphOnly, date: .now, data: data)
+        return Timeline(entries: [entry], policy: .after(WidgetLogic.nextRefresh(for: entry)))
     }
 
     static func demoGitHubEntry() -> HaiityEntry {
@@ -398,11 +406,8 @@ struct HabitControlProvider: AppIntentControlValueProvider {
         return HabitControlValue(id: habit.id,
                                  name: habit.name,
                                  emoji: habit.emoji,
-                                 done: GoalEngine.dayCounts(
-                                    habit: habit,
-                                    day: WidgetLogic.today(
-                                        for: habit,
-                                        defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier)))
+                                 done: WidgetLogic.status(habit: habit,
+                                    defaultTimeZoneIdentifier: data?.defaultTimeZoneIdentifier) == .done)
     }
 }
 

@@ -110,7 +110,7 @@ final class FollowUpFixTests: XCTestCase {
         XCTAssertTrue(content.contains("habitSortingActive"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"reorder-habits\")"),
                       "sorting needs a stable toolbar action")
-        XCTAssertTrue(content.contains("HabitSortingSession("))
+        XCTAssertTrue(content.contains("HabitSortingRow("))
         XCTAssertTrue(content.contains("withHabitChromeAnimation"))
         XCTAssertTrue(content.contains("accessibilityIdentifier(\"finish-reordering\")"),
                       "sorting needs a way to leave inline sort mode")
@@ -259,7 +259,7 @@ final class FollowUpFixTests: XCTestCase {
         XCTAssertTrue(rhythm.contains("Nur mit hAiity Pro"))
         XCTAssertTrue(rhythm.contains("letzten fünf Monaten"))
         XCTAssertTrue(rhythm.contains("level > 0"))
-        XCTAssertTrue(week.contains("momentumSentence(snapshot)"))
+        XCTAssertTrue(week.contains("Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek)"))
         XCTAssertTrue(week.contains("%"))
         XCTAssertTrue(stats.contains(".accessibilityValue(statsTodayAccessibilityValue(snapshot))"))
         XCTAssertTrue(stats.contains(".accessibilityValue(statsRhythmAccessibilityValue(snapshot))"))

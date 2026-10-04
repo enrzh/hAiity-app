@@ -501,6 +501,74 @@ final class StoreAndMergeTests: XCTestCase {
         XCTAssertTrue(store.habits[0].isDone("2026-08-03"))
     }
 
+    func testImportNormalizesDuplicateIDsAndRoundTripsTheirCombinedHistory() throws {
+        let local = Habit(name: "Local")
+        store.add(local)
+        var habit = Habit(name: "Read")
+        habit.updatedAt = 100
+        habit.log = ["2026-08-01": 1]
+        habit.minutes = ["2026-08-01": 20]
+        habit.missedDays = ["2026-08-03"]
+        var duplicate = habit
+        duplicate.name = "Reading"
+        duplicate.updatedAt = 200
+        duplicate.log = ["2026-08-02": 1]
+        duplicate.minutes = ["2026-08-01": 10, "2026-08-02": 15]
+        duplicate.missedDays = ["2026-08-04"]
+        let payload = try JSONEncoder().encode(HabitData(version: 2, updatedAt: 0,
+                                                        summaryMinutes: nil, habits: [habit, duplicate]))
+        try store.importJSON(payload)
+        let durable = HabitStore(url: url)
+        XCTAssertEqual(durable.habits.map(\.id), [local.id, habit.id])
+        XCTAssertEqual(durable.habits[1].name, "Reading")
+        XCTAssertEqual(durable.habits[1].log, ["2026-08-01": 1, "2026-08-02": 1])
+        XCTAssertEqual(durable.habits[1].minutes, ["2026-08-01": 20, "2026-08-02": 15])
+        XCTAssertEqual(durable.habits[1].missedDays, ["2026-08-03", "2026-08-04"])
+        let bytes = try Data(contentsOf: url)
+        try store.importJSON(try XCTUnwrap(durable.exportJSON()))
+        XCTAssertEqual(try Data(contentsOf: url), bytes, "a round-trip import must be a fixed point")
+    }
+
+    func testRejectedImportThrowsPreservesDurableBytesAndCanRetry() throws {
+        let local = Habit(name: "Local"), incoming = Habit(name: "Imported")
+        store.add(local)
+        HabitStore(url: url).setValue(local.id, day: "2026-10-01", value: 1)
+        let bytes = try Data(contentsOf: url)
+        let payload = try JSONEncoder().encode(HabitData(version: 2, updatedAt: 0,
+                                                        summaryMinutes: nil, habits: [incoming]))
+        var changes = 0
+        store.onChange = { changes += 1 }
+        XCTAssertThrowsError(try store.importJSON(payload))
+        XCTAssertNotNil(store.lastWriteError)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertEqual(store.habits.map(\.id), [local.id])
+        XCTAssertEqual(changes, 0, "rejected imports must not publish successful-change callbacks")
+        try store.importJSON(payload)
+        XCTAssertNil(store.lastWriteError)
+        XCTAssertEqual(changes, 1)
+        let durable = HabitStore(url: url)
+        XCTAssertEqual(durable.habits.map(\.id), [local.id, incoming.id])
+        XCTAssertEqual(durable.value(local.id, day: "2026-10-01"), 1)
+    }
+
+    func testImportWriteFailureAndMalformedInputCannotReportSuccess() throws {
+        let incoming = Habit(name: "Imported")
+        let payload = try JSONEncoder().encode(HabitData(version: 2, updatedAt: 0,
+                                                        summaryMinutes: nil, habits: [incoming]))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("import-\(UUID())")
+        let unwritable = HabitStore(url: directory.appendingPathComponent("data.json"))
+        XCTAssertThrowsError(try unwritable.importJSON(payload))
+        XCTAssertNotNil(unwritable.lastWriteError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: unwritable.url.path))
+
+        store.add(Habit(name: "Local"))
+        let bytes = try Data(contentsOf: url)
+        let habits = store.habits
+        XCTAssertThrowsError(try store.importJSON(Data("{invalid".utf8)))
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertEqual(store.habits, habits)
+    }
+
     func testExportIsValidAndSorted() throws {
         store.add(Habit(name: "B")); store.add(Habit(name: "A"))
         let raw = try XCTUnwrap(store.exportJSON())

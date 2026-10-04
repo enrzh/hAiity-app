@@ -4,14 +4,21 @@ struct TodayProgressView: View {
     let progress: ScheduledProgress.Today
     @Binding var todayOnly: Bool
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: designStyle.cardPadding) {
+            VStack(alignment: .leading, spacing: designStyle.rowGap) {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                layout {
                     Text(String(localized: "Heute"))
-                        .font(.title2.bold())
-                    Spacer()
+                        .font(designStyle == .native ? .title2.bold() : designStyle.sectionTitleFont)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     Text("\(progress.completed)/\(progress.scheduled)")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -30,19 +37,14 @@ struct TodayProgressView: View {
             .accessibilityIdentifier("today-progress")
 
             if progress.scheduled > 0 {
-                ZStack {
-                    ProgressView(value: Double(progress.completed),
-                                 total: Double(progress.scheduled))
-                        .tint(Theme.accentText(palettes.style))
-                        .frame(height: 5)
-                        .accessibilityHidden(true)
-                }
-                .frame(minHeight: Theme.Metrics.hit)
-                .contentShape(Rectangle())
+                ProgressView(value: Double(progress.completed),
+                             total: Double(progress.scheduled))
+                .tint(Theme.accentText(palettes.style))
+                .frame(height: 5)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(String(localized: "Fortschritt heute"))
                 .accessibilityValue(String(localized: "\(progress.completed) von \(progress.scheduled) erledigt"))
-                    .accessibilityIdentifier("today-progress-bar")
+                .accessibilityIdentifier("today-progress-bar")
             }
 
             Picker(String(localized: "Einträge anzeigen"), selection: $todayOnly) {
@@ -54,6 +56,6 @@ struct TodayProgressView: View {
             .frame(minHeight: 44)
         }
         .padding(.horizontal, 4)
-        .padding(.bottom, 8)
+        .padding(.bottom, designStyle.rowGap * 2)
     }
 }

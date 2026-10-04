@@ -84,7 +84,7 @@ struct ReminderSetupView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
             Text(String(localized: "Dein Rhythmus"))
-                .font(.largeTitle.bold())
+                .font(store.appearancePreferences.designStyle.pageTitleFont)
             Text(String(localized: "Wähle deine Zusammenfassungen."))
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -94,7 +94,7 @@ struct ReminderSetupView: View {
     private var summariesPage: some View {
         setupPage {
             Text(String(localized: "Zusammenfassungen"))
-                .font(.largeTitle.bold())
+                .font(store.appearancePreferences.designStyle.pageTitleFont)
                 .padding(.top, 8)
             summaryCard(symbol: "sun.max.fill",
                         title: String(localized: "Tageszusammenfassung"),
@@ -112,7 +112,7 @@ struct ReminderSetupView: View {
     private var startPage: some View {
         setupPage {
             Text(String(localized: "Los geht's"))
-                .font(.largeTitle.bold())
+                .font(store.appearancePreferences.designStyle.pageTitleFont)
                 .padding(.top, 8)
             Text(String(localized: "Du entscheidest, ob hAiity Mitteilungen senden darf."))
                 .font(.body)

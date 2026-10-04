@@ -36,6 +36,7 @@ struct HaiityEntry: TimelineEntry {
     /// ordered list and do not resolve configuration themselves.
     var largeItems: [Habit] = []
     var largeLayout: LargeWidgetLayout?
+    var designStyle: AppDesignStyle = .native
 
     /// Der Habit, den diese Instanz zeigt — Auswahl schlägt Empfehlung,
     /// Empfehlung ist die längste laufende Serie.
@@ -82,6 +83,10 @@ struct HaiityEntry: TimelineEntry {
                           recurrence: Recurrence(target: 3))
         var sport = Habit(name: String(localized: "Sport"), emoji: "🏃",
                           recurrence: .weekdays([2, 4, 6]))
+        let historyStart = DayKey.shifted(DayKey.today(), by: -370) ?? DayKey.today()
+        reading.createdAt = historyStart
+        water.createdAt = historyStart
+        sport.createdAt = historyStart
         for i in 0..<370 {
             guard let k = DayKey.shifted(DayKey.today(), by: -i) else { continue }
             if i % 4 != 0 { reading.log[k] = 1 }
@@ -359,6 +364,10 @@ enum WidgetLogic {
         let itemCalendar = Self.calendar(for: habit,
                                          defaultTimeZoneIdentifier: defaultTimeZoneIdentifier,
                                          calendar: calendar)
+        if habit.isReminder {
+            return reminderStatus(ReminderOccurrenceEngine.state(for: habit, now: now, calendar: itemCalendar),
+                                  now: now, calendar: itemCalendar)
+        }
         return status(habit: habit,
                       today: DayKey.key(for: now, calendar: itemCalendar),
                       calendar: itemCalendar)
@@ -382,8 +391,25 @@ enum WidgetLogic {
 
     static func summary(habit: Habit,
                         today: String = DayKey.today(),
-                        calendar: Calendar = .current) -> WidgetItemSummary {
-        let status = status(habit: habit, today: today, calendar: calendar)
+                        calendar: Calendar = .current,
+                        now: Date? = nil) -> WidgetItemSummary {
+        let status: WidgetStatus
+        var reminderText: String?
+        if habit.isReminder, let now {
+            let state = ReminderOccurrenceEngine.state(for: habit, now: now, calendar: calendar)
+            status = reminderStatus(state, now: now, calendar: calendar)
+            if status == .done {
+                reminderText = String(localized: "Erledigt")
+            } else if let occurrence = state.actionable {
+                let includesTime = Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) != nil
+                // An all-day reminder becomes overdue after its day has ended.
+                let labelNow = includesTime || occurrence.day < today ? now : calendar.startOfDay(for: now)
+                reminderText = ReminderOccurrenceText.label(for: occurrence, includesTime: includesTime,
+                                                            now: labelNow, calendar: calendar)
+            }
+        } else {
+            status = Self.status(habit: habit, today: today, calendar: calendar)
+        }
 
         if habit.isReminder {
             return WidgetItemSummary(kind: .reminder,
@@ -391,7 +417,7 @@ enum WidgetLogic {
                                      answer: nil,
                                      value: nil,
                                      target: nil,
-                                     metricText: statusText(status, calendar: calendar),
+                                     metricText: reminderText ?? statusText(status, calendar: calendar),
                                      metricSymbol: symbol(for: status))
         }
 
@@ -443,6 +469,13 @@ enum WidgetLogic {
                                      metricText: metricText,
                                      metricSymbol: metricSymbol)
         }
+    }
+
+    private static func reminderStatus(_ state: ReminderOccurrenceState, now: Date, calendar: Calendar) -> WidgetStatus {
+        if state.isChecked(now: now, calendar: calendar) { return .done }
+        guard let next = state.actionable else { return .free(next: nil) }
+        let today = DayKey.key(for: now, calendar: calendar)
+        return next.day <= today ? .open : .free(next: calendar.component(.weekday, from: next.dueDate))
     }
 
     /// Distinguishes a missing GitHub cache (show the connect prompt) from a
@@ -543,54 +576,8 @@ enum WidgetLogic {
         family == .systemLarge ? rosterRowsLarge : rosterRowsMedium
     }
 
-    /// Fixed systemLarge geometry shared by the three large renderers.
-    /// The 6pt outer inset leaves 344pt in the 356pt reference height.
     enum LargeGeometry {
-        static let contentHeight: CGFloat = 344
         static let outerPadding: CGFloat = 6
-        static let itemSpacing: CGFloat = 4
-        static let actionHeight: CGFloat = 44
-        static let listHeaderHeight: CGFloat = 20
-        static let listRowHeight: CGFloat = 83
-        static let listTitleHeight: CGFloat = 18
-        static let listGraphHeight: CGFloat = 61
-        static let listIdentityBandHeight: CGFloat = listTitleHeight
-        static let listVisualBandHeight: CGFloat = listGraphHeight
-        static let listActionBandHeight: CGFloat = actionHeight
-        static let focusHeaderHeight: CGFloat = 20
-        static let focusHeaderGap: CGFloat = 4
-        static let focusFeaturedHeight: CGFloat = 148
-        static let focusFeaturedGraphMinimumHeight: CGFloat = 104
-        static let focusFeaturedQueueGap: CGFloat = 4
-        static let focusQueueHeight: CGFloat = 52
-        static let focusIdentityBandHeight: CGFloat = listTitleHeight
-        static let focusVisualBandHeight: CGFloat = focusFeaturedGraphMinimumHeight
-        static let focusActionBandHeight: CGFloat = actionHeight
-        static let featuredListHeaderHeight: CGFloat = 20
-        static let featuredListHeaderGap: CGFloat = 4
-        static let featuredListHeight: CGFloat = 168
-        static let featuredIdentityBandHeight: CGFloat = 22
-        static let featuredVisualBandHeight: CGFloat = 102
-        static let featuredActionBandHeight: CGFloat = 44
-        static let compactListRowHeight: CGFloat = 48
-        static let compactListRowGap: CGFloat = 4
-        static let gridRowHeight: CGFloat = 168
-        static let gridColumnGap: CGFloat = 8
-        static let gridRowGap: CGFloat = 8
-        // Raster tiles reserve exclusive identity, visual, and action bands.
-        static let gridIdentityBandHeight: CGFloat = 20
-        static let gridVisualBandHeight: CGFloat = 98
-        static let gridActionBandHeight: CGFloat = 44
-        static let gridItemSpacing: CGFloat = 1
-        static let gridItemPadding: CGFloat = 2
-        static let gridGraphMinimumHeight: CGFloat = gridVisualBandHeight
-        static let listContentHeight: CGFloat = featuredListHeaderHeight
-            + featuredListHeaderGap + featuredListHeight
-            + 3 * compactListRowHeight + 2 * compactListRowGap
-        static let focusContentHeight: CGFloat = focusHeaderHeight + focusHeaderGap
-            + focusFeaturedHeight + focusFeaturedQueueGap
-            + 3 * focusQueueHeight + 2 * itemSpacing
-        static let gridContentHeight: CGFloat = 2 * gridRowHeight + gridRowGap
     }
 
     // MARK: – Zeitplan der Timeline
@@ -599,6 +586,21 @@ enum WidgetLogic {
     /// „Frei bis Mo" ist am Montag falsch.
     static func nextMidnight(after date: Date = .now, calendar: Calendar = .current) -> Date {
         DayKey.nextMidnight(after: date, calendar: calendar)
+    }
+
+    /// Refresh at the first represented calendar boundary, including overrides.
+    static func nextRefresh(for entry: HaiityEntry) -> Date {
+        let global = HabitTimeZone.calendar(identifier: entry.defaultTimeZoneIdentifier)
+        let midnights = ([global] + entry.habits.map { entry.calendar(for: $0) })
+            .map { nextMidnight(after: entry.date, calendar: $0) }
+        let reminderTimes = entry.habits.filter {
+            $0.isReminder && Habit.sanitizedMinutes($0.timeMinutes ?? $0.reminderMinutes) != nil
+        }.compactMap { habit in
+            ReminderOccurrenceEngine.state(for: habit, now: entry.date, calendar: entry.calendar(for: habit))
+                .actionable?.dueDate
+        }.filter { $0 > entry.date }
+        return (midnights + reminderTimes)
+            .min() ?? nextMidnight(after: entry.date, calendar: global)
     }
 }
 

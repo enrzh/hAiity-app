@@ -32,7 +32,8 @@ struct GraphWidgetView: View {
             .containerBackground(for: .widget) {
                 HomeWidgetBackground(palette: entry.resolvedGraphPalette,
                                      dark: scheme == .dark,
-                                     mode: mode)
+                                     mode: mode,
+                                     designStyle: entry.designStyle)
             }
     }
 
@@ -59,26 +60,19 @@ struct GraphWidgetView: View {
                 // Ohne Habit dasselbe Raster, nur leer — dieses Widget zeigt NIE
                 // Schrift, auch nicht „Noch keine Habits". Eine Fläche aus l0-Zellen
                 // ist die ehrlichere Aussage: das ist der Graph, er ist bloß noch leer.
-                if let habit {
-                    Link(destination: HaiityWidgetLink.habits) {
-                        TrailingGrid(habit: habit,
-                                     radius: nil,
-                                     alignment: .center,
-                                     level: level)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(label(habit))
-                    }
-                } else {
-                    Link(destination: HaiityWidgetLink.habits) {
-                        TrailingGrid(habit: Self.blank,
-                                     radius: nil,
-                                     alignment: .center,
-                                     level: level)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(label(habit))
-                    }
+                let today = habit.map { entry.today(for: $0) }
+                    ?? DayKey.key(for: entry.date, calendar: HabitTimeZone.calendar(identifier: entry.defaultTimeZoneIdentifier))
+                Link(destination: HaiityWidgetLink.habits) {
+                    TrailingGrid(habit: habit ?? Self.blank,
+                                 today: today,
+                                 radius: nil,
+                                 calendar: habit.map { entry.calendar(for: $0) }
+                                    ?? HabitTimeZone.calendar(identifier: entry.defaultTimeZoneIdentifier),
+                                 alignment: .center,
+                                 level: level)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(label(habit))
                 }
             }
         }
@@ -89,6 +83,6 @@ struct GraphWidgetView: View {
 
     private func label(_ habit: Habit?) -> String {
         guard let habit else { return String(localized: "Noch keine Habits") }
-        return String(localized: "\(habit.name): \(habit.checkInCount()) Tage, aktuelle Serie \(habit.streak()).")
+        return String(localized: "\(habit.name): \(habit.checkInCount()) Tage, aktuelle Serie \(habit.streak(today: entry.today(for: habit), calendar: entry.calendar(for: habit))).")
     }
 }

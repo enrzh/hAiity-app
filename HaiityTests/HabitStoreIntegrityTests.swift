@@ -247,23 +247,78 @@ final class HabitStoreIntegrityTests: XCTestCase {
 
     /// `Dictionary(uniqueKeysWithValues:)` crashes on a duplicate. It should not
     /// happen, but if one ever arrived the answer is to keep one entry, not to take
-    /// the app down in the merge. Decoding tolerates duplicates, which is what
-    /// makes this reachable.
+    /// the app down in the merge. Decoding repairs duplicates before consumers
+    /// build dictionaries, without changing the exact-byte save baseline.
     func testADuplicateHabitIdDoesNotCrashTheMerge() throws {
         let url = tempURL("data.json")
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
-        let habit = Habit(name: "Lesen")
-        let payload = try Self.payload(habits: [habit, habit])
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        var habit = Habit(name: "Read")
+        habit.updatedAt = 100
+        habit.log = ["2026-08-01": 1]
+        habit.minutes = ["2026-08-01": 10]
+        var duplicate = habit
+        duplicate.name = "Reading"
+        duplicate.updatedAt = 200
+        duplicate.log = ["2026-08-02": 1]
+        duplicate.minutes = ["2026-08-01": 20]
+        let other = Habit(name: "Yoga")
+        let payload = try Self.payload(habits: [habit, other, duplicate])
         try Self.write(payload, to: url)
+        let originalBytes = try Data(contentsOf: url)
 
         let store = HabitStore(url: url)
-        XCTAssertEqual(store.habits.count, 2, "two entries with one id: the guarded shape")
+        XCTAssertEqual(store.habits.map(\.id), [habit.id, other.id])
+        XCTAssertEqual(store.habits[0].name, "Reading")
+        XCTAssertEqual(store.habits[0].log, ["2026-08-01": 1, "2026-08-02": 1])
+        XCTAssertEqual(store.habits[0].minutes, ["2026-08-01": 20])
+        XCTAssertEqual(try Data(contentsOf: url), originalBytes, "loading must not rewrite the file")
+        XCTAssertTrue(store.persist(notify: false), "normalization must retain the raw write baseline")
+        XCTAssertEqual(HabitStore(url: url).habits, store.habits)
 
-        // The merge used to abort the process outright here.
-        store.merge(remote: try Self.payload(habits: [Habit(name: "Yoga")]))
-        XCTAssertTrue(store.habits.contains { $0.name == "Lesen" })
-        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        store.merge(remote: try Self.payload(habits: [habit, duplicate]))
+        XCTAssertNil(store.lastWriteError)
+        XCTAssertEqual(HabitStore(url: url).habits.map(\.id), [habit.id, other.id])
+    }
+
+    func testDeferredDiskLoadNormalizesDuplicatesAndStillRejectsAStaleSave() async throws {
+        let url = tempURL("data.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let habit = Habit(name: "Read")
+        try Self.write(Self.payload(habits: [habit, habit]), to: url)
+        let store = HabitStore(url: url, loadFromDisk: false)
+        await store.loadFromDisk()
+        XCTAssertEqual(store.habits.map(\.id), [habit.id])
+        HabitStore(url: url).setValue(habit.id, day: "2026-10-01", value: 1)
+        let durableBytes = try Data(contentsOf: url)
+        XCTAssertFalse(store.persist(notify: false))
+        XCTAssertEqual(try Data(contentsOf: url), durableBytes)
+        XCTAssertEqual(store.habits.map(\.id), [habit.id])
+        XCTAssertEqual(store.value(habit.id, day: "2026-10-01"), 1)
+    }
+
+    func testDirectMergeNormalizesLocalAndRemoteDuplicatesWithoutChangingOrder() throws {
+        let url = tempURL("data.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = HabitStore(url: url)
+        var local = Habit(name: "Local")
+        local.log = ["2026-08-01": 1]
+        var duplicate = local
+        duplicate.log = ["2026-08-02": 1]
+        store.add(local)
+        store.add(duplicate)
+        let other = Habit(name: "Other"), remote = Habit(name: "Remote")
+        store.add(other)
+        store.merge(remote: try Self.payload(habits: [remote, remote]))
+        XCTAssertNil(store.lastWriteError)
+        XCTAssertEqual(store.habits.map(\.id), [local.id, other.id, remote.id])
+        XCTAssertEqual(store.habits[0].log, ["2026-08-01": 1, "2026-08-02": 1])
+        XCTAssertEqual(HabitStore(url: url).habits, store.habits)
     }
 
     /// The merge used to be one 150-line function that answered "which side is

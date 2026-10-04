@@ -4,6 +4,7 @@ import SwiftUI
 /// habit editor. The selection stays optional so nil remains the one meaning
 /// of "inherit the default" in habit data.
 struct HabitTimeZoneList: View {
+    @Environment(\.appearancePreferences) private var preferences
     @Binding var selection: String?
     let inheritedLabel: String
     let allowsDeviceOverride: Bool
@@ -24,7 +25,7 @@ struct HabitTimeZoneList: View {
         // Not a `List`: iOS 27 drops taps on grouped list rows, and this page is
         // a long tappable list of time zones. Same group surface as the hub.
         ScrollView {
-            VStack(spacing: Theme.Metrics.settingsSectionGap) {
+            VStack(spacing: preferences.designStyle.sectionGap) {
                 AppSettingsGroup(title: String(localized: "Standard")) {
                     Button {
                         selection = nil
@@ -97,12 +98,14 @@ struct HabitTimeZoneList: View {
         HStack(spacing: Theme.Metrics.gap) {
             if symbol != "globe" {
                 Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.tint)
                     .frame(width: 24)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
+                    .font(preferences.designStyle.rowTitleFont)
                     .foregroundStyle(.primary)
                 Text(subtitle)
                     .font(.caption)
@@ -112,12 +115,13 @@ struct HabitTimeZoneList: View {
             Spacer(minLength: Theme.Metrics.gap)
             if selected {
                 Image(systemName: "checkmark")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Theme.accentText())
+                    .accessibilityHidden(true)
             }
         }
         .contentShape(Rectangle())
-        .frame(minHeight: 44)
+        .frame(minHeight: preferences.designStyle.settingsRowHeight)
         .padding(.vertical, 3)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

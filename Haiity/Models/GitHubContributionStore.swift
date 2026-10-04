@@ -59,6 +59,12 @@ final class GitHubContributionStore {
         self.cacheURL = cacheURL
         self.pendingLoginURL = cacheURL.deletingLastPathComponent()
             .appendingPathComponent("github-device-login.json")
+        #if DEBUG && targetEnvironment(simulator)
+        if DesignFixture.scenario != nil && Self.isDemoLaunch {
+            snapshot = Self.demoSnapshot(now: .now)
+            phase = .connected
+        }
+        #endif
     }
 
     /// The app entry point hydrates the graph first and lets login/refresh

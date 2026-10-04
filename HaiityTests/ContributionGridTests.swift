@@ -525,6 +525,39 @@ final class GridPerformanceTests: GridTestCase {
 }
 
 final class GraphCacheRegressionTests: XCTestCase {
+    func testDisplaySnapshotKeepsNaturalWindowAndReusesTheGridCache() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var habit = Habit(name: "Long history")
+        habit.createdAt = "2025-10-01"
+        habit.log["2026-09-11"] = 1
+        habit.log["2026-09-12"] = 1
+        let snapshot = GridCalendar.displaySnapshot(habit: habit, today: "2026-09-12", calendar: calendar)
+        XCTAssertEqual(snapshot.weeks, GridCalendar.weeksForDisplay(habit: habit, today: "2026-09-12", calendar: calendar))
+        XCTAssertGreaterThan(snapshot.weeks, 24)
+        XCTAssertEqual(snapshot.streak, GoalEngine.streak(habit: habit, today: "2026-09-12", calendar: calendar))
+        XCTAssertEqual(GridCalendar.cachedSnapshot(habit: habit, weeks: snapshot.weeks,
+                                                   today: "2026-09-12", calendar: calendar), snapshot)
+        let computed = GridCalendar.computeCount
+        XCTAssertEqual(GridCalendar.displaySnapshot(habit: habit, today: "2026-09-12", calendar: calendar), snapshot)
+        XCTAssertEqual(GridCalendar.computeCount, computed)
+    }
+
+    func testDisplaySnapshotRecalculatesEditedHistoryAndKeepsRecentMinimum() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var habit = Habit(name: "New")
+        habit.createdAt = "2026-09-01"
+        let original = GridCalendar.displaySnapshot(habit: habit, today: "2026-09-12", calendar: calendar)
+        XCTAssertEqual(original.weeks, 24)
+        habit.log["2026-09-12"] = 1
+        let updated = GridCalendar.displaySnapshot(habit: habit, today: "2026-09-12", calendar: calendar)
+        XCTAssertEqual(updated.weeks, original.weeks)
+        XCTAssertNotEqual(updated.levels, original.levels)
+        XCTAssertEqual(updated.filledCount, 1)
+        XCTAssertEqual(updated.streak, 1)
+    }
+
     func testOverflowEvictsOnlyOldestAndReplacementDoesNotEvict() {
         var cache = BoundedGraphCache<Int, String>(limit: 2)
         cache[1] = "first"

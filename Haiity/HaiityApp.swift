@@ -92,6 +92,7 @@ struct HaiityApp: App {
                 }
             }
             .onAppear {
+                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
                 // Scene restoration can retain the previous `false` value;
                 // a new process always gets a fresh launch handoff.
                 startupSplashVisible = true
@@ -106,6 +107,7 @@ struct HaiityApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
                 Task { await Pro.refresh() }
                 HabitSessionManager.shared.recoverIfNeeded()
                 if startupSplashVisible {

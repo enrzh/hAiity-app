@@ -9,32 +9,29 @@ struct MotivationLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(MotivationActivityStyle.accent)
+                    Label {
+                        Text(verbatim: "hAiity")
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(MotivationActivityStyle.accent)
+                    }
+                    .font(.caption.weight(.semibold))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(verbatim: "hAiity")
-                        .font(.caption.weight(.semibold))
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    MotivationDismissButton()
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 10) {
-                        Text(context.attributes.body)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(verbatim: context.attributes.title)
+                            .font(.headline)
+                            .lineLimit(2)
+                            .privacySensitive()
+                        Text(verbatim: context.attributes.body)
                             .font(.subheadline)
                             .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button(intent: DismissMotivationActivityIntent()) {
-                            Image(systemName: "xmark")
-                                .font(.caption.weight(.bold))
-                                .frame(width: 32, height: 32)
-                        }
-                        .buttonStyle(.bordered)
+                            .privacySensitive()
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
                 Image(systemName: "sparkles")
@@ -42,10 +39,14 @@ struct MotivationLiveActivity: Widget {
             } compactTrailing: {
                 Text(verbatim: "hAiity")
                     .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(maxWidth: 44)
             } minimal: {
                 Image(systemName: "sparkles")
                     .foregroundStyle(MotivationActivityStyle.accent)
             }
+            .widgetURL(HaiityWidgetLink.habits)
+            .keylineTint(MotivationActivityStyle.accent)
         }
     }
 }
@@ -54,42 +55,55 @@ private enum MotivationActivityStyle {
     static let accent = Theme.accentText(PaletteStyle.default)
 }
 
+private struct MotivationDismissButton: View {
+    var body: some View {
+        Button(intent: DismissMotivationActivityIntent()) {
+            Image(systemName: "xmark")
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.mini)
+        .accessibilityLabel(String(localized: "Ausblenden"))
+        .accessibilityIdentifier("motivation-dismiss")
+    }
+}
+
 private struct MotivationLockScreenView: View {
     let context: ActivityViewContext<MotivationActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(MotivationActivityStyle.accent)
-                Text(verbatim: "hAiity")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label {
+                        Text(verbatim: "hAiity")
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(MotivationActivityStyle.accent)
+                    }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                Text(String(localized: "Heute"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                    Text(verbatim: context.attributes.title)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .privacySensitive()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                MotivationDismissButton()
             }
 
-            Text(context.attributes.title)
-                .font(.headline)
-                .lineLimit(2)
-
-            Text(context.attributes.body)
+            Text(verbatim: context.attributes.body)
                 .font(.subheadline)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Button(intent: DismissMotivationActivityIntent()) {
-                Label(String(localized: "Ausblenden"), systemImage: "xmark")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
+                .privacySensitive()
         }
         .padding(14)
         .activityBackgroundTint(Color(.systemBackground))
         .activitySystemActionForegroundColor(MotivationActivityStyle.accent)
+        .widgetURL(HaiityWidgetLink.habits)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("motivation-activity")
     }

@@ -13,10 +13,11 @@ struct AboutView: View {
     @State private var developerAvailable = false
     @State private var shakeToReport = ShakeToReport.isEnabled
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var preferences
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: preferences.designStyle.sectionGap - 4) {
                 aboutHero
                 privacyCard
                 reportCard
@@ -58,7 +59,7 @@ struct AboutView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(verbatim: "hAiity")
-                    .font(.largeTitle.weight(.bold))
+                    .font(preferences.designStyle.pageTitleFont)
                 Text(String(localized: "Dein Alltag als Contribution-Graph."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

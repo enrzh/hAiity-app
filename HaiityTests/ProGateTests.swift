@@ -33,6 +33,91 @@ final class ProGateTests: XCTestCase {
         await fulfillment(of: [changed], timeout: 1)
         XCTAssertTrue(Pro.isUnlocked)
     }
+
+    @MainActor
+    private func withPersonalizationState(_ body: (UserDefaults) -> Void) {
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        let keys = [PersonalName.appleUserIDKey, PersonalName.appleEmailKey,
+                    HabitVisibility.proUnlockedKey, HabitVisibility.proEntitlementExpirationKey]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        let override = Pro.debugOverride
+        defer {
+            for (key, value) in zip(keys, saved) { restore(value, forKey: key, in: defaults) }
+            Pro.setDebugUnlocked(nil)
+            if let override { Pro.setDebugUnlocked(override) }
+            for (key, value) in zip(keys, saved) { restore(value, forKey: key, in: defaults) }
+        }
+        Pro.setDebugUnlocked(nil)
+        body(defaults)
+    }
+
+    @MainActor
+    func testOptionalAppleIdentityChangesPreserveCachedLifetimePurchase() {
+        withPersonalizationState { defaults in
+            defaults.set(true, forKey: HabitVisibility.proUnlockedKey)
+            defaults.removeObject(forKey: HabitVisibility.proEntitlementExpirationKey)
+            defaults.removeObject(forKey: PersonalName.appleEmailKey)
+            for identity in ["personalization-account", "another-personalization-account", nil] as [String?] {
+                restore(identity, forKey: PersonalName.appleUserIDKey, in: defaults)
+                Pro.accountDidChange()
+                XCTAssertTrue(Pro.isUnlocked)
+                XCTAssertTrue(defaults.bool(forKey: HabitVisibility.proUnlockedKey))
+                XCTAssertTrue(HabitVisibility.sharedEntitlementIsUnlocked)
+            }
+        }
+    }
+
+    @MainActor
+    func testOwnerExemptionIsNotCachedAsAPurchaseAndEndsAtSignOut() {
+        withPersonalizationState { defaults in
+            defaults.set(false, forKey: HabitVisibility.proUnlockedKey)
+            defaults.removeObject(forKey: PersonalName.appleEmailKey)
+            defaults.set(DeveloperAccess.ownerAppleUserID, forKey: PersonalName.appleUserIDKey)
+            Pro.accountDidChange()
+            XCTAssertTrue(Pro.isUnlocked)
+            XCTAssertTrue(HabitVisibility.sharedEntitlementIsUnlocked)
+            XCTAssertFalse(defaults.bool(forKey: HabitVisibility.proUnlockedKey))
+
+            defaults.removeObject(forKey: PersonalName.appleUserIDKey)
+            Pro.accountDidChange()
+            XCTAssertFalse(Pro.isUnlocked)
+            XCTAssertFalse(HabitVisibility.sharedEntitlementIsUnlocked)
+        }
+    }
+
+    @MainActor
+    func testOwnerExemptionDoesNotErasePurchasedExpiration() {
+        withPersonalizationState { defaults in
+            let expiration = Date.now.addingTimeInterval(-60).timeIntervalSince1970
+            defaults.set(true, forKey: HabitVisibility.proUnlockedKey)
+            defaults.set(expiration, forKey: HabitVisibility.proEntitlementExpirationKey)
+            defaults.removeObject(forKey: PersonalName.appleEmailKey)
+            defaults.set(DeveloperAccess.ownerAppleUserID, forKey: PersonalName.appleUserIDKey)
+            Pro.accountDidChange()
+            XCTAssertTrue(Pro.isUnlocked)
+            XCTAssertEqual(defaults.double(forKey: HabitVisibility.proEntitlementExpirationKey), expiration)
+
+            defaults.removeObject(forKey: PersonalName.appleUserIDKey)
+            Pro.accountDidChange()
+            XCTAssertFalse(Pro.isUnlocked)
+            XCTAssertFalse(HabitVisibility.sharedEntitlementIsUnlocked)
+        }
+    }
+
+    @MainActor
+    func testPersonalizationBoundaryKeepsDebugOverrideAuthoritative() {
+        withPersonalizationState { defaults in
+            for unlocked in [true, false] {
+                Pro.setDebugUnlocked(unlocked)
+                defaults.set(DeveloperAccess.ownerAppleUserID, forKey: PersonalName.appleUserIDKey)
+                Pro.accountDidChange()
+                XCTAssertEqual(Pro.isUnlocked, unlocked)
+                defaults.removeObject(forKey: PersonalName.appleUserIDKey)
+                Pro.accountDidChange()
+                XCTAssertEqual(Pro.isUnlocked, unlocked)
+            }
+        }
+    }
     #endif
 
     // MARK: – Reine Logik: das Limit
@@ -383,11 +468,12 @@ final class ProGateTests: XCTestCase {
                       "an entitlement flip must immediately re-derive paid sync toggles from the shared Pro gate")
     }
 
-    func testAppleAccountSwitchRechecksProWithDowngradePermission() throws {
+    func testOptionalAppleSignInCannotRevokeStoreKitAccess() throws {
         let more = try source("Haiity/Views/MoreView.swift")
 
-        XCTAssertTrue(more.contains("Task { await Pro.refresh(mayDowngrade: true) }"),
-                      "changing the signed-in Apple account must be allowed to relock paid features")
+        XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
+        XCTAssertFalse(more.contains("Pro.refresh(mayDowngrade: true)"),
+                       "personalization is independent of the App Store purchase account")
     }
 
     func testAllExistingProFeatureHostsReadTheSharedEntitlement() throws {
@@ -863,16 +949,16 @@ final class ProGateTests: XCTestCase {
     /// für Ablehnung. Geprüft wird der Abschnitt selbst, nicht die Datei:
     /// irgendwo in MoreView steht „paywall" natürlich.
     func testExportAndImportStayFree() throws {
-        let developer = try source("Haiity/Views/DeveloperView.swift")
+        let transfer = try source("Haiity/Views/DataTransferView.swift")
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(developer.contains("\"export-data\""))
-        XCTAssertTrue(developer.contains("\"import-data\""))
+        XCTAssertTrue(transfer.contains("\"export-data\""))
+        XCTAssertTrue(transfer.contains("\"import-data\""))
+        XCTAssertTrue(more.contains("\"open-data-transfer\""))
 
-        let start = try XCTUnwrap(developer.range(of: "private var dataTransferSection"))
-        let end = try XCTUnwrap(developer.range(of: "private var actionSection",
-                                                range: start.upperBound..<developer.endIndex))
-        XCTAssertTrue(start.lowerBound < end.lowerBound)
-        let section = String(developer[start.lowerBound..<end.lowerBound])
+        let start = try XCTUnwrap(transfer.range(of: "var body: some View", range:
+            try XCTUnwrap(transfer.range(of: "struct DataTransferSection")).upperBound..<transfer.endIndex))
+        let end = try XCTUnwrap(transfer.range(of: "static func importJSON", range: start.upperBound..<transfer.endIndex))
+        let section = String(transfer[start.lowerBound..<end.lowerBound])
         for forbidden in ["ProGate", "Pro.isUnlocked", "paywall", "proLock", "unlocked"] {
             XCTAssertFalse(section.contains(forbidden),
                            "Export/Import darf niemals gegated sein — gefunden: \(forbidden)")
@@ -881,11 +967,13 @@ final class ProGateTests: XCTestCase {
         XCTAssertFalse(more.contains("guard unlocked else { return Data()"))
     }
 
-    func testDeveloperImportUsesTheSharedLimitPolicy() throws {
+    func testBothTransferDestinationsUseTheSameImportBoundary() throws {
         let developer = try source("Haiity/Views/DeveloperView.swift")
-        XCTAssertTrue(developer.contains("ProGate.mayImport"),
-                      "Developer import must not bypass the tracked-habit limit")
-        XCTAssertTrue(developer.contains("Pro.isUnlocked"),
+        let transfer = try source("Haiity/Views/DataTransferView.swift")
+        XCTAssertTrue(developer.contains("DataTransferSection(store: store)"))
+        XCTAssertTrue(transfer.contains("ProGate.mayImport"),
+                      "both transfer destinations must preserve the tracked-habit limit")
+        XCTAssertTrue(transfer.contains("Pro.isUnlocked"),
                       "the import boundary must use the shared entitlement read point")
     }
 
