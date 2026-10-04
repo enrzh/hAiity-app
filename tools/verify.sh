@@ -15,9 +15,9 @@ if [[ -z "${TEST_DESTINATION:-}" ]]; then
 fi
 source_fingerprint=$(ruby tools/verification.rb fingerprint)
 for plan in Unit Smoke; do
-  xcodebuild test -quiet -project Haiity.xcodeproj -scheme Haiity -testPlan "$plan" \
+  xcodebuild test -project Haiity.xcodeproj -scheme Haiity -testPlan "$plan" \
     -destination "$TEST_DESTINATION" -parallel-testing-enabled NO \
-    -resultBundlePath "$verification_output/$plan.xcresult" >"$verification_output/$plan.log" 2>&1 || {
+    -resultBundlePath "$verification_output/$plan.xcresult" 2>&1 | tee "$verification_output/$plan.log" || {
       tail -40 "$verification_output/$plan.log"
       exit 1
     }
