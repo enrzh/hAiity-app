@@ -206,25 +206,17 @@ struct EditHabitSheet: View {
                     Button {
                         showingCreationAdvanced.toggle()
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: designStyle.rowGap) {
-                                Label(String(localized: "Weitere Einstellungen"),
-                                      systemImage: "slider.horizontal.3")
-                                    .font(designStyle.rowTitleFont)
-                                Text(additionalSettingsSummary.isEmpty
-                                     ? String(localized: "Emoji, Farbe, Dauer und Verhalten")
-                                     : additionalSettingsSummary)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
+                        AppSettingsRow(title: String(localized: "Weitere Einstellungen"),
+                                       detail: additionalSettingsSummary.isEmpty
+                                           ? String(localized: "Emoji, Farbe, Dauer und Verhalten")
+                                           : additionalSettingsSummary,
+                                       symbol: "slider.horizontal.3") {
                             Image(systemName: showingCreationAdvanced ? "chevron.down" : "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                                 .flipsForRightToLeftLayoutDirection(true)
                                 .accessibilityHidden(true)
                         }
-                        .frame(minHeight: Theme.Metrics.hit)
-                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("creation-advanced")
@@ -609,8 +601,10 @@ struct EditHabitSheet: View {
                 DisclosureGroup(isExpanded: $showingScheduleDetails) {
                     recurrenceDetails
                 } label: {
-                    Text(String(localized: "Wiederholung anpassen"))
-                        .frame(minHeight: Theme.Metrics.hit)
+                    AppSettingsRow(title: String(localized: "Wiederholung anpassen")) {
+                        EmptyView()
+                    }
+                    .foregroundStyle(.primary)
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("recurrence-details")

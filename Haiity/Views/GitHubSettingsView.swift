@@ -12,6 +12,9 @@ struct GitHubSettingsView: View {
     /// leaving a timer running against a view that is gone.
     @State private var copyReset: Task<Void, Never>?
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var appearancePreferences
+
+    private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     var body: some View {
         // Not a `List`: iOS 27 drops taps on grouped list rows. The hub already
@@ -52,10 +55,11 @@ struct GitHubSettingsView: View {
                 contributionPreview
                 Divider()
                     .padding(.leading, Theme.Metrics.rowTitleInset)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, designStyle.rowGap)
                 connectionControls
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, designStyle.rowGap)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("github-connection")
         }
     }
@@ -98,7 +102,7 @@ struct GitHubSettingsView: View {
                 .tint(Theme.accentFill(palettes.style))
                 .accessibilityIdentifier("github-month-labels-toggle")
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, designStyle.rowGap / 2)
             // Contain, don't merge: outside a `List` a plain container
             // identifier bleeds onto its children and both toggles answer as
             // "github-display-settings". This keeps each toggle addressable.
@@ -115,8 +119,9 @@ struct GitHubSettingsView: View {
                 Button {
                     Task { await store.connect() }
                 } label: {
-                    Label(String(localized: "GitHub verbinden"), systemImage: "link")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    AppSettingsRow(title: String(localized: "GitHub verbinden"), symbol: "link") {
+                        EmptyView()
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("github-connect")
@@ -131,9 +136,9 @@ struct GitHubSettingsView: View {
             }
         case .connecting:
             if let code = store.deviceCode {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+                VStack(alignment: .leading, spacing: designStyle.rowGap * 2 + 2) {
                     Text(String(localized: "Dein Code"))
-                        .font(.subheadline)
+                        .font(designStyle.sectionTitleFont)
                         .foregroundStyle(.secondary)
                     HStack(spacing: Theme.Metrics.gap) {
                         Text(verbatim: code.userCode)
@@ -157,9 +162,10 @@ struct GitHubSettingsView: View {
                     Button {
                         GitHubLink.open(code.verificationURLWithCode)
                     } label: {
-                        Label(String(localized: "Auf GitHub öffnen"),
-                              systemImage: "arrow.up.right.square")
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        AppSettingsRow(title: String(localized: "Auf GitHub öffnen"),
+                                       symbol: "arrow.up.right.square") {
+                            EmptyView()
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("github-open-verification")
@@ -179,14 +185,14 @@ struct GitHubSettingsView: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(String(localized: "Warte auf die Bestätigung in GitHub."))
-                    Button(String(localized: "Abbrechen")) {
+                    Button {
                         store.cancelConnect()
+                    } label: {
+                        AppSettingsRow(title: String(localized: "Abbrechen"), symbol: "xmark") {
+                            EmptyView()
+                        }
                     }
                     .buttonStyle(.plain)
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
-                           alignment: .leading)
-                    .contentShape(Rectangle())
                     .accessibilityIdentifier("github-cancel-connect")
                 }
             }
@@ -202,7 +208,9 @@ struct GitHubSettingsView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: Theme.Metrics.gap) {
+                    AppSettingsRow(title: refreshActionTitle,
+                                   symbol: store.refreshFeedback == .reauthenticationRequired
+                                    ? "person.crop.circle.badge.arrow.forward" : "arrow.clockwise") {
                         if store.isRefreshing {
                             ProgressView()
                                 .controlSize(.small)
@@ -211,17 +219,8 @@ struct GitHubSettingsView: View {
                                 .foregroundStyle(.green)
                                 .symbolEffect(.bounce, value: store.refreshAnimationToken)
                                 .accessibilityIdentifier("github-refresh-success")
-                        } else if case .reauthenticationRequired = store.refreshFeedback {
-                            Image(systemName: "person.crop.circle.badge.arrow.forward")
-                        } else {
-                            Image(systemName: "arrow.clockwise")
                         }
-                        Text(refreshActionTitle)
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
-                           alignment: .leading)
-                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("github-refresh")
@@ -229,24 +228,32 @@ struct GitHubSettingsView: View {
                 .animation(.easeInOut(duration: 0.2), value: store.refreshAnimationToken)
                 refreshFeedbackView
                 Divider()
-                    .padding(.vertical, 4)
+                    .padding(.vertical, designStyle.rowGap)
                 disconnectButton
             }
         case .failed(let message):
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+            VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote)
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("github-refresh-failure")
                 if store.hasStoredCredentials {
-                    Button(String(localized: "Aktualisieren")) {
+                    Button {
                         Task { await store.refresh(forced: true) }
+                    } label: {
+                        AppSettingsRow(title: String(localized: "Aktualisieren"), symbol: "arrow.clockwise") {
+                            EmptyView()
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("github-refresh")
                 } else {
-                    Button(String(localized: "Erneut versuchen")) {
+                    Button {
                         Task { await store.connect() }
+                    } label: {
+                        AppSettingsRow(title: String(localized: "Erneut versuchen"), symbol: "arrow.clockwise") {
+                            EmptyView()
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("github-connect")
@@ -259,16 +266,7 @@ struct GitHubSettingsView: View {
     private var connectionStatusRow: some View {
         HStack(spacing: Theme.Metrics.gap + 4) {
             ZStack(alignment: .bottomTrailing) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palettes.style))
-                    .frame(width: 36, height: 36)
-                    .background(Theme.accentFill(palettes.style).opacity(0.14),
-                                in: Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                    }
+                AppIconBadge(symbol: "chevron.left.forwardslash.chevron.right")
                 Circle()
                     .fill(statusTint)
                     .frame(width: 10, height: 10)
@@ -278,35 +276,35 @@ struct GitHubSettingsView: View {
                     }
                     .offset(x: 1, y: 1)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
             VStack(alignment: .leading, spacing: 2) {
                 if let username = store.snapshot?.username,
                    case .connected = store.phase {
                     Text(String(localized: "Verbunden als \(username)"))
-                        .font(.body.weight(.medium))
+                        .font(designStyle.rowTitleFont)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("github-connected-name")
                 } else {
                     Text(statusTitle)
-                        .font(.body.weight(.medium))
+                        .font(designStyle.rowTitleFont)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if case .connected = store.phase,
                    let snapshot = store.snapshot {
                     Text(snapshot.fetchedAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(statusSubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: designStyle.settingsRowHeight, alignment: .leading)
     }
 
     @ViewBuilder
@@ -354,18 +352,13 @@ struct GitHubSettingsView: View {
         Button(role: .destructive) {
             confirmDisconnect = true
         } label: {
-            HStack(spacing: Theme.Metrics.gap) {
-                Image(systemName: "link.badge.minus")
-                    .font(.body.weight(.semibold))
-                    .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
-                Text(String(localized: "Verbindung trennen"))
-                    .font(.body)
-                Spacer(minLength: 0)
+            HStack(spacing: Theme.Metrics.gap + 4) {
+                AppIconBadge(symbol: "link.badge.minus", tint: .red)
+                AppSettingsRow(title: String(localized: "Verbindung trennen")) {
+                    EmptyView()
+                }
             }
             .foregroundStyle(.red)
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit,
-                   alignment: .leading)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("github-disconnect")

@@ -65,6 +65,7 @@ struct AppIconBadge: View {
 
     @Environment(\.palettes) private var palettes
     @Environment(\.appearancePreferences) private var preferences
+    @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 17
 
     init(symbol: String, tint: Color? = nil) {
         self.symbol = symbol
@@ -77,7 +78,7 @@ struct AppIconBadge: View {
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.body.weight(.semibold))
+            .font(.system(size: min(glyphSize, Theme.Metrics.glyph - Theme.Metrics.gap), weight: .semibold))
             .foregroundStyle(preferences.designStyle.usesQuietSurfaces ? Color.primary : resolvedTint)
             .frame(width: Theme.Metrics.glyph, height: Theme.Metrics.glyph)
             .background(resolvedTint.opacity(preferences.designStyle.usesQuietSurfaces ? 0 : 0.11), in: Circle())

@@ -690,7 +690,7 @@ struct MoreView: View {
                 DesignStylePicker(selection: designStyleBinding)
                     .accessibilityIdentifier("appearance-design-picker")
                 appearanceSection
-                    .padding(Theme.Metrics.cardPadding)
+                    .padding(currentAppearance.designStyle.cardPadding)
                     .morePanel()
                 DisclosureGroup(isExpanded: $showingAppearanceCustomize) {
                     VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.sectionGap) {
@@ -702,24 +702,24 @@ struct MoreView: View {
                         morePageRule
                         iconAppearanceSection
                         morePageRule
-                        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                        VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2) {
                             moreSubsectionLabel(String(localized: "Verhalten"))
                             compactModeSection
                         }
                     }
-                    .padding(.top, Theme.Metrics.gap)
+                    .padding(.top, currentAppearance.designStyle.rowGap * 2)
                 } label: {
                     AppSettingsRow(title: String(localized: "Anpassen"),
                                    symbol: "slider.horizontal.3") {
                         EmptyView()
                     }
                 }
-                .padding(Theme.Metrics.cardPadding)
+                .padding(currentAppearance.designStyle.cardPadding)
                 .morePanel()
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("appearance-customize")
         }
-        .safeAreaPadding(.top, Theme.Metrics.cardPadding)
+        .safeAreaPadding(.top, currentAppearance.designStyle.cardPadding)
     }
 
     private var habitBehaviorSettings: some View {
@@ -925,22 +925,10 @@ struct MoreView: View {
 
     private var cloudSyncSection: some View {
         AppSettingsGroup(title: String(localized: "Synchronisierung")) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: cloudStatus.state.systemImage)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentText(palettes.style))
-                    .frame(width: 32, height: 32)
-                    .background(Theme.accentFill(palettes.style).opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(cloudStatus.state.title)
-                        .font(.subheadline.weight(.semibold))
-                    Text(cloudStatus.state.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
+            AppSettingsRow(title: cloudStatus.state.title,
+                           detail: cloudStatus.state.detail,
+                           symbol: cloudStatus.state.systemImage) {
+                EmptyView()
             }
             .accessibilityElement(children: .combine)
             .accessibilityElement(children: .contain)
@@ -951,15 +939,14 @@ struct MoreView: View {
     private var morePageRule: some View {
         Divider()
             .opacity(0.7)
-            .padding(.vertical, 4)
+            .padding(.vertical, currentAppearance.designStyle.rowGap)
     }
 
     private func moreSubsectionLabel(_ title: String) -> some View {
         Text(title)
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(.tertiary)
-            .textCase(.uppercase)
-            .tracking(0.7)
+            .font(currentAppearance.designStyle.sectionTitleFont)
+            .foregroundStyle(.secondary)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// One toggle, so it gets the same row treatment as every other setting:
@@ -1049,7 +1036,7 @@ struct MoreView: View {
     // decodieren unverändert), nur die Oberfläche dazu ist weg.
 
     private var compactModeSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+        VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2) {
             Toggle(isOn: Binding(
                 get: { statsCards.compactMode },
                 set: { statsCards.compactMode = $0 })) {
@@ -1597,7 +1584,7 @@ struct MoreView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.body.weight(.medium))
+                        .font(currentAppearance.designStyle.rowTitleFont)
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)
@@ -1611,7 +1598,7 @@ struct MoreView: View {
                         .foregroundStyle(Theme.accentText(palettes.style))
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.settingsRowMinHeight,
+            .frame(maxWidth: .infinity, minHeight: currentAppearance.designStyle.settingsRowHeight,
                    alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -1656,7 +1643,7 @@ struct MoreView: View {
     }
 
     private var personalHeader: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+        VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2 + 4) {
             HStack {
                 Group {
                     if let name = personalDisplayName, let initial = name.first {
@@ -1679,7 +1666,7 @@ struct MoreView: View {
             }
             Text(personalDisplayName.map { String(format: String(localized: "Hallo, %@"), $0) }
                  ?? String(localized: "Dein Alltag, persönlich."))
-                .font(store.appearancePreferences.designStyle.compactTitleFont)
+                .font(currentAppearance.designStyle.sectionTitleFont)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(String(localized: "Ein Name, der deine Motivationen persönlicher macht."))
@@ -1687,7 +1674,7 @@ struct MoreView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Theme.Metrics.gutter)
+        .padding(currentAppearance.designStyle.cardPadding + 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .morePanel()
         .accessibilityIdentifier("account-header")
@@ -1697,11 +1684,11 @@ struct MoreView: View {
         VStack(spacing: store.appearancePreferences.designStyle.sectionGap) {
             AppSettingsGroup(title: String(localized: "Anrede"),
                              footer: String(localized: "Dein Alias bleibt auf diesem Gerät. Du brauchst dafür kein Konto.")) {
-                HStack(spacing: Theme.Metrics.gap) {
+                HStack(spacing: Theme.Metrics.gap + 4) {
                     personalLeadingIcon("person.crop.circle")
                     VStack(alignment: .leading, spacing: 2) {
                         Text(String(localized: "Alias"))
-                            .font(.subheadline.weight(.semibold))
+                            .font(currentAppearance.designStyle.rowTitleFont)
                         TextField(String(localized: "Alias"),
                                   text: aliasBinding,
                                   prompt: Text(String(localized: "Wie dürfen wir dich nennen?")))
@@ -1714,7 +1701,7 @@ struct MoreView: View {
                     }
                 }
                 .padding(.vertical, Theme.Metrics.gap / 2)
-                Divider().padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
+                Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                 personalMotivationPreview
             }
 
@@ -1726,11 +1713,11 @@ struct MoreView: View {
                                                             appleName: storedAppleName)
                         ?? String(localized: "Apple-ID")
                     VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                        HStack(spacing: Theme.Metrics.gap) {
+                        HStack(spacing: Theme.Metrics.gap + 4) {
                             personalLeadingIcon("person.crop.circle.badge.checkmark")
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(String(format: String(localized: "Angemeldet als %@"), displayName))
-                                    .font(.subheadline.weight(.medium))
+                                    .font(currentAppearance.designStyle.rowTitleFont)
                                 if let storedAppleEmail {
                                     Text(storedAppleEmail)
                                         .font(.caption)
@@ -1747,7 +1734,7 @@ struct MoreView: View {
                         .buttonStyle(.bordered)
                         .tint(.red)
                         .frame(minHeight: Theme.Metrics.hit)
-                        .padding(.leading, personalLeadingColumnWidth + Theme.Metrics.gap)
+                        .padding(.leading, Theme.Metrics.rowTitleInset)
                         .accessibilityIdentifier("apple-signout")
                     }
                     .frame(minHeight: Theme.Metrics.hit)
@@ -1774,14 +1761,14 @@ struct MoreView: View {
 
     private var personalMotivationPreview: some View {
         let message = Celebration.message(name: personalDisplayName, today: DayKey.today())
-        return HStack(alignment: .top, spacing: Theme.Metrics.gap) {
+        return HStack(alignment: .top, spacing: Theme.Metrics.gap + 4) {
             personalLeadingIcon("quote.bubble")
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap) {
                 Text(String(localized: "Vorschau"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(message.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(currentAppearance.designStyle.rowTitleFont)
                 Text(message.body)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -1789,7 +1776,7 @@ struct MoreView: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, Theme.Metrics.gap + 4)
+        .padding(.vertical, currentAppearance.designStyle.cardPadding)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("account-motivation-preview")
     }
@@ -1985,7 +1972,7 @@ struct MoreView: View {
     // weil er das Grün loswerden möchte.
 
     private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+        VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2 + 2) {
             Menu {
                 ForEach(AppearanceSetting.allCases, id: \.self) { option in
                     Button {
@@ -2014,9 +2001,9 @@ struct MoreView: View {
     }
 
     private var materialAppearanceSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+        VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2 + 2) {
             MaterialPreviewPicker(selection: materialBinding)
-                .frame(minHeight: Theme.Metrics.settingsRowMinHeight,
+                .frame(minHeight: currentAppearance.designStyle.settingsRowHeight,
                        alignment: .leading)
                 .accessibilityIdentifier("appearance-material-picker")
 
@@ -2031,7 +2018,7 @@ struct MoreView: View {
     }
 
     private var iconAppearanceSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: currentAppearance.designStyle.cardPadding + 4) {
             Toggle(isOn: graphShowsMonthLabels) {
                 AppSettingsRow(title: String(localized: "Monate anzeigen"),
                                symbol: "calendar") {
@@ -2157,9 +2144,9 @@ struct MoreView: View {
     }
 
     private var backgroundControl: some View {
-        return VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+        return VStack(alignment: .leading, spacing: currentAppearance.designStyle.rowGap * 2 + 2) {
             Text(String(localized: "Hintergrund"))
-                .font(.subheadline.weight(.semibold))
+                .font(currentAppearance.designStyle.sectionTitleFont)
 
             backgroundPreview
 
@@ -2206,7 +2193,7 @@ struct MoreView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .frame(minHeight: Theme.Metrics.settingsRowMinHeight)
+        .frame(minHeight: currentAppearance.designStyle.settingsRowHeight)
         .accessibilityLabel(String(localized: "Hintergrund"))
         .accessibilityIdentifier("appearance-background-mode-picker")
     }
@@ -2225,10 +2212,7 @@ struct MoreView: View {
                                     selectedHex: UInt32?,
                                     apply: @escaping (UInt32) -> Void) -> some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-            HStack(spacing: Theme.Metrics.gap) {
-                Label(title, systemImage: symbol)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: Theme.Metrics.gap)
+            AppSettingsRow(title: title, symbol: symbol) {
                 ColorPicker(String(localized: "Eigene Farbe"),
                             selection: selection,
                             supportsOpacity: false)
@@ -2262,7 +2246,7 @@ struct MoreView: View {
                 }
             }
         }
-        .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .leading)
+        .frame(minHeight: currentAppearance.designStyle.settingsRowHeight, alignment: .leading)
     }
 
     @ViewBuilder
@@ -2296,9 +2280,9 @@ struct MoreView: View {
                              photoLibrary: .shared()) {
                     Label(String(localized: "Bild auswählen"),
                           systemImage: "photo.on.rectangle.angled")
-                        .font(.body.weight(.semibold))
+                        .font(currentAppearance.designStyle.rowTitleFont)
                         .frame(maxWidth: .infinity,
-                               minHeight: Theme.Metrics.settingsRowMinHeight,
+                               minHeight: currentAppearance.designStyle.settingsRowHeight,
                                alignment: .leading)
                 }
                 // Bordered buttons inside an inset-grouped List row can lose
@@ -2326,7 +2310,7 @@ struct MoreView: View {
                     .accessibilityIdentifier("appearance-background-remove")
                 }
             }
-            .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .center)
+            .frame(minHeight: currentAppearance.designStyle.settingsRowHeight, alignment: .center)
             .onChange(of: pickedBackgroundItem) { _, item in
                 guard let item else { return }
                 backgroundImageError = false
@@ -2497,7 +2481,7 @@ struct MoreView: View {
             HStack(spacing: 12) {
                 ColorPicker(selection: $freeIconColor, supportsOpacity: false) {
                     Label(String(localized: "Eigene Icon-Farbe"), systemImage: "paintpalette")
-                        .font(.subheadline)
+                        .font(currentAppearance.designStyle.rowTitleFont)
                 }
                 .accessibilityIdentifier("icon-color-picker")
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2509,7 +2493,7 @@ struct MoreView: View {
             freeIconColorAction
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(minHeight: Theme.Metrics.settingsRowMinHeight, alignment: .leading)
+        .frame(minHeight: currentAppearance.designStyle.settingsRowHeight, alignment: .leading)
     }
 
     /// Gegated ist nur das SETZEN. Farbrad und ehrliche Vorschau bleiben —
@@ -2593,9 +2577,9 @@ struct MoreView: View {
     private var paletteSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(String(localized: "Graph-Farbe"))
-                .font(.headline)
+                .font(currentAppearance.designStyle.sectionTitleFont)
                 .foregroundStyle(.secondary)
-                .padding(.bottom, Theme.Metrics.gap)
+                .padding(.bottom, currentAppearance.designStyle.rowGap * 2)
 
             ForEach(GraphPalette.allCases) { palette in
                 PaletteRow(style: palette.style,
@@ -2604,7 +2588,7 @@ struct MoreView: View {
                     select(.builtin(palette))
                 }
                 .accessibilityIdentifier("palette-row-\(palette.rawValue)")
-                .padding(.vertical, Theme.Metrics.gap)
+                .padding(.vertical, currentAppearance.designStyle.rowGap * 2)
             }
             ForEach(unlocked ? store.customPalettes : []) { custom in
                 PaletteRow(style: custom.style,
@@ -2613,7 +2597,7 @@ struct MoreView: View {
                     selectCustomPalette(custom.id)
                 }
                 .accessibilityIdentifier("palette-row-custom-\(custom.id.uuidString)")
-                .padding(.vertical, Theme.Metrics.gap)
+                .padding(.vertical, currentAppearance.designStyle.rowGap * 2)
                 .swipeActions(edge: .trailing) {
                     // Rot EXPLIZIT: der App-Tint (die eigene Farbe!) würde die
                     // zerstörende Rolle sonst übermalen — eine Löschen-Taste in
@@ -2645,17 +2629,14 @@ struct MoreView: View {
             Button {
                 requestCustomPalette()
             } label: {
-                HStack {
-                    Label(String(localized: "Eigene Farbe …"), systemImage: "plus.circle")
-                    if !unlocked {
-                        Spacer(minLength: Theme.Metrics.gap)
-                        proLock
-                    }
+                AppSettingsRow(title: String(localized: "Eigene Farbe …"),
+                               symbol: "plus.circle") {
+                    if !unlocked { proLock }
                 }
                 .contentShape(Rectangle())
             }
             .foregroundStyle(.primary)
-            .padding(.vertical, Theme.Metrics.gap)
+            .padding(.vertical, currentAppearance.designStyle.rowGap * 2)
             .accessibilityIdentifier("palette-add-custom")
         }
     }
@@ -3068,26 +3049,20 @@ struct MoreView: View {
     }
 
     private func personalLeadingIcon(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(Theme.accentText(palettes.style))
-            .frame(width: personalLeadingColumnWidth,
-                   height: personalLeadingColumnWidth,
-                   alignment: .center)
+        AppIconBadge(symbol: symbol)
     }
-
-    private var personalLeadingColumnWidth: CGFloat { 44 }
 
     /// Fixed on purpose: the slot is `Theme.Metrics.glyph`, so a Dynamic-Type
     /// font would let the glyph overflow its own background at AX5.
     private func notificationSymbolSurface(_ symbol: String) -> some View {
         Image(systemName: symbol)
             .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Theme.accentText(palettes.style))
+            .foregroundStyle(currentAppearance.designStyle.usesQuietSurfaces
+                             ? Color.primary : Theme.accentText(palettes.style))
             .frame(width: Theme.Metrics.glyph,
                    height: Theme.Metrics.glyph)
             .background(
-                Theme.accentText(palettes.style).opacity(0.12),
+                Theme.accentText(palettes.style).opacity(currentAppearance.designStyle.usesQuietSurfaces ? 0 : 0.12),
                 in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
             .accessibilityHidden(true)
     }
@@ -3099,6 +3074,7 @@ struct MoreView: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap + 4) {
             notificationSymbolSurface(symbol)
             Text(title)
+                .font(currentAppearance.designStyle.rowTitleFont)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

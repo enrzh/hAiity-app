@@ -1887,11 +1887,13 @@ private struct MoreSettingsSurfaceModifier: ViewModifier {
 }
 
 private struct MoreSettingsSectionModifier: ViewModifier {
+    @Environment(\.appearancePreferences) private var preferences
+
     func body(content: Content) -> some View {
         content
-            .listRowInsets(EdgeInsets(top: 12,
+            .listRowInsets(EdgeInsets(top: preferences.designStyle.cardPadding,
                                       leading: Theme.Metrics.gutter,
-                                      bottom: 12,
+                                      bottom: preferences.designStyle.cardPadding,
                                       trailing: Theme.Metrics.gutter))
             .listRowBackground(SettingsRowSurface())
             .listRowSeparator(.hidden)

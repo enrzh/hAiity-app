@@ -198,6 +198,27 @@ final class WidgetRenderingTests: XCTestCase {
         XCTAssertFalse(fixture.showsReset(for: fixture.habits[0]))
     }
 
+    func testSelectedWidgetActionUsesGlobalFillWithReadableWhiteGlyph() throws {
+        var habit = Habit(name: "Choose", kind: .yesNo)
+        habit.palette = .rose
+        habit.timeZoneIdentifier = "UTC"
+        habit.log[DayKey.key(for: now, calendar: calendar)] = Habit.Answer.yes
+        let fixture = HaiityEntry(date: now, habits: [habit], palettes: PaletteBook(global: .blue),
+                                  selected: habit.id)
+        for dark in [false, true] {
+            let image = try render(WidgetItemActions(habit: habit, entry: fixture, dark: dark,
+                                                    includesReset: false)
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .frame(width: 88, height: 44), name: "widget-global-action-\(dark)")
+            let pixels = rgba(image)
+            let offset = (30 * image.cgImage!.width + 24) * 4
+            let hex = dark ? GraphPalette.blue.accentFillHex.dark : GraphPalette.blue.accentFillHex.light
+            XCTAssertEqual(Int(pixels[offset]), Int((hex >> 16) & 255), accuracy: 3)
+            XCTAssertEqual(Int(pixels[offset + 1]), Int((hex >> 8) & 255), accuracy: 3)
+            XCTAssertEqual(Int(pixels[offset + 2]), Int(hex & 255), accuracy: 3)
+        }
+    }
+
     func testLockScreenZeroProgressHasNoFakeCompletedArc() throws {
         var habit = Habit(name: "Read")
         habit.createdAt = "2026-05-01"

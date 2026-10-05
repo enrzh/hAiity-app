@@ -30,22 +30,29 @@ struct DataTransferSection: View {
         AppSettingsGroup(title: String(localized: "Import & Export"),
                          symbol: "arrow.up.arrow.down",
                          footer: String(localized: "Ein Import führt deine Einträge zusammen. Bestehende Daten werden nicht durch die Datei ersetzt.")) {
-            VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 if let data = store.exportJSON() {
                     ShareLink(item: HabitExport(data: data),
                               preview: SharePreview(String(localized: "hAiity-Export"))) {
-                        Label(String(localized: "Exportieren"), systemImage: "square.and.arrow.up")
-                            .frame(minHeight: Theme.Metrics.hit)
+                        AppSettingsRow(title: String(localized: "Exportieren"),
+                                       symbol: "square.and.arrow.up") {
+                            EmptyView()
+                        }
                     }
+                    .buttonStyle(.plain)
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("export-data")
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                 }
                 Button {
                     showImporter = true
                 } label: {
-                    Label(String(localized: "Importieren"), systemImage: "square.and.arrow.down")
-                        .frame(minHeight: Theme.Metrics.hit)
+                    AppSettingsRow(title: String(localized: "Importieren"),
+                                   symbol: "square.and.arrow.down") {
+                        EmptyView()
+                    }
                 }
+                .buttonStyle(.plain)
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("import-data")
 
@@ -54,10 +61,10 @@ struct DataTransferSection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, Theme.Metrics.rowTitleInset)
                         .accessibilityIdentifier("data-transfer-message")
                 }
             }
-            .padding(.vertical, Theme.Metrics.gap / 2)
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)

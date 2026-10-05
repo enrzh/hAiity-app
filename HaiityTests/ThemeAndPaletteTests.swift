@@ -1044,8 +1044,10 @@ final class AppearanceSettingTests: XCTestCase {
             XCTAssertTrue(screenSwitch.contains(caseName),
                           "More screen routing must retain the appearance-aware subpage: \(caseName)")
         }
-        XCTAssertTrue(picker.contains(".settingsRowSurface()"),
-                      "material previews must use the same row surface treatment")
+        XCTAssertTrue(picker.contains(".appSurface("),
+                      "standalone material options must use the shared app surface")
+        XCTAssertFalse(picker.contains(".settingsRowSurface()"),
+                       "an option must not stack a list-row surface over its app surface")
     }
 
     func testMoreDetailPagesUseTheContinuousSurfaceFamily() throws {

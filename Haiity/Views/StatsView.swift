@@ -340,11 +340,10 @@ struct StatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("stats-today-explanation")
             } label: {
-                Text(String(localized: "Details"))
-                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
-                    .contentShape(Rectangle())
+                AppSettingsRow(title: String(localized: "Details")) { EmptyView() }
+                    .foregroundStyle(.primary)
             }
-            .font(.caption)
+            .font(.subheadline)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stats-today-details")
         }
@@ -664,12 +663,8 @@ struct StatsView: View {
                              snapshot: StatsEngine.Snapshot) -> some View {
         VStack(alignment: .leading, spacing: designStyle.rowGap + 3) {
             HStack {
-                Image(systemName: statsMetricSymbol(card))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(statsMetricColor(card, snapshot: snapshot))
-                    .frame(width: 28, height: 28)
-                    .background(Color.primary.opacity(0.1),
-                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
+                AppIconBadge(symbol: statsMetricSymbol(card),
+                             tint: statsMetricColor(card, snapshot: snapshot))
                     Spacer(minLength: 0)
             }
             Text(statsMetricValue(card, snapshot: snapshot))
@@ -735,11 +730,10 @@ struct StatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("stats-week-explanation")
             } label: {
-                Text(String(localized: "Details"))
-                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
-                    .contentShape(Rectangle())
+                AppSettingsRow(title: String(localized: "Details")) { EmptyView() }
+                    .foregroundStyle(.primary)
             }
-            .font(.caption)
+            .font(.subheadline)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stats-week-details")
         }
@@ -833,11 +827,10 @@ struct StatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("stats-habit-explanation")
             } label: {
-                Text(String(localized: "Details"))
-                    .frame(minHeight: Theme.Metrics.hit, alignment: .leading)
-                    .contentShape(Rectangle())
+                AppSettingsRow(title: String(localized: "Details")) { EmptyView() }
+                    .foregroundStyle(.primary)
             }
-            .font(.caption)
+            .font(.subheadline)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stats-habit-details")
             LazyVStack(spacing: 0) {
@@ -967,12 +960,7 @@ struct StatsView: View {
             paywall = .stats
         } label: {
             HStack(alignment: .top, spacing: designStyle.rowGap * 2) {
-                Image(systemName: "lock")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: 36, height: 36)
-                    .background(Theme.accent(palettes.style).opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
+                AppIconBadge(symbol: "lock")
                 VStack(alignment: .leading, spacing: 3) {
                     Text(String(localized: "Je Habit im Detail"))
                         .font(designStyle.rowTitleFont)

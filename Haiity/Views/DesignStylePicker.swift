@@ -5,57 +5,60 @@ struct DesignStylePicker: View {
 
     @Environment(\.appearancePreferences) private var preferences
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.palettes) private var palettes
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+        VStack(alignment: .leading, spacing: preferences.designStyle.cardPadding) {
             Text(String(localized: "Designstil"))
-                .font(.headline)
+                .font(preferences.designStyle.sectionTitleFont)
             Text(String(localized: "Wähle das Layout für die ganze App."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .top),
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(),
+                                                         spacing: preferences.designStyle.cardPadding,
+                                                         alignment: .top),
                                      count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
-                      alignment: .leading, spacing: Theme.Metrics.gap + 4) {
+                      alignment: .leading, spacing: preferences.designStyle.cardPadding) {
                 ForEach(AppDesignStyle.allCases, id: \.self) { style in
                     Button {
                         guard selection.wrappedValue != style else { return }
                         Theme.Haptics.select()
                         selection.wrappedValue = style
                     } label: {
-                        VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                        VStack(alignment: .leading, spacing: preferences.designStyle.rowGap) {
                             DesignStylePagePreview(preferences: preferences, style: style)
                                 .dynamicTypeSize(.xSmall)
                                 .accessibilityHidden(true)
-                            HStack(alignment: .firstTextBaseline, spacing: Theme.Metrics.gap) {
+                            HStack(alignment: .firstTextBaseline, spacing: preferences.designStyle.rowGap) {
                                 Text(style.displayName)
-                                    .font(.headline)
+                                    .font(preferences.designStyle.rowTitleFont)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: 0)
-                                Image(systemName: selection.wrappedValue == style
-                                      ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(selection.wrappedValue == style
-                                                     ? Color.accentColor : Color.secondary)
+                                if selection.wrappedValue == style {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(preferences.designStyle.rowTitleFont)
+                                        .foregroundStyle(Theme.accentText(palettes.style))
+                                }
                             }
                             Text(style.hint)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(Theme.Metrics.gap)
+                        .padding(preferences.designStyle.cardPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.secondarySystemBackground),
-                                    in: RoundedRectangle(cornerRadius: CornerRadius.control,
-                                                         style: .continuous))
+                        .appSurface(cornerRadius: preferences.designStyle.cardRadius)
                         .overlay {
-                            RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
-                                .strokeBorder(selection.wrappedValue == style
-                                              ? Color.accentColor : Color.secondary,
-                                              lineWidth: selection.wrappedValue == style ? 2 : 0.5)
-                                .allowsHitTesting(false)
+                            if selection.wrappedValue == style {
+                                RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius,
+                                                 style: .continuous)
+                                    .strokeBorder(Theme.accentText(palettes.style), lineWidth: 2)
+                                    .allowsHitTesting(false)
+                            }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: CornerRadius.control))
+                        .contentShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
@@ -114,11 +117,11 @@ private struct DesignStylePagePreview: View {
             .padding(style.cardPadding / 2)
             .morePanel()
         }
-        .padding(Theme.Metrics.gap)
+        .padding(style.cardPadding / 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             AppearanceBackground(preferences: previewPreferences)
-                .clipShape(RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: style.cardRadius, style: .continuous))
         }
         .environment(\.appearancePreferences, previewPreferences)
         .allowsHitTesting(false)

@@ -1,7 +1,7 @@
 # hAiity UI Design System
 
 Status: implemented contract - shared settings and graph foundations verified
-Date: 2026-10-04
+Date: 2026-10-05
 Scope: shared UI language for the existing iOS app
 
 ## App-wide design styles (2026-10-04)
@@ -34,6 +34,26 @@ The native Customize disclosure contains existing material, background, palette,
 icon, performance and compact controls. System/light/dark remains directly
 available. Shared headers and settings components apply the styles to root and
 secondary pages; sheets keep their existing navigation and permission behavior.
+
+New controls must compose these existing roles. Standalone selector options use
+`appSurface`, the active style's padding/radius/fonts, and a meaningful selected
+outline/checkmark. Candidate-style overrides belong inside decorative thumbnails
+only. Material samples demonstrate the candidate material using the current
+palette; the outer option continues to follow the app's active appearance.
+Do not stack a List row background over another surface or add a private gray
+fill and border family to new controls.
+
+Settings actions and disclosures use `AppSettingsRow`; informational symbols use
+`AppIconBadge`. Its decorative symbol scales within the existing fixed icon slot,
+while labels retain unrestricted Dynamic Type growth. More, secondary pages,
+creator disclosures and Statistics Details use the same row/font/icon rhythm.
+
+Text/symbol accent and button-fill accent have different contrast contracts.
+White button symbols use `Theme.accentFill`, never `accentText` as their fill.
+Primary widget actions use the global accent. Negative data symbols retain the
+item palette, with neutral readable status text and an explicit selected symbol
+instead of white text over a pale data color. Selection also has accessibility
+traits; color alone never carries the state.
 
 This document is the visual and interaction contract for the UI unification
 plan. It describes how existing parts should look and behave when they are

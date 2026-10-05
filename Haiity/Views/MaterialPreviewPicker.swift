@@ -10,16 +10,17 @@ struct MaterialPreviewPicker: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Metrics.gap + 2) {
+        VStack(alignment: .leading, spacing: preferences.designStyle.cardPadding) {
             AppearanceStylePreview(preferences: preferences,
                                    material: selection.wrappedValue)
 
             Text(String(localized: "Oberfläche"))
-                .font(.subheadline.weight(.semibold))
+                .font(preferences.designStyle.sectionTitleFont)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()),
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(),
+                                                         spacing: preferences.designStyle.cardPadding),
                                      count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
-                      spacing: Theme.Metrics.gap) {
+                      spacing: preferences.designStyle.cardPadding) {
                 ForEach(AppearanceMaterial.allCases, id: \.self) { material in
                     MaterialOptionCard(preferences: preferences,
                                        material: material,
@@ -46,6 +47,7 @@ private struct AppearanceStylePreview: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.palettes) private var palettes
 
     private var previewPreferences: AppearancePreferences {
         var copy = preferences
@@ -56,35 +58,34 @@ private struct AppearanceStylePreview: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                VStack(alignment: .leading, spacing: preferences.designStyle.cardPadding) {
                     previewText
                     previewRamp
                 }
             } else {
-                HStack(spacing: Theme.Metrics.gap) {
+                HStack(spacing: preferences.designStyle.cardPadding) {
                     previewText
-                    Spacer(minLength: Theme.Metrics.gap)
+                    Spacer(minLength: preferences.designStyle.rowGap)
                     previewRamp
                 }
             }
         }
         .padding(preferences.designStyle.cardPadding)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+        .frame(maxWidth: .infinity,
+               minHeight: preferences.designStyle.settingsRowHeight * 2, alignment: .leading)
+        .appSurface(cornerRadius: preferences.designStyle.cardRadius)
         .background {
             AppearanceBackground(preferences: previewPreferences)
+                .clipShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius,
+                                            style: .continuous))
         }
         .environment(\.appearancePreferences, previewPreferences)
-        .clipShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous)
-                .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Vorschau des ausgewählten Erscheinungsbilds"))
     }
 
     private var previewText: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: preferences.designStyle.rowGap) {
             Text(String(localized: "Heute"))
                 .font(.caption.weight(.semibold))
             Text(String(localized: "Dein Fortschritt"))
@@ -100,7 +101,7 @@ private struct AppearanceStylePreview: View {
         HStack(spacing: 4) {
             ForEach(0..<5, id: \.self) { level in
                 RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
-                    .fill(Theme.level(level, dark: colorScheme == .dark))
+                    .fill(Theme.level(level, dark: colorScheme == .dark, palette: palettes.style))
                     .frame(width: 16, height: 16)
             }
         }
@@ -116,6 +117,7 @@ private struct MaterialOptionCard: View {
     let onSelect: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.palettes) private var palettes
 
     private static let rampPattern: [[Int]] = [
         [0, 1, 2],
@@ -125,44 +127,38 @@ private struct MaterialOptionCard: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: preferences.designStyle.rowGap) {
                 sampleSurface
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
-                            .strokeBorder(isSelected
-                                          ? Color.accentColor.opacity(0.9)
-                                          : Color.primary.opacity(0.10),
-                                          lineWidth: isSelected ? 1.5 : 0.5)
-                    }
+                    .frame(height: preferences.designStyle.settingsRowHeight)
+                    .accessibilityHidden(true)
 
-                HStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: preferences.designStyle.rowGap) {
                     Text(material.displayName)
-                        .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                        .font(preferences.designStyle.rowTitleFont)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.45))
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(preferences.designStyle.rowTitleFont)
+                            .foregroundStyle(Theme.accentText(palettes.style))
+                    }
                 }
             }
-            .padding(8)
+            .padding(preferences.designStyle.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(isSelected ? 0.075 : 0.025),
-                        in: RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
+            .appSurface(cornerRadius: preferences.designStyle.cardRadius)
             .overlay {
-                RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
-                    .strokeBorder(isSelected
-                                  ? Color.accentColor.opacity(0.35)
-                                  : Color.primary.opacity(0.06),
-                                  lineWidth: 0.6)
+                if isSelected {
+                    RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius, style: .continuous)
+                        .strokeBorder(Theme.accentText(palettes.style), lineWidth: 2)
+                        .allowsHitTesting(false)
+                }
             }
+            .contentShape(RoundedRectangle(cornerRadius: preferences.designStyle.cardRadius))
         }
         .buttonStyle(.plain)
-        .settingsRowSurface()
         .accessibilityLabel(material.displayName)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -173,22 +169,16 @@ private struct MaterialOptionCard: View {
                 HStack(spacing: 3) {
                     ForEach(row, id: \.self) { level in
                         RoundedRectangle(cornerRadius: CornerRadius.pixel, style: .continuous)
-                            .fill(Theme.level(level, dark: colorScheme == .dark))
+                            .fill(Theme.level(level, dark: colorScheme == .dark, palette: palettes.style))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
             }
         }
-        .padding(7)
+        .padding(preferences.designStyle.cardPadding / 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .appSurface(cornerRadius: preferences.designStyle.cardRadius / 2)
         .environment(\.appearancePreferences, preferences.withMaterial(material))
-        .background(Color(.secondarySystemBackground),
-                    in: RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CornerRadius.control, style: .continuous)
-                .fill(Color.accentColor.opacity(material == .solid ? 0.035 : 0.06))
-                .allowsHitTesting(false)
-        }
     }
 }
 

@@ -52,7 +52,12 @@ struct WidgetItemStatus: View {
     var body: some View {
         let text = summary.metricText.hasPrefix("✓ ") || summary.metricText.hasPrefix("✗ ")
             ? String(summary.metricText.dropFirst(2)) : summary.metricText
-        Label(text, systemImage: summary.metricSymbol)
+        Label {
+            Text(text)
+                .foregroundStyle(mode == .fullColor && summary.status == .declined ? Color.primary : color)
+        } icon: {
+            Image(systemName: summary.metricSymbol).foregroundStyle(color)
+        }
             .font(compact ? .caption2 : .caption)
             .foregroundStyle(color)
             .lineLimit(compact ? 1 : 2)
@@ -106,15 +111,16 @@ struct WidgetItemActions: View {
                                       summary: WidgetItemSummary,
                                       selected: Bool, negative: Bool) -> some View {
         let palette = entry.palettes.style(for: habit)
-        let accent = negative ? Theme.color(palette.negative(dark: dark)) : Theme.accentText(palette)
+        let accent = negative ? Theme.color(palette.negative(dark: dark)) : Theme.accentText(entry.palettes.style)
+        let filled = selected && !negative
         return Button(intent: intent) {
-            Image(systemName: symbol)
+            Image(systemName: selected && negative ? "xmark.circle.fill" : symbol)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(mode == .fullColor ? (selected ? Color.white : accent) : Color.white)
+                .foregroundStyle(mode == .fullColor ? (filled ? Color.white : accent) : Color.white)
                 .frame(width: 30, height: 30)
                 .background {
                     Circle().fill(mode == .fullColor
-                                  ? (selected ? accent : accent.opacity(0.09))
+                                  ? (filled ? Theme.accentFill(entry.palettes.style) : accent.opacity(0.09))
                                   : Color.white.opacity(selected ? 0.3 : 0.1))
                 }
                 .frame(width: 44, height: 44)
@@ -123,6 +129,7 @@ struct WidgetItemActions: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityValue(summary.metricText)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
