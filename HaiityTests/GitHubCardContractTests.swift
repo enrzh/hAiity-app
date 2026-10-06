@@ -360,7 +360,7 @@ final class GitHubCardContractTests: XCTestCase {
     func testMonthLabelPreferenceReachesHabitAndGitHubGraphs() throws {
         let content = try source("Haiity/Views/ContentView.swift")
         let habit = try source("Haiity/Views/HabitCard.swift")
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreAppearance.swift")
 
         XCTAssertTrue(content.contains("graphShowsMonthLabels"))
         XCTAssertTrue(content.contains("showsMonthLabels: graphShowsMonthLabels"))

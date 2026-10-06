@@ -285,7 +285,10 @@ targets:
           cp "$PROJECT_DIR/Haiity/Views/ContentView.swift" "$bundle/ContentView.txt"
           cp "$PROJECT_DIR/Haiity/Views/EditHabitSheet.swift" "$bundle/EditHabitSheet.txt"
           cp "$PROJECT_DIR/Haiity/Views/HabitCard.swift" "$bundle/HabitCard.txt"
-          cp "$PROJECT_DIR/Haiity/Views/MoreView.swift" "$bundle/MoreView.txt"
+          for source in "$PROJECT_DIR"/Haiity/Views/More*.swift; do
+            name=$(basename "$source" .swift)
+            cp "$source" "$bundle/$name.txt"
+          done
           cp "$PROJECT_DIR/Haiity/Views/AboutView.swift" "$bundle/AboutView.txt"
           cp "$PROJECT_DIR/Haiity/Views/ReminderRow.swift" "$bundle/ReminderRow.txt"
           cp "$PROJECT_DIR/Haiity/Views/SwipeRevealPan.swift" "$bundle/SwipeRevealPan.txt"

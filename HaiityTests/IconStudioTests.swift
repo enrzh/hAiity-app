@@ -57,7 +57,7 @@ final class IconStudioTests: XCTestCase {
     /// Das Auswahlraster zeigt ALLE 18 Icons plus die freie Farbe mit
     /// ehrlicher Vorschau des gerundeten Ziels.
     func testMoreViewOffersEveryIconAndTheFreeColorRow() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreAppearance.swift")
         XCTAssertTrue(more.contains("ForEach(AppIcons.hues)"))
         for id in ["\"icon-color-picker\"", "\"icon-color-apply\""] {
             XCTAssertTrue(more.contains(id), id)

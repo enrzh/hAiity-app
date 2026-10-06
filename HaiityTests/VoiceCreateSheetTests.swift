@@ -276,13 +276,13 @@ final class VoiceCreateSheetTests: XCTestCase {
     }
 
     func testTheCreateFromASentenceToggleIsOfferedInAppearance() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreAppearance.swift")
         XCTAssertTrue(more.contains("dictate-create-toggle"),
                       "the toggle needs an identifier the UI tests can find")
         XCTAssertTrue(more.contains("statsCards.dictateCreateEnabled"),
                       "and it must be bound to the preference")
 
-        let button = try XCTUnwrap(more.range(of: "private var compactModeSection"))
+        let button = try XCTUnwrap(more.range(of: "var compactModeSection"))
         let body = more[button.upperBound...].prefix(2000)
         XCTAssertTrue(body.contains("dictate-create-toggle"),
                       "it belongs in Darstellung, next to the other view toggles")

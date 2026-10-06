@@ -321,15 +321,27 @@ final class CalendarSyncSelectionTests: XCTestCase {
     }
 
     func testMoreScreenExposesTheActualCalendarDestinationPicker() throws {
-        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(source.contains("calendarDestinationPicker"))
+        let root = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
+        let source = try calendarSyncTestSource("Haiity/Views/MoreCalendar.swift")
+        XCTAssertTrue(root.contains(".sheet(isPresented: $showCalendarPicker)"))
+        XCTAssertTrue(root.contains("calendarDestinationPicker"))
+        XCTAssertTrue(source.contains("var calendarDestinationPicker: some View"))
         XCTAssertTrue(source.contains("CalendarSync.writableCalendarOptions"))
         XCTAssertTrue(source.contains("calendar-sync-habits-destination"))
         XCTAssertTrue(source.contains("calendar-sync-reminders-destination"))
+        let rowStart = try XCTUnwrap(source.range(of: "func calendarOptionRow("))
+        let rowEnd = try XCTUnwrap(source.range(of: "func selectCalendar(",
+                                                 range: rowStart.upperBound..<source.endIndex))
+        let row = source[rowStart.lowerBound..<rowEnd.lowerBound]
+        XCTAssertTrue(row.contains("Button(action: action)"))
+        XCTAssertTrue(row.contains("AppSettingsRow(title: title, detail: subtitle)"))
+        XCTAssertTrue(row.contains("if selected"))
+        XCTAssertTrue(row.contains("Image(systemName: \"checkmark\")"))
+        XCTAssertTrue(row.contains(".accessibilityAddTraits(selected ? .isSelected : [])"))
     }
 
     func testMoreScreenExposesIndependentCalendarToggles() throws {
-        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
+        let source = try calendarSyncTestSource("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(source.contains("calendar-sync-habits-toggle"))
         XCTAssertTrue(source.contains("calendar-sync-reminders-toggle"))
         XCTAssertTrue(source.contains("CalendarSync.syncHabits"))
@@ -340,13 +352,13 @@ final class CalendarSyncSelectionTests: XCTestCase {
         XCTAssertFalse(CalendarFeatureGate.canEnable(unlocked: false))
         XCTAssertTrue(CalendarFeatureGate.canEnable(unlocked: true))
 
-        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
+        let source = try calendarSyncTestSource("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(source.contains("guard CalendarFeatureGate.canEnable(unlocked: unlocked)"))
         XCTAssertTrue(source.contains("paywall = .calendar"))
     }
 
     func testMoreViewReminderToggleUsesItsBinding() throws {
-        let source = try calendarSyncTestSource("Haiity/Views/MoreView.swift")
+        let source = try calendarSyncTestSource("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(source.contains("Toggle(isOn: reminderSyncBinding)"))
     }
 }

@@ -128,7 +128,7 @@ final class CelebrationTests: XCTestCase {
     /// Die Apple-Anmeldung fragt Name und E-Mail: der Name personalisiert,
     /// die verifizierte E-Mail erkennt ausschließlich das Entwicklerkonto.
     func testSignInAsksForNameAndOwnerEmail() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
         XCTAssertTrue(more.contains("request.requestedScopes = [.fullName, .email]"))
         XCTAssertTrue(more.contains("if storedAppleUserID != nil"),
                       "the stable Apple ID, not an optional name, defines signed-in state")

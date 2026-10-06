@@ -469,7 +469,7 @@ final class WidgetPreferenceTests: XCTestCase {
     func testWidgetResetSettingIsPresentedInDarstellungAndReadByWidget() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
         let widget = try String(contentsOf: root.appendingPathComponent("HaiityWidget/HaiityWidget.swift"))
         XCTAssertTrue(more.contains("widget-reset-toggle"))
         XCTAssertTrue(widget.contains("widgetResetEnabled"))

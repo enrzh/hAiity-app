@@ -330,7 +330,7 @@ final class FeedbackTests: XCTestCase {
     }
 
     func testAppleSignInPrefillsTheEditableAliasFromANewAppleName() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
 
         XCTAssertTrue(more.contains("let resolvedName = AppleSignInIdentity.resolvedName("))
         XCTAssertTrue(more.contains("let suggestedAlias = AppleSignInIdentity.suggestedAlias("))
@@ -353,7 +353,7 @@ final class FeedbackTests: XCTestCase {
     }
 
     func testAppleLoginStateOffersLogoutAndRefreshesStoreEntitlements() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
 
         XCTAssertTrue(more.contains("if storedAppleUserID != nil"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"apple-signout\")"))
@@ -421,10 +421,13 @@ final class FeedbackTests: XCTestCase {
 
     func testAppleIdentifierIsOnlyExposedInTheDeveloperPage() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let personal = try source("Haiity/Views/MorePersonal.swift")
         let developer = try source("Haiity/Views/DeveloperView.swift")
-        XCTAssertFalse(more.contains("copy-unrecognized-apple-user-id"))
-        XCTAssertFalse(more.contains("Kennung kopieren"))
-        XCTAssertFalse(more.contains("UIPasteboard.general.string = storedAppleUserID"))
+        for source in [more, personal] {
+            XCTAssertFalse(source.contains("copy-unrecognized-apple-user-id"))
+            XCTAssertFalse(source.contains("Kennung kopieren"))
+            XCTAssertFalse(source.contains("UIPasteboard.general.string = storedAppleUserID"))
+        }
         XCTAssertTrue(developer.contains("copy-apple-user-id"))
         XCTAssertTrue(developer.contains("UIPasteboard.general.string = appleUserID"))
     }
@@ -624,7 +627,7 @@ final class FeedbackTests: XCTestCase {
     /// der Vorname; bliebe sie liegen, wäre sie der Rest einer Anmeldung, die
     /// der Nutzer gerade zurückgenommen hat.
     func testRemovingTheAppleNameAlsoClearsTheIdentifier() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
         let remove = try XCTUnwrap(more.range(of: "PersonalName.appleName = nil"))
         let after = more[remove.upperBound...]
         XCTAssertTrue(after.prefix(400).contains("PersonalName.appleUserID = nil"),
@@ -706,24 +709,28 @@ final class FeedbackTests: XCTestCase {
 
     func testMoreKeepsCloudStatusInDeveloperToolsAndUsesConciseSettings() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let appearance = try source("Haiity/Views/MoreAppearance.swift")
+        let behavior = try source("Haiity/Views/MoreBehavior.swift")
         XCTAssertFalse(more.contains("iCloudRow"))
         XCTAssertFalse(more.contains("moreCloudRow"))
         XCTAssertFalse(more.contains("icloud-status"))
         let hubStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let hubEnd = try XCTUnwrap(more.range(of: "private var accentColor: Color"))
+        let hubEnd = try XCTUnwrap(more.range(of: "var accentColor: Color"))
         let hub = more[hubStart.lowerBound..<hubEnd.lowerBound]
         XCTAssertFalse(hub.contains("moreCloudRow"))
         XCTAssertFalse(hub.contains("cloudStatus.state.title"))
-        XCTAssertTrue(more.contains("private var cloudSyncSection: some View"),
+        XCTAssertTrue(behavior.contains("var cloudSyncSection: some View"),
                       "sync status belongs to the secondary integration settings page")
-        XCTAssertTrue(more.contains("cloudStatus.state.title"),
+        XCTAssertTrue(behavior.contains("cloudStatus.state.title"),
                       "the integration page still needs to explain the current sync state")
-        XCTAssertTrue(more.contains("cloud-sync-status"))
+        XCTAssertTrue(behavior.contains("cloud-sync-status"))
         for verbose in ["Verdichtet die Habit-Liste und die untere Navigation dauerhaft.",
                         "Erledigt, +1, Ja und Nein liegen fest auf den Wischgesten.",
                         "Schüttle das iPhone, wenn etwas nicht stimmt:",
                         "Beim Anpassen des App-Icons fragt iOS einmal kurz nach."] {
             XCTAssertFalse(more.contains(verbose), verbose)
+            XCTAssertFalse(appearance.contains(verbose), verbose)
+            XCTAssertFalse(behavior.contains(verbose), verbose)
         }
         XCTAssertTrue(more.contains("Mitteilungen & Kalender einrichten"))
         XCTAssertTrue(more.contains("Zeitzone, Kalender und Apple-Erinnerungen"))
@@ -733,9 +740,16 @@ final class FeedbackTests: XCTestCase {
     }
 
     func testNotificationSettingsUseIndependentNativeRows() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        let start = try XCTUnwrap(more.range(of: "private var notificationSettingsSection: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var notificationOptOutRows: some View",
+        let more = try source("Haiity/Views/MoreNotifications.swift")
+        let host = try source("Haiity/Views/MoreView.swift")
+        let sheetStart = try XCTUnwrap(host.range(of: ".sheet(isPresented: $showingNotificationSettings)"))
+        let sheetEnd = try XCTUnwrap(host.range(of: ".onAppear {",
+                                              range: sheetStart.upperBound..<host.endIndex))
+        let sheet = host[sheetStart.lowerBound..<sheetEnd.lowerBound]
+        XCTAssertTrue(sheet.contains("SettingsPage(title: String(localized: \"Mitteilungen\"))"))
+        XCTAssertTrue(sheet.contains("notificationSettingsSection"))
+        let start = try XCTUnwrap(more.range(of: "var notificationSettingsSection: some View"))
+        let end = try XCTUnwrap(more.range(of: "var notificationOptOutRows: some View",
                                            range: start.upperBound..<more.endIndex))
         let section = more[start.lowerBound..<end.lowerBound]
 
@@ -755,8 +769,8 @@ final class FeedbackTests: XCTestCase {
         let nextRows = ["dailySummaryRows", "weeklySummaryRows", "motivationRows",
                         "motivationSourceControl"]
         for (row, nextRow) in zip(rows, nextRows) {
-            let rowStart = try XCTUnwrap(more.range(of: "private var \(row): some View"))
-            let rowEnd = try XCTUnwrap(more.range(of: "private var \(nextRow):",
+            let rowStart = try XCTUnwrap(more.range(of: "var \(row): some View"))
+            let rowEnd = try XCTUnwrap(more.range(of: "var \(nextRow):",
                                                   range: rowStart.upperBound..<more.endIndex))
             let rowSource = more[rowStart.lowerBound..<rowEnd.lowerBound]
             XCTAssertTrue(rowSource.contains(".padding(.vertical, Theme.Metrics.gap / 2)"),
@@ -765,9 +779,9 @@ final class FeedbackTests: XCTestCase {
     }
 
     func testWeeklySummaryWeekdayHasItsOwnBoundedMenuTarget() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        let start = try XCTUnwrap(more.range(of: "private var weeklySummaryRows: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var motivationRows: some View",
+        let more = try source("Haiity/Views/MoreNotifications.swift")
+        let start = try XCTUnwrap(more.range(of: "var weeklySummaryRows: some View"))
+        let end = try XCTUnwrap(more.range(of: "var motivationRows: some View",
                                            range: start.upperBound..<more.endIndex))
         let rows = more[start.lowerBound..<end.lowerBound]
 
@@ -775,9 +789,9 @@ final class FeedbackTests: XCTestCase {
                       "the weekday choice must be an explicitly bounded control")
         XCTAssertFalse(rows.contains("Picker(String(localized: \"Wochentag\")"),
                        "the default Picker can claim the entire notification row")
-        XCTAssertFalse(more.contains("private var weeklyWeekdayMenu: some View"),
+        XCTAssertFalse(more.contains("var weeklyWeekdayMenu: some View"),
                        "the flexible Menu label can claim the surrounding glass group")
-        XCTAssertTrue(more.contains("private var weeklyWeekdayButton: some View"))
+        XCTAssertTrue(more.contains("var weeklyWeekdayButton: some View"))
         XCTAssertTrue(more.contains(".fixedSize(horizontal: true, vertical: false)"),
                       "the weekday button must keep an intrinsic hit target")
         XCTAssertTrue(more.contains("showWeeklyWeekdayPicker"),
@@ -791,9 +805,9 @@ final class FeedbackTests: XCTestCase {
     /// What must survive is the shape — a bounded native control, never a
     /// row-wide gesture, and never a caption that claims the row.
     func testTheMotivationSourceControlStaysABoundedNativeControl() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        let start = try XCTUnwrap(more.range(of: "private var motivationRows: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var motivationSourceControl: some View",
+        let more = try source("Haiity/Views/MoreNotifications.swift")
+        let start = try XCTUnwrap(more.range(of: "var motivationRows: some View"))
+        let end = try XCTUnwrap(more.range(of: "var motivationSourceControl: some View",
                                            range: start.upperBound..<more.endIndex))
         let rows = more[start.lowerBound..<end.lowerBound]
 
@@ -811,11 +825,13 @@ final class FeedbackTests: XCTestCase {
     }
 
     func testBehaviorAndDeveloperCategoriesUseOneMaterialRow() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreBehavior.swift")
+        let calendar = try source("Haiity/Views/MoreCalendar.swift")
+        let notifications = try source("Haiity/Views/MoreNotifications.swift")
         let developer = try source("Haiity/Views/DeveloperView.swift")
 
         func categoryBody(_ source: String, _ marker: String, _ nextDeclaration: String) throws -> String {
-            let start = try XCTUnwrap(source.range(of: "private var \(marker): some View"))
+            let start = try XCTUnwrap(source.range(of: "var \(marker): some View"))
             let end = try XCTUnwrap(source.range(of: nextDeclaration,
                                                 range: start.upperBound..<source.endIndex))
             return String(source[start.lowerBound..<end.lowerBound])
@@ -823,13 +839,15 @@ final class FeedbackTests: XCTestCase {
 
         // Both pages moved off `List` to the shared group surface, because iOS
         // 27 drops taps on grouped list rows. One group, one material row.
-        for (category, next) in [("autoArchiveSection", "private var compactModeSection: some View"),
-                                 ("swipeActionsSection", "private var notificationActionsSection: some View"),
-                                 ("notificationActionsSection", "private func notificationSlotTitle"),
-                                 ("calendarSection", "private func cleanupNativeEntries")] {
+        for (category, next) in [("autoArchiveSection", "var defaultTimeZoneGroup: some View"),
+                                 ("swipeActionsSection", "func normalized")] {
             let body = try categoryBody(more, category, next)
             XCTAssertTrue(body.contains("AppSettingsGroup(title:"), category)
         }
+        let calendarBody = try categoryBody(calendar, "calendarSection", "func cleanupNativeEntries")
+        XCTAssertTrue(calendarBody.contains("AppSettingsGroup(title:"), "calendarSection")
+        let notificationBody = try categoryBody(notifications, "notificationActionsSection", "func notificationSlotTitle")
+        XCTAssertTrue(notificationBody.contains("AppSettingsGroup(title:"), "notificationActionsSection")
 
         let developerCategories = [("appSection", "private var dataSection: some View"),
                                    ("dataSection", "private var fileSize"),
@@ -848,6 +866,8 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(transfer.contains("AppSettingsGroup(title:"))
         XCTAssertFalse(more.contains("moreSettingsSection()"),
                        "the More settings pages must not go back to a List-backed section")
+        XCTAssertFalse(calendar.contains("moreSettingsSection()"),
+                       "the Calendar settings must not go back to a List-backed section")
         XCTAssertFalse(developer.contains("moreSettingsSection()"),
                        "the developer page must not go back to a List-backed section")
     }
@@ -860,6 +880,8 @@ final class FeedbackTests: XCTestCase {
 
     func testMoreUsesRequestedPageOrderAndDedicatedSettingsScreens() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let appearanceSource = try source("Haiity/Views/MoreAppearance.swift")
+        let behaviorSource = try source("Haiity/Views/MoreBehavior.swift")
         for route in ["case archive, about, developer, appearance, habitBehavior, github",
                       "case .appearance:", "case .habitBehavior:",
                       "Darstellung", "Verhalten & Teilen"] {
@@ -867,14 +889,16 @@ final class FeedbackTests: XCTestCase {
         }
 
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
+        let end = try XCTUnwrap(more.range(of: "var accentColor: Color",
+                                           range: body.upperBound..<more.endIndex))
         let main = more[body.lowerBound..<end.lowerBound]
         // Grouped by intent, not taxonomy: Alltag, then Konto & Verbindungen,
         // then Archiv & Über. The order inside the hub is the contract.
-        let ordered = ["MoreRoute.appearance",
-                       "showingNotificationSettings", "MoreRoute.habitBehavior",
+        let ordered = ["\"open-appearance\"",
+                       "\"open-notifications\"", "\"open-habit-behavior\"",
                        "moreGitHubRow", "moreAppleAccountRow",
-                       "showReminderSetup", "pageRow(.archive", "pageRow(.about", "proSection"]
+                       "\"open-reminder-setup\"", "\"open-data-transfer\"",
+                       "\"open-archive\"", "\"open-about\"", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)
@@ -884,17 +908,23 @@ final class FeedbackTests: XCTestCase {
                       "the rebuilt More page must keep each group in its own surface")
 
         let appearanceStart = try XCTUnwrap(
-            more.range(of: "private var appearanceSettings: some View"))
+            appearanceSource.range(of: "var appearanceSettings: some View"))
+        let appearanceEnd = try XCTUnwrap(
+            appearanceSource.range(of: "var morePageRule: some View",
+                                    range: appearanceStart.upperBound..<appearanceSource.endIndex))
         let behaviorStart = try XCTUnwrap(
-            more.range(of: "private var habitBehaviorSettings: some View"))
-        let appearance = more[appearanceStart.lowerBound..<behaviorStart.lowerBound]
+            behaviorSource.range(of: "var habitBehaviorSettings: some View"))
+        let behaviorEnd = try XCTUnwrap(
+            behaviorSource.range(of: "var cloudSyncSection: some View",
+                                  range: behaviorStart.upperBound..<behaviorSource.endIndex))
+        let appearance = appearanceSource[appearanceStart.lowerBound..<appearanceEnd.lowerBound]
         XCTAssertTrue(appearance.contains("compactModeSection"))
-        let behavior = more[behaviorStart.lowerBound...]
-        XCTAssertFalse(behavior.prefix(250).contains("compactModeSection"))
+        let behavior = behaviorSource[behaviorStart.lowerBound..<behaviorEnd.lowerBound]
+        XCTAssertFalse(behavior.contains("compactModeSection"))
     }
 
     func testDynamicAppIconLabelExplainsAndHidesManualChoices() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreAppearance.swift")
         XCTAssertTrue(more.contains("App-Icon dynamisch"))
         XCTAssertTrue(more.contains("Gleiche Farbe wie Graph-Farbe."))
         XCTAssertTrue(more.contains("if !store.matchAppIcon"))

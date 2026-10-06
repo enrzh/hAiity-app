@@ -466,10 +466,13 @@ final class DiagnosticsTests: XCTestCase {
     /// derselben Kennung auf der Entwicklerseite.
     func testMoreViewGaveUpTheTestNotification() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertFalse(more.contains("testNotificationSection"),
-                       "die Diagnosezeile steht wieder in den Einstellungen")
-        XCTAssertFalse(more.contains("\"test-notification\""))
-        XCTAssertFalse(more.contains("Reminders.scheduleTest"))
+        let notifications = try source("Haiity/Views/MoreNotifications.swift")
+        for source in [more, notifications] {
+            XCTAssertFalse(source.contains("testNotificationSection"),
+                           "die Diagnosezeile steht wieder in den Einstellungen")
+            XCTAssertFalse(source.contains("\"test-notification\""))
+            XCTAssertFalse(source.contains("Reminders.scheduleTest"))
+        }
     }
 
     /// (a) **Die Tür sitzt in `AboutView`** — sie sieht aus wie eine Fußzeile
@@ -575,7 +578,7 @@ final class DiagnosticsTests: XCTestCase {
                       "der Ausweg muss auch ungefragt erscheinen, wenn der Stand denied sagt")
 
         // Der Weg für die Zusammenfassungen bleibt, wo er hingehört.
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreNotifications.swift")
         XCTAssertTrue(more.contains(#""open-notification-settings""#))
     }
 

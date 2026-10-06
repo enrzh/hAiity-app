@@ -195,8 +195,8 @@ final class NotificationActionTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Views/MoreView.swift"))
-        let binding = try XCTUnwrap(source.range(of: "private func notificationActionBinding"))
+            "Haiity/Views/MoreNotifications.swift"), encoding: .utf8)
+        let binding = try XCTUnwrap(source.range(of: "func notificationActionBinding"))
         let body = source[binding.lowerBound..<source.endIndex]
 
         XCTAssertTrue(body.contains("NotificationPresenter.configureQuickActions"),
@@ -222,7 +222,13 @@ final class NotificationActionTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Views/MoreView.swift"))
+            "Haiity/Views/MoreNotifications.swift"), encoding: .utf8)
+        let host = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MoreBehavior.swift"), encoding: .utf8)
+        let behaviorStart = try XCTUnwrap(host.range(of: "var habitBehaviorSettings: some View"))
+        let behaviorEnd = try XCTUnwrap(host.range(of: "var cloudSyncSection: some View",
+                                                  range: behaviorStart.upperBound..<host.endIndex))
+        XCTAssertTrue(host[behaviorStart.lowerBound..<behaviorEnd.lowerBound].contains("notificationActionsSection"))
 
         XCTAssertTrue(source.contains("availableChoices(for: index)"))
         XCTAssertTrue(source.contains("notification-actions-preview"))

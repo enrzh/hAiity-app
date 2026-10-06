@@ -158,7 +158,7 @@ final class LocalModelCatalogueTests: XCTestCase {
     func testThePageSaysModelsStayOnTheDevice() throws {
         let more = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/MoreView.swift"), encoding: .utf8)
+            .appendingPathComponent("Haiity/Views/MoreLocalModel.swift"), encoding: .utf8)
         XCTAssertTrue(more.contains("nicht über iCloud übertragen"),
                       "the page must tell the person the weights are not synced")
         XCTAssertTrue(more.contains("local-model-group"),

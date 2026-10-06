@@ -240,7 +240,7 @@ final class ReminderSyncContractTests: XCTestCase {
     }
 
     func testMoreViewAwaitsReminderReconciliationInCleanupAndEnableFlows() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         let occurrences = more.components(separatedBy: "await ReminderSync.reconcile").count - 1
 
         XCTAssertEqual(occurrences, 2,
@@ -250,7 +250,7 @@ final class ReminderSyncContractTests: XCTestCase {
     }
 
     func testMoreViewCleanupUISurfacesRetryableResults() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
 
         XCTAssertTrue(more.contains("nativeSyncCleanupNeedsRetry"),
                       "cleanup UI should remember when the last pass can be retried")
@@ -261,7 +261,7 @@ final class ReminderSyncContractTests: XCTestCase {
     }
 
     func testNativeSyncSettingsNamesBothCalendarDestinations() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(more.contains("hAiity Habits"))
         XCTAssertTrue(more.contains("hAiity Reminders"))
         XCTAssertTrue(more.contains("cleanup-native-entries"))
@@ -269,7 +269,7 @@ final class ReminderSyncContractTests: XCTestCase {
 
     func testNativeCleanupFeedbackNamesEachNativeDestination() throws {
         let content = try source("Haiity/Views/ContentView.swift")
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         for source in [content, more] {
             XCTAssertTrue(source.contains("hAiity Habits"))
             XCTAssertTrue(source.contains("hAiity Reminders"))
@@ -288,19 +288,23 @@ final class ReminderSyncContractTests: XCTestCase {
     }
 
     func testNativeDeleteIsSeparateAndWatermarkCopyLivesOnDeveloperPage() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let root = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         let developer = try source("Haiity/Views/DeveloperView.swift")
 
+        XCTAssertTrue(root.contains("isPresented: $showNativeSyncDeleteConfirmation"))
+        XCTAssertTrue(root.contains("deleteNativeEntries()"))
         XCTAssertTrue(more.contains("Native Einträge löschen"))
-        XCTAssertTrue(more.contains("showNativeSyncDeleteConfirmation"))
+        XCTAssertTrue(more.contains("showNativeSyncDeleteConfirmation = true"))
         XCTAssertTrue(more.contains("NativeSyncCleanup.deleteAllOwnedItems()"))
+        XCTAssertFalse(root.contains("syncWatermarkHints"))
         XCTAssertFalse(more.contains("syncWatermarkHints"))
         XCTAssertTrue(developer.contains("SyncWatermark.copyText"))
         XCTAssertTrue(developer.contains("copy-sync-watermark"))
     }
 
     func testMoreViewReminderBindingUsesPureToggleAction() throws {
-        let source = try source("Haiity/Views/MoreView.swift")
+        let source = try source("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(source.contains("switch NativeReminderToggleAction.action(for: on, unlocked: unlocked)"))
         XCTAssertTrue(source.contains("case .disable:"))
         XCTAssertTrue(source.contains("case .showPaywall:"))

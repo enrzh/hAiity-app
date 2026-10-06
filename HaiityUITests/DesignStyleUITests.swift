@@ -19,6 +19,7 @@ final class DesignStyleUITests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
+        selectTab(accessibleRTL ? "المزيد" : "More", in: app)
         return app
     }
 

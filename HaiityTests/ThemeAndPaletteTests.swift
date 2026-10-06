@@ -399,10 +399,10 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
         let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
-        let cropStart = try XCTUnwrap(more.range(of: "private struct BackgroundCropSheet"))
-        let cropEnd = try XCTUnwrap(more.range(of: "enum MoreScreen",
+        let cropStart = try XCTUnwrap(more.range(of: "struct BackgroundCropSheet"))
+        let cropEnd = try XCTUnwrap(more.range(of: "extension MoreView",
                                                range: cropStart.upperBound..<more.endIndex))
         let crop = more[cropStart.lowerBound..<cropEnd.lowerBound]
         let backgroundStart = try XCTUnwrap(theme.range(of: "struct AppearanceBackground: View"))
@@ -531,9 +531,9 @@ final class AppearanceSettingTests: XCTestCase {
     func testImagePickerIsMountedOnlyForImageMode() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Haiity/Views/MoreView.swift"))
-        let control = try XCTUnwrap(source.range(of: "private var backgroundControl"))
-        let end = try XCTUnwrap(source.range(of: "private var backgroundModeSelector",
+            .appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let control = try XCTUnwrap(source.range(of: "var backgroundControl"))
+        let end = try XCTUnwrap(source.range(of: "var backgroundModeSelector",
                                              range: control.upperBound..<source.endIndex))
         let body = source[control.lowerBound..<end.lowerBound]
 
@@ -572,7 +572,7 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("hasPersistedBackgroundImage"),
                       "image mode must show the picker and removal action only for persisted image data")
@@ -820,7 +820,7 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("photo.on.rectangle.angled"),
                       "the image action needs a clear photo affordance")
@@ -828,8 +828,8 @@ final class AppearanceSettingTests: XCTestCase {
                       "the image action should name the action, not only say select")
         XCTAssertTrue(more.contains("appearance-background-picker"))
         XCTAssertTrue(more.contains("appearance-background-remove"))
-        let imagePickerStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
-        let imagePickerEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
+        let imagePickerStart = try XCTUnwrap(more.range(of: "var backgroundImagePicker: some View"))
+        let imagePickerEnd = try XCTUnwrap(more.range(of: "func importBackgroundImage",
                                                        range: imagePickerStart.upperBound..<more.endIndex))
         let picker = more[imagePickerStart.lowerBound..<imagePickerEnd.lowerBound]
         XCTAssertFalse(picker.contains(".appSurface("),
@@ -846,8 +846,8 @@ final class AppearanceSettingTests: XCTestCase {
                       "the image removal action must use a native hit-testable plain button")
         XCTAssertFalse(remove.contains(".buttonStyle(.bordered)"),
                        "a bordered button is not reliable inside this iOS 27 list row")
-        let iconStart = try XCTUnwrap(more.range(of: "private var iconAppearanceSection: some View"))
-        let iconEnd = try XCTUnwrap(more.range(of: "private var materialBinding: Binding<AppearanceMaterial>",
+        let iconStart = try XCTUnwrap(more.range(of: "var iconAppearanceSection: some View"))
+        let iconEnd = try XCTUnwrap(more.range(of: "var materialBinding: Binding<AppearanceMaterial>",
                                                range: iconStart.upperBound..<more.endIndex))
         let iconSection = more[iconStart.lowerBound..<iconEnd.lowerBound]
         XCTAssertTrue(iconSection.contains("AppSettingsRow(title: String(localized: \"App-Icon dynamisch\")"),
@@ -861,11 +861,14 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
-        let start = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View",
-                                           range: start.upperBound..<more.endIndex))
-        let appearance = more[start.lowerBound..<end.lowerBound]
+        let page = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let start = try XCTUnwrap(page.range(of: "var appearanceSettings: some View"))
+        let end = try XCTUnwrap(page.range(of: "var morePageRule: some View",
+                                           range: start.upperBound..<page.endIndex))
+        let appearance = page[start.lowerBound..<end.lowerBound]
 
+        XCTAssertTrue(more.contains("case .appearance: appearanceSettings"),
+                      "the root must compose the extracted appearance page")
         XCTAssertTrue(appearance.contains("SettingsPage"),
                       "appearance controls must share the native settings scroll shell")
         let shell = try String(contentsOf: root.appendingPathComponent("Haiity/Views/AppUIComponents.swift"),
@@ -879,10 +882,10 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
-        let backgroundStart = try XCTUnwrap(more.range(of: "private var backgroundControl: some View"))
-        let backgroundEnd = try XCTUnwrap(more.range(of: "private func backgroundSymbol",
+        let backgroundStart = try XCTUnwrap(more.range(of: "var backgroundControl: some View"))
+        let backgroundEnd = try XCTUnwrap(more.range(of: "func backgroundSymbol",
                                                      range: backgroundStart.upperBound..<more.endIndex))
         let background = more[backgroundStart.lowerBound..<backgroundEnd.lowerBound]
         XCTAssertTrue(background.contains("backgroundModeSelector"),
@@ -891,13 +894,13 @@ final class AppearanceSettingTests: XCTestCase {
                       "background modes must use a native picker hit target")
         XCTAssertFalse(more.contains("showingBackgroundPhotoPicker"),
                        "the fragile custom sheet state must not remain")
-        XCTAssertFalse(more.contains("private func backgroundModeButton"),
+        XCTAssertFalse(more.contains("func backgroundModeButton"),
                        "the custom mode buttons must not remain")
         XCTAssertTrue(more.contains("\"appearance-background-mode-picker\""),
                       "the native picker needs one stable test target")
 
-        let imageStart = try XCTUnwrap(more.range(of: "private var backgroundImagePicker: some View"))
-        let imageEnd = try XCTUnwrap(more.range(of: "private func importBackgroundImage",
+        let imageStart = try XCTUnwrap(more.range(of: "var backgroundImagePicker: some View"))
+        let imageEnd = try XCTUnwrap(more.range(of: "func importBackgroundImage",
                                                 range: imageStart.upperBound..<more.endIndex))
         let imagePicker = more[imageStart.lowerBound..<imageEnd.lowerBound]
         XCTAssertTrue(imagePicker.contains("PhotosPicker(selection: $pickedBackgroundItem"),
@@ -910,7 +913,8 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let host = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("loadTransferable(type: Data.self)"),
                       "the native picker must load one transferable payload")
@@ -918,13 +922,18 @@ final class AppearanceSettingTests: XCTestCase {
                       "the native picker must share the existing normalization path")
         XCTAssertTrue(more.contains("backgroundImageImportToken"),
                       "a canceled or replaced selection must invalidate stale work")
+        let resetStart = try XCTUnwrap(host.range(of: ".onChange(of: store.appearancePreferences)"))
+        let resetEnd = try XCTUnwrap(host.range(of: ".fullScreenCover(isPresented: $showReminderSetup)",
+                                                range: resetStart.upperBound..<host.endIndex))
+        XCTAssertTrue(host[resetStart.lowerBound..<resetEnd.lowerBound].contains("backgroundImageImportToken = UUID()"),
+                      "the root must still invalidate an import when appearance preferences change")
     }
 
     func testBackgroundImageActionsUsePersistedImageData() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("backgroundImageData != nil"),
                       "a corrupt but persisted image must remain removable")
@@ -936,11 +945,12 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let host = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"), encoding: .utf8)
 
         XCTAssertFalse(more.contains("final class Coordinator: NSObject, PHPickerViewControllerDelegate"),
                        "the native SwiftUI picker owns its lifecycle")
-        XCTAssertTrue(more.contains("pickedBackgroundItem"),
+        XCTAssertTrue(host.contains("var pickedBackgroundItem: PhotosPickerItem?"),
                       "the selection must be retained by the view state")
     }
 
@@ -948,7 +958,7 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("PhotosPicker(selection: $pickedBackgroundItem"),
                       "PhotosPicker handles iCloud-backed asset representations")
@@ -971,15 +981,19 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let behaviorSource = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreBehavior.swift"), encoding: .utf8)
         let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let behaviorStart = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
-        let compactStart = try XCTUnwrap(more.range(of: "private var compactModeSection: some View"))
+        let mainEnd = try XCTUnwrap(more.range(of: "var accentColor: Color",
+                                               range: mainStart.upperBound..<more.endIndex))
+        let behaviorStart = try XCTUnwrap(behaviorSource.range(of: "var habitBehaviorSettings: some View"))
+        let behaviorEnd = try XCTUnwrap(behaviorSource.range(of: "var cloudSyncSection: some View",
+                                                             range: behaviorStart.upperBound..<behaviorSource.endIndex))
 
-        XCTAssertTrue(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains("AppSettingsGroup"))
-        XCTAssertFalse(more[mainStart.lowerBound..<behaviorStart.lowerBound].contains(".appSurface()"),
+        XCTAssertTrue(more[mainStart.lowerBound..<mainEnd.lowerBound].contains("AppSettingsGroup"))
+        XCTAssertFalse(more[mainStart.lowerBound..<mainEnd.lowerBound].contains(".appSurface()"),
                        "More groups should stay on the continuous page plane")
-        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("AppSettingsGroup"))
-        XCTAssertTrue(more[behaviorStart.lowerBound..<compactStart.lowerBound].contains("SettingsPage"),
+        XCTAssertTrue(behaviorSource[behaviorStart.lowerBound..<behaviorEnd.lowerBound].contains("AppSettingsGroup"))
+        XCTAssertTrue(behaviorSource[behaviorStart.lowerBound..<behaviorEnd.lowerBound].contains("SettingsPage"),
                       "the behaviour page gets its chrome from the shared shell")
     }
 
@@ -989,6 +1003,8 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
         let theme = try String(contentsOf: root.appendingPathComponent("Haiity/Theme.swift"))
         let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let appearance = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let components = try String(contentsOf: root.appendingPathComponent("Haiity/Views/AppUIComponents.swift"), encoding: .utf8)
         let picker = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/MaterialPreviewPicker.swift"))
 
@@ -1035,10 +1051,14 @@ final class AppearanceSettingTests: XCTestCase {
                       "native More settings rows must use the shared continuous group treatment")
         XCTAssertFalse(more.contains("moreSettingsSection()"),
                        "More must not return to List-backed settings sections")
-        XCTAssertTrue(more.contains(".settingsChrome()"),
-                      "the appearance page must use the shared appearance chrome")
-        XCTAssertTrue(more.contains("settingsChrome()"),
-                      "native More subpages must use the shared continuous chrome")
+        let appearanceBody = try body(from: "var appearanceSettings: some View",
+                                      to: "var morePageRule: some View", in: appearance)
+        let shell = try body(from: "struct SettingsPage<Content: View>: View",
+                             to: "struct AppIconBadge: View", in: components)
+        XCTAssertTrue(appearanceBody.contains("SettingsPage"),
+                      "the extracted appearance page must compose the shared settings shell")
+        XCTAssertTrue(shell.contains(".settingsChrome()"),
+                      "the shared settings shell must apply the appearance chrome")
         for caseName in ["case .main: mainSettings", "case .appearance: appearanceSettings",
                          "case .habitBehavior: habitBehaviorSettings"] {
             XCTAssertTrue(screenSwitch.contains(caseName),
@@ -1060,6 +1080,9 @@ final class AppearanceSettingTests: XCTestCase {
             "Haiity/Views/GitHubSettingsView.swift",
             "Haiity/Views/HabitTimeZoneSettingsView.swift",
             "Haiity/Views/MoreView.swift",
+            "Haiity/Views/MoreCalendar.swift",
+            "Haiity/Views/MoreBehavior.swift",
+            "Haiity/Views/MoreLocalModel.swift",
             "Haiity/Views/DeveloperView.swift"
         ]
         let stillListBacked = [
@@ -1087,6 +1110,10 @@ final class AppearanceSettingTests: XCTestCase {
         }
         let more = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/MoreView.swift"))
+        let appearance = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
+        let personal = try String(contentsOf: root.appendingPathComponent(
+            "Haiity/Views/MorePersonal.swift"), encoding: .utf8)
         let timezone = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/HabitTimeZoneSettingsView.swift"))
         XCTAssertFalse(timezone.contains("secondarySystemGroupedBackground"),
@@ -1098,12 +1125,22 @@ final class AppearanceSettingTests: XCTestCase {
         // means passing its title to the shell. Asserting the old literal would
         // have demanded a page paint its own header — the duplication this
         // whole change exists to remove.
-        XCTAssertTrue(more.contains("SettingsPage(title: String(localized: \"Alias und Apple-Anmeldung\"))"),
+        let accountStart = try XCTUnwrap(more.range(of: ".sheet(isPresented: $showingPersonalSettings)"))
+        let accountEnd = try XCTUnwrap(more.range(of: ".sheet(isPresented: $showingNotificationSettings)",
+                                                  range: accountStart.upperBound..<more.endIndex))
+        let account = more[accountStart.lowerBound..<accountEnd.lowerBound]
+        XCTAssertTrue(account.contains("SettingsPage(title: String(localized: \"Alias und Apple-Anmeldung\"))"),
                       "Account must keep the shared secondary-page header")
-        XCTAssertTrue(more.contains("private var personalSection: some View")
-                      && more.contains("AppSettingsGroup"),
+        XCTAssertTrue(account.contains("personalHeader") && account.contains("personalSection"),
+                      "the root sheet must compose the extracted account content")
+        XCTAssertTrue(personal.contains("var personalSection: some View")
+                      && personal.contains("AppSettingsGroup"),
                       "Account must use the shared appearance-aware group surface")
-        XCTAssertTrue(more.contains("morePageRule"),
+        XCTAssertFalse(personal.contains("List {"),
+                       "Account must not return to a List, which drops taps on iOS 27")
+        XCTAssertFalse(personal.contains("settingsListRow()"),
+                       "Account should not restore rounded settings cells")
+        XCTAssertTrue(appearance.contains("morePageRule"),
                       "the appearance page should use quiet rules between sections")
     }
 
@@ -1111,7 +1148,7 @@ final class AppearanceSettingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: root.appendingPathComponent("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
         let picker = try String(contentsOf: root.appendingPathComponent(
             "Haiity/Views/MaterialPreviewPicker.swift"))
 

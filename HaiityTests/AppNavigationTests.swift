@@ -201,6 +201,7 @@ final class AppNavigationTests: XCTestCase {
     /// other way would pin the sheet that was deliberately removed.
     func testEveryHubRowCanActuallyBeOpened() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let behavior = try String(contentsOf: sourceURL("Haiity/Views/MoreBehavior.swift"), encoding: .utf8)
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let navigation = try String(contentsOf: sourceURL("Haiity/Models/AppNavigation.swift"))
 
@@ -213,7 +214,7 @@ final class AppNavigationTests: XCTestCase {
         // navigationDestination rather than through a destination enum. The two
         // are mutually exclusive: a route in `AppMoreDestination` would also be
         // presented as a sheet over the page that led to it.
-        XCTAssertTrue(more.contains("NavigationLink(value: MoreRoute.localModel)"),
+        XCTAssertTrue(behavior.contains("NavigationLink(value: MoreRoute.localModel)"),
                       "the model row must push onto Verhalten & Teilen's stack")
         let destination = try XCTUnwrap(navigation.range(of: "enum AppMoreDestination"))
         XCTAssertFalse(navigation[destination.upperBound...].prefix(200).contains("localModel"),
@@ -241,15 +242,22 @@ final class AppNavigationTests: XCTestCase {
     ///
     /// So the page composes the group and must not paint its own surface.
     func testTheModelPageCarriesTheSamePanelAsTheOtherMorePages() throws {
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreLocalModel.swift"), encoding: .utf8)
+        let host = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"), encoding: .utf8)
+        XCTAssertTrue(host.contains("case .localModel: localModelSettings"),
+                      "the root must compose the extracted model page")
+        XCTAssertTrue(host.contains("var modelService = LocalModelService()"),
+                      "the root must retain ownership of the model service")
+        XCTAssertFalse(more.contains("LocalModelService()"),
+                       "the extracted page must use the root's service")
 
         // Two slices, because two declarations are involved and each has its own
         // claim. Slicing only the page body (what this did first) meant
         // `AppSettingsGroup` was matched from the prose comment that introduces
         // the next declaration — an assertion that passed on documentation
         // instead of on the component being documented.
-        let page = try XCTUnwrap(more.range(of: "private var localModelSettings"))
-        let section = try XCTUnwrap(more.range(of: "private var localModelSection"))
+        let page = try XCTUnwrap(more.range(of: "var localModelSettings"))
+        let section = try XCTUnwrap(more.range(of: "var localModelSection"))
         XCTAssertLessThan(page.upperBound, section.lowerBound)
 
         let pageBody = more[page.upperBound..<section.lowerBound]
@@ -263,9 +271,8 @@ final class AppNavigationTests: XCTestCase {
         // And the catalogue itself is built from the shared group, which is what
         // carries the surface the page must show.
         let search = section.lowerBound..<more.endIndex
-        let sectionEnd = more.range(of: "\n    private func ", range: search)?.lowerBound
-            ?? more.endIndex
-        let sectionBody = more[section.lowerBound..<sectionEnd]
+        let sectionEnd = try XCTUnwrap(more.range(of: "func localModelRow(", range: search))
+        let sectionBody = more[section.lowerBound..<sectionEnd.lowerBound]
         XCTAssertTrue(sectionBody.contains("AppSettingsGroup"),
                       "the model page needs the same group surface as Darstellung and Verhalten & Teilen")
     }
@@ -363,14 +370,14 @@ final class AppNavigationTests: XCTestCase {
     func testMorePageRowsDoNotShareOneInteractiveListRow() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let start = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var appearanceSettings: some View",
+        let end = try XCTUnwrap(more.range(of: "var accentColor: Color",
                                            range: start.upperBound..<more.endIndex))
         let main = more[start.lowerBound..<end.lowerBound]
 
         XCTAssertTrue(main.contains("ScrollView"))
         XCTAssertTrue(main.contains("AppSettingsGroup"))
-        XCTAssertTrue(main.contains("pageRow(MoreRoute.appearance"))
-        XCTAssertTrue(main.contains("pageRow(MoreRoute.habitBehavior"))
+        XCTAssertTrue(main.contains("\"open-appearance\""))
+        XCTAssertTrue(main.contains("\"open-habit-behavior\""))
         XCTAssertFalse(main.contains("defaultTimeZonePicker"),
                        "the default time zone moved to Verhalten & Teilen")
         XCTAssertFalse(main.contains("List {"),
@@ -378,14 +385,14 @@ final class AppNavigationTests: XCTestCase {
     }
 
     func testDefaultTimeZoneUsesTheWholeSettingsRowAsTheMenuLabel() throws {
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let behavior = try XCTUnwrap(more.range(of: "private var habitBehaviorSettings: some View"))
-        let behaviorEnd = try XCTUnwrap(more.range(of: "private var cloudSyncSection: some View",
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreBehavior.swift"), encoding: .utf8)
+        let behavior = try XCTUnwrap(more.range(of: "var habitBehaviorSettings: some View"))
+        let behaviorEnd = try XCTUnwrap(more.range(of: "var cloudSyncSection: some View",
                                                    range: behavior.upperBound..<more.endIndex))
         XCTAssertTrue(more[behavior.lowerBound..<behaviorEnd.lowerBound].contains("defaultTimeZoneGroup"),
                       "the default time zone belongs to Verhalten & Teilen")
-        let start = try XCTUnwrap(more.range(of: "private var defaultTimeZonePicker: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var compactModeSection: some View",
+        let start = try XCTUnwrap(more.range(of: "var defaultTimeZonePicker: some View"))
+        let end = try XCTUnwrap(more.range(of: "var swipeActionsSection: some View",
                                            range: start.upperBound..<more.endIndex))
         let picker = more[start.lowerBound..<end.lowerBound]
 
@@ -399,13 +406,36 @@ final class AppNavigationTests: XCTestCase {
 
     func testMoreRowsKeepTheirOwnRouteAndBoundedSourceControl() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let notifications = try String(contentsOf: sourceURL("Haiity/Views/MoreNotifications.swift"), encoding: .utf8)
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
 
-        XCTAssertTrue(more.contains("Button {\n            onOpen(route)"),
-                      "each More row must dispatch the route it was given")
-        XCTAssertTrue(more.contains("motivationSourceControl"),
+        let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let mainEnd = try XCTUnwrap(more.range(of: "var accentColor: Color",
+                                               range: mainStart.upperBound..<more.endIndex))
+        let main = more[mainStart.lowerBound..<mainEnd.lowerBound]
+        for (identifier, action) in [("open-appearance", "onOpen(.appearance)"),
+                                     ("open-habit-behavior", "onOpen(.habitBehavior)"),
+                                     ("open-data-transfer", "onOpen(.dataTransfer)"),
+                                     ("open-archive", "onOpen(.archive)"),
+                                     ("open-about", "onOpen(.about)"),
+                                     ("open-notifications", "showingNotificationSettings = true"),
+                                     ("open-reminder-setup", "showReminderSetup = true")] {
+            let row = try XCTUnwrap(main.range(of: "identifier: \"\(identifier)\""))
+            let end = try XCTUnwrap(main.range(of: "}", range: row.upperBound..<main.endIndex))
+            XCTAssertTrue(main[row.upperBound..<end.lowerBound].contains(action), identifier)
+        }
+        let helperStart = try XCTUnwrap(more.range(of: "func moreHubRow("))
+        let helperEnd = try XCTUnwrap(more.range(of: "private var moreGitHubRow:",
+                                                 range: helperStart.upperBound..<more.endIndex))
+        let helper = more[helperStart.lowerBound..<helperEnd.lowerBound]
+        XCTAssertTrue(helper.contains("Button(action: action)"))
+        XCTAssertTrue(helper.contains(".buttonStyle(.plain)"))
+        XCTAssertTrue(helper.contains("showsChevron: true"))
+        XCTAssertEqual(helper.components(separatedBy: "AppSettingsRow(").count - 1, 1)
+        XCTAssertFalse(more.contains("func pageRow("))
+        XCTAssertTrue(notifications.contains("motivationSourceControl"),
                       "the motivation source must remain selectable from the rows")
-        XCTAssertTrue(more.contains("private var motivationSourceControl: some View"),
+        XCTAssertTrue(notifications.contains("var motivationSourceControl: some View"),
                       "the source control needs its own declaration to be a bounded target")
         XCTAssertTrue(content.contains("morePageRoute = nil"),
                       "a new More destination must not inherit a stale child route")
@@ -443,7 +473,7 @@ final class AppNavigationTests: XCTestCase {
 
     func testAppearancePerformanceModeUsesOneSharedSolidSurfacePath() throws {
         let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreAppearance.swift"), encoding: .utf8)
 
         XCTAssertTrue(theme.contains("var performanceMode: Bool"))
         XCTAssertTrue(theme.contains("performanceMode"))
@@ -456,18 +486,18 @@ final class AppNavigationTests: XCTestCase {
     }
 
     func testNativeCalendarMaintenanceUsesButtonTreatment() throws {
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let calendar = try XCTUnwrap(more.range(of: "private var calendarSection"))
-        let end = try XCTUnwrap(more.range(of: "private func cleanupNativeEntries",
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreCalendar.swift"), encoding: .utf8)
+        let calendar = try XCTUnwrap(more.range(of: "var calendarSection"))
+        let end = try XCTUnwrap(more.range(of: "func cleanupNativeEntries",
                                            range: calendar.upperBound..<more.endIndex))
         let section = more[calendar.lowerBound..<end.lowerBound]
         XCTAssertTrue(section.contains(".buttonStyle(.bordered)"))
     }
 
     func testAliasAndAppleRowsUseTheSameLeadingIconSlot() throws {
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MorePersonal.swift"), encoding: .utf8)
 
-        XCTAssertTrue(more.contains("private func personalLeadingIcon"),
+        XCTAssertTrue(more.contains("func personalLeadingIcon"),
                       "personal rows need one shared icon layout")
         XCTAssertTrue(more.contains("personalLeadingIcon(\"person.crop.circle\")"))
         XCTAssertTrue(more.contains("personalLeadingIcon(\"person.crop.circle.badge.checkmark\")"))
@@ -553,8 +583,9 @@ final class AppNavigationTests: XCTestCase {
 
     func testAppleAccountHubOffersIndependentNavigationAndNativeAuthentication() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let start = try XCTUnwrap(more.range(of: "private var moreAppleAccountRow: some View"))
-        let end = try XCTUnwrap(more.range(of: "private var githubSection",
+        let personal = try String(contentsOf: sourceURL("Haiity/Views/MorePersonal.swift"), encoding: .utf8)
+        let start = try XCTUnwrap(more.range(of: "var moreAppleAccountRow: some View"))
+        let end = try XCTUnwrap(more.range(of: "var githubSection",
                                            range: start.upperBound..<more.endIndex))
         let row = more[start.lowerBound..<end.lowerBound]
         XCTAssertTrue(row.contains("dynamicTypeSize.isAccessibilitySize"))
@@ -562,7 +593,12 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(row.contains("apple-signout-more"))
         XCTAssertTrue(row.contains("apple-signin-more"))
         XCTAssertTrue(row.contains("appleSignInControl"))
-        XCTAssertTrue(more.contains("SignInWithAppleButton(.signIn)"))
+        XCTAssertTrue(row.contains("signOutFromApple()"))
+        XCTAssertTrue(personal.contains("SignInWithAppleButton(.signIn)"))
+        let appearStart = try XCTUnwrap(more.range(of: ".onAppear {"))
+        let appearEnd = try XCTUnwrap(more.range(of: ".task {",
+                                                 range: appearStart.upperBound..<more.endIndex))
+        XCTAssertTrue(more[appearStart.lowerBound..<appearEnd.lowerBound].contains("refreshPersonalIdentity()"))
     }
 
     func testNativePagesUseTheAppearanceBackgroundAtTheirVisibleRoots() throws {
@@ -930,11 +966,15 @@ final class AppNavigationTests: XCTestCase {
         }
     }
 
-    func testArchiveIsNotListedOnTheMorePage() throws {
+    func testMoreHubKeepsTheArchiveRoute() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let main = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let tail = more[main.lowerBound...]
-        XCTAssertFalse(tail.contains("pageRow(MoreRoute.archive"))
+        let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
+        let mainEnd = try XCTUnwrap(more.range(of: "var accentColor: Color",
+                                               range: mainStart.upperBound..<more.endIndex))
+        let main = more[mainStart.lowerBound..<mainEnd.lowerBound]
+        let archive = try XCTUnwrap(main.range(of: "identifier: \"open-archive\""))
+        let end = try XCTUnwrap(main.range(of: "}", range: archive.upperBound..<main.endIndex))
+        XCTAssertTrue(main[archive.upperBound..<end.lowerBound].contains("onOpen(.archive)"))
     }
 
     func testSearchIsARealTabWithItsOwnSearchable() throws {

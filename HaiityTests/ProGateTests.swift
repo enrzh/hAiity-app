@@ -347,7 +347,7 @@ final class ProGateTests: XCTestCase {
 
     func testCloudApplicationAndToggleReadbackUseTheSharedEntitlement() throws {
         let content = try source("Haiity/Views/ContentView.swift")
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
 
         XCTAssertTrue(content.contains("ProGate.restrictedCloudPreferences"),
                       "iCloud must not restore paid integrations after entitlement loss")
@@ -360,6 +360,7 @@ final class ProGateTests: XCTestCase {
     func testOnlyProGateKnowsTheNumber() throws {
         for file in ["Haiity/Views/ContentView.swift",
                      "Haiity/Views/MoreView.swift",
+                     "Haiity/Views/MorePro.swift",
                      "Haiity/Views/StatsView.swift",
                      "Haiity/Views/EditHabitSheet.swift"] {
             XCTAssertFalse(try source(file).contains("freeHabitLimit"),
@@ -469,7 +470,7 @@ final class ProGateTests: XCTestCase {
     }
 
     func testOptionalAppleSignInCannotRevokeStoreKitAccess() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
 
         XCTAssertTrue(more.contains("Task { await Pro.refresh() }"))
         XCTAssertFalse(more.contains("Pro.refresh(mayDowngrade: true)"),
@@ -611,19 +612,19 @@ final class ProGateTests: XCTestCase {
     /// als Pro; deshalb gilt der Zaun für Anlegen, Auswahl und Bearbeiten,
     /// auch wenn die Daten von einem früheren Pro-Zeitraum noch vorhanden sind.
     func testGate2EveryCustomPalettePathIsGated() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreAppearance.swift")
         let editor = try source("Haiity/Views/EditHabitSheet.swift")
         let content = try source("Haiity/Views/ContentView.swift")
-        XCTAssertTrue(more.contains("private func requestCustomPalette()"))
+        XCTAssertTrue(more.contains("func requestCustomPalette()"))
         XCTAssertTrue(more.contains("paywall = .palette"))
         // Zweimal: die Definition und der EINE Aufruf an „Eigene Farbe …".
         XCTAssertEqual(more.components(separatedBy: "requestCustomPalette()").count - 1, 2,
                        "„Eigene Farbe …\" muss durch den Wächter laufen")
         XCTAssertTrue(more.contains("\"palette-add-custom\""))
-        let requestRange = try XCTUnwrap(more.range(of: "private func requestCustomPalette()"))
+        let requestRange = try XCTUnwrap(more.range(of: "func requestCustomPalette()"))
         let body = more[requestRange.lowerBound...]
         XCTAssertTrue(body.contains("guard ProGate.mayUseProFeature(unlocked: unlocked)"))
-        XCTAssertTrue(more.contains("private func selectCustomPalette"),
+        XCTAssertTrue(more.contains("func selectCustomPalette"),
                       "existing custom palettes need the same entitlement gate as creation")
         XCTAssertTrue(editor.contains("palettes: unlocked ? palettes : palettes.withoutCustoms"),
                       "locked editors must not expose old custom palettes")
@@ -642,8 +643,8 @@ final class ProGateTests: XCTestCase {
     /// (b) **Gate 3 — freie Icon-Farbe.** Gegated ist nur das SETZEN: die 18
     /// Kacheln, das Farbrad und die ehrliche Vorschau bleiben frei.
     func testGate3FreeIconColorIsGated() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("private var freeIconColorAction"))
+        let more = try source("Haiity/Views/MoreAppearance.swift")
+        XCTAssertTrue(more.contains("var freeIconColorAction"))
         XCTAssertTrue(more.contains("paywall = .icon"))
         XCTAssertTrue(more.contains("\"icon-color-pro\""))
         // Der Anwenden-Knopf bleibt im freigeschalteten Zweig bestehen —
@@ -659,7 +660,7 @@ final class ProGateTests: XCTestCase {
     /// VOR der Berechtigungsfrage — eine Nachfrage für eine Funktion, die
     /// danach doch nicht läuft, wäre unter falschem Vorwand gestellt.
     func testGate4CalendarMirrorIsGatedOnEnableOnly() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         let editor = try source("Haiity/Views/EditHabitSheet.swift")
         XCTAssertTrue(more.contains("paywall = .calendar"))
         XCTAssertTrue(editor.contains("private var calendarSyncBinding"),
@@ -678,7 +679,7 @@ final class ProGateTests: XCTestCase {
     }
 
     func testNativeReminderSyncIsGatedAndOwnsItsPermissionMetadata() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         let project = try source("project.yml")
 
         XCTAssertFalse(CalendarFeatureGate.canEnable(unlocked: false))
@@ -716,27 +717,44 @@ final class ProGateTests: XCTestCase {
     /// kaufen WILL, soll nicht erst gegen eine Wand laufen müssen.
     func testGate6MoreViewOffersTheProSection() throws {
         let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("private var proSection"))
-        XCTAssertTrue(more.contains("\"open-paywall\""))
-        XCTAssertTrue(more.contains("\"pro-status\""))
-        XCTAssertTrue(more.contains("paywall = .settings"))
-        XCTAssertTrue(more.contains("Mehr Habits, Farben, Kalender und Statistik."))
+        let pro = try source("Haiity/Views/MorePro.swift")
+        let mainStart = try XCTUnwrap(more.range(of: "var mainSettings: some View"))
+        let mainEnd = try XCTUnwrap(more.range(of: "var accentColor: Color",
+                                               range: mainStart.upperBound..<more.endIndex))
+        let main = more[mainStart.lowerBound..<mainEnd.lowerBound]
+        XCTAssertTrue(main.contains("proSection"),
+                      "the root hub must render the extracted Pro section")
+        XCTAssertTrue(more.contains(".sheet(item: $paywall, onDismiss: resumeAfterPurchase)"),
+                      "the root must retain the paywall presentation")
+        XCTAssertTrue(pro.contains("extension MoreView {"))
+        XCTAssertTrue(pro.contains("var proSection: some View"))
+        XCTAssertTrue(pro.contains("\"open-paywall\""))
+        XCTAssertTrue(pro.contains("\"pro-status\""))
+        XCTAssertTrue(pro.contains("paywall = .settings"))
+        XCTAssertTrue(pro.contains("Mehr Habits, Farben, Kalender und Statistik."))
         // Kein zweiter Kaufknopf für etwas, das schon gekauft ist.
-        XCTAssertTrue(more.contains("Freigeschaltet. Danke."))
+        XCTAssertTrue(pro.contains("Freigeschaltet. Danke."))
+        XCTAssertTrue(pro.contains("Text(verbatim: \"hAiity Pro\")"))
+        XCTAssertTrue(pro.contains("var proLock: some View"))
+        XCTAssertTrue(pro.contains(".accessibilityLabel(String(localized: \"Nur mit hAiity Pro\"))"))
+        XCTAssertFalse(pro.contains("@State"),
+                       "the extracted Pro page must use the root's state")
+        XCTAssertFalse(pro.contains(".sheet("),
+                       "the extracted Pro page must not own another presenter")
     }
 
     func testUnlockedProRowReopensTheFeatureSheet() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        let unlockedStart = try XCTUnwrap(more.range(of: "if unlocked {"))
-        let lockedStart = try XCTUnwrap(more.range(of: "} else {", range: unlockedStart.upperBound..<more.endIndex))
-        let unlockedBranch = String(more[unlockedStart.lowerBound..<lockedStart.lowerBound])
+        let pro = try source("Haiity/Views/MorePro.swift")
+        let unlockedStart = try XCTUnwrap(pro.range(of: "if unlocked {"))
+        let lockedStart = try XCTUnwrap(pro.range(of: "} else {", range: unlockedStart.upperBound..<pro.endIndex))
+        let unlockedBranch = String(pro[unlockedStart.lowerBound..<lockedStart.lowerBound])
 
         XCTAssertTrue(unlockedBranch.contains("Button {"))
         XCTAssertTrue(unlockedBranch.contains("paywall = .settings"))
         XCTAssertTrue(unlockedBranch.contains("\"pro-status\""))
         XCTAssertTrue(unlockedBranch.contains("\"open-pro-details\""))
         XCTAssertTrue(unlockedBranch.contains("chevron.right"))
-        XCTAssertTrue(more.contains("\"open-paywall\""))
+        XCTAssertTrue(pro.contains("\"open-paywall\""))
     }
 
     // MARK: – Der Merker: was er darf und was nicht
@@ -812,9 +830,25 @@ final class ProGateTests: XCTestCase {
 
     func testMoreViewDoesNotBypassExpiryWithTheCachedEntitlement() throws {
         let more = try source("Haiity/Views/MoreView.swift")
+        let pro = try source("Haiity/Views/MorePro.swift")
         XCTAssertTrue(more.contains("return Pro.isUnlocked"))
         XCTAssertFalse(more.contains("proStatus.unlocked || Pro.isUnlocked"),
                        "an expired cached entitlement must not keep paid settings enabled")
+        XCTAssertTrue(pro.contains("if unlocked {"),
+                      "the Pro page must use the root's live entitlement")
+        for file in ["Haiity/Views/MorePro.swift",
+                     "Haiity/Views/MoreCalendar.swift",
+                     "Haiity/Views/MorePersonal.swift",
+                     "Haiity/Views/MoreAppearance.swift",
+                     "Haiity/Views/MoreNotifications.swift",
+                     "Haiity/Views/MoreBehavior.swift",
+                     "Haiity/Views/MoreLocalModel.swift"] {
+            let page = try source(file)
+            for bypass in ["Pro.isUnlocked", "proStatus.unlocked", "proUnlocked"] {
+                XCTAssertFalse(page.contains(bypass),
+                               "\(file) must not introduce a second entitlement read: \(bypass)")
+            }
+        }
     }
 
     func testSharedExtensionGateRecognizesTheVerifiedOwnerIdentity() {
@@ -910,7 +944,7 @@ final class ProGateTests: XCTestCase {
     func testAccountBoundaryResetIsWiredToAppleSignInAndSignOut() throws {
         let pro = try source("Haiity/Models/ProEntitlement.swift")
         XCTAssertTrue(pro.contains("static func accountDidChange()"))
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MorePersonal.swift")
         XCTAssertTrue(more.contains("Pro.accountDidChange()"))
         XCTAssertTrue(more.contains("PersonalName.appleUserID = credential.user"))
     }
@@ -929,6 +963,7 @@ final class ProGateTests: XCTestCase {
         XCTAssertTrue(more.contains("onDismiss: resumeAfterPurchase"))
         XCTAssertTrue(more.contains("onUnlocked: { purchased = context }"))
         for resumed in ["calendarBinding(for: pendingCalendarItemType).wrappedValue = true",
+                        "reminderSyncBinding.wrappedValue = true",
                         "creatingPalette = true",
                         "chooseIcon(named: snappedFreeIconName)"] {
             XCTAssertTrue(more.contains(resumed), resumed)
@@ -940,7 +975,7 @@ final class ProGateTests: XCTestCase {
     /// Schalter, der an ist — VoiceOver läse „Nur mit hAiity Pro, Schalter,
     /// ein".
     func testCalendarLockYieldsWhileTheMirrorIsRunning() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreCalendar.swift")
         XCTAssertTrue(more.contains("if !unlocked && !enabled {"))
     }
 

@@ -63,7 +63,8 @@ final class MotivationTests: XCTestCase {
     }
 
     func testMoreCarriesTheOptInSettingAndTimePicker() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreNotifications.swift")
+        let host = try source("Haiity/Views/MoreView.swift")
         XCTAssertTrue(more.contains("motivationRows"))
         XCTAssertTrue(more.contains("store.motivationMinutes"))
         XCTAssertTrue(more.contains("\"motivation-toggle\""))
@@ -86,14 +87,41 @@ final class MotivationTests: XCTestCase {
         XCTAssertTrue(developer.contains("copy-sync-watermark"))
         XCTAssertFalse(more.contains("ForEach(SyncWatermark.Kind.allCases"))
         XCTAssertTrue(more.contains("notification-actions-toggle"))
+        let appearStart = try XCTUnwrap(host.range(of: ".onAppear {"))
+        let taskStart = try XCTUnwrap(host.range(of: ".task {",
+                                               range: appearStart.upperBound..<host.endIndex))
+        let taskEnd = try XCTUnwrap(host.range(of: ".sheet(item: $editingPalette)",
+                                             range: taskStart.upperBound..<host.endIndex))
+        let appearance = host[appearStart.lowerBound..<taskStart.lowerBound]
+        XCTAssertTrue(appearance.contains("store.cloudPreferences?.notificationDND"))
+        XCTAssertTrue(appearance.contains("NotificationPromptPreference.state"))
+        XCTAssertTrue(appearance.contains("dndCustomDate = until"))
+        let timer = host[taskStart.lowerBound..<taskEnd.lowerBound]
+        XCTAssertTrue(timer.contains("dndNow = .now"))
+        XCTAssertTrue(timer.contains("Task.sleep(for: .seconds(60))"))
     }
 
     func testMoreNotificationSettingsUseAUnifiedAppleStyleHierarchy() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreNotifications.swift")
 
         XCTAssertTrue(more.contains(".font(.footnote.weight(.semibold))"))
         XCTAssertTrue(more.contains("notificationSymbolSurface"))
         XCTAssertTrue(more.contains("notificationDetailsInset"))
+        let glyphStart = try XCTUnwrap(more.range(of: "func notificationSymbolSurface("))
+        let labelStart = try XCTUnwrap(more.range(of: "func notificationLabel(",
+                                                range: glyphStart.upperBound..<more.endIndex))
+        let labelEnd = try XCTUnwrap(more.range(of: "var motivationSourceControl:",
+                                              range: labelStart.upperBound..<more.endIndex))
+        let glyph = more[glyphStart.lowerBound..<labelStart.lowerBound]
+        XCTAssertTrue(glyph.contains(".font(.system(size: 15, weight: .bold))"))
+        XCTAssertTrue(glyph.contains("width: Theme.Metrics.glyph"))
+        XCTAssertTrue(glyph.contains("height: Theme.Metrics.glyph"))
+        XCTAssertFalse(glyph.contains("AppIconBadge("),
+                       "notification glyphs must keep their fixed-size surface at AX5")
+        let label = more[labelStart.lowerBound..<labelEnd.lowerBound]
+        XCTAssertTrue(label.contains(".fixedSize(horizontal: false, vertical: true)"))
+        XCTAssertFalse(label.contains(".lineLimit("))
+        XCTAssertFalse(label.contains(".minimumScaleFactor("))
     }
 
     /// The retired open-source feed must leave no trace: no URL, no cache, no
@@ -102,6 +130,7 @@ final class MotivationTests: XCTestCase {
     /// fails loudly if any of that wiring is ever reintroduced.
     func testTheRetiredOpenSourceFeedIsFullyGone() throws {
         for path in ["Haiity/Views/MoreView.swift",
+                     "Haiity/Views/MoreNotifications.swift",
                      "Haiity/Views/ContentView.swift",
                      "Haiity/Services/Reminders.swift",
                      "Haiity/Services/MotivationActivityManager.swift",
@@ -151,7 +180,7 @@ final class MotivationTests: XCTestCase {
         XCTAssertFalse(lifecycle.contains("StatsReadingDaily.write"))
 
         // And the settings screen's tap is the only writer there too.
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreNotifications.swift")
         XCTAssertTrue(more.contains("motivation-write"))
         XCTAssertTrue(more.contains("writeMotivationLine(reroll:"))
     }
@@ -188,7 +217,7 @@ final class MotivationTests: XCTestCase {
     /// The source control must be honest about why the model is unavailable
     /// rather than offering a choice that silently does nothing.
     func testTheOnDeviceSourceIsOnlyOfferedWhenItCanRun() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
+        let more = try source("Haiity/Views/MoreNotifications.swift")
         XCTAssertTrue(more.contains("Motivation.Source.allCases.filter"))
         XCTAssertTrue(more.contains("$0 == .builtIn || OnDeviceModel.isAvailable"))
         for reason in ["appleIntelligenceOff", "modelNotReady",
