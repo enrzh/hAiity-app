@@ -113,13 +113,14 @@ extension MoreView {
 
     var appearanceSettings: some View {
         SettingsPage {
-                DesignStylePicker(selection: designStyleBinding)
-                    .accessibilityIdentifier("appearance-design-picker")
                 appearanceSection
                     .padding(currentAppearance.designStyle.cardPadding)
                     .morePanel()
                 DisclosureGroup(isExpanded: $showingAppearanceCustomize) {
                     VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.sectionGap) {
+                        DesignStylePicker(selection: designStyleBinding)
+                            .accessibilityIdentifier("appearance-design-picker")
+                        morePageRule
                         materialAppearanceSection
                         morePageRule
                         backgroundControl
@@ -186,7 +187,7 @@ extension MoreView {
                 get: { statsCards.dictateCreateEnabled },
                 set: { statsCards.dictateCreateEnabled = $0 })) {
                 AppSettingsRow(title: String(localized: "Aus einem Satz anlegen"),
-                               detail: String(localized: "Den Knopf auf der Hauptseite zeigen"),
+                               detail: String(localized: "Im Anlegeformular anbieten"),
                                symbol: "sparkles") {
                     EmptyView()
                 }

@@ -237,11 +237,12 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"once-date\")"))
         XCTAssertTrue(source.contains(".datePickerStyle(.compact)"))
         XCTAssertTrue(source.contains("if draft.frequency != .once"))
-        XCTAssertTrue(source.contains("itemType = .reminder"))
+        XCTAssertFalse(source.contains("itemType = .reminder"),
+                       "a repetition choice must not change the item type")
         XCTAssertTrue(source.contains("draft.hasStart = true"))
     }
 
-    func testLoadingOneDayEntryKeepsItAsReminder() throws {
+    func testLoadingOneDayEntryPreservesItsSavedType() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
@@ -249,11 +250,9 @@ final class HabitTimeTests: XCTestCase {
         let save = try XCTUnwrap(source.range(of: "private func save(",
                                                 range: load.upperBound..<source.endIndex))
         let body = source[load.lowerBound..<save.lowerBound]
-        let draft = try XCTUnwrap(body.range(of: "draft = RecurrenceDraft("))
-        let reminder = try XCTUnwrap(body.range(of: "if draft.frequency == .once {\n            itemType = .reminder",
-                                                range: draft.upperBound..<body.endIndex))
-
-        XCTAssertLessThan(draft.lowerBound, reminder.lowerBound)
+        XCTAssertTrue(body.contains("draft = RecurrenceDraft("))
+        XCTAssertTrue(body.contains("itemType = habit.itemType"))
+        XCTAssertFalse(body.contains("itemType = .reminder"))
     }
 
     // MARK: – Zwei Geräte
@@ -387,7 +386,7 @@ final class EditHabitSheetContractTests: XCTestCase {
         XCTAssertTrue(source.contains(".datePickerStyle(.compact)"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"once-date\")"))
         XCTAssertTrue(source.contains("if draft.frequency != .once"))
-        XCTAssertTrue(source.contains("itemType = .reminder"))
+        XCTAssertFalse(source.contains("itemType = .reminder"))
         XCTAssertTrue(source.contains("Text(String(localized: \"Ende\"))"))
         XCTAssertTrue(source.contains("$notificationMode"))
         XCTAssertTrue(source.contains("Picker(String(localized: \"Benachrichtigung\"), selection: $notificationMode)"))

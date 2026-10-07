@@ -32,9 +32,9 @@ final class FollowUpFixTests: XCTestCase {
 
         XCTAssertTrue(habit.contains("weeks: gridWeeks"),
                       "habit previews need the complete visible graph window")
-        XCTAssertTrue(habit.contains("cellSize: previewGraphCellSize"),
-                      "habit preview tiles must fit the popup width")
-        XCTAssertTrue(habit.contains("showsMonthLabels: false"),
+        XCTAssertTrue(habit.contains("min(Self.previewCell, ContributionChart.fittedCell("),
+                      "habit preview tiles must fit the popup width without stretching")
+        XCTAssertTrue(habit.contains("showsMonthLabels: !preview && showsMonthLabels"),
                       "the enlarged graph should spend its height on tiles")
         XCTAssertTrue(github.contains("showsMonthLabels: false"),
                       "GitHub previews should use the same tile-only treatment")
@@ -51,10 +51,10 @@ final class FollowUpFixTests: XCTestCase {
 
         XCTAssertTrue(habit.contains("weeks: gridWeeks"),
                       "the enlarged habit graph must keep the full visible history")
-        XCTAssertTrue(habit.contains("cellSize: previewGraphCellSize"),
+        XCTAssertTrue(habit.contains("recentGraph(snapshot: snapshot, viewportWidth: previewWidth, preview: true)"),
                       "the enlarged habit graph must fit its tiles to the popup width")
-        XCTAssertTrue(habit.contains("private var previewGraphCellSize"),
-                      "the popup needs an explicit tile-size calculation")
+        XCTAssertTrue(habit.contains("ContributionChart.fittedCell("),
+                      "the popup must use the shared fitted tile calculation")
     }
 
     func testHabitPreviewUsesTheSelectedSurfaceWithoutASecondOpaqueHalo() throws {

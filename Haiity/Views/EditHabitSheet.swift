@@ -18,6 +18,7 @@ struct EditHabitSheet: View {
     /// Blatt (Bearbeiten) bleibt es das Wort „Abbrechen". Beide Wege tun
     /// exakt dasselbe: verwerfen ohne zu sichern.
     var asPage = false
+    var onCreateFromText: ((String) -> Void)? = nil
 
     @State private var name = ""
     @State private var emoji = ""
@@ -37,7 +38,7 @@ struct EditHabitSheet: View {
     @State private var proStatus = ProStatus.shared
 
     /// Die ganze Regel als EIN Wert.
-    @State private var draft = RecurrenceDraft()
+    @State private var draft = RecurrenceDraft(itemType: .habit)
     /// nil = „Wie App" (kein Override) — der Normalfall.
     @State private var habitPalette: PaletteRef?
     /// Die Art. Steht NEBEN dem Entwurf und nicht darin: `RecurrenceDraft`
@@ -57,6 +58,7 @@ struct EditHabitSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
     @State private var showingCreationAdvanced = false
+    @State private var showingKind = false
     @State private var showingScheduleDetails = false
     @State private var saveError: String?
     @State private var isSaving = false
@@ -119,7 +121,7 @@ struct EditHabitSheet: View {
             set: { newFrequency in
                 draft.hasStart = true
                 draft.selectFrequency(newFrequency, calendar: calendar)
-                showingScheduleDetails = newFrequency != .daily
+                showingScheduleDetails = false
             }
         )
     }
@@ -128,15 +130,24 @@ struct EditHabitSheet: View {
         Binding(
             get: { draft.frequency != .once },
             set: { enabled in
-                draft.hasStart = true
-                if enabled {
-                    let frequency = draft.frequency == .once ? Recurrence.Frequency.daily : draft.frequency
-                    draft.selectFrequency(frequency, calendar: calendar)
-                } else {
-                    draft.selectFrequency(.once, calendar: calendar)
-                    itemType = .reminder
-                }
+                draft.setRepeats(enabled, calendar: calendar)
             })
+    }
+
+    private var itemTypeSelection: Binding<HabitItemType> {
+        Binding(get: { itemType }, set: { selected in
+            guard itemType != selected else { return }
+            itemType = selected
+            if isCreating {
+                draft.selectFrequency(selected == .habit ? .daily : .once, calendar: calendar)
+            }
+        })
+    }
+
+    private var flexibleWeekBinding: Binding<Bool> {
+        Binding(get: { draft.flexible }, set: { enabled in
+            draft.setFlexibleWeek(enabled, calendar: calendar)
+        })
     }
 
     private var autoResolveEnabledBinding: Binding<Bool> {
@@ -194,21 +205,45 @@ struct EditHabitSheet: View {
                         .submitLabel(.done)
                         .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-name")
+                    if isCreating, let onCreateFromText {
+                        Button {
+                            focusedIdentity = nil
+                            onCreateFromText(name)
+                        } label: {
+                            Label(String(localized: "Aus einem Satz anlegen"), systemImage: "text.bubble")
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(minHeight: Theme.Metrics.hit)
+                        }
+                        .accessibilityIdentifier("speak-to-create")
+                    }
                 }
                 .settingsListRow()
                 if isCreating {
                     creationPreview
                 }
                 recurrenceSection.settingsListRow()
-                if itemType == .habit { kindSection.settingsListRow() }
-                notificationSection.settingsListRow()
+                if itemType == .habit {
+                    Section {
+                        DisclosureGroup(isExpanded: $showingKind) {
+                            kindControls
+                        } label: {
+                            AppSettingsRow(title: String(localized: "Art"), detail: kind.displayName) {
+                                EmptyView()
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("creation-kind")
+                    }
+                    .settingsListRow()
+                }
                 Section {
                     Button {
                         showingCreationAdvanced.toggle()
                     } label: {
                         AppSettingsRow(title: String(localized: "Weitere Einstellungen"),
                                        detail: additionalSettingsSummary.isEmpty
-                                           ? String(localized: "Emoji, Farbe, Dauer und Verhalten")
+                                           ? String(localized: "Mitteilungen, Kalender und Verhalten")
                                            : additionalSettingsSummary,
                                        symbol: "slider.horizontal.3") {
                             Image(systemName: showingCreationAdvanced ? "chevron.down" : "chevron.right")
@@ -225,6 +260,11 @@ struct EditHabitSheet: View {
                 }
                 .settingsListRow()
                 if showingCreationAdvanced {
+                    if itemType == .habit {
+                        Section { appointmentTimeControls }
+                            .settingsListRow()
+                    }
+                    notificationSection.settingsListRow()
                     Section {
                         TextField(String(localized: "Emoji (optional)"), text: $emoji)
                             .focused($focusedIdentity, equals: .emoji)
@@ -427,7 +467,7 @@ struct EditHabitSheet: View {
     }
 
     private var itemTypePicker: some View {
-        Picker(String(localized: "Art"), selection: $itemType) {
+        Picker(String(localized: "Art"), selection: itemTypeSelection) {
             Text(String(localized: "Habit")).tag(HabitItemType.habit)
             Text(String(localized: "Erinnerung")).tag(HabitItemType.reminder)
         }
@@ -436,6 +476,11 @@ struct EditHabitSheet: View {
 
     private var additionalSettingsSummary: String {
         var values: [String] = []
+        if draft.hasTime || notificationTimes != nil || notificationMode == .off {
+            values.append(Self.notificationPreview(mode: notificationMode,
+                                                   times: notificationTimeValues,
+                                                   calendar: calendar))
+        }
         if !emoji.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             values.append(String(localized: "Emoji: \(emoji)"))
         }
@@ -474,31 +519,27 @@ struct EditHabitSheet: View {
     private var creationPreview: some View {
         Section {
             VStack(alignment: .leading, spacing: designStyle.rowGap) {
-                Text(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                     ? creationTitle
-                     : name)
-                    .font(designStyle.rowTitleFont)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 Text(draft.summary(calendar: calendar))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(Self.notificationPreview(mode: notificationMode,
-                                              times: notificationTimeValues,
-                                              calendar: calendar))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if draft.hasTime || notificationTimes != nil || notificationMode == .off {
+                    Text(Self.notificationPreview(mode: notificationMode,
+                                                  times: notificationTimeValues,
+                                                  calendar: calendar))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, designStyle.rowGap)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
-            .accessibilityValue(Self.notificationPreview(mode: notificationMode,
-                                                         times: notificationTimeValues,
-                                                         calendar: calendar))
+            .accessibilityValue(draft.hasTime || notificationTimes != nil || notificationMode == .off
+                ? Self.notificationPreview(mode: notificationMode,
+                                           times: notificationTimeValues, calendar: calendar) : "")
             .accessibilityIdentifier("creation-preview")
         } header: {
             Text(String(localized: "Vorschau"))
@@ -565,24 +606,9 @@ struct EditHabitSheet: View {
         Section {
             if !isCreating { summaryRow }
 
-            if dynamicTypeSize.isAccessibilitySize {
-                Button { showStartDatePicker = true } label: {
-                    VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                        Text(String(localized: "Datum"))
-                            .foregroundStyle(.primary)
-                        Text(draft.start.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted,
-                            locale: calendar.locale ?? .current, calendar: calendar,
-                            timeZone: calendar.timeZone)))
-                            .foregroundStyle(.tint)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("once-date")
-            } else {
-                startDatePicker.datePickerStyle(.compact)
+            if itemType == .reminder || draft.frequency == .once
+                || draft.frequency == .monthly || draft.frequency == .yearly {
+                appointmentDateControls
             }
 
             Toggle(String(localized: "Wiederholen"), isOn: repeatsBinding)
@@ -598,6 +624,21 @@ struct EditHabitSheet: View {
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("cadence-picker")
 
+                if itemType == .habit, draft.frequency == .weekly {
+                    Toggle(String(localized: "Flexible Woche"), isOn: flexibleWeekBinding)
+                        .accessibilityIdentifier("flexible-week-toggle")
+                    if draft.flexible {
+                        Stepper(value: $draft.times, in: 1...Recurrence.maxTimes(for: .weekly)) {
+                            Text(draft.interval == 1 && draft.weekdays.isEmpty
+                                 ? String(localized: "\(draft.times)× pro Woche, an beliebigen Tagen")
+                                 : draft.summary(calendar: calendar))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(minHeight: Theme.Metrics.hit)
+                        .accessibilityIdentifier("weekly-times-stepper")
+                    }
+                }
+
                 DisclosureGroup(isExpanded: $showingScheduleDetails) {
                     recurrenceDetails
                 } label: {
@@ -610,13 +651,7 @@ struct EditHabitSheet: View {
                 .accessibilityIdentifier("recurrence-details")
             }
 
-            Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
-                .accessibilityIdentifier("time-toggle")
-            if draft.hasTime {
-                DatePicker(String(localized: "Zeit"), selection: $draft.time,
-                           displayedComponents: .hourAndMinute)
-                    .accessibilityIdentifier("habit-time")
-            }
+            if itemType == .reminder { appointmentTimeControls }
         } header: {
             Text(String(localized: "Zeitraum"))
         } footer: {
@@ -630,6 +665,40 @@ struct EditHabitSheet: View {
         }
     }
 
+    @ViewBuilder
+    private var appointmentDateControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Button { showStartDatePicker = true } label: {
+                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
+                    Text(String(localized: "Datum"))
+                        .foregroundStyle(.primary)
+                    Text(draft.start.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted,
+                        locale: calendar.locale ?? .current, calendar: calendar,
+                        timeZone: calendar.timeZone)))
+                        .foregroundStyle(.tint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("once-date")
+        } else {
+            startDatePicker.datePickerStyle(.compact)
+        }
+    }
+
+    @ViewBuilder
+    private var appointmentTimeControls: some View {
+        Toggle(String(localized: "Uhrzeit"), isOn: $draft.hasTime)
+            .accessibilityIdentifier("time-toggle")
+        if draft.hasTime {
+            DatePicker(String(localized: "Zeit"), selection: $draft.time,
+                       displayedComponents: .hourAndMinute)
+                .accessibilityIdentifier("habit-time")
+        }
+    }
+
     private var startDatePicker: some View {
         DatePicker(String(localized: "Datum"), selection: dateBinding,
                    displayedComponents: .date)
@@ -638,6 +707,9 @@ struct EditHabitSheet: View {
 
     @ViewBuilder
     private var recurrenceDetails: some View {
+        if itemType == .habit && (draft.frequency == .daily || draft.frequency == .weekly) {
+            appointmentDateControls
+        }
         if draft.showsIntervalStepper {
             Stepper(value: $draft.interval, in: 1...Recurrence.maxInterval) {
                 Text(intervalLabel)
@@ -829,13 +901,7 @@ struct EditHabitSheet: View {
         }
     }
 
-    // MARK: – Flexibles Ziel („n× pro Periode") — nur noch Bestandsschutz
-    //
-    // Der Zähler-Stepper stand hier einmal („3× pro Woche"). Er ist weg: die
-    // Anzahl pro Periode lässt sich nicht mehr NEU einstellen (das Mengenziel
-    // beantwortet die verwandte Frage „wie viel pro Tag"). Was bleibt, ist
-    // die Verabredung — der Tag, an dem so ein Habit gedacht ist. Der Satz
-    // ganz oben sagt weiterhin, wie oft pro Periode gezählt wird.
+    // MARK: – Flexible Ziele und bestehende Wochentags-Verabredungen
 
     @ViewBuilder
     private var flexibleControls: some View {
@@ -997,23 +1063,22 @@ struct EditHabitSheet: View {
     // daraus zwei Schalter geworden, die man gegenseitig ausknipsen muss —
     // und ein Zustand, in dem beide an sind und niemand weiß, was gilt.
 
-    private var kindSection: some View {
-        Section {
-            if dynamicTypeSize.isAccessibilitySize {
-                kindPicker.pickerStyle(.menu)
-            } else {
-                kindPicker.pickerStyle(.segmented)
-            }
+    @ViewBuilder
+    private var kindControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            kindPicker.pickerStyle(.menu)
+        } else {
+            kindPicker.pickerStyle(.segmented)
+        }
 
-            if kind == .quantity {
-                Stepper(value: $draft.target, in: 1...99) {
-                    Text(String(localized: "Ziel: \(draft.target) pro Tag"))
-                }
-                .accessibilityIdentifier("quantity-target")
+        if kind == .quantity {
+            Stepper(value: $draft.target, in: 1...99) {
+                Text(String(localized: "Ziel: \(draft.target) pro Tag"))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        } header: {
-            Text(String(localized: "Art"))
-        } footer: {
+            .accessibilityIdentifier("quantity-target")
+        }
+        Group {
             switch kind {
             case .checkbox:
                 Text(String(localized: "Ein Tag ist erledigt oder nicht."))
@@ -1023,6 +1088,9 @@ struct EditHabitSheet: View {
                 Text(String(localized: "Jeder Tag wird mit Ja oder Nein beantwortet."))
             }
         }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var kindPicker: some View {
@@ -1170,9 +1238,6 @@ struct EditHabitSheet: View {
         draft = RecurrenceDraft(habit.recurrence,
                                 timeMinutes: habit.timeMinutes ?? habit.reminderMinutes,
                                 calendar: calendar)
-        if draft.frequency == .once {
-            itemType = .reminder
-        }
         // A persisted custom palette is a Pro-only choice. Keep the editor
         // usable after expiry and avoid writing that choice back invisibly.
         habitPalette = unlocked || habit.palette?.customID == nil ? habit.palette : nil

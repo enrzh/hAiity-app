@@ -83,7 +83,7 @@ final class AppNavigationTests: XCTestCase {
     func testStatsSnapshotDoesNotBlockSynchronousPageConstruction() throws {
         let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
         let listStart = try XCTUnwrap(stats.range(of: "private var statsList"))
-        let cardStart = try XCTUnwrap(stats.range(of: "private func statsTodayCard",
+        let cardStart = try XCTUnwrap(stats.range(of: "func statsTodayCard",
                                                    range: listStart.upperBound..<stats.endIndex))
         let list = stats[listStart.lowerBound..<cardStart.lowerBound]
 
@@ -581,20 +581,20 @@ final class AppNavigationTests: XCTestCase {
                       "the interval stepper must be limited to daily and weekly recurrence")
     }
 
-    func testAppleAccountHubOffersIndependentNavigationAndNativeAuthentication() throws {
+    func testPersonalizationHubNavigatesWithoutAuthenticationActions() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let personal = try String(contentsOf: sourceURL("Haiity/Views/MorePersonal.swift"), encoding: .utf8)
         let start = try XCTUnwrap(more.range(of: "var moreAppleAccountRow: some View"))
-        let end = try XCTUnwrap(more.range(of: "var githubSection",
+        let end = try XCTUnwrap(more.range(of: "// Die Nacharbeiten-Einstellung",
                                            range: start.upperBound..<more.endIndex))
         let row = more[start.lowerBound..<end.lowerBound]
-        XCTAssertTrue(row.contains("dynamicTypeSize.isAccessibilitySize"))
         XCTAssertTrue(row.contains("showingPersonalSettings = true"))
-        XCTAssertTrue(row.contains("apple-signout-more"))
-        XCTAssertTrue(row.contains("apple-signin-more"))
-        XCTAssertTrue(row.contains("appleSignInControl"))
-        XCTAssertTrue(row.contains("signOutFromApple()"))
+        XCTAssertTrue(row.contains("Personalisierung"))
+        XCTAssertFalse(row.contains("apple-signout-more"))
+        XCTAssertFalse(row.contains("apple-signin-more"))
+        XCTAssertFalse(row.contains("signOutFromApple()"))
         XCTAssertTrue(personal.contains("SignInWithAppleButton(.signIn)"))
+        XCTAssertTrue(personal.contains("personal-apple-connection"))
         let appearStart = try XCTUnwrap(more.range(of: ".onAppear {"))
         let appearEnd = try XCTUnwrap(more.range(of: ".task {",
                                                  range: appearStart.upperBound..<more.endIndex))
@@ -938,16 +938,19 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"finish-reordering\")"))
     }
 
-    func testMainMorePageExposesGitHubConnectionAndLogout() throws {
+    func testMainMorePageNavigatesToGitHubAndKeepsConnectionActionsOnItsPage() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
         let about = try String(contentsOf: sourceURL("Haiity/Views/AboutView.swift"), encoding: .utf8)
+        let settings = try String(contentsOf: sourceURL("Haiity/Views/GitHubSettingsView.swift"), encoding: .utf8)
 
         XCTAssertTrue(more.contains("let github: GitHubContributionStore"))
-        XCTAssertTrue(more.contains("private var githubSection: some View"))
+        XCTAssertTrue(more.contains("private var moreGitHubRow: some View"))
         XCTAssertTrue(more.contains("accessibilityIdentifier(\"open-github-settings\")"))
-        XCTAssertTrue(more.contains("accessibilityIdentifier(\"disconnect-github\")"))
-        XCTAssertTrue(more.contains("accessibilityIdentifier(\"connect-github\")"))
+        XCTAssertFalse(more.contains("accessibilityIdentifier(\"disconnect-github\")"))
+        XCTAssertFalse(more.contains("accessibilityIdentifier(\"connect-github\")"))
+        XCTAssertTrue(settings.contains("github-disconnect"))
+        XCTAssertTrue(settings.contains("github-connect"))
         XCTAssertGreaterThanOrEqual(content.components(separatedBy: "github: github").count - 1, 4)
         XCTAssertFalse(about.contains("NavigationLink(value: MoreRoute.github)"))
     }

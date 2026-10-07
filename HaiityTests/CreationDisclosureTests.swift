@@ -67,4 +67,68 @@ final class CreationDisclosureTests: XCTestCase {
         XCTAssertTrue(summary.contains("9:00"))
         XCTAssertTrue(summary.contains("AM"))
     }
+
+    private func editorSource() throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Haiity/Views/EditHabitSheet.swift"))
+    }
+
+    func testEditorKeepsTypeChoiceSeparateFromRepeatingAndLoading() throws {
+        let source = try editorSource()
+        let repeatStart = try XCTUnwrap(source.range(of: "private var repeatsBinding:"))
+        let repeatEnd = try XCTUnwrap(source.range(of: "private var itemTypeSelection:",
+                                                  range: repeatStart.upperBound..<source.endIndex))
+        let repeatBody = source[repeatStart.lowerBound..<repeatEnd.lowerBound]
+        XCTAssertTrue(repeatBody.contains("draft.setRepeats(enabled, calendar: calendar)"))
+        XCTAssertFalse(repeatBody.contains("itemType ="))
+        let loadStart = try XCTUnwrap(source.range(of: "private func load()"))
+        let saveStart = try XCTUnwrap(source.range(of: "private func save(",
+                                                  range: loadStart.upperBound..<source.endIndex))
+        let loadBody = source[loadStart.lowerBound..<saveStart.lowerBound]
+        XCTAssertTrue(loadBody.contains("itemType = habit.itemType"))
+        XCTAssertFalse(loadBody.contains("itemType = .reminder"))
+        XCTAssertFalse(loadBody.contains("selectFrequency"))
+        XCTAssertTrue(source.contains("@State private var draft = RecurrenceDraft(itemType: .habit)"))
+        XCTAssertTrue(source.contains("selection: itemTypeSelection"))
+    }
+
+    func testCollapsedAdditionalSettingsRetainSaveAndPermissionContract() throws {
+        let source = try editorSource()
+        let advanced = try XCTUnwrap(source.range(of: "if showingCreationAdvanced {"))
+        let end = try XCTUnwrap(source.range(of: "if let habit = existing {",
+                                            range: advanced.upperBound..<source.endIndex))
+        let body = source[advanced.upperBound..<end.lowerBound]
+        XCTAssertTrue(body.contains("notificationSection.settingsListRow()"))
+        XCTAssertTrue(body.contains("creationAdvancedNotificationSection.settingsListRow()"))
+        XCTAssertTrue(body.contains("durationSection.settingsListRow()"))
+        XCTAssertTrue(body.contains("if itemType == .habit"))
+        XCTAssertTrue(body.contains("appointmentTimeControls"))
+        XCTAssertFalse(source.contains(".onChange(of: showingCreationAdvanced)"))
+        XCTAssertFalse(source.contains(".onChange(of: showingKind)"))
+
+        let save = try XCTUnwrap(source.range(of: "private func save("))
+        let saveBody = source[save.lowerBound...]
+        XCTAssertTrue(saveBody.contains("habit.notificationTimes = notificationTimes.map(Habit.normalizedNotificationTimes)"))
+        XCTAssertTrue(saveBody.contains("habit.reminderMinutes = notificationTime"))
+        XCTAssertTrue(saveBody.contains("habit.timeMinutes = notificationTime"))
+        XCTAssertFalse(saveBody.contains("showingCreationAdvanced"))
+        XCTAssertFalse(saveBody.contains("showingKind"))
+        XCTAssertTrue(saveBody.contains("ProGate.maySaveTrackedHabit"))
+        let write = try XCTUnwrap(saveBody.range(of: "if existing == nil { store.add(habit) } else { store.update(habit) }"))
+        let permission = try XCTUnwrap(saveBody.range(of: "await Reminders.ensurePermission()"))
+        XCTAssertLessThan(write.lowerBound, permission.lowerBound)
+        XCTAssertTrue(saveBody.contains("guard store.lastWriteError == nil else"))
+    }
+
+    func testTextCreationIsAnOptionalCreateOnlyCallbackWithoutAPresenter() throws {
+        let source = try editorSource()
+        XCTAssertTrue(source.contains("var onCreateFromText: ((String) -> Void)? = nil"))
+        XCTAssertTrue(source.contains("if isCreating, let onCreateFromText"))
+        XCTAssertTrue(source.contains("onCreateFromText(name)"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"speak-to-create\")"))
+        XCTAssertTrue(source.contains("String(localized: \"Aus einem Satz anlegen\")"))
+        XCTAssertFalse(source.contains("SpeechDictation"))
+        XCTAssertFalse(source.contains("CreateFromTextSheet"))
+    }
 }

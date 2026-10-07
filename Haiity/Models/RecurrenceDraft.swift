@@ -137,6 +137,12 @@ struct RecurrenceDraft: Equatable {
         nth = min(5, (calendar.component(.day, from: today) - 1) / 7 + 1)
     }
 
+    /// Product defaults apply only to a new item, never to loaded rules.
+    init(itemType: HabitItemType, today: Date = Date(), calendar: Calendar = .current) {
+        self.init(today: today, calendar: calendar)
+        frequency = itemType == .habit ? .daily : .once
+    }
+
     init(_ recurrence: Recurrence,
          timeMinutes: Int? = nil,
          today: Date = Date(),
@@ -352,6 +358,21 @@ struct RecurrenceDraft: Equatable {
         if newFrequency == .monthly || newFrequency == .yearly {
             interval = 1
         }
+        normalize(calendar: calendar)
+    }
+
+    mutating func setRepeats(_ enabled: Bool, calendar: Calendar = .current) {
+        hasStart = true
+        selectFrequency(enabled ? (frequency == .once ? .daily : frequency) : .once,
+                        calendar: calendar)
+    }
+
+    /// Any-day weeks reuse the existing quota. Clear an agreement only when
+    /// explicitly enabling this option; loading a legacy rule keeps it intact.
+    mutating func setFlexibleWeek(_ enabled: Bool, calendar: Calendar = .current) {
+        guard frequency == .weekly else { return }
+        flexible = enabled
+        if enabled { weekdays = [] }
         normalize(calendar: calendar)
     }
 

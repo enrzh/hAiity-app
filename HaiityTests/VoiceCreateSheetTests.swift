@@ -208,25 +208,15 @@ final class VoiceCreateSheetTests: XCTestCase {
                       "a half sheet that blocks the page behind it is just a tall sheet")
     }
 
-    /// The main-page entry point is on the same glass as the rest of the floating
-    /// chrome, and says what it is. It was a microphone, which read as "record a
-    /// voice note" and clashed with the sheet's own mic and the keyboard's.
-    func testTheMainPageEntryPointIsGlassAndNoLongerAMicrophone() throws {
+    func testSentenceCreationBelongsToTheCreatorInsteadOfGlobalChrome() throws {
         let content = try source("Haiity/Views/ContentView.swift")
-        let button = try XCTUnwrap(content.range(of: "private var speakButton"))
-        let body = content[button.upperBound...].prefix(1400)
-
-        XCTAssertTrue(body.contains("ChromeGlass("),
-                      "the main-page button belongs on the shared glass, like the other chrome")
-        XCTAssertTrue(body.contains("kind: .circle"))
-        XCTAssertTrue(body.contains("systemName: \"sparkles\""),
-                      "a sparkle says what this is; a microphone said 'record something'")
-        XCTAssertFalse(body.contains("systemName: \"mic.fill\""),
-                       "there is no microphone left in the app to clash with")
-        // Still the quieter of the floating controls: no drop shadow competing
-        // with the toolbar's create action.
-        XCTAssertFalse(body.contains(".shadow("),
-                       "one prominent action per view; this one stays secondary")
+        let editor = try source("Haiity/Views/EditHabitSheet.swift")
+        XCTAssertFalse(content.contains("private var speakButton"))
+        XCTAssertTrue(editor.contains("accessibilityIdentifier(\"speak-to-create\")"))
+        XCTAssertTrue(content.contains("? requestSentenceCreation : nil"))
+        XCTAssertTrue(content.contains("onDismiss: deliverPendingCreateDismissalRoute"))
+        XCTAssertTrue(content.contains(".sheet(item: $sentenceCreation,"))
+        XCTAssertTrue(content.contains("initialText: request.text"))
     }
 
     /// The draft belongs at the full height only.

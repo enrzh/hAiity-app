@@ -297,7 +297,7 @@ final class TodayProgressUITests: XCTestCase {
         let pages: [(row: String, target: String, name: String)] = [
             ("open-notifications", "dnd-toggle", "migrated-notifications"),
             ("open-account", "personal-alias", "migrated-account"),
-            ("connect-github", "github-username-toggle", "github-login-action"),
+            ("open-github-settings", "github-connect", "github-login-action"),
             ("open-github-settings", "github-username-toggle", "migrated-github"),
             ("open-github-settings", "github-month-labels-toggle", "migrated-github-months")
         ]
@@ -324,10 +324,8 @@ final class TodayProgressUITests: XCTestCase {
             let account = app.buttons["open-account"]
             XCTAssertTrue(account.waitForExistence(timeout: 20))
             for _ in 0..<8 where !account.isHittable { app.swipeUp() }
-            let hubSignOut = app.buttons["apple-signout-more"]
-            XCTAssertTrue(hubSignOut.waitForExistence(timeout: 10))
-            for _ in 0..<5 where !hubSignOut.isHittable { app.swipeUp() }
-            XCTAssertTrue(hubSignOut.isHittable)
+            XCTAssertFalse(app.buttons["apple-signout-more"].exists)
+            XCTAssertFalse(app.buttons["apple-signin-more"].exists)
             capture("apple-account-more-\(appearance)")
             account.tap()
             let alias = app.textFields["personal-alias"]
@@ -347,12 +345,17 @@ final class TodayProgressUITests: XCTestCase {
             assertGreeting(in: app, contains: "Alex Taylor", timeout: 10)
             XCTAssertTrue(preview.label.contains("Alex Taylor"), "the preview must use the edited alias immediately")
             dismissAccountKeyboard(in: app)
-            XCTAssertTrue(app.buttons["apple-signout-more"].waitForExistence(timeout: 15))
-            app.buttons["apple-signout-more"].tap()
-            XCTAssertTrue(app.buttons["apple-signin-more"].waitForExistence(timeout: 15),
-                          "logout on the hub must expose native sign-in without opening the account page")
             account.tap()
             XCTAssertTrue(alias.waitForExistence(timeout: 15))
+            let optionalApple = app.descendants(matching: .any)["personal-apple-connection"].firstMatch
+            for _ in 0..<8 where !optionalApple.isHittable { app.swipeUp() }
+            optionalApple.tap()
+            let signOut = app.buttons["apple-signout"]
+            for _ in 0..<8 where !signOut.isHittable { app.swipeUp() }
+            XCTAssertTrue(signOut.isHittable)
+            signOut.tap()
+            XCTAssertTrue(app.buttons["apple-signin"].waitForExistence(timeout: 5))
+            for _ in 0..<8 where !alias.isHittable { app.swipeDown() }
             XCTAssertEqual(alias.value as? String, "Alex Taylor", "sign-out must keep the local alias")
             assertGreeting(in: app, contains: "Alex Taylor")
             app.terminate()
@@ -385,11 +388,7 @@ final class TodayProgressUITests: XCTestCase {
         let account = app.buttons["open-account"]
         XCTAssertTrue(account.waitForExistence(timeout: 15))
         for _ in 0..<8 where !account.isHittable { app.swipeUp() }
-        let signIn = app.buttons["apple-signin-more"]
-        for _ in 0..<3 where !signIn.isHittable { app.swipeUp() }
-        XCTAssertTrue(signIn.isHittable)
-        XCTAssertGreaterThanOrEqual(signIn.frame.width, 140)
-        XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
+        XCTAssertFalse(app.buttons["apple-signin-more"].exists)
         capture("apple-account-more-large-text")
         account.tap()
         let alias = app.textFields["personal-alias"]
@@ -397,6 +396,10 @@ final class TodayProgressUITests: XCTestCase {
         for _ in 0..<5 where !alias.isHittable { app.swipeUp() }
         XCTAssertTrue(alias.isHittable)
         capture("apple-account-large-text")
+        let optionalApple = app.descendants(matching: .any)["personal-apple-connection"].firstMatch
+        for _ in 0..<8 where !optionalApple.isHittable { app.swipeUp() }
+        XCTAssertTrue(optionalApple.isHittable)
+        optionalApple.tap()
         let pageSignIn = app.buttons["apple-signin"]
         for _ in 0..<8 where !pageSignIn.isHittable { app.swipeUp() }
         XCTAssertTrue(pageSignIn.isHittable)
@@ -768,7 +771,7 @@ final class TodayProgressUITests: XCTestCase {
         capture("creator-rtl-repeat-control")
         // Native RTL switch accessibility bounds include its full label row.
         // Activate the actual switch on the leading edge, not the empty center.
-        repeatToggle.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)).tap()
+        XCTAssertEqual(repeatToggle.value as? String, "1", "new habits repeat daily")
         expectation(for: NSPredicate(format: "value == '1'"), evaluatedWith: repeatToggle)
         waitForExpectations(timeout: 5)
         let recurrence = app.descendants(matching: .any)["recurrence-details"].firstMatch
@@ -862,6 +865,12 @@ final class TodayProgressUITests: XCTestCase {
             }
             func showNotifications() {
                 let mode = app.segmentedControls["habit-notification-mode"]
+                if !mode.exists {
+                    let advanced = app.descendants(matching: .any)["creation-advanced"].firstMatch
+                    for _ in 0..<12 where !advanced.isHittable { app.swipeUp(velocity: .slow) }
+                    XCTAssertTrue(advanced.isHittable)
+                    advanced.tap()
+                }
                 for _ in 0..<12 where !mode.isHittable { app.swipeUp(velocity: .slow) }
                 XCTAssertTrue(mode.isHittable)
                 if !mode.buttons["Default"].isSelected { mode.buttons["Default"].tap() }

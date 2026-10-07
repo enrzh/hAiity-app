@@ -43,6 +43,9 @@ final class DesignStyleUITests: XCTestCase {
         let entry = app.buttons["open-appearance"].firstMatch
         reveal(entry, in: app)
         entry.tap()
+        let customize = app.descendants(matching: .any)["appearance-customize"].buttons.firstMatch
+        XCTAssertTrue(customize.waitForExistence(timeout: 5))
+        if !app.buttons["appearance-design-native"].exists { customize.tap() }
         XCTAssertTrue(app.buttons["appearance-design-native"].waitForExistence(timeout: 5))
     }
 
@@ -92,9 +95,6 @@ final class DesignStyleUITests: XCTestCase {
             let option = app.buttons["appearance-design-\(style)"]
             reveal(option, in: app)
             option.tap()
-            let customize = app.descendants(matching: .any)["appearance-customize"].buttons.firstMatch
-            reveal(customize, in: app)
-            customize.tap()
             let material = app.buttons["appearance-material-milky"].firstMatch
             reveal(material, in: app)
             XCTAssertTrue(material.isSelected, "design selection must preserve the user's material")
@@ -126,9 +126,6 @@ final class DesignStyleUITests: XCTestCase {
         studio.tap()
         XCTAssertTrue(studio.isSelected)
         capture("styles-rtl-ax5-studio")
-        let customize = app.descendants(matching: .any)["appearance-customize"].buttons.firstMatch
-        reveal(customize, in: app)
-        customize.tap()
         let solid = app.buttons["appearance-material-solid"].firstMatch
         reveal(solid, in: app)
         XCTAssertGreaterThanOrEqual(solid.frame.height, 44)

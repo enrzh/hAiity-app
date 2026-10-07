@@ -29,7 +29,27 @@
       "TodayProgressUITests/testSortingDoesNotCheckOffRowsAndStopsWhenLeavingHabits()",
       "TodayProgressUITests/testSortingCanDragAReminderAboveAHabitAndRestoreEditing()",
       "SortingUITests/testBottomToTopAndBackSurvivesReload()",
-      "SortingUITests/testSortingRowsRemainReadableOverPhotosInLightAndDarkMode()"
+      "SortingUITests/testSortingRowsRemainReadableOverPhotosInLightAndDarkMode()",
+      "ProductSimplificationUITests/testCreatorDefaultsKeepHabitTypeAndSentenceHandoffKeepsTypedName()",
+      "ProductSimplificationUITests/testDeepLinkDismissesSentenceCreationBeforeOpeningNewCreator()",
+      "ProductSimplificationUITests/testMoreHubOffersNavigationAndNicknameWithOptionalAppleConnection()",
+      "ProductSimplificationUITests/testAppearanceKeepsDesignAndMaterialsInsideCustomize()",
+      "ProductSimplificationUITests/testFlexibleWeeklyCreationSavesAndReopensWithItsQuota()",
+      "HabitCardProductUITests/testNameGraphAndVisibleEditOpenTheirOwnRoutesWithoutCheckingOff()",
+      "HabitCardProductUITests/testCompactPreferenceKeepsTodayNameAndEditSeparateAcrossAllStyles()",
+      "HabitCardProductUITests/testQuantityIncrementAndUndoRetainExactValueWithoutOpeningHistory()",
+      "HabitCardProductUITests/testLargestRTLTextKeepsActionsReachableAndGraphBounded()",
+      "HabitCardProductUITests/testNativeLongPressPreviewRemainsAnOptionalEditShortcut()",
+      "HabitCardProductUITests/testFirstHabitShowsARecentWindowAndItsFirstCompletedSquare()",
+      "StatsProductUITests/testTodayAndWeeklyDetailsPreserveSummaryValues()",
+      "StatsProductUITests/testOptionalReadingExpandsWithoutStartingGenerationOrChangingStatistics()",
+      "StatsProductUITests/testPerHabitExplanationPreservesRateAndRowOpensNativeHistory()",
+      "StatsProductUITests/testCustomMetricSelectionRemainsAvailableAfterPrimarySections()",
+      "StatsProductUITests/testAX5WeeklySummaryAndDetailsRemainReachableInRTLAndBothAppearances()",
+      "StatsProductUITests/testFreeTierKeepsWeeklySummaryAndExistingDetailsGate()",
+      "DesignStyleUITests/testSelectorAndCustomizeWorkWithLargestTextAndRTL()",
+      "TodayProgressUITests/testCreatorDisclosuresStayReachableWithLargestTextAndRTL()",
+      "TodayProgressUITests/testRepeatedNavigationAndScrollingStayInteractive()"
     ]
   }],
   "version": 1

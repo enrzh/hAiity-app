@@ -1,6 +1,426 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Im Anlegeformular anbieten": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Im Anlegeformular anbieten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Offer in the creation form"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "إتاحته في نموذج الإنشاء"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "তৈরির ফর্মে উপলব্ধ রাখুন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Ofrecer en el formulario de creación"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Proposer dans le formulaire de création"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बनाने के फ़ॉर्म में उपलब्ध कराएँ"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tawarkan di formulir pembuatan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Offri nel modulo di creazione"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "作成フォームで利用できるようにする"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "생성 양식에서 제공"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Oferecer no formulário de criação"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Предлагать в форме создания"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Oluşturma formunda sun"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تخلیق کے فارم میں دستیاب کریں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cung cấp trong biểu mẫu tạo"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在创建表单中提供"}}
+      }
+    },
+    "Flexible Woche": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Flexible Woche"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Flexible week"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "أسبوع مرن"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "নমনীয় সপ্তাহ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Semana flexible"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Semaine flexible"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "लचीला सप्ताह"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Minggu fleksibel"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Settimana flessibile"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "柔軟な週の目標"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "유연한 주간 목표"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Semana flexível"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Гибкая неделя"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Esnek hafta"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "لچکدار ہفتہ"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tuần linh hoạt"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "灵活周目标"}}
+      }
+    },
+    "%lld× pro Woche, an beliebigen Tagen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld× pro Woche, an beliebigen Tagen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld times per week, any day"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "%lld مرات في الأسبوع، في أي أيام"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সপ্তাহে %lld বার, যেকোনো দিনে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld veces por semana, cualquier día"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld fois par semaine, les jours de votre choix"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सप्ताह में %lld बार, किसी भी दिन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "%lld kali per minggu, hari apa saja"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld volte a settimana, in qualsiasi giorno"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "週に%lld回、好きな日に"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "주 %lld회, 원하는 요일에"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "%lld vezes por semana, em qualquer dia"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld раз в неделю, в любые дни"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Haftada %lld kez, istediğiniz günlerde"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ہفتے میں %lld بار، کسی بھی دن"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "%lld lần mỗi tuần, vào bất kỳ ngày nào"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每周 %lld 次，日期不限"}}
+      }
+    },
+    "Mitteilungen, Kalender und Verhalten": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Mitteilungen, Kalender und Verhalten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Notifications, calendar and behavior"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الإشعارات والتقويم والسلوك"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বিজ্ঞপ্তি, ক্যালেন্ডার ও আচরণ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Notificaciones, calendario y comportamiento"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Notifications, calendrier et comportement"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सूचनाएँ, कैलेंडर और व्यवहार"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Notifikasi, kalender, dan perilaku"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Notifiche, calendario e comportamento"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "通知、カレンダー、動作"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "알림, 캘린더 및 동작"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Notificações, calendário e comportamento"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Уведомления, календарь и поведение"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bildirimler, takvim ve davranış"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اطلاعات، کیلنڈر اور رویہ"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Thông báo, lịch và cách hoạt động"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "通知、日历与行为"}}
+      }
+    },
+    "Öffnet die Historie dieses Habits.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Öffnet die Historie dieses Habits."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Opens this habit’s history."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يفتح سجل هذه العادة."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই অভ্যাসের ইতিহাস খোলে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre el historial de este hábito."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvre l’historique de cette habitude."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इस आदत का इतिहास खोलता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Membuka riwayat kebiasaan ini."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apre la cronologia di questa abitudine."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "この習慣の履歴を開きます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이 습관의 기록을 엽니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Abre o histórico deste hábito."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открывает историю этой привычки."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu alışkanlığın geçmişini açar."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس عادت کی تاریخ کھولتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Mở lịch sử của thói quen này."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开此习惯的历史记录。"}}
+      }
+    },
+    "%@: %lld Tage in den letzten %lld Wochen.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%@: %lld Tage in den letzten %lld Wochen."}},
+        "en": {"stringUnit": {"state": "translated", "value": "%@: %lld days in the last %lld weeks."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "%@: %lld أيام خلال آخر %lld أسابيع."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "%@: %lld দিন, গত %lld সপ্তাহে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%@: %lld días en las últimas %lld semanas."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%@: %lld jours au cours des %lld dernières semaines."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "%@: %lld दिन, पिछले %lld सप्ताह में।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "%@: %lld hari dalam %lld minggu terakhir."}},
+        "it": {"stringUnit": {"state": "translated", "value": "%@: %lld giorni nelle ultime %lld settimane."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@: %lld日、直近%lld週間。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "%@: %lld일, 최근 %lld주 동안."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "%@: %lld dias nas últimas %lld semanas."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%@: %lld дней за последние %lld недель."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "%@: %lld gün, son %lld hafta içinde."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "%@: %lld دن، گزشتہ %lld ہفتوں میں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "%@: %lld ngày trong %lld tuần qua."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@: %lld 天，过去 %lld 周内。"}}
+      }
+    },
+    "Diese Woche · bis heute": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Diese Woche · bis heute"}},
+        "en": {"stringUnit": {"state": "translated", "value": "This week so far"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "هذا الأسبوع · حتى اليوم"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই সপ্তাহ · আজ পর্যন্ত"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Esta semana · hasta hoy"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Cette semaine · jusqu’à aujourd’hui"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इस सप्ताह · आज तक"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Minggu ini · hingga hari ini"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Questa settimana · fino a oggi"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "今週・今日まで"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이번 주 · 오늘까지"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Esta semana · até hoje"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Эта неделя · по сегодня"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu hafta · bugüne kadar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس ہفتے · آج تک"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tuần này · đến hôm nay"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "本周 · 截至今天"}}
+      }
+    },
+    "%lld von %lld erledigt · %lld %%": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld von %lld erledigt · %lld %%"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of %lld completed · %lld %%"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اكتمل %lld من %lld · %lld %%"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সম্পন্ন %lldটি, মোট %lldটি · %lld %%"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de %lld completados · %lld %%"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld sur %lld terminés · %lld %%"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पूरे हुए %lld, कुल %lld · %lld %%"}},
+        "id": {"stringUnit": {"state": "translated", "value": "%lld dari %lld selesai · %lld %%"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld di %lld completati · %lld %%"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld / %lld 完了 · %lld %%"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "%lld / %lld 완료 · %lld %%"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "%lld de %lld concluídos · %lld %%"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Выполнено %lld из %lld · %lld %%"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "%lld / %lld tamamlandı · %lld %%"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "%lld از %lld مکمل · %lld %%"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã hoàn thành %lld trên %lld · %lld %%"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已完成 %lld / %lld · %lld %%"}}
+      }
+    },
+    "Letzte 7 Tage · Tagesquoten": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Letzte 7 Tage · Tagesquoten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Last 7 days · daily rates"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "آخر 7 أيام · المعدلات اليومية"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "গত ৭ দিন · দৈনিক হার"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Últimos 7 días · tasas diarias"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "7 derniers jours · taux quotidiens"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पिछले 7 दिन · दैनिक दरें"}},
+        "id": {"stringUnit": {"state": "translated", "value": "7 hari terakhir · tingkat harian"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ultimi 7 giorni · percentuali giornaliere"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "過去7日間・日別の達成率"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "최근 7일 · 일별 달성률"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Últimos 7 dias · taxas diárias"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Последние 7 дней · дневные показатели"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Son 7 gün · günlük oranlar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "گزشتہ 7 دن · روزانہ کی شرح"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "7 ngày qua · tỷ lệ hằng ngày"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "过去 7 天 · 每日完成率"}}
+      }
+    },
+    "Zusammenfassung (optional)": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Zusammenfassung (optional)"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Summary (optional)"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "ملخص (اختياري)"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সারাংশ (ঐচ্ছিক)"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Resumen (opcional)"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Résumé (facultatif)"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सारांश (वैकल्पिक)"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Ringkasan (opsional)"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Riepilogo (facoltativo)"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "概要（任意）"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "요약 (선택 사항)"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Resumo (opcional)"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Сводка (необязательно)"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Özet (isteğe bağlı)"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "خلاصہ (اختیاری)"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tóm tắt (tùy chọn)"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "摘要（可选）"}}
+      }
+    },
+    "Noch %lld offen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Noch %lld offen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld still open"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "لا يزال %lld غير مكتمل"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এখনও %lldটি বাকি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Quedan %lld pendientes"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Encore %lld en attente"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "अभी %lld बाकी हैं"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Masih %lld belum selesai"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ancora %lld da completare"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "あと%lld件未完了"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "아직 %lld개 미완료"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ainda %lld pendentes"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Ещё %lld не выполнено"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "%lld öğe hâlâ tamamlanmadı"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ابھی %lld باقی ہیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Còn %lld mục chưa hoàn thành"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "还有 %lld 项未完成"}}
+      }
+    },
+    "Personalisierung": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Personalisierung"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Personalization"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التخصيص"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ব্যক্তিগতকরণ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Personalización"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Personnalisation"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "वैयक्तिकरण"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Personalisasi"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Personalizzazione"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "パーソナライズ"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "개인화"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Personalização"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Персонализация"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Kişiselleştirme"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ذاتی تخصیص"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cá nhân hóa"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "个性化"}}
+      }
+    },
+    "Persönlich & Verbindungen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Persönlich & Verbindungen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Personal & Connections"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الشخصي والاتصالات"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ব্যক্তিগত ও সংযোগ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Personal y conexiones"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Personnel et connexions"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "व्यक्तिगत और कनेक्शन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pribadi & Koneksi"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Personale e connessioni"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "個人設定と連携"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "개인 설정 및 연결"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Pessoal e conexões"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Личное и подключения"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Kişisel ve bağlantılar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ذاتی اور روابط"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cá nhân và kết nối"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "个人与连接"}}
+      }
+    },
+    "Apple-Verbindung (optional)": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Apple-Verbindung (optional)"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Apple Connection (Optional)"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اتصال Apple (اختياري)"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "Apple সংযোগ (ঐচ্ছিক)"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Conexión con Apple (opcional)"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Connexion Apple (facultative)"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "Apple कनेक्शन (वैकल्पिक)"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Koneksi Apple (Opsional)"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Connessione Apple (facoltativa)"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "Appleとの連携（任意）"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "Apple 연결 (선택 사항)"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Conexão com Apple (opcional)"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Подключение Apple (необязательно)"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Apple bağlantısı (isteğe bağlı)"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "Apple سے رابطہ (اختیاری)"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Kết nối Apple (tùy chọn)"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Apple 连接（可选）"}}
+      }
+    },
+    "Text-Erstellung": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Text-Erstellung"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Text Creation"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الإنشاء من نص"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "লেখা থেকে তৈরি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Creación a partir de texto"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Création à partir de texte"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "टेक्स्ट से बनाना"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pembuatan dari Teks"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Creazione da testo"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "テキストから作成"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "텍스트로 만들기"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Criação a partir de texto"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Создание из текста"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Metinden oluşturma"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "متن سے تخلیق"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tạo từ văn bản"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "通过文本创建"}}
+      }
+    },
+    "Datums- und Zeitangaben funktionieren ohne Download. Zusätzliche Unterstützung ist optional und bleibt auf dem Gerät.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Datums- und Zeitangaben funktionieren ohne Download. Zusätzliche Unterstützung ist optional und bleibt auf dem Gerät."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Dates and times work without a download. Additional assistance is optional and stays on your device."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تعمل التواريخ والأوقات دون تنزيل. المساعدة الإضافية اختيارية وتبقى على جهازك."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ডাউনলোড ছাড়াই তারিখ ও সময় কাজ করে। অতিরিক্ত সহায়তা ঐচ্ছিক এবং আপনার ডিভাইসেই থাকে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Las fechas y horas funcionan sin descargar nada. La asistencia adicional es opcional y permanece en tu dispositivo."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Les dates et les heures fonctionnent sans téléchargement. L’assistance supplémentaire est facultative et reste sur votre appareil."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तारीखें और समय बिना डाउनलोड के काम करते हैं। अतिरिक्त सहायता वैकल्पिक है और आपके डिवाइस पर ही रहती है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tanggal dan waktu berfungsi tanpa unduhan. Bantuan tambahan bersifat opsional dan tetap di perangkat Anda."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Date e orari funzionano senza scaricare nulla. L’assistenza aggiuntiva è facoltativa e rimane sul tuo dispositivo."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "日付と時刻はダウンロードなしで使えます。追加サポートは任意で、処理はデバイス内で行われます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "날짜와 시간은 다운로드 없이 작동합니다. 추가 지원은 선택 사항이며 기기 내에서 처리됩니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Datas e horários funcionam sem download. A assistência adicional é opcional e permanece no seu dispositivo."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Даты и время работают без загрузки. Дополнительная помощь необязательна и остаётся на вашем устройстве."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tarih ve saatler indirme gerektirmeden çalışır. Ek destek isteğe bağlıdır ve cihazınızda kalır."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تاریخیں اور اوقات ڈاؤنلوڈ کے بغیر کام کرتے ہیں۔ اضافی مدد اختیاری ہے اور آپ کے آلے پر ہی رہتی ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Ngày và giờ hoạt động mà không cần tải xuống. Hỗ trợ bổ sung là tùy chọn và luôn ở trên thiết bị của bạn."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "日期和时间无需下载即可使用。额外辅助是可选的，并且始终在你的设备上运行。"}}
+      }
+    },
+    "Zusätzliche Unterstützung": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Zusätzliche Unterstützung"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Additional Assistance"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "مساعدة إضافية"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "অতিরিক্ত সহায়তা"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Asistencia adicional"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Assistance supplémentaire"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "अतिरिक्त सहायता"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Bantuan Tambahan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Assistenza aggiuntiva"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "追加サポート"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "추가 지원"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Assistência adicional"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дополнительная помощь"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Ek destek"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اضافی مدد"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Hỗ trợ bổ sung"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "额外辅助"}}
+      }
+    },
+    "Automatische Auswahl": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Automatische Auswahl"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Automatic Selection"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اختيار تلقائي"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "স্বয়ংক্রিয় নির্বাচন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Selección automática"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Sélection automatique"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "स्वचालित चयन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pemilihan Otomatis"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Selezione automatica"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "自動選択"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "자동 선택"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Seleção automática"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Автоматический выбор"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Otomatik seçim"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "خودکار انتخاب"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lựa chọn tự động"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "自动选择"}}
+      }
+    },
+    "Erweiterte Modellauswahl": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Erweiterte Modellauswahl"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Advanced Model Selection"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اختيار متقدم للنموذج"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "উন্নত মডেল নির্বাচন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Selección avanzada de modelos"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Sélection avancée du modèle"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "उन्नत मॉडल चयन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pemilihan Model Lanjutan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Selezione avanzata del modello"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "詳細なモデル選択"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "고급 모델 선택"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Seleção avançada de modelos"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Расширенный выбор модели"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Gelişmiş model seçimi"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ماڈل کا جدید انتخاب"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lựa chọn mô hình nâng cao"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "高级模型选择"}}
+      }
+    },
+    "Bereit": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Bereit"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Ready"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "جاهز"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "প্রস্তুত"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Listo"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Prêt"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "तैयार"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Siap"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Pronto"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "準備完了"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "준비됨"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Pronto"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Готово"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Hazır"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تیار"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Sẵn sàng"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "就绪"}}
+      }
+    },
     "Überfällig": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Überfällig"}},

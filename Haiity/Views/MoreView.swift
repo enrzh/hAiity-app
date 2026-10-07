@@ -29,7 +29,7 @@ enum MoreScreen: Hashable {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
         case .habitBehavior: String(localized: "Verhalten & Teilen")
-        case .localModel: String(localized: "Modell auf dem Gerät")
+        case .localModel: String(localized: "Text-Erstellung")
         }
     }
 }
@@ -183,7 +183,7 @@ struct MoreView: View {
         .sheet(isPresented: $showingPersonalSettings) {
             NavigationStack {
                 // Not a `List`: iOS 27 drops taps on grouped list rows.
-                SettingsPage(title: String(localized: "Alias und Apple-Anmeldung")) {
+                SettingsPage(title: String(localized: "Personalisierung")) {
                     personalHeader
                     personalSection
                 }
@@ -349,7 +349,7 @@ struct MoreView: View {
                     }
                 }
 
-                AppSettingsGroup(title: String(localized: "Konto & Verbindungen")) {
+                AppSettingsGroup(title: String(localized: "Persönlich & Verbindungen")) {
                     moreGitHubRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreAppleAccountRow
@@ -430,20 +430,7 @@ struct MoreView: View {
     }
 
     private var moreGitHubRow: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                    moreGitHubLink
-                    moreGitHubAccountAction
-                        .padding(.leading, Theme.Metrics.rowTitleInset)
-                }
-            } else {
-                HStack(spacing: Theme.Metrics.gap + 4) {
-                    moreGitHubLink
-                    moreGitHubAccountAction
-                }
-            }
-        }
+        moreGitHubLink
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
@@ -476,52 +463,15 @@ struct MoreView: View {
         }
     }
 
-    @ViewBuilder
-    private var moreGitHubAccountAction: some View {
-        if github.snapshot != nil {
-            Button(String(localized: "Abmelden"), role: .destructive) {
-                github.disconnect()
-            }
-            .font(.caption.weight(.medium))
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-            .accessibilityIdentifier("disconnect-github")
-        } else {
-            Button(String(localized: "Anmelden")) { onOpen(.github) }
-                .font(.caption.weight(.medium))
-                .buttonStyle(.borderless)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-                .accessibilityIdentifier("connect-github")
-        }
-    }
-
     private var moreAppleAccountRow: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Metrics.gap) {
-                    moreAppleAccountLink
-                    moreAppleAccountAction
-                        .padding(.leading, Theme.Metrics.rowTitleInset)
-                }
-            } else {
-                HStack(spacing: Theme.Metrics.gap + 4) {
-                    moreAppleAccountLink
-                    moreAppleAccountAction
-                }
-            }
-        }
+        moreAppleAccountLink
         .padding(.vertical, Theme.Metrics.gap / 2)
     }
 
     private var moreAppleAccountLink: some View {
         Button { showingPersonalSettings = true } label: {
-            AppSettingsRow(title: String(localized: "Apple-ID"),
-                           detail: storedAppleUserID == nil
-                            ? String(localized: "Nicht angemeldet")
-                            : personalDisplayName ?? String(localized: "Apple-ID"),
+            AppSettingsRow(title: String(localized: "Personalisierung"),
+                           detail: personalDisplayName ?? String(localized: "Wie dürfen wir dich nennen?"),
                            symbol: "person.crop.circle",
                            showsChevron: true) {
                 EmptyView()
@@ -529,58 +479,6 @@ struct MoreView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("open-account")
-    }
-
-    @ViewBuilder
-    private var moreAppleAccountAction: some View {
-        if storedAppleUserID != nil {
-            Button(String(localized: "Abmelden"), role: .destructive) {
-                signOutFromApple()
-            }
-            .font(.caption.weight(.medium))
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-            .accessibilityIdentifier("apple-signout-more")
-        } else {
-            appleSignInControl
-                .frame(width: 160, height: Theme.Metrics.hit)
-                .accessibilityIdentifier("apple-signin-more")
-        }
-    }
-
-    private var githubSection: some View {
-        Section {
-            HStack(spacing: Theme.Metrics.gap) {
-                Button { onOpen(.github) } label: {
-                    HStack(spacing: Theme.Metrics.gap + 4) {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Theme.accentText(palettes.style))
-                            .frame(width: Theme.Metrics.glyph,
-                                   height: Theme.Metrics.glyph)
-                        Text(String(localized: "GitHub"))
-                        Spacer(minLength: 0)
-                        Text(github.snapshot?.username ?? String(localized: "Verbinden"))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("open-github-settings")
-
-                if github.snapshot != nil {
-                    Button(String(localized: "Abmelden"), role: .destructive) {
-                        github.disconnect()
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("disconnect-github")
-                }
-            }
-            .padding(.vertical, Theme.Metrics.gap / 2)
-        }
     }
 
     // Die Nacharbeiten-Einstellung (Malen/Auswählen) stand hier — der

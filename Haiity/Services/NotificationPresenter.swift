@@ -52,12 +52,29 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        // A check-off from the notification panel wakes this process without
+        // showing the app. That wake must not take the "app opened" path,
+        // which clears every delivered habit and reminder notification.
+        if Self.keepsAppClosed(actionIdentifier: response.actionIdentifier,
+                               categoryIdentifier: response.notification.request.content.categoryIdentifier) {
+            DeliveredNotificationCleanup.noteBackgroundNotificationAction()
+        }
         Task { [response] in
             await NotificationPresenter.process(response)
             await MainActor.run {
                 completionHandler()
             }
         }
+    }
+
+    /// Tapping the notification itself opens the app. Action buttons that
+    /// only record a state, and dismissing one banner, do not.
+    static func keepsAppClosed(actionIdentifier: String, categoryIdentifier: String) -> Bool {
+        if actionIdentifier == UNNotificationDefaultActionIdentifier { return false }
+        guard let action = NotificationQuickAction.responseAction(
+            identifier: actionIdentifier,
+            categoryIdentifier: categoryIdentifier) else { return true }
+        return !action.opensApp
     }
 
     private static func process(_ response: UNNotificationResponse) async {
@@ -98,5 +115,44 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
             await Reminders.reschedule(store: store)
             await Reminders.celebrateIfPerfectDay(store: store)
         }
+    }
+}
+
+/// Delivered notifications are cleared only after a person is actually in
+/// the app. Scene creation and a notification-action wake both construct
+/// the SwiftUI scene without that person opening hAiity.
+enum DeliveredNotificationCleanup {
+    private static let lock = NSLock()
+    private static var suppressUntil = Date.distantPast
+
+    /// Long enough for the notification delegate to mark a background action
+    /// before a scene-phase `.active` callback decides to clear.
+    static let settleDelay: Duration = .milliseconds(600)
+    private static let suppressionWindow: TimeInterval = 1.5
+
+    static func noteBackgroundNotificationAction(now: Date = .now) {
+        lock.lock()
+        suppressUntil = now.addingTimeInterval(suppressionWindow)
+        lock.unlock()
+    }
+
+    static func shouldClear(applicationIsActive: Bool, now: Date = .now) -> Bool {
+        guard applicationIsActive else { return false }
+        lock.lock()
+        let until = suppressUntil
+        lock.unlock()
+        return now >= until
+    }
+
+    @MainActor
+    static func clearDeliveredIfUserIsInTheApp() {
+        guard shouldClear(applicationIsActive: UIApplication.shared.applicationState == .active) else { return }
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+
+    static func resetForTests() {
+        lock.lock()
+        suppressUntil = .distantPast
+        lock.unlock()
     }
 }

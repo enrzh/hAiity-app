@@ -53,6 +53,11 @@ final class StatsContextMenuUITests: XCTestCase {
         XCTAssertTrue(today.waitForExistence(timeout: 2))
         XCTAssertTrue(week.waitForExistence(timeout: 2))
         XCTAssertTrue(totals.waitForExistence(timeout: 2))
+        for _ in 0..<16 where !streak.isHittable || !totals.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(streak.isHittable)
+        XCTAssertTrue(totals.isHittable)
 
         // UIKit temporarily reports a zero accessibility frame for siblings
         // while its context-menu dimming view is active. Keep the frame from

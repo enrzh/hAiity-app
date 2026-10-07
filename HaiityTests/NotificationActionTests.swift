@@ -26,6 +26,56 @@ final class NotificationActionTests: XCTestCase {
                        "the async delegate signature IS the crash; keep the completion variant")
         XCTAssertTrue(source.contains("return"),
                       "the delegate should return after persisting an app-opening action")
+        XCTAssertTrue(source.contains("noteBackgroundNotificationAction()"),
+                      "a panel action that does not open the app must suppress the delivered-notification wipe")
+    }
+
+    func testPanelActionKeepsTheAppClosedAndLeavesOtherNotifications() {
+        DeliveredNotificationCleanup.resetForTests()
+        defer { DeliveredNotificationCleanup.resetForTests() }
+
+        XCTAssertTrue(NotificationPresenter.keepsAppClosed(
+            actionIdentifier: NotificationQuickAction.checkbox.responseIdentifier,
+            categoryIdentifier: NotificationQuickAction.checkbox.categoryIdentifier))
+        XCTAssertTrue(NotificationPresenter.keepsAppClosed(
+            actionIdentifier: UNNotificationDismissActionIdentifier,
+            categoryIdentifier: NotificationQuickAction.reminder.categoryIdentifier))
+        XCTAssertFalse(NotificationPresenter.keepsAppClosed(
+            actionIdentifier: NotificationQuickAction.edit.responseIdentifier,
+            categoryIdentifier: NotificationQuickAction.checkbox.categoryIdentifier))
+        XCTAssertFalse(NotificationPresenter.keepsAppClosed(
+            actionIdentifier: UNNotificationDefaultActionIdentifier,
+            categoryIdentifier: NotificationQuickAction.checkbox.categoryIdentifier))
+
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        DeliveredNotificationCleanup.noteBackgroundNotificationAction(now: now)
+        XCTAssertFalse(DeliveredNotificationCleanup.shouldClear(
+            applicationIsActive: true,
+            now: now.addingTimeInterval(0.2)),
+                       "acting on one notification must not clear the rest while the app stays closed")
+        XCTAssertFalse(DeliveredNotificationCleanup.shouldClear(
+            applicationIsActive: false,
+            now: now.addingTimeInterval(5)),
+                       "a background wake is not an app open")
+        XCTAssertTrue(DeliveredNotificationCleanup.shouldClear(
+            applicationIsActive: true,
+            now: now.addingTimeInterval(2)),
+                       "a later real foreground open still clears delivered notifications")
+    }
+
+    func testSceneCreationDoesNotClearDeliveredNotifications() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(contentsOf: root.appendingPathComponent("Haiity/HaiityApp.swift"))
+        let appear = try XCTUnwrap(app.range(of: ".onAppear {"))
+        let afterAppear = try XCTUnwrap(app.range(of: ".onChange(of: scenePhase)",
+                                                  range: appear.upperBound..<app.endIndex))
+        let appearBody = app[appear.lowerBound..<afterAppear.lowerBound]
+        XCTAssertFalse(appearBody.contains("removeAllDeliveredNotifications"),
+                       "building the scene on a notification wake must not clear every delivered notification")
+        XCTAssertTrue(app.contains("clearDeliveredIfUserIsInTheApp()"))
+        XCTAssertTrue(app.contains("DeliveredNotificationCleanup.settleDelay"))
     }
 
     /// Der EINE erlaubte Haupt-Actor-Sprung: UIKit seine Completion

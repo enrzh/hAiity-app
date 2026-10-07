@@ -4,6 +4,37 @@ Status: implemented contract - shared settings and graph foundations verified
 Date: 2026-10-05
 Scope: shared UI language for the existing iOS app
 
+## Product hierarchy (2026-10-07)
+
+Fresh stores start in Quiet. Existing data, missing legacy style fields and
+unknown style values retain Original. System/light/dark stays direct; alternate
+designs, materials and other customization live in Customize. Changing style
+continues to preserve the selected background, palette and other preferences.
+
+Creation leads with name, repetition, essential reminder date/time, preview and
+Save. New habits start daily; new reminders start once. Repetition does not change
+item type. Kind and optional settings are disclosed. Flexible weekly quotas use
+the existing recurrence engine. Optional sentence creation belongs inside the
+creator and carries typed text into its own item-based sheet after dismissal.
+
+Habit cards keep Today separate from History and Edit, with 44 pt targets even
+in compact mode. The name and graph open full history; the pencil opens Edit.
+Long-press remains optional. Cards show eight recent weeks through the shared
+renderer, capped at 20 pt cells and centered; full history remains in its editor.
+One queued snapshot supplies the graph, with today's tile updated immediately
+from the existing completion engine during check-off and undo.
+
+Statistics lead with Today, current-week completion and the last seven daily
+rates. Per-habit recent completion follows; saved optional metrics stay available.
+AI reading is a collapsed optional action and never runs just from expansion.
+The denominators and flexible-period rules remain unchanged and explained.
+
+The More hub uses navigation-only connection rows. Personalization leads with a
+local nickname; optional Apple connection is disclosed on that page, and GitHub
+authentication stays on its own page. Normal text-creation settings show optional
+assistance and readiness, with existing named model controls under Advanced.
+Identity storage, purchase boundaries and saved model choices stay independent.
+
 ## App-wide design styles (2026-10-04)
 
 Darstellung offers four optional layouts through `AppDesignStyle` in `Theme.swift`.

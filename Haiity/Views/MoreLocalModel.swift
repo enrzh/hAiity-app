@@ -20,8 +20,31 @@ extension MoreView {
         // every sibling page uses.
         // The heading is still dropped, because the navigation bar names the page.
         SettingsPage {
+            AppSettingsGroup(title: String(localized: "Aus einem Satz anlegen"),
+                             footer: String(localized: "Datums- und Zeitangaben funktionieren ohne Download. Zusätzliche Unterstützung ist optional und bleibt auf dem Gerät.")) {
+                AppSettingsRow(title: String(localized: "Zusätzliche Unterstützung"),
+                               detail: String(localized: "Automatische Auswahl"),
+                               symbol: "sparkles") {
+                    if OnDeviceModel.isAvailable || LocalModelCatalogue.all.contains(where: {
+                        modelService.registry.state(for: $0.id).isReady
+                    }) {
+                        Text(String(localized: "Bereit"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        modelControl(LocalModelCatalogue.default,
+                                     state: modelService.registry.state(for: LocalModelCatalogue.default.id))
+                    }
+                }
+            }
+            DisclosureGroup {
                 localModelSection
+            } label: {
+                AppSettingsRow(title: String(localized: "Erweiterte Modellauswahl"),
+                               symbol: "slider.horizontal.3") { EmptyView() }
+            }
+            .accessibilityIdentifier("local-model-advanced")
         }
+        .onAppear { modelService.refresh() }
         // Without this the last line of the footnote sits flush against the
         // bottom edge and is cut in half, which reads as a layout fault rather
         // than as a scroll that could continue.

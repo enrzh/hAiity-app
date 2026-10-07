@@ -336,7 +336,7 @@ final class ReminderItemTests: XCTestCase {
         let source = try editorSource()
 
         XCTAssertTrue(source.contains("@State private var itemType: HabitItemType = .habit"))
-        XCTAssertTrue(source.contains("selection: $itemType"))
+        XCTAssertTrue(source.contains("selection: itemTypeSelection"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.habit)"))
         XCTAssertTrue(source.contains(".tag(HabitItemType.reminder)"))
         XCTAssertTrue(source.contains(".accessibilityIdentifier(\"item-type-picker\")"))
@@ -390,7 +390,7 @@ final class ReminderItemTests: XCTestCase {
     func testEditorKeepsTheSharedHabitSettings() throws {
         let source = try editorSource()
 
-        for section in ["recurrenceSection", "durationSection", "kindSection", "colorSection"] {
+        for section in ["recurrenceSection", "durationSection", "kindControls", "colorSection"] {
             XCTAssertTrue(source.contains(section), "missing shared editor section: \(section)")
         }
     }
@@ -406,7 +406,10 @@ final class ReminderItemTests: XCTestCase {
     func testReminderModeHidesHabitKindControls() throws {
         let source = try editorSource()
 
-        XCTAssertTrue(source.contains("if itemType == .habit { kindSection.settingsListRow() }"),
+        let start = try XCTUnwrap(source.range(of: "if itemType == .habit {\n                    Section"))
+        let end = try XCTUnwrap(source.range(of: "accessibilityIdentifier(\"creation-kind\")",
+                                            range: start.upperBound..<source.endIndex))
+        XCTAssertTrue(source[start.lowerBound..<end.upperBound].contains("kindControls"),
                       "the habit-only kind controls must be conditionally mounted")
         XCTAssertTrue(source.contains("itemType == .habit ? Habit.resolvedKind"),
                       "saving a reminder must not persist a habit kind")

@@ -120,9 +120,12 @@ final class LocalModelEndToEndUITests: XCTestCase {
         app.launchArguments = ["-screen", "habits", "-pro", "on"]
         app.launch()
 
+        let create = app.buttons["create-habit"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 15))
+        create.tap()
         let opener = app.buttons["speak-to-create"].firstMatch
         XCTAssertTrue(opener.waitForExistence(timeout: 15),
-                      "the create-from-a-sentence entry point must be on the habits screen")
+                      "the creator must offer sentence creation")
         opener.tap()
 
         let field = app.textFields["speak-to-create-text"].firstMatch

@@ -62,6 +62,7 @@ enum RoutePresentationPhase: Equatable {
 struct RoutePresentation: Equatable {
     var create: RoutePresentationPhase = .absent
     var editor: RoutePresentationPhase = .absent
+    var sentenceCreation: RoutePresentationPhase = .absent
     /// Das Kaufblatt. KEINE Route öffnet es — es ist immer nur im Weg, und
     /// zwar als oberste Präsentation: ein Deep-Link, der es stehen lässt,
     /// schaltet den Bereich darunter um und sperrt den Nutzer auf einer
@@ -101,6 +102,8 @@ struct RouteWork {
         case waitForPaywallDismissal
         case dismissEditor
         case waitForEditorDismissal
+        case dismissSentenceCreation
+        case waitForSentenceCreationDismissal
         case dismissCreate
         case waitForCreateDismissal
         case dismissMore
@@ -136,6 +139,12 @@ struct RouteWork {
         switch presentation.paywall {
         case .requested, .presented: return .dismissPaywall
         case .dismissing: return .waitForPaywallDismissal
+        case .absent: break
+        }
+
+        switch presentation.sentenceCreation {
+        case .requested, .presented: return .dismissSentenceCreation
+        case .dismissing: return .waitForSentenceCreationDismissal
         case .absent: break
         }
 

@@ -288,6 +288,12 @@ struct HabitData: Codable {
     }
 
     static let empty = HabitData(version: currentVersion, updatedAt: 0, summaryMinutes: nil, habits: [])
+    static var fresh: HabitData {
+        var data = empty
+        data.appearancePreferences.designStyle = .quiet
+        data.appearanceUpdatedAt = 0
+        return data
+    }
 }
 
 extension HabitData {
@@ -627,12 +633,12 @@ final class HabitStore {
         self.url = url
         if loadFromDisk {
             let outcome = Self.readResult(url)
-            self.data = outcome.payload ?? .empty
+            self.data = outcome.payload ?? (outcome.corrupted ? .empty : .fresh)
             self.readFailed = outcome.corrupted
             self.persistedPayload = outcome.raw
             if outcome.corrupted { Self.preserveCorruptPayload(url) }
         } else {
-            self.data = .empty
+            self.data = .fresh
         }
         self.loadedSignature = loadFromDisk ? Self.signature(url) : nil
     }
@@ -1570,6 +1576,11 @@ final class HabitStore {
     /// zu synchronisieren.
     private static func appearanceIsNewer(_ remote: HabitData,
                                           than local: HabitData) -> Bool {
+        // A fresh default is not a user choice, even after an unrelated habit save.
+        if remote.appearanceUpdatedAt == 0 { return false }
+        if local.appearanceUpdatedAt == 0 {
+            return (remote.appearanceUpdatedAt ?? remote.updatedAt) > 0
+        }
         if let localAppearanceUpdatedAt = local.appearanceUpdatedAt {
             if let remoteAppearanceUpdatedAt = remote.appearanceUpdatedAt {
                 return remoteAppearanceUpdatedAt > localAppearanceUpdatedAt

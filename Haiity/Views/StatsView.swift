@@ -4,14 +4,9 @@ import SwiftUI
 /// Habit-Liste plus Unterseite in „Mehr", sondern eine Seite, die beides
 /// vereint:
 ///
-///  1. **Rhythmus** als Held: das vereinigte Raster aller Habits über
-///     die volle Kartenbreite, in der Sprache der App (dieselbe Rampe wie
-///     die großen Raster; reine Nein-Tage in der Verneinungsfarbe).
-///  2. **Check-ins** als einzige Standard-Kachel. Serie, Heute und Woche
-///     bleiben in der Anpassung; sie stehen schon auf der Heute- und
-///     Wochenkarte.
-///  3. **Je Habit** die vertraute Zeile: Quoten 30/90/365, Serien, Summe und
-///     12 Monats-Balken.
+/// Today and weekly completion lead, followed by each habit's 30-day rate.
+/// The existing rhythm grid and selected extra metrics remain available;
+/// an optional reading follows the statistics rather than leading them.
 ///
 /// Die Mathematik liegt komplett in StatsEngine/StatsMath/GoalEngine
 /// (unit-getestet); hier wird nur gezeichnet. Der Schnappschuss ist
@@ -34,8 +29,8 @@ struct StatsView: View {
     /// The last completed value remains visible while changed data is
     /// recalculated in the background.
     @State private var renderedSnapshot: StatsEngine.Snapshot?
-    /// What the reading block is doing. It is always rendered — the block is the
-    /// affordance, so it cannot disappear when there is nothing to show yet.
+    /// The optional reading stays behind a native disclosure. Expanding it
+    /// never starts the model; generation still requires its own explicit tap.
     @State private var statsReadingPhase: StatsReadingPhase = .idle
     @State private var renderedRefreshKey: String?
     @State private var statsReadingTask: Task<Void, Never>?
@@ -193,18 +188,7 @@ struct StatsView: View {
 
                 statsTodayCard(snapshot)
 
-                if activeCards.contains(.yearPulse) {
-                    statsRhythmCard(snapshot)
-                }
-
-                let metricCards = activeCards.filter { $0 != .yearPulse }
-                if !metricCards.isEmpty {
-                    statsMetricGrid(snapshot, cards: metricCards)
-                }
-
                 statsWeekCard(snapshot)
-
-                statsReadingCard
 
                 if unlocked {
                     statsHabitRanking(snapshot)
@@ -214,6 +198,25 @@ struct StatsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .appSurface()
                 }
+
+                if activeCards.contains(.yearPulse) {
+                    statsRhythmCard(snapshot)
+                }
+
+                let metricCards = activeCards.filter { $0 != .yearPulse }
+                if !metricCards.isEmpty {
+                    statsMetricGrid(snapshot, cards: metricCards)
+                }
+
+                DisclosureGroup {
+                    statsReadingCard
+                } label: {
+                    AppSettingsRow(title: String(localized: "Zusammenfassung (optional)")) { EmptyView() }
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("stats-reading-toggle")
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("stats-reading-disclosure")
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.floatingControlsClearance)
@@ -301,7 +304,7 @@ struct StatsView: View {
                              perHabit: [], totalCheckIns: 0)
     }
 
-    private func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+    func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         let total = snapshot.todayTotal
         let done = snapshot.todayDone
         return VStack(alignment: .leading, spacing: designStyle.cardPadding + 6) {
@@ -322,7 +325,7 @@ struct StatsView: View {
                                    : designStyle.pageTitleFont).monospacedDigit())
                             .contentTransition(.numericText())
                     }
-                    Text(statsTodaySentence(snapshot))
+                    Text(Self.statsTodaySentence(snapshot))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -357,22 +360,8 @@ struct StatsView: View {
         String(localized: "Hier zählen heute geplante Habits; flexible Ziele nach Tagesplan, nicht nach erfüllter Periode. Mengen zählen ab dem Zielwert, Ja/Nein nur mit Ja.")
     }
 
-    /// One sentence carries what the removed three-column footer repeated.
-    /// The same numbers stay in `statsTodayAccessibilityValue`.
     /// One sentence about the pattern over time, written on device — but only
     /// when the reader asks for it.
-    ///
-    /// **Why a tap instead of a page load.** Running the model makes the device
-    /// warm, and this page is the one people open most often. Generating on
-    /// every visit would spend heat continuously, which is exactly the cost the
-    /// person should get to decide about. So the block is always visible and
-    /// the work starts only on a tap.
-    ///
-    /// **Why it is always visible.** An affordance that appears only once it has
-    /// a result is invisible until it is useful, which is how a feature like
-    /// this stays undiscovered. The block is the invitation; its content
-    /// changes. That also means the "unavailable" state has to be a real,
-    /// explained state rather than a missing card.
     @ViewBuilder
     private var statsReadingCard: some View {
         VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
@@ -537,15 +526,16 @@ struct StatsView: View {
         statsReadingPhase = text.map(StatsReadingPhase.shown) ?? .failed
     }
 
-    private func statsTodaySentence(_ snapshot: StatsEngine.Snapshot) -> String {
+    static func statsTodaySentence(_ snapshot: StatsEngine.Snapshot,
+                                   bundle: Bundle = .main,
+                                   locale: Locale = .current) -> String {
         guard snapshot.todayTotal > 0 else {
-            return String(localized: "Dein Tag ist frei.")
+            return String(localized: "Dein Tag ist frei.", bundle: bundle, locale: locale)
         }
         if snapshot.todayDone == snapshot.todayTotal {
-            return String(localized: "Alles erledigt. Gute Arbeit.")
+            return String(localized: "Alles erledigt. Gute Arbeit.", bundle: bundle, locale: locale)
         }
-        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
-        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen · Serie \(snapshot.streak) · Woche \(weekPercent) %")
+        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen", bundle: bundle, locale: locale)
     }
 
     private func statsTodayAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
@@ -721,7 +711,7 @@ struct StatsView: View {
         }
     }
 
-    private func statsWeekCard(_ snapshot: StatsEngine.Snapshot) -> some View {
+    func statsWeekCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         VStack(alignment: .leading, spacing: designStyle.cardPadding) {
             statsWeekSummary(snapshot)
             DisclosureGroup {
@@ -749,18 +739,31 @@ struct StatsView: View {
         }
         return VStack(alignment: .leading, spacing: designStyle.cardPadding) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(String(localized: "Letzte 7 Tage"))
+                Text(String(localized: "Diese Woche · bis heute"))
                     .font(designStyle.sectionTitleFont)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(Self.weekCompletionSummary(snapshot.week))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 0) {
+            Text(String(localized: "Letzte 7 Tage · Tagesquoten"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0),
+                                    count: dynamicTypeSize.isAccessibilitySize ? 1 : 7),
+                      spacing: designStyle.rowGap * 2) {
                 ForEach(Array(days.enumerated()), id: \.offset) { index, day in
                     let fraction = snapshot.last7.indices.contains(index) ? snapshot.last7[index] : 0
                     let hasData = snapshot.last7HasData.indices.contains(index) && snapshot.last7HasData[index]
-                    VStack(spacing: 7) {
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
+                        : AnyLayout(VStackLayout(spacing: 7))
+                    layout {
                         Text(hasData ? "\(Int((fraction * 100).rounded()))%" : "-")
                             .font(.caption2.weight(.semibold).monospacedDigit())
                             .foregroundStyle(hasData ? .primary : .tertiary)
@@ -774,13 +777,14 @@ struct StatsView: View {
                         Text(statsWeekdayLabel(day))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity)
                 }
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Letzte 7 Tage"))
+        .accessibilityLabel(String(localized: "Diese Woche · bis heute"))
         .accessibilityValue(statsWeekAccessibilityValue(snapshot))
         .accessibilityIdentifier("stats-week-card")
     }
@@ -789,14 +793,26 @@ struct StatsView: View {
         String(localized: "Die Wochenquote zählt feste Termine bis heute und flexible Wochenziele; Vergleich: volle Vorwoche. Flexible Monats- und Jahresziele zählen nicht. – heißt: nichts fällig.")
     }
 
+    static func weekCompletionSummary(_ completion: StatsEngine.DayCompletion,
+                                      bundle: Bundle = .main,
+                                      locale: Locale = .current) -> String {
+        guard completion.total > 0 else {
+            return String(localized: "Diese Woche ist nichts fällig", bundle: bundle, locale: locale)
+        }
+        let percent = Int((completion.fraction * 100).rounded())
+        return String(localized: "\(completion.done) von \(completion.total) erledigt · \(percent) %", bundle: bundle, locale: locale)
+    }
+
     private func statsWeekAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
         let days = (-6...0).compactMap { DayKey.shifted(snapshot.today, by: $0) }
-        let percents = days.enumerated().map { index, _ -> String in
+        let percents = days.enumerated().map { index, day -> String in
             let fraction = snapshot.last7.indices.contains(index) ? snapshot.last7[index] : 0
             let hasData = snapshot.last7HasData.indices.contains(index) && snapshot.last7HasData[index]
-            return hasData ? "\(Int((fraction * 100).rounded())) %" : "-"
+            let date = DayKey.date(from: day)?.formatted(.dateTime.month(.wide).day()) ?? day
+            let value = hasData ? "\(Int((fraction * 100).rounded())) %" : String(localized: "Kein Habit fällig")
+            return "\(date): \(value)"
         }.joined(separator: ", ")
-        return "\(percents), \(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))"
+        return "\(Self.weekCompletionSummary(snapshot.week)), \(String(localized: "Letzte 7 Tage · Tagesquoten")): \(percents), \(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))"
     }
 
     /// Maps a day fraction onto the same 0…4 ramp the contribution tiles use.
@@ -812,7 +828,9 @@ struct StatsView: View {
 
     private func statsWeekdayLabel(_ key: String) -> String {
         guard let date = DayKey.date(from: key) else { return "-" }
-        return date.formatted(.dateTime.weekday(.narrow))
+        return dynamicTypeSize.isAccessibilitySize
+            ? date.formatted(.dateTime.weekday(.wide))
+            : date.formatted(.dateTime.weekday(.narrow))
     }
 
     private func statsHabitRanking(_ snapshot: StatsEngine.Snapshot) -> some View {
@@ -821,6 +839,7 @@ struct StatsView: View {
             Text(String(localized: "Deine Habits"))
                 .font(designStyle.sectionTitleFont)
                 .padding(.horizontal, 2)
+                .fixedSize(horizontal: false, vertical: true)
             DisclosureGroup {
                 Text(String(localized: "30-Tage-Quote: erfüllte von geplanten Terminen; bei Ja/Nein zählen auch Antworten an freien Tagen. Flexible Ziele: erfüllte Perioden; die laufende zählt erst, wenn sie erfüllt ist."))
                     .foregroundStyle(.secondary)
@@ -879,13 +898,13 @@ struct StatsView: View {
                     .font(designStyle.rowTitleFont)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 6) {
-                    Text(String(localized: "30 Tage: \(completion)%"))
-                    Text("·")
-                    Text(String(localized: "Serie \(streak)"))
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text(String(localized: "30 Tage: \(completion)%"))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(String(localized: "Serie \(streak)"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 MonthBars(counts: stats.monthlyCounts,
                           style: style)
                     .padding(.vertical, designStyle.graphPadding)

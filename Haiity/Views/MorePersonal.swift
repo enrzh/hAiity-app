@@ -30,11 +30,6 @@ extension MoreView {
                 .background(accentColor.opacity(0.1), in: Circle())
                 .accessibilityHidden(true)
                 Spacer()
-                Label(String(localized: storedAppleUserID == nil ? "Ohne Anmeldung" : "Mit Apple verbunden"),
-                      systemImage: storedAppleUserID == nil ? "person.crop.circle" : "checkmark.seal")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             Text(personalDisplayName.map { String(format: String(localized: "Hallo, %@"), $0) }
                  ?? String(localized: "Dein Alltag, persönlich."))
@@ -77,6 +72,7 @@ extension MoreView {
                 personalMotivationPreview
             }
 
+            DisclosureGroup {
             AppSettingsGroup(title: String(localized: "Apple-ID"),
                              footer: String(localized: "Die Apple-Anmeldung ist optional. Dein iCloud-Abgleich läuft unabhängig davon.")) {
             VStack(alignment: .leading, spacing: 0) {
@@ -127,6 +123,17 @@ extension MoreView {
             }
             .padding(.vertical, Theme.Metrics.gap / 2)
             }
+            } label: {
+                AppSettingsRow(title: String(localized: "Apple-Verbindung (optional)"),
+                               detail: storedAppleUserID == nil
+                                ? String(localized: "Nicht angemeldet")
+                                : String(localized: "Mit Apple verbunden"),
+                               symbol: "person.crop.circle.badge.checkmark") {
+                    EmptyView()
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("personal-apple-connection")
         }
         .onAppear { refreshPersonalIdentity() }
     }

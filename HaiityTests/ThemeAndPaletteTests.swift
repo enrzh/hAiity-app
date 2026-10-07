@@ -611,7 +611,7 @@ final class AppearanceSettingTests: XCTestCase {
             .deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StatsView.swift"))
         let pageStart = try XCTUnwrap(source.range(of: "private var statsList"))
-        let pageEnd = try XCTUnwrap(source.range(of: "private func statsTodayCard",
+        let pageEnd = try XCTUnwrap(source.range(of: "func statsTodayCard",
                                                  range: pageStart.upperBound..<source.endIndex))
         let page = source[pageStart.lowerBound..<pageEnd.lowerBound]
 
@@ -1129,7 +1129,7 @@ final class AppearanceSettingTests: XCTestCase {
         let accountEnd = try XCTUnwrap(more.range(of: ".sheet(isPresented: $showingNotificationSettings)",
                                                   range: accountStart.upperBound..<more.endIndex))
         let account = more[accountStart.lowerBound..<accountEnd.lowerBound]
-        XCTAssertTrue(account.contains("SettingsPage(title: String(localized: \"Alias und Apple-Anmeldung\"))"),
+        XCTAssertTrue(account.contains("SettingsPage(title: String(localized: \"Personalisierung\"))"),
                       "Account must keep the shared secondary-page header")
         XCTAssertTrue(account.contains("personalHeader") && account.contains("personalSection"),
                       "the root sheet must compose the extracted account content")

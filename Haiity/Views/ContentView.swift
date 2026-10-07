@@ -121,7 +121,13 @@ struct ContentView: View {
     /// Das Melde-Blatt (Schütteln). Es hängt hier oben, weil die Geste überall
     /// gilt — sie gehört keinem Bereich, sondern der App.
     @State private var showFeedback = false
-    @State private var showSpeakToCreate = false
+    private struct SentenceCreation: Identifiable {
+        let id = UUID()
+        let text: String
+    }
+    @State private var sentenceCreation: SentenceCreation?
+    @State private var sentencePresentation = CreateCoverPresentation()
+    @State private var pendingSentenceCreation: String?
     /// Wann das Melde-Blatt zuletzt zuging. Ein Schütteln endet oft mit einem
     /// Nachschütteln (die Hand hört später auf als der Kopf) — ohne diese
     /// Ruhezeit spränge das eben geschlossene Blatt sofort wieder auf.
@@ -293,18 +299,15 @@ struct ContentView: View {
             // wie „Mehr": ein fullScreenCover, das ab iOS 18 mit der
             // Zoom-Transition aus dem Anlegen-Knopf wächst und
             // beim Schließen dorthin zurückschrumpft; X oben links schließt.
-            // Der Sprachknopf liegt am SHELL, nicht auf einer Seite: er soll auf
-            // jedem Tab stehen, und an vier Stellen eine Kopie zu bauen wäre die
-            // übliche Art, wie so etwas auseinanderläuft. Er sitzt in derselben
-            // Trailing-Spalte wie der schwebende Suchknopf, direkt DARÜBER — als
-            // untergeordneter Begleiter, nicht als zweite Hauptaktion.
-            .overlay(alignment: .bottomTrailing) {
-                if viewPreferences.dictateCreateEnabled { speakButton }
-            }
-            .sheet(isPresented: $showSpeakToCreate) {
-                SpeakToCreateSheet(store: store)
+            .sheet(item: $sentenceCreation,
+                   onDismiss: deliverPendingSentenceDismissalRoute) { request in
+                SpeakToCreateSheet(store: store, initialText: request.text)
                     .themed(store, palettes: effectivePalettes)
                     .environment(\.appearanceBackgroundOwned, false)
+                    .onAppear {
+                        guard sentenceCreation?.id == request.id else { return }
+                        sentencePresentation.didPresent()
+                    }
             }
             .fullScreenCover(isPresented: $showAdd,
                              onDismiss: deliverPendingCreateDismissalRoute) {
@@ -585,60 +588,6 @@ struct ContentView: View {
         }
         guard #available(iOS 27, *) else { return }
         DispatchQueue.main.async { searchFieldFocused = true }
-    }
-
-    // MARK: – Sprachknopf
-
-    /// The standing "say it instead of typing it" control — the on-device
-    /// writing entry point, on the same glass as the rest of the floating
-    /// chrome.
-    ///
-    /// Sized to the same 52 pt circle as the app's other floating controls and
-    /// offset by the same tab-bar clearance, so it sits in the band's bottom
-    /// row rather than on top of the tab bar. Hidden while a sheet or the
-    /// create page is up: a floating control over a modal is a tap target with
-    /// nothing behind it.
-    ///
-    /// It was a microphone, which said "record a voice note" and understated what
-    /// this actually is: a sentence that becomes a habit, worked out on the
-    /// device. A sparkle says that, and it is distinct from the keyboard's own
-    /// dictation key — dictation produces words, this produces a habit — so the
-    /// two are never confused for each other.
-    @ViewBuilder
-    private var speakButton: some View {
-        if !showAdd, !showSpeakToCreate, !habitSortingActive, paywall == nil, !showFeedback,
-           viewPreferences.dictateCreateEnabled {
-            Button {
-                showSpeakToCreate = true
-                Theme.Haptics.select()
-            } label: {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Theme.accentText(effectivePaletteStyle))
-                    .frame(width: Theme.Metrics.control, height: Theme.Metrics.control)
-                    .modifier(ChromeGlass(id: "speak-button",
-                                          namespace: glassNamespace,
-                                          kind: .circle,
-                                          union: "speak-button"))
-                    // No accent tint. A tinted glass circle is a green button with
-                    // a material behind it, which is not what this is: the tint
-                    // filled the shape and the glass stopped being visible at all.
-                    // The sparkle keeps the accent, so the colour still says
-                    // "writing", and the bar underneath is neutral so the search
-                    // below stays the louder of the two.
-                    .overlay(Circle().strokeBorder(
-                        Theme.accentText(effectivePaletteStyle).opacity(0.14),
-                        lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Aus einem Satz anlegen"))
-            .accessibilityIdentifier("speak-to-create")
-            // Trailing column, directly above the control it pairs with. The
-            // numbers come from the layout constants so the stack survives a
-            // change to either diameter.
-            .padding(.trailing, ChromeLayout.speakButtonTrailing)
-            .padding(.bottom, ChromeLayout.speakButtonBottom)
-        }
     }
 
     // MARK: – Bereiche
@@ -1038,7 +987,9 @@ struct ContentView: View {
     /// (`asPage`). Ziel der Zoom-Transition: sie wächst aus dem
     /// Anlegen-Knopf und schrumpft dorthin zurück.
     private var createPage: some View {
-        EditHabitSheet(store: store, asPage: true)
+        EditHabitSheet(store: store, asPage: true,
+                      onCreateFromText: viewPreferences.dictateCreateEnabled
+                        ? requestSentenceCreation : nil)
             .themed(store, palettes: effectivePalettes)
             .environment(\.appearanceBackgroundOwned, false)
             .modifier(MoreZoomDestination(id: Self.createZoomID,
@@ -1057,7 +1008,18 @@ struct ContentView: View {
     /// zurückholt, importiert oder über iCloud mehr als drei aktive Habits
     /// bekommt, behält sie und kann sie voll benutzen (siehe ProGate).
     private func requestCreate() {
+        if sentenceCreation != nil {
+            handle(.create)
+            return
+        }
+        pendingSentenceCreation = nil
         showAdd = true
+    }
+
+    private func requestSentenceCreation(_ text: String) {
+        guard showAdd else { return }
+        pendingSentenceCreation = text
+        showAdd = false
     }
 
     @ViewBuilder
@@ -1530,10 +1492,7 @@ struct ContentView: View {
         // scrollbare Inhalt genau darunter — auf schmalen Geräten und in den
         // Accessibility-Größen verdeckt es dann dauerhaft das Raster der
         // letzten Karte, und zwar in RTL genauso.
-        // The speak button floats above the tab bar, so the list needs margin
-        // for it as well as for the bar. Without this the last habit's title ends
-        // up behind the button instead of above it.
-        .contentMargins(.bottom, speakButtonFootprint, for: .scrollContent)
+        .contentMargins(.bottom, chromeFootprint, for: .scrollContent)
         // Karten sind weiß/#1C1C1E, die Seite muss also die gruppierte
         // Fläche sein. Kein toolbarBackground-Override — die Navigations-
         // leiste behält ihr System-Glas.
@@ -1558,15 +1517,6 @@ struct ContentView: View {
     /// Wert ist ABSICHTLICH unabhängig vom Zusammenziehen — würde die Marge
     /// mitschrumpfen, verschöbe sich der Inhalt, das Scroll-Signal bekäme
     /// eine Bewegung ohne Finger und der Umschalter triebe sich selbst.
-    /// Extra room below the habit list for the shell's speak button.
-    ///
-    /// On iOS 26 and later the native bar supplies its own inset, so
-    /// `chromeFootprint` is deliberately zero — which leaves nothing accounting
-    /// for a control that floats ABOVE that bar.
-    private var speakButtonFootprint: CGFloat {
-        chromeFootprint + ChromeLayout.speakButtonTop + 8
-    }
-
     private var chromeFootprint: CGFloat {
         // Ab iOS 26 stellt die NATIVE Leiste ihre eigene Sicherheitszone —
         // die Liste endet automatisch über ihr, eine zusätzliche Marge wäre
@@ -2540,6 +2490,7 @@ struct ContentView: View {
 
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
+        pendingSentenceCreation = nil
         routePresentationTask?.cancel()
         // Die Bereiche mit eigenem Kaufblatt (Mehr, Statistik) räumen es an
         // diesem Zähler weg. Das Blatt DIESES Bildschirms läuft dagegen
@@ -2592,6 +2543,19 @@ struct ContentView: View {
         // the newly presented cover as gone.
         guard !showAdd else { return }
         createCover.didDismiss()
+        if let text = pendingSentenceCreation {
+            pendingSentenceCreation = nil
+            if pendingRoute == nil {
+                sentenceCreation = SentenceCreation(text: text)
+                return
+            }
+        }
+        advancePendingRoute()
+    }
+
+    private func deliverPendingSentenceDismissalRoute() {
+        guard sentenceCreation == nil else { return }
+        sentencePresentation.didDismiss()
         advancePendingRoute()
     }
 
@@ -2687,6 +2651,7 @@ struct ContentView: View {
         let presentation = RoutePresentation(
             create: createCover.phase(requested: showAdd),
             editor: editorPresentation.phase(requested: editing != nil),
+            sentenceCreation: sentencePresentation.phase(requested: sentenceCreation != nil),
             paywall: paywall != nil
                 ? .presented : paywallIsPresented ? .dismissing : .absent,
             more: moreSheet != nil || morePageRoute != nil
@@ -2694,6 +2659,12 @@ struct ContentView: View {
             morePage: presentedMoreDestination)
 
         switch routeWork.nextStep(for: route, presentation: presentation) {
+        case .dismissSentenceCreation:
+            let waitsForOnDismiss = sentencePresentation.dismissalIsOwed
+            sentenceCreation = nil
+            if !waitsForOnDismiss { advance(route) }
+        case .waitForSentenceCreationDismissal:
+            break
         case .dismissEditor:
             // A deep link abandons the unsaved draft; wait for the sheet's
             // actual dismissal before changing destination or presenting again.
@@ -2855,9 +2826,12 @@ struct ContentView: View {
             }
         }
         guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count else { return }
+        guard routeToken == 0 else { return }
+        let launchRouteToken = routeToken
         if args[i + 1] == "notification-actions" {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(700))
+                guard routeToken == launchRouteToken else { return }
                 nativeTab = .more
                 presentMoreSheet(.habitBehavior)
             }
@@ -2870,6 +2844,7 @@ struct ContentView: View {
                 }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(700))
+                guard routeToken == launchRouteToken else { return }
                 if let requestedMaterial {
                     var preferences = store.appearancePreferences
                     preferences.material = requestedMaterial
@@ -2883,6 +2858,7 @@ struct ContentView: View {
         guard let url = URL(string: "haiity://\(args[i + 1])") else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(700))
+            guard routeToken == launchRouteToken else { return }
             handleDeepLink(url)
         }
     }

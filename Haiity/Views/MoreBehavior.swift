@@ -15,7 +15,7 @@ extension MoreView {
                 // moreHubRow has no panel around it, so the row sat straight on
                 // the wallpaper while everything above and below it was in glass.
                 AppSettingsGroup(title: String(localized: "Auf dem Gerät"),
-                                 footer: String(localized: "Welches Modell deinen Satz liest. Die Gewichte bleiben auf diesem Gerät und werden nicht über iCloud übertragen.")) {
+                                 footer: String(localized: "Datums- und Zeitangaben funktionieren ohne Download. Zusätzliche Unterstützung ist optional und bleibt auf dem Gerät.")) {
                     // A push, not another sheet. This page is a second level of
                     // Verhalten & Teilen, and presenting a sheet over it meant a
                     // second set of chrome — its own grabber, its own close
@@ -24,16 +24,8 @@ extension MoreView {
                     // already has a navigationDestination for MoreRoute, so this
                     // is what the developer row does.
                     NavigationLink(value: MoreRoute.localModel) {
-                        AppSettingsRow(title: String(localized: "Modell auf dem Gerät"),
-                                       // `usableModel`, not `selectedModel` — the footer directly
-                                       // above asks "welches Modell liest", and this row answered with
-                                       // the CHOICE rather than with the answer. A model that has been
-                                       // picked but not downloaded cannot load, so the line claimed a
-                                       // reader the device does not have. The detail page still shows
-                                       // which one is chosen and which are on disk; this row says what
-                                       // happens.
-                                       detail: modelService.usableModel.displayName,
-                                       symbol: "cpu",
+                        AppSettingsRow(title: String(localized: "Text-Erstellung"),
+                                       symbol: "text.badge.plus",
                                        showsChevron: true) {
                             EmptyView()
                         }

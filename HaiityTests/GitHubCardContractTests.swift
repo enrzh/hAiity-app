@@ -149,8 +149,9 @@ final class GitHubCardContractTests: XCTestCase {
 
         XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, github"))
         XCTAssertTrue(more.contains("open-github-settings"))
-        XCTAssertTrue(more.contains("private var githubSection: some View"))
-        XCTAssertTrue(more.contains("disconnect-github"))
+        XCTAssertTrue(more.contains("private var moreGitHubRow: some View"))
+        XCTAssertFalse(more.contains("disconnect-github"))
+        XCTAssertTrue(try source("Haiity/Views/GitHubSettingsView.swift").contains("github-disconnect"))
         XCTAssertFalse(more.contains("NavigationLink(value: MoreRoute.github)"))
         XCTAssertTrue(content.contains("GitHubSettingsView(store: github,"))
         XCTAssertTrue(content.contains("showsUsername: githubUsernameBinding"))

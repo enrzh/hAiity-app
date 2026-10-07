@@ -3,9 +3,10 @@ import XCTest
 
 final class HabitCardInteractionSourceTests: XCTestCase {
 
-    func testCardHeaderHasNoEllipsisEditButton() throws {
+    func testCardHeaderOffersExplicitEditWithoutAnEllipsisMenu() throws {
         let source = try habitCardSource()
-        XCTAssertFalse(source.contains("private var editButton"))
+        XCTAssertTrue(source.contains("private var editButton"))
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"edit-habit\")"))
         XCTAssertFalse(source.contains("Image(systemName: \"ellipsis\")"))
     }
 

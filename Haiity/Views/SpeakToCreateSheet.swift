@@ -39,6 +39,11 @@ struct SpeakToCreateSheet: View {
     @State private var modelService = LocalModelService()
     @State private var localReader = LocalModelSentenceReader(service: LocalModelService())
 
+    init(store: HabitStore, initialText: String = "") {
+        self.store = store
+        _text = State(initialValue: initialText)
+    }
+
     private var accent: Color { Theme.accentText(palettes.style) }
     private var calendar: Calendar {
         var value = HabitTimeZone.calendar(identifier: store.defaultTimeZoneIdentifier)

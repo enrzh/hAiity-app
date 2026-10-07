@@ -92,9 +92,11 @@ struct HaiityApp: App {
                 }
             }
             .onAppear {
-                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
                 // Scene restoration can retain the previous `false` value;
                 // a new process always gets a fresh launch handoff.
+                // Delivered notifications stay. Creating this scene is also
+                // how a notification action wakes the process without the
+                // person opening the app.
                 startupSplashVisible = true
                 startupContentMounted = true
                 restartStartupBackgroundPrewarm()
@@ -107,7 +109,10 @@ struct HaiityApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+                Task { @MainActor in
+                    try? await Task.sleep(for: DeliveredNotificationCleanup.settleDelay)
+                    DeliveredNotificationCleanup.clearDeliveredIfUserIsInTheApp()
+                }
                 Task { await Pro.refresh() }
                 HabitSessionManager.shared.recoverIfNeeded()
                 if startupSplashVisible {

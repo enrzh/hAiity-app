@@ -18,9 +18,15 @@ final class SpeakToCreateDockUITests: XCTestCase {
     }
 
     private func openSheet() -> XCUIElement {
+        XCTAssertFalse(app.buttons["speak-to-create"].exists,
+                       "sentence creation is an optional creator action")
+        let create = app.buttons["create-habit"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 20))
+        create.tap()
         let opener = app.buttons["speak-to-create"]
         XCTAssertTrue(opener.waitForExistence(timeout: 20),
-                      "the speak button should be on the habits screen")
+                      "the creator offers sentence creation")
+        for _ in 0..<6 where !opener.isHittable { app.swipeUp(velocity: .slow) }
         opener.tap()
         let field = app.textFields["speak-to-create-text"]
         XCTAssertTrue(field.waitForExistence(timeout: 10), "the sheet should open")
@@ -259,13 +265,8 @@ final class SpeakToCreateDockUITests: XCTestCase {
     /// shipped a dock that every assertion passed and that looked broken.
     func testCaptureTheSheetForReview() throws {
         // The main page, so the entry point can be judged against its neighbours.
-        let opener = app.buttons["speak-to-create"]
-        XCTAssertTrue(opener.waitForExistence(timeout: 20))
         capture("dock-00-main")
-
-        opener.tap()
-        let field = app.textFields["speak-to-create-text"]
-        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        let field = openSheet()
         capture("dock-01-half")
 
         // Typing expands the sheet to the full page, and the draft comes to rest
