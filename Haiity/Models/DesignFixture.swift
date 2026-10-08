@@ -122,4 +122,26 @@ enum DesignFixture {
         #endif
         return store
     }
+
+    /// `-seed-stats` for fixture launches. A fixture launch returns before
+    /// ContentView's handleLaunchTestData(), which is where the flag normally
+    /// selects every stats card, so without this the flag was ignored and the
+    /// page showed whatever the simulator's App Group held: all cards on a
+    /// simulator that once ran a non-fixture `-seed-stats` test, only the
+    /// default two on a fresh one (Xcode Cloud). Writing the selection into
+    /// the App Group would leak it into the person's preferences and later
+    /// fixture launches, so it lives in its own defaults suite, cleared on
+    /// every launch. Without the flag this returns nil and nothing changes.
+    static func makeSeededViewPreferences() -> ViewPreferencesStore? {
+        guard scenario != nil,
+              ProcessInfo.processInfo.arguments.contains("-seed-stats") else { return nil }
+        let suiteName = "haiity.design-fixture.seed-stats"
+        guard let defaults = UserDefaults(suiteName: suiteName) else { return nil }
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ViewPreferencesStore(defaults: defaults)
+        preferences.update {
+            $0.statsCards = StatsCardPrefs(active: StatsCard.allCases, customized: true)
+        }
+        return preferences
+    }
 }

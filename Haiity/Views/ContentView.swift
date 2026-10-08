@@ -433,6 +433,11 @@ struct ContentView: View {
                 #if DEBUG
                 if let fixtureStore = DesignFixture.makeStore() {
                     store = fixtureStore
+                    // Fixture launches return before handleLaunchTestData(),
+                    // so `-seed-stats` is applied here, in an isolated store.
+                    if let seeded = DesignFixture.makeSeededViewPreferences() {
+                        viewPreferences = seeded
+                    }
                     habitFilter = HabitListFilter()
                     Pro.setDebugUnlocked(true)
                     handleLaunchScreenArgument()
