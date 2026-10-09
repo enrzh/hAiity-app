@@ -202,6 +202,8 @@ struct GitHubContributionGraph: View, Equatable {
             && a.showsMonthLabels == b.showsMonthLabels
             && a.interactive == b.interactive
             && a.palette == b.palette
+            && DayKey.key(for: a.now, calendar: contributionCalendar)
+                == DayKey.key(for: b.now, calendar: contributionCalendar)
     }
 
     let days: [GitHubContributionDay]
@@ -211,6 +213,7 @@ struct GitHubContributionGraph: View, Equatable {
     var showsMonthLabels: Bool = true
     var interactive: Bool = true
     var palette: PaletteStyle? = nil
+    var now: Date = .now
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.appearancePreferences) private var appearancePreferences
@@ -278,7 +281,7 @@ struct GitHubContributionGraph: View, Equatable {
         renderedSnapshot = (request, snapshot)
     }
 
-    private nonisolated static let contributionCalendar: Calendar = {
+    nonisolated static let contributionCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
@@ -288,7 +291,7 @@ struct GitHubContributionGraph: View, Equatable {
         // Habit and GitHub graphs share the same notion of today. The latest
         // fetched contribution can be older than today and must not freeze
         // the graph's future-cell behavior in that case.
-        let today = DayKey.today(calendar: Self.contributionCalendar)
+        let today = DayKey.key(for: now, calendar: Self.contributionCalendar)
         let request = SnapshotRequest(days: days,
                                       weeks: fitsViewport ? ContributionChart.bandMetrics(width: viewportWidth).weeks : weeks,
                                       today: today)

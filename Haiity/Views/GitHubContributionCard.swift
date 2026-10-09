@@ -8,6 +8,8 @@ struct GitHubContributionCard: View, Equatable {
             && a.collapsed == b.collapsed
             && a.showsUsername == b.showsUsername
             && a.showsMonthLabels == b.showsMonthLabels
+            && DayKey.key(for: a.now, calendar: GitHubContributionGraph.contributionCalendar)
+                == DayKey.key(for: b.now, calendar: GitHubContributionGraph.contributionCalendar)
     }
 
     let snapshot: GitHubContributionSnapshot
@@ -15,6 +17,7 @@ struct GitHubContributionCard: View, Equatable {
     let showsUsername: Bool
     let showsMonthLabels: Bool
     let openProfile: () -> Void
+    var now: Date = .now
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -46,7 +49,7 @@ struct GitHubContributionCard: View, Equatable {
     private var graph: some View {
         GitHubContributionGraph(days: snapshot.days,
                                 showsMonthLabels: showsMonthLabels,
-                                palette: palettes.style)
+                                palette: palettes.style, now: now)
             .equatable()
             .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isContextMenuVisible ? 0 : 1)
@@ -127,7 +130,7 @@ struct GitHubContributionCard: View, Equatable {
                                     gap: Self.previewGraphGap,
                                     showsMonthLabels: false,
                                     interactive: false,
-                                    palette: palettes.style)
+                                    palette: palettes.style, now: now)
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, designStyle.cardPadding)

@@ -170,7 +170,8 @@ final class HabitCardProductTests: XCTestCase {
 
     func testCalendarBandFillsItsDrawableWidthWithReadableSquareTiles() throws {
         let current = habit()
-        for (width, weeks) in [(CGFloat(280), 18), (360, 24), (400, 26), (680, 45)] {
+        for (width, weeks) in [(CGFloat(280), 18), (288, 19), (343, 23), (360, 24),
+                               (370, 24), (400, 26), (408, 27), (680, 45)] {
             let displayed = GridCalendar.snapshot(habit: current, weeks: weeks,
                                                    today: today, calendar: calendar)
             let image = try render(card(current).recentGraph(snapshot: displayed,
@@ -212,6 +213,35 @@ final class HabitCardProductTests: XCTestCase {
         XCTAssertEqual(a, fractionalResize)
         XCTAssertNotEqual(a, wider)
         XCTAssertFalse(a.canDisplaySnapshot(for: wider), "A resized band must not paint a mismatched cached window")
+    }
+
+    func testUnchangedCardsRefreshOnTheirOwnCalendarDayRollover() {
+        let before = DayKey.date(from: "2026-10-07", calendar: calendar)!.addingTimeInterval(23 * 3600 + 59 * 60)
+        var first = card(habit())
+        first.now = before
+        var sameDay = first
+        sameDay.now = before.addingTimeInterval(20)
+        var nextDay = first
+        nextDay.now = before.addingTimeInterval(120)
+        XCTAssertTrue(first == sameDay)
+        XCTAssertFalse(first == nextDay, "The page clock must refresh an unchanged card after midnight")
+
+        var utc = GitHubContributionGraph(days: [], now: before)
+        let oldUTC = utc
+        utc.now = before.addingTimeInterval(120)
+        XCTAssertFalse(oldUTC == utc)
+        let snapshot = GitHubContributionSnapshot(username: "example", days: [], fetchedAt: before)
+        var github = GitHubContributionCard(snapshot: snapshot, showsUsername: false,
+                                             showsMonthLabels: false, openProfile: {}, now: before)
+        let oldCard = github
+        github.now = before.addingTimeInterval(120)
+        XCTAssertFalse(oldCard == github)
+
+        var la = calendar
+        la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        first.calendar = la
+        nextDay.calendar = la
+        XCTAssertTrue(first == nextDay, "UTC midnight must not replace a card still on the same local day")
     }
 
     func testRenderedCardsStayBoundedAndAX5CanGrowWithoutHorizontalOverflow() throws {

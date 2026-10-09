@@ -10,6 +10,7 @@ struct HabitCard: View, Equatable {
             && a.showsMonthLabels == b.showsMonthLabels
             && a.leadingSwipe == b.leadingSwipe && a.trailingSwipe == b.trailingSwipe
             && a.calendar == b.calendar
+            && DayKey.key(for: a.now, calendar: a.calendar) == DayKey.key(for: b.now, calendar: b.calendar)
     }
 
     let habit: Habit
@@ -44,6 +45,7 @@ struct HabitCard: View, Equatable {
     var leadingSwipe: [RevealAction] = []
     var trailingSwipe: [RevealAction] = []
     var calendar: Calendar = .current
+    var now: Date = .now
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -115,7 +117,7 @@ struct HabitCard: View, Equatable {
                                      streak: snapshot.streak)
     }
 
-    private var today: String { DayKey.today(calendar: calendar) }
+    private var today: String { DayKey.key(for: now, calendar: calendar) }
     private var doneToday: Bool {
         GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
     }
@@ -705,7 +707,7 @@ struct HabitCard: View, Equatable {
         case .checkbox:
             Button {
                 Theme.Haptics.check()
-                onToggleDay(today)
+                onToggleDay(DayKey.today(calendar: calendar))
             } label: {
                 Label("Heute", systemImage: doneToday ? "checkmark.circle.fill" : "circle")
                     .font(.subheadline.weight(.semibold))

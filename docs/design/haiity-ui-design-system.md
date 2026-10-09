@@ -25,6 +25,8 @@ window is floor((width + gap) / (12 + gap)) columns, clamped to 1...53; tile sid
 is (width - (columns - 1) * gap) / columns. Full history remains in its editor.
 One queued snapshot supplies the graph, with today's tile updated immediately
 from the existing completion engine during check-off and undo.
+The existing page clock refreshes otherwise unchanged cards on their local day
+boundary; GitHub follows UTC. A check-off reads the live date when activated.
 
 GitHub is the first content below the Habits heading, before Today/filter and
 personal entries. Its recent band uses the same sizing; the annual dataset and
