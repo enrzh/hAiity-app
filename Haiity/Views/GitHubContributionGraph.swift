@@ -92,6 +92,12 @@ struct ContributionHighlightCell: Hashable {
 
 /// Labels and tile surface are siblings, so labels never occupy the card.
 struct ContributionChart: View, Equatable {
+    /// A square-cell band fills its measured inner width; only column changes request history.
+    static func bandMetrics(width: CGFloat, gap: CGFloat = GridCell.gap) -> (weeks: Int, cell: CGFloat) {
+        let width = width.isFinite && width > 0 ? width : 12
+        let weeks = Int(min(53, max(1, floor((width + gap) / (12 + gap)))))
+        return (weeks, (width - CGFloat(weeks - 1) * gap) / CGFloat(weeks))
+    }
     /// Fit whole columns in the viewport so neither edge starts on a cut tile.
     static func fittedCell(viewport: CGFloat, cell: CGFloat, gap: CGFloat) -> CGFloat {
         guard viewport > cell + 8 else { return cell }
@@ -215,9 +221,14 @@ struct GitHubContributionGraph: View, Equatable {
     @State private var viewportWidth: CGFloat = 0
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
 
+    private var fitsViewport: Bool { interactive && weeks == nil && cellSize == nil }
+
     private var metrics: (cell: CGFloat, gap: CGFloat) {
         if let cellSize {
             return (cellSize, gap ?? GridCell.gap)
+        }
+        if fitsViewport {
+            return (ContributionChart.bandMetrics(width: viewportWidth).cell, GridCell.gap)
         }
         // Measure the viewport, never the scrolling content: fit whole
         // columns at the same scale as the habit graph without a layout loop.
@@ -242,6 +253,7 @@ struct GitHubContributionGraph: View, Equatable {
     }
 
     private func loadSnapshot(for request: SnapshotRequest) async {
+        guard !fitsViewport || viewportWidth > 0 else { return }
         let graphSignpost = GraphMetrics.begin("githubGraphCalculation")
         defer { GraphMetrics.end("githubGraphCalculation", id: graphSignpost) }
         let displayWeeks = request.weeks ?? GridCalendar.weeksForDisplay(
@@ -277,18 +289,23 @@ struct GitHubContributionGraph: View, Equatable {
         // fetched contribution can be older than today and must not freeze
         // the graph's future-cell behavior in that case.
         let today = DayKey.today(calendar: Self.contributionCalendar)
-        let request = SnapshotRequest(days: days, weeks: weeks, today: today)
+        let request = SnapshotRequest(days: days,
+                                      weeks: fitsViewport ? ContributionChart.bandMetrics(width: viewportWidth).weeks : weeks,
+                                      today: today)
         let snapshot = renderedSnapshot.flatMap {
             $0.key.canDisplaySnapshot(for: request) ? $0.value : nil
         }
-        let displayWeeks = snapshot?.weeks ?? weeks ?? 1
+        let displayWeeks = snapshot?.weeks ?? request.weeks ?? 1
         let m = metrics
         let pitch = m.cell + m.gap
         let contentWidth = CGFloat(max(displayWeeks, 1)) * pitch - m.gap
 
         Group {
             if let snapshot {
-                if interactive {
+                if fitsViewport {
+                    chartContent(snapshot: snapshot, cell: m.cell, gap: m.gap, width: contentWidth)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if interactive {
                     if GridCalendar.needsHorizontalScroll(
                         contentWidth: contentWidth + 8,
                         viewportWidth: viewportWidth) {
@@ -313,6 +330,9 @@ struct GitHubContributionGraph: View, Equatable {
                                  gap: m.gap,
                                  width: contentWidth)
                 }
+            } else if fitsViewport {
+                loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else if interactive {
                 ScrollView(.horizontal, showsIndicators: false) {
                     loadingGraph(cell: m.cell, gap: m.gap, width: contentWidth)
@@ -351,14 +371,12 @@ struct GitHubContributionGraph: View, Equatable {
     }
 
     private func loadingGraph(cell: CGFloat, gap: CGFloat, width: CGFloat) -> some View {
-        let tileHeight = CGFloat(GridCalendar.rows) * (cell + gap) - gap
-        let surfaceInset = interactive ? appearancePreferences.designStyle.graphPadding * 2 : 0
-        let labelHeight = showsMonthLabels ? 16 : 0
-        return RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
-            .fill(Color.primary.opacity(0.06))
-            .frame(width: max(width, 1),
-                   height: tileHeight + CGFloat(surfaceInset) + CGFloat(labelHeight))
-            .overlay { ProgressView().controlSize(.small) }
+        let weeks = min(53, max(1, Int(round((width + gap) / (cell + gap)))))
+        return chartContent(snapshot: GridCalendar.Snapshot(
+            weeks: weeks, today: "",
+            keys: Array(repeating: Array(repeating: nil, count: GridCalendar.rows), count: weeks),
+            levels: Array(repeating: Array(repeating: 0, count: GridCalendar.rows), count: weeks),
+            marks: [], filledCount: 0), cell: cell, gap: gap, width: width)
             .accessibilityLabel(String(localized: "Beitragskalender wird geladen"))
     }
 

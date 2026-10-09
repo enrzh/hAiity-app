@@ -20,7 +20,7 @@ final class StatsProductUITests: XCTestCase {
         }
         if customCards { app.launchArguments += ["-seed-stats"] }
         app.launch()
-        XCTAssertTrue(element("stats-today-summary", app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("stats-week-card", app).waitForExistence(timeout: 15))
         return app
     }
 
@@ -35,18 +35,20 @@ final class StatsProductUITests: XCTestCase {
         return target
     }
 
-    func testTodayAndWeeklyDetailsPreserveSummaryValues() {
+    func testWeeklySummaryLeadsBeforeLighterTodaySummary() {
         let app = launch()
-        let today = element("stats-today-summary", app)
-        let todayValue = today.value as? String
-        XCTAssertNotNil(todayValue)
-        XCTAssertFalse(element("stats-today-explanation", app).exists)
-        reveal("stats-today-details", app).tap()
-        XCTAssertTrue(element("stats-today-explanation", app).waitForExistence(timeout: 3))
-        XCTAssertEqual(today.value as? String, todayValue)
-        reveal("stats-today-details", app).tap()
-        XCTAssertFalse(element("stats-today-explanation", app).exists)
+        let week = element("stats-week-card", app)
+        XCTAssertTrue(week.isHittable)
+        let today = reveal("stats-today-summary", app)
+        XCTAssertLessThan(week.frame.minY, today.frame.minY)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "stats-weekly-first"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 
+    func testWeeklyAndTodayDetailsPreserveSummaryValues() {
+        let app = launch()
         let week = reveal("stats-week-card", app)
         let weekValue = week.value as? String
         XCTAssertNotNil(weekValue)
@@ -56,6 +58,16 @@ final class StatsProductUITests: XCTestCase {
         XCTAssertEqual(week.value as? String, weekValue)
         reveal("stats-week-details", app).tap()
         XCTAssertFalse(element("stats-week-explanation", app).exists)
+
+        let today = reveal("stats-today-summary", app)
+        let todayValue = today.value as? String
+        XCTAssertNotNil(todayValue)
+        XCTAssertFalse(element("stats-today-explanation", app).exists)
+        reveal("stats-today-details", app).tap()
+        XCTAssertTrue(element("stats-today-explanation", app).waitForExistence(timeout: 3))
+        XCTAssertEqual(today.value as? String, todayValue)
+        reveal("stats-today-details", app).tap()
+        XCTAssertFalse(element("stats-today-explanation", app).exists)
     }
 
     func testOptionalReadingExpandsWithoutStartingGenerationOrChangingStatistics() {
@@ -68,7 +80,7 @@ final class StatsProductUITests: XCTestCase {
         reveal("stats-reading-toggle", app).tap()
         XCTAssertFalse(element("stats-reading-action", app).exists)
         app.open(URL(string: "haiity://stats")!)
-        for _ in 0..<25 where !element("stats-today-summary", app).isHittable { app.swipeDown(velocity: .slow) }
+        for _ in 0..<25 where !element("stats-week-card", app).isHittable { app.swipeDown(velocity: .slow) }
         XCTAssertEqual(reveal("stats-week-card", app).value as? String, weekValue)
     }
 

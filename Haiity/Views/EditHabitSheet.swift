@@ -205,22 +205,22 @@ struct EditHabitSheet: View {
                         .submitLabel(.done)
                         .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-name")
+                } footer: {
                     if isCreating, let onCreateFromText {
                         Button {
                             focusedIdentity = nil
                             onCreateFromText(name)
                         } label: {
                             Label(String(localized: "Aus einem Satz anlegen"), systemImage: "text.bubble")
+                                .font(.subheadline)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(minHeight: Theme.Metrics.hit)
                         }
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("speak-to-create")
                     }
                 }
                 .settingsListRow()
-                if isCreating {
-                    creationPreview
-                }
                 recurrenceSection.settingsListRow()
                 if itemType == .habit {
                     Section {
@@ -332,6 +332,7 @@ struct EditHabitSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Sichern")) { save() }
+                        .fontWeight(.semibold)
                         .disabled(isSaving || savedWhileAwaitingPermission || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("save-habit")
                 }
@@ -517,34 +518,28 @@ struct EditHabitSheet: View {
     }
 
     private var creationPreview: some View {
-        Section {
-            VStack(alignment: .leading, spacing: designStyle.rowGap) {
-                Text(draft.summary(calendar: calendar))
+        VStack(alignment: .leading, spacing: designStyle.rowGap) {
+            Text(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if draft.hasTime || notificationTimes != nil || notificationMode == .off {
+                Text(Self.notificationPreview(mode: notificationMode,
+                                              times: notificationTimeValues,
+                                              calendar: calendar))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-
-                if draft.hasTime || notificationTimes != nil || notificationMode == .off {
-                    Text(Self.notificationPreview(mode: notificationMode,
-                                                  times: notificationTimeValues,
-                                                  calendar: calendar))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, designStyle.rowGap)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
-            .accessibilityValue(draft.hasTime || notificationTimes != nil || notificationMode == .off
-                ? Self.notificationPreview(mode: notificationMode,
-                                           times: notificationTimeValues, calendar: calendar) : "")
-            .accessibilityIdentifier("creation-preview")
-        } header: {
-            Text(String(localized: "Vorschau"))
-                .font(designStyle.sectionTitleFont)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, designStyle.rowGap)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
+        .accessibilityValue(draft.hasTime || notificationTimes != nil || notificationMode == .off
+            ? Self.notificationPreview(mode: notificationMode,
+                                       times: notificationTimeValues, calendar: calendar) : "")
+        .accessibilityIdentifier("creation-preview")
     }
 
     private var creationAdvancedNotificationSection: some View {
@@ -652,6 +647,7 @@ struct EditHabitSheet: View {
             }
 
             if itemType == .reminder { appointmentTimeControls }
+            if isCreating { creationPreview }
         } header: {
             Text(String(localized: "Zeitraum"))
         } footer: {

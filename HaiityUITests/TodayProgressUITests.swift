@@ -120,17 +120,24 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertFalse(name.exists)
     }
 
-    func testDailyEntriesPrecedeGitHubAndGitHubOnlyStateOffersCreation() {
+    func testGitHubLeadsDailyEntriesAndGitHubOnlyStateOffersCreation() {
         let app = launch(github: true)
         let check = app.buttons["check-today"].firstMatch
         XCTAssertTrue(check.waitForExistence(timeout: 15))
         XCTAssertTrue(check.isHittable)
         let github = app.descendants(matching: .any)["github-contribution-card"].firstMatch
-        XCTAssertFalse(github.isHittable, "optional activity must follow the actionable entries")
-        capture("daily-actions-before-github")
-        for _ in 0..<12 where !github.isHittable { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(github.isHittable)
-        capture("github-after-daily-entries")
+        let progress = app.descendants(matching: .any)["today-progress"].firstMatch
+        XCTAssertLessThan(github.frame.minY, progress.frame.minY)
+        XCTAssertLessThan(github.frame.minY, check.frame.minY)
+        let profile = app.buttons["github-open-profile"].firstMatch
+        XCTAssertTrue(profile.isHittable)
+        XCTAssertGreaterThanOrEqual(profile.frame.height, 44)
+        for filter in ["All", "Today"] {
+            app.segmentedControls["today-all-filter"].buttons[filter].tap()
+            XCTAssertLessThan(github.frame.minY, progress.frame.minY)
+        }
+        capture("github-first-daily-actions")
         app.terminate()
 
         let empty = launch("empty", github: true)
@@ -139,6 +146,33 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(create.isHittable)
         create.tap()
         XCTAssertTrue(empty.textFields["habit-name"].waitForExistence(timeout: 5))
+    }
+
+    func testCalendarAndNotificationsOpenCurrentSettingsWithoutReplayingSetup() {
+        let app = launch(screen: "more")
+        let calendar = app.buttons["open-calendar"].firstMatch
+        XCTAssertTrue(calendar.waitForExistence(timeout: 15))
+        for _ in 0..<8 where !calendar.isHittable { app.swipeUp(velocity: .slow) }
+        calendar.tap()
+        let habits = app.switches["calendar-sync-habits-toggle"]
+        let reminders = app.switches["calendar-sync-reminders-toggle"]
+        XCTAssertTrue(habits.waitForExistence(timeout: 5))
+        let previous = [habits.value as? String, reminders.value as? String]
+        XCTAssertFalse(app.buttons["setup-next"].exists)
+        XCTAssertEqual(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.count, 0)
+        capture("direct-calendar-settings")
+        app.buttons["close-more-sheet"].tap()
+        calendar.tap()
+        XCTAssertTrue(habits.waitForExistence(timeout: 5))
+        XCTAssertEqual([habits.value as? String, reminders.value as? String], previous)
+        app.buttons["close-more-sheet"].tap()
+        let notifications = app.buttons["open-notifications"].firstMatch
+        for _ in 0..<8 where !notifications.isHittable { app.swipeDown(velocity: .slow) }
+        notifications.tap()
+        XCTAssertTrue(app.switches["summary-toggle"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["setup-next"].exists)
+        XCTAssertEqual(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.count, 0)
+        capture("direct-notification-settings")
     }
 
     func testDeepLinkDismissesAnUnsavedEditorBeforeOpeningStatsOrCreation() {
@@ -598,8 +632,7 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(searchTab.waitForExistence(timeout: 15))
 
         searchTab.tap()
-        XCTAssertTrue(searchTab.waitForExistence(timeout: 5))
-        XCTAssertTrue(searchTab.isSelected)
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5))
         let searchField = app.searchFields.firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
         XCTAssertTrue(searchField.isHittable,

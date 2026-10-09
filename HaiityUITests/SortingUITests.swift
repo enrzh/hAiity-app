@@ -9,11 +9,12 @@ final class SortingUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launch(enterSort: Bool = true) -> XCUIApplication {
+    private func launch(enterSort: Bool = true, github: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-design-fixture", "sorting", "-screen", "habits", "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB",
                                "-design-appearance", "light"]
+        if github { app.launchArguments += ["-demo-github-card"] }
         // The app resolves this UUID within its own temporary directory. It
         // cannot name production data; only this test's relaunch reuses it.
         app.launchEnvironment["HAIITY_SORTING_FIXTURE_ID"] = UUID().uuidString
@@ -129,6 +130,20 @@ final class SortingUITests: XCTestCase {
         app.launch()
         enterSorting(app)
         assertOrder(order, in: app)
+    }
+
+    func testGitHubStaysFixedAboveMovableEntries() {
+        let app = launch(github: true)
+        let fixed = app.descendants(matching: .any)["sorting-github-fixed"].firstMatch
+        XCTAssertTrue(fixed.waitForExistence(timeout: 5))
+        XCTAssertLessThan(fixed.frame.minY, row(700, in: app).frame.minY)
+        XCTAssertEqual(app.cells.containing(.any, identifier: "sorting-github-fixed").count, 0)
+        XCTAssertFalse(app.descendants(matching: .any)["github-contribution-card"].exists)
+        XCTAssertFalse(app.buttons["github-open-profile"].exists)
+        XCTAssertFalse(app.buttons["check-today"].exists)
+        capture("sorting-fixed-github")
+        app.buttons["finish-reordering"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["github-contribution-card"].waitForExistence(timeout: 5))
     }
 
     func testBottomToTopAndBackSurvivesReload() {

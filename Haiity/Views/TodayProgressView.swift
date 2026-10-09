@@ -10,15 +10,14 @@ struct TodayProgressView: View {
     private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: designStyle.cardPadding) {
-            VStack(alignment: .leading, spacing: designStyle.rowGap) {
-                let layout = dynamicTypeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
-                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
-                layout {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: designStyle.rowGap * 2))
+            layout {
+                HStack(alignment: .firstTextBaseline, spacing: designStyle.rowGap * 2) {
                     Text(String(localized: "Heute"))
-                        .font(designStyle == .native ? .title2.bold() : designStyle.sectionTitleFont)
-                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                        .font(designStyle.sectionTitleFont)
                     Text("\(progress.completed)/\(progress.scheduled)")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -26,15 +25,26 @@ struct TodayProgressView: View {
                             ? String(localized: "Heute keine festen Termine")
                             : String(localized: "\(progress.completed) von \(progress.scheduled) geplanten Habits erledigt"))
                 }
-                if progress.flexible > 0 {
-                    Text(String(localized: "Flexible Ziele: \(progress.flexibleCompleted) von \(progress.flexible) in ihrer Periode erfüllt"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("today-progress")
+
+                Picker(String(localized: "Einträge anzeigen"), selection: $todayOnly) {
+                    Text(String(localized: "Heute")).tag(true)
+                    Text(String(localized: "Alle")).tag(false)
                 }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("today-all-filter")
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 170)
+                .frame(minHeight: Theme.Metrics.hit)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("today-progress")
+
+            if progress.flexible > 0 {
+                Text(String(localized: "Flexible Ziele: \(progress.flexibleCompleted) von \(progress.flexible) in ihrer Periode erfüllt"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if progress.scheduled > 0 {
                 ProgressView(value: Double(progress.completed),
@@ -47,15 +57,7 @@ struct TodayProgressView: View {
                 .accessibilityIdentifier("today-progress-bar")
             }
 
-            Picker(String(localized: "Einträge anzeigen"), selection: $todayOnly) {
-                Text(String(localized: "Heute")).tag(true)
-                Text(String(localized: "Alle")).tag(false)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("today-all-filter")
-            .frame(minHeight: 44)
         }
-        .padding(.horizontal, 4)
         .padding(.bottom, designStyle.rowGap * 2)
     }
 }

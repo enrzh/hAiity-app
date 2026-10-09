@@ -71,14 +71,21 @@ final class StatsProductTests: XCTestCase {
                     .environment(\.dynamicTypeSize, .accessibility5)
                     .environment(\.colorScheme, scheme)
                     .environment(\.layoutDirection, direction))
+                let normalToday = UIHostingController(rootView: view.statsTodayCard(value)
+                    .environment(\.dynamicTypeSize, .large)
+                    .environment(\.colorScheme, scheme)
+                    .environment(\.layoutDirection, direction))
                 let proposal = CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)
                 let normalSize = normal.sizeThatFits(in: proposal)
                 let accessibleSize = accessible.sizeThatFits(in: proposal)
                 let todaySize = today.sizeThatFits(in: proposal)
+                let normalTodaySize = normalToday.sizeThatFits(in: proposal)
                 XCTAssertLessThanOrEqual(accessibleSize.width, 320)
                 XCTAssertGreaterThan(accessibleSize.height, normalSize.height)
                 XCTAssertGreaterThan(todaySize.height, 0)
                 XCTAssertLessThanOrEqual(todaySize.width, 320)
+                XCTAssertLessThan(normalTodaySize.height, normalSize.height,
+                                  "Today stays lighter than the weekly summary")
             }
         }
     }

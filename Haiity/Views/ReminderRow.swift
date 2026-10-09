@@ -246,63 +246,46 @@ struct ReminderRow: View, Equatable {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
             : AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
-        return layout {
-            HStack(spacing: designStyle.rowGap * 2) {
-                if habit.emoji.isEmpty {
-                    Image(systemName: "bell.fill")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28)
-                } else {
-                    Text(habit.emoji)
-                        .font(.title3)
-                        .frame(width: 28)
-                }
+        return VStack(alignment: .leading, spacing: designStyle.rowGap) {
+            layout {
+                HStack(spacing: designStyle.rowGap * 2) {
+                    if habit.emoji.isEmpty {
+                        AppIconBadge(symbol: "bell.fill")
+                    } else {
+                        Text(habit.emoji)
+                            .font(.title3)
+                            .frame(width: Theme.Metrics.glyph)
+                            .accessibilityHidden(true)
+                    }
 
-                VStack(alignment: .leading, spacing: designStyle.rowGap / 2) {
-                    Text(habit.name)
-                        .font(designStyle.rowTitleFont)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: designStyle.rowGap / 2) {
+                        Text(habit.name)
+                            .font(designStyle.rowTitleFont)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-            }
-            // The row is intentionally edited from its long-press menu. A
-            // tap gesture here can be mistaken for a tap when a horizontal
-            // swipe starts in the title and ends inside the same area.
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Keep the context-menu host off the checkmark. A full-row UIKit
-            // host becomes the hit-test winner and prevents the native button
-            // from receiving ordinary taps.
-            .overlay {
-                GraphContextMenu(cardRadius: designStyle.cardRadius,
-                                 previewWidth: previewWidth,
-                                 previewHeight: Self.contextPreviewHeight,
-                                 previewAccessibilityIdentifier: "reminder-preview",
-                                 preview: { AnyView(reminderPreview) },
-                                 actions: menuActions,
-                                 commit: onEdit,
-                                 onMenuVisibilityChanged: { visible in
-                                     isContextMenuVisible = visible
-                                 })
-                    .frame(maxWidth: previewWidth)
-            }
-
-            HStack(spacing: 0) {
-                Button(action: onEdit) {
-                    Image(systemName: "pencil")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-                        .contentShape(Rectangle())
+                // Keep the context-menu host off the completion and Edit buttons.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay {
+                    GraphContextMenu(cardRadius: designStyle.cardRadius,
+                                     previewWidth: previewWidth,
+                                     previewHeight: Self.contextPreviewHeight,
+                                     previewAccessibilityIdentifier: "reminder-preview",
+                                     preview: { AnyView(reminderPreview) },
+                                     actions: menuActions,
+                                     commit: onEdit,
+                                     onMenuVisibilityChanged: { visible in
+                                         isContextMenuVisible = visible
+                                     })
+                        .frame(maxWidth: previewWidth)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Bearbeiten"))
-                .accessibilityIdentifier("reminder-edit-\(habit.id.uuidString)")
 
                 Button(action: toggleFromCheckmark) {
                     Image(systemName: state.isChecked(now: now, calendar: calendar)
@@ -321,12 +304,27 @@ struct ReminderRow: View, Equatable {
                 .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
                 // Named actions supplement the pan for VoiceOver.
                 .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
+                       alignment: .trailing)
             }
-            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
-                   alignment: .trailing)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button(action: onEdit) {
+                    Label(String(localized: "Bearbeiten"), systemImage: "pencil")
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(String(localized: "Bearbeiten"))
+                .accessibilityIdentifier("reminder-edit-\(habit.id.uuidString)")
+            }
         }
-        .padding(.horizontal, designStyle.cardPadding)
-        .padding(.vertical, designStyle.cardPadding - 2)
+        .padding(.horizontal, min(designStyle.cardPadding + 2, Theme.Metrics.gutter))
+        .padding(.vertical, designStyle.cardPadding + 2)
     }
 
     private var state: ReminderOccurrenceState {

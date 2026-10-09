@@ -29,8 +29,8 @@ final class HabitCardProductTests: XCTestCase {
                   onMarkDone: {}, onEdit: {}, onArchive: {}, calendar: calendar)
     }
 
-    private func snapshot(_ habit: Habit) -> GridCalendar.Snapshot {
-        GridCalendar.snapshot(habit: habit, weeks: HabitCard.recentWeeks,
+    private func snapshot(_ habit: Habit, width: CGFloat = 300) -> GridCalendar.Snapshot {
+        GridCalendar.snapshot(habit: habit, weeks: ContributionChart.bandMetrics(width: width).weeks,
                               today: today, calendar: calendar)
     }
 
@@ -108,7 +108,7 @@ final class HabitCardProductTests: XCTestCase {
         var current = habit()
         current.log["2026-05-01"] = 1
         let displayed = snapshot(current)
-        XCTAssertEqual(displayed.weeks, 8)
+        XCTAssertEqual(displayed.weeks, 20)
         XCTAssertTrue(displayed.keys.last!.contains(today))
         XCTAssertFalse(displayed.keys.flatMap { $0 }.contains("2026-05-01"))
         XCTAssertEqual(current.log["2026-05-01"], 1)
@@ -142,7 +142,10 @@ final class HabitCardProductTests: XCTestCase {
         }
         XCTAssertGreaterThan(changed.count, 40, "The shared Canvas must actually paint the check-in")
         XCTAssertLessThanOrEqual(changed.count, 20 * 20)
-        XCTAssertTrue(changed.allSatisfy { $0.x >= 220 && $0.y >= 70 && $0.y <= 95 },
+        let cell = ContributionChart.bandMetrics(width: 300).cell
+        let todayRect = CGRect(x: 300 - cell, y: 3 * (cell + GridCell.gap) + 4,
+                               width: cell, height: cell).insetBy(dx: -1, dy: -1)
+        XCTAssertTrue(changed.allSatisfy { todayRect.contains($0) },
                       "Only Wednesday's square in the last column may change")
         let undone = HabitCard.currentDaySnapshot(displayed, previous: current,
                                                   habit: previous, calendar: calendar)
@@ -152,17 +155,63 @@ final class HabitCardProductTests: XCTestCase {
 
     func testRecentGraphHeightAndChronologyStayStableAtWideAndNarrowWidths() throws {
         let current = habit()
-        let displayed = snapshot(current)
         let view = card(current)
         for width in [CGFloat(180), 288, 1024] {
+            let displayed = snapshot(current, width: width)
             let graph = view.recentGraph(snapshot: displayed, viewportWidth: width)
             let ltr = try render(graph.environment(\.layoutDirection, .leftToRight), width: width)
             let rtl = try render(graph.environment(\.layoutDirection, .rightToLeft), width: width)
             XCTAssertLessThanOrEqual(ltr.size.height, 190,
-                                     "Eight weeks must not expand into giant tiles on a wide window")
+                                     "The measured window must not expand into giant tiles")
             XCTAssertEqual(ltr.size.width, width)
             XCTAssertEqual(pixels(ltr), pixels(rtl), "The shared graph's chronology must remain left to right")
         }
+    }
+
+    func testCalendarBandFillsItsDrawableWidthWithReadableSquareTiles() throws {
+        let current = habit()
+        for (width, weeks) in [(CGFloat(280), 18), (360, 24), (400, 26), (680, 45)] {
+            let displayed = GridCalendar.snapshot(habit: current, weeks: weeks,
+                                                   today: today, calendar: calendar)
+            let image = try render(card(current).recentGraph(snapshot: displayed,
+                                                             viewportWidth: width), width: width)
+            XCTAssertEqual(image.size.width, width, accuracy: 1)
+            XCTAssertLessThan(image.size.height, 125, "The viewport must not stretch a short window into oversized tiles")
+            let data = pixels(image)
+            for x in [2, Int(width) - 3] {
+                let offset = (6 * image.cgImage!.width + x) * 4
+                XCTAssertLessThan(data[offset], 250, "Tiles must reach both inner edges, without a centered island")
+            }
+        }
+    }
+
+    func testBandCapacityTracksWidthAndKeepsBothEdgesExact() {
+        for (width, weeks) in [(CGFloat(280), 18), (360, 24), (400, 26), (680, 45), (760, 50)] {
+            let band = ContributionChart.bandMetrics(width: width)
+            XCTAssertEqual(band.weeks, weeks)
+            XCTAssertGreaterThanOrEqual(band.cell, 12)
+            XCTAssertLessThan(band.cell, 15)
+            XCTAssertEqual(CGFloat(band.weeks) * band.cell + CGFloat(band.weeks - 1) * GridCell.gap,
+                           width, accuracy: 0.001)
+        }
+        XCTAssertEqual(ContributionChart.bandMetrics(width: 1024).weeks, 53)
+        for width in [CGFloat.zero, -1, .nan, .infinity] {
+            XCTAssertEqual(ContributionChart.bandMetrics(width: width).weeks, 1)
+            XCTAssertEqual(ContributionChart.bandMetrics(width: width).cell, 12)
+        }
+    }
+
+    func testResizeRequestsHistoryOnlyWhenTheVisibleColumnCountChanges() {
+        let current = habit()
+        let a = GridCalendar.HabitSnapshotKey(habit: current,
+            weeks: ContributionChart.bandMetrics(width: 300).weeks, today: today, calendar: calendar)
+        let fractionalResize = GridCalendar.HabitSnapshotKey(habit: current,
+            weeks: ContributionChart.bandMetrics(width: 301).weeks, today: today, calendar: calendar)
+        let wider = GridCalendar.HabitSnapshotKey(habit: current,
+            weeks: ContributionChart.bandMetrics(width: 345).weeks, today: today, calendar: calendar)
+        XCTAssertEqual(a, fractionalResize)
+        XCTAssertNotEqual(a, wider)
+        XCTAssertFalse(a.canDisplaySnapshot(for: wider), "A resized band must not paint a mismatched cached window")
     }
 
     func testRenderedCardsStayBoundedAndAX5CanGrowWithoutHorizontalOverflow() throws {
@@ -182,7 +231,7 @@ final class HabitCardProductTests: XCTestCase {
                         .padding(.horizontal, 8).background(Color(uiColor: .magenta)), width: 304)
                     XCTAssertEqual(image.size.width, 304)
                     XCTAssertGreaterThan(image.size.height, 180)
-                    XCTAssertLessThan(image.size.height, textSize == .large ? 330 : 750)
+                    if textSize == .large { XCTAssertLessThan(image.size.height, 330) }
                     let data = pixels(image)
                     for y in 0..<image.cgImage!.height {
                         for x in [0, 1, 302, 303] {

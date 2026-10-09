@@ -4,7 +4,7 @@ import SwiftUI
 /// Habit-Liste plus Unterseite in „Mehr", sondern eine Seite, die beides
 /// vereint:
 ///
-/// Today and weekly completion lead, followed by each habit's 30-day rate.
+/// Weekly completion leads, then today and each habit's 30-day rate.
 /// The existing rhythm grid and selected extra metrics remain available;
 /// an optional reading follows the statistics rather than leading them.
 ///
@@ -150,9 +150,11 @@ struct StatsView: View {
                 .accessibilityIdentifier("add-first-habit")
                 Spacer(minLength: 160)
             }
-            .frame(maxWidth: .infinity, minHeight: 520)
+            .frame(minHeight: 520)
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.floatingControlsClearance)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -186,9 +188,9 @@ struct StatsView: View {
                 statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
-                statsTodayCard(snapshot)
-
                 statsWeekCard(snapshot)
+
+                statsTodayCard(snapshot)
 
                 if unlocked {
                     statsHabitRanking(snapshot)
@@ -220,6 +222,8 @@ struct StatsView: View {
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.floatingControlsClearance)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -259,10 +263,19 @@ struct StatsView: View {
                 statsPageTitle
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
+                statsWeekCard(statsLoadingSnapshot)
+                    .redacted(reason: .placeholder)
+                    .accessibilityElement(children: .ignore)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel(String(localized: "Statistik wird geladen"))
+                    .accessibilityIdentifier("stats-loading-week")
+
                 statsTodayLoadingCard
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.floatingControlsClearance)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -280,8 +293,7 @@ struct StatsView: View {
         }
     }
 
-    /// No subtitle: the page's first card already says what today is, and a
-    /// "your rhythm at a glance" line only restates the title.
+    /// The first summary already names its period; no repeated subtitle.
     private var statsPageTitle: some View {
         RootPageTitle(title: String(localized: "Statistik"))
     }
@@ -307,31 +319,31 @@ struct StatsView: View {
     func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         let total = snapshot.todayTotal
         let done = snapshot.todayDone
-        return VStack(alignment: .leading, spacing: designStyle.cardPadding + 6) {
+        return VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
             let layout = dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
-                : AnyLayout(HStackLayout(spacing: designStyle.cardPadding + 4))
-            layout {
-                VStack(alignment: .leading, spacing: 6) {
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: designStyle.cardPadding))
+            VStack(alignment: .leading, spacing: designStyle.rowGap) {
+                layout {
                     Text(String(localized: "Heute"))
                         .font(designStyle.rowTitleFont)
-                        .foregroundStyle(.secondary)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                     if total == 0 {
                         Text(String(localized: "Kein Habit fällig"))
-                            .font(designStyle.sectionTitleFont)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text("\(done)/\(total)")
-                            .font((designStyle == .studio ? Font.largeTitle.weight(.bold)
-                                   : designStyle.pageTitleFont).monospacedDigit())
+                            .font(.title3.weight(.semibold).monospacedDigit())
+                            .fixedSize(horizontal: false, vertical: true)
                             .contentTransition(.numericText())
                     }
-                    Text(Self.statsTodaySentence(snapshot))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                segmentedRing(done: done, total: total, size: 72, line: 8)
+                Text(Self.statsTodaySentence(snapshot))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "Heute"))
@@ -350,7 +362,7 @@ struct StatsView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stats-today-details")
         }
-        .padding(designStyle.cardPadding + 8)
+        .padding(designStyle.cardPadding + 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appSurface()
         .accessibilityElement(children: .contain)
@@ -1137,32 +1149,6 @@ struct StatsView: View {
     }
 
     // MARK: – kleine Zeichenhelfer
-
-    /// Ring mit einem SEGMENT je heute fälligem Habit; erledigte Segmente in
-    /// der Akzentfarbe. Bei 0 fälligen: ein leerer gestrichelter Ring.
-    @ViewBuilder
-    private func segmentedRing(done: Int, total: Int, size: CGFloat, line: CGFloat) -> some View {
-        ZStack {
-            if total == 0 {
-                Circle()
-                    .stroke(Color(.quaternaryLabel),
-                            style: StrokeStyle(lineWidth: line, dash: [3, 4]))
-            } else {
-                let gap = min(0.03, 0.25 / Double(total))
-                ForEach(0..<total, id: \.self) { i in
-                    let start = Double(i) / Double(total)
-                    let end = Double(i + 1) / Double(total) - gap
-                    Circle()
-                        .trim(from: start, to: max(start, end))
-                        .stroke(i < done ? accent : Color(.quaternaryLabel),
-                                style: StrokeStyle(lineWidth: line, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                }
-            }
-        }
-        .frame(width: size, height: size)
-        .padding(line / 2)
-    }
 
     private func momentumDelta(_ snapshot: StatsEngine.Snapshot) -> Int? {
         StatsEngine.momentumDeltaPoints(current: snapshot.week,

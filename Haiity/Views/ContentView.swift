@@ -1048,6 +1048,11 @@ struct ContentView: View {
                          statsCards: viewPreferences, onOpen: presentMoreSheet,
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .habitBehavior)
+            case .calendar:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         graphShowsMonthLabels: githubMonthLabelsBinding,
+                         routeToken: routeToken, screen: .calendar)
             // Its own branch and its own screen, not a shared one: a child page
             // that inherits its parent's screen identity reuses the parent's view
             // state, so the model page would arrive already scrolled and already
@@ -1224,8 +1229,7 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         RootPageCompactTitle(title: habitSortingActive
-                                             ? String(localized: "Habits") + " · "
-                                                + (habitFilter.todayOnly ? String(localized: "Heute") : String(localized: "Alle"))
+                                             ? String(localized: "Reihenfolge ändern")
                                              : String(localized: "Habits"),
                                              progress: habitSortingActive ? 1 : rootTitleProgress)
                     }
@@ -1371,6 +1375,7 @@ struct ContentView: View {
                 reorderHabit(visibleIDs: ids, generation: generation, from: source, to: destination)
             }, content: { index, habit in
                 HabitSortingRow(habit: habit, position: index + 1, count: sortingIDs.count,
+                    calendar: habitCalendar(for: habit),
                     moveUp: index > 0 ? { moveSortedHabit(habit.id, down: false) } : nil,
                     moveDown: index + 1 < sortingIDs.count
                         ? { moveSortedHabit(habit.id, down: true) } : nil)
@@ -1382,7 +1387,27 @@ struct ContentView: View {
         ScrollViewReader { proxy in
             Group {
                 if habitSortingActive {
-                    nativeSortingList
+                    VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.rowGap * 2) {
+                        Text(String(localized: "Ziehen, um die Reihenfolge zu ändern."))
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(store.appearancePreferences.designStyle.cardPadding)
+                            .appSurface()
+                            .padding(.horizontal, Theme.Metrics.gutter)
+                        if let snapshot = github.snapshot {
+                            AppSettingsRow(title: store.githubShowsUsername ? snapshot.username : "GitHub",
+                                           detail: String(localized: "Oben fixiert"),
+                                           symbol: "chevron.left.forwardslash.chevron.right") {}
+                                .padding(store.appearancePreferences.designStyle.cardPadding)
+                                .appSurface()
+                                .padding(.horizontal, Theme.Metrics.gutter)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityIdentifier("sorting-github-fixed")
+                        }
+                        nativeSortingList
+                    }
                 } else {
                     List {
                 Section {
@@ -1393,6 +1418,19 @@ struct ContentView: View {
                         .listRowInsets(EdgeInsets())
                         .moveDisabled(true)
                         .allowsHitTesting(!habitSortingActive)
+                    if let snapshot = github.snapshot {
+                        GitHubContributionCard(snapshot: snapshot,
+                                               collapsed: collapsed,
+                                               showsUsername: store.githubShowsUsername,
+                                               showsMonthLabels: graphShowsMonthLabels,
+                                               openProfile: { GitHubLink.open(snapshot.profileURL) })
+                            .equatable()
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
+                                                      bottom: 0, trailing: Theme.Metrics.gutter))
+                            .moveDisabled(true)
+                    }
                     TodayProgressView(
                         progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
                             defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
@@ -1438,24 +1476,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                if let snapshot = github.snapshot {
-                    Section {
-                        GitHubContributionCard(snapshot: snapshot,
-                                               collapsed: collapsed,
-                                               showsUsername: store.githubShowsUsername,
-                                               showsMonthLabels: graphShowsMonthLabels,
-                                               openProfile: { GitHubLink.open(snapshot.profileURL) })
-                            .equatable()
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 0,
-                                                      leading: Theme.Metrics.gutter,
-                                                      bottom: 0,
-                                                      trailing: Theme.Metrics.gutter))
-                            .moveDisabled(true)
-                            .allowsHitTesting(!habitSortingActive)
-                    }
-                }
                     }
                     .accessibilityIdentifier("habit-list")
                 }
@@ -1473,6 +1493,8 @@ struct ContentView: View {
                 if !active { scrollToRequestedHabit(using: proxy) }
             }
         }
+        .frame(maxWidth: Theme.Metrics.readableContentWidth)
+        .frame(maxWidth: .infinity)
         .listStyle(.plain)
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
             if habitSortingActive {
@@ -2736,7 +2758,7 @@ struct ContentView: View {
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github, .dataTransfer: nil
+        case .about, .developer, .appearance, .habitBehavior, .github, .dataTransfer, .calendar: nil
         // A push inside Verhalten & Teilen's stack: no sheet, no deep link.
         case .localModel: nil
         }
@@ -2753,6 +2775,7 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
+        case .calendar: .calendar
         // A push inside Verhalten & Teilen's stack, not a sheet of its own.
         case .localModel: nil
         case .dataTransfer: nil
@@ -2767,6 +2790,7 @@ struct ContentView: View {
         case .appearance: .appearance
         case .habitBehavior: .habitBehavior
         case .github: .github
+        case .calendar: .calendar
         // Pushed inside Verhalten & Teilen's own stack, so it is never presented
         // as a sheet of its own and needs no destination here.
         }

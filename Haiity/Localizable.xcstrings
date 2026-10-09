@@ -1,6 +1,132 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Kalender & Erinnerungen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Kalender & Erinnerungen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Calendar & Reminders"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التقويم والتذكيرات"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ক্যালেন্ডার ও রিমাইন্ডার"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Calendario y Recordatorios"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Calendrier et Rappels"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "कैलेंडर और रिमाइंडर"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Kalender & Pengingat"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Calendario e Promemoria"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "カレンダーとリマインダー"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "캘린더 및 미리 알림"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Calendário e Lembretes"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Календарь и Напоминания"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Takvim ve Anımsatıcılar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "کیلنڈر اور یاد دہانیاں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lịch & Lời nhắc"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "日历与提醒事项"}}
+      }
+    },
+    "Archivierung, Wischaktionen und Zeitzone": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Archivierung, Wischaktionen und Zeitzone"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Archiving, swipe actions and time zone"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الأرشفة وإجراءات السحب والمنطقة الزمنية"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আর্কাইভ, সোয়াইপ অ্যাকশন ও সময় অঞ্চল"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Archivado, acciones al deslizar y zona horaria"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Archivage, actions de balayage et fuseau horaire"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "संग्रहण, स्वाइप क्रियाएँ और समय क्षेत्र"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pengarsipan, tindakan usap, dan zona waktu"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Archiviazione, azioni di scorrimento e fuso orario"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "アーカイブ、スワイプ操作、時間帯"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "보관, 쓸어넘기기 동작 및 시간대"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Arquivamento, ações de deslizar e fuso horário"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Архивация, действия смахивания и часовой пояс"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Arşivleme, kaydırma eylemleri ve saat dilimi"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "محفوظ کرنا، سوائپ اعمال اور ٹائم زون"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lưu trữ, thao tác vuốt và múi giờ"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "归档、轻扫操作与时区"}}
+      }
+    },
+    "Daten & Über": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Daten & Über"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Data & About"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "البيانات ومعلومات التطبيق"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ডেটা ও পরিচিতি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Datos y acerca de"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Données et À propos"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "डेटा और परिचय"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Data & Tentang Aplikasi"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Dati e info"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "データとアプリ情報"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "데이터 및 앱 정보"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Dados e Sobre"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Данные и О приложении"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Veriler ve Hakkında"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ڈیٹا اور تعارف"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Dữ liệu & Giới thiệu"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "数据与应用信息"}}
+      }
+    },
+    "Für die Synchronisierung ist voller Kalenderzugriff erforderlich. Erlaube ihn in den iOS-Einstellungen.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Für die Synchronisierung ist voller Kalenderzugriff erforderlich. Erlaube ihn in den iOS-Einstellungen."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Syncing requires full calendar access. Allow it in iOS Settings."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تتطلب المزامنة الوصول الكامل إلى التقويم. اسمح به في إعدادات iOS."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সিঙ্ক করতে ক্যালেন্ডারে পূর্ণ অ্যাক্সেস প্রয়োজন। iOS সেটিংসে অনুমতি দিন।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "La sincronización requiere acceso completo al calendario. Permítelo en los ajustes de iOS."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La synchronisation nécessite un accès complet au calendrier. Autorise-le dans les réglages iOS."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सिंक करने के लिए कैलेंडर तक पूर्ण पहुँच आवश्यक है। iOS की सेटिंग में अनुमति दें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Sinkronisasi memerlukan akses penuh ke kalender. Izinkan di Pengaturan iOS."}},
+        "it": {"stringUnit": {"state": "translated", "value": "La sincronizzazione richiede l'accesso completo al calendario. Consentilo nelle impostazioni di iOS."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "同期にはカレンダーへのフルアクセスが必要です。iOSの設定で許可してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "동기화하려면 캘린더에 대한 전체 접근 권한이 필요합니다. iOS 설정에서 허용하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "A sincronização requer acesso completo ao calendário. Permita-o nas configurações do iOS."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Для синхронизации требуется полный доступ к календарю. Разрешите его в настройках iOS."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Eşzamanlama için takvime tam erişim gerekir. iOS Ayarları'nda izin verin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ہم وقت سازی کے لیے کیلنڈر تک مکمل رسائی درکار ہے۔ iOS کی ترتیبات میں اجازت دیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đồng bộ hóa cần toàn quyền truy cập lịch. Hãy cho phép trong Cài đặt iOS."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "同步需要日历的完全访问权限。请在 iOS 设置中允许访问。"}}
+      }
+    },
+    "Ziehen, um die Reihenfolge zu ändern.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Ziehen, um die Reihenfolge zu ändern."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Drag to change the order."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "اسحب لتغيير الترتيب."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "ক্রম পরিবর্তন করতে টেনে সরান।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Arrastra para cambiar el orden."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Fais glisser pour modifier l'ordre."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "क्रम बदलने के लिए खींचें।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Seret untuk mengubah urutan."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Trascina per cambiare l'ordine."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ドラッグして順序を変更してください。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "드래그하여 순서를 변경하세요."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Arraste para alterar a ordem."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Перетащите, чтобы изменить порядок."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Sıralamayı değiştirmek için sürükleyin."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ترتیب بدلنے کے لیے گھسیٹیں۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Kéo để thay đổi thứ tự."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "拖动以更改顺序。"}}
+      }
+    },
+    "Oben fixiert": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Oben fixiert"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Fixed at the top"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "مثبّت في الأعلى"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "শীর্ষে স্থির"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Fijado arriba"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Fixé en haut"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सबसे ऊपर स्थिर"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tetap di atas"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Fisso in alto"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "最上部に固定"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "맨 위에 고정"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Fixo no topo"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Закреплено вверху"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "En üstte sabit"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "سب سے اوپر مقرر"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cố định ở trên cùng"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "固定在顶部"}}
+      }
+    },
     "Im Anlegeformular anbieten": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Im Anlegeformular anbieten"}},

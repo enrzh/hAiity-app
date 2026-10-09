@@ -175,9 +175,23 @@ final class SpeakToCreateDockUITests: XCTestCase {
         XCTAssertTrue(schedule.label.contains("10:00"), schedule.label)
         capture("text-create-date-preview")
         app.buttons["speak-to-create-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Zahnarzt"].waitForExistence(timeout: 10))
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: field)
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
+        let saved = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'reminder-row-'"))
+            .containing(.staticText, identifier: "Zahnarzt").firstMatch
+        for _ in 0..<16 where !saved.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        let dateAndTime = saved.staticTexts.matching(NSPredicate(format: "label CONTAINS '2099' AND label CONTAINS '10:00'")).firstMatch
+        XCTAssertTrue(dateAndTime.exists)
+        let edit = saved.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'reminder-edit-'")).firstMatch
+        XCTAssertTrue(edit.isHittable)
+        edit.tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["habit-name"].value as? String, "Zahnarzt")
+        XCTAssertTrue(app.datePickers["once-date"].exists)
+        XCTAssertTrue(app.datePickers["habit-time"].exists)
+        capture("text-create-saved-date")
     }
 
     func testDeniedDictationKeepsTypedTextAndEditingAvailable() {

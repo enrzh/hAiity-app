@@ -1,8 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Feste GitHub-Karte auf der Habits-Seite. Nur Anzeige: kein Habit, kein
-/// Wischen, kein Tipp. Halten auf dem Raster öffnet das eine Profil-Menü.
+/// Fixed GitHub activity above personal entries, with a direct profile action.
 struct GitHubContributionCard: View, Equatable {
     static func == (a: GitHubContributionCard, b: GitHubContributionCard) -> Bool {
         a.snapshot == b.snapshot
@@ -37,17 +36,19 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var cardSurface: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if showsUsername {
-                header
-                Divider()
-                    .opacity(0.45)
-                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
-                    .padding(.vertical, 4)
-            }
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            header
             graph
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var graph: some View {
+        GitHubContributionGraph(days: snapshot.days,
+                                showsMonthLabels: showsMonthLabels,
+                                palette: palettes.style)
+            .equatable()
+            .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isContextMenuVisible ? 0 : 1)
         .contentShape(RoundedRectangle(cornerRadius: designStyle.cardRadius,
                                        style: .continuous))
@@ -70,35 +71,30 @@ struct GitHubContributionCard: View, Equatable {
     }
 
     private var header: some View {
-        HStack(spacing: designStyle.rowGap * 2 + 2) {
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.accentText(palettes.style))
-                .frame(width: 28, height: 28)
-                .background(Theme.accentFill(palettes.style).opacity(0.14),
-                            in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                }
-            Text(snapshot.username)
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
+            : AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
+        return layout {
+            Text(showsUsername ? snapshot.username : "GitHub")
                 .font(collapsed ? designStyle.rowTitleFont : designStyle.sectionTitleFont)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
                 .truncationMode(.tail)
-            Spacer(minLength: 0)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("github-username")
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            Button(action: openProfile) {
+                Label(String(localized: "GitHub-Profil öffnen"), systemImage: "arrow.up.right.square")
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.accentText(palettes.style))
+            .accessibilityIdentifier("github-open-profile")
         }
         .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .leading)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("github-username")
-    }
-
-    private var graph: some View {
-        GitHubContributionGraph(days: snapshot.days,
-                                showsMonthLabels: showsMonthLabels,
-                                palette: palettes.style)
-            .equatable()
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var previewWidth: CGFloat {
@@ -122,13 +118,7 @@ struct GitHubContributionCard: View, Equatable {
 
     private var cardPreview: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showsUsername {
-                header
-                Divider()
-                    .opacity(0.45)
-                    .padding(.leading, Theme.Metrics.glyph + Theme.Metrics.gap)
-                    .padding(.vertical, 4)
-            }
+            header
             GitHubContributionGraph(days: snapshot.days,
                                     // A recent window keeps the seven GitHub
                                     // rows legible without forcing tiny tiles.

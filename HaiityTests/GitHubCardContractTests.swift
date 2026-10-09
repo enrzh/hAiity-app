@@ -122,9 +122,9 @@ final class GitHubCardContractTests: XCTestCase {
 
         let cardUse = try XCTUnwrap(habitList.range(of: "GitHubContributionCard"))
         let foreach = try XCTUnwrap(habitList.range(of: "ForEach(habitsTabSource)"))
-        XCTAssertGreaterThan(cardUse.lowerBound, foreach.lowerBound,
-                             "daily entries must precede optional GitHub activity")
-        let cardEnd = try XCTUnwrap(habitList.range(of: ".accessibilityIdentifier(\"habit-list\")",
+        XCTAssertLessThan(cardUse.lowerBound, foreach.lowerBound,
+                          "GitHub must lead personal entries while staying outside their actions")
+        let cardEnd = try XCTUnwrap(habitList.range(of: "TodayProgressView(",
                                                    range: cardUse.upperBound..<habitList.endIndex))
         let afterCard = habitList[cardUse.upperBound..<cardEnd.lowerBound]
         XCTAssertFalse(afterCard.contains(".onMove"))
@@ -178,7 +178,7 @@ final class GitHubCardContractTests: XCTestCase {
         XCTAssertTrue(content.contains("showsUsername: store.githubShowsUsername"))
         XCTAssertTrue(card.contains("let showsUsername: Bool"))
         XCTAssertFalse(card.contains("@AppStorage(GitHubPreferences.showsUsernameKey"))
-        XCTAssertTrue(card.contains("if showsUsername"))
+        XCTAssertTrue(card.contains("showsUsername ? snapshot.username : \"GitHub\""))
         XCTAssertFalse(settings.contains("SafariServices"))
         XCTAssertFalse(settings.contains("SFSafariViewController"))
         XCTAssertFalse(settings.contains("GitHubVerificationBrowser"))

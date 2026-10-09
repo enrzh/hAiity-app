@@ -60,6 +60,19 @@ final class ProductSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Read every day"].exists, "cancel must not create an item")
     }
 
+    private func selectMore(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
+        let more = app.tabBars.buttons["More"].firstMatch
+        if !more.isHittable {
+            let collapsed = app.tabBars.buttons.matching(NSPredicate(format: "value == 'Collapsed'")).firstMatch
+            if collapsed.exists { collapsed.tap() }
+        }
+        XCTAssertTrue(more.waitForExistence(timeout: 5))
+        XCTAssertTrue(more.isHittable)
+        more.tap()
+        XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+    }
+
     func testDeepLinkDismissesSentenceCreationBeforeOpeningNewCreator() {
         let app = launch()
         let add = app.buttons["create-habit"].firstMatch
@@ -78,7 +91,7 @@ final class ProductSimplificationUITests: XCTestCase {
 
     func testMoreHubOffersNavigationAndNicknameWithOptionalAppleConnection() {
         let app = launch()
-        app.tabBars.buttons["More"].tap()
+        selectMore(in: app)
         let personal = app.buttons["open-account"].firstMatch
         reveal(personal, in: app)
         XCTAssertTrue(personal.label.contains("Personalization"))
@@ -98,7 +111,7 @@ final class ProductSimplificationUITests: XCTestCase {
 
     func testAppearanceKeepsDesignAndMaterialsInsideCustomize() {
         let app = launch()
-        app.tabBars.buttons["More"].tap()
+        selectMore(in: app)
         let appearance = app.buttons["open-appearance"]
         reveal(appearance, in: app)
         appearance.tap()

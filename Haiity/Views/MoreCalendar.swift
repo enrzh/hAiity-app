@@ -1,7 +1,14 @@
+import EventKit
 import SwiftUI
 import UIKit
 
 extension MoreView {
+    var calendarSettings: some View {
+        SettingsPage {
+            calendarSection
+        }
+    }
+
     // MARK: – Kalender
     //
     // Zwei Auswahlen: Habits und Erinnerungen mit Termin erscheinen in einem eigenen
@@ -63,9 +70,10 @@ extension MoreView {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if calendarDenied {
+                if !CalendarSync.hasAccess && (calendarDenied || [.denied, .restricted, .writeOnly]
+                    .contains(EKEventStore.authorizationStatus(for: .event))) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(String(localized: "Der Kalender-Zugriff ist in den iOS-Einstellungen deaktiviert. Dort erlauben, dann klappt der Kalender."))
+                        Text(String(localized: "Für die Synchronisierung ist voller Kalenderzugriff erforderlich. Erlaube ihn in den iOS-Einstellungen."))
                             .font(.caption)
                             .foregroundStyle(.orange)
                         Button(String(localized: "iOS-Einstellungen öffnen")) {
@@ -77,7 +85,8 @@ extension MoreView {
                         .accessibilityIdentifier("open-calendar-settings")
                     }
                 }
-                if reminderSyncDenied {
+                if !ReminderSync.hasAccess && (reminderSyncDenied || [.denied, .restricted]
+                    .contains(EKEventStore.authorizationStatus(for: .reminder))) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(String(localized: "Der Zugriff auf Erinnerungen ist in den iOS-Einstellungen deaktiviert."))
                             .font(.caption)

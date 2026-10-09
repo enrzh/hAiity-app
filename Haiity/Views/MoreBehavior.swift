@@ -10,14 +10,13 @@ extension MoreView {
                 swipeActionsSection
                 notificationActionsSection
                 defaultTimeZoneGroup
-                calendarSection
                 // In a group, like every other control on this page. A bare
                 // moreHubRow has no panel around it, so the row sat straight on
                 // the wallpaper while everything above and below it was in glass.
                 AppSettingsGroup(title: String(localized: "Auf dem Gerät"),
                                  footer: String(localized: "Datums- und Zeitangaben funktionieren ohne Download. Zusätzliche Unterstützung ist optional und bleibt auf dem Gerät.")) {
                     // A push, not another sheet. This page is a second level of
-                    // Verhalten & Teilen, and presenting a sheet over it meant a
+                    // Verhalten, and presenting a sheet over it meant a
                     // second set of chrome — its own grabber, its own close
                     // button, a dismiss that threw away the page underneath —
                     // for something that is simply the next screen. The stack

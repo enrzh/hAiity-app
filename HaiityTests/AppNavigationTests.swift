@@ -419,11 +419,12 @@ final class AppNavigationTests: XCTestCase {
                                      ("open-archive", "onOpen(.archive)"),
                                      ("open-about", "onOpen(.about)"),
                                      ("open-notifications", "showingNotificationSettings = true"),
-                                     ("open-reminder-setup", "showReminderSetup = true")] {
+                                     ("open-calendar", "onOpen(.calendar)")] {
             let row = try XCTUnwrap(main.range(of: "identifier: \"\(identifier)\""))
             let end = try XCTUnwrap(main.range(of: "}", range: row.upperBound..<main.endIndex))
             XCTAssertTrue(main[row.upperBound..<end.lowerBound].contains(action), identifier)
         }
+        XCTAssertFalse(main.contains("showReminderSetup = true"), "Opening integration settings must not replay onboarding")
         let helperStart = try XCTUnwrap(more.range(of: "func moreHubRow("))
         let helperEnd = try XCTUnwrap(more.range(of: "private var moreGitHubRow:",
                                                  range: helperStart.upperBound..<more.endIndex))

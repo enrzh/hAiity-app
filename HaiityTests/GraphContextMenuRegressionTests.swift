@@ -120,7 +120,7 @@ final class GraphContextMenuRegressionTests: XCTestCase {
     func testStatsPreviewLeavesSurfaceToGraphContextMenuRoot() throws {
         let source = try source("Haiity/Views/StatsView.swift")
         let start = try XCTUnwrap(source.range(of: "let framed = AnyView(surfaced"))
-        let end = try XCTUnwrap(source.range(of: "@ViewBuilder", range: start.upperBound..<source.endIndex))
+        let end = try XCTUnwrap(source.range(of: "\n    private func ", range: start.upperBound..<source.endIndex))
         let returned = source[start.lowerBound..<end.lowerBound]
         XCTAssertTrue(returned.contains("let framed = AnyView(surfaced"))
         XCTAssertFalse(returned.contains("framed.appSurface()"),

@@ -23,7 +23,13 @@ final class HabitCardProductUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<16 where !element.isHittable { app.swipeUp(velocity: .slow) }
+        for _ in 0..<16 where !element.isHittable {
+            if element.exists && element.frame.maxY < app.navigationBars.firstMatch.frame.maxY {
+                app.swipeDown(velocity: .slow)
+            } else {
+                app.swipeUp(velocity: .slow)
+            }
+        }
         XCTAssertTrue(element.waitForExistence(timeout: 5))
         XCTAssertTrue(element.isHittable)
     }
@@ -44,11 +50,12 @@ final class HabitCardProductUITests: XCTestCase {
         tab.tap()
     }
 
-    private func assertIndependentTargets(_ card: XCUIElement) {
+    private func assertIndependentTargets(_ card: XCUIElement, in app: XCUIApplication? = nil) {
         let name = card.buttons["habit-name"].firstMatch
         let edit = card.buttons["edit-habit"].firstMatch
         let check = card.buttons["check-today"].firstMatch
         for button in [name, edit, check] {
+            if let app { reveal(button, in: app) }
             XCTAssertTrue(button.isHittable)
             XCTAssertGreaterThanOrEqual(button.frame.width + 0.001, 44)
             XCTAssertGreaterThanOrEqual(button.frame.height + 0.001, 44)
@@ -164,14 +171,16 @@ final class HabitCardProductUITests: XCTestCase {
 
     func testLargestRTLTextKeepsActionsReachableAndGraphBounded() {
         let app = launch(accessibleRTL: true)
-        let card = firstCard(app)
+        let card = app.descendants(matching: .any).matching(identifier: "habit-card")
+            .containing(.button, identifier: "Read for twenty minutes").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
         reveal(card.buttons["check-today"].firstMatch, in: app)
-        assertIndependentTargets(card)
+        assertIndependentTargets(card, in: app)
         let name = card.buttons["habit-name"].firstMatch
         XCTAssertEqual(name.label, "Read for twenty minutes")
         let graph = card.descendants(matching: .any)["habit-history"].firstMatch
         reveal(graph, in: app)
-        // The month-label band grows with Dynamic Type; tiles remain capped at 20 pt.
+        // Labels grow with Dynamic Type while tiles keep their readable measured pitch.
         XCTAssertLessThan(graph.frame.height, 300)
         capture("habit-card-rtl-ax5")
         graph.tap()
@@ -202,7 +211,8 @@ final class HabitCardProductUITests: XCTestCase {
         assertIndependentTargets(card)
         let graph = card.descendants(matching: .any)["contribution-grid"].firstMatch
         XCTAssertTrue(graph.waitForExistence(timeout: 5))
-        XCTAssertTrue(graph.label.contains("8 weeks"))
+        let weeks = Int(floor((graph.frame.width + 3) / 15))
+        XCTAssertTrue(graph.label.contains("\(weeks) weeks"))
         XCTAssertLessThan(graph.frame.height, 220)
         card.buttons["check-today"].firstMatch.tap()
         expectation(for: NSPredicate(format: "label CONTAINS %@", "1 days"), evaluatedWith: graph)

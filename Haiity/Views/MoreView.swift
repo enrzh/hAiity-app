@@ -16,20 +16,21 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, github, localModel, dataTransfer
+    case archive, about, developer, appearance, habitBehavior, github, localModel, dataTransfer, calendar
 
     var id: Self { self }
 }
 
 enum MoreScreen: Hashable {
-    case main, appearance, habitBehavior, localModel
+    case main, appearance, habitBehavior, localModel, calendar
 
     var title: String {
         switch self {
         case .main: String(localized: "Mehr")
         case .appearance: String(localized: "Darstellung")
-        case .habitBehavior: String(localized: "Verhalten & Teilen")
+        case .habitBehavior: String(localized: "Verhalten")
         case .localModel: String(localized: "Text-Erstellung")
+        case .calendar: String(localized: "Kalender & Erinnerungen")
         }
     }
 }
@@ -156,6 +157,7 @@ struct MoreView: View {
             case .appearance: appearanceSettings
             case .habitBehavior: habitBehaviorSettings
             case .localModel: localModelSettings
+            case .calendar: calendarSettings
             }
         }
         // A presented More screen must not reuse the previous screen's view tree.
@@ -324,9 +326,6 @@ struct MoreView: View {
                               subtitle: String(localized: "Deine Einstellungen an einem Ort"))
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
-                // Drei Gruppen nach dem, was jemand hier tun will, statt vier
-                // nach Taxonomie. Dieselben `AppSettingsGroup`-Flächen, dieselben
-                // `AppSettingsRow`-Zeilen — nur zwei Überschriften weniger.
                 AppSettingsGroup(title: String(localized: "Alltag")) {
                     moreHubRow(title: String(localized: "Darstellung"),
                                symbol: "paintpalette",
@@ -341,8 +340,8 @@ struct MoreView: View {
                         showingNotificationSettings = true
                     }
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
-                    moreHubRow(title: String(localized: "Verhalten & Teilen"),
-                               detail: String(localized: "Zeitzone, Kalender und Apple-Erinnerungen"),
+                    moreHubRow(title: String(localized: "Verhalten"),
+                               detail: String(localized: "Archivierung, Wischaktionen und Zeitzone"),
                                symbol: "hand.draw",
                                identifier: "open-habit-behavior") {
                         onOpen(.habitBehavior)
@@ -350,19 +349,18 @@ struct MoreView: View {
                 }
 
                 AppSettingsGroup(title: String(localized: "Persönlich & Verbindungen")) {
+                    moreHubRow(title: String(localized: "Kalender & Erinnerungen"),
+                               symbol: "calendar",
+                               identifier: "open-calendar") {
+                        onOpen(.calendar)
+                    }
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreGitHubRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreAppleAccountRow
-                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
-                    moreHubRow(title: String(localized: "Mitteilungen & Kalender einrichten"),
-                               detail: String(localized: "Kalender und Apple-Erinnerungen verbinden"),
-                               symbol: "bell.badge",
-                               identifier: "open-reminder-setup") {
-                        showReminderSetup = true
-                    }
                 }
 
-                AppSettingsGroup(title: String(localized: "Archiv & Über")) {
+                AppSettingsGroup(title: String(localized: "Daten & Über")) {
                     moreHubRow(title: String(localized: "Import & Export"),
                                detail: String(localized: "Daten exportieren und importieren"),
                                symbol: "arrow.up.arrow.down",

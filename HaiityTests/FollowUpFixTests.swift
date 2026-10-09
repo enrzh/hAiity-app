@@ -1,4 +1,5 @@
 import XCTest
+@testable import Haiity
 
 final class FollowUpFixTests: XCTestCase {
     private func source(_ relative: String) throws -> String {
@@ -32,8 +33,6 @@ final class FollowUpFixTests: XCTestCase {
 
         XCTAssertTrue(habit.contains("weeks: gridWeeks"),
                       "habit previews need the complete visible graph window")
-        XCTAssertTrue(habit.contains("min(Self.previewCell, ContributionChart.fittedCell("),
-                      "habit preview tiles must fit the popup width without stretching")
         XCTAssertTrue(habit.contains("showsMonthLabels: !preview && showsMonthLabels"),
                       "the enlarged graph should spend its height on tiles")
         XCTAssertTrue(github.contains("showsMonthLabels: false"),
@@ -46,15 +45,17 @@ final class FollowUpFixTests: XCTestCase {
                        "the graph must not trigger a state update just to measure its width")
     }
 
-    func testHabitPreviewFitsItsFullVisibleGrid() throws {
-        let habit = try source("Haiity/Views/HabitCard.swift")
-
-        XCTAssertTrue(habit.contains("weeks: gridWeeks"),
-                      "the enlarged habit graph must keep the full visible history")
-        XCTAssertTrue(habit.contains("recentGraph(snapshot: snapshot, viewportWidth: previewWidth, preview: true)"),
-                      "the enlarged habit graph must fit its tiles to the popup width")
-        XCTAssertTrue(habit.contains("ContributionChart.fittedCell("),
-                      "the popup must use the shared fitted tile calculation")
+    @MainActor
+    func testHabitPreviewFitsItsOwnWindowWidth() {
+        for width in [CGFloat(320), 375, 402, 440, 760] {
+            let preview = HabitCard.previewMetrics(windowWidth: width)
+            XCTAssertLessThanOrEqual(preview.width, width)
+            let innerWidth = preview.width - 2 * Theme.Metrics.gutter
+            let band = ContributionChart.bandMetrics(width: innerWidth, gap: 2)
+            XCTAssertGreaterThanOrEqual(band.cell, 12)
+            XCTAssertEqual(CGFloat(band.weeks) * band.cell + CGFloat(band.weeks - 1) * 2,
+                           innerWidth, accuracy: 0.001)
+        }
     }
 
     func testHabitPreviewUsesTheSelectedSurfaceWithoutASecondOpaqueHalo() throws {

@@ -7,10 +7,14 @@ struct HabitSortingRow: View {
     let habit: Habit
     let position: Int
     let count: Int
+    var calendar: Calendar = .current
     var moveUp: (() -> Void)?
     var moveDown: (() -> Void)?
+    @Environment(\.appearancePreferences) private var preferences
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        let style = preferences.designStyle
         HStack(spacing: Theme.Metrics.gap + 4) {
             if habit.emoji.isEmpty {
                 AppIconBadge(symbol: habit.isReminder ? "bell" : "checkmark.circle")
@@ -21,19 +25,26 @@ struct HabitSortingRow: View {
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: style.rowGap) {
                 Text(habit.name)
-                    .font(.body.weight(.medium))
-                    .lineLimit(3)
+                    .font(style.rowTitleFont)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(habit.name)
-                Text(habit.isReminder ? String(localized: "Erinnerung") : String(localized: "Habit"))
-                    .font(.caption)
+                Text((habit.isReminder ? String(localized: "Erinnerung") : String(localized: "Habit"))
+                     + " · " + RecurrenceText.summary(habit.recurrence,
+                                                      timeMinutes: habit.timeMinutes, calendar: calendar))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.primary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
         .frame(minHeight: Theme.Metrics.hit)
-        .padding(.vertical, Theme.Metrics.gap)
+        .padding(style.cardPadding)
+        .appSurface()
+        .padding(.leading, Theme.Metrics.gutter)
+        .padding(.vertical, style.rowGap)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("sorting-row-\(habit.id.uuidString)")
         .accessibilityValue(String(localized: "Position \(position) von \(count)"))
@@ -94,7 +105,6 @@ final class NativeHabitSortingController<Row: View>: UITableViewController {
     func update(habits: [Habit], move: @escaping (IndexSet, Int) -> Void,
                 content: @escaping (Int, Habit) -> Row) {
         let orderChanged = self.habits.map(\.id) != habits.map(\.id)
-        let contentChanged = self.habits != habits
         self.habits = habits
         self.move = move
         self.content = content
@@ -102,7 +112,7 @@ final class NativeHabitSortingController<Row: View>: UITableViewController {
         if orderChanged {
             // Also reconciles a rejected save or an external membership/order change.
             tableView.reloadData()
-        } else if contentChanged {
+        } else {
             DispatchQueue.main.async { self.refreshVisibleRows() }
         }
     }
@@ -133,7 +143,8 @@ final class NativeHabitSortingController<Row: View>: UITableViewController {
             }.margins(.all, 0)
         }
         cell.habitID = habit.id
-        cell.backgroundColor = .secondarySystemGroupedBackground
+        cell.backgroundColor = .clear
+        cell.backgroundConfiguration = .clear()
         cell.selectionStyle = .none
         cell.showsReorderControl = true
         cell.isAccessibilityElement = false

@@ -1,10 +1,10 @@
 # hAiity UI Design System
 
 Status: implemented contract - shared settings and graph foundations verified
-Date: 2026-10-05
+Date: 2026-10-09
 Scope: shared UI language for the existing iOS app
 
-## Product hierarchy (2026-10-07)
+## Product hierarchy (2026-10-09)
 
 Fresh stores start in Quiet. Existing data, missing legacy style fields and
 unknown style values retain Original. System/light/dark stays direct; alternate
@@ -17,15 +17,25 @@ item type. Kind and optional settings are disclosed. Flexible weekly quotas use
 the existing recurrence engine. Optional sentence creation belongs inside the
 creator and carries typed text into its own item-based sheet after dismissal.
 
-Habit cards keep Today separate from History and Edit, with 44 pt targets even
-in compact mode. The name and graph open full history; the pencil opens Edit.
-Long-press remains optional. Cards show eight recent weeks through the shared
-renderer, capped at 20 pt cells and centered; full history remains in its editor.
+Habit cards keep Today separate from the labeled History and Edit footer, with
+44 pt targets even in compact mode. The name and graph open full history.
+Long-press remains optional. Cards fill their actual drawable width with square
+tiles through the shared renderer. With gap 3 pt and preferred tile 12 pt, the
+window is floor((width + gap) / (12 + gap)) columns, clamped to 1...53; tile side
+is (width - (columns - 1) * gap) / columns. Full history remains in its editor.
 One queued snapshot supplies the graph, with today's tile updated immediately
 from the existing completion engine during check-off and undo.
 
-Statistics lead with Today, current-week completion and the last seven daily
-rates. Per-habit recent completion follows; saved optional metrics stay available.
+GitHub is the first content below the Habits heading, before Today/filter and
+personal entries. Its recent band uses the same sizing; the annual dataset and
+profile action remain available. It is absent from dedicated Search and never
+enters progress or persisted item order. During native sorting, a compact fixed
+identity replaces its graph. Sorting rows use the selected shared surface and
+style roles, with native drag handles and VoiceOver moves; Done exits immediate-save editing.
+Phone layouts grow naturally at accessibility sizes. Wide page columns are capped at 760 pt.
+
+Statistics lead with current-week completion and the last seven daily rates,
+then a lighter Today summary. Per-habit recent completion follows; saved optional metrics stay available.
 AI reading is a collapsed optional action and never runs just from expansion.
 The denominators and flexible-period rules remain unchanged and explained.
 
@@ -34,6 +44,10 @@ local nickname; optional Apple connection is disclosed on that page, and GitHub
 authentication stays on its own page. Normal text-creation settings show optional
 assistance and readiness, with existing named model controls under Advanced.
 Identity storage, purchase boundaries and saved model choices stay independent.
+Notifications opens existing notification settings. Calendar & Reminders opens
+the existing native integration controls directly; Behavior owns archiving,
+swipes and the default time zone. Opening these pages does not replay setup,
+request permissions or rewrite summary times.
 
 ## App-wide design styles (2026-10-04)
 

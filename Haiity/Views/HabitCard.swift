@@ -64,15 +64,16 @@ struct HabitCard: View, Equatable {
     @State private var checkPulse = false
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
     @ScaledMetric(relativeTo: .body) private var actionSymbolSize: CGFloat = 17
-    static let recentWeeks = 8
+    private var recentWeeks: Int { ContributionChart.bandMetrics(width: graphWidth).weeks }
 
     private var snapshotRequest: GridCalendar.HabitSnapshotKey {
-        GridCalendar.HabitSnapshotKey(habit: habit, weeks: Self.recentWeeks, today: today, calendar: calendar)
+        GridCalendar.HabitSnapshotKey(habit: habit, weeks: recentWeeks, today: today, calendar: calendar)
     }
 
     private var cardSnapshot: GridCalendar.Snapshot? {
+        guard graphWidth > 0 else { return nil }
         guard let renderedSnapshot else {
-            return GridCalendar.cachedSnapshot(habit: habit, weeks: Self.recentWeeks,
+            return GridCalendar.cachedSnapshot(habit: habit, weeks: recentWeeks,
                                                today: today, calendar: calendar)
         }
         guard renderedSnapshot.key.canDisplaySnapshot(for: snapshotRequest) else { return nil }
@@ -81,6 +82,7 @@ struct HabitCard: View, Equatable {
     }
 
     private func loadCardSnapshot(for request: GridCalendar.HabitSnapshotKey) async {
+        guard graphWidth > 0 else { return }
         let habit = habit
         if let cached = GridCalendar.cachedSnapshot(habit: habit, weeks: request.weeks,
                                                     today: request.today, calendar: request.calendar) {
@@ -152,7 +154,9 @@ struct HabitCard: View, Equatable {
         #endif
         return VStack(alignment: .leading, spacing: innerGap) {
             header
+            meta
             revealingGrid
+            footer
         }
         // Der Zug für das Aufziehen deckt die GANZE Zeile (Kopf + Karte):
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
@@ -291,7 +295,7 @@ struct HabitCard: View, Equatable {
     /// treffen wollte. Jetzt ist die Fläche des Rasters die Fläche der Geste
     /// — dieselbe Fläche, die die Vorschau auch zeigt.
     ///
-    /// A tap opens history; horizontal drags continue to scroll the graph.
+    /// A tap opens history; the band fits the row and leaves horizontal drags to swipes.
     private var grid: some View {
             Group {
                 if let snapshot = cardSnapshot {
@@ -299,11 +303,12 @@ struct HabitCard: View, Equatable {
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { onBackfill() }
                 } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: CGFloat(GridCalendar.rows) * (Self.previewCell + GridCell.gap)
-                               - GridCell.gap + CGFloat(designStyle.graphPadding * 2)
-                               + (showsMonthLabels ? 24 : 0))
+                    let weeks = recentWeeks
+                    recentGraph(snapshot: GridCalendar.Snapshot(
+                        weeks: weeks, today: today,
+                        keys: Array(repeating: Array(repeating: nil, count: GridCalendar.rows), count: weeks),
+                        levels: Array(repeating: Array(repeating: 0, count: GridCalendar.rows), count: weeks),
+                        marks: [], filledCount: 0), viewportWidth: graphWidth)
                         .accessibilityLabel(String(localized: "Beitragskalender wird geladen"))
                 }
             }
@@ -357,9 +362,9 @@ struct HabitCard: View, Equatable {
     func recentGraph(snapshot: GridCalendar.Snapshot, viewportWidth: CGFloat,
                      preview: Bool = false) -> some View {
         let gap = preview ? Self.previewGraphGap : GridCell.gap
-        let cell = min(Self.previewCell, ContributionChart.fittedCell(
-            viewport: viewportWidth, cell: Self.previewCell, gap: gap))
-        let width = CGFloat(snapshot.weeks) * (cell + gap) - gap
+        let width = viewportWidth.isFinite && viewportWidth > 0 ? viewportWidth : 12
+        let cell = max(1, (width - CGFloat(max(0, snapshot.weeks - 1)) * gap)
+                       / CGFloat(max(1, snapshot.weeks)))
         let chart = ContributionChart(snapshot: snapshot, cell: cell, gap: gap,
                                       width: width, showsMonthLabels: !preview && showsMonthLabels,
                                       labelScale: labelScale / 100,
@@ -367,18 +372,8 @@ struct HabitCard: View, Equatable {
                                           preferences: appearancePreferences, dark: scheme == .dark),
                                       highlightsToday: true, checkPulse: !preview && checkPulse,
                                       showsSurface: !preview)
-        return Group {
-            if !preview && GridCalendar.needsHorizontalScroll(contentWidth: width + 8,
-                                                               viewportWidth: viewportWidth) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    chart
-                }
-                .defaultScrollAnchor(.trailing)
-                .padding(.horizontal, 4)
-            } else {
-                chart.frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
+        return chart
+        .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "\(habit.name): \(snapshot.filledCount) Tage in den letzten \(snapshot.weeks) Wochen."))
@@ -388,8 +383,7 @@ struct HabitCard: View, Equatable {
     // MARK: – Langer Druck: Vorschau + Aktionen
     //
     // The preview and row share recentGraph, ContributionChart and its tiles.
-    // Both show eight weeks with cells capped at 20 points. The native preview
-    // stays window-wide and non-scrolling; older entries remain in history.
+    // Each requests the columns fitting its own measured width. Older entries remain in history.
 
     static let previewCell: CGFloat = 20
     static let previewGap: CGFloat = 4
@@ -421,7 +415,7 @@ struct HabitCard: View, Equatable {
     }
 
     /// Shared window sizing retained for reminder and statistics previews.
-    /// Their callers may use the returned capacity; the habit row uses eight weeks.
+    /// Their callers may use the returned capacity; the habit row measures its own band.
     static func previewMetrics(windowWidth: CGFloat) -> (width: CGFloat, weeks: Int) {
         let finiteWindowWidth = windowWidth.isFinite && windowWidth > 0
             ? windowWidth : 375
@@ -433,7 +427,10 @@ struct HabitCard: View, Equatable {
     }
 
     private var previewWidth: CGFloat { Self.previewMetrics(windowWidth: Self.windowWidth()).width }
-    private var gridWeeks: Int { Self.recentWeeks }
+    private var previewBandWidth: CGFloat {
+        previewWidth - 2 * min(designStyle.cardPadding + 2, Theme.Metrics.gutter)
+    }
+    private var gridWeeks: Int { ContributionChart.bandMetrics(width: previewBandWidth, gap: Self.previewGraphGap).weeks }
     private static let previewGraphGap: CGFloat = 2
 
     private var habitPreview: some View {
@@ -474,7 +471,7 @@ struct HabitCard: View, Equatable {
                                   symbol: "flame.fill")
                 }
             }
-            recentGraph(snapshot: snapshot, viewportWidth: previewWidth, preview: true)
+            recentGraph(snapshot: snapshot, viewportWidth: previewBandWidth, preview: true)
         }
         .padding(.horizontal, min(designStyle.cardPadding + 2, Theme.Metrics.gutter))
         .padding(.vertical, designStyle.cardPadding + 2)
@@ -583,25 +580,19 @@ struct HabitCard: View, Equatable {
                     HStack(alignment: .top, spacing: designStyle.rowGap * 2) {
                         nameRun
                         Spacer(minLength: 0)
-                        editButton
                     }
                     HStack(spacing: designStyle.rowGap * 2) {
                         Spacer(minLength: 0)
                         todayButton
                     }
                 }
-                .padding(.horizontal, 4)
             } else {
                 HStack(spacing: designStyle.rowGap * 2) {
                     nameRun
                     Spacer(minLength: designStyle.rowGap * 2)
-                    editButton
                     todayButton
                 }
                 .frame(minHeight: headerHeight)
-                // Auf die Innenkante der Rasterfläche ausgerichtet: Name und
-                // erste Rasterspalte stehen in EINER Flucht.
-                .padding(.horizontal, 4)
             }
         }
     }
@@ -631,15 +622,34 @@ struct HabitCard: View, Equatable {
 
     private var editButton: some View {
         Button(action: onEdit) {
-            Image(systemName: "pencil")
-                .font(.system(size: min(26, actionSymbolSize)))
+            Label(String(localized: "Bearbeiten"), systemImage: "pencil")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
+                .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Bearbeiten"))
         .accessibilityIdentifier("edit-habit")
+    }
+
+    private var footer: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap))
+            : AnyLayout(HStackLayout(spacing: designStyle.rowGap * 2))
+        return layout {
+            Button(action: onBackfill) {
+                Label(String(localized: "Historie"), systemImage: "calendar")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("open-habit-history")
+            if !typeSize.isAccessibilitySize { Spacer(minLength: Theme.Metrics.gap) }
+            editButton
+        }
     }
 
     private var nameContent: some View {
@@ -653,68 +663,17 @@ struct HabitCard: View, Equatable {
                     .lineLimit(typeSize.isAccessibilitySize ? nil : (collapsed ? 1 : 2))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !collapsed { meta }
         }
         .contentShape(Rectangle())
     }
 
-    /// Uhrzeit, Serie und — wenn heute gar kein Termin ist — der nächste.
-    /// Alle drei nur, wenn sie etwas zu sagen haben: eine Serie von 0 ist
-    /// keine Serie, ohne Uhrzeit fehlt die Uhr ersatzlos, und bei einem
-    /// Habit, das heute ohnehin dran ist, steht kein Kalender.
-    ///
-    /// Hier stand bis v4 eine GLOCKE mit der Zeit der eigenen Erinnerung.
-    /// Die gibt es nicht mehr (erinnert wird zentral, siehe `Reminders`) —
-    /// eine Glocke, die nichts mehr auslöst, wäre eine Lüge. An ihrer Stelle
-    /// steht jetzt die Uhrzeit des Termins selbst, mit einer Uhr davor.
-    ///
-    /// Das ist die EINZIGE Stelle, an der die Liste zwischen „heute fällig"
-    /// und „heute frei" unterscheidet. Die Heute-Kontrolle bleibt bewusst
-    /// bedienbar: wer an einem freien Tag trotzdem läuft, darf das abhaken
-    /// (es zählt auch — siehe GoalEngine).
-    @ViewBuilder
+    /// The same schedule sentence as the editor, using the item's calendar.
     private var meta: some View {
-        let streak = cardSnapshot?.streak ?? 0
-        if timeText != nil || streak > 0 || nextDueLabel != nil {
-            HStack(alignment: .firstTextBaseline, spacing: designStyle.rowGap * 2) {
-                if let time = timeText {
-                    metaItem("clock", time,
-                             label: String(localized: "Um \(time)"))
-                }
-                if streak > 0 {
-                    metaItem("flame.fill", "\(streak)",
-                             label: String(localized: "Serie: \(streak) Tage"))
-                }
-                if let next = nextDueLabel {
-                    metaItem("calendar", next.short,
-                             label: String(localized: "Heute frei, nächster Termin: \(next.long)"))
-                }
-            }
-            .padding(.leading, 2)
-            .transition(.opacity)
-        }
-    }
-
-    /// „Heute ist nichts fällig, als Nächstes am Montag." nil, sobald heute
-    /// ein Termin ist — dann sagt die Heute-Kontrolle schon alles.
-    private var nextDueLabel: (short: String, long: String)? {
-        guard !GoalEngine.isScheduled(habit: habit, day: today, calendar: calendar) else { return nil }
-        guard let next = habit.recurrence.nextOccurrence(after: today, calendar: calendar),
-              let date = DayKey.date(from: next, calendar: calendar) else {
-            return (String(localized: "frei"), String(localized: "keiner mehr"))
-        }
-        let weekday = calendar.component(.weekday, from: date)
-        return (RecurrenceText.shortWeekdayName(weekday),
-                RecurrenceText.weekdayName(weekday))
-    }
-
-    /// Symbol und Zahl als EIN Textlauf — so sitzt das Glyph automatisch auf
-    /// der Grundlinie der Ziffern statt auf der Mitte seines Kastens.
-    private func metaItem(_ symbol: String, _ value: String, label: String) -> some View {
-        (Text(Image(systemName: symbol)) + Text(verbatim: " \(value)"))
-            .font(.caption.monospacedDigit())
+        Text(verbatim: RecurrenceText.summary(habit.recurrence,
+                                             timeMinutes: habit.timeMinutes, calendar: calendar))
+            .font(.caption)
             .foregroundStyle(.secondary)
-            .accessibilityLabel(label)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Visible in both modes: toggle, increment, or choose Yes/No.
@@ -825,9 +784,6 @@ struct HabitCard: View, Equatable {
             .contentShape(Rectangle())
     }
 
-    /// Die Uhrzeit des Habits — dieselbe Formatierung wie im Regel-Satz,
-    /// damit „um 07:30" auf der Karte und im Editor gleich aussieht.
-    private var timeText: String? { RecurrenceText.timeText(habit.timeMinutes) }
 }
 
 /// Isolates the reveal offset from the habit header. The pan still lives on

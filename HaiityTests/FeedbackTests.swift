@@ -732,8 +732,8 @@ final class FeedbackTests: XCTestCase {
             XCTAssertFalse(appearance.contains(verbose), verbose)
             XCTAssertFalse(behavior.contains(verbose), verbose)
         }
-        XCTAssertTrue(more.contains("Mitteilungen & Kalender einrichten"))
-        XCTAssertTrue(more.contains("Zeitzone, Kalender und Apple-Erinnerungen"))
+        XCTAssertTrue(more.contains("Kalender & Erinnerungen"))
+        XCTAssertTrue(more.contains("Archivierung, Wischaktionen und Zeitzone"))
         XCTAssertFalse(more.contains("moreStatusHero"))
         XCTAssertFalse(more.contains("moreOverview"))
         XCTAssertTrue(try source("Haiity/Views/DeveloperView.swift").contains("cloudSection"))
@@ -884,7 +884,7 @@ final class FeedbackTests: XCTestCase {
         let behaviorSource = try source("Haiity/Views/MoreBehavior.swift")
         for route in ["case archive, about, developer, appearance, habitBehavior, github",
                       "case .appearance:", "case .habitBehavior:",
-                      "Darstellung", "Verhalten & Teilen"] {
+                      "Darstellung", "Verhalten", "case .calendar:"] {
             XCTAssertTrue(more.contains(route), route)
         }
 
@@ -892,12 +892,11 @@ final class FeedbackTests: XCTestCase {
         let end = try XCTUnwrap(more.range(of: "var accentColor: Color",
                                            range: body.upperBound..<more.endIndex))
         let main = more[body.lowerBound..<end.lowerBound]
-        // Grouped by intent, not taxonomy: Alltag, then Konto & Verbindungen,
-        // then Archiv & Über. The order inside the hub is the contract.
+        // Direct settings first, followed by connections and data.
         let ordered = ["\"open-appearance\"",
                        "\"open-notifications\"", "\"open-habit-behavior\"",
-                       "moreGitHubRow", "moreAppleAccountRow",
-                       "\"open-reminder-setup\"", "\"open-data-transfer\"",
+                       "\"open-calendar\"", "moreGitHubRow", "moreAppleAccountRow",
+                       "\"open-data-transfer\"",
                        "\"open-archive\"", "\"open-about\"", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
@@ -921,6 +920,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(appearance.contains("compactModeSection"))
         let behavior = behaviorSource[behaviorStart.lowerBound..<behaviorEnd.lowerBound]
         XCTAssertFalse(behavior.contains("compactModeSection"))
+        XCTAssertFalse(behavior.contains("calendarSection"), "Native integrations have one direct settings destination")
     }
 
     func testDynamicAppIconLabelExplainsAndHidesManualChoices() throws {

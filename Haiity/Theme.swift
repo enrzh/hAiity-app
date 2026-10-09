@@ -1146,6 +1146,7 @@ enum Theme {
         static let settingsSectionGap: CGFloat = 24
         /// Seitenrand von Liste und Chrom.
         static let gutter: CGFloat = 16
+        static let readableContentWidth: CGFloat = 760
         /// Breathing room above a root page's scrollable title.
         static let rootTitleInset: CGFloat = 16
         /// Innenabstand der Rasterfläche.
