@@ -55,9 +55,12 @@ final class TodayProgressUITests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, down: Bool = false) {
         for _ in 0..<18 {
-            if element.isHittable,
-               element.frame.midY > app.navigationBars.firstMatch.frame.maxY + 4,
-               element.frame.midY < app.frame.maxY - 80 { break }
+            if element.exists {
+                let frame = element.frame
+                if frame.width > 0, frame.height > 0,
+                   frame.midY > app.navigationBars.firstMatch.frame.maxY + 4,
+                   frame.midY < app.frame.maxY - 80, element.isHittable { break }
+            }
             if down { app.swipeDown(velocity: .slow) } else { app.swipeUp(velocity: .slow) }
         }
         XCTAssertTrue(element.waitForExistence(timeout: 5), element.identifier)
@@ -1131,8 +1134,7 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(ending.isHittable)
         capture("creator-rtl-recurrence-details")
         let additional = app.buttons["creation-advanced"].firstMatch
-        for _ in 0..<18 where !additional.isHittable { app.swipeUp(velocity: .slow) }
-        XCTAssertTrue(additional.isHittable)
+        reveal(additional, in: app)
         XCTAssertGreaterThanOrEqual(additional.frame.height, 44)
         additional.tap()
         let zone = app.buttons["habit-timezone"]

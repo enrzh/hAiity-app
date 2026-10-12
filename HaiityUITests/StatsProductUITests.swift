@@ -54,18 +54,13 @@ final class StatsProductUITests: XCTestCase {
             let toggle = app.switches["stats-adjustment-\(card)"]
             XCTAssertTrue(toggle.waitForExistence(timeout: 3))
             revealToggle(toggle, in: app)
-            if toggle.value as? String == "1" {
+            let expected = cards.contains(card) ? "1" : "0"
+            if toggle.value as? String != expected {
                 toggle.coordinate(withNormalizedOffset: CGVector(dx: rtl ? 0.1 : 0.9, dy: 0.5)).tap()
-                XCTAssertEqual(toggle.value as? String, "0")
+                expectation(for: NSPredicate(format: "value == %@", expected), evaluatedWith: toggle)
+                waitForExpectations(timeout: 5)
             }
-        }
-        for card in cards {
-            let toggle = app.switches["stats-adjustment-\(card)"]
-            let first = app.switches["stats-adjustment-yearPulse"]
-            for _ in 0..<10 where !first.isHittable { app.swipeDown(velocity: .slow) }
-            revealToggle(toggle, in: app)
-            toggle.coordinate(withNormalizedOffset: CGVector(dx: rtl ? 0.1 : 0.9, dy: 0.5)).tap()
-            XCTAssertEqual(toggle.value as? String, "1")
+            XCTAssertEqual(toggle.value as? String, expected)
         }
         app.buttons["stats-adjustments-done"].tap()
         XCTAssertFalse(app.switches["stats-adjustment-yearPulse"].exists)
