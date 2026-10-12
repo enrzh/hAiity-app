@@ -153,4 +153,3 @@ struct TodayView<Row: View>: View {
         ForEach(items) { habit in row(habit).id(habit.id) }
     }
 }
-
