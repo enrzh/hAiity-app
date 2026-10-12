@@ -123,8 +123,10 @@ final class BackfillInteractionContractTests: XCTestCase {
         XCTAssertTrue(source.contains("simultaneousGesture(DragGesture"))
         XCTAssertTrue(source.contains("moveVisibleMonth(by:"))
         XCTAssertTrue(source.contains("selectionAccent"))
-        XCTAssertEqual(source.components(separatedBy: ".contentTransition(.identity)").count - 1, 2,
-                       "selection tool labels must not crossfade into overlapping text")
+        XCTAssertEqual(source.components(separatedBy: ".contentTransition(.identity)").count - 1, 1,
+                       "the SwiftUI selection label must not crossfade into overlapping text")
+        XCTAssertTrue(source.contains("HistoryButton(title:"),
+                      "the native select-all button replaces its title without a SwiftUI crossfade")
     }
 }
 
