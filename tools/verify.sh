@@ -17,6 +17,7 @@ source_fingerprint=$(ruby tools/verification.rb fingerprint)
 for plan in Unit Smoke; do
   xcodebuild test -project Haiity.xcodeproj -scheme Haiity -testPlan "$plan" \
     -destination "$TEST_DESTINATION" -parallel-testing-enabled NO \
+    -collect-test-diagnostics never \
     -resultBundlePath "$verification_output/$plan.xcresult" 2>&1 | tee "$verification_output/$plan.log" || {
       tail -40 "$verification_output/$plan.log"
       exit 1

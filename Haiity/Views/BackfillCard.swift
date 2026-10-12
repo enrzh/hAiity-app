@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// A month of editable entries. Writes still pass through ContentView's
 /// validation and persistence path; selection itself never changes a log.
@@ -79,6 +80,7 @@ struct BackfillCard: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Fertig"), action: onClose)
+                        .foregroundStyle(.primary)
                         .accessibilityIdentifier("backfill-close")
                 }
             }
@@ -320,15 +322,13 @@ struct BackfillCard: View {
             }
             .accessibilityIdentifier("history-selection-mode")
             if selecting {
-                Button {
+                HistoryButton(title: selected == Set(visibleDays) && !selected.isEmpty
+                              ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"),
+                              symbol: nil, foreground: Theme.accentText(palettes.style), fill: nil) {
                     selected = selected == Set(visibleDays) ? [] : Set(visibleDays)
-                } label: {
-                    Text(selected == Set(visibleDays) && !selected.isEmpty
-                         ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"))
-                        .font(.headline)
-                        .frame(minHeight: Theme.Metrics.hit)
-                        .contentTransition(.identity)
                 }
+                .frame(minHeight: Theme.Metrics.hit)
+                .fixedSize(horizontal: true, vertical: true)
                 .disabled(visibleDays.isEmpty)
                 .accessibilityIdentifier("history-select-all")
                 Button {
@@ -448,9 +448,9 @@ struct BackfillCard: View {
 
     private var editorActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(Backfill.selectionLine(habit: habit, days: selected, calendar: calendar))
-                .font(.caption)
-                .foregroundStyle(scheme == .dark ? Color.white : Color.black)
+            HistoryCaption(text: Backfill.selectionLine(habit: habit, days: selected, calendar: calendar),
+                           fill: Theme.surfaceFill(preferences: appearancePreferences))
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("backfill-status")
             if habit.kind == .quantity {
                 Stepper(value: $amount, in: 1...Habit.Answer.maxCount) {
@@ -471,31 +471,17 @@ struct BackfillCard: View {
 
     private var actionButtons: some View {
         ForEach(actions) { action in
-            Button {
+            HistoryButton(title: action.kind == .clear ? String(localized: "Einträge löschen") : action.title,
+                          symbol: action.kind == .clear ? "eraser" : action.systemImage,
+                          foreground: action.kind == .clear ? Color.primary
+                              : action.kind == .declined
+                              ? Theme.levelText(Habit.Answer.declinedLevel, dark: scheme == .dark,
+                                                palette: palettes.style(for: habit)) : Color.white,
+                          fill: action.kind == .clear ? Color(.tertiarySystemFill) : actionColor(for: action)) {
                 write(selected.sorted(), value: action.value)
-            } label: {
-                Label(action.kind == .clear ? String(localized: "Einträge löschen") : action.title,
-                      systemImage: action.kind == .clear ? "eraser" : action.systemImage)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(action.kind == .clear ? Color.primary
-                                     : action.kind == .declined
-                                     ? Theme.levelText(Habit.Answer.declinedLevel, dark: scheme == .dark,
-                                                       palette: palettes.style(for: habit))
-                                     : Color.white)
-                    .background {
-                        if action.kind == .clear {
-                            Capsule().fill(.regularMaterial)
-                        } else {
-                            Capsule().fill(actionColor(for: action))
-                        }
-                    }
-                    .overlay {
-                        Capsule().strokeBorder(.quaternary, lineWidth: 0.7)
-                    }
-                    .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .fixedSize(horizontal: false, vertical: true)
             .disabled(selected.isEmpty)
             .accessibilityIdentifier(action.accessibilityIdentifier)
         }
@@ -517,6 +503,75 @@ struct BackfillCard: View {
         guard let entries = undoStack.last else { return }
         guard onRestore(entries) else { undoStack.removeAll(); return }
         undoStack.removeLast()
+    }
+}
+
+// UIKit supplies reliable contrast metadata for these history controls.
+private struct HistoryCaption: UIViewRepresentable {
+    let text: String
+    let fill: Color
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.adjustsFontForContentSizeCategory = true
+        return label
+    }
+
+    func updateUIView(_ label: UILabel, context: Context) {
+        label.overrideUserInterfaceStyle = context.environment.colorScheme == .dark ? .dark : .light
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.text = text
+        label.textColor = .label
+        label.backgroundColor = UIColor(fill)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+        uiView.sizeThatFits(CGSize(width: proposal.width ?? uiView.intrinsicContentSize.width,
+                                  height: .greatestFiniteMagnitude))
+    }
+}
+
+private struct HistoryButton: UIViewRepresentable {
+    let title: String
+    let symbol: String?
+    let foreground: Color
+    let fill: Color?
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.titleLabel?.numberOfLines = 0
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        button.overrideUserInterfaceStyle = context.environment.colorScheme == .dark ? .dark : .light
+        var configuration = fill == nil ? UIButton.Configuration.plain() : .filled()
+        configuration.title = title
+        configuration.image = symbol.flatMap { UIImage(systemName: $0) }
+        configuration.imagePadding = 8
+        configuration.cornerStyle = .capsule
+        configuration.baseForegroundColor = UIColor(foreground)
+        configuration.baseBackgroundColor = fill.map { UIColor($0) }
+        configuration.contentInsets = fill == nil ? .zero
+            : NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var attributes = incoming
+            attributes.font = UIFont.preferredFont(forTextStyle: .headline)
+            return attributes
+        }
+        button.configuration = configuration
+        button.isEnabled = context.environment.isEnabled
+        let identifier = UIAction.Identifier("history-action")
+        button.removeAction(identifiedBy: identifier, for: .touchUpInside)
+        button.addAction(UIAction(identifier: identifier) { _ in action() }, for: .touchUpInside)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton, context: Context) -> CGSize? {
+        let width = proposal.width ?? uiView.intrinsicContentSize.width
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: size.height)
     }
 }
 

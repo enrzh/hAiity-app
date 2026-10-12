@@ -72,12 +72,18 @@ final class TodayProgressUITests: XCTestCase {
     }
 
     private func returnToSettingsHub(in app: XCUIApplication) {
-        for _ in 0..<3 where !app.buttons["close-more-sheet"].exists {
-            let back = app.navigationBars.buttons.firstMatch
+        let close = app.buttons["close-more-sheet"]
+        if !close.exists {
+            let back = app.navigationBars.buttons["BackButton"]
+            XCTAssertTrue(back.waitForExistence(timeout: 5))
             XCTAssertTrue(back.isHittable)
             back.tap()
         }
-        XCTAssertTrue(app.buttons["close-more-sheet"].waitForExistence(timeout: 5))
+        expectation(for: NSPredicate { _, _ in
+            close.exists && close.isHittable && app.buttons["open-appearance"].exists
+        }, evaluatedWith: app)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(close.exists)
         XCTAssertTrue(app.buttons["open-appearance"].exists)
     }
 
@@ -106,13 +112,15 @@ final class TodayProgressUITests: XCTestCase {
     }
 
     private func setDueToday(_ enabled: Bool, in app: XCUIApplication) {
-        let menu = app.buttons["habit-filter"]
+        let menu = app.descendants(matching: .any)["habit-filter"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         menu.tap()
         let due = app.descendants(matching: .any)["collection-due-today"].firstMatch
         XCTAssertTrue(due.waitForExistence(timeout: 5))
         let selected = due.isSelected || due.value as? String == "1"
         if selected != enabled { due.tap() } else { menu.tap() }
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: due)
+        waitForExpectations(timeout: 5)
     }
 
     private func notificationAuthorizationToggle(in settings: XCUIApplication) -> XCUIElement {

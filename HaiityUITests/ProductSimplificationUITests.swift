@@ -16,8 +16,19 @@ final class ProductSimplificationUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<14 where !element.isHittable { app.swipeUp(velocity: .slow) }
+        for _ in 0..<14 {
+            if element.exists {
+                let frame = element.frame
+                if frame.width > 0, frame.height > 0,
+                   app.frame.contains(CGPoint(x: frame.midX, y: frame.midY)),
+                   element.isHittable { break }
+            }
+            app.swipeUp(velocity: .slow)
+        }
         XCTAssertTrue(element.waitForExistence(timeout: 5))
+        let frame = element.frame
+        XCTAssertTrue(frame.width > 0 && frame.height > 0
+                      && app.frame.contains(CGPoint(x: frame.midX, y: frame.midY)))
         XCTAssertTrue(element.isHittable)
     }
 

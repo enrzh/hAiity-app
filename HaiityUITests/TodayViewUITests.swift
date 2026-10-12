@@ -233,18 +233,7 @@ final class TodayViewUITests: XCTestCase {
                 app.buttons["history-selection-mode"].tap()
                 app.buttons["history-select-all"].tap()
             }
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                #if targetEnvironment(simulator)
-                let version = ProcessInfo.processInfo.operatingSystemVersion
-                // Matching UIKit labels/buttons pass; these two SwiftUI nodes misreport on 26.5.
-                if version.majorVersion == 26, version.minorVersion == 5,
-                   let identifier = issue.element?.identifier,
-                   identifier == "history-select-all" || identifier == "backfill-status" {
-                    return issue.auditType == .contrast
-                }
-                #endif
-                return false
-            }
+            try app.performAccessibilityAudit(for: .contrast)
             capture("rebuild-history-contrast-\(selecting ? "selected" : "ordinary")")
             app.terminate()
         }
