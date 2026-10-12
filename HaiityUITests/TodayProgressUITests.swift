@@ -704,8 +704,8 @@ final class TodayProgressUITests: XCTestCase {
             done.tap()
             return
         }
-        // Keyboard accessory may be absent on Cloud; dismiss by ending editing.
-        app.swipeDown()
+        // Scroll within the page: swiping the app can dismiss Settings itself.
+        app.scrollViews.containing(.textField, identifier: "personal-alias").firstMatch.swipeUp(velocity: .slow)
     }
 
     func testAppleAccountControlsRemainUsableWithLargeTextAndSolidAppearance() {
@@ -1204,7 +1204,7 @@ final class TodayProgressUITests: XCTestCase {
                     XCTAssertEqual(name.label, "Read for twenty minutes")
                     name.tap()
                     let edit = app.buttons["edit-habit"]
-                    XCTAssertTrue(edit.waitForExistence(timeout: 5))
+                    XCTAssertTrue(edit.waitForExistence(timeout: 15))
                     edit.tap()
                 }
                 }

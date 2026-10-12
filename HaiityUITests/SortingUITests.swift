@@ -191,8 +191,8 @@ final class SortingUITests: XCTestCase {
             .withOffset(CGVector(dx: list(app).frame.midX, dy: top))
         // The hold must cover the whole fixture, not assume a fixed native
         // edge-scroll speed. There is still only one grab and one final drop.
-        topGrabber.press(forDuration: 0.4, thenDragTo: topEdge,
-                         withVelocity: .fast, thenHoldForDuration: 30)
+        topGrabber.press(forDuration: 1, thenDragTo: topEdge,
+                         withVelocity: .slow, thenHoldForDuration: 30)
         let moved = [738] + Array(initialOrder.dropLast())
         capture("sorting-bottom-to-top-after")
         assertOrder(moved, in: app)
@@ -204,8 +204,8 @@ final class SortingUITests: XCTestCase {
         let bottom = min(list(app).frame.maxY, app.tabBars.firstMatch.frame.minY) - 12
         let bottomEdge = app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: list(app).frame.midX, dy: bottom))
-        bottomGrabber.press(forDuration: 0.4, thenDragTo: bottomEdge,
-                            withVelocity: .fast, thenHoldForDuration: 30)
+        bottomGrabber.press(forDuration: 1, thenDragTo: bottomEdge,
+                            withVelocity: .slow, thenHoldForDuration: 30)
         capture("sorting-top-to-bottom-after")
         assertOrder(initialOrder, in: app)
         relaunch(app, expecting: initialOrder)

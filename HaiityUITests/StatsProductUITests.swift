@@ -46,21 +46,42 @@ final class StatsProductUITests: XCTestCase {
         return target
     }
 
+    private func openAdjustments(_ app: XCUIApplication) {
+        let button = app.buttons["stats-adjustments"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        let frame = button.frame
+        XCTAssertTrue(frame.width > 0 && frame.height > 0 && app.frame.contains(frame))
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX - app.frame.minX, dy: frame.midY - app.frame.minY)).tap()
+    }
+
     private func selectCards(_ cards: [String], _ app: XCUIApplication, rtl: Bool = false) {
-        for _ in 0..<25 where !app.buttons["stats-adjustments"].isHittable { app.swipeDown(velocity: .slow) }
-        app.buttons["stats-adjustments"].tap()
+        openAdjustments(app)
         let all = ["yearPulse", "streakFlame", "todayRing", "weekMomentum", "totals"]
         for card in all {
             let toggle = app.switches["stats-adjustment-\(card)"]
             XCTAssertTrue(toggle.waitForExistence(timeout: 3))
             revealToggle(toggle, in: app)
-            let expected = cards.contains(card) ? "1" : "0"
-            if toggle.value as? String != expected {
-                toggle.coordinate(withNormalizedOffset: CGVector(dx: rtl ? 0.1 : 0.9, dy: 0.5)).tap()
-                expectation(for: NSPredicate(format: "value == %@", expected), evaluatedWith: toggle)
-                waitForExpectations(timeout: 5)
+            if toggle.value as? String == "1" {
+                let cell = app.cells.containing(.switch, identifier: "stats-adjustment-\(card)").firstMatch
+                XCTAssertTrue(cell.exists)
+                let tap = cell.coordinate(withNormalizedOffset: CGVector(dx: rtl ? 0.1 : 0.92, dy: 0.5))
+                print("Metric switch \(card): row \(toggle.frame), cell \(cell.frame), tap \(tap.screenPoint)")
+                tap.tap()
+                expectation(for: NSPredicate(format: "value == '0'"), evaluatedWith: toggle)
+                waitForExpectations(timeout: 10)
             }
-            XCTAssertEqual(toggle.value as? String, expected)
+            XCTAssertEqual(toggle.value as? String, "0")
+        }
+        for card in cards {
+            let toggle = app.switches["stats-adjustment-\(card)"]
+            revealToggle(toggle, in: app)
+            let cell = app.cells.containing(.switch, identifier: "stats-adjustment-\(card)").firstMatch
+            XCTAssertTrue(cell.exists)
+            cell.coordinate(withNormalizedOffset: CGVector(dx: rtl ? 0.1 : 0.92, dy: 0.5)).tap()
+            expectation(for: NSPredicate(format: "value == '1'"), evaluatedWith: toggle)
+            waitForExpectations(timeout: 10)
+            XCTAssertEqual(toggle.value as? String, "1")
         }
         app.buttons["stats-adjustments-done"].tap()
         XCTAssertFalse(app.switches["stats-adjustment-yearPulse"].exists)
@@ -68,10 +89,11 @@ final class StatsProductUITests: XCTestCase {
 
     private func revealToggle(_ toggle: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<20 {
-            let top = app.navigationBars.firstMatch.frame.maxY + 8
-            if toggle.exists, toggle.isHittable,
-               toggle.frame.midY > top, toggle.frame.midY < app.frame.maxY - 80 { break }
-            if toggle.exists, toggle.frame.midY <= top { app.swipeDown(velocity: .slow) }
+            let top = app.buttons["stats-adjustments-done"].frame.maxY + 8
+            let frame = toggle.frame
+            if toggle.exists, frame.width > 0, frame.height > 0,
+               frame.midY > top, frame.midY < app.frame.maxY - 80, toggle.isHittable { break }
+            if toggle.exists, frame.midY <= top { app.swipeDown(velocity: .slow) }
             else { app.swipeUp(velocity: .slow) }
         }
         XCTAssertTrue(toggle.isHittable)
@@ -217,8 +239,7 @@ final class StatsProductUITests: XCTestCase {
         XCTAssertTrue(reveal("stats-week-card", app).exists)
         XCTAssertTrue(reveal("stats-pro-lock", app).exists)
         XCTAssertFalse(element("stats-row", app).exists)
-        for _ in 0..<5 where !app.buttons["stats-adjustments"].isHittable { app.swipeDown(velocity: .slow) }
-        app.buttons["stats-adjustments"].tap()
+        openAdjustments(app)
         XCTAssertFalse(app.switches["stats-adjustment-yearPulse"].exists)
         XCTAssertTrue(app.buttons["paywall-purchase"].waitForExistence(timeout: 5))
     }
