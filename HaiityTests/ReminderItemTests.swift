@@ -293,7 +293,8 @@ final class ReminderItemTests: XCTestCase {
         XCTAssertFalse(bridge.contains(
             ".frame(width: max(exposedWidth, 0.1), alignment: alignment)"
         ), "the action layer must keep a stable button layout")
-        XCTAssertFalse(bridge.contains("if exposedWidth >= actionWidth"),
+        let visual = try XCTUnwrap(bridge.components(separatedBy: ".accessibilityRepresentation").first)
+        XCTAssertFalse(visual.contains("if exposedWidth >= actionWidth"),
                        "the stable action layer must not switch layout branches")
         XCTAssertTrue(bridge.contains(".opacity(progress)"),
                       "actions should fade with the reveal progress")

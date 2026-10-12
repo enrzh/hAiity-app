@@ -689,35 +689,34 @@ final class DiagnosticsTests: XCTestCase {
     /// welchem Ziel liegt.** `developer` ist bewusst kein Deep-Link-Ziel: ein
     /// `haiity://developer` wäre eine zweite, offene Tür neben der versteckten.
     func testMoreRouteAndContentViewKnowTheDeveloperPage() throws {
-        let more = try source("Haiity/Views/MoreView.swift")
-        XCTAssertTrue(more.contains("enum MoreRoute"))
-        XCTAssertTrue(more.contains("case archive, about, developer"))
+        XCTAssertEqual(MoreRoute.developer.id, .developer)
+        for host in ["about", "developer", "appearance", "habitBehavior", "github",
+                     "dataTransfer", "calendar", "notifications", "personalization", "localModel"] {
+            XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://\(host)")!),
+                         "The settings child \(host) must not acquire an external route")
+        }
 
         let content = try source("Haiity/Views/ContentView.swift")
-        XCTAssertTrue(content.contains("case .developer:"), "die Route führt nirgendwohin")
-        XCTAssertTrue(content.contains("DeveloperView(store: store, cloudStatus: cloudStatus)"),
-                      "die Route zeigt auf keine Seite")
-        // Every page that must not be reachable by `haiity://` has to be named in
-        // the one switch that decides that, rather than falling through a default.
-        // The switch is located by name rather than by matching the case list at
-        // a fixed offset: the model page now sits in its own branch of that
-        // switch, behind two lines of comment, and a test that fails because
-        // somebody annotated the code is a test nobody trusts.
-        let whitelist = try XCTUnwrap(content.range(
-            of: "func appMoreDestination(for route: MoreRoute)"))
-        XCTAssertTrue(content[whitelist.upperBound...].prefix(400)
-            .contains("case .about, .developer, .appearance, .habitBehavior, .github"),
-                      "die Whitelist muss jede Seite namentlich aufführen")
-        XCTAssertTrue(content[whitelist.upperBound...].prefix(500)
-            .contains(".localModel: nil"),
-                      "die Seite darf kein Deep-Link-Ziel bedienen")
+        let destination = try XCTUnwrap(content.range(of: "private func moreDestination"))
+        let developer = try XCTUnwrap(content.range(of: "case .developer:",
+            range: destination.upperBound..<content.endIndex))
+        let page = try XCTUnwrap(content.range(of: "DeveloperView(store: store, cloudStatus: cloudStatus)",
+            range: developer.upperBound..<content.endIndex))
+        let gate = content[developer.upperBound..<page.lowerBound]
+        XCTAssertTrue(gate.contains("DeveloperAccess.isAvailable"),
+                      "The destination must recheck ownership before mounting developer tools")
+        XCTAssertTrue(gate.contains("storedAppleUserID: PersonalName.appleUserID"))
+        XCTAssertTrue(gate.contains("storedAppleEmail: PersonalName.appleEmail"))
         XCTAssertFalse(content.contains("\"developer\""),
                        "ein Deep-Link auf den Entwicklerbereich hebelt die versteckte Tür aus")
-        // Beide Blatt-Wirte schieben die Seite ins OFFENE Blatt: ein zweites
-        // Blatt aus einem offenen heraus verschluckt iOS.
-        XCTAssertEqual(content.components(
-            separatedBy: ".navigationDestination(for: MoreRoute.self, destination: moreDestination)").count - 1, 2,
-                       "einer der beiden Blatt-Wirte kann die Tür nicht öffnen")
+        let host = try XCTUnwrap(content.range(of: ".sheet(item: $moreSheet,"))
+        let hostEnd = try XCTUnwrap(content.range(of: ".fullScreenCover(isPresented: $showReminderSetup)",
+            range: host.upperBound..<content.endIndex))
+        let sheet = content[host.upperBound..<hostEnd.lowerBound]
+        XCTAssertTrue(sheet.contains("NavigationStack(path: $moreSheetPath)"))
+        XCTAssertTrue(sheet.contains(".navigationDestination(for: MoreRoute.self, destination: moreDestination)"),
+                      "Settings children must push into the presented settings stack")
+        XCTAssertFalse(sheet.contains(".sheet("), "A settings child must not create a nested sheet host")
     }
 
     // MARK: – Quell-Verträge: der Katalog

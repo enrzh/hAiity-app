@@ -123,7 +123,6 @@ final class BackfillInteractionContractTests: XCTestCase {
         XCTAssertTrue(source.contains("simultaneousGesture(DragGesture"))
         XCTAssertTrue(source.contains("moveVisibleMonth(by:"))
         XCTAssertTrue(source.contains("selectionAccent"))
-        XCTAssertTrue(source.contains("scheme == .dark ? 0.32 : 0.16"))
         XCTAssertEqual(source.components(separatedBy: ".contentTransition(.identity)").count - 1, 2,
                        "selection tool labels must not crossfade into overlapping text")
     }
@@ -577,9 +576,8 @@ final class BackfillWriteTests: XCTestCase {
     /// Tag auf seinen eigenen Vorwert.
     private func undo(_ state: inout UndoToastState) {
         guard let toast = state.take() else { return XCTFail("kein Toast") }
-        for entry in toast.entries {
-            store.setValue(toast.habitId, day: entry.day, value: entry.previousValue)
-        }
+        store.setValues(toast.habitId, values: toast.entries.map { ($0.day, $0.previousValue) })
+        XCTAssertNil(store.lastWriteError)
     }
 
     func testBackfillOfAnEmptyDayIsUndoneToNothing() {

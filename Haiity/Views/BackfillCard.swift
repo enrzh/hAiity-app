@@ -5,8 +5,8 @@ import SwiftUI
 struct BackfillCard: View {
     let habit: Habit
     @Binding var day: String
-    let onWrite: ([String], Int?) -> Void
-    let onRestore: ([(day: String, value: Int?)]) -> Void
+    let onWrite: ([String], Int?) -> [CheckInUndo.Entry]?
+    let onRestore: ([CheckInUndo.Entry]) -> Bool
     let onClose: () -> Void
     var sourceAnchor: UnitPoint = .center
 
@@ -15,7 +15,7 @@ struct BackfillCard: View {
     @State private var visibleMonth = Date()
     @State private var amount = 1
     @State private var missingOnly = false
-    @State private var undoStack: [[(day: String, value: Int?)]] = []
+    @State private var undoStack: [[CheckInUndo.Entry]] = []
     @Environment(\.calendar) private var calendar
     @Environment(\.palettes) private var palettes
     @Environment(\.colorScheme) private var scheme
@@ -244,7 +244,7 @@ struct BackfillCard: View {
                     ForEach(0..<GridCalendar.rows, id: \.self) { weekday in
                         Text(calendar.veryShortWeekdaySymbols[weekday])
                             .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.secondaryText(preferences: appearancePreferences))
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -314,7 +314,7 @@ struct BackfillCard: View {
                 selected.removeAll()
             } label: {
                 Text(selecting ? String(localized: "Abbrechen") : String(localized: "Auswählen"))
-                    .font(.subheadline)
+                    .font(.headline)
                     .frame(minHeight: Theme.Metrics.hit)
                     .contentTransition(.identity)
             }
@@ -325,7 +325,7 @@ struct BackfillCard: View {
                 } label: {
                     Text(selected == Set(visibleDays) && !selected.isEmpty
                          ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"))
-                        .font(.subheadline)
+                        .font(.headline)
                         .frame(minHeight: Theme.Metrics.hit)
                         .contentTransition(.identity)
                 }
@@ -353,7 +353,9 @@ struct BackfillCard: View {
                 .accessibilityIdentifier("history-missing-filter")
                 .onChange(of: missingOnly) { _, _ in selected.removeAll() }
         }
+        .tint(Theme.accentText(palettes.style(for: habit)))
         .padding(.horizontal, 20)
+        .background(Theme.surfaceFill(preferences: appearancePreferences))
     }
 
     @ViewBuilder
@@ -386,27 +388,24 @@ struct BackfillCard: View {
                         .fill(fill)
                     if isSelected {
                         RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
-                            .fill(selectionAccent.opacity(scheme == .dark ? 0.32 : 0.16))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: CornerRadius.chip, style: .continuous)
-                                    .strokeBorder(selectionAccent, lineWidth: 2.5)
-                                    .padding(1)
-                            }
+                            .strokeBorder(selectionAccent, lineWidth: 2.5)
+                            .padding(1)
                     }
                     VStack(spacing: 1) {
                         Text(date, format: .dateTime.day())
                             .font(.subheadline.weight(.medium))
                         if habit.kind == .quantity, let value = habit.log[key], value > 0 {
                             Text("\(value)")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
                         } else if habit.kind == .yesNo, habit.log[key] != nil {
                             Image(systemName: habit.log[key] == Habit.Answer.no ? "xmark" : "checkmark")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                         }
                     }
                     .foregroundStyle(level == 0
                                      ? AnyShapeStyle(Color.primary)
-                                     : AnyShapeStyle(Color.white))
+                                     : AnyShapeStyle(Theme.levelText(level, dark: scheme == .dark,
+                                                                    palette: palettes.style(for: habit))))
                 }
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1, contentMode: .fit)
@@ -451,7 +450,7 @@ struct BackfillCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(Backfill.selectionLine(habit: habit, days: selected, calendar: calendar))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(scheme == .dark ? Color.white : Color.black)
                 .accessibilityIdentifier("backfill-status")
             if habit.kind == .quantity {
                 Stepper(value: $amount, in: 1...Habit.Answer.maxCount) {
@@ -467,6 +466,7 @@ struct BackfillCard: View {
         }
         .padding(.horizontal, Theme.Metrics.gutter)
         .padding(.vertical, 12)
+        .background(Theme.surfaceFill(preferences: appearancePreferences))
     }
 
     private var actionButtons: some View {
@@ -476,9 +476,13 @@ struct BackfillCard: View {
             } label: {
                 Label(action.kind == .clear ? String(localized: "Einträge löschen") : action.title,
                       systemImage: action.kind == .clear ? "eraser" : action.systemImage)
-                    .font(.subheadline.weight(.medium))
+                    .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(action.kind == .clear ? Color.primary : Color.white)
+                    .foregroundStyle(action.kind == .clear ? Color.primary
+                                     : action.kind == .declined
+                                     ? Theme.levelText(Habit.Answer.declinedLevel, dark: scheme == .dark,
+                                                       palette: palettes.style(for: habit))
+                                     : Color.white)
                     .background {
                         if action.kind == .clear {
                             Capsule().fill(.regularMaterial)
@@ -505,13 +509,14 @@ struct BackfillCard: View {
 
     private func write(_ keys: [String], value: Int?) {
         guard !keys.isEmpty else { return }
-        undoStack.append(keys.map { (day: $0, value: habit.log[$0]) })
-        onWrite(keys, value)
+        guard let entries = onWrite(keys, value) else { undoStack.removeAll(); return }
+        undoStack.append(entries)
     }
 
     private func undo() {
-        guard let entries = undoStack.popLast() else { return }
-        onRestore(entries)
+        guard let entries = undoStack.last else { return }
+        guard onRestore(entries) else { undoStack.removeAll(); return }
+        undoStack.removeLast()
     }
 }
 

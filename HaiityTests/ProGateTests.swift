@@ -488,7 +488,7 @@ final class ProGateTests: XCTestCase {
         // ContentView owns navigation only. Creation is delegated to the
         // editor, which contains the single ProGate check before saving.
         let content = try source("Haiity/Views/ContentView.swift")
-        XCTAssertTrue(content.contains("EditHabitSheet(store: store, asPage: true,"))
+        XCTAssertTrue(content.contains("EditHabitSheet(store: store, initialItemType: initialCreationType,"))
         XCTAssertTrue(content.contains("private func requestCreate()"))
     }
 

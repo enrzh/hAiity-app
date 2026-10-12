@@ -964,6 +964,24 @@ final class HabitStore {
             }
         }
         if let error = coordinationError ?? (writeError as NSError?) {
+            let failedData = data
+            // Failed mutations must not remain queued for the next successful write.
+            data = persistedPayload.flatMap { try? JSONDecoder().decode(HabitData.self, from: $0) }
+                ?? (readFailed ? .empty : .fresh)
+            // Keep anti-resurrection markers without deleting a still-durable item.
+            let durableHabitIDs = Set(data.habits.map(\.id))
+            data.deletedHabits.merge(failedData.deletedHabits.filter { !durableHabitIDs.contains($0.key) },
+                                    uniquingKeysWith: max)
+            // The session retry path needs its original finish time and check-in.
+            let durableSessionIDs = Set(data.sessionHistory.map(\.id))
+            let pendingSessions = failedData.sessionHistory.filter { !durableSessionIDs.contains($0.id) }
+            data.sessionHistory.append(contentsOf: pendingSessions)
+            for record in pendingSessions {
+                if let index = data.habits.firstIndex(where: { $0.id == record.habitID }),
+                   let pending = failedData.habits.first(where: { $0.id == record.habitID })?.log[record.day] {
+                    data.habits[index].log[record.day] = pending
+                }
+            }
             lastWriteError = error.localizedDescription
             return false
         }
@@ -1104,14 +1122,36 @@ final class HabitStore {
     /// nil (oder ≤ 0) entfernt den Eintrag; 0-Werte werden nie
     /// materialisiert (siehe Habit-Dekodierung).
     func setValue(_ id: UUID, day: String, value: Int?) {
-        guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return }
-        let normalized = value.flatMap { $0 >= 1 ? $0 : nil }
-        let wasMissed = data.habits[i].missedDays.contains(day)
-        guard data.habits[i].log[day] != normalized || wasMissed else { return }
-        data.habits[i].log[day] = normalized
-        data.habits[i].missedDays.removeAll { $0 == day }
-        if normalized != nil { autoArchiveIfNeeded(at: i, day: day) }
-        persist()
+        _ = setValues(id, values: [(day, value)])
+    }
+
+    /// Exact history writes and restores share one coordinated persistence pass.
+    @discardableResult
+    func setValues(_ id: UUID, values: [(day: String, value: Int?)]) -> [(day: String, previousValue: Int?)]? {
+        guard let i = data.habits.firstIndex(where: { $0.id == id }) else { return nil }
+        let receipt = values.map { (day: $0.day, previousValue: data.habits[i].log[$0.day]) }
+        let previousData = data
+        let previousPayload = persistedPayload
+        let hadWriteError = lastWriteError != nil
+        var changed = false
+        for (day, value) in values {
+            let normalized = value.flatMap { $0 >= 1 ? $0 : nil }
+            let wasMissed = data.habits[i].missedDays.contains(day)
+            guard data.habits[i].log[day] != normalized || wasMissed else { continue }
+            data.habits[i].log[day] = normalized
+            data.habits[i].missedDays.removeAll { $0 == day }
+            if normalized != nil { autoArchiveIfNeeded(at: i, day: day) }
+            changed = true
+        }
+        guard changed else { return lastWriteError == nil ? receipt : nil }
+        // New single session check-ins keep their receipt; failed retries keep the earlier snapshot.
+        guard persist() else {
+            if values.count > 1 || hadWriteError, persistedPayload == previousPayload {
+                data = previousData
+            }
+            return nil
+        }
+        return receipt
     }
 
     func setReminderCompletion(_ id: UUID, day: String, completed: Bool,

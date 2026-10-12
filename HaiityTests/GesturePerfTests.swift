@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Haiity
 
 final class HabitCardInteractionSourceTests: XCTestCase {
@@ -119,15 +121,66 @@ final class HabitCardInteractionSourceTests: XCTestCase {
         XCTAssertEqual(actions.components(separatedBy: "handler: onClear").count - 1, 1)
     }
 
+    @MainActor
     func testStatusControlsUseTheHabitPaletteForPositiveAndNegativeStates() throws {
-        let source = try habitCardSource()
+        XCTAssertTrue(try habitCardSource().contains("HabitActionControls("),
+                      "The collection must render the shared action controls")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = "2026-10-10"
+        let now = try XCTUnwrap(DayKey.date(from: day, calendar: calendar))
+        let palettes = PaletteBook(global: .rose)
 
-        XCTAssertTrue(source.contains("private var habitStyle: PaletteStyle { palettes.style(for: habit) }"))
-        XCTAssertTrue(source.contains("Theme.accentText(habitStyle)"))
-        XCTAssertTrue(source.contains("Theme.accentFill(habitStyle)"))
-        XCTAssertTrue(source.contains("habitStyle.negative(dark: scheme == .dark)"))
-        XCTAssertFalse(source.contains("Theme.accentText(palettes.style)"))
-        XCTAssertFalse(source.contains("Theme.accentFill(palettes.style)"))
+        for scheme in [ColorScheme.light, .dark] {
+            for (kind, value) in [(HabitKind.checkbox, 1), (.quantity, 3),
+                                  (.yesNo, Habit.Answer.yes), (.yesNo, Habit.Answer.no)] {
+                var habit = Habit(name: "Read", recurrence: Recurrence(target: kind == .quantity ? 3 : nil),
+                                  kind: kind)
+                habit.palette = .blue
+                habit.log[day] = value
+                let style = palettes.style(for: habit)
+                let dark = scheme == .dark
+                let negative = kind == .yesNo && value == Habit.Answer.no
+                let fill = kind != .yesNo ? (dark ? style.accentTextDark : style.accentTextLight)
+                    : negative ? style.negative(dark: dark) : (dark ? style.accentFillDark : style.accentFillLight)
+                let globalFill = kind != .yesNo
+                    ? (dark ? palettes.style.accentTextDark : palettes.style.accentTextLight)
+                    : negative ? palettes.style.negative(dark: dark)
+                    : (dark ? palettes.style.accentFillDark : palettes.style.accentFillLight)
+                XCTAssertNotEqual(fill, globalFill, "The fixture must distinguish the item's palette from the app tint")
+                let content = HabitActionControls(habit: habit, calendar: calendar, now: now,
+                    onToggleDay: { _ in }, onIncrement: {}, onAnswer: { _ in })
+                    .environment(\.palettes, palettes)
+                    .environment(\.colorScheme, scheme)
+                    .environment(\.dynamicTypeSize, .large)
+                    .frame(width: 240, height: 70)
+                    .background(Color.white)
+                let renderer = ImageRenderer(content: content)
+                renderer.scale = 1
+                var image: UIImage?
+                UITraitCollection(userInterfaceStyle: dark ? .dark : .light).performAsCurrent {
+                    image = renderer.uiImage
+                }
+                let cg = try XCTUnwrap(image?.cgImage)
+                var pixels = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+                pixels.withUnsafeMutableBytes { bytes in
+                    let context = CGContext(data: bytes.baseAddress, width: cg.width, height: cg.height,
+                        bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                    context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+                }
+                func matchingPixels(_ hex: UInt32) -> Int {
+                    let rgb = [Int((hex >> 16) & 255), Int((hex >> 8) & 255), Int(hex & 255)]
+                    return stride(from: 0, to: pixels.count, by: 4).filter { offset in
+                        (0..<3).allSatisfy { abs(Int(pixels[offset + $0]) - rgb[$0]) <= 2 }
+                    }.count
+                }
+                XCTAssertGreaterThan(matchingPixels(fill), kind == .yesNo ? 100 : 10,
+                                     "The selected \(kind) control must paint the item's \(scheme) answer color")
+                XCTAssertEqual(matchingPixels(globalFill), 0, "The app tint must not override the item's answer palette")
+            }
+        }
     }
 
     private func habitCardSource() throws -> String {

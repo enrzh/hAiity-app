@@ -41,7 +41,8 @@ final class StatsContextMenuUITests: XCTestCase {
 
     func testLongPressingSmallStatsTileKeepsItsSiblingsVisible() {
         let app = XCUIApplication()
-        app.launchArguments = ["-screen", "stats", "-pro", "on", "-seed-stats"]
+        app.launchArguments = ["-design-fixture", "crowded", "-screen", "stats", "-pro", "on", "-seed-stats",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
 
         let streak = app.descendants(matching: .any)["stats-card-streakFlame"].firstMatch
@@ -53,6 +54,7 @@ final class StatsContextMenuUITests: XCTestCase {
         XCTAssertTrue(today.waitForExistence(timeout: 2))
         XCTAssertTrue(week.waitForExistence(timeout: 2))
         XCTAssertTrue(totals.waitForExistence(timeout: 2))
+        XCTAssertEqual(week.firstMatch.value as? String, "In the weekly summary")
         for _ in 0..<16 where !streak.isHittable || !totals.isHittable {
             app.swipeUp(velocity: .slow)
         }
@@ -69,7 +71,7 @@ final class StatsContextMenuUITests: XCTestCase {
 
         streak.press(forDuration: 1.0)
 
-        XCTAssertTrue(app.buttons["Statistik anpassen"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Customize Statistics"].waitForExistence(timeout: 3))
         let screen = XCUIScreen.main.screenshot()
         // The threshold sits in the measured gap between the two states, not on
         // a tuned edge. An absent tile leaves a uniform context-menu backdrop and
@@ -91,12 +93,13 @@ final class StatsContextMenuUITests: XCTestCase {
 
     func testLongPressingPerHabitStatsRowCapturesItsCardBoundary() {
         let app = XCUIApplication()
-        app.launchArguments = ["-screen", "stats", "-pro", "on", "-seed-stats"]
+        app.launchArguments = ["-design-fixture", "crowded", "-screen", "stats", "-pro", "on", "-seed-stats",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
 
         let row = app.descendants(matching: .any)["stats-row"].firstMatch
         XCTAssertTrue(app.scrollViews.firstMatch.waitForExistence(timeout: 10))
-        for _ in 0..<8 where !row.exists {
+        for _ in 0..<16 where !row.isHittable {
             app.scrollViews.firstMatch.swipeUp()
         }
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -106,7 +109,9 @@ final class StatsContextMenuUITests: XCTestCase {
 
         row.press(forDuration: 1.0)
 
-        XCTAssertTrue(app.buttons["Statistik anpassen"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Customize Statistics"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Details"].exists)
+        XCTAssertTrue(app.buttons["History"].exists)
         let preview = app.descendants(matching: .any)["stats-preview"].firstMatch
         XCTAssertTrue(preview.waitForExistence(timeout: 2),
                       "The enlarged preview must expose its own card boundary")

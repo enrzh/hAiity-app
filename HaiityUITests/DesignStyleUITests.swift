@@ -9,7 +9,7 @@ final class DesignStyleUITests: XCTestCase {
 
     private func launch(photo: Bool = false, accessibleRTL: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", "mixed", "-screen", "more", "-pro", "on",
+        app.launchArguments = ["-design-fixture", "mixed", "-screen", "habits", "-pro", "on",
                                "-design-appearance", photo ? "dark" : "light",
                                "-design-material", photo ? "milky" : "solid",
                                "-AppleLanguages", accessibleRTL ? "(ar)" : "(en)",
@@ -19,7 +19,7 @@ final class DesignStyleUITests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
-        selectTab(accessibleRTL ? "المزيد" : "More", in: app)
+        openSettings(in: app)
         return app
     }
 
@@ -37,6 +37,22 @@ final class DesignStyleUITests: XCTestCase {
         }
         XCTAssertTrue(tab.waitForExistence(timeout: 5))
         tab.tap()
+    }
+
+    private func openSettings(in app: XCUIApplication) {
+        let settings = app.buttons["open-settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+    }
+
+    private func returnToHub(in app: XCUIApplication) {
+        XCTAssertFalse(app.buttons["close-more-sheet"].exists, "a child uses Back, not the hub close action")
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.isHittable)
+        back.tap()
+        XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["close-more-sheet"].isHittable)
     }
 
     private func openAppearance(in app: XCUIApplication) {
@@ -59,31 +75,33 @@ final class DesignStyleUITests: XCTestCase {
     func testStyleTapsApplyAcrossRootAndAccountPages() {
         let app = launch()
         for style in ["native", "quiet", "focus", "studio"] {
-            selectTab("More", in: app)
+            if !app.buttons["open-appearance"].exists { openSettings(in: app) }
             openAppearance(in: app)
             let option = app.buttons["appearance-design-\(style)"]
             reveal(option, in: app)
             option.tap()
             XCTAssertTrue(option.isSelected)
             capture("style-\(style)-selector")
+            returnToHub(in: app)
             app.buttons["close-more-sheet"].tap()
             selectTab("Habits", in: app)
             XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 5))
             capture("style-\(style)-habits")
-            selectTab("Stats", in: app)
+            selectTab("Progress", in: app)
             XCTAssertTrue(app.descendants(matching: .any)["stats-week-card"].firstMatch.waitForExistence(timeout: 5))
             capture("style-\(style)-stats")
-            selectTab("More", in: app)
+            openSettings(in: app)
             let account = app.buttons["open-account"].firstMatch
             reveal(account, in: app)
             capture("style-\(style)-more")
             account.tap()
             XCTAssertTrue(app.descendants(matching: .any)["account-header"].firstMatch.waitForExistence(timeout: 5))
             capture("style-\(style)-account")
-            app.buttons["Done"].firstMatch.tap()
+            returnToHub(in: app)
             openAppearance(in: app)
             XCTAssertTrue(app.buttons["appearance-design-\(style)"].isSelected,
                           "navigation must retain the chosen design")
+            returnToHub(in: app)
             app.buttons["close-more-sheet"].tap()
         }
     }
@@ -91,6 +109,7 @@ final class DesignStyleUITests: XCTestCase {
     func testEveryStyleKeepsPhotoMaterialAndAdvancedControls() {
         let app = launch(photo: true)
         for style in ["native", "quiet", "focus", "studio"] {
+            if !app.buttons["open-appearance"].exists { openSettings(in: app) }
             openAppearance(in: app)
             let option = app.buttons["appearance-design-\(style)"]
             reveal(option, in: app)
@@ -110,6 +129,7 @@ final class DesignStyleUITests: XCTestCase {
             }
             XCTAssertEqual(compact.value as? String, "1",
                            "changing design must preserve a non-default compact preference")
+            returnToHub(in: app)
             app.buttons["close-more-sheet"].tap()
         }
     }
@@ -124,6 +144,7 @@ final class DesignStyleUITests: XCTestCase {
         reveal(studio, in: app)
         XCTAssertGreaterThanOrEqual(studio.frame.width, 44)
         studio.tap()
+        reveal(studio, in: app)
         XCTAssertTrue(studio.isSelected)
         capture("styles-rtl-ax5-studio")
         let solid = app.buttons["appearance-material-solid"].firstMatch

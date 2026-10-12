@@ -13,12 +13,13 @@ struct EditHabitSheet: View {
     @Environment(\.appearancePreferences) private var appearancePreferences
     let store: HabitStore
     var existing: Habit?
+    var initialItemType: HabitItemType = .habit
     /// Als SEITE präsentiert (Anlegen, fullScreenCover): das Schließen ist
     /// dann ein X oben links — dieselbe Geste wie auf der Mehr-Seite. Als
     /// Blatt (Bearbeiten) bleibt es das Wort „Abbrechen". Beide Wege tun
     /// exakt dasselbe: verwerfen ohne zu sichern.
     var asPage = false
-    var onCreateFromText: ((String) -> Void)? = nil
+    var offersSentenceCreation: Bool = false
 
     @State private var name = ""
     @State private var emoji = ""
@@ -26,6 +27,7 @@ struct EditHabitSheet: View {
     @State private var calendarSyncEnabled = true
     @State private var notificationMode: HabitNotificationMode = .standard
     @State private var notificationTimes: [Int]?
+    @State private var notificationTimeIDs = [UUID()]
     @State private var repeatsWhileIncomplete = true
     @State private var autoResolveChoice: HabitAutoResolveChoice?
     /// Nil inherits the global default; `device` is an explicit per-item
@@ -58,13 +60,41 @@ struct EditHabitSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingMultipleDate: MultipleDateEdit?
     @State private var showingCreationAdvanced = false
-    @State private var showingKind = false
     @State private var showingScheduleDetails = false
+    @State private var sentenceText: String?
+    @State private var didLoad = false
+    @State private var isVisible = false
+    @State private var permissionTask: Task<Void, Never>?
     @State private var saveError: String?
     @State private var isSaving = false
     @State private var savedWhileAwaitingPermission = false
     private enum IdentityField: Hashable { case name, emoji }
     @FocusState private var focusedIdentity: IdentityField?
+
+    init(store: HabitStore, existing: Habit? = nil,
+         initialItemType: HabitItemType = .habit, asPage: Bool = false,
+         offersSentenceCreation: Bool = false) {
+        self.store = store
+        self.existing = existing
+        self.initialItemType = initialItemType
+        self.asPage = asPage
+        self.offersSentenceCreation = offersSentenceCreation
+        _itemType = State(initialValue: existing?.itemType ?? initialItemType)
+        let calendar = HabitTimeZone.calendar(identifier:
+            existing?.timeZoneIdentifier ?? store.defaultTimeZoneIdentifier)
+        _draft = State(initialValue: Self.initialDraft(existing: existing,
+            initialItemType: initialItemType, calendar: calendar))
+    }
+
+    static func initialDraft(existing: Habit? = nil, initialItemType: HabitItemType = .habit,
+                             calendar: Calendar, today: Date = .now) -> RecurrenceDraft {
+        if let existing {
+            return RecurrenceDraft(existing.recurrence,
+                timeMinutes: existing.timeMinutes ?? existing.reminderMinutes,
+                today: today, calendar: calendar)
+        }
+        return RecurrenceDraft(itemType: initialItemType, today: today, calendar: calendar)
+    }
 
     private var isCreating: Bool { existing == nil }
     private var designStyle: AppDesignStyle { appearancePreferences.designStyle }
@@ -206,10 +236,10 @@ struct EditHabitSheet: View {
                         .onSubmit { focusedIdentity = nil }
                         .accessibilityIdentifier("habit-name")
                 } footer: {
-                    if isCreating, let onCreateFromText {
+                    if isCreating, offersSentenceCreation {
                         Button {
                             focusedIdentity = nil
-                            onCreateFromText(name)
+                            sentenceText = name
                         } label: {
                             Label(String(localized: "Aus einem Satz anlegen"), systemImage: "text.bubble")
                                 .font(.subheadline)
@@ -224,19 +254,14 @@ struct EditHabitSheet: View {
                 recurrenceSection.settingsListRow()
                 if itemType == .habit {
                     Section {
-                        DisclosureGroup(isExpanded: $showingKind) {
-                            kindControls
-                        } label: {
-                            AppSettingsRow(title: String(localized: "Art"), detail: kind.displayName) {
-                                EmptyView()
-                            }
-                            .foregroundStyle(.primary)
-                        }
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("creation-kind")
+                        kindControls
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("creation-kind")
                     .settingsListRow()
                 }
+                Section { creationPreview }
+                    .settingsListRow()
                 Section {
                     Button {
                         showingCreationAdvanced.toggle()
@@ -313,28 +338,38 @@ struct EditHabitSheet: View {
             .environment(\.calendar, calendar)
             .environment(\.timeZone, calendar.timeZone)
             .scrollDismissesKeyboard(.interactively)
-            .appPageHeader(existing == nil ? creationTitle : String(localized: "Bearbeiten"))
+            .navigationTitle(existing == nil ? creationTitle : String(localized: "Bearbeiten"))
+            .navigationBarTitleDisplayMode(.inline)
+            .pageHeaderChrome()
+            .navigationDestination(item: $sentenceText) { initialText in
+                SpeakToCreateSheet(store: store, initialText: initialText, embedded: true,
+                                   onClose: { sentenceText = nil },
+                                   onCreated: { close() })
+            }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    if asPage {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
-                        .accessibilityLabel(String(localized: "Schließen"))
-                        .accessibilityIdentifier("close-create")
-                        .disabled(isSaving || savedWhileAwaitingPermission)
-                    } else {
-                        Button(String(localized: "Abbrechen")) { dismiss() }
+                if sentenceText == nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        if asPage {
+                            Button {
+                                close()
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .accessibilityLabel(String(localized: "Schließen"))
+                            .accessibilityIdentifier("close-create")
                             .disabled(isSaving || savedWhileAwaitingPermission)
+                        } else {
+                            Button(String(localized: "Abbrechen")) { close() }
+                                .accessibilityIdentifier("close-create")
+                                .disabled(isSaving || savedWhileAwaitingPermission)
+                        }
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Sichern")) { save() }
-                        .fontWeight(.semibold)
-                        .disabled(isSaving || savedWhileAwaitingPermission || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityIdentifier("save-habit")
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(String(localized: "Sichern")) { save() }
+                            .fontWeight(.semibold)
+                            .disabled(isSaving || savedWhileAwaitingPermission || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .accessibilityIdentifier("save-habit")
+                    }
                 }
             }
         }
@@ -347,6 +382,7 @@ struct EditHabitSheet: View {
         .sheet(item: $paywall) { context in
             PaywallView(context: context, store: store,
                         onUnlocked: {
+                            guard isVisible else { return }
                             if pendingCalendarEnable {
                                 pendingCalendarEnable = false
                                 calendarSyncEnabled = true
@@ -405,10 +441,17 @@ struct EditHabitSheet: View {
             .presentationDragIndicator(.visible)
         }
         .onAppear {
+            isVisible = true
+            guard !didLoad else { return }
+            didLoad = true
             load()
             if isCreating {
                 focusedIdentity = .name
             }
+        }
+        .onDisappear {
+            isVisible = false
+            permissionTask?.cancel()
         }
         .confirmationDialog(String(localized: "Eintrag löschen?"),
                             isPresented: $showingDeleteConfirmation,
@@ -518,28 +561,32 @@ struct EditHabitSheet: View {
     }
 
     private var creationPreview: some View {
-        VStack(alignment: .leading, spacing: designStyle.rowGap) {
-            Text(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
-                .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
+        Text(Self.previewSummary(name: name, itemType: itemType, draft: draft,
+                                 notificationMode: notificationMode,
+                                 notificationTimes: notificationTimes, calendar: calendar))
+            .font(.body)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, designStyle.rowGap)
+            .accessibilityIdentifier("creation-preview")
+    }
 
-            if draft.hasTime || notificationTimes != nil || notificationMode == .off {
-                Text(Self.notificationPreview(mode: notificationMode,
-                                              times: notificationTimeValues,
-                                              calendar: calendar))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    static func previewSummary(name: String, itemType: HabitItemType, draft: RecurrenceDraft,
+                               notificationMode: HabitNotificationMode,
+                               notificationTimes: [Int]?, calendar: Calendar) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let type = itemType == .habit ? String(localized: "Habit") : String(localized: "Erinnerung")
+        let identity = trimmed.isEmpty ? type : "\(type): \(trimmed)"
+        var schedule = draft.summary(calendar: calendar)
+        if draft.frequency != .once, draft.hasStart {
+            let start = draft.start.formatted(Date.FormatStyle(date: .long, time: .omitted,
+                locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone))
+            schedule += ", " + String(format: String(localized: "Ab %@"), start)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, designStyle.rowGap)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(String(localized: "Vorschau: \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? creationTitle : name), \(draft.summary(calendar: calendar))"))
-        .accessibilityValue(draft.hasTime || notificationTimes != nil || notificationMode == .off
-            ? Self.notificationPreview(mode: notificationMode,
-                                       times: notificationTimeValues, calendar: calendar) : "")
-        .accessibilityIdentifier("creation-preview")
+        let times = notificationTimes
+            ?? [draft.timeMinutes(calendar: calendar) ?? Habit.defaultNotificationMinutes]
+        return String(localized: "Vorschau: \(identity), \(schedule)") + "\n"
+            + notificationPreview(mode: notificationMode, times: times, calendar: calendar)
     }
 
     private var creationAdvancedNotificationSection: some View {
@@ -599,8 +646,6 @@ struct EditHabitSheet: View {
 
     private var recurrenceSection: some View {
         Section {
-            if !isCreating { summaryRow }
-
             if itemType == .reminder || draft.frequency == .once
                 || draft.frequency == .monthly || draft.frequency == .yearly {
                 appointmentDateControls
@@ -647,7 +692,6 @@ struct EditHabitSheet: View {
             }
 
             if itemType == .reminder { appointmentTimeControls }
-            if isCreating { creationPreview }
         } header: {
             Text(String(localized: "Zeitraum"))
         } footer: {
@@ -812,7 +856,7 @@ struct EditHabitSheet: View {
             Text(String(localized: "Keine Mitteilungen geplant"))
                 .foregroundStyle(.secondary)
         }
-        ForEach(notificationTimeValues.indices, id: \.self) { index in
+        ForEach(Array(notificationTimeIDs.enumerated()), id: \.element) { index, _ in
             let layout = dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Metrics.gap))
                 : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
@@ -827,6 +871,7 @@ struct EditHabitSheet: View {
                     guard times.indices.contains(index) else { return }
                     times.remove(at: index)
                     notificationTimes = times
+                    notificationTimeIDs.remove(at: index)
                 } label: {
                     Image(systemName: "minus.circle.fill")
                         .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
@@ -843,6 +888,7 @@ struct EditHabitSheet: View {
             guard let next = (0..<24 * 60).lazy.map({ (start + $0) % (24 * 60) })
                 .first(where: { !times.contains($0) }) else { return }
             notificationTimes = times + [next]
+            notificationTimeIDs.append(UUID())
         } label: {
             Label(String(localized: "Mitteilung hinzufügen"), systemImage: "plus.circle")
                 .frame(minHeight: Theme.Metrics.hit)
@@ -865,20 +911,6 @@ struct EditHabitSheet: View {
             values[index] = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
             notificationTimes = values
         })
-    }
-
-    /// Die eingestellte Regel als ein Satz — das Erste in der Sektion, damit
-    /// niemand aus Steppern zusammenreimen muss, was er gerade gebaut hat.
-    private var summaryRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "calendar")
-                .foregroundStyle(Theme.accentText(palettes.style))
-            Text(draft.summary(calendar: calendar))
-                .font(.subheadline.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("recurrence-summary")
     }
 
     private var intervalLabel: String {
@@ -1226,6 +1258,7 @@ struct EditHabitSheet: View {
         calendarSyncEnabled = habit.calendarSyncEnabled
         notificationMode = habit.notificationMode
         notificationTimes = habit.notificationTimes
+        notificationTimeIDs = notificationTimeValues.map { _ in UUID() }
         timeZoneIdentifier = habit.timeZoneIdentifier
         repeatsWhileIncomplete = habit.repeatsWhileIncomplete
         autoResolveChoice = habit.autoResolveChoice
@@ -1248,7 +1281,7 @@ struct EditHabitSheet: View {
     /// Sichern bleibt synchron. Die Berechtigung gehört zum bestätigten
     /// Eintrag, nicht zu einem möglicherweise verworfenen Entwurf.
     private func save(skipGate: Bool = false) {
-        guard !isSaving, !savedWhileAwaitingPermission else { return }
+        guard isVisible, !isSaving, !savedWhileAwaitingPermission else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if !skipGate,
@@ -1306,7 +1339,7 @@ struct EditHabitSheet: View {
         }
         savedWhileAwaitingPermission = true
         isSaving = true
-        Task {
+        permissionTask = Task {
             let granted = await Reminders.ensurePermission()
             if granted {
                 // Store persistence schedules the normal change path; this
@@ -1315,6 +1348,7 @@ struct EditHabitSheet: View {
             }
             let suppressed = NotificationPromptPreference.isSuppressed
             await MainActor.run {
+                guard !Task.isCancelled, isVisible else { return }
                 isSaving = false
                 if granted || suppressed {
                     dismiss()
@@ -1323,6 +1357,13 @@ struct EditHabitSheet: View {
                 }
             }
         }
+    }
+
+    private func close() {
+        guard isVisible else { return }
+        isVisible = false
+        permissionTask?.cancel()
+        dismiss()
     }
 }
 

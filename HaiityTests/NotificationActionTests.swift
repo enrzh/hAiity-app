@@ -472,7 +472,34 @@ final class NotificationActionTests: XCTestCase {
         XCTAssertLessThan(route.lowerBound, boot.lowerBound,
                           "the debug screen route must not wait for startup sync")
 
-        XCTAssertTrue(startup.contains("nativeTab = .more\n                presentMoreSheet(.habitBehavior)"),
-                      "the iOS 26 sheet is attached to the More tab")
+        let settingsStart = try XCTUnwrap(source.range(of: "if args[i + 1] == \"notification-actions\""))
+        let settingsEnd = try XCTUnwrap(source.range(of: "if args[i + 1] == \"appearance\"",
+                                                   range: settingsStart.upperBound..<source.endIndex))
+        let settings = source[settingsStart.lowerBound..<settingsEnd.lowerBound]
+        XCTAssertTrue(settings.contains("presentMoreSheet(.habitBehavior)"))
+        XCTAssertTrue(settings.contains("guard routeToken == launchRouteToken else { return }"),
+                      "a newer route must cancel delayed debug settings presentation")
+        XCTAssertFalse(settings.contains("nativeTab ="), "settings must open on the current content tab")
+        for write in ["store.", "updateCloudPreferences", "Reminders.ensurePermission", "CalendarSync.requestAccess"] {
+            XCTAssertFalse(settings.contains(write), "debug navigation must not write preferences or request permission")
+        }
+
+        for tab in [AppTab.today, .habits, .stats, .search] {
+            var work = RouteWork()
+            let item = work.begin(AppRouteEffect(tab: tab, morePage: .habitBehavior,
+                                                opensSearch: false, opensCreate: false))
+            XCTAssertEqual(item.effect.tab, tab)
+            var presentation = RoutePresentation()
+            presentation.more = .presented
+            presentation.morePage = .settings
+            XCTAssertEqual(work.nextStep(for: item, presentation: presentation), .dismissMore)
+            presentation.more = .dismissing
+            XCTAssertEqual(work.nextStep(for: item, presentation: presentation), .waitForMoreDismissal)
+            presentation.more = .absent
+            XCTAssertEqual(work.nextStep(for: item, presentation: presentation), .apply)
+            _ = work.begin(AppDestination.stats.effect)
+            XCTAssertNil(work.nextStep(for: item, presentation: presentation),
+                         "the superseded startup route must never reopen settings")
+        }
     }
 }

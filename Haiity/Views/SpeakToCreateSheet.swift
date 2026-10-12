@@ -4,6 +4,9 @@ import SwiftUI
 struct SpeakToCreateSheet: View {
 
     let store: HabitStore
+    let embedded: Bool
+    let onClose: (() -> Void)?
+    let onCreated: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palettes) private var palettes
@@ -21,6 +24,7 @@ struct SpeakToCreateSheet: View {
     @State private var resumeEditingAfterDictation = false
     @State private var referenceNow = Date()
     @State private var isVisible = false
+    @State private var didFinish = false
     @State private var workTask: Task<Void, Never>?
     /// The model's reading of the sentence, and the exact text it was made
     /// from. Kept apart because a reading belongs to one sentence: edit a word
@@ -39,8 +43,12 @@ struct SpeakToCreateSheet: View {
     @State private var modelService = LocalModelService()
     @State private var localReader = LocalModelSentenceReader(service: LocalModelService())
 
-    init(store: HabitStore, initialText: String = "") {
+    init(store: HabitStore, initialText: String = "", embedded: Bool = false,
+         onClose: (() -> Void)? = nil, onCreated: (() -> Void)? = nil) {
         self.store = store
+        self.embedded = embedded
+        self.onClose = onClose
+        self.onCreated = onCreated
         _text = State(initialValue: initialText)
     }
 
@@ -82,7 +90,7 @@ struct SpeakToCreateSheet: View {
     /// below iOS 26 and in the simulator, which made a downloaded model look
     /// like it did nothing. The two are alternatives, not a preference order.
     private var canRead: Bool {
-        hasUsableReader && hasSentence && !isReading && !isWorking
+        hasUsableReader && hasSentence && !isReading && !isWorking && !didCreate
             && !dictation.state.isActive && draft?.validationMessage == nil
     }
 
@@ -90,57 +98,9 @@ struct SpeakToCreateSheet: View {
     @State private var hasDownloadedModel = false
 
     var body: some View {
-        NavigationStack {
-            ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: Theme.Metrics.settingsSectionGap) {
-                    if !hasSentence { promptPanel }
-                    transcriptField
-                    // A draft needs the full detent to remain clear of the dock.
-                    if let draft, detent == .large {
-                        draftPreview(draft)
-                    }
-                }
-                .padding(.horizontal, Theme.Metrics.gutter)
-                .id("speak-content")
-            }
-            .scrollIndicators(.hidden)
-            // The dock floats, so the content has to be able to move out from
-            // under it. The inset alone was not enough once the keyboard was up
-            // inside a half-height sheet: the draft card ended up underneath the
-            // dock with its last line sliced off. This is a scroll-content margin
-            // rather than padding, so it survives the viewport shrinking.
-            .contentMargins(.bottom, dockClearance, for: .scrollContent)
-            .softScrollEdges()
-            .settingsChrome()
-            .navigationTitle(String(localized: "Aus einem Satz anlegen"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(String(localized: "Abbrechen")) { close() }
-                        .accessibilityIdentifier("speak-to-create-close")
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) { dock }
-            // Half a page to begin with, and the full page when there is something
-            // to look at. A grabber is there so it can also be dragged by hand,
-            // and the page behind stays live at the short detent — which is the
-            // point of a half sheet: you can see what you are adding to.
-            .presentationDetents([.fraction(0.5), .large], selection: $detent)
-            .presentationDragIndicator(.visible)
-            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
-            .presentationCornerRadius(CornerRadius.hero)
-            // Only once the sheet is at the full height AND there is a draft.
-            // Both have to be watched: expanding happens when the field is
-            // focused, which is before a single word has been typed, so listening
-            // to the height alone fired the scroll against a nil draft and never
-            // ran. And watching the draft alone was the original bug — it scrolled
-            // the listening surface out of view and up under the bar.
-            .onChange(of: detent) { _, _ in scrollDraftIntoView(proxy) }
-            .onChange(of: draft != nil) { _, _ in scrollDraftIntoView(proxy) }
-            }
-        }
+        presentation
         .onAppear {
+            guard !didFinish else { return }
             isVisible = true
             referenceNow = Date()
             fieldFocused = true
@@ -152,13 +112,7 @@ struct SpeakToCreateSheet: View {
             }
         }
         .onDisappear {
-            isVisible = false
-            workTask?.cancel()
-            dictationTask?.cancel()
-            dictation.cancel()
-            // A model holds hundreds of megabytes of weight cache. Keeping it
-            // between sheets makes the rest of the app feel heavier than it is.
-            localReader.release()
+            cancelPendingWork()
         }
         .alert(String(localized: "Fehler"), isPresented: Binding(
             get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
@@ -168,7 +122,7 @@ struct SpeakToCreateSheet: View {
         }
         // Tapping the text is a request to edit, which also needs the room.
         .onChange(of: fieldFocused) { _, focused in
-            if focused {
+            if focused, isVisible {
                 dictationTask?.cancel()
                 if dictation.state == .listening {
                     resumeEditingAfterDictation = true
@@ -184,11 +138,11 @@ struct SpeakToCreateSheet: View {
             }
         }
         .onChange(of: dictation.transcript) { _, transcript in
-            guard isVisible, !fieldFocused else { return }
+            guard isVisible, !didCreate, !fieldFocused else { return }
             text = SpeechDictation.mergedTranscript(prefix: dictationPrefix, transcript: transcript)
         }
         .onChange(of: dictation.state) { old, new in
-            guard isVisible, old.isActive, !new.isActive else { return }
+            guard isVisible, !didCreate, old.isActive, !new.isActive else { return }
             text = SpeechDictation.mergedTranscript(prefix: dictationPrefix, transcript: dictation.transcript)
             if resumeEditingAfterDictation {
                 resumeEditingAfterDictation = false
@@ -212,6 +166,52 @@ struct SpeakToCreateSheet: View {
             workTask?.cancel()
         }
         .interactiveDismissDisabled(isWorking)
+    }
+
+    @ViewBuilder
+    private var presentation: some View {
+        if embedded {
+            content
+        } else {
+            NavigationStack { content }
+                .presentationDetents([.fraction(0.5), .large], selection: $detent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
+                .presentationCornerRadius(CornerRadius.hero)
+        }
+    }
+
+    private var content: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: Theme.Metrics.settingsSectionGap) {
+                    if !hasSentence { promptPanel }
+                    transcriptField
+                    if let draft, embedded || detent == .large {
+                        draftPreview(draft)
+                    }
+                }
+                .padding(.horizontal, Theme.Metrics.gutter)
+                .id("speak-content")
+            }
+            .scrollIndicators(.hidden)
+            .contentMargins(.bottom, dockClearance, for: .scrollContent)
+            .softScrollEdges()
+            .settingsChrome()
+            .navigationTitle(String(localized: "Aus einem Satz anlegen"))
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(embedded && (isWorking || didCreate))
+            .toolbar {
+                ToolbarItem(placement: embedded ? .topBarTrailing : .topBarLeading) {
+                    Button(didCreate ? String(localized: "Fertig") : String(localized: "Abbrechen")) { close() }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier("speak-to-create-close")
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { dock }
+            .onChange(of: detent) { _, _ in scrollDraftIntoView(proxy) }
+            .onChange(of: draft != nil) { _, _ in scrollDraftIntoView(proxy) }
+        }
     }
 
     // MARK: - Prompt
@@ -268,7 +268,7 @@ struct SpeakToCreateSheet: View {
                     .focused($fieldFocused)
                     .textFieldStyle(.plain)
                     .font(.body)
-                    .disabled(isWorking || dictation.state == .requestingPermission
+                    .disabled(isWorking || didCreate || dictation.state == .requestingPermission
                               || dictation.state == .finalizing)
                     .accessibilityIdentifier("speak-to-create-text")
                 dictationControl
@@ -308,7 +308,7 @@ struct SpeakToCreateSheet: View {
             .contentShape(Circle())
         }
         .buttonStyle(.borderless)
-        .disabled(isReading || isWorking || dictation.state == .finalizing)
+        .disabled(isReading || isWorking || didCreate || dictation.state == .finalizing)
         .accessibilityLabel(dictation.state.isActive
                             ? String(localized: "Diktat beenden")
                             : String(localized: "Diktieren"))
@@ -503,7 +503,7 @@ struct SpeakToCreateSheet: View {
         // of the OLD sentence with the NEW text, mark it fresh, and save a draft
         // for words the person has already changed.
         let requested = text
-        guard !requested.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        guard !Task.isCancelled, !requested.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               canRead, isVisible else { return }
         isReading = true
         defer { isReading = false }
@@ -537,8 +537,9 @@ struct SpeakToCreateSheet: View {
     }
 
     private func create() async {
-        guard let draft, draft.validationMessage == nil, !didCreate,
-              !isWorking, !isReading, !dictation.state.isActive, isVisible else { return }
+        guard !Task.isCancelled, let draft, draft.validationMessage == nil, !didCreate,
+              !didFinish, !isWorking, !isReading, !dictation.state.isActive,
+              isVisible, scenePhase != .background else { return }
         if requiresReading {
             await read()
             return
@@ -553,11 +554,20 @@ struct SpeakToCreateSheet: View {
         defer { isWorking = false }
         fieldFocused = false
         dictation.cancel()
-        switch await CreateItemSaver.save(draft, into: store) {
+        let outcome = await CreateItemSaver.save(draft, into: store)
+        // The write precedes notification rescheduling and survives UI cancellation.
+        if outcome == .saved { didCreate = true }
+        guard !Task.isCancelled, isVisible, !didFinish, scenePhase != .background else { return }
+        switch outcome {
         case .saved:
-            didCreate = true
-            try? await Task.sleep(for: .milliseconds(600))
-            dismiss()
+            if !embedded {
+                do { try await Task.sleep(for: .milliseconds(600)) }
+                catch { return }
+            }
+            guard !Task.isCancelled, isVisible, !didFinish, scenePhase != .background else { return }
+            didFinish = true
+            cancelPendingWork()
+            if let onCreated { onCreated() } else { dismiss() }
         case .emptyName:
             saveError = String(localized: "Der Name fehlt.")
         case .limitReached:
@@ -571,18 +581,11 @@ struct SpeakToCreateSheet: View {
 
     // MARK: - Lifecycle
 
-    /// The dock floats, so content passes under it by design — what must not
-    /// happen is the draft coming to rest half-sliced by it.
-    ///
-    /// Both conditions are required. The full height, because half is the
-    /// listening surface and scrolling there moved the waveform and the sentence
-    /// out of view. And a draft, because watching only the height fired the scroll
-    /// against a nil draft — expanding happens when the field is focused, which is
-    /// before a word has been typed — so nothing moved at all.
+    /// Removing the empty prompt must keep active input visible, not its old offset.
     private func scrollDraftIntoView(_ proxy: ScrollViewProxy) {
-        guard detent == .large, draft != nil else { return }
+        guard embedded || detent == .large, draft != nil else { return }
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-            proxy.scrollTo("speak-content", anchor: .bottom)
+            proxy.scrollTo("speak-content", anchor: fieldFocused ? .top : .bottom)
         }
     }
 
@@ -597,15 +600,24 @@ struct SpeakToCreateSheet: View {
     }
 
     private func close() {
+        guard isVisible, !didFinish else { return }
+        didFinish = true
+        cancelPendingWork()
+        let completion = didCreate ? onCreated : onClose
+        if let completion { completion() } else { dismiss() }
+    }
+
+    private func cancelPendingWork() {
         isVisible = false
         dictationTask?.cancel()
+        resumeEditingAfterDictation = false
         dictation.cancel()
         workTask?.cancel()
-        dismiss()
+        localReader.release()
     }
 
     private func toggleDictation() {
-        guard !isWorking, !isReading else { return }
+        guard isVisible, !didFinish, !didCreate, !isWorking, !isReading else { return }
         if dictation.state == .listening {
             dictation.stop()
         } else if dictation.state.isActive {

@@ -182,12 +182,12 @@ struct ContributionChart: View, Equatable {
             Text(verbatim: "Mmm").font(.caption2).hidden()
             ForEach(marks, id: \.mark) { placed in
                 Text(verbatim: GridCalendar.label(for: placed.mark))
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(Theme.secondaryText(preferences: appearancePreferences))
                     .fixedSize().offset(x: placed.x)
             }
         }
         .frame(width: max(width, 0), alignment: .topLeading)
-        .accessibilityHidden(true)
+        .accessibilityRepresentation { EmptyView() }
     }
 }
 

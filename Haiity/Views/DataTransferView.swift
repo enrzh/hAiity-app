@@ -5,9 +5,14 @@ struct DataTransferView: View {
     let store: HabitStore
 
     var body: some View {
-        SettingsPage(title: String(localized: "Import & Export")) {
+        SettingsPage {
             DataTransferSection(store: store)
+                .frame(maxWidth: Theme.Metrics.readableContentWidth)
+                .frame(maxWidth: .infinity)
         }
+        .navigationTitle(String(localized: "Import & Export"))
+        .navigationBarTitleDisplayMode(.inline)
+        .pageHeaderChrome()
     }
 }
 
@@ -58,7 +63,7 @@ struct DataTransferSection: View {
 
                 if let importMessage {
                     Text(importMessage)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, Theme.Metrics.rowTitleInset)

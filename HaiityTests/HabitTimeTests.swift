@@ -153,13 +153,37 @@ final class HabitTimeTests: XCTestCase {
         XCTAssertTrue(source.contains("await Reminders.reschedule(store: store)"))
         XCTAssertTrue(source.contains("isSaving = true"))
         XCTAssertTrue(source.contains("savedWhileAwaitingPermission = true"))
-        XCTAssertTrue(source.contains("guard !isSaving, !savedWhileAwaitingPermission else { return }"))
+        let saveStart = try XCTUnwrap(source.range(of: "private func save("))
+        let saveEnd = try XCTUnwrap(source.range(of: "private func close()",
+                                                range: saveStart.upperBound..<source.endIndex))
+        let save = source[saveStart.lowerBound..<saveEnd.lowerBound]
+        let trimmed = try XCTUnwrap(save.range(of: "let trimmed ="))
+        let entryGuard = save[save.startIndex..<trimmed.lowerBound]
+        for state in ["isVisible", "!isSaving", "!savedWhileAwaitingPermission"] {
+            XCTAssertTrue(entryGuard.contains(state), "saving must reject an inactive or already saved draft")
+        }
         XCTAssertTrue(source.contains("Button(String(localized: \"Nicht jetzt\"), role: .cancel) { dismiss() }"))
         XCTAssertTrue(source.contains(".interactiveDismissDisabled(isSaving || savedWhileAwaitingPermission)"))
         XCTAssertTrue(source.contains(".disabled(isSaving || savedWhileAwaitingPermission)"))
         XCTAssertTrue(source.contains("guard (draft.hasTime || notificationTimes != nil), notificationMode != .off"))
         XCTAssertTrue(source.contains("!habit.effectiveNotificationTimes.isEmpty"))
         XCTAssertTrue(source.contains("if existing == nil { store.add(habit) } else { store.update(habit) }"))
+        let writeSucceeded = try XCTUnwrap(save.range(of: "guard store.lastWriteError == nil else"))
+        let alertsEnabled = try XCTUnwrap(save.range(of: "guard (draft.hasTime || notificationTimes != nil)"))
+        let permission = try XCTUnwrap(save.range(of: "await Reminders.ensurePermission()"))
+        for write in ["store.add(habit)", "store.update(habit)"] {
+            let call = try XCTUnwrap(save.range(of: write))
+            XCTAssertLessThan(call.lowerBound, writeSucceeded.lowerBound)
+        }
+        let failure = save[writeSucceeded.lowerBound..<alertsEnabled.lowerBound]
+        XCTAssertTrue(failure.contains("saveError = store.lastWriteError"))
+        XCTAssertTrue(failure.contains("return"), "a failed write must leave the draft open before any permission request")
+        XCTAssertLessThan(writeSucceeded.lowerBound, alertsEnabled.lowerBound)
+        XCTAssertLessThan(alertsEnabled.lowerBound, permission.lowerBound)
+        XCTAssertEqual(source.components(separatedBy: "Reminders.ensurePermission()").count - 1, 1,
+                       "only the successful-save path may request notification permission")
+        XCTAssertTrue(save.contains("guard !Task.isCancelled, isVisible else { return }"),
+                      "a late permission result must not change a dismissed editor")
     }
 
     func testAnImpossibleTimeNeverReachesTheSentence() {

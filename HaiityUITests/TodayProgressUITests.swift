@@ -12,7 +12,8 @@ final class TodayProgressUITests: XCTestCase {
                         material: String? = nil, photo: Bool = false,
                         account: String? = nil, github: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", fixture, "-screen", screen, "-pro", "on",
+        let rootScreen = ["more", "notification-actions"].contains(screen) ? "habits" : screen
+        app.launchArguments = ["-design-fixture", fixture, "-screen", rootScreen, "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB",
                                "-design-appearance", appearance]
         if let material { app.launchArguments += ["-design-material", material] }
@@ -23,6 +24,15 @@ final class TodayProgressUITests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
+        if ["more", "notification-actions"].contains(screen) {
+            openSettings(in: app)
+            if screen == "notification-actions" {
+                let behavior = app.buttons["open-habit-behavior"]
+                reveal(behavior, in: app)
+                behavior.tap()
+                XCTAssertTrue(app.switches["auto-archive-completed-items-toggle"].waitForExistence(timeout: 5))
+            }
+        }
         return app
     }
 
@@ -43,6 +53,88 @@ final class TodayProgressUITests: XCTestCase {
         tab.tap()
     }
 
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, down: Bool = false) {
+        for _ in 0..<18 {
+            if element.isHittable,
+               element.frame.midY > app.navigationBars.firstMatch.frame.maxY + 4,
+               element.frame.midY < app.frame.maxY - 80 { break }
+            if down { app.swipeDown(velocity: .slow) } else { app.swipeUp(velocity: .slow) }
+        }
+        XCTAssertTrue(element.waitForExistence(timeout: 5), element.identifier)
+        XCTAssertTrue(element.isHittable, element.identifier)
+    }
+
+    private func openSettings(in app: XCUIApplication) {
+        let settings = app.buttons["open-settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 15))
+        settings.tap()
+        XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+    }
+
+    private func returnToSettingsHub(in app: XCUIApplication) {
+        for _ in 0..<3 where !app.buttons["close-more-sheet"].exists {
+            let back = app.navigationBars.buttons.firstMatch
+            XCTAssertTrue(back.isHittable)
+            back.tap()
+        }
+        XCTAssertTrue(app.buttons["close-more-sheet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["open-appearance"].exists)
+    }
+
+    private func openCreator(in app: XCUIApplication, choice: String = "New habit") {
+        let add = app.buttons["create-habit"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 15))
+        add.tap()
+        let item = app.buttons[choice].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+    }
+
+    private func openDetails(_ id: String, in app: XCUIApplication) {
+        let entry = app.buttons["reminder-name-\(id)"]
+        reveal(entry, in: app)
+        entry.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["habit-detail"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    private func openReminderEditor(_ id: String, in app: XCUIApplication) {
+        openDetails(id, in: app)
+        let edit = app.buttons["edit-habit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+    }
+
+    private func setDueToday(_ enabled: Bool, in app: XCUIApplication) {
+        let menu = app.buttons["habit-filter"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let due = app.descendants(matching: .any)["collection-due-today"].firstMatch
+        XCTAssertTrue(due.waitForExistence(timeout: 5))
+        let selected = due.isSelected || due.value as? String == "1"
+        if selected != enabled { due.tap() } else { menu.tap() }
+    }
+
+    private func notificationAuthorizationToggle(in settings: XCUIApplication) -> XCUIElement {
+        let toggle = settings.switches["Allow Notifications"]
+        if toggle.exists { return toggle }
+        for _ in 0..<8 where !settings.navigationBars["Settings"].exists {
+            let back = settings.navigationBars.buttons.firstMatch
+            XCTAssertTrue(back.exists)
+            back.tap()
+        }
+        let notifications = settings.descendants(matching: .any)["Notifications"].firstMatch
+        for _ in 0..<10 where !notifications.isHittable { settings.swipeUp(velocity: .slow) }
+        XCTAssertTrue(notifications.isHittable)
+        notifications.tap()
+        let haiity = settings.staticTexts["hAiity"].firstMatch
+        for _ in 0..<20 where !haiity.isHittable { settings.swipeUp(velocity: .slow) }
+        XCTAssertTrue(haiity.isHittable)
+        haiity.tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        return toggle
+    }
+
     func testColdLaunchResponsivenessWithCrowdedData() {
         let app = XCUIApplication()
         app.launchArguments = ["-design-fixture", "crowded", "-screen", "habits", "-pro", "on"]
@@ -59,7 +151,7 @@ final class TodayProgressUITests: XCTestCase {
         let app = launch("crowded")
         XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
         for _ in 0..<3 {
-            selectTab("Stats", in: app)
+            selectTab("Progress", in: app)
             let week = app.descendants(matching: .any)["stats-week-card"].firstMatch
             XCTAssertTrue(week.waitForExistence(timeout: 5))
             app.swipeUp()
@@ -99,7 +191,7 @@ final class TodayProgressUITests: XCTestCase {
 
     func testRejectedCreationSaveKeepsDraftAndAllowsRetry() {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", "empty", "-design-write-conflict", "-pro", "on",
+        app.launchArguments = ["-design-fixture", "empty", "-screen", "habits", "-design-write-conflict", "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
         let create = app.buttons["add-first-habit"].firstMatch
@@ -120,22 +212,24 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertFalse(name.exists)
     }
 
-    func testGitHubLeadsDailyEntriesAndGitHubOnlyStateOffersCreation() {
+    func testGitHubLeadsCollectionFiltersAndGitHubOnlyStateOffersCreation() {
         let app = launch(github: true)
         let check = app.buttons["check-today"].firstMatch
         XCTAssertTrue(check.waitForExistence(timeout: 15))
         XCTAssertTrue(check.isHittable)
         let github = app.descendants(matching: .any)["github-contribution-card"].firstMatch
         XCTAssertTrue(github.isHittable)
-        let progress = app.descendants(matching: .any)["today-progress"].firstMatch
-        XCTAssertLessThan(github.frame.minY, progress.frame.minY)
+        let typeFilter = app.segmentedControls["collection-type-filter"]
+        XCTAssertTrue(typeFilter.exists)
+        XCTAssertLessThan(github.frame.minY, typeFilter.frame.minY)
         XCTAssertLessThan(github.frame.minY, check.frame.minY)
         let profile = app.buttons["github-open-profile"].firstMatch
         XCTAssertTrue(profile.isHittable)
         XCTAssertGreaterThanOrEqual(profile.frame.height, 44)
-        for filter in ["All", "Today"] {
-            app.segmentedControls["today-all-filter"].buttons[filter].tap()
-            XCTAssertLessThan(github.frame.minY, progress.frame.minY)
+        for dueToday in [false, true] {
+            setDueToday(dueToday, in: app)
+            XCTAssertLessThan(github.frame.minY, typeFilter.frame.minY)
+            XCTAssertTrue(app.staticTexts["Read for twenty minutes"].firstMatch.exists)
         }
         capture("github-first-daily-actions")
         app.terminate()
@@ -151,39 +245,215 @@ final class TodayProgressUITests: XCTestCase {
     func testCalendarAndNotificationsOpenCurrentSettingsWithoutReplayingSetup() {
         let app = launch(screen: "more")
         let calendar = app.buttons["open-calendar"].firstMatch
-        XCTAssertTrue(calendar.waitForExistence(timeout: 15))
-        for _ in 0..<8 where !calendar.isHittable { app.swipeUp(velocity: .slow) }
+        reveal(calendar, in: app)
         calendar.tap()
-        let habits = app.switches["calendar-sync-habits-toggle"]
-        let reminders = app.switches["calendar-sync-reminders-toggle"]
-        XCTAssertTrue(habits.waitForExistence(timeout: 5))
-        let previous = [habits.value as? String, reminders.value as? String]
+        let calendarIDs = ["calendar-sync-habits-toggle", "calendar-sync-reminders-toggle", "native-reminder-sync-toggle"]
+        var previous: [String: String] = [:]
+        for id in calendarIDs {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            previous[id] = control.value as? String
+        }
+        for id in ["delete-native-entries", "cleanup-native-entries"] {
+            reveal(app.buttons[id], in: app)
+        }
+        let delete = app.buttons["delete-native-entries"]
+        let cleanup = app.buttons["cleanup-native-entries"]
+        XCTAssertNotEqual(delete.frame, cleanup.frame, "delete and cleanup must remain separate actions")
+        delete.tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.firstMatch.buttons["Delete all"].exists)
+        app.alerts.firstMatch.buttons["Cancel"].tap()
+        for id in calendarIDs {
+            XCTAssertEqual(app.switches[id].value as? String, previous[id],
+                           "cancelling native deletion must not disable either integration")
+        }
+        returnToSettingsHub(in: app)
+        let notifications = app.buttons["open-notifications"]
+        reveal(notifications, in: app, down: true)
+        notifications.tap()
+        let dnd = app.switches["dnd-toggle"]
+        reveal(dnd, in: app)
+        let originalDND = dnd.value as? String
+        XCTAssertTrue(["0", "1"].contains(originalDND ?? ""))
+        // Establish a non-default value before the opening being tested.
+        if originalDND == "0" {
+            dnd.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(dnd.value as? String, "1")
+        addTeardownBlock {
+            await MainActor.run {
+                app.activate()
+                self.returnToSettingsHub(in: app)
+                self.reveal(notifications, in: app, down: true)
+                notifications.tap()
+                self.reveal(dnd, in: app, down: true)
+                if dnd.value as? String != originalDND {
+                    dnd.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+                }
+                XCTAssertEqual(dnd.value as? String, originalDND)
+            }
+        }
+        let notificationIDs = ["summary-toggle", "weekly-summary-toggle", "motivation-toggle"]
+        var notificationValues: [String: String] = [:]
+        for id in notificationIDs {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            notificationValues[id] = control.value as? String
+            XCTAssertEqual(control.value as? String, "0")
+        }
+        returnToSettingsHub(in: app)
+        app.buttons["close-more-sheet"].tap()
+
+        // Opening current settings must not replay setup or rewrite that baseline.
+        openSettings(in: app)
+        reveal(calendar, in: app)
+        calendar.tap()
+        for id in calendarIDs {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            XCTAssertEqual(control.value as? String, previous[id])
+        }
         XCTAssertFalse(app.buttons["setup-next"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
         XCTAssertEqual(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.count, 0)
         capture("direct-calendar-settings")
-        app.buttons["close-more-sheet"].tap()
-        calendar.tap()
-        XCTAssertTrue(habits.waitForExistence(timeout: 5))
-        XCTAssertEqual([habits.value as? String, reminders.value as? String], previous)
-        app.buttons["close-more-sheet"].tap()
-        let notifications = app.buttons["open-notifications"].firstMatch
-        for _ in 0..<8 where !notifications.isHittable { app.swipeDown(velocity: .slow) }
+        returnToSettingsHub(in: app)
+        reveal(notifications, in: app, down: true)
         notifications.tap()
-        XCTAssertTrue(app.switches["summary-toggle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(dnd.waitForExistence(timeout: 5))
+        XCTAssertEqual(dnd.value as? String, "1")
+        for id in notificationIDs {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            XCTAssertEqual(control.value as? String, notificationValues[id])
+            XCTAssertFalse(control.isEnabled, "opening must preserve the saved DND state")
+        }
         XCTAssertFalse(app.buttons["setup-next"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
         XCTAssertEqual(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.count, 0)
         capture("direct-notification-settings")
     }
 
-    func testDeepLinkDismissesAnUnsavedEditorBeforeOpeningStatsOrCreation() {
+    func testOpeningSettingsDoesNotConsumeARejectedWriteOrAlterTheDraft() {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", "mixed", "-pro", "on",
-                               "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launchArguments = ["-design-fixture", "empty", "-screen", "habits", "-pro", "on",
+            "-design-write-conflict", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
-        let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
-        XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
-        for _ in 0..<10 where !edit.isHittable { app.swipeUp(velocity: .slow) }
-        edit.tap()
+        openSettings(in: app)
+        for (entry, target) in [("open-calendar", "calendar-sync-habits-toggle"),
+                                ("open-notifications", "summary-toggle")] {
+            reveal(app.buttons[entry], in: app)
+            app.buttons[entry].tap()
+            XCTAssertTrue(app.switches[target].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["setup-next"].exists)
+            XCTAssertFalse(app.alerts.firstMatch.exists)
+            returnToSettingsHub(in: app)
+        }
+        app.buttons["close-more-sheet"].tap()
+        openCreator(in: app)
+        let name = app.textFields["habit-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.typeText("Opening wrote nothing\n")
+        app.buttons["save-habit"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5),
+                      "settings navigation must leave the existing stale-write rejection pending")
+        app.alerts.firstMatch.buttons["OK"].tap()
+        XCTAssertEqual(name.value as? String, "Opening wrote nothing")
+        XCTAssertTrue(app.buttons["save-habit"].isEnabled)
+        app.buttons["save-habit"].tap()
+        XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(name.exists)
+    }
+
+    func testDeniedNotificationsKeepAllSummariesOffAndRestoreSystemPermission() {
+        let app = launch(screen: "more")
+        let notifications = app.buttons["open-notifications"]
+        reveal(notifications, in: app)
+        notifications.tap()
+        let dnd = app.switches["dnd-toggle"]
+        XCTAssertTrue(dnd.waitForExistence(timeout: 5))
+        let originalDND = dnd.value as? String
+        if originalDND == "1" {
+            dnd.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        }
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        var originalPermission: String?
+        addTeardownBlock {
+            await MainActor.run {
+                if let originalPermission {
+                    settings.activate()
+                    let permission = self.notificationAuthorizationToggle(in: settings)
+                    if permission.value as? String != originalPermission {
+                        permission.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+                    }
+                    XCTAssertEqual(permission.value as? String, originalPermission)
+                    settings.terminate()
+                }
+                app.activate()
+                self.returnToSettingsHub(in: app)
+                self.reveal(notifications, in: app, down: true)
+                notifications.tap()
+                self.reveal(dnd, in: app, down: true)
+                if dnd.value as? String != originalDND {
+                    dnd.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+                }
+                XCTAssertEqual(dnd.value as? String, originalDND)
+            }
+        }
+        let daily = app.switches["summary-toggle"]
+        reveal(daily, in: app)
+        XCTAssertEqual(daily.value as? String, "0")
+        daily.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let deny = springboard.alerts.buttons.matching(NSPredicate(
+            format: "label MATCHES[c] %@", "don.?t allow|nicht erlauben")).firstMatch
+        if deny.waitForExistence(timeout: 3) {
+            deny.tap()
+        } else if daily.value as? String == "1" {
+            // An already authorized simulator must exercise an actual denied path too.
+            settings.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+            settings.launch()
+            let permission = notificationAuthorizationToggle(in: settings)
+            originalPermission = permission.value as? String
+            XCTAssertEqual(originalPermission, "1")
+            permission.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            XCTAssertEqual(permission.value as? String, "0")
+            app.activate()
+            reveal(daily, in: app)
+            daily.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            XCTAssertEqual(daily.value as? String, "0")
+            daily.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        }
+        let hint = app.buttons["open-notification-settings"].firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        XCTAssertEqual(daily.value as? String, "0")
+        XCTAssertFalse(app.datePickers["summary-time"].exists)
+        for id in ["weekly-summary-toggle", "motivation-toggle"] {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            XCTAssertEqual(control.value as? String, "0", "a denied daily request must not enable another summary")
+            control.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            expectation(for: NSPredicate(format: "value == '0'"), evaluatedWith: control)
+            waitForExpectations(timeout: 5)
+        }
+        XCTAssertFalse(app.datePickers["weekly-summary-time"].exists)
+        XCTAssertFalse(app.datePickers["motivation-time"].exists)
+        returnToSettingsHub(in: app)
+        reveal(notifications, in: app, down: true)
+        notifications.tap()
+        for id in ["summary-toggle", "weekly-summary-toggle", "motivation-toggle"] {
+            let control = app.switches[id]
+            reveal(control, in: app)
+            XCTAssertEqual(control.value as? String, "0", "denial must survive reopening")
+        }
+        XCTAssertFalse(springboard.alerts.firstMatch.exists)
+    }
+
+    func testDeepLinkDismissesAnUnsavedEditorBeforeOpeningProgressOrCreation() {
+        let app = launch("mixed")
+        let reminderID = "00000000-0000-0000-0000-000000000799"
+        openReminderEditor(reminderID, in: app)
         let name = app.textFields["habit-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         let savedName = name.value as? String
@@ -193,8 +463,7 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["stats-week-card"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(name.exists)
         app.open(URL(string: "haiity://habits")!)
-        for _ in 0..<12 where !edit.isHittable { app.swipeUp(velocity: .slow) }
-        edit.tap()
+        openReminderEditor(reminderID, in: app)
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertEqual(name.value as? String, savedName, "routing must discard, not save, an unfinished draft")
         app.open(URL(string: "haiity://new")!)
@@ -207,12 +476,12 @@ final class TodayProgressUITests: XCTestCase {
     func testPhotoBackgroundKeepsReminderAndSettingsControlsReadable() {
         for appearance in ["light", "dark"] {
             let app = launch("mixed", appearance: appearance, material: "milky", photo: true)
-            let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
+            let edit = app.buttons["reminder-name-00000000-0000-0000-0000-000000000799"]
             XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
             for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
             XCTAssertTrue(edit.isHittable)
             capture("photo-reminder-\(appearance)")
-            selectTab("More", in: app)
+            openSettings(in: app)
             let settings = app.buttons["open-appearance"].firstMatch
             XCTAssertTrue(settings.waitForExistence(timeout: 5))
             settings.tap()
@@ -223,23 +492,26 @@ final class TodayProgressUITests: XCTestCase {
         }
     }
 
-    func testReminderEditButtonPreservesCompletionAtBothTextSizes() {
+    func testReminderDetailsAndEditPreserveCompletionAtBothTextSizes() {
         let reminderID = "00000000-0000-0000-0000-000000000799"
         for largeText in [false, true] {
             let app = launch("mixed", largeText: largeText, appearance: "dark")
-            let edit = app.buttons["reminder-edit-\(reminderID)"]
+            let details = app.buttons["reminder-name-\(reminderID)"]
             XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
-            for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
-            XCTAssertTrue(edit.isHittable)
-            XCTAssertGreaterThanOrEqual(edit.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(edit.frame.height, 44)
+            reveal(details, in: app)
+            XCTAssertGreaterThanOrEqual(details.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(details.frame.height, 44)
             let check = app.buttons["reminder-check-\(reminderID)"]
             let before = check.value as? String
             capture(largeText ? "reminder-large-text" : "reminder-edit-control")
-            edit.tap()
+            details.tap()
+            XCTAssertTrue(app.buttons["edit-habit"].waitForExistence(timeout: 5))
+            app.buttons["edit-habit"].tap()
             XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
             XCTAssertTrue((app.textFields["habit-name"].value as? String)?.hasPrefix("Call the dentist") == true)
-            app.buttons["Cancel"].firstMatch.tap()
+            app.buttons["close-create"].tap()
+            XCTAssertTrue(app.buttons["edit-habit"].waitForExistence(timeout: 5))
+            app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(check.waitForExistence(timeout: 5))
             XCTAssertEqual(check.value as? String, before, "editing must not complete the reminder")
             app.terminate()
@@ -251,8 +523,9 @@ final class TodayProgressUITests: XCTestCase {
         let check = app.buttons["check-today"].firstMatch
         XCTAssertTrue(check.waitForExistence(timeout: 15))
         let title = app.staticTexts["Habits"].firstMatch
-        let summary = app.descendants(matching: .any)["today-progress"].firstMatch
-        XCTAssertLessThanOrEqual(title.frame.maxY, summary.frame.minY,
+        let filter = app.segmentedControls["collection-type-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(title.frame.maxY, filter.frame.minY,
                                  "the large root title must not overlap the next section")
         for _ in 0..<5 where !check.isHittable { app.swipeUp() }
         let before = check.label
@@ -267,10 +540,10 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertEqual(check.label, before)
     }
 
-    func testScrollingClosesReminderSwipeAndLeavesItsEditButtonUsable() {
+    func testScrollingClosesReminderSwipeAndLeavesDetailsAndEditUsable() {
         let app = launch("mixed")
         let reminderID = "00000000-0000-0000-0000-000000000799"
-        let edit = app.buttons["reminder-edit-\(reminderID)"]
+        let edit = app.buttons["reminder-name-\(reminderID)"]
         XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
         for _ in 0..<10 where !edit.isHittable { app.swipeUp() }
         XCTAssertTrue(edit.isHittable)
@@ -283,6 +556,8 @@ final class TodayProgressUITests: XCTestCase {
         for _ in 0..<5 where !edit.isHittable { app.swipeUp() }
         XCTAssertTrue(edit.isHittable, "vertical scrolling must close the reveal layer")
         edit.tap()
+        XCTAssertTrue(app.buttons["edit-habit"].waitForExistence(timeout: 5))
+        app.buttons["edit-habit"].tap()
         XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
     }
 
@@ -379,6 +654,7 @@ final class TodayProgressUITests: XCTestCase {
             assertGreeting(in: app, contains: "Alex Taylor", timeout: 10)
             XCTAssertTrue(preview.label.contains("Alex Taylor"), "the preview must use the edited alias immediately")
             dismissAccountKeyboard(in: app)
+            returnToSettingsHub(in: app)
             account.tap()
             XCTAssertTrue(alias.waitForExistence(timeout: 15))
             let optionalApple = app.descendants(matching: .any)["personal-apple-connection"].firstMatch
@@ -406,10 +682,10 @@ final class TodayProgressUITests: XCTestCase {
     }
 
     private func dismissAccountKeyboard(in app: XCUIApplication) {
-        let done = app.buttons.matching(
+        let done = app.keyboards.buttons.matching(
             NSPredicate(format: "label == %@ OR label == %@", "Done", "Fertig")
         ).firstMatch
-        if done.waitForExistence(timeout: 3) {
+        if done.waitForExistence(timeout: 3), done.isHittable {
             done.tap()
             return
         }
@@ -451,20 +727,36 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertTrue(autoArchive.isHittable)
 
         let before = (autoArchive.value as? String) ?? ""
-        autoArchive.tap()
+        autoArchive.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
         XCTAssertNotEqual((autoArchive.value as? String) ?? "", before,
                           "the archive toggle must actually respond to a tap")
 
-        // The calendar group sits below the fold, so scroll to it first: a
-        // control that is off-screen is not in the accessibility tree yet.
-        app.swipeUp()
-        app.swipeUp()
-        for identifier in ["calendar-sync-habits-toggle",
-                           "calendar-sync-reminders-toggle"] {
-            let control = app.descendants(matching: .any)[identifier].firstMatch
-            XCTAssertTrue(control.waitForExistence(timeout: 5), identifier)
-            XCTAssertTrue(control.isHittable, identifier)
+        for (toggleID, pickerIDs) in [
+            ("swipe-actions-toggle", ["swipe-leading-picker", "swipe-trailing-picker"]),
+            ("notification-actions-toggle", ["notification-action-picker-1", "notification-action-picker-2", "notification-action-picker-3"])
+        ] {
+            let toggle = app.switches[toggleID]
+            reveal(toggle, in: app)
+            let original = toggle.value as? String
+            if original == "0" {
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            XCTAssertEqual(toggle.value as? String, "1")
+            for identifier in pickerIDs {
+                let control = app.descendants(matching: .any)[identifier].firstMatch
+                reveal(control, in: app)
+            }
+            reveal(toggle, in: app, down: true)
+            if original == "0" {
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            XCTAssertEqual(toggle.value as? String, original, "restore the preference changed for control coverage")
         }
+        reveal(app.buttons["default-timezone-picker"], in: app)
+        reveal(app.buttons["open-local-model"], in: app)
+        reveal(autoArchive, in: app, down: true)
+        autoArchive.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(autoArchive.value as? String, before)
         capture("migrated-behavior")
     }
 
@@ -474,7 +766,7 @@ final class TodayProgressUITests: XCTestCase {
     /// look at the largest text size, not just a source assertion.
     func testMigratedPagesSurviveAccessibilityTextSize() {
         let stats = launch("crowded", largeText: true, appearance: "dark", screen: "stats")
-        XCTAssertTrue(stats.descendants(matching: .any)["stats-today-summary"]
+        XCTAssertTrue(stats.descendants(matching: .any)["stats-week-card"]
             .firstMatch.waitForExistence(timeout: 15))
         capture("a11y-ax5-stats-dark")
 
@@ -490,18 +782,23 @@ final class TodayProgressUITests: XCTestCase {
         capture("a11y-ax5-notifications-dark")
     }
 
-    func testCompletionUndoAndTodayFilterKeepFirstHabitInPlace() {
+    func testCompletionUndoAndDueTodayFilterKeepFirstHabitInPlace() {
         let app = launch()
-        let summary = app.descendants(matching: .any)["today-progress"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        let filter = app.segmentedControls["today-all-filter"]
-        filter.buttons["Today"].tap()
+        XCTAssertTrue(app.segmentedControls["collection-type-filter"].waitForExistence(timeout: 15))
+        setDueToday(true, in: app)
         let first = app.buttons["check-today"].firstMatch
-        XCTAssertTrue(first.isHittable)
+        reveal(first, in: app)
+        let before = first.label
+        let name = app.buttons.matching(identifier: "habit-name")
+            .matching(NSPredicate(format: "label == %@", "Read for twenty minutes")).firstMatch
+        let firstPosition = name.frame.minY
         first.tap()
         XCTAssertTrue(app.buttons["check-today"].firstMatch.label.contains("Done"))
-        app.buttons["check-today"].firstMatch.tap()
-        XCTAssertFalse(app.buttons["check-today"].firstMatch.label.contains("Done"))
+        XCTAssertEqual(name.frame.minY, firstPosition, accuracy: 1)
+        XCTAssertTrue(app.buttons["undo-action"].isHittable)
+        app.buttons["undo-action"].tap()
+        XCTAssertEqual(first.label, before)
+        XCTAssertEqual(name.frame.minY, firstPosition, accuracy: 1)
         XCTAssertTrue(app.staticTexts["Read for twenty minutes"].firstMatch.exists)
         capture("today-completion-undo")
     }
@@ -520,7 +817,8 @@ final class TodayProgressUITests: XCTestCase {
             .firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["check-today"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["habit-history"].firstMatch.exists)
-        XCTAssertFalse(app.descendants(matching: .any)["today-progress"].firstMatch.exists)
+        XCTAssertFalse(app.segmentedControls["collection-type-filter"].exists,
+                       "normal collection controls must leave the native sorting surface")
         capture("sorting-mode")
         done.tap()
         let habitList = app.descendants(matching: .any)["habit-list"].firstMatch
@@ -561,9 +859,12 @@ final class TodayProgressUITests: XCTestCase {
         }
         XCTAssertFalse(app.buttons["check-today"].exists)
         XCTAssertFalse(reminderCheck.exists)
-        XCTAssertFalse(app.buttons["reminder-edit-\(reminderID)"].exists)
-        selectTab("More", in: app)
+        XCTAssertFalse(app.buttons["reminder-name-\(reminderID)"].exists)
+        selectTab("Progress", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["stats-week-card"].firstMatch.waitForExistence(timeout: 5))
+        openSettings(in: app)
         XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+        app.buttons["close-more-sheet"].tap()
         selectTab("Habits", in: app)
         XCTAssertTrue(app.descendants(matching: .any)["habit-list"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["finish-reordering"].exists, "sorting must end before changing tabs")
@@ -608,10 +909,7 @@ final class TodayProgressUITests: XCTestCase {
         waitForExpectations(timeout: 5)
         capture("sorting-mixed-after")
         app.buttons["finish-reordering"].tap()
-        let edit = app.buttons["reminder-edit-\(reminderID)"]
-        XCTAssertTrue(edit.isHittable)
-        edit.tap()
-        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+        openReminderEditor(reminderID, in: app)
     }
 
     /// The Search tab must show a search field that a hand tap actually turns
@@ -745,9 +1043,7 @@ final class TodayProgressUITests: XCTestCase {
 
     func testCreationLivePreviewAndAdvancedControls() {
         let app = launch("empty")
-        let create = app.buttons["create-habit"].firstMatch
-        XCTAssertTrue(create.waitForExistence(timeout: 15))
-        create.tap()
+        openCreator(in: app)
         let name = app.textFields["habit-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
@@ -779,7 +1075,7 @@ final class TodayProgressUITests: XCTestCase {
 
     func testCreatorDisclosuresStayReachableWithLargestTextAndRTL() {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", "empty", "-pro", "on",
+        app.launchArguments = ["-design-fixture", "empty", "-screen", "habits", "-pro", "on",
                                "-AppleLanguages", "(ar)", "-AppleLocale", "ar_SA",
                                "-design-appearance", "dark", "-design-material", "solid",
                                "-design-photo", "-UIPreferredContentSizeCategoryName",
@@ -838,11 +1134,11 @@ final class TodayProgressUITests: XCTestCase {
 
     func testDataTransferIsReachableWithoutDeveloperAccess() {
         let app = XCUIApplication()
-        app.launchArguments = ["-design-fixture", "crowded", "-pro", "on",
+        app.launchArguments = ["-design-fixture", "crowded", "-screen", "habits", "-pro", "on",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
         XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
-        selectTab("More", in: app)
+        openSettings(in: app)
         let transfer = app.buttons["open-data-transfer"]
         XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 15))
         for _ in 0..<10 where !transfer.isHittable { app.swipeUp(velocity: .slow) }
@@ -859,14 +1155,14 @@ final class TodayProgressUITests: XCTestCase {
         XCTAssertFalse(app.buttons["import-data"].exists)
     }
 
-    func testStatisticsDetailsExpandWithoutChangingSummaryValues() {
+    func testProgressWeeklyDetailsExpandWithoutChangingSummaryValues() {
         let app = launch("crowded", screen: "stats")
-        let summary = app.descendants(matching: .any)["stats-today-summary"].firstMatch
+        let summary = app.descendants(matching: .any)["stats-week-card"].firstMatch
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
         let original = summary.value as? String
-        let explanation = app.staticTexts["stats-today-explanation"]
+        let explanation = app.staticTexts["stats-week-explanation"]
         XCTAssertFalse(explanation.exists)
-        let details = app.descendants(matching: .any)["stats-today-details"].firstMatch
+        let details = app.descendants(matching: .any)["stats-week-details"].firstMatch
         XCTAssertTrue(details.isHittable)
         details.tap()
         XCTAssertTrue(explanation.waitForExistence(timeout: 5))
@@ -879,20 +1175,24 @@ final class TodayProgressUITests: XCTestCase {
     func testMultipleNotificationTimesCanBeAddedRemovedAndSavedForBothItemTypes() {
         for reminder in [false, true] {
             let app = launch("mixed", appearance: reminder ? "dark" : "light")
+            XCTAssertTrue(app.descendants(matching: .any)["habit-list"].firstMatch.waitForExistence(timeout: 15))
             func openEditor() {
-                if reminder {
-                    let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
-                    XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
-                    for _ in 0..<10 where !edit.isHittable { app.swipeUp(velocity: .slow) }
-                    XCTAssertTrue(edit.isHittable)
-                    edit.tap()
+                if app.buttons["edit-habit"].exists,
+                   app.descendants(matching: .any)["habit-detail"].firstMatch.exists {
+                    app.buttons["edit-habit"].tap()
                 } else {
-                    let graph = app.descendants(matching: .any)["habit-history"].firstMatch
-                    XCTAssertTrue(graph.waitForExistence(timeout: 15))
-                    graph.press(forDuration: 1)
-                    let edit = app.buttons["Edit"].firstMatch
+                if reminder {
+                    openReminderEditor("00000000-0000-0000-0000-000000000799", in: app)
+                } else {
+                    let name = app.buttons.matching(identifier: "habit-name").firstMatch
+                    for _ in 0..<12 where !name.isHittable { app.swipeDown(velocity: .slow) }
+                    reveal(name, in: app)
+                    XCTAssertEqual(name.label, "Read for twenty minutes")
+                    name.tap()
+                    let edit = app.buttons["edit-habit"]
                     XCTAssertTrue(edit.waitForExistence(timeout: 5))
                     edit.tap()
+                }
                 }
                 XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
             }
@@ -949,8 +1249,8 @@ final class TodayProgressUITests: XCTestCase {
 
     func testCrowdedListLargeTextKeepsPrimaryActionReachable() throws {
         let app = launch("crowded", largeText: true)
-        let summary = app.descendants(matching: .any)["today-progress"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        let filter = app.segmentedControls["collection-type-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 15))
         capture("crowded-accessibility-xxxl")
         let check = app.buttons["check-today"].firstMatch
         for _ in 0..<6 {
@@ -1016,7 +1316,7 @@ final class TodayProgressUITests: XCTestCase {
             let app = launch(appearance: appearance)
             XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
             capture("home-realistic-\(appearance)")
-            app.buttons["create-habit"].firstMatch.tap()
+            openCreator(in: app)
             let name = app.textFields["habit-name"]
             XCTAssertTrue(name.waitForExistence(timeout: 5))
             app.segmentedControls["item-type-picker"].buttons["Habit"].tap()

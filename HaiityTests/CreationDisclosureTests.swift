@@ -89,7 +89,7 @@ final class CreationDisclosureTests: XCTestCase {
         XCTAssertTrue(loadBody.contains("itemType = habit.itemType"))
         XCTAssertFalse(loadBody.contains("itemType = .reminder"))
         XCTAssertFalse(loadBody.contains("selectFrequency"))
-        XCTAssertTrue(source.contains("@State private var draft = RecurrenceDraft(itemType: .habit)"))
+        XCTAssertEqual(EditHabitSheet.initialDraft(calendar: calendar).frequency, .daily)
         XCTAssertTrue(source.contains("selection: itemTypeSelection"))
     }
 
@@ -121,14 +121,12 @@ final class CreationDisclosureTests: XCTestCase {
         XCTAssertTrue(saveBody.contains("guard store.lastWriteError == nil else"))
     }
 
-    func testTextCreationIsAnOptionalCreateOnlyCallbackWithoutAPresenter() throws {
-        let source = try editorSource()
-        XCTAssertTrue(source.contains("var onCreateFromText: ((String) -> Void)? = nil"))
-        XCTAssertTrue(source.contains("if isCreating, let onCreateFromText"))
-        XCTAssertTrue(source.contains("onCreateFromText(name)"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"speak-to-create\")"))
-        XCTAssertTrue(source.contains("String(localized: \"Aus einem Satz anlegen\")"))
-        XCTAssertFalse(source.contains("SpeechDictation"))
-        XCTAssertFalse(source.contains("CreateFromTextSheet"))
+    func testSentenceCreationAvailabilityDoesNotChangeTheInitialItemType() {
+        let store = HabitStore(loadFromDisk: false)
+        let editor = EditHabitSheet(store: store, initialItemType: .reminder, offersSentenceCreation: true)
+        XCTAssertTrue(editor.offersSentenceCreation)
+        XCTAssertEqual(editor.initialItemType, .reminder)
+        XCTAssertEqual(EditHabitSheet.initialDraft(initialItemType: editor.initialItemType, calendar: calendar).frequency, .once)
+        XCTAssertTrue(store.habits.isEmpty)
     }
 }

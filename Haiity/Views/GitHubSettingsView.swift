@@ -19,10 +19,17 @@ struct GitHubSettingsView: View {
     var body: some View {
         // Not a `List`: iOS 27 drops taps on grouped list rows. The hub already
         // uses the continuous group surface, and this page now matches it.
-        SettingsPage(title: "GitHub") {
+        SettingsPage {
+            VStack(alignment: .leading, spacing: designStyle.sectionGap) {
                 connectionGroup
                 displayGroup
+            }
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
+        .navigationTitle("GitHub")
+        .navigationBarTitleDisplayMode(.inline)
+        .pageHeaderChrome()
         .onAppear {
             // No copying here. The code used to be put on the pasteboard the
             // moment this page appeared, which overwrote whatever the person was
@@ -179,7 +186,7 @@ struct GitHubSettingsView: View {
                         ProgressView()
                             .controlSize(.small)
                         Text(String(localized: "Warte auf die Bestätigung in GitHub. Das kann einen Moment dauern."))
-                            .font(.footnote)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -234,7 +241,8 @@ struct GitHubSettingsView: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("github-refresh-failure")
                 if store.hasStoredCredentials {
@@ -297,7 +305,7 @@ struct GitHubSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(statusSubtitle)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -411,7 +419,8 @@ struct GitHubSettingsView: View {
     private var refreshFeedbackView: some View {
         if case .failure(let message) = store.refreshFeedback {
             Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.footnote)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(.red)
                 .accessibilityIdentifier("github-refresh-failure")
                 .transition(.opacity.combined(with: .move(edge: .top)))

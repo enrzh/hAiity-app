@@ -19,19 +19,22 @@ final class StatsProductTests: XCTestCase {
         return try XCTUnwrap(Bundle(path: path))
     }
 
-    func testTodayFocusesOnRemainingWorkEvenWhenStreakIsZero() throws {
+    func testSelectedMetricsKeepExactSnapshotValuesAndDoNotRepeatTheWeeklyRate() throws {
         var value = snapshot()
         let german = try bundle("de")
         let locale = Locale(identifier: "de")
-        XCTAssertEqual(StatsView.statsTodaySentence(value, bundle: german, locale: locale), "Noch 1 offen")
-        value.streak = 40
-        XCTAssertEqual(StatsView.statsTodaySentence(value, bundle: german, locale: locale), "Noch 1 offen")
-        value.todayDone = value.todayTotal
-        XCTAssertEqual(StatsView.statsTodaySentence(value, bundle: german, locale: locale),
-                       "Alles erledigt. Gute Arbeit.")
+        XCTAssertEqual(StatsView.statsMetricValue(.todayRing, snapshot: value, bundle: german, locale: locale), "2/3")
+        XCTAssertEqual(StatsView.statsMetricValue(.streakFlame, snapshot: value), "0")
+        XCTAssertEqual(StatsView.statsMetricValue(.totals, snapshot: value), "42")
+        XCTAssertEqual(StatsView.statsMetricValue(.weekMomentum, snapshot: value, bundle: german, locale: locale),
+                       "In der Wochenbilanz")
+        let english = try bundle("en")
+        XCTAssertEqual(StatsView.statsMetricValue(.weekMomentum, snapshot: value, bundle: english, locale: Locale(identifier: "en")),
+                       "In the weekly summary")
         value.todayTotal = 0
         value.todayDone = 0
-        XCTAssertEqual(StatsView.statsTodaySentence(value, bundle: german, locale: locale), "Dein Tag ist frei.")
+        XCTAssertEqual(StatsView.statsMetricValue(.todayRing, snapshot: value, bundle: german, locale: locale),
+                       "Kein Habit fällig")
     }
 
     func testWeeklyPresentationUsesExistingCountsAndRoundingWithoutInventingAnEmptyRate() throws {
@@ -48,7 +51,41 @@ final class StatsProductTests: XCTestCase {
                        "Diese Woche ist nichts fällig")
     }
 
-    func testNativeSummaryCardsGrowAtAX5InBothAppearancesAndDirections() {
+    func testPresentationKeepsQuantityAnswersAndFlexiblePeriodDenominatorsFromTheEngine() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.firstWeekday = 2
+        let today = "2026-10-07"
+        var daily = Habit(name: "Daily")
+        daily.createdAt = "2026-10-05"
+        daily.log = ["2026-10-05": 1, today: 1]
+        var quantity = Habit(name: "Quantity", recurrence: Recurrence(target: 3), kind: .quantity)
+        quantity.createdAt = daily.createdAt
+        quantity.log = ["2026-10-05": 2, "2026-10-06": 3, today: 1]
+        var answers = Habit(name: "Answers", kind: .yesNo)
+        answers.createdAt = daily.createdAt
+        answers.log = ["2026-10-05": Habit.Answer.yes, "2026-10-06": Habit.Answer.no, today: Habit.Answer.yes]
+        var weekly = Habit(name: "Weekly", recurrence: .times(2, per: .weekly))
+        weekly.createdAt = daily.createdAt
+        weekly.log = ["2026-10-05": 1, "2026-10-06": 1]
+        var monthly = Habit(name: "Monthly", recurrence: .times(2, per: .monthly))
+        monthly.createdAt = daily.createdAt
+        monthly.log = ["2026-10-06": 1, today: 1]
+        var reminder = Habit(name: "Reminder", itemType: .reminder)
+        reminder.createdAt = daily.createdAt
+        reminder.log = [today: 1]
+        let value = StatsEngine.snapshot(habits: [daily, quantity, answers, weekly, monthly, reminder],
+                                         today: today, calendar: calendar)
+        XCTAssertEqual(value.week, .init(done: 7, total: 11))
+        XCTAssertEqual(StatsView.weekCompletionSummary(value.week, bundle: try bundle("en"), locale: Locale(identifier: "en")),
+                       "7 of 11 completed · 64 %")
+        XCTAssertEqual(StatsView.statsMetricValue(.todayRing, snapshot: value), "3/5")
+        XCTAssertEqual(StatsView.statsMetricValue(.totals, snapshot: value), "9")
+        XCTAssertEqual(value.mergedLevels.count, 20)
+        XCTAssertEqual(value.perHabit.map(\.id), [daily, quantity, answers, weekly, monthly].map(\.id))
+    }
+
+    func testWeeklySummaryAndSelectedMetricsGrowAtAX5InBothAppearancesAndDirections() {
         let suite = "StatsProductTests-\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -67,34 +104,57 @@ final class StatsProductTests: XCTestCase {
                     .environment(\.dynamicTypeSize, .accessibility5)
                     .environment(\.colorScheme, scheme)
                     .environment(\.layoutDirection, direction))
-                let today = UIHostingController(rootView: view.statsTodayCard(value)
-                    .environment(\.dynamicTypeSize, .accessibility5)
-                    .environment(\.colorScheme, scheme)
-                    .environment(\.layoutDirection, direction))
-                let normalToday = UIHostingController(rootView: view.statsTodayCard(value)
-                    .environment(\.dynamicTypeSize, .large)
-                    .environment(\.colorScheme, scheme)
-                    .environment(\.layoutDirection, direction))
                 let proposal = CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)
                 let normalSize = normal.sizeThatFits(in: proposal)
                 let accessibleSize = accessible.sizeThatFits(in: proposal)
-                let todaySize = today.sizeThatFits(in: proposal)
-                let normalTodaySize = normalToday.sizeThatFits(in: proposal)
                 XCTAssertLessThanOrEqual(accessibleSize.width, 320)
                 XCTAssertGreaterThan(accessibleSize.height, normalSize.height)
-                XCTAssertGreaterThan(todaySize.height, 0)
-                XCTAssertLessThanOrEqual(todaySize.width, 320)
-                XCTAssertLessThan(normalTodaySize.height, normalSize.height,
-                                  "Today stays lighter than the weekly summary")
+                for card in [StatsCard.todayRing, .weekMomentum, .totals, .streakFlame] {
+                    let normalMetric = UIHostingController(rootView: view.statsMetric(card, snapshot: value)
+                        .environment(\.dynamicTypeSize, .large)
+                        .environment(\.colorScheme, scheme)
+                        .environment(\.layoutDirection, direction))
+                    let accessibleMetric = UIHostingController(rootView: view.statsMetric(card, snapshot: value)
+                        .environment(\.dynamicTypeSize, .accessibility5)
+                        .environment(\.colorScheme, scheme)
+                        .environment(\.layoutDirection, direction))
+                    let metricSize = accessibleMetric.sizeThatFits(in: proposal)
+                    XCTAssertLessThanOrEqual(metricSize.width, 320)
+                    XCTAssertGreaterThan(metricSize.height, normalMetric.sizeThatFits(in: proposal).height)
+                }
             }
         }
+    }
+
+    func testDetailActionPassesOnlyTheSelectedLiveIDToTheOwner() {
+        let suite = "StatsNavigation-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HabitStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("stats-navigation-\(UUID()).json"), loadFromDisk: false)
+        let preferences = ViewPreferencesStore(defaults: defaults)
+        let id = UUID()
+        var selectedID: UUID?
+        var historyID: UUID?
+        let view = StatsView(store: store, viewPreferences: preferences,
+                             onOpenHabit: { selectedID = $0 },
+                             onOpenHistory: { historyID = $0 })
+        view.openHabit(id)
+        XCTAssertEqual(selectedID, id)
+        XCTAssertNil(historyID, "Details must not invoke full history")
+        let otherID = UUID()
+        view.openHistory(otherID)
+        XCTAssertEqual(historyID, otherID)
+        XCTAssertEqual(selectedID, id)
+        XCTAssertTrue(store.data.habits.isEmpty, "The owner resolves the UUID from its live store")
     }
 
     func testCustomizedCardsSurviveExportDecodeAndNewerRemoteAdoption() throws {
         let suite = "StatsProductPreferences-\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        for selection in [StatsCard.allCases, [], [.weekMomentum, .todayRing], StatsCardPrefs.defaultActive] {
+        for selection in [StatsCard.allCases, [], [.weekMomentum, .todayRing],
+                          [.todayRing, .totals, .yearPulse, .weekMomentum, .streakFlame], StatsCardPrefs.defaultActive] {
             let selected = StatsCardPrefs(active: selection, customized: true)
             let original = ViewPreferences(updatedAt: 123, statsCards: selected, compactMode: true)
             var export = HabitData.empty

@@ -1,6 +1,7 @@
 import Foundation
 
 enum AppTab: Hashable {
+    case today
     case stats
     case habits
     case more
@@ -26,7 +27,7 @@ extension AppTabLayerState {
 }
 
 enum AppMoreDestination: Equatable {
-    case archive, about, developer, appearance, habitBehavior, github, calendar
+    case settings, archive, about, developer, appearance, habitBehavior, github, calendar, notifications, personalization, localModel, dataTransfer
 }
 
 struct AppRouteEffect: Equatable {
@@ -62,6 +63,7 @@ enum RoutePresentationPhase: Equatable {
 struct RoutePresentation: Equatable {
     var create: RoutePresentationPhase = .absent
     var editor: RoutePresentationPhase = .absent
+    var history: RoutePresentationPhase = .absent
     var sentenceCreation: RoutePresentationPhase = .absent
     /// Das Kaufblatt. KEINE Route öffnet es — es ist immer nur im Weg, und
     /// zwar als oberste Präsentation: ein Deep-Link, der es stehen lässt,
@@ -102,6 +104,8 @@ struct RouteWork {
         case waitForPaywallDismissal
         case dismissEditor
         case waitForEditorDismissal
+        case dismissHistory
+        case waitForHistoryDismissal
         case dismissSentenceCreation
         case waitForSentenceCreationDismissal
         case dismissCreate
@@ -154,13 +158,16 @@ struct RouteWork {
         case .absent: break
         }
 
-        if !item.effect.opensCreate {
-            switch presentation.create {
-            case .requested: return .dismissCreate
-            case .presented: return .dismissCreate
-            case .dismissing: return .waitForCreateDismissal
-            case .absent: break
-            }
+        switch presentation.history {
+        case .requested, .presented: return .dismissHistory
+        case .dismissing: return .waitForHistoryDismissal
+        case .absent: break
+        }
+
+        switch presentation.create {
+        case .requested, .presented: return .dismissCreate
+        case .dismissing: return .waitForCreateDismissal
+        case .absent: break
         }
 
         switch presentation.more {
@@ -243,7 +250,7 @@ enum AppDestination: Equatable {
         case .stats:
             return .stats
         case .more, .archive, .cleanup:
-            return .more
+            return .today
         case .create:
             return .create
         }
@@ -257,17 +264,17 @@ enum AppDestination: Equatable {
             .init(tab: .habits, morePage: nil, opensSearch: false,
                   opensCreate: false, habitID: id)
         case .more:
-            .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false)
+            .init(tab: .today, morePage: .settings, opensSearch: false, opensCreate: false)
         case .stats:
             .init(tab: .stats, morePage: nil, opensSearch: false, opensCreate: false)
         case .archive:
-            .init(tab: .more, morePage: .archive, opensSearch: false, opensCreate: false)
+            .init(tab: .today, morePage: .archive, opensSearch: false, opensCreate: false)
         case .search:
             .init(tab: .search, morePage: nil, opensSearch: true, opensCreate: false)
         case .create:
-            .init(tab: .habits, morePage: nil, opensSearch: false, opensCreate: true)
+            .init(tab: .today, morePage: nil, opensSearch: false, opensCreate: true)
         case .cleanup:
-            .init(tab: .more, morePage: nil, opensSearch: false, opensCreate: false,
+            .init(tab: .today, morePage: .settings, opensSearch: false, opensCreate: false,
                   runsNativeSyncCleanup: true)
         }
     }

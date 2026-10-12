@@ -1,4 +1,7 @@
 import XCTest
+import SwiftUI
+import UIKit
+@testable import Haiity
 
 final class GraphContextMenuRegressionTests: XCTestCase {
     private func source(_ relative: String) throws -> String {
@@ -63,6 +66,40 @@ final class GraphContextMenuRegressionTests: XCTestCase {
                       "only the original card surface should disappear during the lift")
     }
 
+    @MainActor
+    func testNativePreviewVisibilityIsConfinedToTheHeldHost() throws {
+        var firstVisibility: [Bool] = []
+        var secondVisibility: [Bool] = []
+        func host(_ changed: @escaping (Bool) -> Void) -> GraphContextMenu.MenuHost {
+            let value = GraphContextMenu.MenuHost(cardRadius: 16, previewWidth: 100, previewHeight: 80,
+                previewOwnsSurface: true, previewAccessibilityIdentifier: nil,
+                preview: { AnyView(Color.clear) }, actions: [], commit: {},
+                palettes: PaletteBook(), appearancePreferences: AppearancePreferences(),
+                onMenuVisibilityChanged: changed)
+            value.frame = CGRect(x: 0, y: 0, width: 100, height: 80)
+            return value
+        }
+        let first = host { firstVisibility.append($0) }
+        let second = host { secondVisibility.append($0) }
+        XCTAssertEqual(first.interactions.compactMap { $0 as? UIContextMenuInteraction }.count, 1)
+        XCTAssertEqual(second.interactions.compactMap { $0 as? UIContextMenuInteraction }.count, 1)
+        let interaction = try XCTUnwrap(first.interactions.compactMap { $0 as? UIContextMenuInteraction }.first)
+        XCTAssertNil(first.contextMenuInteraction(interaction, configurationForMenuAtLocation: CGPoint(x: -1, y: -1)))
+        XCTAssertTrue(firstVisibility.isEmpty, "Touches outside the graph must not lift its preview")
+        let configuration = try XCTUnwrap(first.contextMenuInteraction(interaction,
+            configurationForMenuAtLocation: CGPoint(x: 50, y: 40)))
+        XCTAssertEqual(firstVisibility, [true])
+        XCTAssertTrue(secondVisibility.isEmpty, "Holding one card must not hide another card")
+        first.contextMenuInteraction(interaction, willEndFor: configuration, animator: nil)
+        XCTAssertEqual(firstVisibility, [true, false])
+        XCTAssertTrue(secondVisibility.isEmpty)
+        first.detach()
+        XCTAssertFalse(first.interactions.contains { $0 === interaction })
+        XCTAssertEqual(second.interactions.compactMap { $0 as? UIContextMenuInteraction }.count, 1,
+                       "Dismantling one host must preserve its sibling's interaction")
+        second.detach()
+    }
+
     func testAllStatsPreviewCallersHideOnlyTheirActiveSourceSurface() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
 
@@ -76,15 +113,20 @@ final class GraphContextMenuRegressionTests: XCTestCase {
 
     func testStatsCardsDoNotInstallASectionWideSurfaceBehindTheLift() throws {
         let stats = try source("Haiity/Views/StatsView.swift")
-        let start = try XCTUnwrap(stats.range(of: "private func statsMetricGrid"))
-        let end = try XCTUnwrap(stats.range(of: "@ViewBuilder\n    private func statsMetric",
+        let start = try XCTUnwrap(stats.range(of: "private func statsSelectedMetrics"))
+        let end = try XCTUnwrap(stats.range(of: "func statsMetric(_ card:",
                                             range: start.upperBound..<stats.endIndex))
         let list = stats[start.lowerBound..<end.lowerBound]
 
-        XCTAssertTrue(list.contains("LazyVGrid"),
-                      "statistics metrics must be laid out as individual grid items")
+        XCTAssertTrue(list.contains("ForEach(cards)"), "Saved metrics must retain independent card identities")
+        XCTAssertTrue(list.contains(".opacity(activeContextMenuID == card.rawValue ? 0 : 1)"),
+                      "Lifting one metric must hide only that metric's source")
+        XCTAssertTrue(list.contains("statsContextMenu(id: card.rawValue"),
+                      "Each metric must own its preview interaction")
         XCTAssertFalse(list.contains(".settingsListRow()"),
                        "a section-wide surface remains visible behind a lifted card")
+        XCTAssertFalse(list.contains(".listRowBackground("),
+                       "The collection must not introduce a second list-owned lift surface")
         XCTAssertTrue(list.contains(".appSurface()"),
                       "the metrics group must keep the selected appearance material")
     }

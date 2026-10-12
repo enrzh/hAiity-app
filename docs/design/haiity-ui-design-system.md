@@ -1,10 +1,23 @@
 # hAiity UI Design System
 
-Status: implemented contract - shared settings and graph foundations verified
-Date: 2026-10-09
-Scope: shared UI language for the existing iOS app
+Status: complete UI rebuild contract; current native verification recorded separately
+Date: 2026-10-10
+Scope: Today, collection, details, Progress and shared secondary presentation
 
-## Product hierarchy (2026-10-09)
+## Product hierarchy (2026-10-10)
+
+Today is the normal launch destination. It contains compact daily actions,
+separate reminders and flexible goals, with no contribution charts. Initial
+completed/answered items are disclosed; completing/undoing during a visit keeps
+the existing row positions. Explicit refresh, reentry and an idle local-day
+boundary regroup temporary IDs. Declined answers are resolved but not successes.
+ScheduledProgress owns the scheduled-habit denominator; reminders and flexible
+period goals remain separate units.
+
+Habits owns the collection and native manual order. Progress retains the internal
+stats route. The native Search control stays separate. Header Settings opens a
+single navigation stack with pushed child pages. Root headings use a compact
+style-aware title, 16 pt gutters and a 760 pt readable maximum.
 
 Fresh stores start in Quiet. Existing data, missing legacy style fields and
 unknown style values retain Original. System/light/dark stays direct; alternate
@@ -13,12 +26,19 @@ continues to preserve the selected background, palette and other preferences.
 
 Creation leads with name, repetition, essential reminder date/time, preview and
 Save. New habits start daily; new reminders start once. Repetition does not change
-item type. Kind and optional settings are disclosed. Flexible weekly quotas use
-the existing recurrence engine. Optional sentence creation belongs inside the
-creator and carries typed text into its own item-based sheet after dismissal.
+item type. Quantity is direct after selecting its kind; optional settings are
+disclosed. Flexible weekly quotas use the existing recurrence engine. The native
+adaptive sheet keeps the manual draft mounted during its embedded sentence
+child; Cancel/Back retains all fields and successful creation closes once.
+Typing keeps the sentence and inline microphone visible when the preview first
+appears. The action dock stays above the keyboard, and denied dictation preserves
+the sentence for continued editing at accessibility text sizes.
 
-Habit cards keep Today separate from the labeled History and Edit footer, with
-44 pt targets even in compact mode. The name and graph open full history.
+Habit cards keep Today separate from name/details, with 44 pt targets even in
+compact mode. The name opens live-ID details; the graph opens full history.
+Details owns visible Edit, schedule, notification state and contextual actions.
+Shared action controls never own a store or schedule; root callbacks resolve the
+live item/day and present undo/success only after a durable change.
 Long-press remains optional. Cards fill their actual drawable width with square
 tiles through the shared renderer. With gap 3 pt and preferred tile 12 pt, the
 window is floor((width + gap) / (12 + gap)) columns, clamped to 1...53; tile side
@@ -28,7 +48,7 @@ from the existing completion engine during check-off and undo.
 The existing page clock refreshes otherwise unchanged cards on their local day
 boundary; GitHub follows UTC. A check-off reads the live date when activated.
 
-GitHub is the first content below the Habits heading, before Today/filter and
+GitHub is the first content below the Habits heading, before collection filters and
 personal entries. Its recent band uses the same sizing; the annual dataset and
 profile action remain available. It is absent from dedicated Search and never
 enters progress or persisted item order. During native sorting, a compact fixed
@@ -36,12 +56,14 @@ identity replaces its graph. Sorting rows use the selected shared surface and
 style roles, with native drag handles and VoiceOver moves; Done exits immediate-save editing.
 Phone layouts grow naturally at accessibility sizes. Wide page columns are capped at 760 pt.
 
-Statistics lead with current-week completion and the last seven daily rates,
-then a lighter Today summary. Per-habit recent completion follows; saved optional metrics stay available.
+Progress leads with current-week completion and the last seven daily rates.
+Saved optional metrics retain their values and selected order, including an
+explicit Today choice; there is no compulsory duplicate Today hero. Per-habit
+recent completion follows. Aggregate rhythm accurately labels its 20-week period.
 AI reading is a collapsed optional action and never runs just from expansion.
 The denominators and flexible-period rules remain unchanged and explained.
 
-The More hub uses navigation-only connection rows. Personalization leads with a
+The Settings hub uses navigation-only connection rows. Personalization leads with a
 local nickname; optional Apple connection is disclosed on that page, and GitHub
 authentication stays on its own page. Normal text-creation settings show optional
 assistance and readiness, with existing named model controls under Advanced.
@@ -49,7 +71,10 @@ Identity storage, purchase boundaries and saved model choices stay independent.
 Notifications opens existing notification settings. Calendar & Reminders opens
 the existing native integration controls directly; Behavior owns archiving,
 swipes and the default time zone. Opening these pages does not replay setup,
-request permissions or rewrite summary times.
+request permissions or rewrite summary times. Back returns to the hub; closing
+Settings from any child returns to the originating tab; reopening starts at the
+hub. Old More/sync URLs open Settings rather
+than selecting a removed content tab. Search/detail return retains the query.
 
 ## App-wide design styles (2026-10-04)
 
@@ -767,3 +792,99 @@ The direction follows the local Apple Design review references:
 
 These are constraints for the existing app, not a reason to introduce new
 features or imitate another app screen-for-screen.
+
+## Rebuild verification checkpoint (2026-10-11)
+
+The implementation is on `codex/haiity-ui-rebuild` in
+`.worktrees/2026-10-10-ui-rebuild`, based on
+`19270646a142ba88c3b94a6094137738eea7144b`, with uncommitted changes preserved.
+Current source fingerprint:
+`adfc569b79a94d3939c1e49422af79fcf21a969fdcf1ead94d9e00f68af8632d`.
+Xcode 27.0 (`27A266a`), pinned XcodeGen 2.46.0; simulator iPhone 17 Pro,
+iOS 26.5 (`23F77`). App and widget remain `1.0.0 (278)` locally.
+
+Evidence root: `/Users/enrico/Documents/haiity-verification/ui-rebuild-20261010`.
+`Final/Unit3.xcresult` passed all 2,203 tests, zero failures/skips.
+`Final/Release.xcresult` is a successful unsigned generic-iOS build;
+`Final/ReleaseResources.json` checks the compiled app/widget versions, all 17
+locales, new translations, catalog preservation and privacy/resources.
+`Final/Performance.xcresult` passed the same three baseline scenarios:
+
+| Simulator metric | October 9 baseline median | Rebuild median | Samples |
+| --- | --- | --- | --- |
+| Launch to responsive first frame | 1.729610 s | 1.314137 s | 5 |
+| Collection scroll deceleration | 2.316680 s | 2.312113 s | 3 |
+| Native sorting scroll deceleration | 2.300159 s | 2.300551 s | 3 |
+
+The rebuild run used the screenshot-only capture policy required for this
+session; the earlier baseline used its default capture policy. Treat this
+comparison as bounded simulator evidence, not a causal speedup claim.
+
+The complete final 69-case `Final/Smoke5.xcresult` is running. Its runner's PID
+and exit status are recorded in `Final/Smoke5.runner.pid` / `Smoke5.exit`.
+The prior `Smoke2` was interrupted after eight passes and is unsealed. The previous
+final Smoke passed 68/69; the corrected native Search submit/leave/return
+case passed separately in `Final/SearchSorting2.xcresult`. It uses a real
+visible target after releasing the keyboard and verifies the retained query.
+Native Close remains the system's explicit query cancellation. All test plans
+now request screenshots, with no automatic screen recordings.
+
+Reviewed representative native app captures in `Final/AppCaptures` (114
+deliberate screenshots): Today, collection, details/history, creator and
+keyboard-open sentence input, Settings, Progress, four style variants,
+AX5 Arabic/photo and native sorting over a dark photo. Existing extension
+rendering boards remain in `Final/Widgets`. Pixel/layout inspection and helper
+rendering are separate from actual screen-reader navigation or widget hosting.
+The native Today/details audit collects all issue categories. Its only
+exceptions are native toolbar/disclosure Dynamic Type heuristics (with a
+separate actual AX5 growth/tap test) and contrast in the native scroll-edge
+fade or occluded region. Details are audited again after scrolling those
+fields into the unobscured viewport; no entire issue category is suppressed.
+
+Open device/platform/service gates: real-data phone splash/return performance,
+held-finger interruption, VoiceOver focus/action order, notifications, widget
+refresh/tint/clear hosting, Live Activities, cross-device iCloud and native
+Calendar/Reminders/photo recovery. Only iOS 26.5 is executable here; older
+compatibility and iOS 27 runtime behavior remain unverified. Genuine live URL
+dismissal requires a trusted runtime: XCTest's URL launch changes the app
+process, while the UI-runner's public open API returned `Request is not trusted`.
+The corresponding native test remains in Device; no trust bypass was used.
+
+The latest human preference is Chrome Use for websites and Computer Use for
+desktop UI. Authenticated website verification has not been performed for this
+candidate. No new commit, push, Cloud upload,
+Apple processing, tester assignment or installed TestFlight build is claimed.
+
+The history contrast correction is now in progress. Filled date labels choose
+opaque ink from their actual palette level; selection outlines preserve that
+contrast, and annotation marks are at least 11 pt. The new native audit passed
+ordinary history and exposed two remaining selected-state findings. These
+remain open; the earlier final gates above belong to the preceding fingerprint.
+Current fingerprint is
+`bfe581e679f6fd4aadd17cf448f9d769e3515ca6fe0aee3dae77278ae688894d`;
+`Final/Unit4.xcresult` is running, and the complete Smoke plan now selects 70
+cases. A bounded read-only reviewer is diagnosing the exact native findings.
+
+The controlled UIKit comparison is complete: matching UILabel/UIButton text,
+fonts and colors passed the unfiltered audit in
+`Final/HistoryContrastUIKitBothProbe.xcresult`. Both temporary types were
+removed. History now documents two exact SwiftUI contrast-node exceptions on
+the iOS 26.5 simulator, `history-select-all` and `backfill-status`; every other
+history contrast issue remains checked. The ordinary/selected history gate
+passed in `Final/HistoryContrastFinal.xcresult`. Actual VoiceOver and other OS
+versions remain separate gates.
+
+Final frozen fingerprint:
+`2c8fc2543c316018b2abba294836db6c492bdafd19f295c50fd0d88cf9578e30`.
+Unit4's only failure froze the removed selection tint in source; the assertion
+was removed while gesture and label-transition contracts remain. Unit5 and
+matching final Release/performance/70-case Smoke receipts are being completed.
+
+Matching final Unit5 passed 2,204/2,204 with zero failures/skips. Unsigned
+Release3 and Release3Resources passed on the frozen source. Performance2
+passed all three scenarios, with medians 1.321309 s (five launches), 2.300207 s
+(three collection scrolls) and 2.300514 s (three native-sort scrolls).
+The full 70-case `Final/Smoke6.xcresult` is active; its durable runner/exit
+receipts are `Final/Smoke6.runner.pid` and `Final/Smoke6.exit`. Earlier checks
+need not be repeated while source/toolchain is unchanged. Final capture
+review and the source-bound evidence record follow the sealed Smoke result.

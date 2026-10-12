@@ -8,7 +8,7 @@ enum DesignFixture {
         #if DEBUG && targetEnvironment(simulator)
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-design-fixture"), index + 1 < args.count,
-              ["empty", "realistic", "crowded", "mixed", "sorting"].contains(args[index + 1]) else { return nil }
+              ["empty", "realistic", "crowded", "mixed", "sorting", "today"].contains(args[index + 1]) else { return nil }
         return args[index + 1]
         #else
         return nil
@@ -112,6 +112,25 @@ enum DesignFixture {
                 habit.calendarSyncEnabled = false
                 store.add(habit)
             }
+        }
+        if scenario == "today" {
+            for (index, frequency) in [Recurrence.Frequency.weekly, .monthly, .yearly].enumerated() {
+                var habit = Habit(name: "Flexible \(frequency.rawValue)", recurrence: .times(3, per: frequency),
+                                  notificationMode: .off)
+                habit.id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", 800 + index))!
+                habit.calendarSyncEnabled = false
+                store.add(habit)
+            }
+            var question = Habit(name: "No late coffee?", kind: .yesNo, notificationMode: .off)
+            question.id = UUID(uuidString: "00000000-0000-0000-0000-000000000803")!
+            question.log[today] = Habit.Answer.no
+            question.calendarSyncEnabled = false
+            store.add(question)
+            var future = Habit(name: "Future appointment", itemType: .reminder,
+                recurrence: Recurrence(frequency: .once, start: DayKey.shifted(today, by: 1)), notificationMode: .off)
+            future.id = UUID(uuidString: "00000000-0000-0000-0000-000000000804")!
+            future.calendarSyncEnabled = false
+            store.add(future)
         }
         #if DEBUG && targetEnvironment(simulator)
         if args.contains("-design-write-conflict") {

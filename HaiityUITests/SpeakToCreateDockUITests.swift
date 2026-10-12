@@ -17,17 +17,26 @@ final class SpeakToCreateDockUITests: XCTestCase {
         app.launch()
     }
 
-    private func openSheet() -> XCUIElement {
+    @discardableResult
+    private func openSheet(embedded: Bool = true) -> XCUIElement {
         XCTAssertFalse(app.buttons["speak-to-create"].exists,
                        "sentence creation is an optional creator action")
         let create = app.buttons["create-habit"].firstMatch
         XCTAssertTrue(create.waitForExistence(timeout: 20))
         create.tap()
-        let opener = app.buttons["speak-to-create"]
-        XCTAssertTrue(opener.waitForExistence(timeout: 20),
-                      "the creator offers sentence creation")
-        for _ in 0..<6 where !opener.isHittable { app.swipeUp(velocity: .slow) }
-        opener.tap()
+        let titles = embedded
+            ? ["Neuer Habit", "New habit", "عادة جديدة"]
+            : ["Aus einem Satz anlegen", "Create from a sentence", "إنشاء من جملة"]
+        let choice = app.buttons.matching(NSPredicate(format: "label IN %@", titles)).firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        choice.tap()
+        if embedded {
+            XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+            let opener = app.buttons["speak-to-create"]
+            XCTAssertTrue(opener.waitForExistence(timeout: 20))
+            for _ in 0..<6 where !opener.isHittable { app.swipeUp(velocity: .slow) }
+            opener.tap()
+        }
         let field = app.textFields["speak-to-create-text"]
         XCTAssertTrue(field.waitForExistence(timeout: 10), "the sheet should open")
         return field
@@ -179,12 +188,16 @@ final class SpeakToCreateDockUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
         let saved = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'reminder-row-'"))
-            .containing(.staticText, identifier: "Zahnarzt").firstMatch
+            .containing(.button, identifier: "Zahnarzt").firstMatch
         for _ in 0..<16 where !saved.isHittable { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
-        let dateAndTime = saved.staticTexts.matching(NSPredicate(format: "label CONTAINS '2099' AND label CONTAINS '10:00'")).firstMatch
-        XCTAssertTrue(dateAndTime.exists)
-        let edit = saved.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'reminder-edit-'")).firstMatch
+        let details = saved.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'reminder-name-'")).firstMatch
+        let dateAndTime = details.value as? String ?? ""
+        XCTAssertTrue(dateAndTime.contains("2099") && dateAndTime.contains("10:00"), dateAndTime)
+        XCTAssertTrue(details.isHittable)
+        details.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["habit-detail"].firstMatch.waitForExistence(timeout: 5))
+        let edit = app.buttons["edit-habit"]
         XCTAssertTrue(edit.isHittable)
         edit.tap()
         XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
@@ -204,8 +217,9 @@ final class SpeakToCreateDockUITests: XCTestCase {
         field.tap()
         field.typeText("Wasser trinken")
         let mic = app.buttons["speak-to-create-dictation"]
-        if !mic.isHittable { app.swipeDown() }
-        XCTAssertTrue(mic.isHittable)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        capture("text-create-dark-large-typing")
+        XCTAssertTrue(mic.isHittable, "typing must keep the inline microphone reachable")
         mic.tap()
         let status = app.staticTexts["speak-to-create-prompt"]
         let denied = XCTNSPredicateExpectation(
@@ -260,11 +274,6 @@ final class SpeakToCreateDockUITests: XCTestCase {
         let draft = app.descendants(matching: .any)["speak-to-create-draft"]
         XCTAssertTrue(draft.waitForExistence(timeout: 5),
                       "a sentence should produce a draft")
-        // Put the keyboard away so the swipe is about the sheet, not the field.
-        if app.keyboards.element.exists {
-            app.keyboards.buttons.element(boundBy: 0).tap()
-        }
-
         // The dock stays put while the content moves.
         let create = app.buttons["speak-to-create-confirm"]
         let before = create.frame.minY
@@ -280,7 +289,7 @@ final class SpeakToCreateDockUITests: XCTestCase {
     func testCaptureTheSheetForReview() throws {
         // The main page, so the entry point can be judged against its neighbours.
         capture("dock-00-main")
-        let field = openSheet()
+        let field = openSheet(embedded: false)
         capture("dock-01-half")
 
         // Typing expands the sheet to the full page, and the draft comes to rest

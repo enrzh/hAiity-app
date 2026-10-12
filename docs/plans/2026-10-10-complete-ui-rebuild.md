@@ -16,7 +16,17 @@ Repository: `/Users/enrico/Documents/GitHub/haiity`
 
 Reading guide: [navigation](#3-product-structure), [visual rules](#4-visual-language), [Today](#5-today-screen), [collection](#6-habits-collection), [details](#7-item-details-and-full-history), [creation](#9-creation-editing-and-sentence-input), [implementation](#18-implementation-sequence), [verification](#20-verification-plan).
 
-## Final result (2026-10-12 03:13 UTC)
+## Authorized TestFlight release (2026-10-12)
+
+The user requested integration, a TestFlight push, and local build-number alignment. This supersedes the earlier release boundary for the requested build only; physical installation, credential extraction and data resets remain outside the task.
+
+Live App Store Connect API evidence confirms the latest processed build is `297` (`b657165e-b4fc-4de6-bc0d-33147cbdf27e`, `VALID`). Xcode Cloud run `297` (`d450f1a9-44b0-48a5-9180-ae5167a4dc76`) completed successfully from `c9c16cb`, which contained no UI rebuild. Local main used build `279`, explaining the mismatch.
+
+The validated UI rebuild is committed as `6676459` on `codex/haiity-ui-rebuild` and merged into main. The authorized next candidate is app/widget `1.0.0 (298)`; project generation and exact release-commit verification are pending. Xcode Cloud product `1c625e1f-cad5-4f2c-bd7b-f2dba919d569` has the enabled `Default` workflow (`491EC6C1-8B07-48D4-BEA0-EB4E6FBC9E6C`), with the required `Archive - iOS` action and App Store eligible distribution. No new Cloud run/upload is claimed yet.
+
+Chrome Use is unavailable in this session. The existing configured App Store Connect API helper is being used for supported release operations without exposing authentication material. Its tester-group relationship request returned HTTP 403; tester assignment remains a distinct unverified gate.
+
+## Final local result (2026-10-12 03:13 UTC)
 
 Tasks 0-10 are complete for the authorized local UI rebuild. The implementation and all dirty/untracked work remain in `/Users/enrico/Documents/GitHub/haiity/.worktrees/2026-10-10-ui-rebuild`, branch `codex/haiity-ui-rebuild`. Base HEAD remains `19270646a142ba88c3b94a6094137738eea7144b`; exact source fingerprint is **`b2397935093d745a45dc5988f96d8fe9899d60ba0254bdb8c724e0dc25902b64`**. Main checkout, original untracked plan, recovery state and earlier diagnostic artifacts are preserved.
 

@@ -105,6 +105,11 @@ enum AppDesignStyle: String, CaseIterable, Codable, Sendable {
         self == .studio ? .system(.headline, design: .serif, weight: .semibold) : .headline.weight(.semibold)
     }
 
+    var rootHeadingFont: Font {
+        self == .studio ? .system(.title2, design: .serif, weight: .bold)
+            : .title2.weight(self == .quiet ? .medium : .bold)
+    }
+
     var sectionTitleFont: Font {
         switch self {
         case .native: .headline.weight(.semibold)
@@ -827,6 +832,12 @@ enum AppearanceImage {
 /// Nutzers gerechnet wurde, weiß ab hier niemand mehr; das entscheidet
 /// `PaletteStyle.resolve` genau einmal.
 enum Theme {
+    static func secondaryText(preferences: AppearancePreferences) -> Color {
+        // Photo/custom canvases use the primary ink guaranteed by their readability treatment.
+        preferences.backgroundMode == .color && preferences.backgroundColorHex == nil
+            ? Color.primary.opacity(0.7) : Color.primary
+    }
+
     // MARK: – Contribution-Level
 
     /// Die Farbe einer Rasterzelle. `palette` kommt aus der Umgebung
@@ -840,10 +851,18 @@ enum Theme {
     /// damit ohne eigenes Zutun. Jeder ANDERE Ausreißer wird weiter geklemmt
     /// (−3 ist keine Verneinung, sondern ein Fehler, und bleibt l0).
     static func level(_ n: Int, dark: Bool, palette: PaletteStyle = .default) -> Color {
-        guard n != Habit.Answer.declinedLevel else {
-            return color(palette.negative(dark: dark))
-        }
-        return color(palette.ramp(dark: dark)[max(0, min(4, n))])
+        color(levelHex(n, dark: dark, palette: palette))
+    }
+
+    static func levelText(_ n: Int, dark: Bool, palette: PaletteStyle = .default) -> Color {
+        let background = levelHex(n, dark: dark, palette: palette)
+        return contrastRatio(0x000000, background) >= contrastRatio(0xFFFFFF, background)
+            ? .black : .white
+    }
+
+    private static func levelHex(_ n: Int, dark: Bool, palette: PaletteStyle) -> UInt32 {
+        n == Habit.Answer.declinedLevel ? palette.negative(dark: dark)
+            : palette.ramp(dark: dark)[max(0, min(4, n))]
     }
 
     /// Kartenfarbe (`secondarySystemGroupedBackground`) als Hex — die Fläche,
@@ -1248,7 +1267,7 @@ struct RootPageTitle: View {
         VStack(alignment: .leading, spacing: subtitle == nil ? 0 : 3) {
             Text(title)
                 .font(compact
-                      ? .title2.weight(.bold)
+                      ? appearancePreferences.designStyle.rootHeadingFont
                       : appearancePreferences.designStyle.pageTitleFont)
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle, !compact {

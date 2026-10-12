@@ -1,6 +1,6 @@
 {
   "configurations": [{"id": "85B5B4F1-6430-4BCE-8D85-8A971DA0BE54", "name": "German", "options": {"language": "de", "region": "DE"}}],
-  "defaultOptions": {},
+  "defaultOptions": {"preferredScreenCaptureFormat": "screenshots"},
   "testTargets": [{"target": {"containerPath": "container:Haiity.xcodeproj", "identifier": "9A30FF18475712FE78B4BE29", "name": "HaiityTests"}}],
   "version": 1
 }

@@ -443,7 +443,9 @@ struct SwipeRevealActions: View {
         sizedActionStack
             .opacity(progress)
             .frame(maxWidth: .infinity, alignment: alignment)
-            .accessibilityHidden(exposedWidth < actionWidth)
+            .accessibilityRepresentation {
+                if exposedWidth >= actionWidth { sizedActionStack }
+            }
             .allowsHitTesting(exposedWidth >= actionWidth)
     }
 }

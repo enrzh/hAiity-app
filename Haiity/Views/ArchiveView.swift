@@ -4,12 +4,17 @@ import SwiftUI
 /// Tipp. Endgültiges Löschen lebt NUR hier — mit Rückfrage.
 struct ArchiveView: View {
     let store: HabitStore
+    var routeToken: Int = 0
+    @State private var detailID: UUID?
     @State private var pendingDelete: Habit?
     @State private var pendingRestore: Habit?
     @State private var paywall: PaywallContext?
     @State private var proStatus = ProStatus.shared
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.palettes) private var palettes
+    @Environment(\.appearancePreferences) private var preferences
+
+    private var designStyle: AppDesignStyle { preferences.designStyle }
 
     private var archived: [Habit] { store.habits.filter { $0.archivedAt != nil } }
     private var unlocked: Bool {
@@ -19,18 +24,19 @@ struct ArchiveView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: designStyle.sectionGap) {
                 archiveSummary
 
                 if archived.isEmpty {
                     emptyState
                 } else {
                     Text(String(localized: "Archivierte Habits"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(designStyle.sectionTitleFont)
                         .foregroundStyle(.secondary)
+                        .accessibilityAddTraits(.isHeader)
                         .padding(.horizontal, 4)
 
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: designStyle.rowGap * 2) {
                         ForEach(archived) { habit in
                             row(for: habit)
                         }
@@ -38,12 +44,31 @@ struct ArchiveView: View {
                 }
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.top, 12)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 20)
+            .padding(.top, designStyle.cardPadding)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .moreSettingsSurface()
-        .appPageHeader(String(localized: "Archiv"))
+        .softScrollEdges()
+        .settingsChrome()
+        .navigationTitle(String(localized: "Archiv"))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailID) { id in
+            HabitDetailView(store: store, habitID: id, now: .now,
+                onEdit: { _ in }, onHistory: { _ in }, onToggleDay: { _, _ in },
+                onIncrement: { _ in }, onAnswer: { _, _ in }, onToggleReminder: { _ in },
+                onArchive: { _ in }, onDelete: { id in pendingDelete = archived.first { $0.id == id } },
+                allowsArchived: true, onRestore: { id in
+                    if let habit = archived.first(where: { $0.id == id }) { restore(habit) }
+                })
+        }
+        .onChange(of: routeToken) { _, _ in
+            detailID = nil
+            pendingRestore = nil
+            paywall = nil
+        }
+        .pageHeaderChrome()
         .alert(String(localized: "Endgültig löschen?"),
                isPresented: Binding(
                    get: { pendingDelete != nil },
@@ -71,8 +96,8 @@ struct ArchiveView: View {
     }
 
     private var archiveSummary: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            HStack(spacing: Theme.Metrics.gap + 4) {
                 Image(systemName: "archivebox.fill")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Theme.accentText(palettes.style))
@@ -81,7 +106,7 @@ struct ArchiveView: View {
                                 in: RoundedRectangle(cornerRadius: CornerRadius.panel, style: .continuous))
 
                 Text(String(localized: "Archivierte Habits"))
-                    .font(.headline.weight(.semibold))
+                    .font(designStyle.sectionTitleFont)
                     .layoutPriority(1)
 
                 Spacer(minLength: 8)
@@ -96,38 +121,40 @@ struct ArchiveView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(18)
+        .padding(designStyle.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .morePanel()
         .accessibilityElement(children: .combine)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: designStyle.rowGap * 2) {
             Image(systemName: "archivebox")
                 .font(.title2.weight(.medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 48, height: 48)
                 .background(Color.secondary.opacity(0.12), in: Circle())
             Text(String(localized: "Archiv ist leer"))
-                .font(.headline.weight(.semibold))
+                .font(designStyle.sectionTitleFont)
             Text(String(localized: "Hier erscheinen archivierte Einträge."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 20)
+        .padding(designStyle.cardPadding)
         .morePanel()
     }
 
     private func row(for habit: Habit) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
+            HStack(alignment: .top, spacing: Theme.Metrics.gap + 4) {
                 habitSymbol(for: habit)
-                titleBlock(for: habit)
-                    .layoutPriority(1)
+                Button { detailID = habit.id } label: {
+                    titleBlock(for: habit)
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).layoutPriority(1)
 
                 Menu {
                     Button(role: .destructive) {
@@ -150,7 +177,7 @@ struct ArchiveView: View {
                 restoreButton(for: habit)
             }
         }
-        .padding(16)
+        .padding(designStyle.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .morePanel()
         .accessibilityElement(children: .contain)
@@ -170,13 +197,14 @@ struct ArchiveView: View {
         }
         .frame(width: 36, height: 36)
         .background(Theme.accentText(palettes.style).opacity(0.11), in: Circle())
+        .accessibilityHidden(true)
     }
 
     private func titleBlock(for habit: Habit) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: designStyle.rowGap) {
             Text(habit.name)
-                .font(.body.weight(.semibold))
-                .lineLimit(typeSize.isAccessibilitySize ? 4 : 2)
+                .font(designStyle.rowTitleFont)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
             Text(String(localized: "Archiviert am \(habit.archivedAt ?? "–") · \(habit.checkInCount()) Check-ins"))
                 .font(.footnote)
@@ -186,27 +214,31 @@ struct ArchiveView: View {
     }
 
     private func restoreButton(for habit: Habit) -> some View {
-        Button {
-            guard ProGate.mayUnarchiveTrackedHabit(
-                isTracked: habit.isTrackedHabit,
-                activeCount: store.activeTrackedHabits.count,
-                unlocked: unlocked) else {
-                pendingRestore = habit
-                paywall = .habits
-                return
-            }
-            store.unarchive(habit.id)
-            Theme.Haptics.success()
-        } label: {
+        Button { restore(habit) } label: {
             Label(String(localized: "Wiederherstellen"), systemImage: "arrow.uturn.backward")
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
+                .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
                 .background(Theme.accentText(palettes.style).opacity(0.15), in: Capsule())
                 .foregroundStyle(Theme.accentText(palettes.style))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
         .accessibilityIdentifier("unarchive-habit")
+    }
+
+    private func restore(_ habit: Habit) {
+        guard ProGate.mayUnarchiveTrackedHabit(
+            isTracked: habit.isTrackedHabit,
+            activeCount: store.activeTrackedHabits.count,
+            unlocked: unlocked) else {
+            pendingRestore = habit
+            paywall = .habits
+            return
+        }
+        store.unarchive(habit.id)
+        if store.lastWriteError == nil { Theme.Haptics.success() }
     }
 }
