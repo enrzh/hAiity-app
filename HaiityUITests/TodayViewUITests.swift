@@ -222,8 +222,8 @@ final class TodayViewUITests: XCTestCase {
 
     func testFullHistoryKeepsLoggedDayLabelsReadable() throws {
         continueAfterFailure = true
-        for selecting in [false, true] {
-            let app = launch()
+        for (selecting, largeText) in [(false, false), (true, false), (false, true), (true, true)] {
+            let app = launch(largeText: largeText)
             app.buttons["item-details-00000000-0000-0000-0000-000000000700"].firstMatch.tap()
             let history = app.buttons["open-habit-history"]
             XCTAssertTrue(history.waitForExistence(timeout: 5))
@@ -233,8 +233,11 @@ final class TodayViewUITests: XCTestCase {
                 app.buttons["history-selection-mode"].tap()
                 app.buttons["history-select-all"].tap()
             }
-            try app.performAccessibilityAudit(for: .contrast)
-            capture("rebuild-history-contrast-\(selecting ? "selected" : "ordinary")")
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                print("History contrast issue: \(issue.compactDescription); identifier: \(issue.element?.identifier ?? "<none>")")
+                return false
+            }
+            capture("rebuild-history-contrast-\(selecting ? "selected" : "ordinary")\(largeText ? "-AX5" : "")")
             app.terminate()
         }
     }

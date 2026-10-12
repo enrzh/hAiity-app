@@ -114,11 +114,15 @@ final class TodayProgressUITests: XCTestCase {
     private func setDueToday(_ enabled: Bool, in app: XCUIApplication) {
         let menu = app.descendants(matching: .any)["habit-filter"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        // Native menus may hide their trigger from the accessibility tree.
+        let frame = menu.frame
+        let dismiss = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX - app.frame.minX, dy: frame.midY - app.frame.minY))
         menu.tap()
         let due = app.descendants(matching: .any)["collection-due-today"].firstMatch
         XCTAssertTrue(due.waitForExistence(timeout: 5))
         let selected = due.isSelected || due.value as? String == "1"
-        if selected != enabled { due.tap() } else { menu.tap() }
+        if selected != enabled { due.tap() } else { dismiss.tap() }
         expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: due)
         waitForExpectations(timeout: 5)
     }

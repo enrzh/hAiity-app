@@ -57,11 +57,13 @@ struct BackfillCard: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                monthNavigation
-                monthPreview
-                selectionTools
-                monthGrid
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    monthNavigation
+                    monthPreview
+                    selectionTools
+                    monthGrid
+                }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if selecting { editorActions }
@@ -79,8 +81,12 @@ struct BackfillCard: View {
                     .accessibilityIdentifier("history-undo")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Fertig"), action: onClose)
-                        .foregroundStyle(.primary)
+                    HistoryButton(title: String(localized: "Fertig"), symbol: nil,
+                                  foreground: .white, fill: Theme.accentFill(palettes.style),
+                                  titleFont: .systemFont(ofSize: 17, weight: .semibold),
+                                  action: onClose)
+                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                        .fixedSize(horizontal: true, vertical: true)
                         .accessibilityIdentifier("backfill-close")
                 }
             }
@@ -240,27 +246,25 @@ struct BackfillCard: View {
     }
 
     private var monthGrid: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    ForEach(0..<GridCalendar.rows, id: \.self) { weekday in
-                        Text(calendar.veryShortWeekdaySymbols[weekday])
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(Theme.secondaryText(preferences: appearancePreferences))
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6),
-                                         count: GridCalendar.rows), spacing: 6) {
-                    ForEach(Array(monthGridDays.enumerated()), id: \.offset) { _, key in
-                        monthDayCell(key)
-                    }
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(0..<GridCalendar.rows, id: \.self) { weekday in
+                    HistoryCaption(text: calendar.veryShortWeekdaySymbols[weekday],
+                                   fill: .clear)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
-            .padding(.bottom, selecting ? 12 : 24)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6),
+                                     count: GridCalendar.rows), spacing: 6) {
+                ForEach(Array(monthGridDays.enumerated()), id: \.offset) { _, key in
+                    monthDayCell(key)
+                }
+            }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, selecting ? 12 : 24)
         .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
             let horizontal = abs(value.translation.width)
             let vertical = abs(value.translation.height)
@@ -310,52 +314,59 @@ struct BackfillCard: View {
     }
 
     private var selectionTools: some View {
-        HStack {
-            Button {
-                selecting.toggle()
-                selected.removeAll()
-            } label: {
-                Text(selecting ? String(localized: "Abbrechen") : String(localized: "Auswählen"))
-                    .font(.headline)
-                    .frame(minHeight: Theme.Metrics.hit)
-                    .contentTransition(.identity)
-            }
-            .accessibilityIdentifier("history-selection-mode")
-            if selecting {
-                HistoryButton(title: selected == Set(visibleDays) && !selected.isEmpty
-                              ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"),
-                              symbol: nil, foreground: Theme.accentText(palettes.style), fill: nil) {
-                    selected = selected == Set(visibleDays) ? [] : Set(visibleDays)
-                }
-                .frame(minHeight: Theme.Metrics.hit)
-                .fixedSize(horizontal: true, vertical: true)
-                .disabled(visibleDays.isEmpty)
-                .accessibilityIdentifier("history-select-all")
-                Button {
-                    selected = Set(missingDays)
-                    Theme.Haptics.select()
-                } label: {
-                    Image(systemName: selected == Set(missingDays) && !missingDays.isEmpty
-                          ? "checkmark.circle.fill" : "circle.dashed")
-                        .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
-                }
-                .disabled(missingDays.isEmpty)
-                .help(String(localized: "Fehlende Tage auswählen"))
-                .accessibilityLabel(String(localized: "Fehlende Tage auswählen"))
-                .accessibilityIdentifier("history-select-missing")
-            }
-            Spacer()
-            Toggle(isOn: $missingOnly) {
-                Text(String(localized: "Ohne Eintrag")).frame(minHeight: Theme.Metrics.hit)
-            }
-                .toggleStyle(.button)
-                .font(.subheadline)
-                .accessibilityIdentifier("history-missing-filter")
-                .onChange(of: missingOnly) { _, _ in selected.removeAll() }
+        ViewThatFits(in: .horizontal) {
+            HStack { selectionControls }
+            VStack(alignment: .leading, spacing: 8) { selectionControls }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tint(Theme.accentText(palettes.style(for: habit)))
         .padding(.horizontal, 20)
         .background(Theme.surfaceFill(preferences: appearancePreferences))
+    }
+
+    @ViewBuilder
+    private var selectionControls: some View {
+        Button {
+            selecting.toggle()
+            selected.removeAll()
+        } label: {
+            Text(selecting ? String(localized: "Abbrechen") : String(localized: "Auswählen"))
+                .font(.headline)
+                .frame(minHeight: Theme.Metrics.hit)
+                .contentTransition(.identity)
+        }
+        .accessibilityIdentifier("history-selection-mode")
+        if selecting {
+            HistoryButton(title: selected == Set(visibleDays) && !selected.isEmpty
+                          ? String(localized: "Auswahl aufheben") : String(localized: "Alle auswählen"),
+                          symbol: nil, foreground: Theme.accentText(palettes.style), fill: nil) {
+                selected = selected == Set(visibleDays) ? [] : Set(visibleDays)
+            }
+            .frame(minHeight: Theme.Metrics.hit)
+            .fixedSize(horizontal: true, vertical: true)
+            .disabled(visibleDays.isEmpty)
+            .accessibilityIdentifier("history-select-all")
+            Button {
+                selected = Set(missingDays)
+                Theme.Haptics.select()
+            } label: {
+                Image(systemName: selected == Set(missingDays) && !missingDays.isEmpty
+                      ? "checkmark.circle.fill" : "circle.dashed")
+                    .frame(width: Theme.Metrics.hit, height: Theme.Metrics.hit)
+            }
+            .disabled(missingDays.isEmpty)
+            .help(String(localized: "Fehlende Tage auswählen"))
+            .accessibilityLabel(String(localized: "Fehlende Tage auswählen"))
+            .accessibilityIdentifier("history-select-missing")
+        }
+        Spacer(minLength: 8)
+        Toggle(isOn: $missingOnly) {
+            Text(String(localized: "Ohne Eintrag")).frame(minHeight: Theme.Metrics.hit)
+        }
+        .toggleStyle(.button)
+        .font(.subheadline)
+        .accessibilityIdentifier("history-missing-filter")
+        .onChange(of: missingOnly) { _, _ in selected.removeAll() }
     }
 
     @ViewBuilder
@@ -394,6 +405,8 @@ struct BackfillCard: View {
                     VStack(spacing: 1) {
                         Text(date, format: .dateTime.day())
                             .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                         if habit.kind == .quantity, let value = habit.log[key], value > 0 {
                             Text("\(value)")
                                 .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -537,11 +550,13 @@ private struct HistoryButton: UIViewRepresentable {
     let symbol: String?
     let foreground: Color
     let fill: Color?
+    var titleFont: UIFont? = nil
     let action: () -> Void
 
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton(type: .system)
         button.titleLabel?.numberOfLines = 0
+        button.addInteraction(UILargeContentViewerInteraction())
         return button
     }
 
@@ -558,10 +573,12 @@ private struct HistoryButton: UIViewRepresentable {
             : NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var attributes = incoming
-            attributes.font = UIFont.preferredFont(forTextStyle: .headline)
+            attributes.font = titleFont ?? UIFont.preferredFont(forTextStyle: .headline)
             return attributes
         }
         button.configuration = configuration
+        button.showsLargeContentViewer = titleFont != nil
+        button.largeContentTitle = title
         button.isEnabled = context.environment.isEnabled
         let identifier = UIAction.Identifier("history-action")
         button.removeAction(identifiedBy: identifier, for: .touchUpInside)
@@ -618,6 +635,7 @@ private struct HistoryMonthPreview: View {
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, minHeight: graphHeight, alignment: .center)
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "\(filledCount) von \(totalDays) Tagen eingetragen"))
     }
