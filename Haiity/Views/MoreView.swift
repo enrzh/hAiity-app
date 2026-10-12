@@ -16,21 +16,23 @@ import UIKit
 /// trotzdem, damit `moreDestination` der EINE Ort bleibt, an dem steht,
 /// welche Seite hinter welchem Ziel liegt.
 enum MoreRoute: Hashable, Identifiable {
-    case archive, about, developer, appearance, habitBehavior, github, localModel, dataTransfer, calendar
+    case settings, archive, about, developer, appearance, habitBehavior, github, localModel, dataTransfer, calendar, notifications, personalization
 
     var id: Self { self }
 }
 
 enum MoreScreen: Hashable {
-    case main, appearance, habitBehavior, localModel, calendar
+    case main, appearance, habitBehavior, localModel, calendar, notifications, personalization
 
     var title: String {
         switch self {
-        case .main: String(localized: "Mehr")
+        case .main: String(localized: "Einstellungen")
         case .appearance: String(localized: "Darstellung")
         case .habitBehavior: String(localized: "Verhalten")
         case .localModel: String(localized: "Text-Erstellung")
         case .calendar: String(localized: "Kalender & Erinnerungen")
+        case .notifications: String(localized: "Mitteilungen")
+        case .personalization: String(localized: "Personalisierung")
         }
     }
 }
@@ -74,6 +76,7 @@ struct MoreView: View {
     @State var motivationWriteFailed = false
     @State var dndNow = Date()
     @State private var showReminderSetup = false
+    @State private var showingFeedback = false
     @State var showWeeklyWeekdayPicker = false
     @State var pickedBackgroundItem: PhotosPickerItem?
     @State var backgroundImageError = false
@@ -120,8 +123,6 @@ struct MoreView: View {
     /// the picker, the sheet and the reader all see the same progress.
     @State var modelService = LocalModelService()
     @State private var rootTitleProgress: CGFloat = 0
-    @State private var showingPersonalSettings = false
-    @State private var showingNotificationSettings = false
     @State var showingAppearanceCustomize = false
     @Environment(\.palettes) var palettes
 
@@ -158,12 +159,14 @@ struct MoreView: View {
             case .habitBehavior: habitBehaviorSettings
             case .localModel: localModelSettings
             case .calendar: calendarSettings
+            case .notifications: SettingsPage { notificationSettingsSection }
+            case .personalization: SettingsPage { personalHeader; personalSection }
             }
         }
         // A presented More screen must not reuse the previous screen's view tree.
         .id(screen)
         .navigationTitle(screen == .main ? "" : screen.title)
-        .navigationBarTitleDisplayMode(screen == .main ? .inline : .large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if screen == .main {
                 ToolbarItem(placement: .principal) {
@@ -182,38 +185,10 @@ struct MoreView: View {
                 .themed(store, palettes: palettes)
                 .environment(\.appearanceBackgroundOwned, false)
         }
-        .sheet(isPresented: $showingPersonalSettings) {
-            NavigationStack {
-                // Not a `List`: iOS 27 drops taps on grouped list rows.
-                SettingsPage(title: String(localized: "Personalisierung")) {
-                    personalHeader
-                    personalSection
-                }
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(String(localized: "Fertig")) { showingPersonalSettings = false }
-                        }
-                    }
-            }
-            .themed(store, palettes: palettes)
-            .environment(\.appearanceBackgroundOwned, false)
-            .presentationDetents([.large])
-        }
-        .sheet(isPresented: $showingNotificationSettings) {
-            NavigationStack {
-                // Not a `List`: iOS 27 drops taps on grouped list rows.
-                SettingsPage(title: String(localized: "Mitteilungen")) {
-                    notificationSettingsSection
-                }
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(String(localized: "Fertig")) { showingNotificationSettings = false }
-                        }
-                    }
-            }
-            .themed(store, palettes: palettes)
-            .environment(\.appearanceBackgroundOwned, false)
-            .presentationDetents([.large])
+        .sheet(isPresented: $showingFeedback) {
+            FeedbackSheet(store: store, cloudStatus: cloudStatus)
+                .themed(store, palettes: palettes)
+                .environment(\.appearanceBackgroundOwned, false)
         }
         .onAppear {
             refreshPersonalIdentity()
@@ -322,22 +297,15 @@ struct MoreView: View {
     private var mainSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: store.appearancePreferences.designStyle.cardPadding + 2) {
-                RootPageTitle(title: screen.title,
-                              subtitle: String(localized: "Deine Einstellungen an einem Ort"))
+                RootPageTitle(title: screen.title, compact: true)
                     .padding(.horizontal, -Theme.Metrics.gutter)
 
                 AppSettingsGroup(title: String(localized: "Alltag")) {
-                    moreHubRow(title: String(localized: "Darstellung"),
-                               symbol: "paintpalette",
-                               identifier: "open-appearance") {
-                        onOpen(.appearance)
-                    }
-                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Mitteilungen"),
                                detail: String(localized: "Zusammenfassungen und Ruhezeiten"),
                                symbol: "bell",
                                identifier: "open-notifications") {
-                        showingNotificationSettings = true
+                        onOpen(.notifications)
                     }
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreHubRow(title: String(localized: "Verhalten"),
@@ -345,6 +313,12 @@ struct MoreView: View {
                                symbol: "hand.draw",
                                identifier: "open-habit-behavior") {
                         onOpen(.habitBehavior)
+                    }
+                }
+
+                AppSettingsGroup(title: String(localized: "Darstellung")) {
+                    moreHubRow(title: String(localized: "Darstellung"), symbol: "paintpalette", identifier: "open-appearance") {
+                        onOpen(.appearance)
                     }
                 }
 
@@ -358,6 +332,11 @@ struct MoreView: View {
                     moreGitHubRow
                     Divider().padding(.leading, Theme.Metrics.rowTitleInset)
                     moreAppleAccountRow
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
+                    AppSettingsRow(title: cloudStatus.state.title, detail: cloudStatus.state.detail,
+                                   symbol: cloudStatus.state.systemImage) {}
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("cloud-sync-status")
                 }
 
                 AppSettingsGroup(title: String(localized: "Daten & Über")) {
@@ -379,10 +358,15 @@ struct MoreView: View {
                                identifier: "open-about") {
                         onOpen(.about)
                     }
+                    Divider().padding(.leading, Theme.Metrics.rowTitleInset)
+                    moreHubRow(title: String(localized: "Fehler melden"), symbol: "bubble.left", identifier: "open-feedback") {
+                        showingFeedback = true
+                    }
                 }
                 proSection
             }
             .padding(.horizontal, Theme.Metrics.gutter)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth).frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .softScrollEdges()
@@ -467,7 +451,7 @@ struct MoreView: View {
     }
 
     private var moreAppleAccountLink: some View {
-        Button { showingPersonalSettings = true } label: {
+        Button { onOpen(.personalization) } label: {
             AppSettingsRow(title: String(localized: "Personalisierung"),
                            detail: personalDisplayName ?? String(localized: "Wie dürfen wir dich nennen?"),
                            symbol: "person.crop.circle",

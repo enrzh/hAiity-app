@@ -17,19 +17,24 @@ struct AboutView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: preferences.designStyle.sectionGap - 4) {
+            VStack(alignment: .leading, spacing: preferences.designStyle.sectionGap) {
                 aboutHero
                 privacyCard
                 reportCard
                 releaseCard
             }
             .padding(.horizontal, Theme.Metrics.gutter)
-            .padding(.top, 12)
-            .padding(.bottom, ChromeLayout.nativeTabBarClearance + 20)
+            .padding(.top, preferences.designStyle.cardPadding)
+            .padding(.bottom, ChromeLayout.nativeTabBarClearance)
+            .frame(maxWidth: Theme.Metrics.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
+        .softScrollEdges()
         .settingsChrome()
-        .appPageHeader(String(localized: "Über"))
+        .navigationTitle(String(localized: "Über"))
+        .navigationBarTitleDisplayMode(.inline)
+        .pageHeaderChrome()
         .onAppear {
             shakeToReport = store.cloudPreferences?.shakeToReportEnabled ?? ShakeToReport.isEnabled
             developerAvailable = DeveloperAccess.isAvailable(
@@ -42,7 +47,7 @@ struct AboutView: View {
     }
 
     private var aboutHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: preferences.designStyle.rowGap * 2) {
             HStack {
                 Image(systemName: "square.grid.3x3.fill")
                     .font(.title2.weight(.semibold))
@@ -65,7 +70,7 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(20)
+        .padding(preferences.designStyle.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .morePanel()
         .accessibilityElement(children: .combine)
@@ -96,13 +101,15 @@ struct AboutView: View {
                     $0.shakeToReportEnabled = enabled
                 }
             })) {
-                Label(String(localized: "Schütteln zum Melden"),
-                      systemImage: "iphone.radiowaves.left.and.right")
+                AppSettingsRow(title: String(localized: "Schütteln zum Melden"),
+                               symbol: "iphone.radiowaves.left.and.right") {
+                    EmptyView()
+                }
             }
             .accessibilityIdentifier("shake-to-report-toggle")
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
+            .padding(.horizontal, preferences.designStyle.cardPadding)
+            .padding(.vertical, preferences.designStyle.rowGap)
             .morePanel()
     }
 
@@ -111,20 +118,20 @@ struct AboutView: View {
             versionRow
             if developerAvailable { developerRow }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
+        .padding(.horizontal, preferences.designStyle.cardPadding)
+        .padding(.vertical, preferences.designStyle.rowGap)
         .morePanel()
     }
 
     private func aboutCard<Content: View>(title: String,
                                           symbol: String,
                                           @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: preferences.designStyle.rowGap * 2) {
             Label(title, systemImage: symbol)
-                .font(.headline.weight(.semibold))
+                .font(preferences.designStyle.sectionTitleFont)
             content()
         }
-        .padding(18)
+        .padding(preferences.designStyle.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .morePanel()
     }
@@ -144,7 +151,7 @@ struct AboutView: View {
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -153,7 +160,9 @@ struct AboutView: View {
 
     private var developerRow: some View {
         NavigationLink(value: MoreRoute.developer) {
-            Label(String(localized: "Entwickler"), systemImage: "hammer")
+            AppSettingsRow(title: String(localized: "Entwickler"), symbol: "hammer", showsChevron: true) {
+                EmptyView()
+            }
         }
         .accessibilityIdentifier("open-developer")
     }

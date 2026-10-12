@@ -1,8 +1,8 @@
 import SwiftUI
 import ObjectiveC
 
-/// History remains the signature; the name opens it without changing today.
-/// Edit and Today are independent controls even with the compact preference.
+/// The name opens details; the graph keeps direct access to full history.
+/// Today remains an independent control even with the compact preference.
 /// Equality skips unchanged cards during parent chrome and toast updates.
 struct HabitCard: View, Equatable {
     static func == (a: HabitCard, b: HabitCard) -> Bool {
@@ -11,6 +11,7 @@ struct HabitCard: View, Equatable {
             && a.leadingSwipe == b.leadingSwipe && a.trailingSwipe == b.trailingSwipe
             && a.calendar == b.calendar
             && DayKey.key(for: a.now, calendar: a.calendar) == DayKey.key(for: b.now, calendar: b.calendar)
+            && (a.onDetails == nil) == (b.onDetails == nil)
     }
 
     let habit: Habit
@@ -21,7 +22,7 @@ struct HabitCard: View, Equatable {
     /// Heute abhaken (Kopfzeile). Der einzige Weg von dieser Karte aus, der
     /// direkt schreibt — er sitzt auf einem beschrifteten Knopf.
     let onToggleDay: (String) -> Void
-    /// Open the existing history editor from name, graph, or context menu.
+    /// Open the existing history editor from the graph or context menu.
     let onBackfill: () -> Void
     let onIncrement: () -> Void
     let onClear: () -> Void
@@ -46,6 +47,7 @@ struct HabitCard: View, Equatable {
     var trailingSwipe: [RevealAction] = []
     var calendar: Calendar = .current
     var now: Date = .now
+    var onDetails: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.palettes) private var palettes
@@ -65,7 +67,6 @@ struct HabitCard: View, Equatable {
     @State private var graphWidth: CGFloat = 0
     @State private var checkPulse = false
     @ScaledMetric(relativeTo: .caption2) private var labelScale: CGFloat = 100
-    @ScaledMetric(relativeTo: .body) private var actionSymbolSize: CGFloat = 17
     private var recentWeeks: Int { ContributionChart.bandMetrics(width: graphWidth).weeks }
 
     private var snapshotRequest: GridCalendar.HabitSnapshotKey {
@@ -118,25 +119,7 @@ struct HabitCard: View, Equatable {
     }
 
     private var today: String { DayKey.key(for: now, calendar: calendar) }
-    private var doneToday: Bool {
-        GoalEngine.dayCounts(habit: habit, day: today, calendar: calendar)
-    }
-    private var declinedToday: Bool { habit.isDeclined(today) }
-    /// Status controls follow the same palette as this habit's graph. The
-    /// global palette remains the app tint; this keeps a custom habit color
-    /// coherent without recoloring unrelated controls.
     private var habitStyle: PaletteStyle { palettes.style(for: habit) }
-
-    private var statusBackground: Color {
-        Theme.level(0, dark: scheme == .dark, palette: habitStyle)
-    }
-
-    /// Die Verneinungsfarbe DIESES Habits — dieselbe, die seine Zellen im
-    /// Raster tragen. Der Kopf darf nicht in einer anderen Farbe „Nein"
-    /// sagen als die Fläche darunter.
-    private var negativeColor: Color {
-        Theme.color(habitStyle.negative(dark: scheme == .dark))
-    }
 
     /// Compact mode never shrinks action targets.
     private var headerHeight: CGFloat { Theme.Metrics.hit }
@@ -158,7 +141,7 @@ struct HabitCard: View, Equatable {
             header
             meta
             revealingGrid
-            footer
+            if onDetails == nil { footer }
         }
         // Der Zug für das Aufziehen deckt die GANZE Zeile (Kopf + Karte):
         // vom Kopf aus gehen beide Seiten, über dem Raster entscheidet
@@ -178,7 +161,7 @@ struct HabitCard: View, Equatable {
         .padding(.bottom, outerGap)
         // `.contain` ist hier Pflicht, nicht Deko: ein Identifier auf einem
         // Container ohne diese Angabe faltet den Teilbaum zu EINEM Element
-        // zusammen — "check-today" und "edit-habit" verschwinden dann aus
+        // zusammen — "check-today" und "habit-name" verschwinden dann aus
         // dem Baum und sind in XCUITest nicht mehr adressierbar. Als
         // Container bleibt die Karte selbst auffindbar UND ihre Knöpfe.
         .accessibilityElement(children: .contain)
@@ -460,7 +443,7 @@ struct HabitCard: View, Equatable {
                         .font(designStyle.sectionTitleFont)
                         .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(String(localized: "Verlauf"))
+                    Text(String(localized: "Historie"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -607,11 +590,9 @@ struct HabitCard: View, Equatable {
     // Aufzieh-Zug vom Kopf ferngehalten (nachgemessen: Züge, die auf dem
     // Kopf begannen, erreichten den Zellen-Pan nie).
 
-    /// Name and graph have the same read/history route, never check-off.
+    /// Legacy callers keep their history route until they supply details.
     private var nameRun: some View {
-        Button {
-            onBackfill()
-        } label: {
+        Button(action: onDetails ?? onBackfill) {
             nameContent
                 .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit, alignment: .leading)
                 .contentShape(Rectangle())
@@ -619,7 +600,9 @@ struct HabitCard: View, Equatable {
         .buttonStyle(.plain)
         .accessibilityIdentifier("habit-name")
         .accessibilityLabel(habit.name)
-        .accessibilityHint(String(localized: "Öffnet die Historie dieses Habits."))
+        .accessibilityHint(onDetails == nil
+            ? String(localized: "Öffnet die Historie dieses Habits.")
+            : String(localized: "Öffnet die Details dieses Eintrags."))
     }
 
     private var editButton: some View {
@@ -665,6 +648,11 @@ struct HabitCard: View, Equatable {
                     .lineLimit(typeSize.isAccessibilitySize ? nil : (collapsed ? 1 : 2))
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if onDetails != nil {
+                Label(String(localized: "Details"), systemImage: "chevron.forward")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .contentShape(Rectangle())
     }
@@ -679,111 +667,9 @@ struct HabitCard: View, Equatable {
     }
 
     /// Visible in both modes: toggle, increment, or choose Yes/No.
-    @ViewBuilder
     private var todayButton: some View {
-        switch habit.kind {
-        case .quantity:
-            let target = habit.recurrence.effectiveTarget
-            let value = habit.log[today] ?? 0
-            Button {
-                Theme.Haptics.check()
-                onIncrement()
-            } label: {
-                VStack(spacing: 1) {
-                    Text("Heute").font(.caption2)
-                    pill("+ \(value)/\(target)", monospaced: true)
-                }
-            }
-            .buttonStyle(.plain)
-            // KEIN eigenes Kontextmenü mehr: der lange Druck gehört der
-            // ganzen Zeile. Zwei verschachtelte Menüs auf derselben Karte
-            // hießen, dass ein langer Druck je nach getroffenem Pixel etwas
-            // anderes tut. „Rückgängig" steht im Zeilenmenü.
-            .accessibilityLabel(String(localized: "Heute: \(value) von \(target)"))
-            .accessibilityHint(String(localized: "Erhöht den Zähler um eins."))
-            .accessibilityIdentifier("check-today")
-        case .yesNo:
-            answerButtons
-        case .checkbox:
-            Button {
-                Theme.Haptics.check()
-                onToggleDay(DayKey.today(calendar: calendar))
-            } label: {
-                Label("Heute", systemImage: doneToday ? "checkmark.circle.fill" : "circle")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(doneToday ? AnyShapeStyle(Theme.accentText(habitStyle))
-                                              : AnyShapeStyle(HierarchicalShapeStyle.primary))
-                    .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(doneToday
-                                ? String(localized: "✓ Erledigt")
-                                : String(localized: "Heute"))
-            .accessibilityIdentifier("check-today")
-            .accessibilityHint(doneToday
-                ? String(localized: "Macht den heutigen Eintrag rückgängig.")
-                : String(localized: "Markiert den heutigen Tag als erledigt."))
-        }
-    }
-
-    /// Zwei Knöpfe statt einer Pille. Eine Frage hat zwei Antworten, und
-    /// beide müssen mit EINEM Finger erreichbar sein — sonst wäre „Nein" die
-    /// Antwort, die man sich verdienen muss (Kontextmenü öffnen),
-    /// und die Zahlen darunter wären systematisch zu freundlich.
-    ///
-    /// Symbole statt Text: „Ja"/„Nein" nebeneinander brauchen mehr Breite
-    /// als die „✓ Erledigt"-Pille, die hier vorher stand, und die Zeile hat
-    /// links den Namen zu tragen. Zwei 34-pt-Kreise sind zusammen so breit
-    /// wie die Pille — die Kopfzeile behält also ihr Maß, unabhängig von der
-    /// Art des Habits.
-    private var answerButtons: some View {
-        VStack(spacing: 1) {
-            Text("Heute").font(.caption2).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                answerButton(yes: true)
-                answerButton(yes: false)
-            }
-        }
-    }
-
-    private func answerButton(yes: Bool) -> some View {
-        let on = yes ? doneToday : declinedToday
-        return Button {
-            Theme.Haptics.check()
-            onAnswer(yes)
-        } label: {
-            Image(systemName: yes ? "checkmark" : "xmark")
-                .font(.system(size: min(26, actionSymbolSize), weight: .bold))
-                .foregroundStyle(on ? AnyShapeStyle(Color.white)
-                                 : AnyShapeStyle(HierarchicalShapeStyle.secondary))
-                .frame(width: 34, height: 30)
-                .background(on
-                            ? AnyShapeStyle(yes ? Theme.accentFill(habitStyle) : negativeColor)
-                            : AnyShapeStyle(statusBackground),
-                            in: Capsule())
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(yes ? String(localized: "Ja") : String(localized: "Nein"))
-        .accessibilityAddTraits(on ? .isSelected : [])
-        .accessibilityIdentifier(yes ? "check-today" : "decline-today")
-    }
-
-    /// Die Pille ist SICHTBAR klein, die Trefferfläche trotzdem so hoch wie
-    /// die Kopfzeile.
-    private func pill(_ text: String, monospaced: Bool = false) -> some View {
-        let base = Font.subheadline.weight(.semibold)
-        return Text(verbatim: text)
-            .font(monospaced ? base.monospacedDigit() : base)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(doneToday ? Theme.accentFill(habitStyle) : statusBackground,
-                        in: Capsule())
-            .foregroundStyle(doneToday ? .white : .primary)
-            .frame(minHeight: headerHeight)
-            .contentShape(Rectangle())
+        HabitActionControls(habit: habit, calendar: calendar, now: now,
+                            onToggleDay: onToggleDay, onIncrement: onIncrement, onAnswer: onAnswer)
     }
 
 }

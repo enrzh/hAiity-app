@@ -52,6 +52,7 @@ struct SettingsPage<Content: View>: View {
             .padding(.bottom, ChromeLayout.nativeTabBarClearance)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .softScrollEdges()
         .settingsChrome()
     }
@@ -121,7 +122,7 @@ struct AppSettingsRow<Trailing: View>: View {
                 if let detail {
                     Text(detail)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText(preferences: preferences))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -191,7 +192,7 @@ struct AppSettingsGroup<Content: View>: View {
         }
         .font(preferences.designStyle == .native ? .subheadline.weight(.semibold)
               : preferences.designStyle.sectionTitleFont)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryText(preferences: preferences))
     }
 
     var body: some View {
@@ -205,7 +206,7 @@ struct AppSettingsGroup<Content: View>: View {
             if let footer {
                 Text(footer)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText(preferences: preferences))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, preferences.designStyle == .native ? 14 : preferences.designStyle.cardPadding)
             }

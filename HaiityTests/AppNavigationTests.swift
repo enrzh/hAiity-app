@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Haiity
 
 final class AppNavigationTests: XCTestCase {
@@ -17,15 +19,13 @@ final class AppNavigationTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let navigation = try String(contentsOf: root.appendingPathComponent(
-            "Haiity/Models/AppNavigation.swift"))
         let widgetLogic = try String(contentsOf: root.appendingPathComponent(
             "HaiityWidget/WidgetLogic.swift"))
-
-        XCTAssertTrue(navigation.contains("URLComponents"),
-                      "app navigation must parse widget query items")
-        XCTAssertTrue(navigation.contains("habitID"),
-                      "habit routes must carry the selected habit")
+        let id = UUID()
+        let destination = AppDestination.habit(id)
+        XCTAssertEqual(AppDestination.resolve(url: destination.url), destination)
+        XCTAssertEqual(destination.effect.habitID, id)
+        XCTAssertEqual(destination.effect.tab, .habits)
         XCTAssertTrue(widgetLogic.contains("haiity://habits?habit="),
                       "specific widgets must link to their selected habit")
     }
@@ -33,22 +33,30 @@ final class AppNavigationTests: XCTestCase {
     func testUnknownAndForeignURLsAreIgnored() {
         XCTAssertNil(AppDestination.resolve(url: URL(string: "https://aiity.de")!))
         XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://unknown")!))
+        for host in ["settings", "notifications", "personalization", "localModel", "dataTransfer",
+                     "about", "developer", "appearance", "habitBehavior", "github", "calendar"] {
+            XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://\(host)")!), host)
+        }
     }
 
     func testDestinationsSelectTheirTabs() {
         XCTAssertEqual(AppDestination.stats.selectedTab, .stats)
-        XCTAssertEqual(AppDestination.archive.selectedTab, .more)
-        XCTAssertEqual(AppDestination.more.selectedTab, .more)
+        XCTAssertEqual(AppDestination.archive.selectedTab, .today)
+        XCTAssertEqual(AppDestination.more.selectedTab, .today)
+        XCTAssertEqual(AppDestination.cleanup.selectedTab, .today)
         XCTAssertEqual(AppDestination.search.selectedTab, .search)
         XCTAssertEqual(AppDestination.create.selectedTab, .create)
     }
 
-    func testStatsIsARealTabAndArchiveRoutesViaMoreTab() {
+    func testProgressIsAContentTabAndLegacySettingsRoutesUseToday() {
         XCTAssertEqual(AppDestination.stats.effect,
                        AppRouteEffect(tab: .stats, morePage: nil,
                                       opensSearch: false, opensCreate: false))
         XCTAssertEqual(AppDestination.archive.effect,
-                       AppRouteEffect(tab: .more, morePage: .archive,
+                       AppRouteEffect(tab: .today, morePage: .archive,
+                                      opensSearch: false, opensCreate: false))
+        XCTAssertEqual(AppDestination.more.effect,
+                       AppRouteEffect(tab: .today, morePage: .settings,
                                       opensSearch: false, opensCreate: false))
     }
 
@@ -56,13 +64,16 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertEqual(AppDestination.search.effect.tab, .search)
         XCTAssertTrue(AppDestination.search.effect.opensSearch)
         XCTAssertTrue(AppDestination.create.effect.opensCreate)
+        XCTAssertEqual(AppDestination.create.effect.tab, .today)
     }
 
-    func testCleanupRouteSelectsMoreAndRunsNativeCleanup() {
-        XCTAssertEqual(AppDestination.cleanup.selectedTab, .more)
-        XCTAssertTrue(AppDestination.cleanup.effect.runsNativeSyncCleanup)
-        XCTAssertFalse(AppDestination.cleanup.effect.opensSearch)
-        XCTAssertFalse(AppDestination.cleanup.effect.opensCreate)
+    func testCleanupRouteOpensSettingsOnTodayAndRunsOnlyExplicitCleanup() {
+        XCTAssertEqual(AppDestination.cleanup.effect,
+                       AppRouteEffect(tab: .today, morePage: .settings,
+                                      opensSearch: false, opensCreate: false,
+                                      runsNativeSyncCleanup: true))
+        XCTAssertFalse(AppDestination.more.effect.runsNativeSyncCleanup)
+        XCTAssertFalse(AppDestination.archive.effect.runsNativeSyncCleanup)
     }
 
     func testStatsSettingsUseLeadingToolbarAndContextPreview() throws {
@@ -80,23 +91,16 @@ final class AppNavigationTests: XCTestCase {
                       "the stats preview must use the full active window width")
     }
 
-    func testStatsSnapshotDoesNotBlockSynchronousPageConstruction() throws {
-        let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
-        let listStart = try XCTUnwrap(stats.range(of: "private var statsList"))
-        let cardStart = try XCTUnwrap(stats.range(of: "func statsTodayCard",
-                                                   range: listStart.upperBound..<stats.endIndex))
-        let list = stats[listStart.lowerBound..<cardStart.lowerBound]
-
-        XCTAssertFalse(list.contains("StatsEngine.snapshot("),
-                       "opening statistics must not synchronously calculate its snapshot")
-        XCTAssertTrue(stats.contains(".task(id: statsRefreshKey)"),
-                      "statistics should refresh through a cancellable task")
-        XCTAssertTrue(stats.contains("ContributionSnapshotScheduler.perform"),
-                      "statistics should use the shared cancellable snapshot scheduler")
-        XCTAssertFalse(stats.contains("Task.detached"),
-                       "statistics must not leave work running after the tab disappears")
-        XCTAssertTrue(stats.contains("LazyVStack(spacing: 0)"),
-                      "per-habit statistics should be mounted lazily")
+    func testCancelledSnapshotRequestDoesNotComputeOrPublish() async {
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await ContributionSnapshotScheduler.perform {
+                XCTFail("An already cancelled page must not calculate a snapshot")
+                return 42
+            }
+        }
+        let value = await task.value
+        XCTAssertNil(value)
     }
 
     func testContributionGraphsDeferColdSnapshotWork() throws {
@@ -177,56 +181,30 @@ final class AppNavigationTests: XCTestCase {
                        "the selected-only guard is what destroys a visited tab's state")
         // The startup win this guard was added for has to survive: only the
         // starting tab is built before anyone has tapped anything.
-        XCTAssertTrue(content.contains("@State private var builtTabs: Set<AppTab> = [.habits]"),
-                      "launch must still build just the starting tab")
+        let initialTab = try NSRegularExpression(pattern: #"@State\s+(?:private\s+)?var\s+\w+:\s*AppTab\s*=\s*\.today"#)
+        XCTAssertEqual(initialTab.numberOfMatches(in: content, range: NSRange(content.startIndex..., in: content)), 1)
+        let initialTrees = try NSRegularExpression(pattern: #"Set<AppTab>\s*=\s*\[\.today\]"#)
+        XCTAssertEqual(initialTrees.numberOfMatches(in: content, range: NSRange(content.startIndex..., in: content)), 1,
+                       "normal launch builds Today, while explicit routes may select another tab")
         XCTAssertTrue(content.contains("builtTabs.insert(tab)"),
                       "opening a tab has to latch it as built")
     }
 
-    /// A row that opens a page which the navigation maps do not know about is a
-    /// row that does nothing at all.
-    ///
-    /// The model page was routed through `presentedMorePage`, which returned nil
-    /// for it because `AppMoreDestination` had no case — so the row was tappable,
-    /// looked right, and opened nothing. Silent, and invisible to a build.
-    /// A hub row has to open something.
-    ///
-    /// **Presenting is only one way to open.** The model row is a push onto
-    /// Verhalten & Teilen's own stack — a second sheet over the page it came
-    /// from brought its own grabber, its own close button and a dismiss that
-    /// threw away the page underneath, for something that is simply the next
-    /// screen. So the contract this guards is now the opposite of what it used
-    /// to be, and it says so: `localModel` must be ABSENT from
-    /// `AppMoreDestination` and nil in both presentation maps. Asserting the
-    /// other way would pin the sheet that was deliberately removed.
-    func testEveryHubRowCanActuallyBeOpened() throws {
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let behavior = try String(contentsOf: sourceURL("Haiity/Views/MoreBehavior.swift"), encoding: .utf8)
+    /// Child pages push in one settings sheet; current-page bookkeeping is
+    /// separate from the external URL whitelist.
+    func testSettingsHubRoutesPushWithinItsSingleSheetStack() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let navigation = try String(contentsOf: sourceURL("Haiity/Models/AppNavigation.swift"))
-
-        // The route exists, or the link carries nothing.
-        XCTAssertTrue(more.contains(
-            "case archive, about, developer, appearance, habitBehavior, github, localModel"),
-            "the model page needs a route to be pushed with")
-
-        // The row pushes, and a push resolves through the stack's own
-        // navigationDestination rather than through a destination enum. The two
-        // are mutually exclusive: a route in `AppMoreDestination` would also be
-        // presented as a sheet over the page that led to it.
-        XCTAssertTrue(behavior.contains("NavigationLink(value: MoreRoute.localModel)"),
-                      "the model row must push onto Verhalten & Teilen's stack")
-        let destination = try XCTUnwrap(navigation.range(of: "enum AppMoreDestination"))
-        XCTAssertFalse(navigation[destination.upperBound...].prefix(200).contains("localModel"),
-                       "a pushed page must not be a sheet destination as well")
-        XCTAssertTrue(more.contains("case .localModel:"),
-                      "the push must have a destination, or the row opens nothing")
-
-        // Nil here is the contract rather than a dead row: this is the page
-        // opening by push instead.
-        let present = try XCTUnwrap(content.range(of: "func presentedMorePage(for route: MoreRoute)"))
-        XCTAssertTrue(content[present.upperBound...].prefix(400).contains("case .localModel: nil"),
-                      "the model page must never be presented as a sheet of its own")
+        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
+        let behavior = try String(contentsOf: sourceURL("Haiity/Views/MoreBehavior.swift"))
+        XCTAssertEqual(content.components(separatedBy: ".sheet(item: $moreSheet,").count - 1, 1)
+        XCTAssertEqual(content.components(separatedBy: "NavigationStack(path: $moreSheetPath)").count - 1, 1)
+        XCTAssertEqual(content.components(separatedBy: ".navigationDestination(for: MoreRoute.self").count - 1, 1)
+        for route in ["notifications", "personalization", "appearance", "habitBehavior", "calendar", "github", "dataTransfer", "archive", "about"] {
+            XCTAssertTrue(more.contains("onOpen(.\(route))"), route)
+        }
+        XCTAssertTrue(behavior.contains("NavigationLink(value: MoreRoute.localModel)"))
+        XCTAssertFalse(more.contains("$showingPersonalSettings"))
+        XCTAssertFalse(more.contains("$showingNotificationSettings"))
     }
 
     /// The model page carries the same surface as the other More pages. A page
@@ -277,56 +255,34 @@ final class AppNavigationTests: XCTestCase {
                       "the model page needs the same group surface as Darstellung and Verhalten & Teilen")
     }
 
-    func testNativeTabRootsOwnOneFullFrameAppearanceSurface() throws {
-        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-
-        XCTAssertTrue(content.contains("private func nativeTabRoot"),
-                      "native tabs need one shared full-frame background root")
-        XCTAssertTrue(content.contains("nativeTabContent(.stats) { statsTabContent }"))
-        XCTAssertTrue(content.contains("nativeTabContent(.habits) { habitsTabContent }"))
-        XCTAssertTrue(content.contains("nativeTabContent(.more) { moreTabContent }"))
-        XCTAssertTrue(content.contains("nativeTabRoot { searchTabContent }"))
+    @MainActor
+    func testCompactRootHeadingsFitAtAX5InEveryStyleAndDirection() {
+        for style in AppDesignStyle.allCases {
+            var preferences = AppearancePreferences()
+            preferences.designStyle = style
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                for title in ["Heute", "Habits", "Fortschritt"] {
+                    let host = UIHostingController(rootView: RootPageTitle(title: title, compact: true)
+                        .environment(\.appearancePreferences, preferences)
+                        .environment(\.layoutDirection, direction)
+                        .environment(\.dynamicTypeSize, .accessibility5))
+                    let size = host.sizeThatFits(in: CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude))
+                    XCTAssertLessThanOrEqual(size.width, 320)
+                    XCTAssertGreaterThanOrEqual(size.height, Theme.Metrics.hit)
+                    XCTAssertTrue(size.height.isFinite)
+                }
+            }
+        }
     }
 
-    func testNativeRootPagesUseSharedLeadingScrollingTitles() throws {
-        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let stats = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
-        let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-
-        XCTAssertTrue(content.contains("RootPageTitle(title: String(localized: \"Habits\")"),
-                      "the habits root list needs the shared leading title")
-        XCTAssertTrue(stats.contains("RootPageTitle(title: String(localized: \"Statistik\")"),
-                      "the stats root list needs the shared leading title")
-        XCTAssertTrue(more.contains("RootPageTitle(title: screen.title,"),
-                      "the Mehr root list needs the shared leading title")
-        XCTAssertTrue(content.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
-        XCTAssertTrue(stats.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
-        XCTAssertTrue(more.contains(".coordinateSpace(.named(RootPageTitle.coordinateSpace))"))
-        let habitsStart = try XCTUnwrap(content.range(of: "private var habitsScreen"))
-        let habitsEnd = try XCTUnwrap(content.range(of: "private var habitsTabSource",
-                                                      range: habitsStart.upperBound..<content.endIndex))
-        let habitsScreen = content[habitsStart.lowerBound..<habitsEnd.lowerBound]
-        XCTAssertFalse(habitsScreen.contains(".navigationTitle(\"Habits\")"),
-                       "the habits root must have one visible title owner")
-        XCTAssertFalse(stats.contains(".navigationTitle(String(localized: \"Statistik\"))"),
-                       "the stats root must have one visible title owner")
-        XCTAssertTrue(more.contains(".navigationBarTitleDisplayMode(screen == .main ? .inline : .large)"),
-                      "Mehr should use the compact root title and large secondary titles")
-        XCTAssertTrue(more.contains("screen == .main ? \"\" : screen.title"),
-                      "the Mehr root must hide the native title while subpages keep theirs")
-
-        let theme = try String(contentsOf: sourceURL("Haiity/Theme.swift"))
-        XCTAssertTrue(theme.contains("struct RootPageTitle: View"))
-        XCTAssertTrue(theme.contains("accessibilityReduceMotion"))
-        XCTAssertTrue(theme.contains("RootPageTitleProgressKey"),
-                      "the shared title must report scroll progress to its compact toolbar title")
-
-        let start = try XCTUnwrap(content.range(of: "private var moreTabContent"))
-        let end = try XCTUnwrap(content.range(of: "private var fallbackMoreContent",
-                                              range: start.upperBound..<content.endIndex))
-        let moreTab = content[start.lowerBound..<end.lowerBound]
-        XCTAssertFalse(moreTab.contains(".navigationTitle(String(localized: \"Mehr\"))"),
-                       "the root Mehr title must have one owner")
+    func testRootTitleProgressKeepsTheLastMeasuredValueAcrossEmptyChildren() {
+        var value: CGFloat? = nil
+        RootPageTitleProgressKey.reduce(value: &value, nextValue: { 0.25 })
+        XCTAssertEqual(value, 0.25)
+        RootPageTitleProgressKey.reduce(value: &value, nextValue: { nil })
+        XCTAssertEqual(value, 0.25)
+        RootPageTitleProgressKey.reduce(value: &value, nextValue: { 1 })
+        XCTAssertEqual(value, 1)
     }
 
     func testSecondaryPagesUseSharedHeaderChrome() throws {
@@ -404,57 +360,39 @@ final class AppNavigationTests: XCTestCase {
                        "the row must not be nested inside a trailing-only menu label")
     }
 
-    func testMoreRowsKeepTheirOwnRouteAndBoundedSourceControl() throws {
+    func testSettingsNavigationDoesNotReplaySetupOrAuthenticateFromTheHub() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let notifications = try String(contentsOf: sourceURL("Haiity/Views/MoreNotifications.swift"), encoding: .utf8)
-        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-
-        let mainStart = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
-        let mainEnd = try XCTUnwrap(more.range(of: "var accentColor: Color",
-                                               range: mainStart.upperBound..<more.endIndex))
-        let main = more[mainStart.lowerBound..<mainEnd.lowerBound]
-        for (identifier, action) in [("open-appearance", "onOpen(.appearance)"),
-                                     ("open-habit-behavior", "onOpen(.habitBehavior)"),
-                                     ("open-data-transfer", "onOpen(.dataTransfer)"),
-                                     ("open-archive", "onOpen(.archive)"),
-                                     ("open-about", "onOpen(.about)"),
-                                     ("open-notifications", "showingNotificationSettings = true"),
-                                     ("open-calendar", "onOpen(.calendar)")] {
-            let row = try XCTUnwrap(main.range(of: "identifier: \"\(identifier)\""))
-            let end = try XCTUnwrap(main.range(of: "}", range: row.upperBound..<main.endIndex))
-            XCTAssertTrue(main[row.upperBound..<end.lowerBound].contains(action), identifier)
-        }
-        XCTAssertFalse(main.contains("showReminderSetup = true"), "Opening integration settings must not replay onboarding")
-        let helperStart = try XCTUnwrap(more.range(of: "func moreHubRow("))
-        let helperEnd = try XCTUnwrap(more.range(of: "private var moreGitHubRow:",
-                                                 range: helperStart.upperBound..<more.endIndex))
-        let helper = more[helperStart.lowerBound..<helperEnd.lowerBound]
-        XCTAssertTrue(helper.contains("Button(action: action)"))
-        XCTAssertTrue(helper.contains(".buttonStyle(.plain)"))
-        XCTAssertTrue(helper.contains("showsChevron: true"))
-        XCTAssertEqual(helper.components(separatedBy: "AppSettingsRow(").count - 1, 1)
-        XCTAssertFalse(more.contains("func pageRow("))
-        XCTAssertTrue(notifications.contains("motivationSourceControl"),
-                      "the motivation source must remain selectable from the rows")
-        XCTAssertTrue(notifications.contains("var motivationSourceControl: some View"),
-                      "the source control needs its own declaration to be a bounded target")
-        XCTAssertTrue(content.contains("morePageRoute = nil"),
-                      "a new More destination must not inherit a stale child route")
-        XCTAssertTrue(content.contains("moreRoutePresentationTask"),
-                      "replacing an open More child must wait for the old sheet to dismiss")
+        let notifications = try String(contentsOf: sourceURL("Haiity/Views/MoreNotifications.swift"))
+        XCTAssertFalse(more.contains("showReminderSetup = true"))
+        XCTAssertFalse(more.contains("SignInWithAppleButton("))
+        XCTAssertFalse(more.contains("signOutFromApple()"))
+        XCTAssertTrue(more.contains("onOpen(.calendar)"))
+        XCTAssertTrue(more.contains("onOpen(.personalization)"))
+        XCTAssertTrue(notifications.contains("motivationSourceControl"))
+        XCTAssertTrue(notifications.contains("var motivationSourceControl: some View"))
     }
 
-    func testMoreChildPagesKeepIndependentViewIdentity() throws {
-        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-
-        XCTAssertTrue(content.contains("case .appearance:"),
-                      "Darstellung needs its own destination branch")
-        XCTAssertTrue(content.contains("screen: .appearance"),
-                      "Darstellung must not inherit Verhalten & Teilen's screen")
-        XCTAssertTrue(content.contains("screen: .habitBehavior"),
-                      "Verhalten & Teilen must keep its own screen")
-        XCTAssertTrue(content.contains(".id(\"more-destination-\\(fallback)\")"),
-                      "replaced More sheets must be mounted with route identity")
+    func testSettingsAndArchiveRoutesCannotReuseEachOthersPresentedDestination() {
+        for (incoming, current) in [(AppDestination.more, AppMoreDestination.archive),
+                                    (.archive, .settings), (.cleanup, .archive)] {
+            var work = RouteWork()
+            let route = work.begin(incoming.effect)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .presented, morePage: current)),
+                           .dismissMore)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .dismissing, morePage: current)),
+                           .waitForMoreDismissal)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
+            XCTAssertEqual(route.effect.tab, .today)
+        }
+        for page in [AppMoreDestination.notifications, .personalization, .localModel, .dataTransfer] {
+            var work = RouteWork()
+            let route = work.begin(AppDestination.more.effect)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .presented, morePage: page)),
+                           .dismissMore, "An external settings route must return from \(page) to the root")
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .dismissing, morePage: page)),
+                           .waitForMoreDismissal)
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
+        }
     }
 
     func testSettingsSurfacesUseTheSharedMaterialTint() throws {
@@ -504,14 +442,92 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(more.contains("personalLeadingIcon(\"person.crop.circle.badge.checkmark\")"))
     }
 
-    func testHabitDeepLinkRetriesAfterItsListRowsMount() throws {
-        let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-
-        XCTAssertTrue(content.contains("onChange(of: habitsTabSource.map(\\.id))"),
-                      "a widget route must retry when lazy list data mounts")
-        XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds"),
-                      "the first scroll request can arrive before the row exists")
+    @MainActor
+    func testDetailDestinationResolvesRenamedArchivedAndDeletedItemsFromTheLiveStore() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("detail-route-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url, loadFromDisk: false)
+        var habit = Habit(name: "Before")
+        store.add(habit)
+        let view = HabitDetailView(store: store, habitID: habit.id, now: .now,
+            onEdit: { _ in }, onHistory: { _ in }, onToggleDay: { _, _ in },
+            onIncrement: { _ in }, onAnswer: { _, _ in }, onToggleReminder: { _ in },
+            onArchive: { _ in }, onDelete: { _ in })
+        XCTAssertEqual(view.currentHabit?.name, "Before")
+        habit.name = "After sync"
+        store.update(habit)
+        XCTAssertEqual(view.currentHabit?.name, "After sync")
+        habit.archivedAt = "2026-10-10"
+        store.update(habit)
+        XCTAssertNil(view.currentHabit)
+        store.remove(habit.id)
+        XCTAssertNil(view.currentHabit, "A stale route must not create a replacement")
     }
+
+    #if DEBUG
+    @MainActor
+    func testDetailsFollowLiveProEligibilityWhileArchivedHistoryRemainsReadOnly() {
+        let defaults = UserDefaults(suiteName: SharedStorage.appGroup) ?? .standard
+        let keys = [HabitVisibility.proUnlockedKey, HabitVisibility.proEntitlementExpirationKey]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        let originalOverride = Pro.debugOverride
+        defer {
+            for (key, value) in zip(keys, saved) {
+                if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+            }
+            Pro.setDebugUnlocked(nil)
+            if let originalOverride { Pro.setDebugUnlocked(originalOverride) }
+            for (key, value) in zip(keys, saved) {
+                if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("detail-eligibility-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = HabitStore(url: url, loadFromDisk: false)
+        let active = (1...4).map { Habit(name: "Habit \($0)", notificationMode: .off) }
+        for habit in active { store.add(habit) }
+        var archived = Habit(name: "Archived", notificationMode: .off)
+        archived.archivedAt = "2026-10-10"
+        archived.log["2026-10-09"] = 1
+        store.add(archived)
+        let ids = store.habits.map(\.id)
+
+        func detail(_ id: UUID, allowsArchived: Bool = false) -> HabitDetailView {
+            HabitDetailView(store: store, habitID: id, now: .now,
+                onEdit: { _ in }, onHistory: { _ in }, onToggleDay: { _, _ in },
+                onIncrement: { _ in }, onAnswer: { _, _ in }, onToggleReminder: { _ in },
+                onArchive: { _ in }, onDelete: { _ in }, allowsArchived: allowsArchived)
+        }
+        let fourth = detail(active[3].id)
+        let activeArchivedLink = detail(archived.id)
+        let archivedHistory = detail(archived.id, allowsArchived: true)
+        Pro.setDebugUnlocked(false)
+        XCTAssertFalse(Pro.isUnlocked)
+        XCTAssertEqual(detail(active[0].id).currentHabit?.id, active[0].id)
+        XCTAssertNil(fourth.currentHabit, "A widget or direct UUID route must not expose the fourth free-tier habit")
+        XCTAssertNil(activeArchivedLink.currentHabit)
+        XCTAssertEqual(archivedHistory.currentHabit?.log["2026-10-09"], 1)
+        XCTAssertFalse(ProGate.mayUnarchiveTrackedHabit(isTracked: archived.isTrackedHabit,
+            activeCount: store.activeTrackedHabits.count, unlocked: Pro.isUnlocked))
+
+        Pro.setDebugUnlocked(true)
+        XCTAssertTrue(Pro.isUnlocked)
+        XCTAssertEqual(fourth.currentHabit?.id, active[3].id)
+        XCTAssertNil(activeArchivedLink.currentHabit, "Pro must not silently unarchive an item")
+        XCTAssertEqual(store.habits.map(\.id), ids, "Entitlement changes must preserve over-limit data")
+        Pro.setDebugUnlocked(false)
+        XCTAssertNil(fourth.currentHabit, "The same detail view must become unavailable again on entitlement loss")
+        XCTAssertEqual(archivedHistory.currentHabit?.id, archived.id)
+
+        store.remove(active[3].id)
+        store.remove(archived.id)
+        Pro.setDebugUnlocked(true)
+        XCTAssertNil(fourth.currentHabit)
+        XCTAssertNil(archivedHistory.currentHabit)
+        XCTAssertEqual(store.habits.map(\.id), Array(active.prefix(3)).map(\.id),
+                       "Resolving stale detail routes must never create replacement items")
+    }
+    #endif
 
     func testStatsPreviewFramesAfterItsSurfacePadding() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/StatsView.swift"))
@@ -582,47 +598,29 @@ final class AppNavigationTests: XCTestCase {
                       "the interval stepper must be limited to daily and weekly recurrence")
     }
 
-    func testPersonalizationHubNavigatesWithoutAuthenticationActions() throws {
+    func testPersonalizationHubKeepsAuthenticationOnlyOnItsSecondaryPage() throws {
         let more = try String(contentsOf: sourceURL("Haiity/Views/MoreView.swift"))
-        let personal = try String(contentsOf: sourceURL("Haiity/Views/MorePersonal.swift"), encoding: .utf8)
-        let start = try XCTUnwrap(more.range(of: "var moreAppleAccountRow: some View"))
-        let end = try XCTUnwrap(more.range(of: "// Die Nacharbeiten-Einstellung",
-                                           range: start.upperBound..<more.endIndex))
-        let row = more[start.lowerBound..<end.lowerBound]
-        XCTAssertTrue(row.contains("showingPersonalSettings = true"))
-        XCTAssertTrue(row.contains("Personalisierung"))
-        XCTAssertFalse(row.contains("apple-signout-more"))
-        XCTAssertFalse(row.contains("apple-signin-more"))
-        XCTAssertFalse(row.contains("signOutFromApple()"))
+        let personal = try String(contentsOf: sourceURL("Haiity/Views/MorePersonal.swift"))
+        XCTAssertTrue(more.contains("onOpen(.personalization)"))
+        XCTAssertFalse(more.contains("SignInWithAppleButton("))
+        XCTAssertFalse(more.contains("signOutFromApple()"))
+        XCTAssertFalse(more.contains("apple-signout-more"))
+        XCTAssertFalse(more.contains("apple-signin-more"))
         XCTAssertTrue(personal.contains("SignInWithAppleButton(.signIn)"))
         XCTAssertTrue(personal.contains("personal-apple-connection"))
-        let appearStart = try XCTUnwrap(more.range(of: ".onAppear {"))
-        let appearEnd = try XCTUnwrap(more.range(of: ".task {",
-                                                 range: appearStart.upperBound..<more.endIndex))
-        XCTAssertTrue(more[appearStart.lowerBound..<appearEnd.lowerBound].contains("refreshPersonalIdentity()"))
+        XCTAssertTrue(more.contains("refreshPersonalIdentity()"))
     }
 
-    func testNativePagesUseTheAppearanceBackgroundAtTheirVisibleRoots() throws {
+    func testNativeContentDestinationsReuseTheSingleStoreAndIndependentUUIDPaths() throws {
         let content = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let nativeRoot = try XCTUnwrap(content.range(of: "private func nativePageRoot"))
-        let nextFunction = content.range(of: "private var nativeToastOverlay",
-                                         range: nativeRoot.upperBound..<content.endIndex)
-        let rootBody = content[nativeRoot.lowerBound..<(nextFunction?.lowerBound ?? content.endIndex)]
-        XCTAssertTrue(rootBody.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
-                      "the shared background must be inside each native NavigationStack page")
-        XCTAssertTrue(content.contains("nativePageRoot {\n                StatsView"),
-                      "the stats page must mount the page-level background")
-        XCTAssertTrue(content.contains("nativePageRoot { habitsScreen }"),
-                      "the habits page must mount the page-level background")
-        XCTAssertTrue(content.contains("nativePageRoot {\n                MoreView"),
-                      "the more page must mount the page-level background")
-
-        let start = try XCTUnwrap(content.range(of: "private var searchList"))
-        let end = try XCTUnwrap(content.range(of: "/// Der Inhalt des Habits-Tabs",
-                                              range: start.upperBound..<content.endIndex))
-        let searchList = content[start.lowerBound..<end.lowerBound]
-        XCTAssertFalse(searchList.contains("AppearanceBackground(preferences: store.appearancePreferences)"),
-                       "the search list must not mount a second image layer")
+        for path in ["todayPath", "habitsPath", "statsPath", "searchPath"] {
+            XCTAssertTrue(content.contains("NavigationStack(path: $\(path))"), path)
+        }
+        XCTAssertTrue(content.contains("AppearanceBackground(preferences: store.appearancePreferences)"))
+        XCTAssertFalse(content.contains("StatsView(store: HabitStore("))
+        XCTAssertFalse(content.contains("HabitDetailView(store: HabitStore("))
+        XCTAssertFalse(content.contains("HabitsView(store: HabitStore("))
+        XCTAssertFalse(content.contains("TodayView(store: HabitStore("))
     }
 
     func testHabitsListUsesTheAppearanceBackgroundAtItsVisibleSurface() throws {
@@ -647,13 +645,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(work.isCurrent(moreRoute))
     }
 
-    func testNonCreateRoutesDismissOrWaitForCreateCoverLifecycle() {
-        let destinations: [AppDestination] = [.habits, .more, .stats, .archive, .search]
+    func testEveryRouteDismissesOrWaitsForTheCurrentCreatorLifecycle() {
+        let destinations: [AppDestination] = [.habits, .more, .stats, .archive, .search, .create, .cleanup]
 
         for destination in destinations {
             var work = RouteWork()
             let route = work.begin(destination.effect)
 
+            XCTAssertEqual(work.nextStep(for: route,
+                                         presentation: .init(create: .requested)),
+                           .dismissCreate,
+                           "\(destination) must cancel a creator that has not appeared")
             XCTAssertEqual(work.nextStep(for: route,
                                          presentation: .init(create: .presented)),
                            .dismissCreate,
@@ -662,13 +664,95 @@ final class AppNavigationTests: XCTestCase {
                                          presentation: .init(create: .dismissing)),
                            .waitForCreateDismissal,
                            "\(destination) must wait for create onDismiss")
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
         }
+    }
 
+    func testNewCreateRouteDismissesSentenceChildThenCreatorBeforeReopening() {
         var work = RouteWork()
-        let createRoute = work.begin(AppDestination.create.effect)
-        XCTAssertEqual(work.nextStep(for: createRoute,
-                                     presentation: .init(create: .presented)),
-                       .apply)
+        let replaced = work.begin(AppDestination.create.effect)
+        let latest = work.begin(AppDestination.create.effect)
+        var presentation = RoutePresentation(create: .presented, sentenceCreation: .presented)
+        XCTAssertNil(work.nextStep(for: replaced, presentation: presentation))
+        XCTAssertEqual(work.nextStep(for: latest, presentation: presentation), .dismissSentenceCreation)
+        presentation.sentenceCreation = .dismissing
+        XCTAssertEqual(work.nextStep(for: latest, presentation: presentation), .waitForSentenceCreationDismissal)
+        presentation.sentenceCreation = .absent
+        XCTAssertEqual(work.nextStep(for: latest, presentation: presentation), .dismissCreate)
+        presentation.create = .dismissing
+        XCTAssertEqual(work.nextStep(for: latest, presentation: presentation), .waitForCreateDismissal)
+        presentation.create = .absent
+        XCTAssertEqual(work.nextStep(for: latest, presentation: presentation), .apply)
+        XCTAssertTrue(latest.effect.opensCreate)
+    }
+
+    func testRouteArrivingDuringCreatorDismissalSupersedesPendingReopen() {
+        var work = RouteWork()
+        let reopen = work.begin(AppDestination.create.effect)
+        XCTAssertEqual(work.nextStep(for: reopen, presentation: .init(create: .presented)), .dismissCreate)
+        let search = work.begin(AppDestination.search.effect)
+        XCTAssertNil(work.nextStep(for: reopen, presentation: .init(create: .dismissing)))
+        XCTAssertEqual(work.nextStep(for: search, presentation: .init(create: .dismissing)), .waitForCreateDismissal)
+        XCTAssertNil(work.nextStep(for: reopen, presentation: .init()))
+        XCTAssertEqual(work.nextStep(for: search, presentation: .init()), .apply)
+        XCTAssertTrue(search.effect.opensSearch)
+        XCTAssertFalse(search.effect.opensCreate)
+    }
+
+    func testEveryRouteDismissesOrWaitsForHistoryBeforeApplying() {
+        let destinations: [AppDestination] = [.habits, .habit(UUID()), .more, .stats,
+                                              .archive, .search, .create, .cleanup]
+        for destination in destinations {
+            var work = RouteWork()
+            let route = work.begin(destination.effect)
+            for phase in [RoutePresentationPhase.requested, .presented] {
+                XCTAssertEqual(work.nextStep(for: route, presentation: .init(history: phase)),
+                               .dismissHistory, "\(destination) must dismiss \(phase) history")
+            }
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(history: .dismissing)),
+                           .waitForHistoryDismissal, "\(destination) must wait for history onDismiss")
+            XCTAssertEqual(work.nextStep(for: route, presentation: .init(history: .absent)), .apply)
+        }
+    }
+
+    func testHistoryDismissalFollowsEditorAndPrecedesCreatorAndSettings() {
+        var work = RouteWork()
+        let route = work.begin(AppDestination.stats.effect)
+        var presentation = RoutePresentation()
+        presentation.editor = .presented
+        presentation.history = .presented
+        presentation.create = .presented
+        presentation.more = .presented
+        presentation.morePage = .settings
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissEditor)
+        presentation.editor = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForEditorDismissal)
+        presentation.editor = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissHistory)
+        presentation.history = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForHistoryDismissal)
+        presentation.history = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissCreate)
+        presentation.create = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForCreateDismissal)
+        presentation.create = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissMore)
+        presentation.more = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForMoreDismissal)
+        presentation.more = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .apply)
+    }
+
+    func testLatestRouteWinsWhileHistoryDismissalIsPending() {
+        var work = RouteWork()
+        let stats = work.begin(AppDestination.stats.effect)
+        XCTAssertEqual(work.nextStep(for: stats, presentation: .init(history: .presented)), .dismissHistory)
+        let create = work.begin(AppDestination.create.effect)
+        XCTAssertNil(work.nextStep(for: stats, presentation: .init(history: .dismissing)))
+        XCTAssertEqual(work.nextStep(for: create, presentation: .init(history: .dismissing)), .waitForHistoryDismissal)
+        XCTAssertNil(work.nextStep(for: stats, presentation: .init(history: .absent)))
+        XCTAssertEqual(work.nextStep(for: create, presentation: .init(history: .absent)), .apply)
+        XCTAssertTrue(create.effect.opensCreate)
     }
 
     func testEveryDeepLinkDismissesTheEditorBeforeApplying() {
@@ -838,7 +922,7 @@ final class AppNavigationTests: XCTestCase {
     }
 
     func testAlreadyPresentedMoreDestinationDoesNotDismissOrRepresent() {
-        for destination in [AppDestination.archive] {
+        for destination in [AppDestination.more, .archive, .cleanup] {
             var work = RouteWork()
             let route = work.begin(destination.effect)
 
@@ -859,46 +943,49 @@ final class AppNavigationTests: XCTestCase {
     }
 
     func testFallbackTabLayersExposeOnlyTheSelectedMountedTree() {
-        let habits = AppTabLayerState(tab: .habits, selectedTab: .habits)
-        let hiddenMore = AppTabLayerState(tab: .more, selectedTab: .habits)
-
-        XCTAssertEqual(habits, .init(opacity: 1, allowsHitTesting: true,
-                                    accessibilityHidden: false, zIndex: 1))
-        XCTAssertEqual(hiddenMore, .init(opacity: 0, allowsHitTesting: false,
-                                        accessibilityHidden: true, zIndex: 0))
-        XCTAssertEqual(AppTabLayerState(tab: .habits, selectedTab: .more), hiddenMore)
-        XCTAssertEqual(AppTabLayerState(tab: .more, selectedTab: .more), habits)
+        let tabs: [AppTab] = [.today, .habits, .stats, .search]
+        for selected in tabs {
+            for tab in tabs {
+                XCTAssertEqual(AppTabLayerState(tab: tab, selectedTab: selected),
+                               tab == selected
+                               ? .init(opacity: 1, allowsHitTesting: true, accessibilityHidden: false, zIndex: 1)
+                               : .init(opacity: 0, allowsHitTesting: false, accessibilityHidden: true, zIndex: 0))
+            }
+            XCTAssertTrue(AppTabLayerState(tab: .more, selectedTab: selected).accessibilityHidden)
+        }
     }
 
-    func testContentViewDeclaresAllFourTabs() throws {
+    func testNativeShellDeclaresTodayHabitsProgressAndSeparateSearchWithoutMoreTab() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("value: AppTab.stats"))
-        XCTAssertTrue(source.contains("value: AppTab.habits"))
-        XCTAssertTrue(source.contains("value: AppTab.more"))
-        XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
-        XCTAssertTrue(source.contains("value: AppTab.search, role: .prominent"))
-        XCTAssertFalse(source.contains("enum NativeTab"))
+        let pattern = try NSRegularExpression(pattern: #"value:\s*AppTab\.(\w+)"#)
+        let names = pattern.matches(in: source, range: NSRange(source.startIndex..., in: source)).compactMap {
+            Range($0.range(at: 1), in: source).map { String(source[$0]) }
+        }
+        XCTAssertEqual(Set(names), ["today", "habits", "stats", "search"])
+        for name in ["today", "habits", "stats"] {
+            XCTAssertEqual(names.filter { $0 == name }.count, 2, "Both native OS shells must include \(name)")
+        }
+        XCTAssertTrue(source.contains("role: .search"))
+        XCTAssertTrue(source.contains("role: .prominent"))
     }
 
-    func testFallbackKeepsBothDestinationTreesMounted() throws {
+    func testFallbackKeepsTodayHabitsAndProgressMountedWithoutLegacyMoreContent() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("fallbackTabLayer(.stats) { fallbackStatsContent }"))
-        XCTAssertTrue(source.contains("fallbackTabLayer(.habits) { habitsStack }"))
-        XCTAssertTrue(source.contains("fallbackTabLayer(.more) { fallbackMoreContent }"))
-        XCTAssertFalse(source.contains("if nativeTab == .more {"))
+        let pattern = try NSRegularExpression(pattern: #"fallbackTabLayer\(\.(\w+)\)"#)
+        let tabs = pattern.matches(in: source, range: NSRange(source.startIndex..., in: source)).compactMap {
+            Range($0.range(at: 1), in: source).map { String(source[$0]) }
+        }
+        XCTAssertEqual(tabs, ["today", "stats", "habits"])
         XCTAssertTrue(source.contains(".opacity(state.opacity)"))
         XCTAssertTrue(source.contains(".allowsHitTesting(state.allowsHitTesting)"))
         XCTAssertTrue(source.contains(".accessibilityHidden(state.accessibilityHidden)"))
     }
 
-    func testBothMoreSheetHostsDeliverPendingRouteFromOnDismiss() throws {
+    func testSingleSettingsSheetDeliversPendingRoutesAfterNativeDismissal() throws {
         let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertEqual(source.components(separatedBy:
-            "onDismiss: deliverPendingMoreDismissalRoute").count - 1, 2)
-        XCTAssertEqual(source.components(separatedBy:
-            ".onAppear { moreSheetDidPresent(route) }").count - 1, 2)
-        XCTAssertTrue(source.contains("moreSheetIsPresented"))
-        XCTAssertTrue(source.contains("pendingRoute"))
+        XCTAssertEqual(source.components(separatedBy: "onDismiss: deliverPendingMoreDismissalRoute").count - 1, 1)
+        XCTAssertEqual(source.components(separatedBy: ".onAppear { moreSheetDidPresent(route) }").count - 1, 1)
+        XCTAssertEqual(source.components(separatedBy: "NavigationStack(path: $moreSheetPath)").count - 1, 1)
     }
 
     func testMoreRouteCanReplaceARequestedButNotPresentedSheet() throws {
@@ -908,16 +995,21 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertTrue(source.contains("advance(route)"))
     }
 
-    func testCreateRouteCanReplaceARequestedButNotPresentedCover() throws {
-        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        XCTAssertTrue(source.contains("createPage.onAppear { createCoverDidPresent() }"))
-        XCTAssertTrue(source.contains("guard showAdd else { return }"))
-        XCTAssertTrue(source.contains("let waitsForOnDismiss = createCover.dismissalIsOwed"))
-        XCTAssertTrue(source.contains("if !waitsForOnDismiss { advance(route) }"))
-        XCTAssertTrue(source.contains("createCover.phase(requested: showAdd)"))
-        XCTAssertFalse(source.contains("searchFlow"),
-                       "the search tab must not be coupled to create-cover presentation")
-        XCTAssertFalse(source.contains("if open { createCoverIsPresented = true }"))
+    func testSentenceAndCreatorDismissalSequenceKeepsOnlyTheLatestRoute() {
+        var work = RouteWork()
+        let old = work.begin(AppDestination.search.effect)
+        let route = work.begin(AppDestination.more.effect)
+        var presentation = RoutePresentation(create: .presented, sentenceCreation: .presented)
+        XCTAssertNil(work.nextStep(for: old, presentation: presentation))
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissSentenceCreation)
+        presentation.sentenceCreation = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForSentenceCreationDismissal)
+        presentation.sentenceCreation = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .dismissCreate)
+        presentation.create = .dismissing
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .waitForCreateDismissal)
+        presentation.create = .absent
+        XCTAssertEqual(work.nextStep(for: route, presentation: presentation), .apply)
     }
 
     func testCreateAccessibilityContractIsSharedAcrossCustomControls() throws {
@@ -952,7 +1044,8 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertFalse(more.contains("accessibilityIdentifier(\"connect-github\")"))
         XCTAssertTrue(settings.contains("github-disconnect"))
         XCTAssertTrue(settings.contains("github-connect"))
-        XCTAssertGreaterThanOrEqual(content.components(separatedBy: "github: github").count - 1, 4)
+        XCTAssertTrue(content.contains("GitHubSettingsView(store: github,"),
+                      "the secondary page must reuse the same connected GitHub store")
         XCTAssertFalse(about.contains("NavigationLink(value: MoreRoute.github)"))
     }
 
@@ -996,17 +1089,17 @@ final class AppNavigationTests: XCTestCase {
         XCTAssertFalse(source.contains("SearchFieldWatcher"))
     }
 
-    func testSelectingSearchTabDoesNotUseAKeyboardBridge() throws {
-        let source = try String(contentsOf: sourceURL("Haiity/Views/ContentView.swift"))
-        let tabChange = try XCTUnwrap(source.range(of: ".onChange(of: nativeTab)"))
-        let handlerEnd = try XCTUnwrap(source.range(of: "\n    }\n\n    // MARK: – Bereiche",
-                                                    range: tabChange.upperBound..<source.endIndex))
-        let tabBody = source[tabChange.lowerBound..<handlerEnd.lowerBound]
-
-        XCTAssertTrue(tabBody.contains("searchFieldFocused = false"))
-        XCTAssertFalse(tabBody.contains("openSearch("))
-        XCTAssertTrue(source.contains(".searchFocused($searchFieldFocused)"),
-                      "the dedicated search page must own keyboard focus")
+    func testSearchRouteWaitsForSettingsDismissalAndNeverOpensCreation() {
+        var work = RouteWork()
+        let route = work.begin(AppDestination.search.effect)
+        XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .presented, morePage: .settings)),
+                       .dismissMore)
+        XCTAssertEqual(work.nextStep(for: route, presentation: .init(more: .dismissing)),
+                       .waitForMoreDismissal)
+        XCTAssertEqual(work.nextStep(for: route, presentation: .init()), .apply)
+        XCTAssertEqual(route.effect.tab, .search)
+        XCTAssertTrue(route.effect.opensSearch)
+        XCTAssertFalse(route.effect.opensCreate)
     }
 
     func testSearchableIsScopedToTheSearchTab() throws {

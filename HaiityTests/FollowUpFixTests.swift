@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Haiity
 
 final class FollowUpFixTests: XCTestCase {
@@ -187,52 +189,51 @@ final class FollowUpFixTests: XCTestCase {
                       "the lift shadow must not be derived from the larger list host")
     }
 
-    func testStatsUseDynamicTypeAndCombineRowsForVoiceOver() throws {
-        let stats = try source("Haiity/Views/StatsView.swift")
-        let rowStart = try XCTUnwrap(stats.range(of: "private func statsHabitRow"))
-        let rowEnd = try XCTUnwrap(stats.range(of: "private func statsHabitAccessibilityValue",
-                                               range: rowStart.upperBound..<stats.endIndex))
-        let row = stats[rowStart.lowerBound..<rowEnd.lowerBound]
-
-        XCTAssertFalse(stats.contains(".font(.system(size:"),
-                       "large statistics values must scale with Dynamic Type")
-        XCTAssertTrue(row.contains(".accessibilityElement(children: .combine)"),
-                      "each habit statistics row should be one readable VoiceOver element")
-        XCTAssertTrue(stats.contains("statsTodayAccessibilityValue"),
-                      "the today card must expose its open count, streak, and week percent")
-        XCTAssertTrue(stats.contains("statsRhythmAccessibilityValue"),
-                      "the rhythm card must expose how many days are filled")
-        XCTAssertTrue(stats.contains("statsWeekAccessibilityValue"),
-                      "the week card must expose the seven daily percents")
-        XCTAssertTrue(stats.contains("accessibilityElement(children: .ignore)"),
-                      "each statistics block stays one VoiceOver element")
-        XCTAssertTrue(stats.contains(".navigationChrome()"),
-                      "statistics navigation must keep the selected header material")
-        XCTAssertFalse(stats.contains(".background(AppearanceBackground(preferences: store.appearancePreferences))"),
-                       "the statistics page must use the single page-level appearance layer")
+    @MainActor
+    func testWeeklyResultGrowsAtAX5WithoutHorizontalOverflowAcrossStyles() {
+        let suite = "stats-style-layout-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HabitStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("stats-style-layout-\(UUID()).json"), loadFromDisk: false)
+        let view = StatsView(store: store, viewPreferences: ViewPreferencesStore(defaults: defaults))
+        let snapshot = StatsEngine.snapshot(habits: [], today: "2026-10-07")
+        for style in AppDesignStyle.allCases {
+            var preferences = AppearancePreferences()
+            preferences.designStyle = style
+            let normal = UIHostingController(rootView: view.statsWeekCard(snapshot)
+                .environment(\.appearancePreferences, preferences).environment(\.dynamicTypeSize, .large))
+            let accessible = UIHostingController(rootView: view.statsWeekCard(snapshot)
+                .environment(\.appearancePreferences, preferences).environment(\.dynamicTypeSize, .accessibility5))
+            let proposal = CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)
+            let size = accessible.sizeThatFits(in: proposal)
+            XCTAssertLessThanOrEqual(size.width, 320)
+            XCTAssertGreaterThan(size.height, normal.sizeThatFits(in: proposal).height)
+        }
     }
 
-    func testStatsHabitRowCommitOpensTheHabitCard() throws {
-        let stats = try source("Haiity/Views/StatsView.swift")
-
-        // The commit decision lives in its own function, not as an `if/else`
-        // inside the @ViewBuilder: a builder reads an if/else as a view branch,
-        // so deciding a closure in there only compiles behind an explicit
-        // `return`, which disables the builder for the whole body.
-        XCTAssertTrue(stats.contains("private func statsContextHabitID(_ id: String) -> UUID?"),
-                      "the habit behind a context-menu id must be derived in one place")
-        XCTAssertTrue(stats.contains("id.hasPrefix(\"habit-\")"))
-        XCTAssertTrue(stats.contains("private func statsContextCommit(for id: String) -> () -> Void"))
-        XCTAssertTrue(stats.contains("return { openHabit(habitID) }"),
-                      "a per-habit card must open that habit")
-        XCTAssertTrue(stats.contains("return openStatsAdjustments"),
-                      "every other menu must open the customize sheet")
-
-        XCTAssertTrue(stats.contains("openURL(AppDestination.habit(id).url)"),
-                      "a ranking row must open the existing habit card")
-        XCTAssertTrue(stats.contains("commit: statsContextCommit(for: id)"))
-        XCTAssertTrue(stats.contains("performsCommitOnTap: statsContextHabitID(id) != nil"),
-                      "a short tap on the ranking row must run that same commit")
+    @MainActor
+    func testProgressDetailsAndHistoryUseIndependentUUIDCallbacksWithoutChangingPreferences() {
+        let suite = "stats-route-callbacks-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewPreferencesStore(defaults: defaults)
+        preferences.update { $0.statsCards = StatsCardPrefs(active: [], customized: true) }
+        let before = preferences.statsCards
+        let store = HabitStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("stats-route-callbacks-\(UUID()).json"), loadFromDisk: false)
+        var detailIDs: [UUID] = [], historyIDs: [UUID] = []
+        let view = StatsView(store: store, viewPreferences: preferences,
+            onOpenHabit: { detailIDs.append($0) }, onOpenHistory: { historyIDs.append($0) })
+        let first = UUID(), second = UUID()
+        view.openHabit(first)
+        XCTAssertEqual(detailIDs, [first])
+        XCTAssertTrue(historyIDs.isEmpty)
+        view.openHistory(second)
+        XCTAssertEqual(detailIDs, [first])
+        XCTAssertEqual(historyIDs, [second])
+        XCTAssertEqual(preferences.statsCards, before)
+        XCTAssertTrue(store.habits.isEmpty)
     }
 
     func testEmptyStatisticsContainsTheCreateButton() throws {
@@ -248,46 +249,61 @@ final class FollowUpFixTests: XCTestCase {
                       "empty statistics must use the existing create route")
     }
 
-    func testStatsAccessibilityValuesIncludeTheChartNumbers() throws {
-        let stats = try source("Haiity/Views/StatsView.swift")
-        let today = try functionBody(stats, "private func statsTodayAccessibilityValue")
-        let rhythm = try functionBody(stats, "private func statsRhythmAccessibilityValue")
-        let week = try functionBody(stats, "private func statsWeekAccessibilityValue")
-
-        XCTAssertTrue(today.contains("offen"))
-        XCTAssertTrue(today.contains("Serie"))
-        XCTAssertTrue(today.contains("diese Woche"))
-        XCTAssertTrue(rhythm.contains("Nur mit hAiity Pro"))
-        XCTAssertTrue(rhythm.contains("letzten fünf Monaten"))
-        XCTAssertTrue(rhythm.contains("level > 0"))
-        XCTAssertTrue(week.contains("Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek)"))
-        XCTAssertTrue(week.contains("%"))
-        XCTAssertTrue(stats.contains(".accessibilityValue(statsTodayAccessibilityValue(snapshot))"))
-        XCTAssertTrue(stats.contains(".accessibilityValue(statsRhythmAccessibilityValue(snapshot))"))
-        XCTAssertTrue(stats.contains(".accessibilityValue(statsWeekAccessibilityValue(snapshot))"))
+    @MainActor
+    func testSelectedProgressMetricsRetainCountsAndNeverInventAnEmptyDenominator() throws {
+        var snapshot = StatsEngine.snapshot(habits: [], today: "2026-10-07")
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))
+        let bundle = try XCTUnwrap(Bundle(path: path))
+        let locale = Locale(identifier: "en")
+        XCTAssertEqual(StatsView.statsMetricValue(.todayRing, snapshot: snapshot, bundle: bundle, locale: locale),
+                       "No habit due")
+        XCTAssertEqual(StatsView.weekCompletionSummary(snapshot.week, bundle: bundle, locale: locale),
+                       "Nothing due this week")
+        snapshot.todayDone = 2
+        snapshot.todayTotal = 3
+        snapshot.totalCheckIns = 42
+        snapshot.week = .init(done: 7, total: 9)
+        XCTAssertEqual(StatsView.statsMetricValue(.todayRing, snapshot: snapshot), "2/3")
+        XCTAssertEqual(StatsView.statsMetricValue(.totals, snapshot: snapshot), "42")
+        XCTAssertEqual(StatsView.weekCompletionSummary(snapshot.week, bundle: bundle, locale: locale),
+                       "7 of 9 completed · 78 %")
+        XCTAssertEqual(StatsView.statsMetricValue(.weekMomentum, snapshot: snapshot, bundle: bundle, locale: locale),
+                       "In the weekly summary")
+        XCTAssertEqual(StatsEngine.pulseWeeks, 20)
+        XCTAssertEqual(snapshot.mergedLevels.count, 20)
     }
 
-    private func functionBody(_ source: String, _ name: String) throws -> Substring {
-        let start = try XCTUnwrap(source.range(of: name))
-        let next = source.range(of: "\n    private func ", range: start.upperBound..<source.endIndex)
-            ?? source.range(of: "\n    private var ", range: start.upperBound..<source.endIndex)
-        let end = next?.lowerBound ?? source.endIndex
-        return source[start.lowerBound..<end]
-    }
 
-    func testStatsPreviewsKeepOneSurfaceAndAFlexibleHeight() throws {
-        let stats = try source("Haiity/Views/StatsView.swift")
-        let previewStart = try XCTUnwrap(stats.range(of: "private func statsPreview"))
-        let previewEnd = try XCTUnwrap(stats.range(of: "private func streakChip",
-                                                    range: previewStart.upperBound..<stats.endIndex))
-        let preview = stats[previewStart.lowerBound..<previewEnd.lowerBound]
-
-        XCTAssertTrue(preview.contains(".frame(minHeight: height"),
-                      "enlarged statistics cards must grow with their content")
-        XCTAssertFalse(preview.contains(".frame(height: height"),
-                       "enlarged statistics cards must not clip at a fixed height")
-        XCTAssertTrue(preview.contains(".appSurface()"),
-                      "the preview wrapper must provide one visible selected-material surface")
+    @MainActor
+    func testNativePreviewHostClampsInvalidFramesAndDetachesItsInteraction() throws {
+        var visibility: [Bool] = []
+        let host = GraphContextMenu.MenuHost(cardRadius: 16, previewWidth: 320, previewHeight: 104,
+            previewOwnsSurface: true, previewAccessibilityIdentifier: "stats-preview",
+            preview: { AnyView(Text("Preview")) }, actions: [], commit: {},
+            palettes: PaletteBook(), appearancePreferences: AppearancePreferences(),
+            onMenuVisibilityChanged: { visibility.append($0) })
+        host.frame = CGRect(x: CGFloat.nan, y: CGFloat.infinity,
+                            width: CGFloat.infinity, height: CGFloat.nan)
+        XCTAssertEqual(host.frame, CGRect(x: 0, y: 0, width: 320, height: 104))
+        XCTAssertEqual(host.interactions.filter { $0 is UIContextMenuInteraction }.count, 1)
+        let interaction = try XCTUnwrap(host.interactions.compactMap { $0 as? UIContextMenuInteraction }.first)
+        XCTAssertTrue(interaction.delegate === host)
+        XCTAssertTrue(interaction.view === host)
+        let unrelated = UIPointerInteraction(delegate: nil)
+        host.addInteraction(unrelated)
+        XCTAssertNotNil(host.contextMenuInteraction(interaction,
+            configurationForMenuAtLocation: CGPoint(x: 16, y: 16)))
+        XCTAssertEqual(visibility, [true])
+        GraphContextMenu.dismantleUIView(host, coordinator: ())
+        XCTAssertFalse(host.interactions.contains { $0 === interaction })
+        XCTAssertNil(interaction.view)
+        XCTAssertTrue(host.interactions.contains { $0 === unrelated },
+                      "dismantling the context menu must preserve other interactions")
+        XCTAssertEqual(visibility, [true, false])
+        host.detach()
+        XCTAssertFalse(host.interactions.contains { $0 === interaction })
+        XCTAssertTrue(host.interactions.contains { $0 === unrelated })
+        XCTAssertEqual(visibility, [true, false], "repeated detach must not publish another dismissal")
     }
 
     func testGitHubPreviewUsesAReadableRecentWindow() throws {

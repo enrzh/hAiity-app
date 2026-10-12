@@ -213,7 +213,9 @@ final class VoiceCreateSheetTests: XCTestCase {
         let editor = try source("Haiity/Views/EditHabitSheet.swift")
         XCTAssertFalse(content.contains("private var speakButton"))
         XCTAssertTrue(editor.contains("accessibilityIdentifier(\"speak-to-create\")"))
-        XCTAssertTrue(content.contains("? requestSentenceCreation : nil"))
+        XCTAssertTrue(content.contains("offersSentenceCreation: viewPreferences.dictateCreateEnabled"))
+        XCTAssertTrue(editor.contains("SpeakToCreateSheet(store: store, initialText: initialText, embedded: true,"))
+        XCTAssertFalse(content.contains("requestSentenceCreation"), "The manual draft stays mounted")
         XCTAssertTrue(content.contains("onDismiss: deliverPendingCreateDismissalRoute"))
         XCTAssertTrue(content.contains(".sheet(item: $sentenceCreation,"))
         XCTAssertTrue(content.contains("initialText: request.text"))
@@ -227,7 +229,7 @@ final class VoiceCreateSheetTests: XCTestCase {
     /// showed through "Abbrechen" and the title.
     func testTheDraftOnlyExistsOnTheFullPage() throws {
         let sheet = try source("Haiity/Views/SpeakToCreateSheet.swift")
-        XCTAssertTrue(sheet.contains("if let draft, detent == .large {"),
+        XCTAssertTrue(sheet.contains("if let draft, embedded || detent == .large {"),
                       "the draft card must wait for the full page")
         XCTAssertFalse(sheet.contains("if let draft {"),
                        "an ungated draft is the bug this replaces")

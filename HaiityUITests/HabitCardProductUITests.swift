@@ -52,9 +52,8 @@ final class HabitCardProductUITests: XCTestCase {
 
     private func assertIndependentTargets(_ card: XCUIElement, in app: XCUIApplication? = nil) {
         let name = card.buttons["habit-name"].firstMatch
-        let edit = card.buttons["edit-habit"].firstMatch
         let check = card.buttons["check-today"].firstMatch
-        for button in [name, edit, check] {
+        for button in [name, check] {
             if let app { reveal(button, in: app) }
             XCTAssertTrue(button.isHittable)
             XCTAssertGreaterThanOrEqual(button.frame.width + 0.001, 44)
@@ -62,8 +61,23 @@ final class HabitCardProductUITests: XCTestCase {
             XCTAssertFalse(button.label.isEmpty)
         }
         XCTAssertFalse(name.frame.intersects(check.frame))
-        XCTAssertFalse(name.frame.intersects(edit.frame))
-        XCTAssertFalse(edit.frame.intersects(check.frame))
+        XCTAssertFalse(card.buttons["edit-habit"].exists, "Editing belongs in details")
+        XCTAssertFalse(card.buttons["open-habit-history"].exists, "The graph opens full history directly")
+    }
+
+    private func openDetails(_ name: XCUIElement, in app: XCUIApplication) {
+        name.tap()
+        XCTAssertTrue(app.buttons["edit-habit"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["habit-detail"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["backfill-close"].exists, "The name opens details, not the history sheet")
+        XCTAssertFalse(app.textFields["habit-name"].exists, "Opening details must not start editing")
+    }
+
+    private func returnToCollection(in app: XCUIApplication) {
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.isHittable)
+        back.tap()
+        _ = firstCard(app)
     }
 
     private func capture(_ name: String) {
@@ -79,23 +93,24 @@ final class HabitCardProductUITests: XCTestCase {
         assertIndependentTargets(card)
         let check = card.buttons["check-today"].firstMatch
         let before = check.label
-        for history in [card.buttons["habit-name"].firstMatch,
-                        card.descendants(matching: .any)["habit-history"].firstMatch] {
-            history.tap()
-            XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.buttons["history-previous-month"].exists)
-            app.buttons["backfill-close"].tap()
-            XCTAssertTrue(check.waitForExistence(timeout: 5))
-            XCTAssertEqual(check.label, before)
-            XCTAssertFalse(app.buttons["undo-action"].exists)
-        }
-        card.buttons["edit-habit"].firstMatch.tap()
+        openDetails(card.buttons["habit-name"].firstMatch, in: app)
+        XCTAssertFalse(app.buttons["undo-action"].exists)
+        app.buttons["edit-habit"].firstMatch.tap()
         let field = app.textFields["habit-name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "Read for twenty minutes")
         app.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["edit-habit"].firstMatch.waitForExistence(timeout: 5))
+        returnToCollection(in: app)
         XCTAssertTrue(check.waitForExistence(timeout: 5))
         XCTAssertEqual(check.label, before)
+        card.descendants(matching: .any)["habit-history"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["history-previous-month"].exists)
+        app.buttons["backfill-close"].tap()
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        XCTAssertEqual(check.label, before)
+        XCTAssertFalse(app.buttons["undo-action"].exists)
         let grid = card.descendants(matching: .any)["contribution-grid"].firstMatch
         XCTAssertTrue(grid.waitForExistence(timeout: 5))
         let graphBefore = grid.label
@@ -114,7 +129,7 @@ final class HabitCardProductUITests: XCTestCase {
         for style in ["native", "quiet", "focus", "studio"] {
             let app = launch(style: style)
             _ = firstCard(app)
-            selectTab("More", in: app)
+            app.open(URL(string: "haiity://more")!)
             let appearance = app.buttons["open-appearance"].firstMatch
             reveal(appearance, in: app)
             appearance.tap()
@@ -127,15 +142,16 @@ final class HabitCardProductUITests: XCTestCase {
                 compact.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
             }
             XCTAssertEqual(compact.value as? String, "1")
+            app.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(app.buttons["close-more-sheet"].waitForExistence(timeout: 5))
             app.buttons["close-more-sheet"].tap()
             selectTab("Habits", in: app)
             let card = firstCard(app)
             assertIndependentTargets(card)
             let check = card.buttons["check-today"].firstMatch
             let before = check.label
-            card.buttons["habit-name"].firstMatch.tap()
-            XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
-            app.buttons["backfill-close"].tap()
+            openDetails(card.buttons["habit-name"].firstMatch, in: app)
+            returnToCollection(in: app)
             XCTAssertEqual(check.label, before)
             check.tap()
             XCTAssertTrue(app.buttons["undo-action"].waitForExistence(timeout: 5))
@@ -163,10 +179,74 @@ final class HabitCardProductUITests: XCTestCase {
         XCTAssertFalse(app.buttons["backfill-close"].exists)
         app.buttons["undo-action"].tap()
         XCTAssertEqual(check.label, before)
-        card.buttons["habit-name"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["backfill-close"].waitForExistence(timeout: 5))
-        app.buttons["backfill-close"].tap()
+        openDetails(card.buttons["habit-name"].firstMatch, in: app)
+        returnToCollection(in: app)
         XCTAssertEqual(check.label, before)
+    }
+
+    func testReminderNameOpensDetailsIndependentlyOfCompletionAndPreview() {
+        let app = launch(fixture: "mixed")
+        _ = firstCard(app)
+        let id = "00000000-0000-0000-0000-000000000799"
+        let name = app.buttons["reminder-name-\(id)"].firstMatch
+        let check = app.buttons["reminder-check-\(id)"].firstMatch
+        reveal(name, in: app)
+        reveal(check, in: app)
+        for button in [name, check] {
+            XCTAssertTrue(button.isHittable)
+            XCTAssertGreaterThanOrEqual(button.frame.width + 0.001, 44)
+            XCTAssertGreaterThanOrEqual(button.frame.height + 0.001, 44)
+        }
+        XCTAssertFalse(name.frame.intersects(check.frame))
+        XCTAssertFalse(app.buttons["reminder-edit-\(id)"].exists)
+        let before = check.value as? String
+        openDetails(name, in: app)
+        app.buttons["edit-habit"].firstMatch.tap()
+        XCTAssertTrue(app.textFields["habit-name"].waitForExistence(timeout: 5))
+        XCTAssertTrue((app.textFields["habit-name"].value as? String)?.hasPrefix("Call the dentist") == true)
+        app.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["edit-habit"].firstMatch.waitForExistence(timeout: 5))
+        returnToCollection(in: app)
+        reveal(check, in: app)
+        XCTAssertEqual(check.value as? String, before)
+        XCTAssertFalse(app.buttons["undo-action"].exists)
+    }
+
+    func testTodayAndSearchCompactRowsShareCheckOffUndoAndDetailNavigation() {
+        let id = "00000000-0000-0000-0000-000000000700"
+        for tab in ["Today", "Search"] {
+            let app = launch()
+            _ = firstCard(app)
+            selectTab(tab, in: app)
+            if tab == "Search" {
+                let field = app.searchFields.firstMatch
+                XCTAssertTrue(field.waitForExistence(timeout: 5))
+                field.tap()
+                field.typeText("Read for twenty minutes")
+            }
+            let identifier = tab == "Today" ? "today-row-\(id)" : "search-result-\(id)"
+            let row = app.descendants(matching: .any)[identifier].firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            let name = row.buttons["item-details-\(id)"].firstMatch
+            let check = row.buttons["check-today"].firstMatch
+            XCTAssertTrue(name.isHittable)
+            XCTAssertTrue(check.isHittable)
+            XCTAssertFalse(name.frame.intersects(check.frame))
+            XCTAssertFalse(row.descendants(matching: .any)["contribution-grid"].exists)
+            for button in [name, check] {
+                XCTAssertGreaterThanOrEqual(button.frame.width + 0.001, 44)
+                XCTAssertGreaterThanOrEqual(button.frame.height + 0.001, 44)
+            }
+            let before = check.label
+            check.tap()
+            XCTAssertTrue(app.buttons["undo-action"].waitForExistence(timeout: 5))
+            XCTAssertNotEqual(check.label, before)
+            app.buttons["undo-action"].tap()
+            XCTAssertEqual(check.label, before)
+            openDetails(name, in: app)
+            XCTAssertFalse(app.buttons["undo-action"].exists)
+            app.terminate()
+        }
     }
 
     func testLargestRTLTextKeepsActionsReachableAndGraphBounded() {

@@ -4,8 +4,8 @@ import SwiftUI
 /// Habit-Liste plus Unterseite in „Mehr", sondern eine Seite, die beides
 /// vereint:
 ///
-/// Weekly completion leads, then today and each habit's 30-day rate.
-/// The existing rhythm grid and selected extra metrics remain available;
+/// Weekly completion leads, then selected metrics and each habit's 30-day rate.
+/// The existing rhythm grid remains in the saved metric order;
 /// an optional reading follows the statistics rather than leading them.
 ///
 /// Die Mathematik liegt komplett in StatsEngine/StatsMath/GoalEngine
@@ -19,6 +19,8 @@ struct StatsView: View {
     /// Kaufblatt, und ohne dieses Signal bliebe der Nutzer auf einer
     /// Kaufseite sitzen, die zu einem Bereich gehört, den er verlassen hat.
     var routeToken: Int = 0
+    var onOpenHabit: ((UUID) -> Void)? = nil
+    var onOpenHistory: ((UUID) -> Void)? = nil
     /// Das Kaufblatt: `nil` heisst geschlossen.
     @State private var paywall: PaywallContext?
     @State private var showingCardSettings = false
@@ -105,7 +107,7 @@ struct StatsView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                RootPageCompactTitle(title: String(localized: "Statistik"),
+                RootPageCompactTitle(title: String(localized: "Fortschritt"),
                                      progress: rootTitleProgress)
             }
             ToolbarItem(placement: .topBarLeading) {
@@ -190,7 +192,9 @@ struct StatsView: View {
 
                 statsWeekCard(snapshot)
 
-                statsTodayCard(snapshot)
+                if !activeCards.isEmpty {
+                    statsSelectedMetrics(snapshot, cards: activeCards)
+                }
 
                 if unlocked {
                     statsHabitRanking(snapshot)
@@ -199,15 +203,6 @@ struct StatsView: View {
                         .padding(designStyle.cardPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .appSurface()
-                }
-
-                if activeCards.contains(.yearPulse) {
-                    statsRhythmCard(snapshot)
-                }
-
-                let metricCards = activeCards.filter { $0 != .yearPulse }
-                if !metricCards.isEmpty {
-                    statsMetricGrid(snapshot, cards: metricCards)
                 }
 
                 DisclosureGroup {
@@ -269,8 +264,6 @@ struct StatsView: View {
                     .allowsHitTesting(false)
                     .accessibilityLabel(String(localized: "Statistik wird geladen"))
                     .accessibilityIdentifier("stats-loading-week")
-
-                statsTodayLoadingCard
             }
             .padding(.horizontal, Theme.Metrics.gutter)
             .padding(.bottom, ChromeLayout.floatingControlsClearance)
@@ -295,16 +288,7 @@ struct StatsView: View {
 
     /// The first summary already names its period; no repeated subtitle.
     private var statsPageTitle: some View {
-        RootPageTitle(title: String(localized: "Statistik"))
-    }
-
-    private var statsTodayLoadingCard: some View {
-        statsTodayCard(statsLoadingSnapshot)
-            .redacted(reason: .placeholder)
-            .accessibilityElement(children: .ignore)
-            .allowsHitTesting(false)
-            .accessibilityLabel(String(localized: "Statistik wird geladen"))
-            .accessibilityIdentifier("stats-loading-today")
+        RootPageTitle(title: String(localized: "Fortschritt"), compact: true)
     }
 
     private var statsLoadingSnapshot: StatsEngine.Snapshot {
@@ -314,58 +298,6 @@ struct StatsView: View {
                              previousWeek: .init(done: 0, total: 0),
                              last7: [], last7HasData: [], mergedLevels: [],
                              perHabit: [], totalCheckIns: 0)
-    }
-
-    func statsTodayCard(_ snapshot: StatsEngine.Snapshot) -> some View {
-        let total = snapshot.todayTotal
-        let done = snapshot.todayDone
-        return VStack(alignment: .leading, spacing: designStyle.rowGap * 2) {
-            let layout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
-                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: designStyle.cardPadding))
-            VStack(alignment: .leading, spacing: designStyle.rowGap) {
-                layout {
-                    Text(String(localized: "Heute"))
-                        .font(designStyle.rowTitleFont)
-                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                    if total == 0 {
-                        Text(String(localized: "Kein Habit fällig"))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text("\(done)/\(total)")
-                            .font(.title3.weight(.semibold).monospacedDigit())
-                            .fixedSize(horizontal: false, vertical: true)
-                            .contentTransition(.numericText())
-                    }
-                }
-                Text(Self.statsTodaySentence(snapshot))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(String(localized: "Heute"))
-            .accessibilityValue(statsTodayAccessibilityValue(snapshot))
-            .accessibilityIdentifier("stats-today-summary")
-            DisclosureGroup {
-                Text(statsDailyExplanation)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("stats-today-explanation")
-            } label: {
-                AppSettingsRow(title: String(localized: "Details")) { EmptyView() }
-                    .foregroundStyle(.primary)
-            }
-            .font(.subheadline)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("stats-today-details")
-        }
-        .padding(designStyle.cardPadding + 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface()
-        .accessibilityElement(children: .contain)
     }
 
     private var statsDailyExplanation: String {
@@ -538,33 +470,10 @@ struct StatsView: View {
         statsReadingPhase = text.map(StatsReadingPhase.shown) ?? .failed
     }
 
-    static func statsTodaySentence(_ snapshot: StatsEngine.Snapshot,
-                                   bundle: Bundle = .main,
-                                   locale: Locale = .current) -> String {
-        guard snapshot.todayTotal > 0 else {
-            return String(localized: "Dein Tag ist frei.", bundle: bundle, locale: locale)
-        }
-        if snapshot.todayDone == snapshot.todayTotal {
-            return String(localized: "Alles erledigt. Gute Arbeit.", bundle: bundle, locale: locale)
-        }
-        return String(localized: "Noch \(snapshot.todayTotal - snapshot.todayDone) offen", bundle: bundle, locale: locale)
-    }
-
-    private func statsTodayAccessibilityValue(_ snapshot: StatsEngine.Snapshot) -> String {
-        let open = max(snapshot.todayTotal - snapshot.todayDone, 0)
-        let weekPercent = Int((snapshot.week.fraction * 100).rounded())
-        let metrics = String(localized: "\(open) offen, Serie \(snapshot.streak), diese Woche \(weekPercent) Prozent")
-        if snapshot.todayTotal == 0 {
-            return String(localized: "Kein Habit fällig, \(metrics)")
-        }
-        return String(localized: "\(snapshot.todayDone) von \(snapshot.todayTotal) erledigt, \(metrics)")
-    }
-
     private func statsRhythmCard(_ snapshot: StatsEngine.Snapshot) -> some View {
         statsRhythmContent(snapshot)
             .padding(designStyle.cardPadding + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface()
             .opacity(activeContextMenuID == StatsCard.yearPulse.rawValue ? 0 : 1)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -588,18 +497,13 @@ struct StatsView: View {
 
     private func statsRhythmContent(_ snapshot: StatsEngine.Snapshot) -> some View {
         VStack(alignment: .leading, spacing: designStyle.cardPadding) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(localized: "Rhythmus"))
-                        .font(designStyle.sectionTitleFont)
-                    Text(String(localized: "Die letzten fünf Monate"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                if snapshot.streak > 0 {
-                    streakChip(snapshot.streak)
-                }
+            VStack(alignment: .leading, spacing: designStyle.rowGap) {
+                Text(String(localized: "Rhythmus"))
+                    .font(designStyle.sectionTitleFont)
+                Text(String(localized: "Die letzten \(StatsEngine.pulseWeeks) Wochen"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             ZStack {
                 mergedGrid(snapshot.mergedLevels)
@@ -628,54 +532,68 @@ struct StatsView: View {
         let filled = snapshot.mergedLevels.reduce(0) { total, column in
             total + column.reduce(0) { count, level in count + (level > 0 ? 1 : 0) }
         }
-        return String(localized: "\(filled) Tage in den letzten fünf Monaten")
+        return String(localized: "\(filled) Tage in den letzten \(StatsEngine.pulseWeeks) Wochen")
     }
 
-    private func statsMetricGrid(_ snapshot: StatsEngine.Snapshot,
-                                 cards: [StatsCard]) -> some View {
-        LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize
-                  ? [GridItem(.flexible())]
-                  : [GridItem(.flexible(), spacing: 1),
-                     GridItem(.flexible(), spacing: 1)],
-                  spacing: 0) {
+    private func statsSelectedMetrics(_ snapshot: StatsEngine.Snapshot,
+                                      cards: [StatsCard]) -> some View {
+        VStack(spacing: 0) {
             ForEach(cards) { card in
-                statsMetric(card, snapshot: snapshot)
-                    .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
-                    .padding(.horizontal, designStyle.cardPadding + 4)
-                    .padding(.vertical, designStyle.cardPadding + 3)
-                    .frame(maxWidth: .infinity, minHeight: designStyle.settingsRowHeight + 40, alignment: .leading)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(statsMetricTitle(card))
-                    .accessibilityValue(statsMetricValue(card, snapshot: snapshot))
-                    .accessibilityIdentifier("stats-card-\(card.rawValue)")
-                    .overlay {
-                        statsContextMenu(id: card.rawValue, preview: {
-                            statsPreview(statsMetric(card, snapshot: snapshot),
-                                         height: statsTilePreviewHeight)
-                        }, height: statsTilePreviewHeight)
+                if card == .yearPulse {
+                    statsRhythmCard(snapshot)
+                } else {
+                    statsMetric(card, snapshot: snapshot)
+                        .opacity(activeContextMenuID == card.rawValue ? 0 : 1)
+                        .padding(designStyle.cardPadding + 2)
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(statsMetricTitle(card))
+                        .accessibilityValue(Self.statsMetricValue(card, snapshot: snapshot))
+                        .accessibilityIdentifier("stats-card-\(card.rawValue)")
+                        .overlay {
+                            statsContextMenu(id: card.rawValue, preview: {
+                                statsPreview(statsMetric(card, snapshot: snapshot),
+                                             height: statsTilePreviewHeight)
+                            }, height: statsTilePreviewHeight)
+                            .accessibilityHidden(true)
+                        }
+                    if card == .todayRing {
+                        Text(statsDailyExplanation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, designStyle.cardPadding + 2)
+                            .padding(.bottom, designStyle.cardPadding)
+                            .accessibilityIdentifier("stats-today-explanation")
                     }
+                }
+                if card != cards.last {
+                    Divider().padding(.horizontal, designStyle.cardPadding)
+                }
             }
         }
         .appSurface()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("stats-metrics")
     }
 
-    @ViewBuilder
-    private func statsMetric(_ card: StatsCard,
-                             snapshot: StatsEngine.Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: designStyle.rowGap + 3) {
-            HStack {
+    func statsMetric(_ card: StatsCard,
+                     snapshot: StatsEngine.Snapshot) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: designStyle.rowGap * 2))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: designStyle.cardPadding))
+        return layout {
+            HStack(spacing: Theme.Metrics.gap) {
                 AppIconBadge(symbol: statsMetricSymbol(card),
                              tint: statsMetricColor(card, snapshot: snapshot))
-                    Spacer(minLength: 0)
+                Text(statsMetricTitle(card))
+                    .font(designStyle.rowTitleFont)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(statsMetricValue(card, snapshot: snapshot))
-                .font((designStyle == .studio ? Font.title3.weight(.semibold)
-                       : designStyle.sectionTitleFont).monospacedDigit())
-                .fixedSize(horizontal: false, vertical: true)
-            Text(statsMetricTitle(card))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            Text(Self.statsMetricValue(card, snapshot: snapshot))
+                .font(.body.weight(.semibold).monospacedDigit())
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -690,14 +608,18 @@ struct StatsView: View {
         }
     }
 
-    private func statsMetricValue(_ card: StatsCard,
-                                  snapshot: StatsEngine.Snapshot) -> String {
+    static func statsMetricValue(_ card: StatsCard,
+                                 snapshot: StatsEngine.Snapshot,
+                                 bundle: Bundle = .main,
+                                 locale: Locale = .current) -> String {
         switch card {
         case .yearPulse: return "-"
         case .streakFlame: return "\(snapshot.streak)"
-        case .todayRing: return "\(snapshot.todayDone)/\(snapshot.todayTotal)"
+        case .todayRing:
+            return snapshot.todayTotal > 0 ? "\(snapshot.todayDone)/\(snapshot.todayTotal)"
+                : String(localized: "Kein Habit fällig", bundle: bundle, locale: locale)
         case .weekMomentum:
-            return "\(Int((snapshot.week.fraction * 100).rounded()))%"
+            return String(localized: "In der Wochenbilanz", bundle: bundle, locale: locale)
         case .totals: return "\(snapshot.totalCheckIns)"
         }
     }
@@ -757,10 +679,12 @@ struct StatsView: View {
                 Text(Self.weekCompletionSummary(snapshot.week))
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
-                Text(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if momentumDelta(snapshot) != nil {
+                    Text(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Text(String(localized: "Letzte 7 Tage · Tagesquoten"))
                 .font(.subheadline)
@@ -794,6 +718,7 @@ struct StatsView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+            .environment(\.layoutDirection, .leftToRight)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Diese Woche · bis heute"))
@@ -824,7 +749,9 @@ struct StatsView: View {
             let value = hasData ? "\(Int((fraction * 100).rounded())) %" : String(localized: "Kein Habit fällig")
             return "\(date): \(value)"
         }.joined(separator: ", ")
-        return "\(Self.weekCompletionSummary(snapshot.week)), \(String(localized: "Letzte 7 Tage · Tagesquoten")): \(percents), \(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))"
+        let summary = "\(Self.weekCompletionSummary(snapshot.week)), \(String(localized: "Letzte 7 Tage · Tagesquoten")): \(percents)"
+        guard momentumDelta(snapshot) != nil else { return summary }
+        return "\(summary), \(Self.momentumSentence(current: snapshot.week, previous: snapshot.previousWeek))"
     }
 
     /// Maps a day fraction onto the same 0…4 ramp the contribution tiles use.
@@ -850,6 +777,7 @@ struct StatsView: View {
         return VStack(alignment: .leading, spacing: designStyle.rowGap * 2 + 2) {
             Text(String(localized: "Deine Habits"))
                 .font(designStyle.sectionTitleFont)
+                .accessibilityAddTraits(.isHeader)
                 .padding(.horizontal, 2)
                 .fixedSize(horizontal: false, vertical: true)
             DisclosureGroup {
@@ -867,20 +795,35 @@ struct StatsView: View {
             LazyVStack(spacing: 0) {
                 ForEach(Array(visibleActiveTrackedHabits.enumerated()), id: \.element.id) { index, habit in
                     if let habitStats = statsByID[habit.id] {
-                        statsHabitRow(habit, stats: habitStats)
-                        .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(habit.name)
-                        .accessibilityValue(statsHabitAccessibilityValue(habit, stats: habitStats))
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { openHabit(habit.id) }
-                        .accessibilityIdentifier("stats-row")
-                        .overlay {
-                            statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
-                                statsPreview(statsHabitRow(habit, stats: habitStats),
-                                             height: statsRowPreviewHeight)
-                            }, height: statsRowPreviewHeight)
-                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button { openHabit(habit.id) } label: {
+                                statsHabitRow(habit, stats: habitStats)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(activeContextMenuID == "habit-\(habit.id.uuidString)" ? 0 : 1)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(habit.name)
+                            .accessibilityValue(statsHabitAccessibilityValue(habit, stats: habitStats))
+                            .accessibilityIdentifier("stats-row")
+                            .overlay {
+                                statsContextMenu(id: "habit-\(habit.id.uuidString)", preview: {
+                                    statsPreview(statsHabitRow(habit, stats: habitStats),
+                                                 height: statsRowPreviewHeight)
+                                }, height: statsRowPreviewHeight)
+                                .accessibilityHidden(true)
+                            }
+                            if onOpenHistory != nil {
+                                Button { openHistory(habit.id) } label: {
+                                    Label(String(localized: "Historie"), systemImage: "calendar")
+                                        .font(.subheadline)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(minHeight: Theme.Metrics.hit)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(accent)
+                                .accessibilityIdentifier("stats-history-\(habit.id.uuidString)")
+                            }
                         }
                     }
                     if index < visibleActiveTrackedHabits.count - 1 {
@@ -935,8 +878,16 @@ struct StatsView: View {
         return String(localized: "30 Tage: \(completion) Prozent, Serie \(streak) Tage")
     }
 
-    private func openHabit(_ id: UUID) {
-        openURL(AppDestination.habit(id).url)
+    func openHabit(_ id: UUID) {
+        if let onOpenHabit {
+            onOpenHabit(id)
+        } else {
+            openURL(AppDestination.habit(id).url)
+        }
+    }
+
+    func openHistory(_ id: UUID) {
+        onOpenHistory?(id)
     }
 
     private func openStatsAdjustments() {
@@ -963,18 +914,21 @@ struct StatsView: View {
                 .settingsListRow()
             }
             .settingsSurface()
-            .appPageHeader(String(localized: "Statistik anpassen"))
+            .navigationTitle(String(localized: "Statistik anpassen"))
+            .navigationBarTitleDisplayMode(.inline)
+            .pageHeaderChrome()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(String(localized: "Fertig")) {
                         showingCardSettings = false
                     }
+                    .accessibilityIdentifier("stats-adjustments-done")
                 }
             }
         }
         .themed(store, palettes: palettes)
         .environment(\.appearanceBackgroundOwned, false)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 
     private func cardBinding(_ card: StatsCard) -> Binding<Bool> {
@@ -1062,6 +1016,17 @@ struct StatsView: View {
                          handler: openStatsAdjustments)]
     }
 
+    private func statsContextActions(for id: String) -> [GraphMenuAction] {
+        guard let habitID = statsContextHabitID(id) else { return statsContextActions }
+        var actions = [GraphMenuAction(title: String(localized: "Details"),
+                                      symbol: "info.circle", handler: { openHabit(habitID) })]
+        if onOpenHistory != nil {
+            actions.append(GraphMenuAction(title: String(localized: "Historie"),
+                                           symbol: "calendar", handler: { openHistory(habitID) }))
+        }
+        return actions + statsContextActions
+    }
+
     /// The habit behind a `"habit-<uuid>"` context-menu id, or nil for the
     /// page-level menu.
     ///
@@ -1094,7 +1059,7 @@ struct StatsView: View {
                          previewOwnsSurface: true,
                          previewAccessibilityIdentifier: "stats-preview",
                          preview: preview,
-                         actions: statsContextActions,
+                         actions: statsContextActions(for: id),
                          commit: statsContextCommit(for: id),
                          performsCommitOnTap: statsContextHabitID(id) != nil,
                          onMenuVisibilityChanged: { visible in
@@ -1124,28 +1089,6 @@ struct StatsView: View {
             .accessibilityLabel(String(localized: "Statistikvorschau"))
             .accessibilityIdentifier("stats-preview"))
         return framed
-    }
-
-    /// Die Serie als Kapsel-Chip — dieselbe Form im Held und je Habit, damit
-    /// „Serie" überall gleich aussieht.
-    private func streakChip(_ streak: Int, palette: PaletteStyle? = nil) -> some View {
-        let style = palette ?? palettes.style
-        let text = Theme.accentText(style)
-        return HStack(spacing: 3) {
-            Image(systemName: streak > 0 ? "flame.fill" : "flame")
-                .font(.caption2.weight(.semibold))
-            Text(verbatim: "\(streak)")
-                .font(.caption.weight(.bold).monospacedDigit())
-                .contentTransition(.numericText())
-        }
-        .foregroundStyle(streak > 0 ? AnyShapeStyle(text) : AnyShapeStyle(.secondary))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(streak > 0
-                    ? AnyShapeStyle(Theme.accent(style).opacity(0.14))
-                    : AnyShapeStyle(Color(.tertiarySystemFill)),
-                    in: Capsule())
-        .accessibilityHidden(true)
     }
 
     // MARK: – kleine Zeichenhelfer

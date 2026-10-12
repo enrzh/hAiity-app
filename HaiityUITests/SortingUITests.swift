@@ -23,12 +23,20 @@ final class SortingUITests: XCTestCase {
         return app
     }
 
-    private func enterSorting(_ app: XCUIApplication, todayTitle: String = "Today") {
+    private func setDueToday(_ enabled: Bool, in app: XCUIApplication) {
+        let filter = app.buttons["habit-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        filter.tap()
+        let due = app.descendants(matching: .any)["collection-due-today"].firstMatch
+        XCTAssertTrue(due.waitForExistence(timeout: 5))
+        let selected = due.isSelected || due.value as? String == "1"
+        if selected != enabled { due.tap() } else { filter.tap() }
+    }
+
+    private func enterSorting(_ app: XCUIApplication) {
         let sort = app.buttons["reorder-habits"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
-        let today = app.segmentedControls["today-all-filter"].buttons[todayTitle]
-        XCTAssertTrue(today.waitForExistence(timeout: 5))
-        if !today.isSelected { today.tap() }
+        setDueToday(true, in: app)
         sort.tap()
         XCTAssertTrue(list(app).waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["finish-reordering"].isHittable)
@@ -37,6 +45,30 @@ final class SortingUITests: XCTestCase {
 
     private func identifier(_ id: Int) -> String {
         String(format: "sorting-row-00000000-0000-0000-0000-%012d", id)
+    }
+
+    func testRetainedSearchQueryDoesNotDisableCollectionSorting() {
+        let app = launch(enterSort: false)
+        let search = app.tabBars.buttons["Search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        // Submit releases the native keyboard while retaining the query.
+        field.typeText("Read\n")
+        let habits = app.tabBars.buttons["Habits"].firstMatch
+        expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: habits)
+        waitForExpectations(timeout: 5)
+        habits.tap()
+        let sort = app.buttons["reorder-habits"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 5))
+        XCTAssertTrue(sort.isEnabled)
+        sort.tap()
+        XCTAssertTrue(app.buttons["finish-reordering"].waitForExistence(timeout: 5))
+        app.buttons["finish-reordering"].tap()
+        app.tabBars.buttons["Search"].firstMatch.tap()
+        XCTAssertEqual(field.value as? String, "Read")
     }
 
     private func row(_ id: Int, in app: XCUIApplication) -> XCUIElement {
@@ -248,14 +280,15 @@ final class SortingUITests: XCTestCase {
         enterSorting(app)
         assertOrder(saved, in: app)
         reveal(700, in: app, towardBottom: false)
-        let more = app.tabBars.buttons["More"].firstMatch
-        if !more.exists {
-            let collapsed = app.tabBars.buttons.matching(NSPredicate(format: "value == 'Collapsed'")).firstMatch
-            if collapsed.exists { collapsed.tap() }
-        }
-        XCTAssertTrue(more.waitForExistence(timeout: 3))
-        more.tap()
+        let progress = app.tabBars.buttons["Progress"].firstMatch
+        XCTAssertTrue(progress.waitForExistence(timeout: 3))
+        progress.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["stats-week-card"].firstMatch.waitForExistence(timeout: 5))
+        let settings = app.buttons["open-settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 3))
+        settings.tap()
         XCTAssertTrue(app.buttons["open-appearance"].waitForExistence(timeout: 5))
+        app.buttons["close-more-sheet"].tap()
         app.tabBars.buttons["Habits"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["habit-list"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["finish-reordering"].exists)
@@ -330,7 +363,7 @@ final class SortingUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 5), .completed,
                        "the simulator's Reduce Motion setting must be enabled")
         app.activate()
-        enterSorting(app, todayTitle: "اليوم")
+        enterSorting(app)
         for (id, name) in [(700, "Read for twenty minutes"), (702, "Take a walk"),
                            (799, "Call the dentist")] {
             reveal(id, in: app, towardBottom: true)
@@ -371,19 +404,24 @@ final class SortingUITests: XCTestCase {
         XCTAssertFalse(app.buttons["finish-reordering"].exists)
         XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 5),
                       "Done must restore normal completion controls")
-        let edit = app.buttons["reminder-edit-00000000-0000-0000-0000-000000000799"]
-        for _ in 0..<10 where !edit.isHittable { app.swipeUp(velocity: .slow) }
-        XCTAssertTrue(edit.isHittable, "Done must restore normal reminder editing")
-        XCTAssertTrue(edit.isEnabled, "normal reminder editing must be enabled")
+        let details = app.buttons["item-details-00000000-0000-0000-0000-000000000799"]
+        for _ in 0..<10 where !details.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(details.isHittable, "Done must restore normal reminder details")
+        XCTAssertTrue(details.isEnabled)
         capture("sorting-compact-done-restores-editing")
+        details.tap()
+        let edit = app.buttons["edit-habit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
         edit.tap()
         let name = app.textFields["habit-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertTrue((name.value as? String)?.hasPrefix("Call the dentist") == true)
-        app.buttons["إلغاء"].firstMatch.tap()
-        let today = app.segmentedControls["today-all-filter"].buttons["اليوم"]
-        for _ in 0..<12 where !today.isHittable { app.swipeDown(velocity: .slow) }
-        enterSorting(app, todayTitle: "اليوم")
+        app.buttons["close-create"].tap()
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.isHittable)
+        back.tap()
+        XCTAssertTrue(app.buttons["reorder-habits"].waitForExistence(timeout: 5))
+        enterSorting(app)
         assertOrder(moved, in: app)
         capture("sorting-compact-reentry-preserves-order")
         app.buttons["finish-reordering"].tap()
@@ -392,7 +430,7 @@ final class SortingUITests: XCTestCase {
     func testFullCardScrollPerformance() {
         let app = launch(enterSort: false)
         XCTAssertTrue(app.buttons["check-today"].firstMatch.waitForExistence(timeout: 15))
-        app.segmentedControls["today-all-filter"].buttons["Today"].tap()
+        setDueToday(true, in: app)
         let scroll = app.descendants(matching: .any)["habit-list"].firstMatch
         let options = XCTMeasureOptions()
         options.iterationCount = 3

@@ -105,31 +105,39 @@ final class GitHubCardContractTests: XCTestCase {
 
     func testHabitsPageHostsTheCardOutsideSearchAndHabitActions() throws {
         let content = try source("Haiity/Views/ContentView.swift")
+        let collection = try source("Haiity/Views/HabitsView.swift")
+        let today = try source("Haiity/Views/TodayView.swift")
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
         let searchStart = try XCTUnwrap(content.range(of: "private var searchList: some View"))
         let habitsStart = try XCTUnwrap(content.range(of: "private var habitList: some View"))
         let searchListSource = String(content[searchStart.lowerBound..<habitsStart.lowerBound])
         let habitList = String(content[habitsStart.lowerBound...])
 
-        XCTAssertTrue(content.contains("GitHubContributionCard"))
+        XCTAssertTrue(habitList.contains("HabitsView("))
+        XCTAssertTrue(habitList.contains("github: github.snapshot"),
+                      "The root must supply the live GitHub snapshot to the collection")
         XCTAssertTrue(card.contains("GitHub-Profil öffnen"))
         XCTAssertTrue(card.contains("arrow.up.right.square"))
         XCTAssertFalse(card.contains("SwipeRevealPan"))
         XCTAssertFalse(card.contains("swipeActions"))
         XCTAssertFalse(card.contains("RevealAction"))
         XCTAssertFalse(searchListSource.contains("GitHubContributionCard"))
-        XCTAssertTrue(habitList.contains("GitHubContributionCard"))
+        XCTAssertFalse(searchListSource.contains("HabitsView("))
+        XCTAssertFalse(today.contains("GitHubContributionCard"))
+        XCTAssertFalse(today.contains("GitHubContributionSnapshot"))
 
-        let cardUse = try XCTUnwrap(habitList.range(of: "GitHubContributionCard"))
-        let foreach = try XCTUnwrap(habitList.range(of: "ForEach(habitsTabSource)"))
+        let cardUse = try XCTUnwrap(collection.range(of: "GitHubContributionCard("))
+        let foreach = try XCTUnwrap(collection.range(of: "ForEach(habits)"))
         XCTAssertLessThan(cardUse.lowerBound, foreach.lowerBound,
                           "GitHub must lead personal entries while staying outside their actions")
-        let cardEnd = try XCTUnwrap(habitList.range(of: "TodayProgressView(",
-                                                   range: cardUse.upperBound..<habitList.endIndex))
-        let afterCard = habitList[cardUse.upperBound..<cardEnd.lowerBound]
+        let cardEnd = try XCTUnwrap(collection.range(of: "Picker(",
+                                                    range: cardUse.upperBound..<collection.endIndex))
+        let afterCard = collection[cardUse.upperBound..<cardEnd.lowerBound]
         XCTAssertFalse(afterCard.contains(".onMove"))
         XCTAssertFalse(afterCard.contains("swipeActions"))
         XCTAssertFalse(afterCard.contains("row(for:"))
+        XCTAssertFalse(afterCard.contains("row(habit)"))
+        XCTAssertFalse(afterCard.contains("habit.id"))
     }
 
     func testProfileURLPercentEncodesTheLogin() {
@@ -147,7 +155,9 @@ final class GitHubCardContractTests: XCTestCase {
         let settings = try source("Haiity/Views/GitHubSettingsView.swift")
         let card = try source("Haiity/Views/GitHubContributionCard.swift")
 
-        XCTAssertTrue(more.contains("case archive, about, developer, appearance, habitBehavior, github"))
+        XCTAssertNotEqual(MoreRoute.github.id, MoreRoute.settings.id)
+        XCTAssertNil(AppDestination.resolve(url: URL(string: "haiity://github")!),
+                     "GitHub account settings must stay behind the explicit settings entry")
         XCTAssertTrue(more.contains("open-github-settings"))
         XCTAssertTrue(more.contains("private var moreGitHubRow: some View"))
         XCTAssertFalse(more.contains("disconnect-github"))

@@ -368,8 +368,10 @@ enum Reminders {
     /// Wird beim Einschalten einer Zusammenfassung aufgerufen — der einzige
     /// Ort, der den System-Dialog auslösen darf. Liefert false bei Ablehnung.
     static func ensurePermission() async -> Bool {
+        guard !Task.isCancelled else { return false }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
+        guard !Task.isCancelled else { return false }
         switch ReminderGate.decision(for: settings.authorizationStatus,
                                      promptsSuppressed: NotificationPromptPreference.isSuppressed) {
         case .post: return true

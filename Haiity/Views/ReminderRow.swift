@@ -24,6 +24,7 @@ struct ReminderRow: View, Equatable {
     var calendar: Calendar = .current
     var leadingSwipe: [RevealAction] = []
     var trailingSwipe: [RevealAction] = []
+    var onDetails: (() -> Void)? = nil
     @State private var reveal = SwipeRevealSession()
     @State private var isContextMenuVisible = false
     @Environment(\.layoutDirection) private var layoutDirection
@@ -40,7 +41,9 @@ struct ReminderRow: View, Equatable {
                 == DayKey.key(for: rhs.now, calendar: rhs.calendar)
             && lhs.leadingSwipe == rhs.leadingSwipe
             && lhs.trailingSwipe == rhs.trailingSwipe
-            && lhs.calendar.timeZone.identifier == rhs.calendar.timeZone.identifier
+            && lhs.calendar == rhs.calendar
+            && (lhs.now == rhs.now || (lhs.state == rhs.state && lhs.subtitle == rhs.subtitle))
+            && (lhs.onDetails == nil) == (rhs.onDetails == nil)
     }
 
     var body: some View {
@@ -249,43 +252,61 @@ struct ReminderRow: View, Equatable {
         return VStack(alignment: .leading, spacing: designStyle.rowGap) {
             layout {
                 HStack(spacing: designStyle.rowGap * 2) {
-                    if habit.emoji.isEmpty {
-                        AppIconBadge(symbol: "bell.fill")
-                    } else {
-                        Text(habit.emoji)
-                            .font(.title3)
-                            .frame(width: Theme.Metrics.glyph)
-                            .accessibilityHidden(true)
+                    Group {
+                        if habit.emoji.isEmpty {
+                            AppIconBadge(symbol: "bell.fill")
+                        } else {
+                            Text(habit.emoji)
+                                .font(.title3)
+                                .frame(width: Theme.Metrics.glyph)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                    // The preview host must not intercept the name or completion button.
+                    .overlay {
+                        GraphContextMenu(cardRadius: designStyle.cardRadius,
+                                         previewWidth: previewWidth,
+                                         previewHeight: Self.contextPreviewHeight,
+                                         previewAccessibilityIdentifier: "reminder-preview",
+                                         preview: { AnyView(reminderPreview) },
+                                         actions: menuActions,
+                                         commit: onEdit,
+                                         onMenuVisibilityChanged: { visible in
+                                             isContextMenuVisible = visible
+                                         })
                     }
 
-                    VStack(alignment: .leading, spacing: designStyle.rowGap / 2) {
-                        Text(habit.name)
-                            .font(designStyle.rowTitleFont)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            .fixedSize(horizontal: false, vertical: true)
+                    Button(action: onDetails ?? onEdit) {
+                        VStack(alignment: .leading, spacing: designStyle.rowGap / 2) {
+                            Text(habit.name)
+                                .font(designStyle.rowTitleFont)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(subtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if onDetails != nil {
+                                Label(String(localized: "Details"), systemImage: "chevron.forward")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    Spacer(minLength: 0)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(habit.name)
+                    .accessibilityValue(subtitle)
+                    .accessibilityHint(onDetails == nil
+                        ? String(localized: "Bearbeiten")
+                        : String(localized: "Öffnet die Details dieses Eintrags."))
+                    .accessibilityIdentifier("reminder-name-\(habit.id.uuidString)")
                 }
-                // Keep the context-menu host off the completion and Edit buttons.
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay {
-                    GraphContextMenu(cardRadius: designStyle.cardRadius,
-                                     previewWidth: previewWidth,
-                                     previewHeight: Self.contextPreviewHeight,
-                                     previewAccessibilityIdentifier: "reminder-preview",
-                                     preview: { AnyView(reminderPreview) },
-                                     actions: menuActions,
-                                     commit: onEdit,
-                                     onMenuVisibilityChanged: { visible in
-                                         isContextMenuVisible = visible
-                                     })
-                        .frame(maxWidth: previewWidth)
-                }
 
                 Button(action: toggleFromCheckmark) {
                     Image(systemName: state.isChecked(now: now, calendar: calendar)
@@ -308,19 +329,21 @@ struct ReminderRow: View, Equatable {
                        alignment: .trailing)
             }
 
-            HStack {
-                Spacer(minLength: 0)
-                Button(action: onEdit) {
-                    Label(String(localized: "Bearbeiten"), systemImage: "pencil")
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
-                        .contentShape(Rectangle())
+            if onDetails == nil {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button(action: onEdit) {
+                        Label(String(localized: "Bearbeiten"), systemImage: "pencil")
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(String(localized: "Bearbeiten"))
+                    .accessibilityIdentifier("reminder-edit-\(habit.id.uuidString)")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel(String(localized: "Bearbeiten"))
-                .accessibilityIdentifier("reminder-edit-\(habit.id.uuidString)")
             }
         }
         .padding(.horizontal, min(designStyle.cardPadding + 2, Theme.Metrics.gutter))
@@ -391,9 +414,7 @@ private struct ReminderSlidingSurface<Content: View>: View {
     }
 }
 
-/// Compact search hit: name and subtitle only. Search must not mount
-/// contribution graphs — those rows are the measured hitch when the Search
-/// tab stays alive beside Habits.
+/// Compact identity and actions shared by Today and native Search, without graphs.
 struct SearchResultRow: View, Equatable {
     @Environment(\.appearancePreferences) private var preferences
     let habit: Habit
@@ -403,9 +424,14 @@ struct SearchResultRow: View, Equatable {
     var calendar: Calendar = .current
     var leadingSwipe: [RevealAction] = []
     var trailingSwipe: [RevealAction] = []
+    var onDetails: (() -> Void)? = nil
+    var onToggleDay: (String) -> Void = { _ in }
+    var onIncrement: () -> Void = {}
+    var onAnswer: (Bool) -> Void = { _ in }
     @State private var reveal = SwipeRevealSession()
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     static func == (lhs: SearchResultRow, rhs: SearchResultRow) -> Bool {
         lhs.habit == rhs.habit
@@ -413,7 +439,9 @@ struct SearchResultRow: View, Equatable {
                 == DayKey.key(for: rhs.now, calendar: rhs.calendar)
             && lhs.leadingSwipe == rhs.leadingSwipe
             && lhs.trailingSwipe == rhs.trailingSwipe
-            && lhs.calendar.timeZone.identifier == rhs.calendar.timeZone.identifier
+            && lhs.calendar == rhs.calendar
+            && (!lhs.habit.isReminder || lhs.now == rhs.now)
+            && (lhs.onDetails == nil) == (rhs.onDetails == nil)
     }
 
     var body: some View {
@@ -446,33 +474,55 @@ struct SearchResultRow: View, Equatable {
     }
 
     private var rowContent: some View {
-        HStack(spacing: Theme.Metrics.gap) {
-            Button(action: onEdit) {
+        let style = preferences.designStyle
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: style.rowGap * 2))
+            : AnyLayout(HStackLayout(spacing: Theme.Metrics.gap))
+        return layout {
+            Button(action: onDetails ?? onEdit) {
                 HStack(spacing: Theme.Metrics.gap) {
                     if habit.emoji.isEmpty {
                         Image(systemName: habit.isReminder ? "bell.fill" : "square.grid.3x3.fill")
                             .foregroundStyle(.secondary)
                             .frame(width: 28)
+                            .accessibilityHidden(true)
                     } else {
                         Text(habit.emoji)
                             .font(.title3)
                             .frame(width: 28)
+                            .accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(habit.name)
                             .font(preferences.designStyle.rowTitleFont)
                             .foregroundStyle(.primary)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryText(preferences: preferences))
+                            .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let todayAnswer {
+                            Text(todayAnswer)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let periodProgress {
+                            Text(periodProgress)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.secondaryText(preferences: preferences))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.hit, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("item-details-\(habit.id.uuidString)")
+            .accessibilityValue(todayAnswer ?? "")
 
             if habit.isReminder {
                 Button(action: onToggleReminder) {
@@ -481,10 +531,14 @@ struct SearchResultRow: View, Equatable {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(reminderChecked ? Color.green : Color.secondary)
+                .foregroundStyle(reminderChecked ? Color.green : Color.primary)
                 .accessibilityLabel(String(localized: "Erledigt"))
+                .accessibilityValue(reminderChecked ? String(localized: "Erledigt") : String(localized: "Offen"))
                 .accessibilityIdentifier("reminder-check-\(habit.id.uuidString)")
                 .modifier(ReminderVoiceOverActions(actions: leadingSwipe + trailingSwipe))
+            } else {
+                HabitActionControls(habit: habit, calendar: calendar, now: now,
+                                    onToggleDay: onToggleDay, onIncrement: onIncrement, onAnswer: onAnswer)
             }
         }
         .padding(.horizontal, preferences.designStyle.cardPadding)
@@ -501,16 +555,37 @@ struct SearchResultRow: View, Equatable {
         reminderState.isChecked(now: now, calendar: calendar)
     }
 
-    private var subtitle: String {
+    var periodProgress: String? {
+        guard habit.isTrackedHabit, let target = habit.recurrence.timesPerPeriod else { return nil }
+        let today = DayKey.key(for: now, calendar: calendar)
+        let schedule = habit.recurrence.schedule(calendar: calendar)
+        guard schedule.isScheduled(today), let period = schedule.periodStart(for: now) else { return nil }
+        let completed = GoalEngine.periodCounts(habit: habit, schedule: schedule,
+                                                 today: today, calendar: calendar)[period] ?? 0
+        return String(localized: "In dieser Periode: \(completed) von \(target) erledigt")
+    }
+
+    var todayAnswer: String? {
+        habit.isTrackedHabit && habit.kind == .yesNo
+            && habit.isDeclined(DayKey.key(for: now, calendar: calendar))
+            ? String(localized: "Heute: Nein") : nil
+    }
+
+    var subtitle: String {
         if habit.isReminder {
-            guard let occurrence = reminderState.actionable else {
+            let state = reminderState
+            guard let occurrence = state.actionable else {
                 return String(localized: "Kein weiterer Termin")
             }
-            return ReminderOccurrenceText.label(
+            var text = ReminderOccurrenceText.label(
                 for: occurrence,
                 includesTime: Habit.sanitizedMinutes(habit.timeMinutes ?? habit.reminderMinutes) != nil,
                 now: now,
                 calendar: calendar)
+            if state.overdueCount > 1 {
+                text += " · +\(state.overdueCount - 1) \(String(localized: "offen"))"
+            }
+            return text
         }
         var text = RecurrenceText.pattern(habit.recurrence, calendar: calendar)
         if let clock = RecurrenceText.timeText(habit.timeMinutes) {

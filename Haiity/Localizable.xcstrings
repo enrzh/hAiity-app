@@ -1,6 +1,321 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Heute nichts fällig": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Heute nichts fällig"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Nothing due today"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "لا شيء مستحق اليوم"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আজ কিছু করার নেই"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Nada pendiente hoy"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Rien de prévu aujourd'hui"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आज कुछ भी निर्धारित नहीं है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Tidak ada yang jatuh tempo hari ini"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Niente in scadenza oggi"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "今日は予定がありません"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "오늘 예정된 항목 없음"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Nada previsto para hoje"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Сегодня ничего не запланировано"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bugün yapılacak bir şey yok"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آج کچھ مقرر نہیں ہے"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Hôm nay không có việc đến hạn"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "今天没有待办事项"}}
+      }
+    },
+    "Fällig heute": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Fällig heute"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Due today"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "مستحق اليوم"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আজ করণীয়"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Para hoy"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Prévu aujourd'hui"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आज निर्धारित"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Jatuh tempo hari ini"}},
+        "it": {"stringUnit": {"state": "translated", "value": "In scadenza oggi"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "今日の予定"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "오늘 예정"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Para hoje"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "На сегодня"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bugün yapılacaklar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "آج مقرر"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đến hạn hôm nay"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "今天待办"}}
+      }
+    },
+    "Flexible Ziele": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Flexible Ziele"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Flexible goals"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "أهداف مرنة"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "নমনীয় লক্ষ্য"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Objetivos flexibles"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Objectifs flexibles"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "लचीले लक्ष्य"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Target fleksibel"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Obiettivi flessibili"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "柔軟な目標"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "유연한 목표"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Metas flexíveis"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Гибкие цели"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Esnek hedefler"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "لچکدار اہداف"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Mục tiêu linh hoạt"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "灵活目标"}}
+      }
+    },
+    "Abgeschlossen und beantwortet (%lld)": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Abgeschlossen und beantwortet (%lld)"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Completed and answered (%lld)"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "المكتمل والمجاب عنه (%lld)"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সম্পন্ন ও উত্তর দেওয়া (%lld)"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Completados y respondidos (%lld)"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Terminés et répondus (%lld)"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पूर्ण और उत्तर दिए गए (%lld)"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Selesai dan dijawab (%lld)"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Completati e risposti (%lld)"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "完了・回答済み（%lld）"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "완료 및 응답한 항목 (%lld)"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Concluídos e respondidos (%lld)"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Завершено и отвечено (%lld)"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tamamlanan ve yanıtlanan (%lld)"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "مکمل اور جواب شدہ (%lld)"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Đã hoàn thành và trả lời (%lld)"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已完成和已回答（%lld）"}}
+      }
+    },
+    "Eintrag nicht verfügbar": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Eintrag nicht verfügbar"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Item unavailable"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "العنصر غير متاح"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "আইটেম পাওয়া যাচ্ছে না"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Entrada no disponible"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Élément indisponible"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "आइटम उपलब्ध नहीं है"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Item tidak tersedia"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Voce non disponibile"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "項目を利用できません"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "항목을 사용할 수 없음"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Item indisponível"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Запись недоступна"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Öğe kullanılamıyor"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اندراج دستیاب نہیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Mục không khả dụng"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "项目不可用"}}
+      }
+    },
+    "Zeiten folgen dem Termin": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Zeiten folgen dem Termin"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Times follow the schedule"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "تتبع الأوقات الموعد"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সময় নির্ধারিত সূচি অনুসরণ করে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Las horas siguen el horario"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Les heures suivent le programme"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "समय निर्धारित कार्यक्रम के अनुसार हैं"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Waktu mengikuti jadwal"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Gli orari seguono il programma"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "時刻は予定に従います"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "시간은 일정에 따릅니다"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Os horários seguem a programação"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Время соответствует расписанию"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Saatler programa göre belirlenir"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اوقات شیڈول کے مطابق ہیں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Thời gian theo lịch"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "时间跟随计划"}}
+      }
+    },
+    "In dieser Periode: %lld von %lld erledigt": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "In dieser Periode: %lld von %lld erledigt"}},
+        "en": {"stringUnit": {"state": "translated", "value": "This period: %lld of %lld completed"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "هذه الفترة: اكتمل %lld من %lld"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই সময়ে: %2$lldটির মধ্যে %1$lldটি সম্পন্ন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "En este período: %lld de %lld completados"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Cette période : %lld sur %lld terminés"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इस अवधि में: %2$lld में से %1$lld पूरे"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Periode ini: %lld dari %lld selesai"}},
+        "it": {"stringUnit": {"state": "translated", "value": "In questo periodo: %lld su %lld completati"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "この期間：%lld / %lld 完了"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이번 기간: %lld / %lld 완료"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Neste período: %lld de %lld concluídos"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "За этот период: выполнено %lld из %lld"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu dönem: %lld / %lld tamamlandı"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس مدت میں: %lld از %lld مکمل"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Kỳ này: đã hoàn thành %lld trên %lld"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "本周期：已完成 %lld / %lld"}}
+      }
+    },
+    "Fortschritt": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Fortschritt"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Progress"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التقدم"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "অগ্রগতি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Progreso"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Progrès"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "प्रगति"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Kemajuan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Progressi"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "進捗"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "진행 상황"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Progresso"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Прогресс"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "İlerleme"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "پیش رفت"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Tiến độ"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "进度"}}
+      }
+    },
+    "In der Wochenbilanz": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "In der Wochenbilanz"}},
+        "en": {"stringUnit": {"state": "translated", "value": "In the weekly summary"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "في ملخص الأسبوع"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সাপ্তাহিক সারাংশে"}},
+        "es": {"stringUnit": {"state": "translated", "value": "En el resumen semanal"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Dans le bilan hebdomadaire"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "साप्ताहिक सारांश में"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Dalam ringkasan mingguan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Nel riepilogo settimanale"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "週間サマリーに表示"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "주간 요약에 표시"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "No resumo semanal"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "В итогах недели"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Haftalık özette"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ہفتہ وار خلاصے میں"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Trong tổng kết tuần"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在本周总结中"}}
+      }
+    },
+    "Die letzten %lld Wochen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Die letzten %lld Wochen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "The last %lld weeks"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "آخر %lld أسبوعًا"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "গত %lld সপ্তাহ"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Las últimas %lld semanas"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Les %lld dernières semaines"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पिछले %lld सप्ताह"}},
+        "id": {"stringUnit": {"state": "translated", "value": "%lld minggu terakhir"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Le ultime %lld settimane"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "過去%lld週間"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "최근 %lld주"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "As últimas %lld semanas"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Последние %lld недель"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Son %lld hafta"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "گزشتہ %lld ہفتے"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "%lld tuần gần nhất"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "最近 %lld 周"}}
+      }
+    },
+    "%lld Tage in den letzten %lld Wochen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld Tage in den letzten %lld Wochen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld days in the last %lld weeks"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "%lld يومًا خلال آخر %lld أسبوعًا"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "গত %2$lld সপ্তাহে %1$lld দিন"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld días en las últimas %lld semanas"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld jours au cours des %lld dernières semaines"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "पिछले %2$lld सप्ताह में %1$lld दिन"}},
+        "id": {"stringUnit": {"state": "translated", "value": "%lld hari dalam %lld minggu terakhir"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld giorni nelle ultime %lld settimane"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "過去%2$lld週間で%1$lld日"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "최근 %2$lld주 동안 %1$lld일"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "%lld dias nas últimas %lld semanas"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld дней за последние %lld недель"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Son %2$lld haftada %1$lld gün"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "گزشتہ %2$lld ہفتوں میں %1$lld دن"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "%lld ngày trong %lld tuần gần nhất"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 周内有 %1$lld 天"}}
+      }
+    },
+    "Einstellungen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Einstellungen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Settings"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "الإعدادات"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "সেটিংস"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Ajustes"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Réglages"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "सेटिंग्स"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pengaturan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Impostazioni"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "設定"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "설정"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Ajustes"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Настройки"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Ayarlar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "ترتیبات"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Cài đặt"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设置"}}
+      }
+    },
+    "Wiederholung": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Wiederholung"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Schedule"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "التكرار"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "পুনরাবৃত্তি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Repetición"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Répétition"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "दोहराव"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Pengulangan"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ripetizione"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "繰り返し"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "반복"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Repetição"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Повторение"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Tekrar"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "تکرار"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Lặp lại"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重复"}}
+      }
+    },
+    "offen": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "offen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "open"}},
+        "ar": {"stringUnit": {"state": "translated", "value": "مفتوح"}},
+        "bn": {"stringUnit": {"state": "translated", "value": "বাকি"}},
+        "es": {"stringUnit": {"state": "translated", "value": "pendientes"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "en attente"}},
+        "hi": {"stringUnit": {"state": "translated", "value": "बाकी"}},
+        "id": {"stringUnit": {"state": "translated", "value": "belum selesai"}},
+        "it": {"stringUnit": {"state": "translated", "value": "in sospeso"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "未完了"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "미완료"}},
+        "pt": {"stringUnit": {"state": "translated", "value": "pendentes"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "не завершено"}},
+        "tr": {"stringUnit": {"state": "translated", "value": "açık"}},
+        "ur": {"stringUnit": {"state": "translated", "value": "باقی"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "chưa hoàn thành"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未完成"}}
+      }
+    },
+    "Öffnet die Details dieses Eintrags.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Öffnet die Details dieses Eintrags."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Opens this item's details."}},
+        "ar": {"stringUnit": {"state": "translated", "value": "يفتح تفاصيل هذا العنصر."}},
+        "bn": {"stringUnit": {"state": "translated", "value": "এই আইটেমের বিবরণ খোলে।"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre los detalles de esta entrada."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvre les détails de cet élément."}},
+        "hi": {"stringUnit": {"state": "translated", "value": "इस आइटम का विवरण खोलता है।"}},
+        "id": {"stringUnit": {"state": "translated", "value": "Membuka detail item ini."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apre i dettagli di questa voce."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "この項目の詳細を開きます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이 항목의 세부사항을 엽니다."}},
+        "pt": {"stringUnit": {"state": "translated", "value": "Abre os detalhes deste item."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открывает сведения об этой записи."}},
+        "tr": {"stringUnit": {"state": "translated", "value": "Bu öğenin ayrıntılarını açar."}},
+        "ur": {"stringUnit": {"state": "translated", "value": "اس اندراج کی تفصیلات کھولتا ہے۔"}},
+        "vi": {"stringUnit": {"state": "translated", "value": "Mở chi tiết của mục này."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开此项目的详情。"}}
+      }
+    },
     "Kalender & Erinnerungen": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Kalender & Erinnerungen"}},
@@ -2282,16 +2597,88 @@
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "All" } } }
     },
     "Historie": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "History" } } }
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "History" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Historie" } },
+        "ar": { "stringUnit": { "state": "translated", "value": "السجل" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "ইতিহাস" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Historial" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Historique" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "इतिहास" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Riwayat" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Cronologia" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "履歴" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "기록" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Histórico" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "История" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Geçmiş" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "تاریخچہ" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lịch sử" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "历史" } }
+      }
     },
     "Heute keine festen Termine": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "No fixed habits scheduled today" } } }
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No fixed habits scheduled today" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Heute keine festen Termine" } },
+        "ar": { "stringUnit": { "state": "translated", "value": "لا توجد عادات ثابتة مجدولة اليوم" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "আজ কোনো নির্দিষ্ট অভ্যাস নির্ধারিত নেই" } },
+        "es": { "stringUnit": { "state": "translated", "value": "No hay hábitos fijos programados para hoy" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Aucune habitude fixe prévue aujourd’hui" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "आज कोई तय आदत निर्धारित नहीं है" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Tidak ada kebiasaan tetap yang dijadwalkan hari ini" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Nessuna abitudine fissa programmata per oggi" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "今日は決まった習慣の予定はありません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "오늘 예정된 고정 습관이 없습니다" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Nenhum hábito fixo agendado para hoje" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "На сегодня нет привычек с фиксированным расписанием" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Bugün için planlanmış sabit alışkanlık yok" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "آج کوئی مقررہ عادت طے نہیں ہے" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hôm nay không có thói quen cố định nào được lên lịch" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "今天没有固定习惯安排" } }
+      }
     },
     "%lld von %lld geplanten Habits erledigt": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld scheduled habits complete" } } }
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld scheduled habits complete" } },
+        "de": { "stringUnit": { "state": "translated", "value": "%1$lld von %2$lld geplanten Habits erledigt" } },
+        "ar": { "stringUnit": { "state": "translated", "value": "تم إكمال %1$lld من أصل %2$lld عادة مجدولة" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "নির্ধারিত %2$lldটি অভ্যাসের মধ্যে %1$lldটি সম্পন্ন" } },
+        "es": { "stringUnit": { "state": "translated", "value": "%1$lld de %2$lld hábitos programados completados" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "%1$lld habitudes planifiées sur %2$lld terminées" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "तय की गई %2$lld आदतों में से %1$lld पूरी" } },
+        "id": { "stringUnit": { "state": "translated", "value": "%1$lld dari %2$lld kebiasaan terjadwal selesai" } },
+        "it": { "stringUnit": { "state": "translated", "value": "%1$lld abitudini programmate su %2$lld completate" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "予定した習慣 %2$lld 件中 %1$lld 件を完了" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "예정된 습관 %2$lld개 중 %1$lld개 완료" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "%1$lld de %2$lld hábitos agendados concluídos" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Выполнено %1$lld из %2$lld запланированных привычек" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Planlanan %2$lld alışkanlıktan %1$lld tanesi tamamlandı" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "طے شدہ %2$lld عادتوں میں سے %1$lld مکمل" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã hoàn thành %1$lld trong %2$lld thói quen đã lên lịch" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%2$lld 项计划习惯已完成 %1$lld 项" } }
+      }
     },
     "Flexible Ziele: %lld von %lld in ihrer Periode erfüllt": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Flexible goals: %1$lld of %2$lld complete for their period" } } }
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Flexible goals: %1$lld of %2$lld complete for their period" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Flexible Ziele: %1$lld von %2$lld in ihrer Periode erfüllt" } },
+        "ar": { "stringUnit": { "state": "translated", "value": "الأهداف المرنة: %1$lld من %2$lld مكتملة في فتراتها" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "নমনীয় লক্ষ্য: নিজস্ব সময়পর্বে %2$lldটির মধ্যে %1$lldটি পূরণ হয়েছে" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Objetivos flexibles: %1$lld de %2$lld cumplidos en su período" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Objectifs flexibles : %1$lld sur %2$lld atteints sur leur période" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "लचीले लक्ष्य: अपनी अवधि में %2$lld में से %1$lld पूरे" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Target fleksibel: %1$lld dari %2$lld tercapai dalam periodenya" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Obiettivi flessibili: %1$lld su %2$lld raggiunti nel proprio periodo" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "柔軟な目標：それぞれの期間で %2$lld 件中 %1$lld 件を達成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "유연한 목표: 각 기간 내 %2$lld개 중 %1$lld개 달성" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Metas flexíveis: %1$lld de %2$lld cumpridas no seu período" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Гибкие цели: достигнуто %1$lld из %2$lld за соответствующие периоды" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Esnek hedefler: kendi dönemlerinde %2$lld hedeften %1$lld tanesi tamamlandı" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "لچکدار اہداف: اپنی مدت میں %2$lld میں سے %1$lld پورے" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Mục tiêu linh hoạt: đã đạt %1$lld trong %2$lld mục tiêu trong kỳ tương ứng" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "灵活目标：%2$lld 项中有 %1$lld 项在各自周期内达成" } }
+      }
     },
     "Einträge anzeigen": {
       "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Show entries" } } }
@@ -2425,7 +2812,25 @@
       }
     },
     "Vorschau: %@, %@": {
-      "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Preview: %1$@, %2$@" } } }
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Preview: %1$@, %2$@" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Vorschau: %1$@, %2$@" } },
+        "ar": { "stringUnit": { "state": "translated", "value": "معاينة: %1$@، %2$@" } },
+        "bn": { "stringUnit": { "state": "translated", "value": "পূর্বরূপ: %1$@, %2$@" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Vista previa: %1$@, %2$@" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Aperçu : %1$@, %2$@" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "पूर्वावलोकन: %1$@, %2$@" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Pratinjau: %1$@, %2$@" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Anteprima: %1$@, %2$@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プレビュー：%1$@、%2$@" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "미리보기: %1$@, %2$@" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Prévia: %1$@, %2$@" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Предпросмотр: %1$@, %2$@" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Önizleme: %1$@, %2$@" } },
+        "ur": { "stringUnit": { "state": "translated", "value": "پیش منظر: %1$@، %2$@" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Xem trước: %1$@, %2$@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "预览：%1$@，%2$@" } }
+      }
     },
     "Benachrichtigung und Verhalten": {
       "localizations": {

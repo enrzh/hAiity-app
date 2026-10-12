@@ -17,9 +17,16 @@ private enum CreateAccessibility {
     static let identifier = "create-habit"
 }
 
-private struct PendingReminderCompletion: Equatable {
+struct PendingReminderCompletion: Equatable {
     let habitID: UUID
     let day: String
+
+    func occurrence(for reminder: Habit, now: Date = .now, calendar: Calendar) -> ReminderOccurrence? {
+        guard reminder.id == habitID, reminder.isReminder, reminder.archivedAt == nil,
+              let occurrence = ReminderOccurrenceEngine.state(for: reminder, now: now, calendar: calendar).actionable,
+              occurrence.day == day else { return nil }
+        return occurrence
+    }
 }
 
 /// Haupt-Einstieg. Ab iOS 26 stellt die native TabView die beiden Bereiche
@@ -88,7 +95,12 @@ struct ContentView: View {
     /// Auswahl der Bereiche. In der nativen Tableiste wird `.search` im
     /// selben Umlauf auf den zuvor gewählten echten Tab zurückgesetzt und
     /// öffnet das Suchfeld.
-    @State private var nativeTab: AppTab = .habits
+    @State private var nativeTab: AppTab = .today
+    @State private var todayPath: [UUID] = []
+    @State private var habitsPath: [UUID] = []
+    @State private var statsPath: [UUID] = []
+    @State private var searchPath: [UUID] = []
+    @State private var initialCreationType: HabitItemType = .habit
     /// Tabs whose content has been built at least once. Building only the
     /// selected tab is a startup win — three pages of grids and cards are far
     /// too much to construct during the first frame — but DESTROYING the
@@ -97,7 +109,7 @@ struct ContentView: View {
     /// placeholder goes up, and the real page pops in over it. Once a tab has
     /// been paid for, keeping it in the tree costs nothing and removes the
     /// rebuild, so returning to it is instant.
-    @State private var builtTabs: Set<AppTab> = [.habits]
+    @State private var builtTabs: Set<AppTab> = [.today]
     @State private var proStatus = ProStatus.shared
     /// The scene's first active callback can arrive before the async boot
     /// task has installed its local state and maintenance pipeline.
@@ -127,7 +139,6 @@ struct ContentView: View {
     }
     @State private var sentenceCreation: SentenceCreation?
     @State private var sentencePresentation = CreateCoverPresentation()
-    @State private var pendingSentenceCreation: String?
     /// Wann das Melde-Blatt zuletzt zuging. Ein Schütteln endet oft mit einem
     /// Nachschütteln (die Hand hört später auf als der Kopf) — ohne diese
     /// Ruhezeit spränge das eben geschlossene Blatt sofort wieder auf.
@@ -139,7 +150,6 @@ struct ContentView: View {
     /// button must not follow it down.
     @State private var moreSheetPath: [MoreRoute] = []
     /// Unterziel des nativen Mehr-Tabs, als Blatt über diesem Tab.
-    @State private var morePageRoute: MoreRoute?
     /// Bleibt bis zum gemeinsamen sheet-onDismiss wahr. Damit startet eine
     /// Ersatzroute weder im Abgang des Fallback- noch des nativen Blatts.
     @State private var moreSheetIsPresented = false
@@ -156,6 +166,7 @@ struct ContentView: View {
     /// A widget route carries the selected habit. The list consumes this
     /// once its rows are mounted and scrolls to the stable UUID anchor.
     @State private var requestedHabitID: UUID?
+    @State private var backfillPresentationTask: Task<Void, Never>?
     /// Genau die letzte noch nicht angewandte Route. Beide Präsentations-
     /// callbacks prüfen ihren Generationstoken, bevor sie sie weiterreichen.
     @State private var pendingRoute: RouteWork.Item?
@@ -190,6 +201,7 @@ struct ContentView: View {
     /// Karte den frischen Stand aus dem Store zeigen, nicht eine Kopie von
     /// vor dem Tippen.
     @State private var backfill: BackfillRequest?
+    @State private var historyPresentation = CreateCoverPresentation()
     /// Hält die Glasteile unten zusammen: gleiche ID vor und nach dem
     /// Zusammenziehen = ein Morph statt zweier Blenden. (Nur Fallback-Leiste.)
     @Namespace private var glassNamespace
@@ -278,7 +290,6 @@ struct ContentView: View {
             // accentText statt accent: die Markenfarbe hat auf hellem Grund
             // nur ~3,4:1 — als Schrift/Symbolfarbe ist das zu wenig.
             .tint(Theme.accentText(effectivePaletteStyle))
-            .onOpenURL { handleDeepLink($0) }
             .onReceive(NotificationCenter.default.publisher(
                 for: NotificationActionRouter.pendingDidChange)) { _ in
                 schedulePendingNotificationAction()
@@ -309,9 +320,11 @@ struct ContentView: View {
                         sentencePresentation.didPresent()
                     }
             }
-            .fullScreenCover(isPresented: $showAdd,
+            .sheet(isPresented: $showAdd,
                              onDismiss: deliverPendingCreateDismissalRoute) {
                 createPage.onAppear { createCoverDidPresent() }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             // Das Kaufblatt hängt hier oben, weil das Limit an VIER Stellen
             // zuschlagen kann (Toolbar-+, Leerzustand, Fallback-Chrom,
@@ -339,6 +352,18 @@ struct ContentView: View {
                     .onAppear {
                         guard editing?.id == habit.id else { return }
                         editorPresentation.didPresent()
+                    }
+            }
+            .sheet(item: $backfill, onDismiss: deliverPendingHistoryDismissalRoute) { request in
+                backfillEditor(request)
+                    .themed(store, palettes: effectivePalettes)
+                    .onAppear {
+                        guard backfill?.id == request.id else { return }
+                        historyPresentation.didPresent()
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        VStack { undoToast; saveErrorBadge }
+                            .padding(.horizontal, Theme.Metrics.gutter)
                     }
             }
             .confirmationDialog(
@@ -405,6 +430,9 @@ struct ContentView: View {
                 .themed(store, palettes: effectivePalettes)
                 .environment(\.appearanceBackgroundOwned, false)
                 .onAppear { moreSheetDidPresent(route) }
+                .onChange(of: moreSheetPath) { _, path in
+                    presentedMoreDestination = presentedMorePage(for: path.last ?? route)
+                }
             }
             .fullScreenCover(isPresented: $showReminderSetup) {
                 ReminderSetupView(isPresented: $showReminderSetup, store: store)
@@ -574,13 +602,9 @@ struct ContentView: View {
                 guard old == .search, tab != .search else { return }
                 searchFieldFocused = false
                 if #unavailable(iOS 26) { searching = false }
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    search = ""
-                    committedSearch = ""
-                }
             }
+            .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { progressNow = $0 }
+            .onOpenURL { handleDeepLink($0) }
     }
 
     /// One owner for "show the keyboard on the search tab". Both the deep-link
@@ -606,15 +630,14 @@ struct ContentView: View {
         } else {
             ZStack {
                 AppearanceBackground(preferences: store.appearancePreferences)
+                fallbackTabLayer(.today) { todayStack }
                 fallbackTabLayer(.stats) { fallbackStatsContent }
                 fallbackTabLayer(.habits) { habitsStack }
-                fallbackTabLayer(.more) { fallbackMoreContent }
             }
             .environment(\.appearanceBackgroundOwned, true)
             // Über der Liste, unter dem Fallback-Chrom (das `body` DANACH
             // auflegt): der Rückgängig-Toast im Chrom-Stapel bleibt über der
             // offenen Karte antippbar.
-            .sheet(item: $backfill) { request in backfillEditor(request) }
             .overlay(alignment: .bottom) { legacyBottomChrome }
         }
     }
@@ -657,17 +680,15 @@ struct ContentView: View {
     private var searchRoleShell: some View {
         ZStack {
             TabView(selection: $nativeTab) {
-                Tab(String(localized: "Statistik"), systemImage: "chart.bar",
-                    value: AppTab.stats) {
-                    nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
+                Tab(String(localized: "Heute"), systemImage: "checklist", value: AppTab.today) {
+                    nativeTabRoot { nativeTabContent(.today) { todayTabContent } }
                 }
                 Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                     value: AppTab.habits) {
                     nativeTabRoot { nativeTabContent(.habits) { habitsTabContent } }
                 }
-                Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                    value: AppTab.more) {
-                    nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
+                Tab(String(localized: "Fortschritt"), systemImage: "chart.bar", value: AppTab.stats) {
+                    nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
                 }
                 // The search tab owns a persistent native search field.
                 Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
@@ -687,17 +708,15 @@ struct ContentView: View {
     @available(iOS 27, *)
     private var splitShell: some View {
         TabView(selection: $nativeTab) {
-            Tab(String(localized: "Statistik"), systemImage: "chart.bar",
-                value: AppTab.stats) {
-                nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
+            Tab(String(localized: "Heute"), systemImage: "checklist", value: AppTab.today) {
+                nativeTabRoot { nativeTabContent(.today) { todayTabContent } }
             }
             Tab(String(localized: "Habits"), systemImage: "square.grid.2x2",
                 value: AppTab.habits) {
                 nativeTabRoot { nativeTabContent(.habits) { habitsTabContent } }
             }
-            Tab(String(localized: "Mehr"), systemImage: "ellipsis",
-                value: AppTab.more) {
-                nativeTabRoot { nativeTabContent(.more) { moreTabContent } }
+            Tab(String(localized: "Fortschritt"), systemImage: "chart.bar", value: AppTab.stats) {
+                nativeTabRoot { nativeTabContent(.stats) { statsTabContent } }
             }
 #if compiler(>=6.4)
             Tab(String(localized: "Suchen"), systemImage: "magnifyingglass",
@@ -766,10 +785,13 @@ struct ContentView: View {
     /// Der Statistik-Tab: die frühere Mehr-Unterseite als eigener Bereich.
     @available(iOS 26, *)
     private var statsTabContent: some View {
-        NavigationStack {
+        NavigationStack(path: $statsPath) {
             nativePageRoot {
                 StatsView(store: store, viewPreferences: viewPreferences,
-                          routeToken: routeToken)
+                          routeToken: routeToken, onOpenHabit: openDetails,
+                          onOpenHistory: openHistory)
+                    .toolbar { settingsToolbarItem }
+                    .navigationDestination(for: UUID.self, destination: detailDestination)
             }
         }
         .navigationChrome()
@@ -781,7 +803,7 @@ struct ContentView: View {
     /// an der Navigation verankert und reduziert sich beim Scrollen selbst.
     @available(iOS 26, *)
     private var searchTabContent: some View {
-        NavigationStack {
+        NavigationStack(path: $searchPath) {
             nativePageRoot {
                 // The native TabView may keep non-selected tabs alive. Do
                 // not keep a second graph-heavy list mounted off screen.
@@ -794,8 +816,10 @@ struct ContentView: View {
                         }
                     }
                     .navigationTitle(String(localized: "Suchen"))
-                    .navigationBarTitleDisplayMode(.large)
+                    .navigationBarTitleDisplayMode(.inline)
                     .pageHeaderChrome()
+                    .toolbar { settingsToolbarItem }
+                    .navigationDestination(for: UUID.self, destination: detailDestination)
                 }
             }
         }
@@ -833,76 +857,25 @@ struct ContentView: View {
     /// Der Inhalt des Habits-Tabs — EINE Quelle für beide Leisten-Varianten.
     @available(iOS 26, *)
     private var habitsTabContent: some View {
-        NavigationStack {
-            nativePageRoot { habitsScreen }
+        NavigationStack(path: $habitsPath) {
+            nativePageRoot {
+                habitsScreen.navigationDestination(for: UUID.self, destination: detailDestination)
+            }
         }
         // Die Nacharbeiten-Karte ÜBER der Liste, aber UNTER den
         // schwebenden Pillen: der Rückgängig-Toast ist das Zurück zu
         // genau dem, was die Karte gerade geschrieben hat, und muss
         // bei offener Karte antippbar bleiben — dieselbe Schichtung
         // wie im Fallback (Karte unter dem Chrom-Stapel).
-        .sheet(item: $backfill) { request in backfillEditor(request) }
-        .navigationChrome()
-    }
-
-    @available(iOS 26, *)
-    private var moreTabContent: some View {
-        NavigationStack {
-            nativePageRoot {
-                MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences,
-                         onOpen: presentMoreSheet,
-                         graphShowsMonthLabels: githubMonthLabelsBinding,
-                         routeToken: routeToken)
-            }
-        }
-        .navigationChrome()
-        .sheet(item: $morePageRoute,
-               onDismiss: deliverPendingMoreDismissalRoute) { route in
-            NavigationStack {
-                moreSheetRoot(fallback: route)
-                    // Die versteckte Tür in „Über" SCHIEBT den
-                    // Entwicklerbereich in dieses Blatt (siehe MoreRoute).
-                    .navigationDestination(for: MoreRoute.self, destination: moreDestination)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                dismissMoreSheet()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.footnote.weight(.semibold))
-                                    .frame(width: Theme.Metrics.hit,
-                                           height: Theme.Metrics.hit)
-                                    .contentShape(Circle())
-                            }
-                            .accessibilityLabel(String(localized: "Fertig"))
-                                .accessibilityIdentifier("close-more-sheet")
-                        }
-                    }
-            }
-            .id("more-sheet-\(route)")
-            .navigationChrome()
-            .themed(store, palettes: effectivePalettes)
-            .environment(\.appearanceBackgroundOwned, false)
-            .onAppear { moreSheetDidPresent(route) }
-        }
-    }
-
-    private var fallbackMoreContent: some View {
-        NavigationStack {
-            MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                     statsCards: viewPreferences,
-                     onOpen: presentMoreSheet,
-                     graphShowsMonthLabels: githubMonthLabelsBinding,
-                     routeToken: routeToken)
-        }
         .navigationChrome()
     }
 
     private var fallbackStatsContent: some View {
-        NavigationStack {
+        NavigationStack(path: $statsPath) {
             StatsView(store: store, viewPreferences: viewPreferences,
-                      routeToken: routeToken)
+                      routeToken: routeToken, onOpenHabit: openDetails, onOpenHistory: openHistory)
+                .toolbar { settingsToolbarItem }
+                .navigationDestination(for: UUID.self, destination: detailDestination)
         }
         .navigationChrome()
     }
@@ -978,10 +951,84 @@ struct ContentView: View {
     }
 
     private var habitsStack: some View {
-        NavigationStack {
-            habitsScreen
+        NavigationStack(path: $habitsPath) {
+            habitsScreen.navigationDestination(for: UUID.self, destination: detailDestination)
         }
         .navigationChrome()
+    }
+
+    private var todayStack: some View {
+        NavigationStack(path: $todayPath) {
+            todayScreen.navigationDestination(for: UUID.self, destination: detailDestination)
+        }
+        .navigationChrome()
+    }
+
+    @available(iOS 26, *)
+    private var todayTabContent: some View {
+        NavigationStack(path: $todayPath) {
+            nativePageRoot {
+                todayScreen.navigationDestination(for: UUID.self, destination: detailDestination)
+            }
+        }
+        .navigationChrome()
+    }
+
+    private var todayScreen: some View {
+        TodayView(habits: visibleActiveHabits, defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier,
+            now: progressNow, isActive: nativeTab == .today,
+            onCreate: requestCreate, onOpenHabits: { nativeTab = .habits }) { habit in
+                compactRow(for: habit)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("today-row-\(habit.id.uuidString)")
+            }
+            .navigationTitle(String(localized: "Heute"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { settingsToolbarItem; createToolbarItem }
+    }
+
+    private var settingsToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { presentMoreSheet(.settings) } label: {
+                Image(systemName: "gearshape").frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
+            }
+            .accessibilityLabel(String(localized: "Einstellungen"))
+            .accessibilityIdentifier("open-settings")
+        }
+    }
+
+    private func openDetails(_ id: UUID) {
+        switch nativeTab {
+        case .today: todayPath.append(id)
+        case .stats: statsPath.append(id)
+        case .search: searchPath.append(id)
+        default: habitsPath.append(id)
+        }
+    }
+
+    private func openEditor(_ id: UUID) {
+        editing = visibleActiveHabits.first(where: { $0.id == id })
+    }
+
+    private func openHistory(_ id: UUID) {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == id }) else { return }
+        openBackfill(habit, day: habitToday(habit), afterMenu: false)
+    }
+
+    private func detailDestination(_ id: UUID) -> some View {
+        HabitDetailView(store: store, habitID: id, now: progressNow,
+            onEdit: openEditor,
+            onHistory: openHistory,
+            onToggleDay: { id, _ in
+                guard let current = visibleActiveHabits.first(where: { $0.id == id }) else { return }
+                toggleDay(current, day: habitToday(current))
+            },
+            onIncrement: { id in if let current = visibleActiveHabits.first(where: { $0.id == id }) { increment(current) } },
+            onAnswer: { id, yes in if let current = visibleActiveHabits.first(where: { $0.id == id }) { answer(current, yes: yes) } },
+            onToggleReminder: { id in if let current = visibleActiveHabits.first(where: { $0.id == id }) { toggleReminder(current) } },
+            onArchive: { store.archive($0) },
+            onDelete: { id in pendingDelete = visibleActiveHabits.first(where: { $0.id == id }) },
+            onOpenCalendar: { presentMoreSheet(.calendar) })
     }
 
     // MARK: – Die Anlegen-Seite
@@ -992,13 +1039,10 @@ struct ContentView: View {
     /// (`asPage`). Ziel der Zoom-Transition: sie wächst aus dem
     /// Anlegen-Knopf und schrumpft dorthin zurück.
     private var createPage: some View {
-        EditHabitSheet(store: store, asPage: true,
-                      onCreateFromText: viewPreferences.dictateCreateEnabled
-                        ? requestSentenceCreation : nil)
+        EditHabitSheet(store: store, initialItemType: initialCreationType,
+                      offersSentenceCreation: viewPreferences.dictateCreateEnabled)
             .themed(store, palettes: effectivePalettes)
             .environment(\.appearanceBackgroundOwned, false)
-            .modifier(MoreZoomDestination(id: Self.createZoomID,
-                                          namespace: createZoomNamespace))
     }
 
     private static let createZoomID = "create-circle"
@@ -1013,25 +1057,32 @@ struct ContentView: View {
     /// zurückholt, importiert oder über iCloud mehr als drei aktive Habits
     /// bekommt, behält sie und kann sie voll benutzen (siehe ProGate).
     private func requestCreate() {
+        initialCreationType = .habit
+        presentCreator()
+    }
+
+    private func presentCreator() {
         if sentenceCreation != nil {
             handle(.create)
             return
         }
-        pendingSentenceCreation = nil
         showAdd = true
-    }
-
-    private func requestSentenceCreation(_ text: String) {
-        guard showAdd else { return }
-        pendingSentenceCreation = text
-        showAdd = false
     }
 
     @ViewBuilder
     private func moreDestination(_ route: MoreRoute) -> some View {
         Group {
             switch route {
-            case .archive: ArchiveView(store: store)
+            case .settings:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
+                         graphShowsMonthLabels: githubMonthLabelsBinding, routeToken: routeToken)
+            case .notifications, .personalization:
+                MoreView(store: store, github: github, cloudStatus: cloudStatus,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
+                         graphShowsMonthLabels: githubMonthLabelsBinding, routeToken: routeToken,
+                         screen: route == .notifications ? .notifications : .personalization)
+            case .archive: ArchiveView(store: store, routeToken: routeToken)
             case .about: AboutView(store: store)
             case .dataTransfer: DataTransferView(store: store)
             case .github:
@@ -1040,17 +1091,17 @@ struct ContentView: View {
                                    showsMonthLabels: githubMonthLabelsBinding)
             case .appearance:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .appearance)
             case .habitBehavior:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .habitBehavior)
             case .calendar:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .calendar)
             // Its own branch and its own screen, not a shared one: a child page
@@ -1059,7 +1110,7 @@ struct ContentView: View {
             // holding the previous page's selection.
             case .localModel:
                 MoreView(store: store, github: github, cloudStatus: cloudStatus,
-                         statsCards: viewPreferences, onOpen: presentMoreSheet,
+                         statsCards: viewPreferences, onOpen: { moreSheetPath.append($0) },
                          graphShowsMonthLabels: githubMonthLabelsBinding,
                          routeToken: routeToken, screen: .localModel)
             // Check ownership at the destination too, not only at the row that
@@ -1136,7 +1187,7 @@ struct ContentView: View {
     private var isPresentingModally: Bool {
         showFeedback || showAdd || showReminderSetup
             || paywall != nil || editing != nil
-            || moreSheet != nil || morePageRoute != nil
+            || moreSheet != nil
             || ModalPresentation.isPresenting
     }
 
@@ -1151,6 +1202,7 @@ struct ContentView: View {
             guard routeWorkIsCurrent(routeGeneration) else { return }
             focusSearchField()
         } else {
+            nativeTab = .habits
             searching = true
         }
     }
@@ -1219,6 +1271,7 @@ struct ContentView: View {
                         RootPageCompactTitle(title: String(localized: "Habits"), progress: 1)
                     }
                     createToolbarItem
+                    settingsToolbarItem
                 }
         } else {
             habitList
@@ -1254,6 +1307,7 @@ struct ContentView: View {
                         .accessibilityIdentifier("reorder-habits")
                     }
                     createToolbarItem
+                    settingsToolbarItem
                 }
         }
     }
@@ -1270,8 +1324,18 @@ struct ContentView: View {
             }
         } else {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { requestCreate() } label: {
+                Menu {
+                    Button(String(localized: "Neuer Habit"), action: requestCreate)
+                    Button(String(localized: "Neue Erinnerung")) {
+                        initialCreationType = .reminder
+                        presentCreator()
+                    }
+                    Button(String(localized: "Aus einem Satz anlegen")) {
+                        sentenceCreation = SentenceCreation(text: "")
+                    }
+                } label: {
                     Image(systemName: "plus")
+                        .frame(minWidth: Theme.Metrics.hit, minHeight: Theme.Metrics.hit)
                 }
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
                 .modifier(MoreZoomSource(id: Self.createZoomID,
@@ -1294,14 +1358,16 @@ struct ContentView: View {
     }
 
     private var canSortHabits: Bool {
-        committedSearch.isEmpty
-            && habitFilter.status == .all
-            && habitFilter.itemType == .all
+        guard habitFilter.status == .all, habitFilter.itemType == .all else { return false }
+        if #available(iOS 26, *) { return true }
+        return committedSearch.isEmpty
     }
 
     @ViewBuilder
     private var habitFilterMenu: some View {
         Menu {
+            Toggle(String(localized: "Fällig heute"), isOn: $habitFilter.todayOnly)
+                .accessibilityIdentifier("collection-due-today")
             Menu {
                 filterStatusButton(.all, title: String(localized: "Alle"))
                 filterStatusButton(.done, title: String(localized: "Erledigt"))
@@ -1409,75 +1475,10 @@ struct ContentView: View {
                         nativeSortingList
                     }
                 } else {
-                    List {
-                Section {
-                    RootPageTitle(title: String(localized: "Habits"))
-                        .id("habit-list-title")
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
-                        .moveDisabled(true)
-                        .allowsHitTesting(!habitSortingActive)
-                    if let snapshot = github.snapshot {
-                        GitHubContributionCard(snapshot: snapshot,
-                                               collapsed: collapsed,
-                                               showsUsername: store.githubShowsUsername,
-                                               showsMonthLabels: graphShowsMonthLabels,
-                                               openProfile: { GitHubLink.open(snapshot.profileURL) })
-                            .equatable()
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
-                                                      bottom: 0, trailing: Theme.Metrics.gutter))
-                            .moveDisabled(true)
-                    }
-                    TodayProgressView(
-                        progress: ScheduledProgress.today(habits: visibleActiveTrackedHabits,
-                            defaultTimeZoneIdentifier: store.defaultTimeZoneIdentifier, now: progressNow),
-                        todayOnly: $habitFilter.todayOnly)
-                        .id("habit-list-top")
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
-                                                  bottom: 0, trailing: Theme.Metrics.gutter))
-                        .moveDisabled(true)
-                        .allowsHitTesting(!habitSortingActive)
-                    if habitsTabSource.isEmpty {
-                        if !habitFilter.isEmpty && committedSearch.isEmpty {
-                            ContentUnavailableView(String(localized: "Keine passenden Einträge"),
-                                systemImage: "checkmark.circle",
-                                description: Text(String(localized: "Ändere die Filter, um weitere Einträge zu sehen.")))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        } else if !committedSearch.isEmpty {
-                            ContentUnavailableView.search(text: search)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ContentUnavailableView {
-                                Label(String(localized: "Noch keine Habits"), systemImage: "square.grid.3x3")
-                            } description: {
-                                Text(String(localized: "Lege deinen ersten Eintrag an und hake ihn ab, damit dein Raster sichtbar wächst."))
-                            } actions: {
-                                Button(String(localized: "Ersten Habit anlegen"), action: requestCreate)
-                                    .accessibilityIdentifier("add-first-habit")
-                            }
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                        }
-                    }
-                }
-                if !habitsTabSource.isEmpty {
-                    Section {
-                        ForEach(habitsTabSource) { habit in
-                            row(for: habit)
-                                .id(rowIdentity(habit))
-                                .deleteDisabled(true)
-                        }
-                    }
-                }
-                    }
-                    .accessibilityIdentifier("habit-list")
+                    HabitsView(habits: habitsTabSource, github: github.snapshot,
+                        collapsed: collapsed, showsUsername: store.githubShowsUsername,
+                        showsMonthLabels: graphShowsMonthLabels, filter: $habitFilter,
+                        onCreate: requestCreate) { row(for: $0) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1496,16 +1497,6 @@ struct ContentView: View {
         .frame(maxWidth: Theme.Metrics.readableContentWidth)
         .frame(maxWidth: .infinity)
         .listStyle(.plain)
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now in
-            if habitSortingActive {
-                // Keep the sorting surface stable unless its visible scope changes.
-                if listFilteredHabits(at: now).map(\.id) != sortingIDs {
-                    setHabitSortingActive(false)
-                }
-                return
-            }
-            progressNow = now
-        }
         .onScrollPhaseChange { _, phase in
             if phase == .interacting {
                 NotificationCenter.default.post(name: .swipeRevealDismissAll, object: nil)
@@ -1649,6 +1640,7 @@ struct ContentView: View {
     }
 
     private func createOneTime(from habit: Habit) {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
         guard habit.recurrence.frequency != .once else { return }
         let calendar = habitCalendar(for: habit)
         let today = DayKey.today(calendar: calendar)
@@ -1662,20 +1654,29 @@ struct ContentView: View {
 
     @ViewBuilder
     private func searchRow(for habit: Habit) -> some View {
-        let reveal = revealActions(for: habit)
-        SearchResultRow(habit: habit,
-                        onEdit: { editing = habit },
-                        onToggleReminder: { toggleReminder(habit) },
-                        calendar: habitCalendar(for: habit),
-                        leadingSwipe: reveal.leading,
-                        trailingSwipe: reveal.trailing)
-            .equatable()
+        compactRow(for: habit)
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 0,
-                                      leading: Theme.Metrics.gutter,
-                                      bottom: Theme.Metrics.gap,
-                                      trailing: Theme.Metrics.gutter))
+            .listRowInsets(EdgeInsets(top: 0, leading: Theme.Metrics.gutter,
+                bottom: Theme.Metrics.gap, trailing: Theme.Metrics.gutter))
+    }
+
+    private func compactRow(for habit: Habit) -> some View {
+        let reveal = revealActions(for: habit)
+        return SearchResultRow(habit: habit,
+                        onEdit: { openEditor(habit.id) },
+                        onToggleReminder: { toggleReminder(habit) },
+                        now: progressNow,
+                        calendar: habitCalendar(for: habit),
+                        leadingSwipe: reveal.leading,
+                        trailingSwipe: reveal.trailing,
+                        onDetails: { openDetails(habit.id) },
+                        onToggleDay: { _ in
+                            guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
+                            toggleDay(current, day: habitToday(current))
+                        },
+                        onIncrement: { increment(habit) }, onAnswer: { answer(habit, yes: $0) })
+            .equatable()
     }
 
     @ViewBuilder
@@ -1688,15 +1689,17 @@ struct ContentView: View {
             let reveal = revealActions(for: habit)
             ReminderRow(habit: habit,
                         onToggle: { toggleReminder(habit) },
-                        onEdit: { editing = habit },
+                        onEdit: { openEditor(habit.id) },
                         onArchive: { store.archive(habit.id) },
                         onRevert: { revertReminder(habit) },
                         onDelete: { pendingDelete = habit },
                         onCreateOneTime: { createOneTime(from: habit) },
                         onEnableSorting: enableSorting,
+                        now: progressNow,
                         calendar: habitCalendar(for: habit),
                         leadingSwipe: reveal.leading,
-                        trailingSwipe: reveal.trailing)
+                        trailingSwipe: reveal.trailing,
+                        onDetails: { openDetails(habit.id) })
                 .equatable()
                 // Keep the row identity stable. The reminder's value and
                 // cursor are ordinary inputs, so SwiftUI updates the button
@@ -1714,7 +1717,10 @@ struct ContentView: View {
                 habit: habit,
                 collapsed: collapsed,
                 showsMonthLabels: graphShowsMonthLabels,
-                onToggleDay: { toggleDay(habit, day: $0) },
+                onToggleDay: { _ in
+                    guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
+                    toggleDay(current, day: habitToday(current))
+                },
                 onBackfill: {
                     if inSearchTab { redirectBackfillFromSearch(habit, day: habitToday(habit)) }
                     else { openBackfill(habit, day: habitToday(habit), afterMenu: true) }
@@ -1722,7 +1728,7 @@ struct ContentView: View {
                 onIncrement: { increment(habit) },
                 onClear: { revert(habit) },
                 onMarkDone: { markDone(habit) },
-                onEdit: { editing = habit },
+                onEdit: { openEditor(habit.id) },
                 onArchive: { store.archive(habit.id) },
                 onDelete: { pendingDelete = habit },
                 onCreateOneTime: { createOneTime(from: habit) },
@@ -1730,7 +1736,8 @@ struct ContentView: View {
                 onAnswer: { answer(habit, yes: $0) },
                 leadingSwipe: reveal.leading,
                 trailingSwipe: reveal.trailing,
-                calendar: habitCalendar(for: habit))
+                calendar: habitCalendar(for: habit), now: progressNow,
+                onDetails: { openDetails(habit.id) })
                 .equatable()
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -1778,6 +1785,7 @@ struct ContentView: View {
     }
 
     private func perform(_ operation: SwipeOperation, on habit: Habit) {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
         if habit.isReminder {
             switch operation {
             case .done: requestReminderCompletion(habit)
@@ -1785,7 +1793,7 @@ struct ContentView: View {
             case .archive: store.archive(habit.id)
             case .backfill: openBackfill(habit, day: habitToday(habit), afterMenu: false)
             case .session: HabitSessionManager.shared.start(habit: habit)
-            case .edit: editing = habit
+            case .edit: openEditor(habit.id)
             case .increment, .yes, .no: break
             }
             return
@@ -1799,7 +1807,7 @@ struct ContentView: View {
         case .archive: store.archive(habit.id)
         case .backfill: openBackfill(habit, day: habitToday(habit), afterMenu: false)
         case .session: HabitSessionManager.shared.start(habit: habit)
-        case .edit: editing = habit
+        case .edit: openEditor(habit.id)
         }
     }
 
@@ -1889,10 +1897,15 @@ struct ContentView: View {
     // Toast ist Oberfläche, und dort gibt es keine, die ihn zeigen könnte.
 
     private func mutate(_ habit: Habit, day: String, _ change: () -> Void) {
+        guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
+        if nativeTab == .search { searchFieldFocused = false }
         let before = store.value(habit.id, day: day)
         change()
+        guard store.lastWriteError == nil else { undo.clear(); return }
         let after = store.value(habit.id, day: day) ?? 0
-        let message = CheckInUndo.message(habit: habit, value: after, day: day)
+        guard before != store.value(habit.id, day: day) else { return }
+        Theme.Haptics.check()
+        let message = CheckInUndo.message(habit: current, value: after, day: day)
         withToastAnimation {
             undo.present(habitId: habit.id, day: day, previousValue: before, message: message)
         }
@@ -1900,26 +1913,33 @@ struct ContentView: View {
 
     /// Tippen auf die Heute-Pille bzw. auf eine Rasterzelle: schaltet um.
     private func toggleDay(_ habit: Habit, day: String) {
-        mutate(habit, day: day) { store.toggle(habit.id, day: day) }
+        guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }),
+              current.isTrackedHabit, current.kind == .checkbox else { return }
+        mutate(current, day: day) { store.toggle(current.id, day: day) }
     }
 
     private func increment(_ habit: Habit) {
-        let today = habitToday(habit)
-        mutate(habit, day: today) { store.increment(habit.id, day: today) }
+        guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }),
+              current.isTrackedHabit, current.kind == .quantity else { return }
+        let today = habitToday(current)
+        mutate(current, day: today) { store.increment(current.id, day: today) }
     }
 
     /// Heute beantworten (Habit-Art „Ja/Nein"). Läuft durch dieselbe Stelle
     /// wie jedes Abhaken — also mit exaktem Rückgängig, auch wenn die
     /// Antwort eine bestehende überschreibt.
     private func answer(_ habit: Habit, yes: Bool) {
-        let today = habitToday(habit)
-        mutate(habit, day: today) { store.answer(habit.id, day: today, yes: yes) }
+        guard let current = visibleActiveHabits.first(where: { $0.id == habit.id }),
+              current.isTrackedHabit, current.kind == .yesNo else { return }
+        let today = habitToday(current)
+        mutate(current, day: today) { store.answer(current.id, day: today, yes: yes) }
     }
 
     /// Wisch-„Erledigt": hakt AN, nie ab. Ein schon erledigtes Checkbox-
     /// Habit bleibt unangetastet (und bekommt keinen Toast, der nichts
     /// zurückzunehmen hätte) — zum Abhaken gibt es „Rückgängig".
     private func markDone(_ habit: Habit) {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
         let today = habitToday(habit)
         // `isDone` ist bei Ja/Nein die ANTWORT und nicht „es steht ein Wert
         // da" — ein verneinter Tag ist hier also offen und darf auf Ja
@@ -1937,23 +1957,26 @@ struct ContentView: View {
     /// Heutigen Eintrag zurücknehmen — komplett, auch bei Mengen-Habits.
     /// Der Toast bringt den exakten Vorwert zurück.
     private func revert(_ habit: Habit) {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habit.id }) else { return }
         let today = habitToday(habit)
         guard store.value(habit.id, day: today) != nil else { return }
         mutate(habit, day: today) { store.clear(habit.id, day: today) }
     }
 
     private func toggleReminder(_ reminder: Habit) {
-        let calendar = habitCalendar(for: reminder)
-        let state = ReminderOccurrenceEngine.state(for: reminder, calendar: calendar)
+        guard let current = visibleActiveHabits.first(where: { $0.id == reminder.id }), current.isReminder else { return }
+        if nativeTab == .search { searchFieldFocused = false }
+        let calendar = habitCalendar(for: current)
+        let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
         if state.isChecked(calendar: calendar) {
-            revertReminder(reminder)
+            revertReminder(current)
         } else {
-            requestReminderCompletion(reminder)
+            requestReminderCompletion(current)
         }
     }
 
     private func requestReminderCompletion(_ reminder: Habit) {
-        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        guard let current = visibleActiveHabits.first(where: { $0.id == reminder.id }) else { return }
         let calendar = habitCalendar(for: current)
         let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
         guard let occurrence = state.actionable else { return }
@@ -1968,33 +1991,32 @@ struct ContentView: View {
     private func confirmEarlyReminderCompletion() {
         guard let pending = earlyReminderCompletion,
               let reminder = visibleActiveHabits.first(where: { $0.id == pending.habitID }),
-              let due = ReminderOccurrenceEngine.dueDate(
-                day: pending.day,
-                reminder: reminder,
-                calendar: habitCalendar(for: reminder))
+              let occurrence = pending.occurrence(for: reminder, calendar: habitCalendar(for: reminder))
         else {
             earlyReminderCompletion = nil
             return
         }
         earlyReminderCompletion = nil
-        completeReminder(reminder,
-                         occurrence: ReminderOccurrence(day: pending.day, dueDate: due))
+        completeReminder(reminder, occurrence: occurrence)
     }
 
     private func completeReminder(_ reminder: Habit, occurrence: ReminderOccurrence) {
-        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        guard let current = visibleActiveHabits.first(where: { $0.id == reminder.id }) else { return }
         let calendar = habitCalendar(for: current)
+        guard let occurrence = PendingReminderCompletion(habitID: current.id, day: occurrence.day)
+            .occurrence(for: current, calendar: calendar) else { return }
         let cursor = current.repeatsWhileIncomplete ? nil
             : ReminderOccurrenceEngine.cursorAfterCompleting(occurrence,
                                                              reminder: current,
                                                              calendar: calendar)
         store.setReminderCompletion(current.id, day: occurrence.day,
                                     completed: true, nextCursor: cursor)
+        guard store.lastWriteError == nil else { return }
         Theme.Haptics.check()
     }
 
     private func revertReminder(_ reminder: Habit) {
-        let current = store.habits.first(where: { $0.id == reminder.id }) ?? reminder
+        guard let current = visibleActiveHabits.first(where: { $0.id == reminder.id }) else { return }
         let calendar = habitCalendar(for: current)
         let state = ReminderOccurrenceEngine.state(for: current, calendar: calendar)
         // Prefer the persisted completion. The occurrence projection can
@@ -2007,6 +2029,7 @@ struct ContentView: View {
         guard let completedDay else { return }
         store.setReminderCompletion(current.id, day: completedDay,
                                     completed: false, nextCursor: nil)
+        guard store.lastWriteError == nil else { return }
         Theme.Haptics.select()
     }
 
@@ -2014,9 +2037,7 @@ struct ContentView: View {
     /// Wert, den er vorher hatte.
     private func performUndo() {
         guard let toast = undo.take() else { return }
-        for entry in toast.entries {
-            store.setValue(toast.habitId, day: entry.day, value: entry.previousValue)
-        }
+        guard store.setValues(toast.habitId, values: toast.entries.map { ($0.day, $0.previousValue) }) != nil else { return }
         Theme.Haptics.check()
     }
 
@@ -2045,13 +2066,17 @@ struct ContentView: View {
     /// (bzw. flackert). Also erst das Menü schließen lassen, dann öffnen. Ein
     /// Zellentipp hat dieses Problem nicht und wartet deshalb auch nicht.
     private func openBackfill(_ habit: Habit, day: String, afterMenu: Bool) {
+        backfillPresentationTask?.cancel()
         let request = BackfillRequest(habitId: habit.id, day: day)
         guard afterMenu else {
             withCardAnimation { backfill = request }
             return
         }
-        Task { @MainActor in
+        let generation = routeToken
+        backfillPresentationTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(280))
+            guard !Task.isCancelled, generation == routeToken,
+                  visibleActiveHabits.contains(where: { $0.id == habit.id }) else { return }
             withCardAnimation { backfill = request }
         }
     }
@@ -2068,19 +2093,19 @@ struct ContentView: View {
     ///    stille Änderungen stehen.
     ///  * **Einheitlich.** Alle Tage bekommen DENSELBEN Wert. Was gemischt
     ///    war, ist danach gleich — das ist die Zusage der Mehrfachauswahl.
-    private func backfillWrite(_ habitId: UUID, days: [String], value: Int?) {
-        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
+    private func backfillWrite(_ habitId: UUID, days: [String], value: Int?) -> [CheckInUndo.Entry]? {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return nil }
         let calendar = habitCalendar(for: habit)
         let today = DayKey.today(calendar: calendar)
         let allowed = days.filter {
             Backfill.canWrite(habit: habit, day: $0, today: today, calendar: calendar)
         }.sorted()
-        guard !allowed.isEmpty else { return }
+        guard !allowed.isEmpty else { return nil }
 
-        let entries = allowed.map {
-            CheckInUndo.Entry(day: $0, previousValue: store.value(habitId, day: $0))
+        guard let receipt = store.setValues(habitId, values: allowed.map { ($0, value) }) else {
+            undo.clear(); return nil
         }
-        for day in allowed { store.setValue(habitId, day: day, value: value) }
+        let entries = receipt.map { CheckInUndo.Entry(day: $0.day, previousValue: $0.previousValue) }
 
         let message: String
         if let single = allowed.first, allowed.count == 1 {
@@ -2096,6 +2121,7 @@ struct ContentView: View {
             undo.present(habitId: habitId, entries: entries, message: message)
         }
         Theme.Haptics.check()
+        return entries
     }
 
     /// Der Rückbau-Weg des Malen-Modus: ABGEWÄHLTE Tage bekommen ihren
@@ -2105,20 +2131,20 @@ struct ContentView: View {
     /// Griff, und der Toast trägt die Vorwerte, macht also auch DAS wieder
     /// rückgängig.
     private func backfillRestore(_ habitId: UUID,
-                                 entries: [(day: String, value: Int?)]) {
-        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return }
+                                 entries: [CheckInUndo.Entry]) -> Bool {
+        guard let habit = visibleActiveHabits.first(where: { $0.id == habitId }) else { return false }
         let calendar = habitCalendar(for: habit)
         let today = DayKey.today(calendar: calendar)
         let allowed = entries.filter {
             Backfill.canWrite(habit: habit, day: $0.day, today: today, calendar: calendar)
         }
             .sorted { $0.day < $1.day }
-        guard !allowed.isEmpty else { return }
+        guard !allowed.isEmpty else { return false }
 
-        let undoEntries = allowed.map {
-            CheckInUndo.Entry(day: $0.day, previousValue: store.value(habitId, day: $0.day))
+        guard let receipt = store.setValues(habitId, values: allowed.map { ($0.day, $0.previousValue) }) else {
+            undo.clear(); return false
         }
-        for entry in allowed { store.setValue(habitId, day: entry.day, value: entry.value) }
+        let undoEntries = receipt.map { CheckInUndo.Entry(day: $0.day, previousValue: $0.previousValue) }
 
         let message: String
         if let single = allowed.first, allowed.count == 1 {
@@ -2133,6 +2159,7 @@ struct ContentView: View {
             undo.present(habitId: habitId, entries: undoEntries, message: message)
         }
         Theme.Haptics.select()
+        return true
     }
 
     /// Öffnen/Schließen der Nacharbeiten-Karte: eine Feder mit kurzem,
@@ -2297,9 +2324,9 @@ struct ContentView: View {
     ///     innere Kapsel  h = control − 2p = hit = 44  ->  r = h/2 = 22
     private var switcher: some View {
         HStack(spacing: Self.chromeInset) {
-            statsPill
+            todayPill
             habitsPill
-            morePill
+            statsPill
         }
             // RUNDUM derselbe Rand — links wie rechts wie oben wie unten.
             .padding(Self.chromeInset)
@@ -2331,7 +2358,7 @@ struct ContentView: View {
     /// Pillen plus Anlegen-Knopf passen auf 320-pt-Geräte nicht mehr in
     /// eine Zeile, und das Balken-Symbol ist eindeutig.
     private var statsPill: some View {
-        navigationPill(tab: .stats, title: "Statistik", symbol: "chart.bar",
+        navigationPill(tab: .stats, title: "Fortschritt", symbol: "chart.bar",
                        identifier: "tab-stats", iconOnly: true)
     }
 
@@ -2340,9 +2367,8 @@ struct ContentView: View {
                        identifier: "tab-habits")
     }
 
-    private var morePill: some View {
-        navigationPill(tab: .more, title: "Mehr", symbol: "ellipsis",
-                       identifier: "tab-more")
+    private var todayPill: some View {
+        navigationPill(tab: .today, title: "Heute", symbol: "checklist", identifier: "tab-today")
     }
 
     private func navigationPill(tab: AppTab, title: LocalizedStringKey,
@@ -2517,13 +2543,13 @@ struct ContentView: View {
 
     private func handle(_ destination: AppDestination) {
         let effect = destination.effect
-        pendingSentenceCreation = nil
         routePresentationTask?.cancel()
         // Die Bereiche mit eigenem Kaufblatt (Mehr, Statistik) räumen es an
         // diesem Zähler weg. Das Blatt DIESES Bildschirms läuft dagegen
         // durch die Zustandsmaschine — nur sie weiß, wann das Zufahren
         // abgeschlossen ist.
         routeToken &+= 1
+        backfillPresentationTask?.cancel()
         let route = routeWork.begin(effect)
         pendingRoute = route
         if !effect.opensSearch {
@@ -2570,13 +2596,6 @@ struct ContentView: View {
         // the newly presented cover as gone.
         guard !showAdd else { return }
         createCover.didDismiss()
-        if let text = pendingSentenceCreation {
-            pendingSentenceCreation = nil
-            if pendingRoute == nil {
-                sentenceCreation = SentenceCreation(text: text)
-                return
-            }
-        }
         advancePendingRoute()
     }
 
@@ -2597,26 +2616,15 @@ struct ContentView: View {
         advancePendingRoute()
     }
 
+    private func deliverPendingHistoryDismissalRoute() {
+        guard backfill == nil else { return }
+        historyPresentation.didDismiss()
+        advancePendingRoute()
+    }
+
     private func presentMoreSheet(_ route: MoreRoute) {
-        if #available(iOS 26, *) {
-            moreRoutePresentationTask?.cancel()
-            // A presented sheet keeps its original content closure alive when
-            // its item changes. Unmount first, then present the new route so
-            // Darstellung can never reuse Verhalten & Teilen's view tree.
-            if morePageRoute != nil {
-                morePageRoute = nil
-                moreRoutePresentationTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(220))
-                    guard !Task.isCancelled else { return }
-                    presentedMoreDestination = presentedMorePage(for: route)
-                    morePageRoute = route
-                }
-            } else {
-                presentedMoreDestination = presentedMorePage(for: route)
-                morePageRoute = route
-            }
-        } else {
             guard moreSheet != route else { return }
+            moreRoutePresentationTask?.cancel()
             if moreSheet != nil {
                 moreSheet = nil
                 moreRoutePresentationTask = Task { @MainActor in
@@ -2629,7 +2637,6 @@ struct ContentView: View {
                 presentedMoreDestination = presentedMorePage(for: route)
                 moreSheet = route
             }
-        }
     }
 
     private func handleProEntitlementChange(old: Bool, new: Bool) {
@@ -2642,7 +2649,7 @@ struct ContentView: View {
     }
 
     private func moreSheetDidPresent(_ route: MoreRoute) {
-        guard moreSheet == route || morePageRoute == route else { return }
+        guard moreSheet == route else { return }
         moreSheetIsPresented = true
         presentedMoreDestination = presentedMorePage(for: route)
     }
@@ -2651,16 +2658,13 @@ struct ContentView: View {
         moreRoutePresentationTask?.cancel()
         moreRoutePresentationTask = nil
         moreSheet = nil
-        morePageRoute = nil
-        // The stack is rebuilt for each presentation, but the binding survives the
-        // sheet's own teardown, so a page closed from two levels deep would
-        // otherwise reopen at that depth.
-        moreSheetPath.removeAll()
     }
 
     private func deliverPendingMoreDismissalRoute() {
         // A stale callback must not clear a newer sheet that is already bound.
-        guard moreSheet == nil, morePageRoute == nil else { return }
+        guard moreSheet == nil else { return }
+        // The path binding outlives the sheet, including interactive dismissal.
+        moreSheetPath.removeAll()
         moreSheetIsPresented = false
         presentedMoreDestination = nil
         advancePendingRoute()
@@ -2678,10 +2682,11 @@ struct ContentView: View {
         let presentation = RoutePresentation(
             create: createCover.phase(requested: showAdd),
             editor: editorPresentation.phase(requested: editing != nil),
+            history: historyPresentation.phase(requested: backfill != nil),
             sentenceCreation: sentencePresentation.phase(requested: sentenceCreation != nil),
             paywall: paywall != nil
                 ? .presented : paywallIsPresented ? .dismissing : .absent,
-            more: moreSheet != nil || morePageRoute != nil
+            more: moreSheet != nil
                 ? .presented : moreSheetIsPresented ? .dismissing : .absent,
             morePage: presentedMoreDestination)
 
@@ -2699,6 +2704,12 @@ struct ContentView: View {
             editing = nil
             if !waitsForOnDismiss { advance(route) }
         case .waitForEditorDismissal:
+            break
+        case .dismissHistory:
+            let waitsForOnDismiss = historyPresentation.dismissalIsOwed
+            backfill = nil
+            if !waitsForOnDismiss { advance(route) }
+        case .waitForHistoryDismissal:
             break
         case .dismissPaywall:
             let waitsForOnDismiss = paywallIsPresented
@@ -2718,7 +2729,7 @@ struct ContentView: View {
             break
         case .keepCurrentMorePage:
             pendingRoute = nil
-            nativeTab = .more
+            if route.effect.runsNativeSyncCleanup { cleanupNativeEntries() }
         case .apply:
             pendingRoute = nil
             apply(route)
@@ -2730,6 +2741,13 @@ struct ContentView: View {
     private func apply(_ route: RouteWork.Item) {
         guard routeWork.isCurrent(route) else { return }
         nativeTab = route.effect.tab
+        switch route.effect.tab {
+        case .today: todayPath.removeAll()
+        case .habits: habitsPath = route.effect.habitID.map { [$0] } ?? []
+        case .stats: statsPath.removeAll()
+        case .search: searchPath.removeAll()
+        case .more, .create: break
+        }
         requestedHabitID = route.effect.habitID
 
         routePresentationTask = Task { @MainActor in
@@ -2757,8 +2775,9 @@ struct ContentView: View {
     /// sie deshalb jederzeit wegräumen.
     private func appMoreDestination(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
+        case .settings: .settings
         case .archive: .archive
-        case .about, .developer, .appearance, .habitBehavior, .github, .dataTransfer, .calendar: nil
+        case .about, .developer, .appearance, .habitBehavior, .github, .dataTransfer, .calendar, .notifications, .personalization: nil
         // A push inside Verhalten & Teilen's stack: no sheet, no deep link.
         case .localModel: nil
         }
@@ -2769,6 +2788,7 @@ struct ContentView: View {
     /// which intentionally only accepts the archive deep link.
     private func presentedMorePage(for route: MoreRoute) -> AppMoreDestination? {
         switch route {
+        case .settings: .settings
         case .archive: .archive
         case .about: .about
         case .developer: .developer
@@ -2776,14 +2796,16 @@ struct ContentView: View {
         case .habitBehavior: .habitBehavior
         case .github: .github
         case .calendar: .calendar
-        // A push inside Verhalten & Teilen's stack, not a sheet of its own.
-        case .localModel: nil
-        case .dataTransfer: nil
+        case .localModel: .localModel
+        case .dataTransfer: .dataTransfer
+        case .notifications: .notifications
+        case .personalization: .personalization
         }
     }
 
     private func moreRoute(for destination: AppMoreDestination) -> MoreRoute {
         switch destination {
+        case .settings: .settings
         case .archive: .archive
         case .about: .about
         case .developer: .developer
@@ -2791,6 +2813,10 @@ struct ContentView: View {
         case .habitBehavior: .habitBehavior
         case .github: .github
         case .calendar: .calendar
+        case .notifications: .notifications
+        case .personalization: .personalization
+        case .dataTransfer: .dataTransfer
+        case .localModel: .localModel
         // Pushed inside Verhalten & Teilen's own stack, so it is never presented
         // as a sheet of its own and needs no destination here.
         }
@@ -2861,7 +2887,6 @@ struct ContentView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(700))
                 guard routeToken == launchRouteToken else { return }
-                nativeTab = .more
                 presentMoreSheet(.habitBehavior)
             }
             return
@@ -2879,7 +2904,6 @@ struct ContentView: View {
                     preferences.material = requestedMaterial
                     store.appearancePreferences = preferences
                 }
-                nativeTab = .more
                 presentMoreSheet(.appearance)
             }
             return
@@ -3525,21 +3549,6 @@ private struct MoreZoomSource: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18, *) {
             content.matchedTransitionSource(id: id, in: namespace)
-        } else {
-            content
-        }
-    }
-}
-
-/// Gegenstück auf der Mehr-Seite: die Seite wächst aus der Quelle und
-/// schrumpft beim Schließen in sie zurück.
-private struct MoreZoomDestination: ViewModifier {
-    let id: String
-    let namespace: Namespace.ID
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18, *) {
-            content.navigationTransition(.zoom(sourceID: id, in: namespace))
         } else {
             content
         }

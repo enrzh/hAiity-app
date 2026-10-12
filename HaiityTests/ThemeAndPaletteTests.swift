@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import SwiftUI
 @testable import Haiity
 
 /// Farbrechnung für die Tests. Bewusst hier und nicht im App-Code: die
@@ -127,6 +128,26 @@ final class PaletteRampTests: XCTestCase {
 /// Die Akzentfarben tragen Text. Dieselbe Prüfung wie bei der Rampe, nur mit
 /// dem Schwellenwert, der für Schrift gilt.
 final class AccentContrastTests: XCTestCase {
+    func testLoggedDayTextHasReadableContrastInEveryPaletteAndAppearance() {
+        let palettes = GraphPalette.allCases.map(\.style) +
+            [UInt32(0x000000), 0xFFFFFF, 0xFFFF00, 0x010203, 0xFF00FF, 0x1F6FEB]
+                .map { CustomPalette(name: "History", base: $0).style }
+        for palette in palettes {
+            for dark in [false, true] {
+                for level in [-1, 1, 2, 3, 4] {
+                    let color = UIColor(Theme.levelText(level, dark: dark, palette: palette))
+                    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                    XCTAssertTrue(color.getRed(&r, green: &g, blue: &b, alpha: &a))
+                    let text = UInt32((r * 255).rounded()) << 16 |
+                        UInt32((g * 255).rounded()) << 8 | UInt32((b * 255).rounded())
+                    let background = level == -1 ? palette.negative(dark: dark) : palette.ramp(dark: dark)[level]
+                    XCTAssertEqual(a, 1)
+                    XCTAssertGreaterThanOrEqual(Contrast.ratio(text, background), 4.5)
+                }
+            }
+        }
+    }
+
     func testAccentFillCarriesWhiteText() {
         for palette in GraphPalette.allCases {
             let hex = palette.accentFillHex
@@ -605,29 +626,30 @@ final class AppearanceSettingTests: XCTestCase {
         XCTAssertTrue(HabitData.empty.matchAppIcon)
     }
 
-    func testStatsPageUsesClearSectionsAndIndividualCardSurfaces() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(contentsOf: root.appendingPathComponent("Haiity/Views/StatsView.swift"))
-        let pageStart = try XCTUnwrap(source.range(of: "private var statsList"))
-        let pageEnd = try XCTUnwrap(source.range(of: "func statsTodayCard",
-                                                 range: pageStart.upperBound..<source.endIndex))
-        let page = source[pageStart.lowerBound..<pageEnd.lowerBound]
-
-        XCTAssertTrue(page.contains("return ScrollView"))
-        XCTAssertTrue(page.contains("VStack(alignment: .leading, spacing: designStyle.sectionGap)"))
-        XCTAssertTrue(page.contains("statsTodayCard(snapshot)"))
-        XCTAssertTrue(page.contains("statsRhythmCard(snapshot)"))
-        XCTAssertTrue(page.contains("statsMetricGrid(snapshot, cards: metricCards)"))
-        XCTAssertTrue(page.contains("statsWeekCard(snapshot)"))
-        XCTAssertTrue(page.contains("statsHabitRanking"))
-        XCTAssertTrue(page.contains(".appSurface()"),
-                      "each rebuilt statistics surface must own its appearance material")
-        XCTAssertFalse(source.contains("StatsCardChrome"),
-                       "the rebuilt page must not retain the old List-only card modifier")
-        XCTAssertFalse(page.contains(".settingsListRow()"),
-                       "a settings surface must not be attached to the statistics page")
+    @MainActor
+    func testProgressWeeklySurfaceFitsCustomMaterialsInBothAppearancesAtAX5() {
+        let suite = "stats-material-layout-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HabitStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("stats-material-layout-\(UUID()).json"), loadFromDisk: false)
+        let view = StatsView(store: store, viewPreferences: ViewPreferencesStore(defaults: defaults))
+        let snapshot = StatsEngine.snapshot(habits: [], today: "2026-10-07")
+        for material in AppearanceMaterial.allCases {
+            var preferences = AppearancePreferences(material: material)
+            preferences.backgroundColorHex = 0x0F766E
+            for scheme in [ColorScheme.light, .dark] {
+                let host = UIHostingController(rootView: view.statsWeekCard(snapshot)
+                    .environment(\.appearancePreferences, preferences)
+                    .environment(\.colorScheme, scheme)
+                    .environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.layoutDirection, .rightToLeft))
+                let size = host.sizeThatFits(in: CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude))
+                XCTAssertLessThanOrEqual(size.width, 320)
+                XCTAssertGreaterThan(size.height, Theme.Metrics.hit)
+                XCTAssertTrue(size.height.isFinite)
+            }
+        }
     }
 
     func testNonListSettingsScreensUseTheSharedMaterialChrome() throws {
@@ -1073,9 +1095,8 @@ final class AppearanceSettingTests: XCTestCase {
     func testMoreDetailPagesUseTheContinuousSurfaceFamily() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-        // Pages migrated off `List` use the shared group surface instead of the
-        // list-backed one. Both are the same continuous family; `List` is the one
-        // form that must not come back, because iOS 27 drops taps on its rows.
+        // Settings use shared groups; the archive owns a lazy scroll surface
+        // with the same chrome and panel roles.
         let migratedToGroups = [
             "Haiity/Views/GitHubSettingsView.swift",
             "Haiity/Views/HabitTimeZoneSettingsView.swift",
@@ -1085,7 +1106,7 @@ final class AppearanceSettingTests: XCTestCase {
             "Haiity/Views/MoreLocalModel.swift",
             "Haiity/Views/DeveloperView.swift"
         ]
-        let stillListBacked = [
+        let continuousArchives = [
             "Haiity/Views/ArchiveView.swift"
         ]
 
@@ -1098,12 +1119,20 @@ final class AppearanceSettingTests: XCTestCase {
             XCTAssertFalse(source.contains("List {"),
                            "(file) must not return to a List, which drops taps on iOS 27")
         }
-        for file in stillListBacked {
+        for file in continuousArchives {
             let source = try String(contentsOf: root.appendingPathComponent(file))
-            XCTAssertTrue(source.contains("moreSettingsSurface()"),
-                          "(file) should use the More surface")
+            XCTAssertTrue(source.contains("ScrollView {") && source.contains("LazyVStack("),
+                          "\(file) should keep lazy archive rows on a continuous scroll surface")
+            XCTAssertTrue(source.contains(".settingsChrome()"),
+                          "\(file) should use the shared appearance-aware settings chrome")
+            XCTAssertTrue(source.contains(".morePanel()"),
+                          "\(file) should use shared content panels for archived entries")
+            XCTAssertTrue(source.contains("Theme.Metrics.readableContentWidth"),
+                          "\(file) should retain the shared readable width")
+            XCTAssertFalse(source.contains("List {"),
+                           "\(file) must not restore the superseded list-backed archive surface")
         }
-        for file in migratedToGroups + stillListBacked {
+        for file in migratedToGroups + continuousArchives {
             let source = try String(contentsOf: root.appendingPathComponent(file))
             XCTAssertFalse(source.contains("settingsListRow()"),
                            "(file) should not restore rounded settings cells")
@@ -1125,14 +1154,10 @@ final class AppearanceSettingTests: XCTestCase {
         // means passing its title to the shell. Asserting the old literal would
         // have demanded a page paint its own header — the duplication this
         // whole change exists to remove.
-        let accountStart = try XCTUnwrap(more.range(of: ".sheet(isPresented: $showingPersonalSettings)"))
-        let accountEnd = try XCTUnwrap(more.range(of: ".sheet(isPresented: $showingNotificationSettings)",
-                                                  range: accountStart.upperBound..<more.endIndex))
-        let account = more[accountStart.lowerBound..<accountEnd.lowerBound]
-        XCTAssertTrue(account.contains("SettingsPage(title: String(localized: \"Personalisierung\"))"),
-                      "Account must keep the shared secondary-page header")
-        XCTAssertTrue(account.contains("personalHeader") && account.contains("personalSection"),
-                      "the root sheet must compose the extracted account content")
+        XCTAssertFalse(more.contains("$showingPersonalSettings"),
+                       "Account is a push in the existing settings sheet, not a second sheet")
+        XCTAssertFalse(more.contains("$showingNotificationSettings"),
+                       "Notifications is a push in the existing settings sheet")
         XCTAssertTrue(personal.contains("var personalSection: some View")
                       && personal.contains("AppSettingsGroup"),
                       "Account must use the shared appearance-aware group surface")
@@ -1163,6 +1188,8 @@ final class AppearanceSettingTests: XCTestCase {
     }
 
     func testPhotoTintKeepsPrimaryTextReadableAtBothPixelExtremes() {
+        XCTAssertEqual(Theme.secondaryText(preferences: AppearancePreferences(backgroundMode: .image)), Color.primary,
+                       "Photo text must retain the opaque ink supported by the scrim contrast check")
         for dark in [false, true] {
             let opacity = Theme.backgroundImageScrimOpacity(dark: dark, highContrast: false)
             let channel = UInt32(((dark ? 1 - opacity : opacity) * 255).rounded())

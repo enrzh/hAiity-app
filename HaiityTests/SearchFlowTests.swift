@@ -1,17 +1,16 @@
 import XCTest
+import SwiftUI
+import UIKit
+@testable import Haiity
 
 final class SearchFlowTests: XCTestCase {
     func testSearchPageUsesAVisibleNativeSearchField() throws {
         let source = try contentSource()
-        let start = try XCTUnwrap(source.range(of: "private var searchTabContent"))
-        let end = try XCTUnwrap(source.range(of: "private var searchList",
-                                             range: start.upperBound..<source.endIndex))
-        let searchPage = source[start.lowerBound..<end.lowerBound]
-
-        XCTAssertTrue(searchPage.contains(".searchable(text: $search"))
-        XCTAssertTrue(searchPage.contains("placement: .navigationBarDrawer(displayMode: .always)"))
-        XCTAssertFalse(searchPage.contains("isPresented:"))
-        XCTAssertTrue(searchPage.contains(".searchFocused($searchFieldFocused)"))
+        let nativeSearch = try NSRegularExpression(pattern:
+            #"\.searchable\(text:\s*\$\w+,\s*placement:\s*\.navigationBarDrawer\(displayMode:\s*\.always\)"#)
+        XCTAssertEqual(nativeSearch.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source)), 1,
+                       "the dedicated search page owns one visible native field")
+        XCTAssertEqual(source.components(separatedBy: ".searchFocused(").count - 1, 1)
     }
 
     func testSearchPageDoesNotCarryTheOldPresentationWorkaround() throws {
@@ -27,51 +26,49 @@ final class SearchFlowTests: XCTestCase {
         XCTAssertFalse(source.contains("SearchFieldReading"))
     }
 
-    func testSearchPageKeepsTheNativeSearchTabAndClearsQueryWhenLeaving() throws {
+    func testSearchPageKeepsTheNativeSearchTabAndRetainsQueryWhenLeaving() throws {
         let source = try contentSource()
         XCTAssertTrue(source.contains("value: AppTab.search, role: .search"))
         XCTAssertTrue(source.contains("value: AppTab.search, role: .prominent"))
 
         let tabChange = try XCTUnwrap(source.range(of: ".onChange(of: nativeTab)"))
-        let nextChange = try XCTUnwrap(source.range(of: ".onChange(of:",
+        let nextChange = try XCTUnwrap(source.range(of: ".onReceive(Timer.publish",
                                                      range: tabChange.upperBound..<source.endIndex))
         let tabBody = source[tabChange.lowerBound..<nextChange.lowerBound]
         XCTAssertTrue(tabBody.contains("old == .search, tab != .search"))
-        XCTAssertTrue(tabBody.contains("committedSearch = \"\""))
+        XCTAssertTrue(tabBody.contains("searchFieldFocused = false"),
+                      "leaving Search releases keyboard focus without clearing the query")
+        XCTAssertNil(tabBody.range(of: #"\b(search|committedSearch)\s*="#, options: .regularExpression),
+                     "tab navigation must retain both the typed and committed query")
     }
 
     func testProminentSearchTabKeepsTheBarSplitFromContentTabs() throws {
         let source = try contentSource()
-        let start = try XCTUnwrap(source.range(of: "private var splitShell"))
-        let end = try XCTUnwrap(source.range(of: "private func nativeTabRoot",
-                                             range: start.upperBound..<source.endIndex))
-        let split = source[start.lowerBound..<end.lowerBound]
-
-        XCTAssertTrue(split.contains("value: AppTab.stats"))
-        XCTAssertTrue(split.contains("value: AppTab.habits"))
-        XCTAssertTrue(split.contains("value: AppTab.more"))
-        XCTAssertTrue(split.contains("role: .prominent"))
-        XCTAssertFalse(split.contains(".tabViewSearchActivation"))
+        let prominent = try NSRegularExpression(pattern: #"value:\s*AppTab.search,\s*role:\s*\.prominent"#)
+        XCTAssertEqual(prominent.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source)), 1)
+        let contentTabs = try NSRegularExpression(pattern: #"value:\s*AppTab\.(today|habits|stats)\)"#)
+        XCTAssertEqual(contentTabs.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source)), 6)
+        XCTAssertFalse(source.contains("value: AppTab.more"))
     }
 
-    func testSearchListUsesCompactRowsWithoutContributionGraphs() throws {
-        let source = try contentSource()
-        let start = try XCTUnwrap(source.range(of: "private var searchList: some View"))
-        let end = try XCTUnwrap(source.range(of: "private var habitsTabContent",
-                                             range: start.upperBound..<source.endIndex))
-        let searchList = source[start.lowerBound..<end.lowerBound]
-
-        XCTAssertTrue(searchList.contains("searchResults"))
-        XCTAssertTrue(searchList.contains("searchRow(for: habit)"))
-        XCTAssertFalse(searchList.contains("row(for: habit, inSearchTab: true)"))
-        XCTAssertFalse(searchList.contains("HabitCard("))
-        XCTAssertFalse(searchList.contains("ContributionGrid"))
-        XCTAssertFalse(searchList.contains("GitHubContributionCard"))
-        XCTAssertTrue(source.contains("private var searchResults: [Habit]"))
-        XCTAssertTrue(source.contains("let active = visibleActiveHabits"))
-        XCTAssertTrue(source.contains("SearchResultRow(habit:"))
-        XCTAssertFalse(source.contains("rowProbe"),
-                       "sorting must not install row probes that fight list scrolling")
+    @MainActor
+    func testCompactSearchRowsGrowAtAX5InRTLWithoutHorizontalOverflow() {
+        for itemType in [HabitItemType.habit, .reminder] {
+            let habit = Habit(name: "A long item name that must stay readable while browsing search results",
+                              itemType: itemType, notificationMode: .off)
+            let row = SearchResultRow(habit: habit, onEdit: {}, onDetails: {})
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                let normal = UIHostingController(rootView: row.environment(\.dynamicTypeSize, .large)
+                    .environment(\.layoutDirection, direction))
+                let accessible = UIHostingController(rootView: row.environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.layoutDirection, direction))
+                let proposal = CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)
+                let size = accessible.sizeThatFits(in: proposal)
+                XCTAssertLessThanOrEqual(size.width, 320)
+                XCTAssertGreaterThan(size.height, normal.sizeThatFits(in: proposal).height)
+                XCTAssertGreaterThanOrEqual(size.height, Theme.Metrics.hit)
+            }
+        }
     }
 
     private func contentSource() throws -> String {

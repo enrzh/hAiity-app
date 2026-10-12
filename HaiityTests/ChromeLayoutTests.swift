@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import SwiftUI
 @testable import Haiity
 
 /// Die Geometrie der schwebenden Leiste. Beide Rechnungen hier sind der
@@ -32,41 +33,32 @@ final class ChromeLayoutTests: XCTestCase {
         XCTAssertEqual(ChromeLayout.toastBottomPadding(nativeBar: true, searching: true), 0)
     }
 
-    func testNativeOwnerAssertionTargetsTheFallbackBranchOnly() throws {
-        let content = try source("Haiity/Views/ContentView.swift")
-        let fallback = try XCTUnwrap(content.range(of: "private var shell: some View"))
-        let native = try XCTUnwrap(content.range(of: "private var nativeShell: some View"))
-        let nativeEnd = try XCTUnwrap(content.range(of: "private func nativeTabRoot"))
-        let fallbackSource = String(content[fallback.lowerBound..<native.lowerBound])
-        let nativeSource = String(content[native.lowerBound..<nativeEnd.lowerBound])
-        XCTAssertEqual(fallbackSource.components(separatedBy: "legacyBottomChrome").count, 2)
-        XCTAssertFalse(nativeSource.contains("legacyBottomChrome"))
-        XCTAssertTrue(nativeSource.contains("TabView(selection: $nativeTab)"))
+    func testRootScrollAndToastClearancePreserveTheNativeControlHitRegions() {
+        XCTAssertGreaterThanOrEqual(ChromeLayout.nativeTabBarClearance, Theme.Metrics.control)
+        XCTAssertGreaterThan(ChromeLayout.floatingControlsClearance, ChromeLayout.nativeTabBarClearance)
+        XCTAssertGreaterThan(ChromeLayout.floatingControlsClearance, ChromeLayout.speakButtonTop)
+        XCTAssertGreaterThanOrEqual(Theme.Metrics.hit, 44)
+        XCTAssertEqual(ChromeLayout.toastBottomPadding(nativeBar: false, searching: true), 0)
     }
 
-    func testSortingSelectsCompactRowsAndKeepsFullCardsOutsideSorting() throws {
-        let content = try source("Haiity/Views/ContentView.swift")
-        let start = try XCTUnwrap(content.range(of: "private var habitList: some View"))
-        let end = try XCTUnwrap(content.range(of: ".frame(maxWidth: .infinity, maxHeight: .infinity)", range: start.upperBound..<content.endIndex))
-        let list = content[start.lowerBound..<end.lowerBound]
-        let mode = try XCTUnwrap(list.range(of: "if habitSortingActive {"))
-        let normal = try XCTUnwrap(list.range(of: "} else {", range: mode.upperBound..<list.endIndex))
-        let sortingRows = list[mode.upperBound..<normal.lowerBound]
-        let normalRows = list[normal.upperBound...]
-
-        XCTAssertTrue(sortingRows.contains("nativeSortingList"))
-        for excluded in ["row(for:", "HabitCard(", "ReminderRow(", "TodayProgressView(", "GitHubContributionCard("] {
-            XCTAssertFalse(sortingRows.contains(excluded), excluded)
+    @MainActor
+    func testNativeSortingTableUsesDynamicRowsAndIndependentReorderControls() {
+        let habits = [Habit(name: "First"), Habit(name: "Second", itemType: .reminder)]
+        let controller = NativeHabitSortingController(habits: habits, move: { _, _ in }) { _, habit in
+            Text(habit.name)
         }
-        XCTAssertTrue(normalRows.contains("row(for: habit)"))
-        XCTAssertTrue(content.contains("HabitCard("))
-        XCTAssertTrue(content.contains("ReminderRow("))
-        XCTAssertTrue(normalRows.contains("TodayProgressView("))
-        XCTAssertTrue(normalRows.contains("GitHubContributionCard("))
-        XCTAssertFalse(normalRows.contains("HabitSortingRow("))
-        XCTAssertFalse(normalRows.contains(".onMove"))
-        XCTAssertTrue(content.contains("NativeHabitSortingList(habits: sortingHabits"))
-        XCTAssertTrue(content.contains("HabitSortingRow(habit: habit"))
+        controller.loadViewIfNeeded()
+        XCTAssertTrue(controller.isEditing)
+        XCTAssertEqual(controller.tableView.rowHeight, UITableView.automaticDimension)
+        XCTAssertFalse(controller.tableView.allowsSelectionDuringEditing)
+        XCTAssertEqual(controller.tableView(controller.tableView, numberOfRowsInSection: 0), 2)
+        for index in habits.indices {
+            let path = IndexPath(row: index, section: 0)
+            let cell = controller.tableView(controller.tableView, cellForRowAt: path)
+            XCTAssertTrue(cell.showsReorderControl)
+            XCTAssertEqual(cell.selectionStyle, .none)
+            XCTAssertTrue(controller.tableView(controller.tableView, canMoveRowAt: path))
+        }
     }
 
     func testSortingOwnsNativeTableWithoutBackingViewOrGestureControl() throws {

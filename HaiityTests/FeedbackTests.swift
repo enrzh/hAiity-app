@@ -513,13 +513,19 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(content.contains("onDismiss: { feedbackClosedAt = .now }"),
                       "ohne diesen Vermerk beginnt die Ruhezeit nie")
         XCTAssertTrue(content.contains("FeedbackSheet(store: store, cloudStatus: cloudStatus)"))
+        let modalStart = try XCTUnwrap(content.range(of: "private var isPresentingModally: Bool"))
+        let modalEnd = try XCTUnwrap(content.range(of: "// MARK:",
+                                                  range: modalStart.upperBound..<content.endIndex))
+        let modal = content[modalStart.lowerBound..<modalEnd.lowerBound]
         // Alle Präsentationen dieser Ansicht an EINER Stelle — ein vergessener
         // Zustand hier ist ein verschlucktes Blatt dort.
         for open in ["showFeedback", "showAdd", "showReminderSetup",
                      "paywall != nil", "editing != nil",
-                     "moreSheet != nil", "morePageRoute != nil"] {
-            XCTAssertTrue(content.contains(open), "die Blatt-Prüfung kennt \(open) nicht")
+                     "moreSheet != nil", "ModalPresentation.isPresenting"] {
+            XCTAssertTrue(modal.contains(open), "die Blatt-Prüfung kennt \(open) nicht")
         }
+        XCTAssertEqual(content.components(separatedBy: ".sheet(item: $moreSheet,").count - 1, 1,
+                       "settings must have one actual modal owner")
         // Zwei Sekunden: so lange braucht eine Hand, um zur Ruhe zu kommen.
         XCTAssertTrue(content.contains("private static let shakeQuietWindow: TimeInterval = 2"))
         // Und die Geste wird nur dann verbraucht, wenn wirklich ein Blatt
@@ -707,7 +713,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertFalse(sheet.contains("Geht an %@."))
     }
 
-    func testMoreKeepsCloudStatusInDeveloperToolsAndUsesConciseSettings() throws {
+    func testSettingsHubShowsCloudRealityWithoutDeveloperIdentifiers() throws {
         let more = try source("Haiity/Views/MoreView.swift")
         let appearance = try source("Haiity/Views/MoreAppearance.swift")
         let behavior = try source("Haiity/Views/MoreBehavior.swift")
@@ -718,7 +724,21 @@ final class FeedbackTests: XCTestCase {
         let hubEnd = try XCTUnwrap(more.range(of: "var accentColor: Color"))
         let hub = more[hubStart.lowerBound..<hubEnd.lowerBound]
         XCTAssertFalse(hub.contains("moreCloudRow"))
-        XCTAssertFalse(hub.contains("cloudStatus.state.title"))
+        let connectionsStart = try XCTUnwrap(hub.range(of: "AppSettingsGroup(title: String(localized: \"Persönlich & Verbindungen\"))"))
+        let connectionsEnd = try XCTUnwrap(hub.range(of: "AppSettingsGroup(title: String(localized: \"Daten & Über\"))",
+                                                    range: connectionsStart.upperBound..<hub.endIndex))
+        let connections = hub[connectionsStart.lowerBound..<connectionsEnd.lowerBound]
+        for state in ["cloudStatus.state.title", "cloudStatus.state.detail", "cloudStatus.state.systemImage"] {
+            XCTAssertTrue(connections.contains(state), "connections must show the existing sync reality")
+        }
+        XCTAssertEqual(hub.components(separatedBy: "accessibilityIdentifier(\"cloud-sync-status\")").count - 1, 1)
+        for identifier in ["copy-apple-user-id", "copy-unrecognized-apple-user-id", "storedAppleUserID", "storedAppleEmail"] {
+            XCTAssertFalse(hub.contains(identifier), "developer identities must stay out of ordinary settings")
+        }
+        for write in ["updateCloudPreferences", "store.summaryMinutes =", "store.weeklySummaryMinutes =",
+                      "CalendarSync.requestAccess", "Reminders.ensurePermission"] {
+            XCTAssertFalse(connections.contains(write), "displaying a connection must not change preferences or ask permission")
+        }
         XCTAssertTrue(behavior.contains("var cloudSyncSection: some View"),
                       "sync status belongs to the secondary integration settings page")
         XCTAssertTrue(behavior.contains("cloudStatus.state.title"),
@@ -742,12 +762,26 @@ final class FeedbackTests: XCTestCase {
     func testNotificationSettingsUseIndependentNativeRows() throws {
         let more = try source("Haiity/Views/MoreNotifications.swift")
         let host = try source("Haiity/Views/MoreView.swift")
-        let sheetStart = try XCTUnwrap(host.range(of: ".sheet(isPresented: $showingNotificationSettings)"))
-        let sheetEnd = try XCTUnwrap(host.range(of: ".onAppear {",
-                                              range: sheetStart.upperBound..<host.endIndex))
-        let sheet = host[sheetStart.lowerBound..<sheetEnd.lowerBound]
-        XCTAssertTrue(sheet.contains("SettingsPage(title: String(localized: \"Mitteilungen\"))"))
-        XCTAssertTrue(sheet.contains("notificationSettingsSection"))
+        let screenSwitch = try XCTUnwrap(host.range(of: "switch screen {"))
+        let screenStart = try XCTUnwrap(host.range(of: "case .notifications:",
+                                                  range: screenSwitch.upperBound..<host.endIndex))
+        let screenEnd = try XCTUnwrap(host.range(of: "case .personalization:",
+                                                range: screenStart.upperBound..<host.endIndex))
+        let screen = host[screenStart.lowerBound..<screenEnd.lowerBound]
+        XCTAssertTrue(screen.contains("SettingsPage { notificationSettingsSection }"))
+        XCTAssertFalse(host.contains(".sheet(isPresented: $showingNotificationSettings)"),
+                       "notification settings are a child of the existing settings stack")
+        let content = try source("Haiity/Views/ContentView.swift")
+        XCTAssertTrue(content.contains(".navigationDestination(for: MoreRoute.self, destination: moreDestination)"))
+        XCTAssertTrue(content.contains("screen: route == .notifications ? .notifications : .personalization"))
+        let appearStart = try XCTUnwrap(host.range(of: ".onAppear {"))
+        let appearEnd = try XCTUnwrap(host.range(of: ".task {",
+                                                range: appearStart.upperBound..<host.endIndex))
+        let appear = host[appearStart.lowerBound..<appearEnd.lowerBound]
+        for write in ["updateCloudPreferences", "store.summaryMinutes =", "store.weeklySummaryMinutes =",
+                      "store.motivationMinutes =", "Reminders.ensurePermission"] {
+            XCTAssertFalse(appear.contains(write), "opening notification settings must leave saved preferences and permissions alone")
+        }
         let start = try XCTUnwrap(more.range(of: "var notificationSettingsSection: some View"))
         let end = try XCTUnwrap(more.range(of: "var notificationOptOutRows: some View",
                                            range: start.upperBound..<more.endIndex))
@@ -882,22 +916,28 @@ final class FeedbackTests: XCTestCase {
         let more = try source("Haiity/Views/MoreView.swift")
         let appearanceSource = try source("Haiity/Views/MoreAppearance.swift")
         let behaviorSource = try source("Haiity/Views/MoreBehavior.swift")
-        for route in ["case archive, about, developer, appearance, habitBehavior, github",
-                      "case .appearance:", "case .habitBehavior:",
+        for route in ["case .appearance:", "case .habitBehavior:",
                       "Darstellung", "Verhalten", "case .calendar:"] {
             XCTAssertTrue(more.contains(route), route)
+        }
+        for (screen, title) in [(MoreScreen.main, String(localized: "Einstellungen")),
+                                (.notifications, String(localized: "Mitteilungen")),
+                                (.appearance, String(localized: "Darstellung")),
+                                (.calendar, String(localized: "Kalender & Erinnerungen"))] {
+            XCTAssertEqual(screen.title, title)
         }
 
         let body = try XCTUnwrap(more.range(of: "private var mainSettings: some View"))
         let end = try XCTUnwrap(more.range(of: "var accentColor: Color",
                                            range: body.upperBound..<more.endIndex))
         let main = more[body.lowerBound..<end.lowerBound]
-        // Direct settings first, followed by connections and data.
-        let ordered = ["\"open-appearance\"",
-                       "\"open-notifications\"", "\"open-habit-behavior\"",
+        // Everyday actions, appearance, connections, then data and Pro.
+        let ordered = ["\"open-notifications\"", "\"open-habit-behavior\"",
+                       "\"open-appearance\"",
                        "\"open-calendar\"", "moreGitHubRow", "moreAppleAccountRow",
+                       "\"cloud-sync-status\"",
                        "\"open-data-transfer\"",
-                       "\"open-archive\"", "\"open-about\"", "proSection"]
+                       "\"open-archive\"", "\"open-about\"", "\"open-feedback\"", "proSection"]
         var cursor = main.startIndex
         for marker in ordered {
             let range = try XCTUnwrap(main.range(of: marker, range: cursor..<main.endIndex), marker)

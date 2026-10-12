@@ -23,10 +23,22 @@ final class HabitCardProductTests: XCTestCase {
         return value
     }
 
-    private func card(_ habit: Habit, collapsed: Bool = false) -> HabitCard {
+    private func card(_ habit: Habit, collapsed: Bool = false,
+                      onDetails: (() -> Void)? = nil) -> HabitCard {
         HabitCard(habit: habit, collapsed: collapsed, showsMonthLabels: false,
                   onToggleDay: { _ in }, onBackfill: {}, onIncrement: {}, onClear: {},
-                  onMarkDone: {}, onEdit: {}, onArchive: {}, calendar: calendar)
+                  onMarkDone: {}, onEdit: {}, onArchive: {}, calendar: calendar,
+                  now: DayKey.date(from: today, calendar: calendar)!, onDetails: onDetails)
+    }
+
+    private func reminderRow(_ habit: Habit, now: Date) -> ReminderRow {
+        ReminderRow(habit: habit, onToggle: {}, onEdit: {}, onArchive: {}, onRevert: {},
+                    now: now, calendar: calendar)
+    }
+
+    private func compactRow(_ habit: Habit) -> SearchResultRow {
+        SearchResultRow(habit: habit, onEdit: {},
+                        now: DayKey.date(from: today, calendar: calendar)!, calendar: calendar)
     }
 
     private func snapshot(_ habit: Habit, width: CGFloat = 300) -> GridCalendar.Snapshot {
@@ -244,13 +256,213 @@ final class HabitCardProductTests: XCTestCase {
         XCTAssertTrue(first == nextDay, "UTC midnight must not replace a card still on the same local day")
     }
 
+    func testReminderRowsRefreshAtTheSameDayAppointmentBoundary() {
+        var reminder = habit()
+        reminder.itemType = .reminder
+        reminder.createdAt = today
+        reminder.timeMinutes = 10 * 60
+        let due = DayKey.date(from: today, calendar: calendar)!.addingTimeInterval(10 * 3600)
+        let before = reminderRow(reminder, now: due.addingTimeInterval(-60))
+        let approaching = reminderRow(reminder, now: due.addingTimeInterval(-1))
+        let atDue = reminderRow(reminder, now: due)
+        let after = reminderRow(reminder, now: due.addingTimeInterval(1))
+        XCTAssertEqual(ReminderOccurrenceEngine.state(for: reminder, now: before.now,
+                                                       calendar: calendar).overdueCount, 0)
+        XCTAssertEqual(ReminderOccurrenceEngine.state(for: reminder, now: atDue.now,
+                                                       calendar: calendar).overdueCount, 1)
+        XCTAssertTrue(before == approaching, "Ordinary clock ticks must not redraw unchanged rows")
+        XCTAssertFalse(before == atDue, "The occurrence becomes due without a day-key change")
+        XCTAssertFalse(atDue == after, "The overdue label changes just after the exact due time")
+        XCTAssertTrue(after == reminderRow(reminder, now: due.addingTimeInterval(60)))
+    }
+
+    func testReminderRowsRefreshWhenDisplayTimeChangesWithoutAnEngineStateChange() {
+        var reminder = habit()
+        reminder.itemType = .reminder
+        reminder.createdAt = today
+        let due = ReminderOccurrenceEngine.dueDate(day: today, reminder: reminder,
+                                                    calendar: calendar)!
+        let before = reminderRow(reminder, now: due.addingTimeInterval(-1))
+        let after = reminderRow(reminder, now: due.addingTimeInterval(1))
+        XCTAssertEqual(ReminderOccurrenceEngine.state(for: reminder, now: before.now, calendar: calendar),
+                       ReminderOccurrenceEngine.state(for: reminder, now: after.now, calendar: calendar),
+                       "An all-day reminder's completion boundary remains midnight")
+        XCTAssertFalse(before == after, "Equality must also track the rendered occurrence label")
+    }
+
+    func testReminderRowsCompareTheFullCalendarWithinTheSameDayAndTimeZone() {
+        let first = reminderRow(Habit(name: "Call", itemType: .reminder),
+                                now: DayKey.date(from: today, calendar: calendar)!)
+        var changed = first
+        changed.calendar.firstWeekday = first.calendar.firstWeekday == 1 ? 2 : 1
+        XCTAssertEqual(first.calendar.timeZone, changed.calendar.timeZone)
+        XCTAssertEqual(DayKey.key(for: first.now, calendar: first.calendar),
+                       DayKey.key(for: changed.now, calendar: changed.calendar))
+        XCTAssertFalse(first == changed)
+        changed = first
+        changed.calendar.locale = Locale(identifier: "de_DE")
+        XCTAssertFalse(first == changed, "Calendar locale changes must refresh the row")
+    }
+
+    func testReminderRowsRefreshWhenTheCheckedOccurrenceLeavesLocalToday() {
+        var reminder = habit()
+        reminder.itemType = .reminder
+        reminder.createdAt = today
+        reminder.log = [today: 1]
+        let midnight = DayKey.date(from: today, calendar: calendar)!.addingTimeInterval(24 * 3600)
+        let before = reminderRow(reminder, now: midnight.addingTimeInterval(-1))
+        let after = reminderRow(reminder, now: midnight)
+        XCTAssertTrue(ReminderOccurrenceEngine.state(for: reminder, now: before.now, calendar: calendar)
+            .isChecked(now: before.now, calendar: calendar))
+        XCTAssertFalse(ReminderOccurrenceEngine.state(for: reminder, now: after.now, calendar: calendar)
+            .isChecked(now: after.now, calendar: calendar))
+        XCTAssertFalse(before == after)
+        var compact = compactRow(reminder)
+        compact.now = before.now
+        var nextDay = compact
+        nextDay.now = after.now
+        XCTAssertFalse(compact == nextDay)
+    }
+
+    func testAddingDetailNavigationRefreshesEquatableCollectionEntries() {
+        let legacyCard = card(habit())
+        var detailCard = legacyCard
+        detailCard.onDetails = {}
+        XCTAssertFalse(legacyCard == detailCard, "The footer and name destination change together")
+        let legacyReminder = reminderRow(Habit(name: "Call", itemType: .reminder), now: legacyCard.now)
+        var detailReminder = legacyReminder
+        detailReminder.onDetails = {}
+        XCTAssertFalse(legacyReminder == detailReminder)
+        let legacyCompact = compactRow(habit())
+        var detailCompact = legacyCompact
+        detailCompact.onDetails = {}
+        XCTAssertFalse(legacyCompact == detailCompact)
+    }
+
+    func testCompactReminderClockRefreshDoesNotRedrawUnchangedTrackedHabits() {
+        var reminder = habit()
+        reminder.itemType = .reminder
+        reminder.createdAt = today
+        reminder.timeMinutes = 10 * 60
+        var before = compactRow(reminder)
+        before.now = before.now.addingTimeInterval(10 * 3600 - 1)
+        var after = before
+        after.now = before.now.addingTimeInterval(2)
+        XCTAssertFalse(before == after, "The shared Today/Search row must refresh a same-day clock transition")
+        var tracked = compactRow(habit())
+        let unchanged = tracked
+        tracked.now = tracked.now.addingTimeInterval(60)
+        XCTAssertTrue(tracked == unchanged)
+        tracked.calendar.firstWeekday = tracked.calendar.firstWeekday == 1 ? 2 : 1
+        XCTAssertFalse(tracked == unchanged)
+    }
+
+    func testCompactReminderShowsOtherOpenOccurrencesWithoutInflatingTheAction() {
+        var reminder = Habit(name: "Call", itemType: .reminder, timeMinutes: 10 * 60)
+        reminder.createdAt = "2026-10-05"
+        reminder.repeatsWhileIncomplete = true
+        var row = compactRow(reminder)
+        row.now = row.now.addingTimeInterval(12 * 3600)
+        let state = ReminderOccurrenceEngine.state(for: reminder, now: row.now, calendar: calendar)
+        XCTAssertEqual(state.overdueCount, 3)
+        let occurrence = state.actionable!
+        XCTAssertEqual(occurrence.day, "2026-10-05")
+        XCTAssertEqual(row.subtitle, ReminderOccurrenceText.label(for: occurrence, includesTime: true,
+            now: row.now, calendar: calendar) + " · +2 \(String(localized: "offen"))")
+    }
+
+    func testCompactNoStatusReflectsTheCurrentAnswerAndDisappearsOnUndo() {
+        var current = habit(kind: .yesNo)
+        current.log[today] = Habit.Answer.no
+        XCTAssertEqual(compactRow(current).todayAnswer, String(localized: "Heute: Nein"))
+        current.log[today] = Habit.Answer.yes
+        XCTAssertNil(compactRow(current).todayAnswer)
+        current.log[today] = nil
+        XCTAssertNil(compactRow(current).todayAnswer)
+    }
+
+    func testCompactFlexibleProgressCountsCompletedDaysInTheCurrentPeriod() {
+        for (frequency, earlierPeriod) in [(Recurrence.Frequency.weekly, "2026-10-01"),
+                                          (.monthly, "2026-09-30"), (.yearly, "2025-12-31")] {
+            for kind in [HabitKind.checkbox, .quantity, .yesNo] {
+                var current = Habit(name: "Goal", recurrence: Recurrence(frequency: frequency,
+                    timesPerPeriod: 3, target: kind == .quantity ? 3 : nil), kind: kind)
+                current.createdAt = "2025-01-01"
+                current.log = [earlierPeriod: 3, "2026-10-05": 3, "2026-10-06": 3,
+                               "2026-10-08": 3, "1900-01-01": 3]
+                if kind == .quantity { current.log[today] = 2 }
+                if kind == .yesNo {
+                    current.log["2026-10-05"] = Habit.Answer.yes
+                    current.log["2026-10-06"] = Habit.Answer.no
+                }
+                let completed = kind == .yesNo ? 1 : 2
+                let target = 3
+                XCTAssertEqual(compactRow(current).periodProgress,
+                               String(localized: "In dieser Periode: \(completed) von \(target) erledigt"))
+            }
+        }
+    }
+
+    func testCompactProgressDoesNotInventAQuotaForFixedOrInactiveItems() {
+        XCTAssertNil(compactRow(habit()).periodProgress)
+        let reminder = Habit(name: "Call", itemType: .reminder, recurrence: .times(3, per: .weekly))
+        XCTAssertNil(compactRow(reminder).periodProgress)
+        let future = Habit(name: "Goal", recurrence: .times(3, per: .weekly, start: "2026-10-08"))
+        XCTAssertNil(compactRow(future).periodProgress)
+        let ended = Habit(name: "Goal", recurrence: Recurrence(frequency: .weekly,
+            end: .on("2026-10-06"), timesPerPeriod: 3))
+        XCTAssertNil(compactRow(ended).periodProgress)
+        let inactive = Habit(name: "Goal", recurrence: .times(3, per: .weekly, interval: 2,
+                                                            start: "2026-09-28"))
+        XCTAssertNil(compactRow(inactive).periodProgress)
+    }
+
+    func testCompactFlexibleProgressKeepsExtraCompletedDaysVisible() {
+        var current = Habit(name: "Goal", recurrence: .times(1, per: .weekly))
+        current.createdAt = "2026-10-01"
+        current.log = ["2026-10-05": 1, "2026-10-06": 1]
+        let completed = 2, target = 1
+        XCTAssertEqual(compactRow(current).periodProgress,
+                       String(localized: "In dieser Periode: \(completed) von \(target) erledigt"))
+    }
+
+    func testCompactRowsGrowForAX5WithoutShrinkingTextOrPaintingOutsideTheirWidth() throws {
+        for style in AppDesignStyle.allCases {
+            var items = HabitKind.allCases.map { habit(kind: $0) }
+            items.append(Habit(name: "Call", itemType: .reminder))
+            for var current in items {
+                current.name = "Read a chapter and reflect before breakfast"
+                let content = compactRow(current)
+                    .environment(\.appearancePreferences, AppearancePreferences(designStyle: style))
+                    .environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.layoutDirection, .rightToLeft)
+                    .frame(width: 288)
+                    .fixedSize(horizontal: false, vertical: true)
+                let image = try render(content.padding(.horizontal, 8)
+                    .background(Color(uiColor: .magenta)), width: 304)
+                XCTAssertEqual(image.size.width, 304)
+                XCTAssertGreaterThan(image.size.height, Theme.Metrics.hit * 2,
+                                     "The identity and actions must stack and grow at AX5")
+                let data = pixels(image)
+                for y in 1..<(image.cgImage!.height - 1) {
+                    for x in [0, 1, 302, 303] {
+                        let offset = (y * image.cgImage!.width + x) * 4
+                        XCTAssertEqual(Int(data[offset]), 255, accuracy: 2)
+                        XCTAssertLessThan(data[offset + 1], 10, "Compact content must stay within its viewport")
+                        XCTAssertEqual(Int(data[offset + 2]), 255, accuracy: 2)
+                    }
+                }
+            }
+        }
+    }
+
     func testRenderedCardsStayBoundedAndAX5CanGrowWithoutHorizontalOverflow() throws {
         for style in AppDesignStyle.allCases {
             for collapsed in [false, true] {
                 for textSize in [DynamicTypeSize.large, .accessibility5] {
                     var current = habit()
                     current.name = "Read a chapter and reflect before breakfast"
-                    let content = card(current, collapsed: collapsed)
+                    let content = card(current, collapsed: collapsed, onDetails: {})
                         .environment(\.appearancePreferences, AppearancePreferences(designStyle: style))
                         .environment(\.dynamicTypeSize, textSize)
                         .transaction { $0.disablesAnimations = true }
@@ -260,7 +472,9 @@ final class HabitCardProductTests: XCTestCase {
                     let image = try render(content.background(Color.white)
                         .padding(.horizontal, 8).background(Color(uiColor: .magenta)), width: 304)
                     XCTAssertEqual(image.size.width, 304)
-                    XCTAssertGreaterThan(image.size.height, 180)
+                    XCTAssertGreaterThan(image.size.height, Theme.Metrics.hit
+                        + CGFloat(GridCalendar.rows) * GridCell.size
+                        + CGFloat(GridCalendar.rows - 1) * GridCell.gap)
                     if textSize == .large { XCTAssertLessThan(image.size.height, 330) }
                     let data = pixels(image)
                     for y in 0..<image.cgImage!.height {
