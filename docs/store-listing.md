@@ -272,7 +272,7 @@ IN-APP PURCHASE
 com.aiity.haiity.pro is a NON-CONSUMABLE, ONE-TIME purchase (no subscription, no auto-renewal), with Family Sharing disabled. Free tier: up to 3 ACTIVE habits (archived habits do not count). The limit applies only when CREATING a habit — existing data always stays fully usable, nothing is locked away retroactively. Pro unlocks unlimited habits, custom colors, setting the app icon from a color wheel (it snaps to the nearest of the 18 bundled icons — all 18 are tappable for free), the calendar mirror and the full statistics screen. The paywall can be reached from six places: creating a fourth habit, the "hAiity Pro" row in Settings, Settings > custom color, Settings > icon color wheel, Settings > habits in calendar, and the statistics screen. A "Restore purchases" button is on the paywall. The entitlement is cached locally in the app group; there is no receipt server.
 
 ANALYTICS
-None. No third-party SDKs, no tracking, no advertising identifiers. The privacy manifest declares NSPrivacyTracking=false and an empty NSPrivacyCollectedDataTypes in both the app and the widget extension.
+None. No analytics or advertising SDKs, no tracking, no advertising identifiers. The privacy manifest declares NSPrivacyTracking=false and an empty NSPrivacyCollectedDataTypes in both the app and the widget extension.
 
 OPTIONAL GITHUB CONNECTION
 More → About & Privacy → GitHub can connect a GitHub account with Device Flow. The app requests no repository scope. Requests go directly from the device to github.com and api.github.com. The OAuth token stays in this-device Keychain; the contribution cache stays in Application Support. Disconnect deletes both. There is no GitHub SDK and no hAiity server in the path. A reviewer can skip this feature entirely; the rest of the app does not depend on it.
@@ -341,17 +341,38 @@ erfasst.
 **Tracking:** „Verwendest du Daten zur Nachverfolgung?“ → **Nein**. Kein
 App-Tracking-Transparency-Prompt, `NSPrivacyTrackingDomains` ist leer.
 
-**Drittanbieter-SDKs:** keine. Die App hat außer XcodeGen (Build-Zeit) keine
-Abhängigkeiten; zur Laufzeit nur Apple-Frameworks (SwiftUI, CloudKit,
-EventKit, AppIntents, WidgetKit, ActivityKit, UserNotifications,
-AuthenticationServices, StoreKit).
+**Drittanbieter-SDKs:** keine Analyse-, Werbe- oder Tracking-SDKs. Die lokale
+Modellausführung nutzt `mlx-swift`, `mlx-swift-lm`, `swift-transformers` und
+deren in `Package.resolved` festgehaltene Abhängigkeiten. Daneben verwendet
+die App Apple-Systemframeworks; XcodeGen ist ein reines Build-Werkzeug.
 
 **Privacy-Manifest:** `Haiity/PrivacyInfo.xcprivacy` liegt in **beiden**
 Bundles (App und Widget-Extension — Apple prüft jedes Bundle einzeln,
 ITMS-91053) und deklariert `NSPrivacyTracking=false`, leere
-`NSPrivacyCollectedDataTypes` sowie eine einzige API-Nutzung:
-`FileTimestamp` mit Grund `C617.1` (Änderungsdatum der eigenen `data.json`,
-um nach einem Widget-Schreibvorgang neu zu laden).
+`NSPrivacyCollectedDataTypes` und leere `NSPrivacyTrackingDomains`. Der
+Abgleich der App-, Widget- und eingebundenen gemeinsamen Quellen mit
+[Apples Liste der Required-Reason-APIs](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype)
+am 18. Oktober 2026 ergibt diese Nutzungen:
+
+| API-Kategorie | Gründe | Tatsächliche Verwendung |
+| --- | --- | --- |
+| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | `HabitStore.signature()` liest das Änderungsdatum der eigenen App-Group-Datei `data.json`, um Widget-Schreibvorgänge zu erkennen. `Diagnostics` liest die Metadaten derselben Datei. Die Dateigrößenabfragen von `LocalModelService` betreffen eigene Modelldateien. |
+| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1`, `1C8F.1` | `UserDefaults.standard` speichert app-eigene Einstellungen; `UserDefaults(suiteName: SharedStorage.appGroup)` teilt ausschließlich Einstellungen innerhalb der eigenen App Group zwischen App und Extension. Keine fremden Domains, keine MDM-Konfiguration. |
+| `NSPrivacyAccessedAPICategoryDiskSpace` | `E174.1` | `LocalModelService.availableBytes` prüft `volumeAvailableCapacityForImportantUsageKey`. `canFit(_:)` verhindert den Modelldownload bei Platzmangel und zeigt einen Fehler. Der freie Speicher wird weder übertragen noch als Speicheranzeige angeboten. Dieser Pfad ist App-only; beide Bundles erhalten weiterhin dieselbe gemeinsame Manifestdatei. |
+
+`StartupSplashView` und der nur im Debug-Build aktive `FrameProbe` verwenden
+`CACurrentMediaTime()` für Animationen bzw. Bildabstände. Laut
+[Core-Animation-Dokumentation](https://developer.apple.com/documentation/quartzcore/cacurrentmediatime())
+beruht der Rückgabewert auf `mach_absolute_time()`. Apples veröffentlichte
+Required-Reason-Liste nennt für `SystemBootTime` jedoch nur `systemUptime`
+und `mach_absolute_time()` selbst. Diese werden weder in den App-/Widget-
+Quellen noch im eingebundenen Produktcode der gepinnten Pakete aufgerufen;
+deshalb wird diese Kategorie nicht vorsorglich deklariert. Ebenfalls nicht
+genutzt und nicht deklariert: `ActiveKeyboards` / `activeInputModes`.
+
+`LocalModelCatalogueTests.testRequiredReasonManifestIsShippedInAppAndWidget`
+prüft die tatsächlichen `.app`- und eingebetteten `.appex`-Ressourcen auf
+genau diese Kategorien und Gründe sowie unveränderte Tracking-/Erhebungswerte.
 
 ---
 

@@ -34,6 +34,25 @@
 				<string>C617.1</string>
 			</array>
 		</dict>
+		<dict>
+			<!-- Eigene Einstellungen und geteilte App-Group-Defaults fuer App und Widget. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+				<string>1C8F.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- LocalModelService verweigert den Download, wenn der Platz fuer die Modelldateien fehlt. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

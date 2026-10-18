@@ -120,6 +120,34 @@ final class LocalModelCatalogueTests: XCTestCase {
         }
     }
 
+    func testRequiredReasonManifestIsShippedInAppAndWidget() throws {
+        let widget = try XCTUnwrap(Bundle.main.builtInPlugInsURL)
+            .appendingPathComponent("HaiityWidget.appex", isDirectory: true)
+        let expected: [String: Set<String>] = [
+            "NSPrivacyAccessedAPICategoryFileTimestamp": ["C617.1"],
+            "NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1", "1C8F.1"],
+            "NSPrivacyAccessedAPICategoryDiskSpace": ["E174.1"],
+        ]
+        for bundle in [Bundle.main.bundleURL, widget] {
+            let data = try Data(contentsOf: bundle.appendingPathComponent("PrivacyInfo.xcprivacy"))
+            let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any])
+            let entries = try XCTUnwrap(manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+            var actual: [String: Set<String>] = [:]
+            for entry in entries {
+                let category = try XCTUnwrap(entry["NSPrivacyAccessedAPIType"] as? String)
+                let reasons = try XCTUnwrap(entry["NSPrivacyAccessedAPITypeReasons"] as? [String])
+                XCTAssertNil(actual[category], "duplicate category in \(bundle.lastPathComponent)")
+                XCTAssertEqual(reasons.count, Set(reasons).count)
+                actual[category] = Set(reasons)
+            }
+            XCTAssertEqual(actual, expected, bundle.lastPathComponent)
+            XCTAssertEqual(manifest["NSPrivacyTracking"] as? Bool, false)
+            XCTAssertEqual(manifest["NSPrivacyTrackingDomains"] as? [String], [])
+            XCTAssertEqual((manifest["NSPrivacyCollectedDataTypes"] as? [[String: Any]])?.count, 0)
+        }
+    }
+
     func testMultilingualModelsDeclareALanguageSubsetWithoutClaimingAllUILocales() {
         let multilingual = LocalModelCatalogue.all.filter { $0.scope == .multilingual }
         XCTAssertFalse(multilingual.isEmpty)
